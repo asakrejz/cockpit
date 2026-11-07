@@ -1,12 +1,13 @@
-# 🦀 Rust Playground
+# Rust Playground
 
-Ein Storybook-ähnlicher Playground für Web-Bausteine, geschrieben in **Rust** und
-kompiliert zu **WebAssembly**. Jeder Baustein bekommt im Playground einen eigenen Reiter.
-Das Aussehen kommt aus dem Design **„Baukasten"** (iOS 26 / Liquid Glass) und wird
-über Design-Tokens gesteuert.
+Ein Lernprojekt: **Web-Bausteine in Rust, kompiliert zu WebAssembly.** Jeder Baustein
+bekommt im Playground einen eigenen Reiter, ähnlich wie bei Storybook. So lernst du Rust
+an kleinen, sichtbaren Beispielen und baust nebenbei eine Bibliothek, die du in anderen
+Projekten wiederverwenden kannst.
 
-- UI-Framework: [Leptos](https://leptos.dev) (Client-Side Rendering)
-- Build-Tool: [Trunk](https://trunkrs.dev) (Rust → WASM → fertige Website)
+- UI-Framework: [Leptos](https://leptos.dev) (läuft komplett im Browser)
+- Build-Tool: [Trunk](https://trunkrs.dev) (Rust → WASM → fertige Seite)
+- Aussehen: Design **„Baukasten"** (iOS 26 / Liquid Glass), gesteuert über Design-Tokens
 
 ## Schnellstart
 
@@ -15,15 +16,41 @@ Das Aussehen kommt aus dem Design **„Baukasten"** (iOS 26 / Liquid Glass) und 
 rustup target add wasm32-unknown-unknown   # passiert dank rust-toolchain.toml auch automatisch
 cargo install trunk --locked
 
-# Entwicklungsserver mit Live-Reload auf http://localhost:8080
-trunk serve --open
-
-# Tests (laufen nativ, ohne Browser)
-cargo test
-
-# Produktions-Build nach ./dist
-trunk build --release
+trunk serve --open     # Entwicklungsserver mit Live-Reload auf http://localhost:8080
+cargo test             # Tests laufen nativ, ohne Browser
+trunk build --release  # fertige Seite nach ./dist
 ```
+
+Beim Lernen hilft: `trunk serve` laufen lassen, eine Datei ändern, Speichern – der Browser
+lädt neu, und der Compiler sagt dir sofort, was nicht passt.
+
+## Lernpfad
+
+Die Konzepte bauen aufeinander auf. Jeder Schritt nennt die Stelle im Code, an der du es
+siehst, und die Story im Playground, in der es sichtbar wird.
+
+| # | Konzept | Im Code | Im Playground |
+|---|---------|---------|---------------|
+| 1 | **Komponenten und Props**: eine Funktion mit `#[component]`, Parameter sind Props | `features/ui/src/text.rs` (`Text`) | Foundations |
+| 2 | **Enums statt Strings**: `enum`, `impl`, `#[derive(Default)]`, `#[default]`, `const ALL` | `features/ui/src/button.rs` (`ButtonStyle`) | Button |
+| 3 | **`Option` und `then_some`**: ein Attribut nur manchmal setzen | `button.rs`, Funktion `attr()` und `data-role` | Button |
+| 4 | **Children**: Inhalt an eine Komponente übergeben | `features/ui/src/layout.rs` (`VStack`) | Stacks & Grids |
+| 5 | **Signals**: reaktiver Zustand, `RwSignal`, `.get()` / `.set()` | `features/ui/src/controls.rs` (`Toggle`) | Toggle · Picker · … |
+| 6 | **Closures mit `move`**: warum Signals in `move \|\| …` stehen | überall, z. B. `data-role=role` in `button.rs` | Button |
+| 7 | **Abgeleitete Signals**: `Signal::derive` | `app/src/stories/button.rs` | Button (Live-Controls) |
+| 8 | **Callbacks**: Ereignisse nach oben melden | `button.rs` (`on_click`) | Button |
+| 9 | **Listen rendern**: Iteratoren und `collect_view()` | `controls.rs` (`Segmented`) | Toggle · Picker · … |
+| 10 | **Bedingt rendern**: `<Show>` und `match` mit `.into_any()` | `sheet.rs`, `list.rs` (`ListRow`) | iPhone-Beispiel |
+| 11 | **`'static` und Konstanten**: `&'static [(&str, &str)]`, `const`, `static` | `controls.rs`, `app/src/stories/mod.rs` | alle |
+| 12 | **Funktionszeiger**: `render: fn() -> AnyView` in einer Registry | `app/src/stories/mod.rs` (`Story`) | die Navigation selbst |
+| 13 | **`Option` und `Result` verketten**: `.ok().flatten().is_some_and(…)` | `app/src/main.rs` (`system_theme`) | Hell/Dunkel-Schalter |
+| 14 | **Ereignisse aus dem Browser**: `window_event_listener`, Aufräumen mit `on_cleanup` | `app/src/main.rs` | Navigation per URL (`#button`) |
+| 15 | **Globaler Zähler**: `AtomicU32` für eindeutige IDs | `features/ui/src/field.rs` | TextField & Search |
+| 16 | **Tests**: `#[cfg(test)]`, `include_str!` liest das CSS zur Compile-Zeit | `features/ui/src/lib.rs` | `cargo test` |
+| 17 | **Workspace und Crates**: gemeinsame Versionen, ein Crate pro Baustein | `Cargo.toml`, `features/ui/Cargo.toml` | – |
+
+Gute Übung für jeden Schritt: Ändere etwas absichtlich falsch (z. B. `ButtonStyle::Glas`
+statt `Glass`) und lies die Compiler-Meldung. Rust erklärt Fehler meist sehr genau.
 
 ## Projektstruktur
 
@@ -32,110 +59,92 @@ trunk build --release
 ├── Cargo.toml                  # Workspace: gemeinsame Versionen & Mitglieder
 ├── Trunk.toml                  # Trunk-Konfiguration (Einstieg: app/index.html)
 ├── styles/
-│   └── tokens.css              # Design-Tokens – für das GANZE Projekt (siehe unten)
+│   └── tokens.css              # Design-Tokens, für das ganze Projekt
 ├── features/
-│   └── ui/                     # Wiederverwendbare Bausteine (Crate `feature-ui`)
+│   └── ui/                     # wiederverwendbare Bausteine (Crate `feature-ui`)
 │       ├── components.css      # Komponenten-CSS, 1:1 aus dem Design
-│       ├── extras.css          # kleine Rust-spezifische Ergänzungen
-│       └── src/                # Leptos-Komponenten, eine Datei pro Baustein-Gruppe
-└── app/                        # Der Playground ("Storybook-Hülle")
-    ├── index.html              # bindet WASM + CSS ein
-    ├── style.css               # Layout der Hülle – nur Tokens, keine festen Farben
+│       ├── extras.css          # kleine Ergänzungen für Rust
+│       └── src/                # Leptos-Komponenten, eine Datei pro Gruppe
+└── app/                        # der Playground
+    ├── index.html              # bindet WASM und CSS ein
+    ├── style.css               # Layout der Hülle (nur Tokens, keine festen Farben)
     └── src/
-        ├── main.rs             # Navigation, Theme-Schalter, Rendering der aktiven Story
+        ├── main.rs             # Navigation, Theme-Schalter, aktive Story
         └── stories/            # eine Datei pro Story + Registry in mod.rs
 ```
 
-### Die Idee dahinter
+### Baustein und Story
 
-| Begriff     | Wo?                         | Weiß vom Playground? |
-|-------------|-----------------------------|----------------------|
-| **Baustein** | `features/<name>/` (Crate) | ❌ nein – voll wiederverwendbar |
-| **Story**   | `app/src/stories/<name>.rs` | ✅ ja – zeigt den Baustein mit Beispiel-Props |
+| Begriff      | Wo?                         | Kennt den Playground? |
+|--------------|-----------------------------|-----------------------|
+| **Baustein** | `features/<name>/` (Crate)  | nein, daher wiederverwendbar |
+| **Story**    | `app/src/stories/<name>.rs` | ja, zeigt den Baustein mit Beispielwerten |
 
-Ein Feature-Crate hängt nur von `leptos` ab. In einem anderen Leptos-Projekt:
+Ein Baustein-Crate hängt nur von `leptos` ab. In einem anderen Projekt bindest du ihn
+per Pfad ein:
 
 ```toml
 [dependencies]
-feature-ui = { git = "https://github.com/asakrejz/rust-playground" }
+feature-ui = { path = "../rust-playground/features/ui" }
 ```
 
-…und `styles/tokens.css`, `features/ui/components.css`, `features/ui/extras.css` einbinden
-(in dieser Reihenfolge).
+Dazu `styles/tokens.css`, `features/ui/components.css` und `features/ui/extras.css`
+einbinden, in dieser Reihenfolge.
 
 ## Design-Tokens
 
 `styles/tokens.css` hat drei Ebenen:
 
-| Ebene | Präfix | Inhalt | Beispiel |
-|-------|--------|--------|----------|
-| Primitive | `--ref-*` | Rohwerte | `--ref-space-16`, `--ref-radius-12` |
-| Semantisch | `--sys-*` | SwiftUI-Rollen, theme-aufgelöst | `--sys-color-label`, `--sys-type-headline` |
-| Komponente | `--comp-*` | pro Baustein | `--comp-button-height-large` |
+| Ebene      | Präfix    | Inhalt                          | Beispiel |
+|------------|-----------|---------------------------------|----------|
+| Primitive  | `--ref-*` | Rohwerte                        | `--ref-space-16` |
+| Semantisch | `--sys-*` | Rollen, abhängig vom Theme      | `--sys-color-label` |
+| Komponente | `--comp-*`| pro Baustein                    | `--comp-button-height-large` |
 
-Eigenes CSS soll **nur `--sys-*` (und bei Bedarf `--ref-*`)** benutzen – dann funktionieren
-Hell/Dunkel, Akzentfarbe und „Kontrast erhöhen" automatisch. Siehe `app/style.css`.
+Eigenes CSS benutzt nur `--sys-*` (bei Bedarf `--ref-*`). Dann funktionieren Hell/Dunkel,
+Akzentfarbe und „Kontrast erhöhen" automatisch. Alle Werte siehst du in der Story
+**Foundations**, und links unten im Playground stellst du Theme, Akzentfarbe und Kontrast um.
 
-Modi werden über Attribute gesetzt, am besten über die `Root`-Komponente:
-
-```rust
-view! { <Root theme=Theme::Dark tint=Tint::Pink contrast=Contrast::High>{/* … */}</Root> }
-```
-
-Die Tokens werden am `data-theme`-Element neu aufgelöst. Der Playground zeigt alle
-Werte in der Story **Foundations** und hat links unten Schalter für Theme, Akzentfarbe
-und Kontrast.
-
-> **Design aktualisieren:** `styles/tokens.css` und `features/ui/components.css` sind
-> unverändert aus dem Design übernommen. Bei Änderungen im Design einfach die Dateien
-> ersetzen. Ergänzungen gehören in `extras.css`.
+> **Design aktualisieren:** `tokens.css` und `components.css` sind unverändert aus dem
+> Design übernommen. Bei Änderungen ersetzt du einfach die Dateien. Eigene Ergänzungen
+> gehören in `extras.css`.
 
 ## Bausteine (`feature-ui`)
 
-Die API spiegelt die SwiftUI-Modifier des Designs. Statt Strings gibt es Enums –
-Tippfehler fängt der Compiler ab.
+Die API spiegelt die SwiftUI-Namen des Designs:
 
 ```rust
 view! {
     <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large>"Weiter"</Button>
-    <Button shape=ButtonShape::Circle aria_label="Hinzufügen"><Icon path=icons::PLUS /></Button>
     <Toggle checked=wifi />
-    <Segmented options=VIEWS value=view_mode aria_label="Ansicht" />
     <TextField label="E-Mail" value=mail input_type="email" error=invalid />
 }
 ```
 
-| Gruppe | Komponenten |
-|--------|-------------|
-| Grundlagen | `Root`, `Text`, `Icon` (+ `icons::*`), `Glass` |
-| Layout | `VStack`, `HStack`, `ZStack`, `Spacer`, `Grid`, `Split`, `Container`, `PageSection` |
-| Controls | `Button`, `Link`, `Badge`, `Toggle`, `Segmented`, `Slider`, `Stepper` |
-| Eingabe | `TextField`, `SearchField` |
-| Inhalt | `List`, `ListSection`, `ListRow`, `ListButtonRow`, `Card`, `CardBody`, `Media` |
+| Gruppe     | Komponenten |
+|------------|-------------|
+| Grundlagen | `Root`, `Text`, `Icon`, `Glass` |
+| Layout     | `VStack`, `HStack`, `ZStack`, `Spacer`, `Grid`, `Split`, `Container`, `PageSection` |
+| Controls   | `Button`, `Link`, `Badge`, `Toggle`, `Segmented`, `Slider`, `Stepper` |
+| Eingabe    | `TextField`, `SearchField` |
+| Inhalt     | `List`, `ListSection`, `ListRow`, `ListButtonRow`, `Card`, `CardBody`, `Media` |
 | Navigation | `Navbar`, `IosNav`, `TabBar`, `Pager`, `Footer` |
-| Overlay | `Sheet` |
+| Overlay    | `Sheet` |
 
-Controls sind an Signals gebunden (`RwSignal`). `variant`, `size`, `shape`, `destructive`
-und `disabled` des Buttons akzeptieren feste Werte **oder** Signals – siehe „Live-Controls"
-in der Button-Story.
+## Eigene Story hinzufügen
 
-Die Enums werden gegen `components.css` getestet (`cargo test`): Passt eine ID nicht mehr zu
-einem CSS-Selektor, schlägt der Test fehl.
-
-## Eine neue Story hinzufügen
-
-1. Datei `app/src/stories/mein_baustein.rs` anlegen (Vorlage: `link_badge.rs`):
+1. Datei `app/src/stories/mein_baustein.rs` anlegen, Vorlage ist `link_badge.rs`:
    ```rust
    use feature_ui::*;
    use leptos::prelude::*;
    use super::{Story, common::Section};
 
    pub const STORY: Story = Story {
-       id: "mein-baustein",            // erscheint in der URL: #mein-baustein
+       id: "mein-baustein",       // erscheint in der URL: #mein-baustein
        title: "Mein Baustein",
-       group: "Controls",              // Überschrift in der Navigation
+       group: "Controls",         // Überschrift in der Navigation
        description: "Was zeigt die Story?",
-       api: ".ui-… · data-…",          // Kurzreferenz
+       api: ".ui-… · data-…",     // Kurzreferenz
        render,
    };
 
@@ -143,20 +152,20 @@ einem CSS-Selektor, schlägt der Test fehl.
        view! { <Section title="Beispiel">{/* … */}</Section> }.into_any()
    }
    ```
-2. In `app/src/stories/mod.rs`: `mod mein_baustein;` und `mein_baustein::STORY` in `STORIES` eintragen.
+2. In `app/src/stories/mod.rs` `mod mein_baustein;` ergänzen und `mein_baustein::STORY`
+   in `STORIES` eintragen.
 
-## Einen neuen Baustein hinzufügen
-
-Passt er zu `feature-ui`, ergänze eine Komponente dort (Klasse + `data-*`-Attribute aus dem
-Design). Soll er ein eigenes Crate werden:
+## Eigenen Baustein als neues Crate
 
 1. `cargo new --lib features/mein-baustein --name feature-mein-baustein`
-2. In dessen `Cargo.toml`: `leptos = { workspace = true }` (durch `members = ["app", "features/*"]` ist es automatisch im Workspace)
-3. Root-`Cargo.toml` → `[workspace.dependencies]`: `feature-mein-baustein = { path = "features/mein-baustein" }`, dann in `app/Cargo.toml` eintragen.
-4. Eigenes CSS in `app/index.html` per `<link data-trunk rel="css" …>` einbinden, **nach** den Tokens.
+2. In dessen `Cargo.toml`: `leptos = { workspace = true }`. Durch `members = ["app", "features/*"]`
+   gehört es automatisch zum Workspace.
+3. Im Root-`Cargo.toml` unter `[workspace.dependencies]` eintragen:
+   `feature-mein-baustein = { path = "features/mein-baustein" }`, dann in `app/Cargo.toml` verwenden.
+4. Eigenes CSS in `app/index.html` per `<link data-trunk rel="css" …>` einbinden, nach den Tokens.
 
 ## Schrift
 
 Das Design nutzt SF Pro (auf Apple-Geräten vorhanden) und fällt sonst auf **Inter** zurück.
-`app/index.html` lädt Inter von Google Fonts. Wer keine externe Verbindung möchte, entfernt
-die drei `<link>`-Zeilen – dann greift der System-Font.
+`app/index.html` lädt Inter von Google Fonts. Ohne externe Verbindung entfernst du die drei
+`<link>`-Zeilen, dann greift der System-Font.
