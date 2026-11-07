@@ -155,14 +155,6 @@ Design). Soll er ein eigenes Crate werden:
 3. Root-`Cargo.toml` → `[workspace.dependencies]`: `feature-mein-baustein = { path = "features/mein-baustein" }`, dann in `app/Cargo.toml` eintragen.
 4. Eigenes CSS in `app/index.html` per `<link data-trunk rel="css" …>` einbinden, **nach** den Tokens.
 
-## Veröffentlichung (GitHub Pages)
-
-Bei jedem Push auf `main` baut `.github/workflows/pages.yml` die Seite und veröffentlicht sie unter
-`https://<user>.github.io/<repo>/`. Einmalig nötig: im Repo unter
-**Settings → Pages → Build and deployment → Source** den Wert **GitHub Actions** wählen.
-
-Lokal testen wie auf Pages: `trunk build --release --public-url /rust-playground/`.
-
 ## Schrift
 
 Das Design nutzt SF Pro (auf Apple-Geräten vorhanden) und fällt sonst auf **Inter** zurück.
