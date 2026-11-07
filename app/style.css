@@ -1,0 +1,157 @@
+:root {
+  --bg: #ffffff;
+  --bg-muted: #f5f5f4;
+  --fg: #1c1917;
+  --fg-muted: #57534e;
+  --border: #e7e5e4;
+  --accent: #c2410c;
+  --accent-bg: #ffedd5;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1917;
+    --bg-muted: #292524;
+    --fg: #f5f5f4;
+    --fg-muted: #a8a29e;
+    --border: #44403c;
+    --accent: #fb923c;
+    --accent-bg: #431407;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+button,
+input {
+  font: inherit;
+  color: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+}
+
+button {
+  cursor: pointer;
+  background: var(--bg-muted);
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+/* ---- Layout ---- */
+
+.layout {
+  display: grid;
+  grid-template-columns: 14rem 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: var(--bg-muted);
+  border-right: 1px solid var(--border);
+  padding: 1rem;
+}
+
+.sidebar__title {
+  font-size: 1.1rem;
+  margin: 0 0 1rem;
+}
+
+.sidebar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sidebar a {
+  display: block;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  color: var(--fg-muted);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sidebar a:hover {
+  color: var(--fg);
+}
+
+.sidebar a.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.stage {
+  padding: 2rem;
+  min-width: 0;
+}
+
+.stage__header h2 {
+  display: inline;
+  margin: 0 0.75rem 0 0;
+}
+
+.stage__crate {
+  font-size: 0.8rem;
+  color: var(--fg-muted);
+  background: var(--bg-muted);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+.stage__header p {
+  color: var(--fg-muted);
+}
+
+.stage__canvas {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 1.5rem;
+}
+
+.stage__canvas h3 {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+  margin: 1.5rem 0 0.5rem;
+}
+
+.stage__canvas h3:first-child {
+  margin-top: 0;
+}
+
+/* Auf schmalen Bildschirmen wird die Sidebar zur Reiter-Leiste oben. */
+@media (max-width: 640px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .sidebar ul {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+  .stage {
+    padding: 1rem;
+  }
+}

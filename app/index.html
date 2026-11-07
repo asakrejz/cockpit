@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rust Playground</title>
+
+    <!-- Trunk baut die App (Rust → WASM) und bindet sie automatisch ein. -->
+    <link data-trunk rel="rust" href="Cargo.toml" data-bin="playground" />
+
+    <!-- Globale Styles der Playground-Hülle -->
+    <link data-trunk rel="css" href="style.css" />
+
+    <!-- Jedes Feature bringt sein eigenes CSS mit -->
+    <link data-trunk rel="css" href="../features/counter/style.css" />
+    <link data-trunk rel="css" href="../features/temperature/style.css" />
+    <link data-trunk rel="css" href="../features/todo/style.css" />
+  </head>
+  <body></body>
+</html>

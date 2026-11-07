@@ -1,0 +1,25 @@
+[workspace]
+resolver = "3"
+members = ["app", "features/*"]
+
+[workspace.package]
+edition = "2024"
+version = "0.1.0"
+license = "MIT"
+
+# Gemeinsame Versionen für alle Crates im Workspace.
+# In den einzelnen Crates reicht dann `leptos = { workspace = true }`.
+[workspace.dependencies]
+leptos = "0.8"
+console_error_panic_hook = "0.1"
+web-sys = "0.3"
+
+# Feature-Crates – so kann die App (oder jedes andere Projekt) sie einbinden.
+feature-counter = { path = "features/counter" }
+feature-temperature = { path = "features/temperature" }
+feature-todo = { path = "features/todo" }
+
+[profile.release]
+opt-level = "z"   # klein statt schnell – für WASM meist die bessere Wahl
+lto = true
+codegen-units = 1
