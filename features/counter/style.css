@@ -1,0 +1,11 @@
+.counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.counter__value {
+  min-width: 3ch;
+  text-align: center;
+  font-size: 1.5rem;
+  font-variant-numeric: tabular-nums;
+}

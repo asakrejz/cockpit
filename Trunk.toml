@@ -1,0 +1,6 @@
+[build]
+target = "app/index.html"
+dist = "dist"
+
+[serve]
+port = 8080

@@ -1,0 +1,15 @@
+[package]
+name = "playground"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+# `csr` = Client-Side Rendering: die App läuft komplett im Browser als WASM.
+leptos = { workspace = true, features = ["csr"] }
+console_error_panic_hook = { workspace = true }
+web-sys = { workspace = true, features = ["Location"] }
+
+feature-counter = { workspace = true }
+feature-temperature = { workspace = true }
+feature-todo = { workspace = true }

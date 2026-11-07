@@ -1,0 +1,40 @@
+.todo {
+  max-width: 28rem;
+}
+.todo__form {
+  display: flex;
+  gap: 0.5rem;
+}
+.todo__form input {
+  flex: 1;
+  min-width: 0;
+}
+.todo__list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+.todo__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+.todo__item label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.todo__item--done span {
+  text-decoration: line-through;
+  opacity: 0.55;
+}
+.todo__remove {
+  padding: 0.15rem 0.5rem;
+}
+.todo__summary {
+  font-size: 0.9rem;
+  opacity: 0.7;
+}
