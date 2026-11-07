@@ -1,95 +1,224 @@
 use leptos::{ev, prelude::*};
 
-use crate::Size;
+use crate::{Icon, icons};
 
+/// `.buttonStyle(…)` – `data-style`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum ButtonVariant {
+pub enum ButtonStyle {
+    GlassProminent,
+    Glass,
+    BorderedProminent,
     #[default]
-    Primary,
-    Secondary,
-    Outline,
-    Ghost,
-    Danger,
+    Bordered,
+    Borderless,
+    Plain,
 }
 
-impl ButtonVariant {
-    pub const ALL: [ButtonVariant; 5] = [
-        ButtonVariant::Primary,
-        ButtonVariant::Secondary,
-        ButtonVariant::Outline,
-        ButtonVariant::Ghost,
-        ButtonVariant::Danger,
+impl ButtonStyle {
+    pub const ALL: [ButtonStyle; 6] = [
+        ButtonStyle::GlassProminent,
+        ButtonStyle::Glass,
+        ButtonStyle::BorderedProminent,
+        ButtonStyle::Bordered,
+        ButtonStyle::Borderless,
+        ButtonStyle::Plain,
     ];
 
-    pub fn name(self) -> &'static str {
+    pub fn id(self) -> &'static str {
         match self {
-            ButtonVariant::Primary => "primary",
-            ButtonVariant::Secondary => "secondary",
-            ButtonVariant::Outline => "outline",
-            ButtonVariant::Ghost => "ghost",
-            ButtonVariant::Danger => "danger",
+            ButtonStyle::GlassProminent => "glass-prominent",
+            ButtonStyle::Glass => "glass",
+            ButtonStyle::BorderedProminent => "bordered-prominent",
+            ButtonStyle::Bordered => "bordered",
+            ButtonStyle::Borderless => "borderless",
+            ButtonStyle::Plain => "plain",
         }
     }
 
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|v| v.name() == name)
+    /// Schreibweise wie in SwiftUI.
+    pub fn swift_name(self) -> &'static str {
+        match self {
+            ButtonStyle::GlassProminent => ".glassProminent",
+            ButtonStyle::Glass => ".glass",
+            ButtonStyle::BorderedProminent => ".borderedProminent",
+            ButtonStyle::Bordered => ".bordered",
+            ButtonStyle::Borderless => ".borderless",
+            ButtonStyle::Plain => ".plain",
+        }
     }
 }
 
-/// Ein Button mit Varianten, Größen und Zuständen.
+/// `.controlSize(…)` – `data-control-size`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ControlSize {
+    Mini,
+    Small,
+    #[default]
+    Regular,
+    Large,
+    ExtraLarge,
+}
+
+impl ControlSize {
+    pub const ALL: [ControlSize; 5] = [
+        ControlSize::Mini,
+        ControlSize::Small,
+        ControlSize::Regular,
+        ControlSize::Large,
+        ControlSize::ExtraLarge,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            ControlSize::Mini => "mini",
+            ControlSize::Small => "small",
+            ControlSize::Regular => "regular",
+            ControlSize::Large => "large",
+            ControlSize::ExtraLarge => "extra-large",
+        }
+    }
+
+    /// `None` = Standardgröße, Attribut weglassen.
+    pub fn attr(self) -> Option<&'static str> {
+        (self != ControlSize::Regular).then(|| self.id())
+    }
+}
+
+/// Form des Buttons – `data-shape`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ButtonShape {
+    /// Kapsel (Standard).
+    #[default]
+    Capsule,
+    Rounded,
+    Circle,
+}
+
+impl ButtonShape {
+    pub const ALL: [ButtonShape; 3] = [
+        ButtonShape::Capsule,
+        ButtonShape::Rounded,
+        ButtonShape::Circle,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            ButtonShape::Capsule => "capsule",
+            ButtonShape::Rounded => "rounded",
+            ButtonShape::Circle => "circle",
+        }
+    }
+
+    pub fn attr(self) -> Option<&'static str> {
+        (self != ButtonShape::Capsule).then(|| self.id())
+    }
+}
+
+/// Button. Mit `href` wird daraus ein Link im Button-Look (`<a>`).
 ///
-/// `variant`, `size`, `disabled` und `loading` akzeptieren sowohl feste Werte
-/// als auch Signals – so lassen sie sich zur Laufzeit ändern.
+/// `variant`, `size`, `shape` und `disabled` akzeptieren feste Werte oder Signals.
 ///
 /// ```ignore
-/// view! { <Button variant=ButtonVariant::Danger size=Size::Lg on_click=...>"Löschen"</Button> }
+/// view! {
+///     <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large>"Weiter"</Button>
+///     <Button shape=ButtonShape::Circle aria_label="Hinzufügen"><Icon path=icons::PLUS /></Button>
+/// }
 /// ```
 #[component]
 pub fn Button(
-    #[prop(into, default = ButtonVariant::Primary.into())] variant: Signal<ButtonVariant>,
-    #[prop(into, default = Size::Md.into())] size: Signal<Size>,
-    /// Deaktiviert den Button.
+    #[prop(into, default = ButtonStyle::Bordered.into())] variant: Signal<ButtonStyle>,
+    #[prop(into, default = ControlSize::Regular.into())] size: Signal<ControlSize>,
+    #[prop(into, default = ButtonShape::Capsule.into())] shape: Signal<ButtonShape>,
+    /// `role: .destructive`
     #[prop(into, default = false.into())]
-    disabled: Signal<bool>,
-    /// Zeigt einen Spinner und blockiert Klicks.
-    #[prop(into, default = false.into())]
-    loading: Signal<bool>,
-    /// Button füllt die volle Breite.
-    #[prop(optional)]
-    full_width: bool,
+    destructive: Signal<bool>,
+    #[prop(into, default = false.into())] disabled: Signal<bool>,
+    #[prop(optional, into)] href: Option<String>,
+    /// Pflicht für Buttons ohne Text (z. B. nur Icon).
+    #[prop(optional, into)]
+    aria_label: Option<String>,
     #[prop(optional, into)] on_click: Option<Callback<ev::MouseEvent>>,
     children: Children,
 ) -> impl IntoView {
-    let class = move || {
-        let mut class = format!(
-            "ui-button ui-button--{} ui-button--{}",
-            variant.get().name(),
-            size.get().name()
-        );
-        if full_width {
-            class.push_str(" ui-button--block");
+    let role = move || destructive.get().then_some("destructive");
+    let click = move |ev: ev::MouseEvent| {
+        if let Some(cb) = on_click {
+            cb.run(ev);
         }
-        if loading.get() {
-            class.push_str(" ui-button--loading");
-        }
-        class
     };
-    let is_disabled = move || disabled.get() || loading.get();
 
-    view! {
-        <button
-            type="button"
-            class=class
-            disabled=is_disabled
-            aria-busy=move || loading.get().to_string()
-            on:click=move |ev| {
-                if let Some(cb) = on_click {
-                    cb.run(ev);
-                }
-            }
-        >
-            <span class="ui-button__spinner" aria-hidden="true" hidden=move || !loading.get()></span>
-            {children()}
-        </button>
+    match href {
+        Some(href) => view! {
+            <a
+                class="ui-button"
+                href=href
+                data-style=move || variant.get().id()
+                data-control-size=move || size.get().attr()
+                data-shape=move || shape.get().attr()
+                data-role=role
+                aria-label=aria_label
+                aria-disabled=move || disabled.get().then_some("true")
+                on:click=click
+            >
+                {children()}
+            </a>
+        }
+        .into_any(),
+        None => view! {
+            <button
+                class="ui-button"
+                type="button"
+                data-style=move || variant.get().id()
+                data-control-size=move || size.get().attr()
+                data-shape=move || shape.get().attr()
+                data-role=role
+                aria-label=aria_label
+                disabled=move || disabled.get()
+                on:click=click
+            >
+                {children()}
+            </button>
+        }
+        .into_any(),
     }
+}
+
+/// Link. Mit `chevron` erscheint ein Pfeil, der beim Hover nach rechts rückt.
+#[component]
+pub fn Link(
+    #[prop(into)] href: String,
+    #[prop(optional)] chevron: bool,
+    children: Children,
+) -> impl IntoView {
+    view! {
+        <a class="ui-link" href=href data-variant=chevron.then_some("chevron")>
+            {children()}
+            {chevron.then(|| view! { <Icon path=icons::CHEVRON_RIGHT size=14 stroke=2.6 /> })}
+        </a>
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum BadgeVariant {
+    /// Akzentfarbe.
+    #[default]
+    Tint,
+    Neutral,
+    /// Rundes Zählerschild (z. B. ungelesene Mitteilungen).
+    Count,
+}
+
+impl BadgeVariant {
+    pub fn attr(self) -> Option<&'static str> {
+        match self {
+            BadgeVariant::Tint => None,
+            BadgeVariant::Neutral => Some("neutral"),
+            BadgeVariant::Count => Some("count"),
+        }
+    }
+}
+
+#[component]
+pub fn Badge(#[prop(optional)] variant: BadgeVariant, children: Children) -> impl IntoView {
+    view! { <span class="ui-badge" data-variant=variant.attr()>{children()}</span> }
 }

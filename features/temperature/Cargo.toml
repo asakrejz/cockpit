@@ -1,8 +1,0 @@
-[package]
-name = "feature-temperature"
-edition.workspace = true
-version.workspace = true
-license.workspace = true
-
-[dependencies]
-leptos = { workspace = true }

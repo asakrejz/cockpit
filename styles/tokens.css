@@ -1,0 +1,456 @@
+/* =====================================================================
+   BAUKASTEN · tokens.css · v0.2 · iOS 26 / SwiftUI · Liquid Glass
+   Drei Ebenen:
+     1. --ref-*   Primitive   Rohwerte (System-Farben in 4 Varianten:
+                              light · dark · light-hc · dark-hc)
+     2. --sys-*   Semantisch  SwiftUI-Rollen: label, secondaryLabel,
+                              systemBackground, tint, Text Styles …
+     3. --comp-*  Komponente  pro Baustein, liest NUR --sys-*
+   Modi über Attribute (am <html> oder einem beliebigen Container):
+     data-theme="light|dark"      ≙ colorScheme
+     data-contrast="high"         ≙ Kontrast erhöhen (Accessibility)
+   Ohne data-theme folgt :root prefers-color-scheme.
+   ===================================================================== */
+
+/* ---------- 1. PRIMITIVE ------------------------------------------ */
+:root {
+  /* System-Farben  ·  light / dark / light-hc / dark-hc */
+  --ref-red: #ff3b30;      --ref-red-dark: #ff453a;      --ref-red-hc: #d70015;      --ref-red-dark-hc: #ff6961;
+  --ref-orange: #ff9500;   --ref-orange-dark: #ff9f0a;   --ref-orange-hc: #c93400;   --ref-orange-dark-hc: #ffb340;
+  --ref-yellow: #ffcc00;   --ref-yellow-dark: #ffd60a;   --ref-yellow-hc: #b25000;   --ref-yellow-dark-hc: #ffd426;
+  --ref-green: #34c759;    --ref-green-dark: #30d158;    --ref-green-hc: #248a3d;    --ref-green-dark-hc: #30db5b;
+  --ref-mint: #00c7be;     --ref-mint-dark: #63e6e2;     --ref-mint-hc: #0c817b;     --ref-mint-dark-hc: #66d4cf;
+  --ref-teal: #30b0c7;     --ref-teal-dark: #40c8e0;     --ref-teal-hc: #008299;     --ref-teal-dark-hc: #5de6ff;
+  --ref-cyan: #32ade6;     --ref-cyan-dark: #64d2ff;     --ref-cyan-hc: #0071a4;     --ref-cyan-dark-hc: #70d7ff;
+  --ref-blue: #007aff;     --ref-blue-dark: #0a84ff;     --ref-blue-hc: #0040dd;     --ref-blue-dark-hc: #409cff;
+  --ref-indigo: #5856d6;   --ref-indigo-dark: #5e5ce6;   --ref-indigo-hc: #3634a3;   --ref-indigo-dark-hc: #7d7aff;
+  --ref-purple: #af52de;   --ref-purple-dark: #bf5af2;   --ref-purple-hc: #8944ab;   --ref-purple-dark-hc: #da8fff;
+  --ref-pink: #ff2d55;     --ref-pink-dark: #ff375f;     --ref-pink-hc: #d30f45;     --ref-pink-dark-hc: #ff6482;
+  --ref-brown: #a2845e;    --ref-brown-dark: #ac8e68;    --ref-brown-hc: #7f6545;    --ref-brown-dark-hc: #b59469;
+
+  /* Grau-Stufen  ·  light / dark */
+  --ref-gray: #8e8e93;     --ref-gray-dark: #8e8e93;
+  --ref-gray2: #aeaeb2;    --ref-gray2-dark: #636366;
+  --ref-gray3: #c7c7cc;    --ref-gray3-dark: #48484a;
+  --ref-gray4: #d1d1d6;    --ref-gray4-dark: #3a3a3c;
+  --ref-gray5: #e5e5ea;    --ref-gray5-dark: #2c2c2e;
+  --ref-gray6: #f2f2f7;    --ref-gray6-dark: #1c1c1e;
+  --ref-white: #ffffff;
+  --ref-black: #000000;
+
+  /* Schrift */
+  --ref-font-text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --ref-font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --ref-font-rounded: ui-rounded, "SF Pro Rounded", -apple-system, "Inter", sans-serif;
+  --ref-font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  --ref-weight-regular: 400;
+  --ref-weight-medium: 500;
+  --ref-weight-semibold: 600;
+  --ref-weight-bold: 700;
+
+  /* Abstände – Punkte wie in SwiftUI */
+  --ref-space-0: 0;
+  --ref-space-2: 2px;
+  --ref-space-4: 4px;
+  --ref-space-6: 6px;
+  --ref-space-8: 8px;
+  --ref-space-10: 10px;
+  --ref-space-12: 12px;
+  --ref-space-16: 16px;
+  --ref-space-20: 20px;
+  --ref-space-24: 24px;
+  --ref-space-32: 32px;
+  --ref-space-40: 40px;
+  --ref-space-48: 48px;
+  --ref-space-64: 64px;
+  --ref-space-80: 80px;
+  --ref-space-96: 96px;
+
+  /* Radien (iOS 26: größer, konzentrisch) */
+  --ref-radius-6: 6px;
+  --ref-radius-8: 8px;
+  --ref-radius-12: 12px;
+  --ref-radius-16: 16px;
+  --ref-radius-20: 20px;
+  --ref-radius-26: 26px;
+  --ref-radius-34: 34px;
+  --ref-radius-full: 9999px;
+
+  /* Schatten */
+  --ref-shadow-1: 0 1px 3px rgb(0 0 0 / 0.08);
+  --ref-shadow-2: 0 4px 16px rgb(0 0 0 / 0.10);
+  --ref-shadow-3: 0 12px 40px rgb(0 0 0 / 0.16);
+  --ref-shadow-thumb: 0 2px 8px rgb(0 0 0 / 0.14), 0 0 0 0.5px rgb(0 0 0 / 0.04);
+
+  /* Bewegung – SwiftUI-Animationen angenähert */
+  --ref-duration-150: 150ms;
+  --ref-duration-250: 250ms;
+  --ref-duration-350: 350ms;
+  --ref-duration-500: 500ms;
+  --ref-ease-default: cubic-bezier(0.25, 0.1, 0.25, 1);   /* .default */
+  --ref-ease-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);      /* .smooth  */
+  --ref-ease-snappy: cubic-bezier(0.3, 1.15, 0.4, 1);     /* .snappy  */
+  --ref-ease-bouncy: cubic-bezier(0.34, 1.5, 0.64, 1);    /* .bouncy  */
+
+  /* Breakpoints (Size Classes) – nur Doku, in Rust spiegeln */
+  --ref-bp-compact: 640px;
+  --ref-bp-regular: 1024px;
+  --ref-bp-wide: 1440px;
+
+  /* Ebenen */
+  --ref-z-nav: 300;
+  --ref-z-sheet: 500;
+  --ref-z-alert: 600;
+}
+
+/* ---------- 2. SEMANTISCH + 3. KOMPONENTE (light) ---------------- */
+:root,
+[data-theme] {
+  color-scheme: light;
+
+  /* System-Farben (theme-aufgelöst) */
+  --sys-color-red: var(--ref-red);
+  --sys-color-orange: var(--ref-orange);
+  --sys-color-yellow: var(--ref-yellow);
+  --sys-color-green: var(--ref-green);
+  --sys-color-mint: var(--ref-mint);
+  --sys-color-teal: var(--ref-teal);
+  --sys-color-cyan: var(--ref-cyan);
+  --sys-color-blue: var(--ref-blue);
+  --sys-color-indigo: var(--ref-indigo);
+  --sys-color-purple: var(--ref-purple);
+  --sys-color-pink: var(--ref-pink);
+  --sys-color-brown: var(--ref-brown);
+  --sys-color-gray: var(--ref-gray);
+  --sys-color-gray2: var(--ref-gray2);
+  --sys-color-gray3: var(--ref-gray3);
+  --sys-color-gray4: var(--ref-gray4);
+  --sys-color-gray5: var(--ref-gray5);
+  --sys-color-gray6: var(--ref-gray6);
+
+  /* Tint (accentColor) – eine Variable, Rest abgeleitet */
+  --sys-color-tint: var(--sys-color-blue);
+  --sys-color-tint-pressed: color-mix(in oklab, var(--sys-color-tint), black 15%);
+  --sys-color-tint-fill: color-mix(in oklab, var(--sys-color-tint) 15%, transparent);
+  --sys-color-on-tint: var(--ref-white);
+  --sys-color-destructive: var(--sys-color-red);
+  --sys-color-link: var(--sys-color-tint);
+
+  /* Label */
+  --sys-color-label: var(--ref-black);
+  --sys-color-secondary-label: rgb(60 60 67 / 0.6);
+  --sys-color-tertiary-label: rgb(60 60 67 / 0.3);
+  --sys-color-quaternary-label: rgb(60 60 67 / 0.18);
+  --sys-color-placeholder: var(--sys-color-tertiary-label);
+
+  /* Fill */
+  --sys-color-fill: rgb(120 120 128 / 0.2);
+  --sys-color-secondary-fill: rgb(120 120 128 / 0.16);
+  --sys-color-tertiary-fill: rgb(118 118 128 / 0.12);
+  --sys-color-quaternary-fill: rgb(116 116 128 / 0.08);
+
+  /* Background */
+  --sys-color-background: var(--ref-white);
+  --sys-color-secondary-background: var(--ref-gray6);
+  --sys-color-tertiary-background: var(--ref-white);
+  --sys-color-grouped-background: var(--ref-gray6);
+  --sys-color-secondary-grouped-background: var(--ref-white);
+  --sys-color-tertiary-grouped-background: var(--ref-gray6);
+
+  /* Separator */
+  --sys-color-separator: rgb(60 60 67 / 0.29);
+  --sys-color-opaque-separator: #c6c6c8;
+
+  /* Liquid Glass */
+  --sys-glass-bg: rgb(255 255 255 / 0.55);
+  --sys-glass-bg-clear: rgb(255 255 255 / 0.18);
+  --sys-glass-filter: blur(14px) saturate(180%);
+  --sys-glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.85), inset 0 0 0 0.5px rgb(255 255 255 / 0.6), inset 0 -1px 1px rgb(0 0 0 / 0.04);
+  --sys-glass-shadow: 0 8px 28px rgb(0 0 0 / 0.12), 0 1px 2px rgb(0 0 0 / 0.06);
+
+  /* Material (klassisch, für Flächen hinter Text) */
+  --sys-material-ultra-thin: rgb(255 255 255 / 0.35);
+  --sys-material-thin: rgb(255 255 255 / 0.55);
+  --sys-material-regular: rgb(255 255 255 / 0.72);
+  --sys-material-thick: rgb(255 255 255 / 0.86);
+  --sys-material-filter: blur(24px) saturate(180%);
+
+  /* Text Styles (Dynamic Type „Large“ = Standard) */
+  --sys-font: var(--ref-font-text);
+  --sys-font-display: var(--ref-font-display);
+  --sys-font-rounded: var(--ref-font-rounded);
+  --sys-font-mono: var(--ref-font-mono);
+
+  --sys-type-large-title: var(--ref-weight-regular) 34px/41px var(--sys-font-display);
+  --sys-tracking-large-title: 0.37px;
+  --sys-type-title1: var(--ref-weight-regular) 28px/34px var(--sys-font-display);
+  --sys-tracking-title1: 0.36px;
+  --sys-type-title2: var(--ref-weight-regular) 22px/28px var(--sys-font-display);
+  --sys-tracking-title2: 0.35px;
+  --sys-type-title3: var(--ref-weight-regular) 20px/25px var(--sys-font-display);
+  --sys-tracking-title3: 0.38px;
+  --sys-type-headline: var(--ref-weight-semibold) 17px/22px var(--sys-font);
+  --sys-tracking-headline: -0.43px;
+  --sys-type-body: var(--ref-weight-regular) 17px/22px var(--sys-font);
+  --sys-tracking-body: -0.43px;
+  --sys-type-callout: var(--ref-weight-regular) 16px/21px var(--sys-font);
+  --sys-tracking-callout: -0.31px;
+  --sys-type-subheadline: var(--ref-weight-regular) 15px/20px var(--sys-font);
+  --sys-tracking-subheadline: -0.23px;
+  --sys-type-footnote: var(--ref-weight-regular) 13px/18px var(--sys-font);
+  --sys-tracking-footnote: -0.08px;
+  --sys-type-caption1: var(--ref-weight-regular) 12px/16px var(--sys-font);
+  --sys-tracking-caption1: 0;
+  --sys-type-caption2: var(--ref-weight-regular) 11px/13px var(--sys-font);
+  --sys-tracking-caption2: 0.07px;
+  /* Web-Erweiterung (kein iOS-Text-Style) */
+  --sys-type-display: var(--ref-weight-bold) 56px/60px var(--sys-font-display);
+  --sys-tracking-display: -0.6px;
+  --sys-type-hero: var(--ref-weight-bold) 80px/84px var(--sys-font-display);
+  --sys-tracking-hero: -1.2px;
+
+  /* Abstände & Größen */
+  --sys-space-stack: var(--ref-space-8);           /* VStack-Standard */
+  --sys-space-layout-margin: var(--ref-space-20);  /* readable margins */
+  --sys-space-row-x: var(--ref-space-16);
+  --sys-space-row-y: var(--ref-space-12);
+  --sys-space-section: var(--ref-space-32);        /* List-Sektionen */
+  --sys-space-page-section: var(--ref-space-96);   /* Web-Sektionen */
+  --sys-space-gutter: var(--ref-space-20);
+  --sys-size-hit: 44px;                            /* min. Trefferfläche */
+  --sys-size-row: 52px;
+  --sys-container-max: 1200px;
+  --sys-container-readable: 680px;
+
+  /* Radien */
+  --sys-radius-control: var(--ref-radius-full);    /* Kapsel */
+  --sys-radius-field: var(--ref-radius-12);
+  --sys-radius-container: var(--ref-radius-26);    /* Listen, Karten */
+  --sys-radius-media: var(--ref-radius-20);
+  --sys-radius-sheet: var(--ref-radius-34);
+  --sys-radius-icon: var(--ref-radius-8);
+
+  /* Fokus */
+  --sys-focus-ring: 0 0 0 3px color-mix(in oklab, var(--sys-color-tint) 55%, transparent);
+
+  /* Bewegung */
+  --sys-motion-snappy: var(--ref-duration-250) var(--ref-ease-snappy);
+  --sys-motion-smooth: var(--ref-duration-350) var(--ref-ease-smooth);
+  --sys-motion-bouncy: var(--ref-duration-500) var(--ref-ease-bouncy);
+  --sys-motion-fade: var(--ref-duration-150) var(--ref-ease-default);
+
+  /* ---------- 3. KOMPONENTE ---------------------------------------- */
+
+  /* Button · ControlSize */
+  --comp-button-radius: var(--sys-radius-control);
+  --comp-button-height-mini: 24px;
+  --comp-button-height-small: 30px;
+  --comp-button-height-regular: 36px;
+  --comp-button-height-large: 50px;
+  --comp-button-height-xl: 58px;
+  --comp-button-pad-mini: 10px;
+  --comp-button-pad-small: 12px;
+  --comp-button-pad-regular: 16px;
+  --comp-button-pad-large: 22px;
+  --comp-button-pad-xl: 28px;
+  --comp-button-prominent-bg: var(--sys-color-tint);
+  --comp-button-prominent-fg: var(--sys-color-on-tint);
+  --comp-button-bordered-bg: var(--sys-color-tint-fill);
+  --comp-button-bordered-fg: var(--sys-color-tint);
+  --comp-button-glass-fg: var(--sys-color-label);
+
+  /* Toggle (iOS 26 Maße) */
+  --comp-toggle-width: 64px;
+  --comp-toggle-height: 28px;
+  --comp-toggle-thumb-w: 38px;
+  --comp-toggle-thumb-h: 24px;
+  --comp-toggle-off: var(--sys-color-fill);
+  --comp-toggle-on: var(--sys-color-green);
+  --comp-toggle-thumb: var(--ref-white);
+
+  /* Picker .segmented */
+  --comp-segmented-height: 36px;
+  --comp-segmented-bg: var(--sys-color-tertiary-fill);
+  --comp-segmented-selected: var(--ref-white);
+
+  /* Slider */
+  --comp-slider-track: 6px;
+  --comp-slider-track-bg: var(--sys-color-fill);
+  --comp-slider-fill: var(--sys-color-tint);
+  --comp-slider-thumb-w: 38px;
+  --comp-slider-thumb-h: 24px;
+
+  /* TextField */
+  --comp-field-height: 44px;
+  --comp-field-bg: var(--sys-color-tertiary-fill);
+  --comp-field-radius: var(--sys-radius-field);
+
+  /* List .insetGrouped */
+  --comp-list-bg: var(--sys-color-secondary-grouped-background);
+  --comp-list-radius: var(--sys-radius-container);
+  --comp-list-row-min: var(--sys-size-row);
+  --comp-list-separator: var(--sys-color-separator);
+  --comp-list-header: var(--sys-color-secondary-label);
+  --comp-list-icon-size: 30px;
+
+  /* Card / GroupBox */
+  --comp-card-bg: var(--sys-color-secondary-grouped-background);
+  --comp-card-radius: var(--sys-radius-container);
+  --comp-card-pad: var(--ref-space-20);
+
+  /* Navigation / Toolbar */
+  --comp-nav-height: 52px;
+  --comp-tabbar-height: 62px;
+  --comp-tabbar-item-active: var(--sys-color-tint);
+  --comp-tabbar-item: var(--sys-color-label);
+
+  /* Carousel (TabView .page) */
+  --comp-page-dot: 8px;
+  --comp-page-dot-bg: var(--sys-color-tertiary-label);
+  --comp-page-dot-active: var(--sys-color-label);
+}
+
+/* ---------- DARK --------------------------------------------------- */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --sys-color-red: var(--ref-red-dark);
+  --sys-color-orange: var(--ref-orange-dark);
+  --sys-color-yellow: var(--ref-yellow-dark);
+  --sys-color-green: var(--ref-green-dark);
+  --sys-color-mint: var(--ref-mint-dark);
+  --sys-color-teal: var(--ref-teal-dark);
+  --sys-color-cyan: var(--ref-cyan-dark);
+  --sys-color-blue: var(--ref-blue-dark);
+  --sys-color-indigo: var(--ref-indigo-dark);
+  --sys-color-purple: var(--ref-purple-dark);
+  --sys-color-pink: var(--ref-pink-dark);
+  --sys-color-brown: var(--ref-brown-dark);
+  --sys-color-gray2: var(--ref-gray2-dark);
+  --sys-color-gray3: var(--ref-gray3-dark);
+  --sys-color-gray4: var(--ref-gray4-dark);
+  --sys-color-gray5: var(--ref-gray5-dark);
+  --sys-color-gray6: var(--ref-gray6-dark);
+
+  --sys-color-label: var(--ref-white);
+  --sys-color-secondary-label: rgb(235 235 245 / 0.6);
+  --sys-color-tertiary-label: rgb(235 235 245 / 0.3);
+  --sys-color-quaternary-label: rgb(235 235 245 / 0.16);
+
+  --sys-color-fill: rgb(120 120 128 / 0.36);
+  --sys-color-secondary-fill: rgb(120 120 128 / 0.32);
+  --sys-color-tertiary-fill: rgb(118 118 128 / 0.24);
+  --sys-color-quaternary-fill: rgb(118 118 128 / 0.18);
+
+  --sys-color-background: var(--ref-black);
+  --sys-color-secondary-background: var(--ref-gray6-dark);
+  --sys-color-tertiary-background: var(--ref-gray5-dark);
+  --sys-color-grouped-background: var(--ref-black);
+  --sys-color-secondary-grouped-background: var(--ref-gray6-dark);
+  --sys-color-tertiary-grouped-background: var(--ref-gray5-dark);
+
+  --sys-color-separator: rgb(84 84 88 / 0.6);
+  --sys-color-opaque-separator: #38383a;
+
+  --sys-glass-bg: rgb(44 44 48 / 0.55);
+  --sys-glass-bg-clear: rgb(44 44 48 / 0.2);
+  --sys-glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 0 0 0.5px rgb(255 255 255 / 0.12), inset 0 -1px 1px rgb(0 0 0 / 0.3);
+  --sys-glass-shadow: 0 8px 28px rgb(0 0 0 / 0.45);
+  --sys-material-ultra-thin: rgb(30 30 32 / 0.35);
+  --sys-material-thin: rgb(30 30 32 / 0.55);
+  --sys-material-regular: rgb(30 30 32 / 0.72);
+  --sys-material-thick: rgb(30 30 32 / 0.86);
+
+  --comp-segmented-selected: var(--ref-gray3-dark);
+  --comp-toggle-thumb: var(--ref-white);
+}
+
+/* ---------- KONTRAST ERHÖHEN (Accessibility) ---------------------- */
+[data-contrast="high"] {
+  --sys-color-red: var(--ref-red-hc);
+  --sys-color-orange: var(--ref-orange-hc);
+  --sys-color-yellow: var(--ref-yellow-hc);
+  --sys-color-green: var(--ref-green-hc);
+  --sys-color-mint: var(--ref-mint-hc);
+  --sys-color-teal: var(--ref-teal-hc);
+  --sys-color-cyan: var(--ref-cyan-hc);
+  --sys-color-blue: var(--ref-blue-hc);
+  --sys-color-indigo: var(--ref-indigo-hc);
+  --sys-color-purple: var(--ref-purple-hc);
+  --sys-color-pink: var(--ref-pink-hc);
+  --sys-color-brown: var(--ref-brown-hc);
+  --sys-color-secondary-label: rgb(60 60 67 / 0.85);
+  --sys-color-separator: rgb(60 60 67 / 0.6);
+  --sys-glass-bg: rgb(255 255 255 / 0.9);
+}
+[data-theme="dark"][data-contrast="high"] {
+  --sys-color-red: var(--ref-red-dark-hc);
+  --sys-color-orange: var(--ref-orange-dark-hc);
+  --sys-color-yellow: var(--ref-yellow-dark-hc);
+  --sys-color-green: var(--ref-green-dark-hc);
+  --sys-color-mint: var(--ref-mint-dark-hc);
+  --sys-color-teal: var(--ref-teal-dark-hc);
+  --sys-color-cyan: var(--ref-cyan-dark-hc);
+  --sys-color-blue: var(--ref-blue-dark-hc);
+  --sys-color-indigo: var(--ref-indigo-dark-hc);
+  --sys-color-purple: var(--ref-purple-dark-hc);
+  --sys-color-pink: var(--ref-pink-dark-hc);
+  --sys-color-brown: var(--ref-brown-dark-hc);
+  --sys-color-secondary-label: rgb(235 235 245 / 0.8);
+  --sys-color-separator: rgb(84 84 88 / 0.9);
+  --sys-glass-bg: rgb(44 44 48 / 0.92);
+}
+
+/* ---------- Automatisch, wenn kein Attribut gesetzt --------------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    color-scheme: dark;
+    --sys-color-red: var(--ref-red-dark); --sys-color-orange: var(--ref-orange-dark); --sys-color-yellow: var(--ref-yellow-dark);
+    --sys-color-green: var(--ref-green-dark); --sys-color-mint: var(--ref-mint-dark); --sys-color-teal: var(--ref-teal-dark);
+    --sys-color-cyan: var(--ref-cyan-dark); --sys-color-blue: var(--ref-blue-dark); --sys-color-indigo: var(--ref-indigo-dark);
+    --sys-color-purple: var(--ref-purple-dark); --sys-color-pink: var(--ref-pink-dark); --sys-color-brown: var(--ref-brown-dark);
+    --sys-color-gray2: var(--ref-gray2-dark); --sys-color-gray3: var(--ref-gray3-dark); --sys-color-gray4: var(--ref-gray4-dark);
+    --sys-color-gray5: var(--ref-gray5-dark); --sys-color-gray6: var(--ref-gray6-dark);
+    --sys-color-label: var(--ref-white); --sys-color-secondary-label: rgb(235 235 245 / 0.6);
+    --sys-color-tertiary-label: rgb(235 235 245 / 0.3); --sys-color-quaternary-label: rgb(235 235 245 / 0.16);
+    --sys-color-fill: rgb(120 120 128 / 0.36); --sys-color-secondary-fill: rgb(120 120 128 / 0.32);
+    --sys-color-tertiary-fill: rgb(118 118 128 / 0.24); --sys-color-quaternary-fill: rgb(118 118 128 / 0.18);
+    --sys-color-background: var(--ref-black); --sys-color-secondary-background: var(--ref-gray6-dark);
+    --sys-color-tertiary-background: var(--ref-gray5-dark); --sys-color-grouped-background: var(--ref-black);
+    --sys-color-secondary-grouped-background: var(--ref-gray6-dark); --sys-color-tertiary-grouped-background: var(--ref-gray5-dark);
+    --sys-color-separator: rgb(84 84 88 / 0.6); --sys-color-opaque-separator: #38383a;
+    --sys-glass-bg: rgb(44 44 48 / 0.55); --sys-glass-shadow: 0 8px 28px rgb(0 0 0 / 0.45);
+    --sys-glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.18), inset 0 0 0 0.5px rgb(255 255 255 / 0.12), inset 0 -1px 1px rgb(0 0 0 / 0.3);
+    --comp-segmented-selected: var(--ref-gray3-dark);
+  }
+}
+
+/* ---------- Size Classes: Web-Größen skalieren ------------------- */
+@media (max-width: 1024px) {
+  :root, [data-theme] {
+    --sys-type-hero: var(--ref-weight-bold) 56px/60px var(--sys-font-display);
+    --sys-type-display: var(--ref-weight-bold) 40px/44px var(--sys-font-display);
+    --sys-space-page-section: var(--ref-space-80);
+  }
+}
+@media (max-width: 640px) {
+  :root, [data-theme] {
+    --sys-type-hero: var(--ref-weight-bold) 40px/44px var(--sys-font-display);
+    --sys-type-display: var(--ref-weight-bold) 34px/41px var(--sys-font-display);
+    --sys-space-layout-margin: var(--ref-space-16);
+    --sys-space-page-section: var(--ref-space-64);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root, [data-theme] {
+    --sys-motion-snappy: 0ms linear;
+    --sys-motion-smooth: 0ms linear;
+    --sys-motion-bouncy: 0ms linear;
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  :root, [data-theme] {
+    --sys-glass-filter: none;
+    --sys-material-filter: none;
+  }
+}
