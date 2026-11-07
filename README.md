@@ -39,7 +39,8 @@ trunk build --release
 └── features/               # Wiederverwendbare Features – je ein Crate
     ├── counter/
     ├── temperature/
-    └── todo/
+    ├── todo/
+    └── ui/                 # Button, Link, Image (mit Varianten per Props)
 ```
 
 ### Die Idee dahinter
@@ -98,8 +99,26 @@ Beispiel: ein Feature `clock`.
 
 Fertig – `trunk serve` zeigt den neuen Reiter, erreichbar unter `#clock`.
 
+## UI-Bausteine (`feature-ui`)
+
+`Button`, `Link` und `Image` werden über typisierte Props gesteuert – Enums statt
+Strings, Tippfehler fängt der Compiler ab:
+
+```rust
+view! {
+    <Button variant=ButtonVariant::Danger size=Size::Lg loading=is_saving>"Löschen"</Button>
+    <Link href="https://rust-lang.org" external=true underline=LinkUnderline::Always>"Rust"</Link>
+    <Image src="/avatar.png" alt="Avatar" width=96 ratio="1" radius=ImageRadius::Full />
+}
+```
+
+Zustände wie `variant`, `size`, `disabled` und `loading` des Buttons akzeptieren auch
+Signals und lassen sich daher zur Laufzeit ändern (siehe "Live-Controls" in der Button-Story).
+Mehrere Stories dürfen auf dasselbe Feature-Crate zeigen.
+
 ## Lernpfad durch die Beispiele
 
 1. **Counter** – Komponenten, Props mit Defaults, `signal()`
 2. **Temperatur** – Eingabefelder, Events, reine Logik + Unit-Tests
 3. **Todo-Liste** – eigenes Datenmodell, `RwSignal`, Formulare, Listen mit `<For>`
+4. **Button / Link / Image** – Enums als Props, `Signal`-Props, `Callback`, `Show`, Fehlerbehandlung bei Bildern

@@ -7,6 +7,9 @@
 mod counter;
 mod temperature;
 mod todo;
+mod ui_button;
+mod ui_image;
+mod ui_link;
 
 use leptos::prelude::AnyView;
 
@@ -23,7 +26,14 @@ pub struct Story {
 }
 
 /// 👉 Neue Stories hier eintragen – die Reihenfolge bestimmt die Navigation.
-pub static STORIES: &[Story] = &[counter::STORY, temperature::STORY, todo::STORY];
+pub static STORIES: &[Story] = &[
+    counter::STORY,
+    temperature::STORY,
+    todo::STORY,
+    ui_button::STORY,
+    ui_link::STORY,
+    ui_image::STORY,
+];
 
 pub fn find(id: &str) -> Option<&'static Story> {
     STORIES.iter().find(|s| s.id == id)

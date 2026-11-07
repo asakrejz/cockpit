@@ -357,6 +357,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "feature-ui"
+version = "0.1.0"
+dependencies = [
+ "leptos",
+]
+
+[[package]]
 name = "form_urlencoded"
 version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -962,6 +969,7 @@ dependencies = [
  "feature-counter",
  "feature-temperature",
  "feature-todo",
+ "feature-ui",
  "leptos",
  "web-sys",
 ]
