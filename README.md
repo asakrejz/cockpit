@@ -24,6 +24,14 @@ cargo test
 trunk build --release
 ```
 
+## Veröffentlichung (GitHub Pages)
+
+Bei jedem Push auf `main` baut `.github/workflows/pages.yml` die Seite und veröffentlicht sie unter
+`https://<user>.github.io/<repo>/`. Einmalig nötig: im Repo unter
+**Settings → Pages → Build and deployment → Source** den Wert **GitHub Actions** wählen.
+
+Lokal testen wie auf Pages: `trunk build --release --public-url /rust-playground/`.
+
 ## Projektstruktur
 
 ```
