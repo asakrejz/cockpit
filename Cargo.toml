@@ -15,9 +15,6 @@ console_error_panic_hook = "0.1"
 web-sys = "0.3"
 
 # Feature-Crates – so kann die App (oder jedes andere Projekt) sie einbinden.
-feature-counter = { path = "features/counter" }
-feature-temperature = { path = "features/temperature" }
-feature-todo = { path = "features/todo" }
 feature-ui = { path = "features/ui" }
 
 [profile.release]

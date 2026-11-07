@@ -336,27 +336,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "feature-counter"
-version = "0.1.0"
-dependencies = [
- "leptos",
-]
-
-[[package]]
-name = "feature-temperature"
-version = "0.1.0"
-dependencies = [
- "leptos",
-]
-
-[[package]]
-name = "feature-todo"
-version = "0.1.0"
-dependencies = [
- "leptos",
-]
-
-[[package]]
 name = "feature-ui"
 version = "0.1.0"
 dependencies = [
@@ -966,9 +945,6 @@ name = "playground"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
- "feature-counter",
- "feature-temperature",
- "feature-todo",
  "feature-ui",
  "leptos",
  "web-sys",

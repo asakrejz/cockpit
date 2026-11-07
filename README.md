@@ -1,11 +1,13 @@
-# 🦀 Rust Playground
+# Rust Playground
 
-Ein kleiner, Storybook-ähnlicher Playground für Web-Features, geschrieben in
-**Rust** und kompiliert zu **WebAssembly**. Jedes Feature lebt in seinem eigenen
-Crate und bekommt im Playground einen eigenen Reiter.
+Ein Lernprojekt: **Web-Bausteine in Rust, kompiliert zu WebAssembly.** Jeder Baustein
+bekommt im Playground einen eigenen Reiter, ähnlich wie bei Storybook. So lernst du Rust
+an kleinen, sichtbaren Beispielen und baust nebenbei eine Bibliothek, die du in anderen
+Projekten wiederverwenden kannst.
 
-- UI-Framework: [Leptos](https://leptos.dev) (Client-Side Rendering)
-- Build-Tool: [Trunk](https://trunkrs.dev) (Rust → WASM → fertige Website)
+- UI-Framework: [Leptos](https://leptos.dev) (läuft komplett im Browser)
+- Build-Tool: [Trunk](https://trunkrs.dev) (Rust → WASM → fertige Seite)
+- Aussehen: Design **„Baukasten"** (iOS 26 / Liquid Glass), gesteuert über Design-Tokens
 
 ## Schnellstart
 
@@ -14,111 +16,156 @@ Crate und bekommt im Playground einen eigenen Reiter.
 rustup target add wasm32-unknown-unknown   # passiert dank rust-toolchain.toml auch automatisch
 cargo install trunk --locked
 
-# Entwicklungsserver mit Live-Reload auf http://localhost:8080
-trunk serve --open
-
-# Tests (laufen nativ, ohne Browser)
-cargo test
-
-# Produktions-Build nach ./dist
-trunk build --release
+trunk serve --open     # Entwicklungsserver mit Live-Reload auf http://localhost:8080
+cargo test             # Tests laufen nativ, ohne Browser
+trunk build --release  # fertige Seite nach ./dist
 ```
+
+Beim Lernen hilft: `trunk serve` laufen lassen, eine Datei ändern, Speichern – der Browser
+lädt neu, und der Compiler sagt dir sofort, was nicht passt.
+
+## Lernpfad
+
+Die Konzepte bauen aufeinander auf. Jeder Schritt nennt die Stelle im Code, an der du es
+siehst, und die Story im Playground, in der es sichtbar wird.
+
+| # | Konzept | Im Code | Im Playground |
+|---|---------|---------|---------------|
+| 1 | **Komponenten und Props**: eine Funktion mit `#[component]`, Parameter sind Props | `features/ui/src/text.rs` (`Text`) | Foundations |
+| 2 | **Enums statt Strings**: `enum`, `impl`, `#[derive(Default)]`, `#[default]`, `const ALL` | `features/ui/src/button.rs` (`ButtonStyle`) | Button |
+| 3 | **`Option` und `then_some`**: ein Attribut nur manchmal setzen | `button.rs`, Funktion `attr()` und `data-role` | Button |
+| 4 | **Children**: Inhalt an eine Komponente übergeben | `features/ui/src/layout.rs` (`VStack`) | Stacks & Grids |
+| 5 | **Signals**: reaktiver Zustand, `RwSignal`, `.get()` / `.set()` | `features/ui/src/controls.rs` (`Toggle`) | Toggle · Picker · … |
+| 6 | **Closures mit `move`**: warum Signals in `move \|\| …` stehen | überall, z. B. `data-role=role` in `button.rs` | Button |
+| 7 | **Abgeleitete Signals**: `Signal::derive` | `app/src/stories/button.rs` | Button (Live-Controls) |
+| 8 | **Callbacks**: Ereignisse nach oben melden | `button.rs` (`on_click`) | Button |
+| 9 | **Listen rendern**: Iteratoren und `collect_view()` | `controls.rs` (`Segmented`) | Toggle · Picker · … |
+| 10 | **Bedingt rendern**: `<Show>` und `match` mit `.into_any()` | `sheet.rs`, `list.rs` (`ListRow`) | iPhone-Beispiel |
+| 11 | **`'static` und Konstanten**: `&'static [(&str, &str)]`, `const`, `static` | `controls.rs`, `app/src/stories/mod.rs` | alle |
+| 12 | **Funktionszeiger**: `render: fn() -> AnyView` in einer Registry | `app/src/stories/mod.rs` (`Story`) | die Navigation selbst |
+| 13 | **`Option` und `Result` verketten**: `.ok().flatten().is_some_and(…)` | `app/src/main.rs` (`system_theme`) | Hell/Dunkel-Schalter |
+| 14 | **Ereignisse aus dem Browser**: `window_event_listener`, Aufräumen mit `on_cleanup` | `app/src/main.rs` | Navigation per URL (`#button`) |
+| 15 | **Globaler Zähler**: `AtomicU32` für eindeutige IDs | `features/ui/src/field.rs` | TextField & Search |
+| 16 | **Tests**: `#[cfg(test)]`, `include_str!` liest das CSS zur Compile-Zeit | `features/ui/src/lib.rs` | `cargo test` |
+| 17 | **Workspace und Crates**: gemeinsame Versionen, ein Crate pro Baustein | `Cargo.toml`, `features/ui/Cargo.toml` | – |
+
+Gute Übung für jeden Schritt: Ändere etwas absichtlich falsch (z. B. `ButtonStyle::Glas`
+statt `Glass`) und lies die Compiler-Meldung. Rust erklärt Fehler meist sehr genau.
 
 ## Projektstruktur
 
 ```
 .
-├── Cargo.toml              # Workspace: gemeinsame Versionen & Mitglieder
-├── Trunk.toml              # Trunk-Konfiguration (Einstieg: app/index.html)
-├── app/                    # Die Playground-App ("Storybook-Hülle")
-│   ├── index.html          # Bindet WASM + CSS ein
-│   ├── style.css           # Layout von Sidebar & Bühne
-│   └── src/
-│       ├── main.rs         # Navigation + Rendering der aktiven Story
-│       └── stories/        # Eine Datei pro Story + Registry in mod.rs
-└── features/               # Wiederverwendbare Features – je ein Crate
-    ├── counter/
-    ├── temperature/
-    ├── todo/
-    └── ui/                 # Button, Link, Image (mit Varianten per Props)
+├── Cargo.toml                  # Workspace: gemeinsame Versionen & Mitglieder
+├── Trunk.toml                  # Trunk-Konfiguration (Einstieg: app/index.html)
+├── styles/
+│   └── tokens.css              # Design-Tokens, für das ganze Projekt
+├── features/
+│   └── ui/                     # wiederverwendbare Bausteine (Crate `feature-ui`)
+│       ├── components.css      # Komponenten-CSS, 1:1 aus dem Design
+│       ├── extras.css          # kleine Ergänzungen für Rust
+│       └── src/                # Leptos-Komponenten, eine Datei pro Gruppe
+└── app/                        # der Playground
+    ├── index.html              # bindet WASM und CSS ein
+    ├── style.css               # Layout der Hülle (nur Tokens, keine festen Farben)
+    └── src/
+        ├── main.rs             # Navigation, Theme-Schalter, aktive Story
+        └── stories/            # eine Datei pro Story + Registry in mod.rs
 ```
 
-### Die Idee dahinter
+### Baustein und Story
 
-| Begriff     | Wo?                         | Weiß vom Playground? |
-|-------------|-----------------------------|----------------------|
-| **Feature** | `features/<name>/` (Crate)  | ❌ nein – voll wiederverwendbar |
-| **Story**   | `app/src/stories/<name>.rs` | ✅ ja – zeigt das Feature mit Beispiel-Props |
+| Begriff      | Wo?                         | Kennt den Playground? |
+|--------------|-----------------------------|-----------------------|
+| **Baustein** | `features/<name>/` (Crate)  | nein, daher wiederverwendbar |
+| **Story**    | `app/src/stories/<name>.rs` | ja, zeigt den Baustein mit Beispielwerten |
 
-Features hängen nur von `leptos` ab. Du kannst sie in jedem anderen
-Leptos-Projekt nutzen, z. B. per Pfad oder Git:
+Ein Baustein-Crate hängt nur von `leptos` ab. In einem anderen Projekt bindest du ihn
+per Pfad ein:
 
 ```toml
 [dependencies]
-feature-counter = { git = "https://github.com/asakrejz/rust-playground" }
+feature-ui = { path = "../rust-playground/features/ui" }
 ```
 
-Gute Praxis: Logik, die keinen Browser braucht (Umrechnungen, Datenmodelle),
-als normale Rust-Funktionen schreiben und mit `#[test]` absichern – siehe
-`features/temperature` und `features/todo/src/model.rs`.
+Dazu `styles/tokens.css`, `features/ui/components.css` und `features/ui/extras.css`
+einbinden, in dieser Reihenfolge.
 
-## Ein neues Feature hinzufügen
+## Design-Tokens
 
-Beispiel: ein Feature `clock`.
+`styles/tokens.css` hat drei Ebenen:
 
-1. **Crate anlegen**
-   ```bash
-   cargo new --lib features/clock --name feature-clock
-   ```
-   In `features/clock/Cargo.toml` die Abhängigkeit eintragen:
-   ```toml
-   [dependencies]
-   leptos = { workspace = true }
-   ```
-   (Durch `members = ["app", "features/*"]` ist es automatisch Teil des Workspaces.)
+| Ebene      | Präfix    | Inhalt                          | Beispiel |
+|------------|-----------|---------------------------------|----------|
+| Primitive  | `--ref-*` | Rohwerte                        | `--ref-space-16` |
+| Semantisch | `--sys-*` | Rollen, abhängig vom Theme      | `--sys-color-label` |
+| Komponente | `--comp-*`| pro Baustein                    | `--comp-button-height-large` |
 
-2. **Komponente schreiben** in `features/clock/src/lib.rs`:
-   ```rust
-   use leptos::prelude::*;
+Eigenes CSS benutzt nur `--sys-*` (bei Bedarf `--ref-*`). Dann funktionieren Hell/Dunkel,
+Akzentfarbe und „Kontrast erhöhen" automatisch. Alle Werte siehst du in der Story
+**Foundations**, und links unten im Playground stellst du Theme, Akzentfarbe und Kontrast um.
 
-   #[component]
-   pub fn Clock() -> impl IntoView {
-       view! { <p>"Tick"</p> }
-   }
-   ```
-   Optional: `features/clock/style.css` für eigene Styles.
+> **Design aktualisieren:** `tokens.css` und `components.css` sind unverändert aus dem
+> Design übernommen. Bei Änderungen ersetzt du einfach die Dateien. Eigene Ergänzungen
+> gehören in `extras.css`.
 
-3. **Im Playground registrieren**
-   - Root-`Cargo.toml` → `[workspace.dependencies]`:
-     `feature-clock = { path = "features/clock" }`
-   - `app/Cargo.toml` → `feature-clock = { workspace = true }`
-   - `app/src/stories/clock.rs` anlegen (Vorlage: `counter.rs`)
-   - `app/src/stories/mod.rs`: `mod clock;` und `clock::STORY` in `STORIES` eintragen
-   - Falls CSS vorhanden, in `app/index.html`:
-     `<link data-trunk rel="css" href="../features/clock/style.css" />`
+## Bausteine (`feature-ui`)
 
-Fertig – `trunk serve` zeigt den neuen Reiter, erreichbar unter `#clock`.
-
-## UI-Bausteine (`feature-ui`)
-
-`Button`, `Link` und `Image` werden über typisierte Props gesteuert – Enums statt
-Strings, Tippfehler fängt der Compiler ab:
+Die API spiegelt die SwiftUI-Namen des Designs:
 
 ```rust
 view! {
-    <Button variant=ButtonVariant::Danger size=Size::Lg loading=is_saving>"Löschen"</Button>
-    <Link href="https://rust-lang.org" external=true underline=LinkUnderline::Always>"Rust"</Link>
-    <Image src="/avatar.png" alt="Avatar" width=96 ratio="1" radius=ImageRadius::Full />
+    <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large>"Weiter"</Button>
+    <Toggle checked=wifi />
+    <TextField label="E-Mail" value=mail input_type="email" error=invalid />
 }
 ```
 
-Zustände wie `variant`, `size`, `disabled` und `loading` des Buttons akzeptieren auch
-Signals und lassen sich daher zur Laufzeit ändern (siehe "Live-Controls" in der Button-Story).
-Mehrere Stories dürfen auf dasselbe Feature-Crate zeigen.
+| Gruppe     | Komponenten |
+|------------|-------------|
+| Grundlagen | `Root`, `Text`, `Icon`, `Glass` |
+| Layout     | `VStack`, `HStack`, `ZStack`, `Spacer`, `Grid`, `Split`, `Container`, `PageSection` |
+| Controls   | `Button`, `Link`, `Badge`, `Toggle`, `Segmented`, `Slider`, `Stepper` |
+| Eingabe    | `TextField`, `SearchField` |
+| Inhalt     | `List`, `ListSection`, `ListRow`, `ListButtonRow`, `Card`, `CardBody`, `Media` |
+| Navigation | `Navbar`, `IosNav`, `TabBar`, `Pager`, `Footer` |
+| Overlay    | `Sheet` |
 
-## Lernpfad durch die Beispiele
+## Eigene Story hinzufügen
 
-1. **Counter** – Komponenten, Props mit Defaults, `signal()`
-2. **Temperatur** – Eingabefelder, Events, reine Logik + Unit-Tests
-3. **Todo-Liste** – eigenes Datenmodell, `RwSignal`, Formulare, Listen mit `<For>`
-4. **Button / Link / Image** – Enums als Props, `Signal`-Props, `Callback`, `Show`, Fehlerbehandlung bei Bildern
+1. Datei `app/src/stories/mein_baustein.rs` anlegen, Vorlage ist `link_badge.rs`:
+   ```rust
+   use feature_ui::*;
+   use leptos::prelude::*;
+   use super::{Story, common::Section};
+
+   pub const STORY: Story = Story {
+       id: "mein-baustein",       // erscheint in der URL: #mein-baustein
+       title: "Mein Baustein",
+       group: "Controls",         // Überschrift in der Navigation
+       description: "Was zeigt die Story?",
+       api: ".ui-… · data-…",     // Kurzreferenz
+       render,
+   };
+
+   fn render() -> AnyView {
+       view! { <Section title="Beispiel">{/* … */}</Section> }.into_any()
+   }
+   ```
+2. In `app/src/stories/mod.rs` `mod mein_baustein;` ergänzen und `mein_baustein::STORY`
+   in `STORIES` eintragen.
+
+## Eigenen Baustein als neues Crate
+
+1. `cargo new --lib features/mein-baustein --name feature-mein-baustein`
+2. In dessen `Cargo.toml`: `leptos = { workspace = true }`. Durch `members = ["app", "features/*"]`
+   gehört es automatisch zum Workspace.
+3. Im Root-`Cargo.toml` unter `[workspace.dependencies]` eintragen:
+   `feature-mein-baustein = { path = "features/mein-baustein" }`, dann in `app/Cargo.toml` verwenden.
+4. Eigenes CSS in `app/index.html` per `<link data-trunk rel="css" …>` einbinden, nach den Tokens.
+
+## Schrift
+
+Das Design nutzt SF Pro (auf Apple-Geräten vorhanden) und fällt sonst auf **Inter** zurück.
+`app/index.html` lädt Inter von Google Fonts. Ohne externe Verbindung entfernst du die drei
+`<link>`-Zeilen, dann greift der System-Font.
