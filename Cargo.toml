@@ -18,6 +18,7 @@ web-sys = "0.3"
 feature-counter = { path = "features/counter" }
 feature-temperature = { path = "features/temperature" }
 feature-todo = { path = "features/todo" }
+feature-ui = { path = "features/ui" }
 
 [profile.release]
 opt-level = "z"   # klein statt schnell – für WASM meist die bessere Wahl

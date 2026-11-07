@@ -13,3 +13,4 @@ web-sys = { workspace = true, features = ["Location"] }
 feature-counter = { workspace = true }
 feature-temperature = { workspace = true }
 feature-todo = { workspace = true }
+feature-ui = { workspace = true }
