@@ -13,7 +13,10 @@ use std::time::Duration;
 
 use feature_ui::{Root, Theme};
 use leptos::prelude::*;
-use pages::{agent::AgentPage, inbox::InboxPage, review::ReviewPage, setup::SetupPage};
+use pages::{
+    agent::AgentPage, inbox::InboxPage, overview::OverviewPage, review::ReviewPage,
+    setup::SetupPage,
+};
 use route::Route;
 use store::{Store, current_hash, navigate};
 
@@ -71,6 +74,7 @@ fn App() -> impl IntoView {
             {move || match store.route.get() {
                 Route::Setup => view! { <SetupPage /> }.into_any(),
                 Route::Inbox(filter) => view! { <InboxPage filter=filter /> }.into_any(),
+                Route::Overview => view! { <OverviewPage /> }.into_any(),
                 Route::Review(number) => view! { <ReviewPage number=number /> }.into_any(),
                 Route::Agent(ticket) => view! { <AgentPage ticket=ticket /> }.into_any(),
             }}

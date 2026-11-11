@@ -9,6 +9,8 @@ pub enum Route {
     Setup,
     /// Die Inbox mit einem Filter.
     Inbox(Filter),
+    /// Team-Übersicht: wer woran arbeitet und was hängt.
+    Overview,
     /// Ein Review. Ohne Nummer: das erste offene.
     Review(Option<u32>),
     /// Ein Agenten-Lauf. Ohne Ticket: ein sinnvoller Vorschlag.
@@ -25,6 +27,7 @@ impl Route {
             (Some("einrichten"), _) => Route::Setup,
             (Some("meine"), _) => Route::Inbox(Filter::Mine),
             (Some("team"), _) => Route::Inbox(Filter::Team),
+            (Some("uebersicht"), _) => Route::Overview,
             (Some("review"), number) => Route::Review(number.and_then(|n| n.parse().ok())),
             (Some("agent"), key) => Route::Agent(key.map(str::to_string)),
             _ => Route::Inbox(Filter::All),
@@ -37,6 +40,7 @@ impl Route {
             Route::Inbox(Filter::All) => "#/".into(),
             Route::Inbox(Filter::Mine) => "#/meine".into(),
             Route::Inbox(Filter::Team) => "#/team".into(),
+            Route::Overview => "#/uebersicht".into(),
             Route::Review(None) => "#/review".into(),
             Route::Review(Some(number)) => format!("#/review/{number}"),
             Route::Agent(None) => "#/agent".into(),
@@ -56,6 +60,7 @@ mod tests {
             Route::Inbox(Filter::All),
             Route::Inbox(Filter::Mine),
             Route::Inbox(Filter::Team),
+            Route::Overview,
             Route::Review(None),
             Route::Review(Some(87)),
             Route::Agent(None),

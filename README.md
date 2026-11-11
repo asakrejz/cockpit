@@ -152,13 +152,14 @@ view! {
 
 ## Cockpit
 
-Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Vier Seiten nach dem Design:
+Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Fünf Seiten:
 
 | Seite | Adresse | Was sie kann |
 |-------|---------|--------------|
 | Einrichten | `#/einrichten` | Jira, GitHub und Agent verbinden; festlegen, was der Agent darf |
 | Aufmerksamkeit | `#/`, `#/meine`, `#/team` | Inbox aus Tickets und Pull Requests; Status ändern, Branch erstellen, antworten, Agent beauftragen |
 | Review | `#/review/87` | Diff lesen; Kommentare des Agenten freigeben, ablehnen oder bearbeiten; Review senden |
+| Übersicht | `#/uebersicht` | Pro Person offene Einträge und Auslastung; „Hängt“ zeigt fehlgeschlagene Checks, wartende Reviews, Tickets ohne Branch und Agenten, die auf dich warten |
 | Agent | `#/agent/BAU-142` | Auftrag mit Optionen; Ablauf in fünf Schritten bis zum Pull Request |
 
 Zwei Regeln sind in der Logik verankert und getestet: Ein Review wird erst gesendet, wenn über
