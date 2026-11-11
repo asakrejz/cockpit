@@ -293,6 +293,10 @@ mod tests {
         keys(&json(&save(&ws)), &mut names);
         assert!(names.len() > 20);
         for name in names {
+            // Zähler des Verbrauchs (Sprachmodell-Tokens) sind keine Zugangsdaten.
+            if name == "input_tokens" || name == "output_tokens" {
+                continue;
+            }
             for word in ["token", "secret", "password", "passwort", "api"] {
                 assert!(!name.contains(word), "Feld {name}");
             }

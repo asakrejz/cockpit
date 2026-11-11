@@ -1,5 +1,6 @@
 pub mod agent;
 pub mod inbox;
+pub mod limits;
 pub mod log;
 pub mod notifications;
 pub mod overview;

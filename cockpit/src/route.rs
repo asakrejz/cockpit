@@ -15,6 +15,8 @@ pub enum Route {
     Log,
     /// Einstellungen für Benachrichtigungen.
     Notifications,
+    /// Kosten, Grenzen und Regeln pro Repo für die Agenten.
+    Limits,
     /// Ein Review. Ohne Nummer: das erste offene.
     Review(Option<u32>),
     /// Ein Agenten-Lauf. Ohne Ticket: ein sinnvoller Vorschlag.
@@ -35,6 +37,7 @@ impl Route {
             (Some("uebersicht"), _) => Route::Overview,
             (Some("protokoll"), _) => Route::Log,
             (Some("benachrichtigungen"), _) => Route::Notifications,
+            (Some("grenzen"), _) => Route::Limits,
             (Some("review"), number) => Route::Review(number.and_then(|n| n.parse().ok())),
             (Some("agent"), key) => Route::Agent(key.map(str::to_string)),
             _ => Route::Inbox(Filter::All),
@@ -51,6 +54,7 @@ impl Route {
             Route::Overview => "#/uebersicht".into(),
             Route::Log => "#/protokoll".into(),
             Route::Notifications => "#/benachrichtigungen".into(),
+            Route::Limits => "#/grenzen".into(),
             Route::Review(None) => "#/review".into(),
             Route::Review(Some(number)) => format!("#/review/{number}"),
             Route::Agent(None) => "#/agent".into(),
@@ -74,6 +78,7 @@ mod tests {
             Route::Overview,
             Route::Log,
             Route::Notifications,
+            Route::Limits,
             Route::Review(None),
             Route::Review(Some(87)),
             Route::Agent(None),

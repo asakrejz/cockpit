@@ -49,5 +49,6 @@ pub fn notify_icon(reason: NotifyReason) -> &'static str {
         NotifyReason::AgentFinished => icons::SPARKLE,
         NotifyReason::ChecksFailed => icons::ALERT,
         NotifyReason::Assigned => icons::ASSIGN,
+        NotifyReason::AgentStopped => icons::ALERT,
     }
 }

@@ -32,16 +32,19 @@ pub enum NotifyReason {
     AgentFinished,
     ChecksFailed,
     Assigned,
+    /// Eine Grenze (Budget, Zeitlimit) hat einen Lauf angehalten.
+    AgentStopped,
 }
 
 impl NotifyReason {
-    pub const ALL: [NotifyReason; 6] = [
+    pub const ALL: [NotifyReason; 7] = [
         NotifyReason::ReviewRequested,
         NotifyReason::Mention,
         NotifyReason::AgentWaiting,
         NotifyReason::AgentFinished,
         NotifyReason::ChecksFailed,
         NotifyReason::Assigned,
+        NotifyReason::AgentStopped,
     ];
 
     pub fn id(self) -> &'static str {
@@ -52,6 +55,7 @@ impl NotifyReason {
             NotifyReason::AgentFinished => "agent-fertig",
             NotifyReason::ChecksFailed => "checks",
             NotifyReason::Assigned => "zugewiesen",
+            NotifyReason::AgentStopped => "agent-angehalten",
         }
     }
 
@@ -67,6 +71,7 @@ impl NotifyReason {
             NotifyReason::AgentFinished => "Agent fertig",
             NotifyReason::ChecksFailed => "Checks fehlgeschlagen",
             NotifyReason::Assigned => "Ticket mir zugewiesen",
+            NotifyReason::AgentStopped => "Agent angehalten",
         }
     }
 
@@ -81,6 +86,9 @@ impl NotifyReason {
             NotifyReason::AgentFinished => "Der Agent hat einen Pull Request erstellt",
             NotifyReason::ChecksFailed => "Die Checks deines Pull Requests werden rot",
             NotifyReason::Assigned => "Dir wird ein Ticket zugewiesen",
+            NotifyReason::AgentStopped => {
+                "Eine Grenze (Budget oder Zeitlimit) hat einen Lauf angehalten"
+            }
         }
     }
 }
@@ -403,6 +411,16 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
                     .question
                     .as_ref()
                     .map_or_else(|| "Der Agent hat eine Rückfrage".into(), |q| q.text.clone()),
+                route: format!("#/agent/{}", run.ticket_key),
+            });
+        }
+        if let Some(reason) = run.stop_reason()
+            && old.and_then(AgentRun::stop_reason) != Some(reason)
+        {
+            out.push(Event {
+                reason: NotifyReason::AgentStopped,
+                title: format!("Agent angehalten: {}", run.ticket_key),
+                text: format!("{} – setze den Lauf fort oder brich ihn ab", reason.label()),
                 route: format!("#/agent/{}", run.ticket_key),
             });
         }

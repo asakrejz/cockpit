@@ -160,6 +160,8 @@ pub fn state_label(item: &Item) -> (String, Tone) {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StuckKind {
     ChecksFailed,
+    /// Eine Grenze (Budget, Zeitlimit) hat den Agenten angehalten.
+    AgentStopped,
     /// Der Agent hat eine Rückfrage und wartet auf die Antwort.
     QuestionWaiting,
     PlanWaiting,
@@ -172,6 +174,7 @@ impl StuckKind {
     pub fn label(self) -> &'static str {
         match self {
             StuckKind::ChecksFailed => "Checks fehlgeschlagen",
+            StuckKind::AgentStopped => "Agent angehalten",
             StuckKind::QuestionWaiting => "Frage wartet",
             StuckKind::PlanWaiting => "Plan wartet",
             StuckKind::AgentWaiting => "Agent wartet",
@@ -213,6 +216,22 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
                 "Die Checks von #{} sind fehlgeschlagen – {} kommt nicht weiter.",
                 pr.number,
                 who_name(&item.owner)
+            ),
+        ));
+    }
+
+    if let Some(reason) = ws
+        .runs
+        .iter()
+        .find(|r| r.ticket_key == item.key)
+        .and_then(|r| r.stop_reason())
+    {
+        return Some((
+            StuckKind::AgentStopped,
+            me,
+            format!(
+                "Der Agent ist angehalten: {}. Erhöhe das Limit und setze ihn fort – oder brich ab.",
+                reason.label()
             ),
         ));
     }

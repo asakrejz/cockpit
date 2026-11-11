@@ -38,6 +38,7 @@ fn counts(m: &Member) -> String {
 fn kind_icon(kind: StuckKind) -> &'static str {
     match kind {
         StuckKind::ChecksFailed => icons::ALERT,
+        StuckKind::AgentStopped => icons::ALERT,
         StuckKind::QuestionWaiting => icons::SPARKLES,
         StuckKind::PlanWaiting => icons::TASKS,
         StuckKind::AgentWaiting => icons::SPARKLE,
@@ -49,6 +50,7 @@ fn kind_icon(kind: StuckKind) -> &'static str {
 fn kind_tone(kind: StuckKind) -> Tone {
     match kind {
         StuckKind::ChecksFailed => Tone::Red,
+        StuckKind::AgentStopped => Tone::Red,
         StuckKind::QuestionWaiting => Tone::Orange,
         StuckKind::PlanWaiting => Tone::Orange,
         StuckKind::AgentWaiting => Tone::Green,
@@ -183,6 +185,7 @@ fn empty_state() -> impl IntoView {
 /// Ein Eintrag, der hängt: Grund, wer dran ist, und der Weg dorthin.
 fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
     let id = s.item_id.clone();
+    let key = s.key.clone();
     let tone = view::tone(kind_tone(s.kind)).id();
     view! {
         <li class="ck-stuck">
@@ -221,6 +224,14 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
                             view! {
                                 <Button size=ControlSize::Small href=Route::Agent(Some(key)).hash()>
                                     "Frage beantworten"
+                                </Button>
+                            }
+                        })}
+                    {(s.kind == StuckKind::AgentStopped)
+                        .then(|| {
+                            view! {
+                                <Button size=ControlSize::Small href=Route::Agent(Some(key.clone())).hash()>
+                                    "Limit erhöhen oder abbrechen"
                                 </Button>
                             }
                         })}
