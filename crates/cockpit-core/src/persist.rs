@@ -109,7 +109,11 @@ mod tests {
     fn running_agent_continues_at_its_step() {
         let mut ws = demo::workspace();
         let key = ws.items.iter().find(|i| i.is_ticket()).unwrap().key.clone();
-        ws.start_agent(&key, AgentOptions::default()).unwrap();
+        let direct = AgentOptions {
+            plan_first: false,
+            ..AgentOptions::default()
+        };
+        ws.start_agent(&key, direct).unwrap();
         ws.advance_agents();
         ws.advance_agents();
         let mut back = load(&save(&ws)).unwrap();
@@ -126,6 +130,27 @@ mod tests {
                 .iter()
                 .any(|r| r.is_done() && r.pr_number.is_some())
         );
+    }
+
+    #[test]
+    fn features_of_other_modules_survive() {
+        let mut ws = demo::workspace();
+        // Eigener Zeilenkommentar im Review …
+        ws.add_line_comment(87, "components.css", 2, "Bitte Token verwenden.")
+            .unwrap();
+        // … und ein Agent, dessen Plan auf Freigabe wartet, mit Anmerkung.
+        ws.start_agent("BAU-142", AgentOptions::default()).unwrap();
+        assert!(ws.revise_plan("BAU-142", "Auch den Slider prüfen"));
+        let back = load(&save(&ws)).unwrap();
+        assert_eq!(back, ws);
+        assert_eq!(back.review(87).unwrap().line_comments.len(), 1);
+        let run = back
+            .runs
+            .iter()
+            .find(|r| r.ticket_key == "BAU-142")
+            .unwrap();
+        assert_eq!(run.state, RunState::AwaitingApproval);
+        assert_eq!(run.plan_notes, vec!["Auch den Slider prüfen".to_string()]);
     }
 
     #[test]

@@ -93,8 +93,10 @@ pub struct AgentRun {
     #[serde(default)]
     pub pr_number: Option<u32>,
     /// Anmerkungen des Nutzers, die zu einem neuen Plan geführt haben.
+    #[serde(default)]
     pub plan_notes: Vec<String>,
     /// Der Lauf hat mit einem Plan begonnen (auch nach der Freigabe).
+    #[serde(default)]
     pub planned: bool,
 }
 
