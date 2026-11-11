@@ -168,7 +168,7 @@ mod tests {
     fn features_of_other_modules_survive() {
         let mut ws = demo::workspace();
         // Eigener Zeilenkommentar im Review …
-        ws.add_line_comment(87, "components.css", 2, "Bitte Token verwenden.")
+        ws.add_line_comment(87, "components.css", 2, "Bitte Token verwenden.", None)
             .unwrap();
         // … und ein Agent, dessen Plan auf Freigabe wartet, mit Anmerkung.
         ws.start_agent("BAU-142", AgentOptions::default()).unwrap();

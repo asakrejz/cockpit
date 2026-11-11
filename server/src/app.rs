@@ -457,9 +457,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn der_agent_kann_nicht_mergen() {
-        // Es gibt keine Aktion zum Mergen: Der Server nimmt jede Form an, die nicht zu
-        // `Action` passt, nicht an – auch nicht „MergePullRequest“ o. Ä.
+    async fn mergen_nur_mit_erfuellten_bedingungen() {
+        // Über die API kommt jede Aktion als „Du“. Dass ein Agent nie merged, prüft
+        // `Workspace::apply` selbst (Actor); hier greifen die Bedingungen fürs Mergen.
+        let body = r#"{"action":{"MergePr":{"review":87,"method":"Squash"}}}"#;
+        let (status, antwort) = schicke(app_ohne_dist(), body).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{antwort}");
+        assert!(!json(&antwort)["fehler"].as_str().unwrap().is_empty());
+        // Formen, die es nicht gibt, bleiben 400.
         for body in [
             r#"{"action":{"Merge":{"review":87}}}"#,
             r#"{"action":"MergePullRequest"}"#,

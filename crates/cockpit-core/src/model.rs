@@ -280,20 +280,27 @@ pub struct PrRef {
     /// Ein Reviewer hat Änderungen angefordert.
     #[serde(default)]
     pub changes_requested: bool,
+    /// Schon gemergt.
+    #[serde(default)]
+    pub merged: bool,
 }
 
 impl PrRef {
     /// `#87 · offen`
     pub fn label(&self) -> String {
-        format!(
-            "#{} · {}",
-            self.number,
-            if self.draft { "Entwurf" } else { "offen" }
-        )
+        let state = match (self.merged, self.draft) {
+            (true, _) => "gemergt",
+            (false, true) => "Entwurf",
+            (false, false) => "offen",
+        };
+        format!("#{} · {state}", self.number)
     }
 
     /// Statuszeile für Pull Requests, bei denen ein Review ansteht.
     pub fn status(&self) -> (String, Tone) {
+        if self.merged {
+            return ("Gemergt".into(), Tone::Indigo);
+        }
         match (self.checks, self.draft) {
             (Checks::Passed, false) => ("Review offen · Checks bestanden".into(), Tone::Orange),
             (Checks::Passed, true) => ("Entwurf · Checks bestanden".into(), Tone::Gray),
@@ -397,6 +404,7 @@ mod tests {
             draft: false,
             checks: Checks::Passed,
             changes_requested: false,
+            merged: false,
         };
         assert_eq!(pr.label(), "#87 · offen");
         assert_eq!(pr.status().1, Tone::Orange);
@@ -405,11 +413,15 @@ mod tests {
             draft: true,
             checks: Checks::Failed,
             changes_requested: false,
+            merged: false,
         };
         assert_eq!(failed.label(), "#85 · Entwurf");
         assert_eq!(
             failed.status(),
             ("Checks fehlgeschlagen".to_string(), Tone::Red)
         );
+        let merged = PrRef { merged: true, ..pr };
+        assert_eq!(merged.label(), "#87 · gemergt");
+        assert_eq!(merged.status(), ("Gemergt".to_string(), Tone::Indigo));
     }
 }

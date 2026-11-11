@@ -45,8 +45,9 @@ pub use notify::{
     Channel, Channels, Delivery, Event as NotifyEvent, NotifyReason, NotifySettings, QuietHours,
 };
 pub use review::{
-    Decision, DiffLine, FileDiff, Level, LineComment, LineKind, Review, SendError, Suggestion,
-    Verdict,
+    CHECK_STEPS, CheckRun, Decision, DiffLine, FileDiff, Level, LineComment, LineKind,
+    MergeBlocker, MergeMethod, Review, SendError, Suggestion, SuggestionDiff, Verdict,
+    merge_blockers,
 };
 pub use team::{CAPACITY, LoadLevel, Member, Stuck, StuckKind, state_label};
 pub use workspace::{AgentError, Workspace};

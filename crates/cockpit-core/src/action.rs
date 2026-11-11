@@ -13,9 +13,9 @@ use serde::{Deserialize, Serialize};
 use crate::agent::{AgentOptions, STEPS};
 use crate::attention::Rule;
 use crate::demo;
-use crate::model::TicketStatus;
+use crate::model::{Checks, Item, TicketStatus};
 use crate::notify::{Channel, NotifyReason, QuietHours};
-use crate::review::{Decision, SendError, Verdict};
+use crate::review::{Decision, MergeBlocker, MergeMethod, SendError, Verdict};
 use crate::workspace::{AgentError, Workspace};
 
 /// So viele Einträge behält das Protokoll. Ältere fallen heraus.
@@ -70,16 +70,22 @@ pub enum Action {
         suggestion: String,
         text: String,
     },
+    /// Eigener Kommentar an einer Diff-Zeile, optional mit Ersatz-Code für die Zeile.
     AddLineComment {
         review: u32,
         file: String,
         line: usize,
         text: String,
+        #[serde(default)]
+        suggestion: Option<String>,
     },
+    /// Ersetzt Text und Vorschlag; ohne `suggestion` entfällt der Vorschlag.
     EditLineComment {
         review: u32,
         comment: String,
         text: String,
+        #[serde(default)]
+        suggestion: Option<String>,
     },
     DeleteLineComment {
         review: u32,
@@ -95,6 +101,18 @@ pub enum Action {
     SendReview {
         review: u32,
         comment: String,
+    },
+    /// Startet einen fehlgeschlagenen Check neu (`check` ist sein Name).
+    RestartCheck {
+        review: u32,
+        check: String,
+    },
+    /// Der Takt der Checks: jeder laufende kommt einen Schritt weiter.
+    AdvanceChecks,
+    /// Mergt den Pull Request. Das darf nur `Actor::Du`.
+    MergePr {
+        review: u32,
+        method: MergeMethod,
     },
     // Agent (`ticket` ist der Schlüssel, z. B. `BAU-142`)
     StartAgent {
@@ -235,6 +253,14 @@ pub enum ActionError {
     NothingToDo,
     Send(SendError),
     Agent(AgentError),
+    /// Kein Check mit diesem Namen.
+    UnknownCheck(String),
+    /// Der Pull Request ist gemergt und lässt sich nicht mehr ändern.
+    Merged(u32),
+    /// Gemergt wird nur von Hand: weder der Agent noch das System dürfen es.
+    MergeNotAllowed(Actor),
+    /// Es gibt noch Gründe, die gegen das Mergen sprechen.
+    MergeBlocked(Vec<MergeBlocker>),
 }
 
 impl ActionError {
@@ -259,6 +285,20 @@ impl ActionError {
             ActionError::Agent(AgentError::UnknownTicket) => "Dieses Ticket gibt es nicht".into(),
             ActionError::Agent(AgentError::AlreadyRunning) => {
                 "Der Agent arbeitet schon an diesem Ticket".into()
+            }
+            ActionError::UnknownCheck(name) => format!("Check „{name}“ gibt es nicht"),
+            ActionError::Merged(n) => format!("#{n} ist schon gemergt und bleibt, wie es ist"),
+            ActionError::MergeNotAllowed(actor) => format!(
+                "Nur du darfst mergen – {} nicht",
+                match actor {
+                    Actor::Agent => "der Agent",
+                    Actor::System => "das System",
+                    Actor::Du => "du",
+                }
+            ),
+            ActionError::MergeBlocked(blockers) => {
+                let reasons: Vec<&str> = blockers.iter().map(|b| b.reason()).collect();
+                format!("Mergen geht noch nicht: {}", reasons.join(" "))
             }
         }
     }
@@ -330,6 +370,10 @@ impl Workspace {
         actor: Actor,
         at_ms: u64,
     ) -> Result<Applied, ActionError> {
+        // Mergen ist Sache des Nutzers: Das prüft schon die Schicht, nicht erst die Oberfläche.
+        if matches!(action, Action::MergePr { .. }) && actor != Actor::Du {
+            return Err(ActionError::MergeNotAllowed(actor));
+        }
         let notes = self.perform(action, at_ms)?;
         let mut summary = String::new();
         let logged = notes.len();
@@ -376,6 +420,15 @@ impl Workspace {
         self.review(number)
             .map(|_| ())
             .ok_or(ActionError::UnknownReview(number))
+    }
+
+    /// Wie `need_review`, aber ein gemergter Pull Request lässt sich nicht mehr ändern.
+    fn need_open_review(&self, number: u32) -> Result<(), ActionError> {
+        match self.review(number) {
+            None => Err(ActionError::UnknownReview(number)),
+            Some(r) if r.merged.is_some() => Err(ActionError::Merged(number)),
+            Some(_) => Ok(()),
+        }
     }
 
     /// Führt die Aktion aus und liefert die Protokolleinträge dazu.
@@ -479,7 +532,7 @@ impl Workspace {
                 suggestion,
                 decision,
             } => {
-                self.need_review(review)?;
+                self.need_open_review(review)?;
                 if !self.decide(review, &suggestion, decision) {
                     return Err(ActionError::UnknownSuggestion(suggestion));
                 }
@@ -501,7 +554,7 @@ impl Workspace {
                 suggestion,
                 text,
             } => {
-                self.need_review(review)?;
+                self.need_open_review(review)?;
                 let known = self
                     .review(review)
                     .is_some_and(|r| r.suggestions.iter().any(|s| s.id == suggestion));
@@ -521,15 +574,24 @@ impl Workspace {
                 file,
                 line,
                 text,
+                suggestion,
             } => {
-                self.need_review(review)?;
-                if self.add_line_comment(review, &file, line, &text).is_none() {
+                self.need_open_review(review)?;
+                if self
+                    .add_line_comment(review, &file, line, &text, suggestion.as_deref())
+                    .is_none()
+                {
                     return Err(ActionError::InvalidInput);
                 }
+                let with = if suggestion.is_some() {
+                    " mit Änderungsvorschlag"
+                } else {
+                    ""
+                };
                 Ok(vec![Note::new(
                     Target::Review(review),
                     format!(
-                        "Kommentar an {file}, Zeile {}, in #{review} hinzugefügt",
+                        "Kommentar{with} an {file}, Zeile {}, in #{review} hinzugefügt",
                         line + 1
                     ),
                 )])
@@ -538,15 +600,16 @@ impl Workspace {
                 review,
                 comment,
                 text,
+                suggestion,
             } => {
-                self.need_review(review)?;
+                self.need_open_review(review)?;
                 let known = self
                     .review(review)
                     .is_some_and(|r| r.line_comments.iter().any(|c| c.id == comment));
                 if !known {
                     return Err(ActionError::UnknownComment(comment));
                 }
-                if !self.edit_line_comment(review, &comment, &text) {
+                if !self.edit_line_comment(review, &comment, &text, suggestion.as_deref()) {
                     return Err(ActionError::InvalidInput);
                 }
                 Ok(vec![Note::new(
@@ -555,7 +618,7 @@ impl Workspace {
                 )])
             }
             Action::DeleteLineComment { review, comment } => {
-                self.need_review(review)?;
+                self.need_open_review(review)?;
                 if !self.delete_line_comment(review, &comment) {
                     return Err(ActionError::UnknownComment(comment));
                 }
@@ -565,7 +628,7 @@ impl Workspace {
                 )])
             }
             Action::SetVerdict { review, verdict } => {
-                self.need_review(review)?;
+                self.need_open_review(review)?;
                 if self.review(review).is_some_and(|r| r.verdict == verdict) {
                     return Err(ActionError::Unchanged);
                 }
@@ -576,7 +639,7 @@ impl Workspace {
                 )])
             }
             Action::RequestAgentReview { review } => {
-                self.need_review(review)?;
+                self.need_open_review(review)?;
                 let count = self.request_agent_review(review);
                 let result = match count {
                     0 => "Nichts zu beanstanden".to_string(),
@@ -606,6 +669,57 @@ impl Workspace {
                         plural(count, "Kommentar", "Kommentare")
                     ),
                 )])
+            }
+            Action::RestartCheck { review, check } => {
+                self.need_open_review(review)?;
+                let known = self
+                    .review(review)
+                    .is_some_and(|r| r.check_runs.iter().any(|c| c.name == check));
+                if !known {
+                    return Err(ActionError::UnknownCheck(check));
+                }
+                if !self.restart_check(review, &check) {
+                    return Err(ActionError::NothingToDo);
+                }
+                Ok(vec![Note::new(
+                    Target::Review(review),
+                    format!("Check „{check}“ in #{review} neu gestartet"),
+                )])
+            }
+            Action::AdvanceChecks => {
+                if self.running_checks() == 0 {
+                    return Err(ActionError::NothingToDo);
+                }
+                Ok(self
+                    .advance_checks()
+                    .into_iter()
+                    .map(|(number, check, status)| {
+                        let result = if status == Checks::Passed {
+                            "bestanden"
+                        } else {
+                            "wieder fehlgeschlagen"
+                        };
+                        Note::new(
+                            Target::Review(number),
+                            format!("Check „{check}“ in #{number} {result}"),
+                        )
+                        .by(Actor::System)
+                    })
+                    .collect())
+            }
+            Action::MergePr { review, method } => {
+                self.need_review(review)?;
+                self.merge_pr(review, method)
+                    .map_err(ActionError::MergeBlocked)?;
+                let ticket = self
+                    .review(review)
+                    .and_then(|r| r.ticket_key.clone())
+                    .filter(|key| self.item_by_key(key).is_some_and(Item::is_ticket));
+                let mut text = format!("#{review} gemergt ({})", method.label());
+                if let Some(key) = ticket {
+                    text.push_str(&format!(" – {key} ist fertig"));
+                }
+                Ok(vec![Note::new(Target::Review(review), text)])
             }
             Action::StartAgent { ticket, options } => {
                 let plan_first = options.plan_first;
@@ -840,9 +954,10 @@ impl Workspace {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::{ReasonKind, Tone};
     use crate::notify::NotifySettings;
     use crate::persist;
-    use crate::review::Decision;
+    use crate::review::{CHECK_STEPS, Decision};
 
     const T: u64 = 1_700_000_000_000;
 
@@ -931,6 +1046,7 @@ mod tests {
                 file,
                 line: 0,
                 text: "Warum?".into(),
+                suggestion: None,
             },
             1,
         );
@@ -941,6 +1057,7 @@ mod tests {
                 review: 87,
                 comment: comment.clone(),
                 text: "Wieso?".into(),
+                suggestion: None,
             },
             1,
         );
@@ -1156,6 +1273,7 @@ mod tests {
                 file: "nope.css".into(),
                 line: 0,
                 text: "x".into(),
+                suggestion: None,
             },
             ActionError::InvalidInput,
         );
@@ -1820,6 +1938,71 @@ mod tests {
         );
     }
 
+    // ---------- Mergen, Checks, Änderungsvorschläge ----------
+
+    /// #87 ist bereit zum Mergen: alle Vorschläge entschieden, Review gesendet.
+    fn ready_87(w: &mut Workspace) {
+        for id in ["a", "b", "c"] {
+            ok(
+                w,
+                Action::Decide {
+                    review: 87,
+                    suggestion: id.into(),
+                    decision: Some(Decision::Declined),
+                },
+                1,
+            );
+        }
+        ok(
+            w,
+            Action::SendReview {
+                review: 87,
+                comment: String::new(),
+            },
+            1,
+        );
+    }
+
+    fn merge(review: u32, method: MergeMethod) -> Action {
+        Action::MergePr { review, method }
+    }
+
+    #[test]
+    fn merging_is_refused_until_every_condition_holds() {
+        let mut w = ws();
+        fails(
+            &mut w,
+            merge(87, MergeMethod::Squash),
+            ActionError::MergeBlocked(vec![MergeBlocker::ReviewNotSent]),
+        );
+        // Ein Urteil „Änderungen“ blockiert auch nach dem Senden.
+        ok(
+            &mut w,
+            Action::SetVerdict {
+                review: 87,
+                verdict: Verdict::RequestChanges,
+            },
+            1,
+        );
+        ready_87(&mut w);
+        fails(
+            &mut w,
+            merge(87, MergeMethod::Merge),
+            ActionError::MergeBlocked(vec![MergeBlocker::ChangesRequested]),
+        );
+        // Rote Checks (#85) blockieren, die Begründung steht in der Fehlermeldung.
+        let err = w
+            .apply(merge(85, MergeMethod::Merge), Actor::Du, T)
+            .unwrap_err();
+        assert!(err.message().contains("Check ist fehlgeschlagen"));
+        // Unbekannt.
+        fails(
+            &mut w,
+            merge(1, MergeMethod::Merge),
+            ActionError::UnknownReview(1),
+        );
+    }
+
     #[test]
     fn a_paused_agent_makes_no_progress_until_resumed() {
         let mut w = ws();
@@ -1921,5 +2104,273 @@ mod tests {
             let json = serde_json::to_string(&action).unwrap();
             assert_eq!(serde_json::from_str::<Action>(&json).unwrap(), action);
         }
+    }
+
+    #[test]
+    fn only_you_may_merge() {
+        let mut w = ws();
+        ready_87(&mut w);
+        let before = w.clone();
+        for actor in [Actor::Agent, Actor::System] {
+            let err = w
+                .apply(merge(87, MergeMethod::Merge), actor, T)
+                .unwrap_err();
+            assert_eq!(err, ActionError::MergeNotAllowed(actor));
+            assert!(err.message().starts_with("Nur du darfst mergen"));
+        }
+        assert_eq!(w, before, "kein Merge, kein Protokolleintrag");
+        w.apply(merge(87, MergeMethod::Merge), Actor::Du, T)
+            .unwrap();
+        assert!(w.review(87).unwrap().merged.is_some());
+    }
+
+    #[test]
+    fn merging_marks_the_pull_request_and_finishes_the_ticket() {
+        let mut w = ws();
+        // #91 gehört zu BAU-138; der Entwurf wird vorher freigegeben.
+        w.items
+            .iter_mut()
+            .find(|i| i.id == "bau138")
+            .unwrap()
+            .pr
+            .as_mut()
+            .unwrap()
+            .draft = true;
+        fails(
+            &mut w,
+            merge(91, MergeMethod::Rebase),
+            ActionError::MergeBlocked(vec![MergeBlocker::Draft, MergeBlocker::ReviewNotSent]),
+        );
+        w.items
+            .iter_mut()
+            .find(|i| i.id == "bau138")
+            .unwrap()
+            .pr
+            .as_mut()
+            .unwrap()
+            .draft = false;
+        ok(
+            &mut w,
+            Action::SendReview {
+                review: 91,
+                comment: String::new(),
+            },
+            1,
+        );
+        let applied = ok(&mut w, merge(91, MergeMethod::Rebase), 1);
+        assert_eq!(applied.summary, "#91 gemergt (Rebase) – BAU-138 ist fertig");
+        assert_eq!(w.review(91).unwrap().merged, Some(MergeMethod::Rebase));
+        let ticket = w.item("bau138").unwrap();
+        assert_eq!(ticket.status, TicketStatus::Done);
+        assert!(ticket.read);
+        let pr = ticket.pr.as_ref().unwrap();
+        assert!(pr.merged);
+        assert_eq!(crate::team::state_label(ticket).0, "Fertig");
+        assert_eq!(pr.status().0, "Gemergt");
+        // Zweimal mergen geht nicht, ändern auch nicht.
+        fails(
+            &mut w,
+            merge(91, MergeMethod::Merge),
+            ActionError::MergeBlocked(vec![MergeBlocker::AlreadyMerged]),
+        );
+        fails(
+            &mut w,
+            Action::SetVerdict {
+                review: 91,
+                verdict: Verdict::Approve,
+            },
+            ActionError::Merged(91),
+        );
+    }
+
+    #[test]
+    fn merging_a_pull_request_without_ticket_marks_its_entry() {
+        let mut w = ws();
+        ready_87(&mut w);
+        ok(&mut w, merge(87, MergeMethod::Squash), 1);
+        let item = w.item("pr87").unwrap();
+        assert_eq!(item.pr.as_ref().unwrap().label(), "#87 · gemergt");
+        assert_eq!(
+            crate::team::state_label(item),
+            ("Gemergt".into(), Tone::Indigo)
+        );
+        assert!(item.read);
+        assert_eq!(item.reason_text, "Gemergt (Squash)");
+        let entry = w.log.last().unwrap();
+        assert_eq!(
+            (entry.actor, &entry.target),
+            (Actor::Du, &Some(Target::Review(87)))
+        );
+    }
+
+    #[test]
+    fn a_failed_check_can_be_restarted_and_turns_green_after_a_few_ticks() {
+        let mut w = ws();
+        assert_eq!(w.review(85).unwrap().checks, Checks::Failed);
+        fails(
+            &mut w,
+            Action::RestartCheck {
+                review: 85,
+                check: "Build".into(),
+            },
+            ActionError::NothingToDo,
+        );
+        fails(
+            &mut w,
+            Action::RestartCheck {
+                review: 85,
+                check: "Gibt es nicht".into(),
+            },
+            ActionError::UnknownCheck("Gibt es nicht".into()),
+        );
+        fails(&mut w, Action::AdvanceChecks, ActionError::NothingToDo);
+        ok(
+            &mut w,
+            Action::RestartCheck {
+                review: 85,
+                check: "Tests (Browser)".into(),
+            },
+            1,
+        );
+        assert_eq!(w.running_checks(), 1);
+        for _ in 0..CHECK_STEPS - 1 {
+            ok(&mut w, Action::AdvanceChecks, 0);
+        }
+        let applied = ok(&mut w, Action::AdvanceChecks, 1);
+        assert_eq!(applied.summary, "Check „Tests (Browser)“ in #85 bestanden");
+        assert_eq!(w.log.last().unwrap().actor, Actor::System);
+        assert_eq!(w.running_checks(), 0);
+        // Der Lint-Fehler ist echt: Der Gesamtstand bleibt rot.
+        assert_eq!(w.review(85).unwrap().checks, Checks::Failed);
+
+        // Nach dem Neustart bleibt Lint rot …
+        ok(
+            &mut w,
+            Action::RestartCheck {
+                review: 85,
+                check: "Lint".into(),
+            },
+            1,
+        );
+        for _ in 0..CHECK_STEPS {
+            let _ = w.apply(Action::AdvanceChecks, Actor::System, T);
+        }
+        assert_eq!(w.review(85).unwrap().checks, Checks::Failed);
+        assert!(w.log.last().unwrap().text.contains("wieder fehlgeschlagen"));
+    }
+
+    #[test]
+    fn green_checks_flow_into_the_inbox_entry() {
+        let mut w = ws();
+        // Lint „repariert“: Neustart geht grün aus.
+        w.reviews
+            .iter_mut()
+            .find(|r| r.number == 85)
+            .unwrap()
+            .check_runs[1]
+            .rerun = Checks::Passed;
+        for check in ["Lint", "Tests (Browser)"] {
+            ok(
+                &mut w,
+                Action::RestartCheck {
+                    review: 85,
+                    check: check.into(),
+                },
+                1,
+            );
+        }
+        assert_eq!(
+            w.item("pr85").unwrap().pr.as_ref().unwrap().checks,
+            Checks::Running
+        );
+        for _ in 0..CHECK_STEPS {
+            let _ = w.apply(Action::AdvanceChecks, Actor::System, T);
+        }
+        assert_eq!(w.review(85).unwrap().checks, Checks::Passed);
+        let item = w.item("pr85").unwrap();
+        assert_eq!(item.pr.as_ref().unwrap().checks, Checks::Passed);
+        assert_eq!(item.reason, ReasonKind::ReviewRequested);
+        // Jetzt fehlt nur noch das gesendete Review.
+        assert_eq!(w.merge_blockers(85), vec![MergeBlocker::ReviewNotSent]);
+    }
+
+    #[test]
+    fn line_comment_suggestions_go_through_the_actions() {
+        let mut w = ws();
+        let file = w.review(87).unwrap().files[0].name.clone();
+        // Position 8: `  background: #ffffff;` (neue Zeile).
+        ok(
+            &mut w,
+            Action::AddLineComment {
+                review: 87,
+                file: file.clone(),
+                line: 5,
+                text: String::new(),
+                suggestion: Some("  background: var(--comp-slider-thumb);".into()),
+            },
+            1,
+        );
+        let comment = w.review(87).unwrap().line_comments[0].clone();
+        assert!(
+            w.log
+                .last()
+                .unwrap()
+                .text
+                .contains("mit Änderungsvorschlag")
+        );
+        assert!(w.review(87).unwrap().suggestion_diff(&comment).is_some());
+        fails(
+            &mut w,
+            Action::EditLineComment {
+                review: 87,
+                comment: comment.id.clone(),
+                text: String::new(),
+                suggestion: None,
+            },
+            ActionError::InvalidInput,
+        );
+        ok(
+            &mut w,
+            Action::EditLineComment {
+                review: 87,
+                comment: comment.id.clone(),
+                text: "Besser so".into(),
+                suggestion: None,
+            },
+            1,
+        );
+        assert_eq!(w.review(87).unwrap().line_comments[0].suggestion, None);
+    }
+
+    #[test]
+    fn new_actions_survive_json_and_old_ones_still_parse() {
+        for a in [
+            merge(87, MergeMethod::Squash),
+            Action::RestartCheck {
+                review: 85,
+                check: "Lint".into(),
+            },
+            Action::AdvanceChecks,
+        ] {
+            let json = serde_json::to_string(&a).unwrap();
+            assert_eq!(serde_json::from_str::<Action>(&json).unwrap(), a);
+        }
+        let old = r#"{"AddLineComment":{"review":1,"file":"a","line":0,"text":"x"}}"#;
+        assert!(matches!(
+            serde_json::from_str::<Action>(old).unwrap(),
+            Action::AddLineComment {
+                suggestion: None,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn a_merged_pull_request_survives_saving() {
+        let mut w = ws();
+        ready_87(&mut w);
+        ok(&mut w, merge(87, MergeMethod::Squash), 1);
+        let (back, _) = persist::restore(Some(&persist::save(&w)));
+        assert_eq!(back, w);
     }
 }

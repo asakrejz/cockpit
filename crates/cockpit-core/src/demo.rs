@@ -4,7 +4,7 @@
 use crate::agent::{AgentRun, Question, RunState, STEPS};
 use crate::model::*;
 use crate::review::LineKind::{Add, Context as Ctx, Del};
-use crate::review::{FileDiff, Level, Review, Suggestion, Verdict};
+use crate::review::{CheckRun, FileDiff, Level, Review, Suggestion, Verdict};
 use crate::workspace::Workspace;
 
 fn lena() -> Person {
@@ -85,6 +85,7 @@ pub fn workspace() -> Workspace {
             draft: false,
             checks: Checks::Passed,
             changes_requested: false,
+            merged: false,
         }),
         agent_note: Some("3 Kommentare vom Agenten warten auf deine Freigabe".into()),
         comments: vec![Comment::new(
@@ -111,6 +112,7 @@ pub fn workspace() -> Workspace {
             draft: true,
             checks: Checks::Passed,
             changes_requested: true,
+            merged: false,
         }),
         agent_note: Some("Vom Agenten umgesetzt · Tests bestanden".into()),
         ..item(
@@ -134,6 +136,7 @@ pub fn workspace() -> Workspace {
             draft: false,
             checks: Checks::Failed,
             changes_requested: false,
+            merged: false,
         }),
         comments: vec![Comment::new(
             mira(),
@@ -182,6 +185,12 @@ pub fn workspace() -> Workspace {
             line_comments: Vec::new(),
             verdict: Verdict::Comment,
             sent: false,
+            check_runs: if item.pr.as_ref().is_some_and(|p| p.checks == Checks::Passed) {
+                passing_checks()
+            } else {
+                Vec::new()
+            },
+            merged: None,
         };
 
     let review87 = Review {
@@ -254,7 +263,7 @@ pub fn workspace() -> Workspace {
             agent_changes("BAU-138"),
         )
     };
-    let review85 = review(
+    let mut review85 = review(
         85,
         &pr85,
         mira(),
@@ -289,6 +298,8 @@ pub fn workspace() -> Workspace {
         ],
     );
 
+    review85.check_runs = failing_checks();
+
     // BAU-138 hat der Agent schon umgesetzt.
     let mut run138 = AgentRun::new(&bau138.key, &bau138.title);
     run138.files = review91.files.iter().map(|f| f.name.clone()).collect();
@@ -322,6 +333,55 @@ pub fn agent_question(ticket_key: &str) -> Option<(usize, Question)> {
         )),
         _ => None,
     }
+}
+
+/// Drei grüne Checks, wie sie ein sauberer Pull Request hat.
+pub fn passing_checks() -> Vec<CheckRun> {
+    vec![
+        CheckRun::new(
+            "Build",
+            Checks::Passed,
+            94,
+            "$ trunk build --release\n   Compiling cockpit v0.1.0\n    Finished release [optimized] in 1m 34s\n",
+        ),
+        CheckRun::new(
+            "Lint",
+            Checks::Passed,
+            41,
+            "$ cargo clippy --all-targets -- -D warnings\n    Finished dev [unoptimized] in 41s\n",
+        ),
+        CheckRun::new(
+            "Tests",
+            Checks::Passed,
+            58,
+            "$ cargo test --workspace\ntest result: ok. 131 passed; 0 failed; 0 ignored\n",
+        ),
+    ]
+}
+
+/// Checks von #85: der Lint-Fehler ist echt, der Test wackelt nur.
+fn failing_checks() -> Vec<CheckRun> {
+    vec![
+        CheckRun::new(
+            "Build",
+            Checks::Passed,
+            88,
+            "$ trunk build --release\n    Finished release [optimized] in 1m 28s\n",
+        ),
+        CheckRun::new(
+            "Lint",
+            Checks::Failed,
+            37,
+            "$ cargo clippy --all-targets -- -D warnings\nerror: unused variable: `inset`\n  --> features/ui/src/list.rs:62:13\n   |\n62 |         let inset = icon.map(|_| 46);\n   |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_inset`\n   |\n   = note: `-D unused-variables` implied by `-D warnings`\n\nerror: could not compile `feature-ui` (lib) due to 1 previous error\n",
+        )
+        .rerun_as(Checks::Failed),
+        CheckRun::new(
+            "Tests (Browser)",
+            Checks::Failed,
+            124,
+            "$ cargo test --target wasm32-unknown-unknown\nrunning 1 test\ntest list::separator_inset_follows_icons ... FAILED\n\nfailures:\n    list::separator_inset_follows_icons\n\nthread panicked: timeout after 120s waiting for the headless browser to start\n\ntest result: FAILED. 0 passed; 1 failed\n",
+        ),
+    ]
 }
 
 /// Was der Demo-Agent für ein Ticket ändert.

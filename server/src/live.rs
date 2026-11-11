@@ -107,20 +107,24 @@ impl Live {
         })
     }
 
-    /// Der Takt: Jeder laufende Agent macht einen Schritt, und abgelaufene
-    /// Zurückstellungen kommen zurück in die Inbox. Ist nichts zu tun, passiert nichts
+    /// Der Takt: Jeder laufende Agent und jeder neu gestartete Check macht einen Schritt,
+    /// und abgelaufene Zurückstellungen kommen zurück in die Inbox. Ist nichts zu tun, passiert nichts
     /// (und es gibt keine Revision).
     pub fn takt(&self, db: &Mutex<Connection>, at_ms: u64) {
-        let (agenten, wecken) = {
+        let (agenten, checks, wecken) = {
             let stand = sperre(&self.stand);
             (
                 stand.ws.running_agents() > 0,
+                stand.ws.running_checks() > 0,
                 !stand.ws.expired_snoozes(at_ms).is_empty(),
             )
         };
         let mut schritte = Vec::new();
         if agenten {
             schritte.push((Action::AdvanceAgents, Actor::Agent));
+        }
+        if checks {
+            schritte.push((Action::AdvanceChecks, Actor::System));
         }
         if wecken {
             schritte.push((Action::WakeSnoozed, Actor::System));
