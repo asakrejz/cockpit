@@ -23,6 +23,9 @@ body { margin: 0; }
 /* Plan des Agenten: Dateien und Schritte als schlichte Listen. */
 .ck-plan { margin: 0; padding-inline-start: var(--ref-space-20); display: flex; flex-direction: column; gap: var(--ref-space-4); }
 
+/* Verlauf des Agenten: Sprechblasen untereinander. */
+.ck-thread { display: flex; flex-direction: column; gap: var(--ref-space-8); }
+
 /* Übersicht: Karten für Einträge, die hängen, und für die Einträge einer Person. */
 .ck-stuck-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ref-space-8); }
 .ck-stuck { display: flex; gap: var(--ref-space-12); padding: var(--ref-space-12); border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-grouped-background); }
@@ -31,6 +34,19 @@ body { margin: 0; }
 /* Leerer Zustand: nichts hängt. */
 .ck-empty-state { display: flex; flex-direction: column; align-items: center; gap: var(--ref-space-8); padding: var(--ref-space-20); text-align: center; border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-grouped-background); }
 .ck-empty-state__icon { display: inline-flex; padding: var(--ref-space-8); border-radius: var(--ref-radius-full); color: var(--sys-color-label); background: var(--sys-color-green); }
+
+/* Benachrichtigungen: Abschnitte und Ruhezeiten. */
+.ck-settings { display: flex; flex-direction: column; gap: var(--ref-space-20); padding-bottom: var(--ref-space-20); }
+.ck-quiet { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ref-space-12); }
+
+/* Hinweise in der App (Toasts). */
+.ck-toasts { position: fixed; z-index: 50; right: var(--ref-space-16); bottom: var(--ref-space-16); display: flex; flex-direction: column; gap: var(--ref-space-8); width: min(420px, calc(100vw - 2 * var(--ref-space-16))); pointer-events: none; }
+.ck-toast { pointer-events: auto; display: flex; align-items: center; gap: var(--ref-space-12); padding: var(--ref-space-12); border-radius: var(--ref-radius-12); background: var(--sys-color-secondary-background); box-shadow: var(--sys-glass-shadow); }
+.ck-toast__icon { flex: none; display: inline-flex; padding: var(--ref-space-8); border-radius: var(--ref-radius-full); color: var(--sys-color-tint); background: var(--sys-color-quaternary-fill); }
+/* Server-Modus: Hinweise oben in der Mitte (wird verbunden, nicht erreichbar, Aktion abgelehnt). */
+.ck-banner-stack { position: fixed; z-index: 50; inset-block-start: var(--ref-space-12); inset-inline: var(--ref-space-12); display: flex; flex-direction: column; align-items: center; gap: var(--ref-space-8); pointer-events: none; }
+.ck-banner { pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--ref-space-8) var(--ref-space-12); max-width: 560px; padding: var(--ref-space-8) var(--ref-space-16); border-radius: var(--ref-radius-12); color: var(--sys-color-label); background: var(--sys-material-thick); box-shadow: 0 0 0 0.5px var(--sys-color-separator), 0 6px 24px rgb(0 0 0 / 0.12); backdrop-filter: blur(20px); }
+.ck-banner[data-kind="notice"] { box-shadow: 0 0 0 1px var(--sys-color-orange), 0 6px 24px rgb(0 0 0 / 0.12); }
 
 /* Aufmerksamkeit: Regeln in der Sidebar und Zurückstellen im Detail */
 .ck-rule { list-style: none; padding: var(--ref-space-4) var(--ref-space-12); }

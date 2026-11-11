@@ -61,6 +61,30 @@ Schlüssel stehen nie in der Datei. Sie kommen über die Standardeingabe in den 
 `/api/health` meldet je Verbindung nur ja/nein. Die Server-Crates (`server/`, `crates/integrations`)
 laufen nur nativ; für Wasm schließt die CI sie aus (siehe `docs/ROADMAP.md`).
 
+### Server-Modus
+
+Standardmäßig rechnet die App im Browser (**Demo**). Mit dem Backend kann sie umschalten: Unter
+„Einrichten“ › Übersicht wählst du bei „Modus“ **Lokaler Server**. Das geht nur, wenn `GET /api/health`
+antwortet, also wenn du die App über den Server öffnest (`http://127.0.0.1:8787`, nicht über `trunk serve`).
+Der gewählte Modus steht in `localStorage` (`cockpit.mode`), der Wechsel lädt die Seite neu.
+
+Im Server-Modus hält das Backend den `Workspace` (SQLite, Migration 2) und wendet jede Aktion selbst an;
+der Takt des simulierten Agenten läuft ebenfalls dort. Beim ersten Start ohne gespeicherten Stand beginnt es
+mit den Beispieldaten. Die App lädt den Stand, schickt Aktionen und hört auf Änderungen:
+
+| Route | Zweck |
+|-------|-------|
+| `GET /api/workspace` | Stand als JSON (Form von `cockpit_core::persist`, dazu `revision`) |
+| `POST /api/actions` | Body `{"action": <Action>}`; wendet sie als „Du“ an. Antwort `{revision, zusammenfassung, protokolliert}`; eine abgelehnte Aktion ist `422` (unbekannte Form `400`) mit `{"fehler": "…"}` |
+| `GET /api/events` | Server-Sent Events: erst die aktuelle Revision, dann je Aktion ein Ereignis mit neuer Revision und den neuen Protokolleinträgen, dazu Keep-Alive |
+
+Wer nicht erreichbar ist, sieht einen Hinweis mit „Erneut versuchen“ und „Zurück zu Demo“. Der Demo-Stand im
+Browser bleibt dabei unberührt.
+
+Alle Routen unter `/api` prüfen die Gegenstelle (nur Loopback) und den `Host`-Header (`127.0.0.1:<port>` oder
+`localhost:<port>`, gegen DNS-Rebinding). Schreibende Anfragen brauchen zusätzlich `Content-Type: application/json`
+und einen fehlenden oder eigenen `Origin`.
+
 ## Lernpfad
 
 Die Konzepte bauen aufeinander auf. Jeder Schritt nennt die Stelle im Code, an der du es
@@ -183,7 +207,7 @@ view! {
 
 ## Cockpit
 
-Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Fünf Seiten:
+Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Diese Seiten gibt es:
 
 | Seite | Adresse | Was sie kann |
 |-------|---------|--------------|
@@ -191,11 +215,25 @@ Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Fünf S
 | Aufmerksamkeit | `#/`, `#/meine`, `#/team`, `#/zurueckgestellt` | Inbox aus Tickets und Pull Requests, gefiltert nach einschaltbaren Regeln (Erwähnung, Review-Anfrage, blockierter PR, überfälliges Ticket, Agent fertig, zugewiesen); Zurückstellen (1 Stunde, morgen früh, nächste Woche, bis sich etwas ändert); Status ändern, Branch erstellen, antworten, Agent beauftragen; Suche und Quellen-Filter; Tasten `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
 | Review | `#/review/87` | Diff lesen; Zeilen auswählen und eigene Kommentare schreiben; Kommentare des Agenten freigeben, ablehnen oder bearbeiten; Review senden |
 | Übersicht | `#/uebersicht` | Pro Person offene Einträge und Auslastung; „Hängt“ zeigt fehlgeschlagene Checks, wartende Reviews, Tickets ohne Branch und Agenten, die auf dich warten |
-| Agent | `#/agent/BAU-142` | Auftrag mit Optionen; Plan zur Freigabe (abschaltbar); Ablauf in fünf Schritten bis zum Pull Request |
+| Benachrichtigungen | `#/benachrichtigungen` | Je Anlass (Review-Anfrage, Erwähnung, Agent wartet, Agent fertig, Checks rot, Ticket zugewiesen) Browser, E-Mail und Slack wählen; Ruhezeiten; Erlaubnis des Browsers per Knopf anfragen; Test-Benachrichtigung |
+| Agent | `#/agent/BAU-142` | Auftrag mit Optionen; Plan zur Freigabe (abschaltbar); Ablauf in fünf Schritten bis zum Pull Request; Rückfragen beantworten, Hinweise schicken, pausieren; Verlauf als Gespräch |
+
+**Agent: Rückfragen und Nachsteuern.** Der Agent kann an einem Schritt anhalten und eine Frage stellen
+(Status „Wartet auf Antwort“, mit vorgeschlagenen Antworten zum Anklicken oder eigenem Text). Die Frage
+zählt als Aufmerksamkeit: Sie steht in der Übersicht unter „Hängt“ (Knopf „Frage beantworten“) und in der
+Sidebar bei „Agenten“. In der Demo fragt der Lauf für **BAU-142** nach dem zweiten Schritt, ob der alte Stil
+entfernt oder als deprecated markiert werden soll. Läuft der Agent, schickst du ihm unter „Nachsteuern“ einen
+Hinweis; er bestätigt ihn beim nächsten Schritt („Hinweis erhalten: …“). „Pausieren“ hält den Lauf an,
+„Fortsetzen“ geht weiter. Alles Gesagte steht im Verlauf neben der Timeline. Die Aktionen heißen
+`AnswerAgent`, `SteerAgent`, `PauseAgent` und `ResumeAgent`.
 
 Zwei Regeln sind in der Logik verankert und getestet: Ein Review wird erst gesendet, wenn über
 jeden Vorschlag entschieden ist (eigene Zeilenkommentare brauchen keine Freigabe). Der Agent legt vor dem Start einen Plan vor und tut nichts, bis du ihn freigibst (ablehnen oder mit Anmerkung neu anfordern ist möglich). Und der Agent merged nie – sein Ergebnis ist ein Pull Request,
 der auf dein Review wartet.
+
+### Benachrichtigungen
+
+Welche Ereignisse melden, leitet `crates/cockpit-core/src/notify.rs` rein aus dem Vergleich des Workspace vor und nach einer Aktion ab (mit Tests). Die Einstellungen liegen im Workspace und ändern sich über Aktionen (`SetNotifyChannel`, `SetQuietHours`). Im **Browser** fragt Cockpit nie von selbst nach der Erlaubnis, nur über den Knopf unter „Benachrichtigungen“. Ist der Tab im Vordergrund, erscheint ein Hinweis in der App, sonst eine Systemmeldung; ein Klick darauf öffnet das Ziel. In den Ruhezeiten bleibt es still. **E-Mail** und **Slack** sind nur vorbereitet: Die Auswahl wird gespeichert, versendet wird später über das Backend. Adressen und Webhook-URLs liegen nie im Browser.
 
 ### Stand: Demo ohne Backend
 

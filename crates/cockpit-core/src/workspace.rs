@@ -3,10 +3,11 @@
 use serde::{Deserialize, Serialize};
 
 use crate::action::LogEntry;
-use crate::agent::{AgentOptions, AgentRun};
+use crate::agent::{AgentOptions, AgentRun, Tick};
 use crate::attention::{self, Hit, Rule, Rules, Snooze};
 use crate::demo;
 use crate::model::*;
+use crate::notify::NotifySettings;
 use crate::review::{Decision, Review, SendError, Verdict};
 use crate::text::slug;
 
@@ -27,6 +28,9 @@ pub struct Workspace {
     /// Protokoll aller Aktionen, älteste zuerst. Siehe [`crate::action`].
     #[serde(default)]
     pub log: Vec<LogEntry>,
+    /// Benachrichtigungen je Grund und Kanal, dazu die Ruhezeiten.
+    #[serde(default)]
+    pub notifications: NotifySettings,
     /// Welche Aufmerksamkeits-Regeln gelten. Siehe [`crate::attention`].
     #[serde(default)]
     pub rules: Rules,
@@ -175,9 +179,22 @@ impl Workspace {
         self.runs.iter().filter(|r| r.is_running()).count()
     }
 
-    /// Agenten, die einen Plan vorgelegt haben und auf den Nutzer warten.
+    /// Agenten, die auf den Nutzer warten: auf die Freigabe eines Plans oder eine Antwort.
     pub fn waiting_agents(&self) -> usize {
-        self.runs.iter().filter(|r| r.is_awaiting()).count()
+        self.runs
+            .iter()
+            .filter(|r| r.is_awaiting() || r.is_asking())
+            .count()
+    }
+
+    /// Agenten, die eine Frage gestellt haben.
+    pub fn asking_agents(&self) -> usize {
+        self.runs.iter().filter(|r| r.is_asking()).count()
+    }
+
+    /// Pausierte Agenten.
+    pub fn paused_agents(&self) -> usize {
+        self.runs.iter().filter(|r| r.is_paused()).count()
     }
 
     /// Nummer, die der nächste Pull Request bekommt.
@@ -420,14 +437,66 @@ impl Workspace {
             .is_some_and(|r| r.revise(note))
     }
 
-    /// Lässt jeden laufenden Agenten einen Schritt abschließen. Gibt die Tickets
-    /// zurück, deren Lauf dabei fertig geworden ist.
+    fn set_agent_note(&mut self, ticket_key: &str, note: &str) {
+        if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket_key) {
+            item.agent_note = Some(note.into());
+        }
+    }
+
+    /// Beantwortet die Frage des Agenten; er arbeitet danach weiter.
+    pub fn answer_agent(&mut self, ticket_key: &str, text: &str) -> bool {
+        if !self
+            .active_run_mut(ticket_key)
+            .is_some_and(|r| r.answer(text))
+        {
+            return false;
+        }
+        self.set_agent_note(ticket_key, "Der Agent arbeitet an der Umsetzung");
+        true
+    }
+
+    /// Schickt dem laufenden Agenten einen Hinweis für den nächsten Schritt.
+    pub fn steer_agent(&mut self, ticket_key: &str, text: &str) -> bool {
+        self.active_run_mut(ticket_key)
+            .is_some_and(|r| r.steer(text))
+    }
+
+    /// Hält einen laufenden Agenten an.
+    pub fn pause_agent(&mut self, ticket_key: &str) -> bool {
+        if !self.active_run_mut(ticket_key).is_some_and(AgentRun::pause) {
+            return false;
+        }
+        self.set_agent_note(ticket_key, "Der Agent ist pausiert");
+        true
+    }
+
+    /// Setzt einen pausierten Agenten fort.
+    pub fn resume_agent(&mut self, ticket_key: &str) -> bool {
+        if !self
+            .active_run_mut(ticket_key)
+            .is_some_and(AgentRun::resume)
+        {
+            return false;
+        }
+        self.set_agent_note(ticket_key, "Der Agent arbeitet an der Umsetzung");
+        true
+    }
+
+    /// Lässt jeden laufenden Agenten einen Schritt abschließen oder eine Frage stellen.
+    /// Gibt die Tickets zurück, deren Lauf dabei fertig geworden ist.
     pub fn advance_agents(&mut self) -> Vec<String> {
-        let finished: Vec<AgentRun> = self
-            .runs
-            .iter_mut()
-            .filter_map(|run| run.advance().then(|| run.clone()))
-            .collect();
+        let mut finished = Vec::new();
+        let mut asking = Vec::new();
+        for run in &mut self.runs {
+            match run.tick() {
+                Tick::Finished => finished.push(run.clone()),
+                Tick::Asked => asking.push(run.ticket_key.clone()),
+                Tick::Stepped | Tick::Idle => {}
+            }
+        }
+        for key in &asking {
+            self.set_agent_note(key, "Der Agent hat eine Frage an dich");
+        }
         for run in &finished {
             self.publish(run);
         }
@@ -504,8 +573,22 @@ mod tests {
         }
     }
 
+    /// Lässt alle Agenten zu Ende laufen und beantwortet dabei jede Rückfrage.
     fn finish_agents(w: &mut Workspace) -> Vec<String> {
-        (0..STEPS).flat_map(|_| w.advance_agents()).collect()
+        let mut finished = Vec::new();
+        for _ in 0..=STEPS {
+            let asking: Vec<String> = w
+                .runs
+                .iter()
+                .filter(|r| r.is_asking())
+                .map(|r| r.ticket_key.clone())
+                .collect();
+            for key in asking {
+                assert!(w.answer_agent(&key, "Entfernen"));
+            }
+            finished.extend(w.advance_agents());
+        }
+        finished
     }
 
     #[test]

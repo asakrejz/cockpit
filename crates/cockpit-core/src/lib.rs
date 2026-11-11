@@ -6,10 +6,12 @@
 //! * [`agent`]: der Lauf eines Agenten als Zustandsmaschine
 //! * [`connections`]: Verbindungen, Berechtigungen und Eingabeprüfung
 //! * [`search`]: Suche und Filter der Inbox
+//! * [`notify`]: Ereignisse für Benachrichtigungen, Kanäle und Ruhezeiten
 //! * [`team`]: Auslastung pro Person und was gerade hängt
 //! * [`workspace`]: alles zusammen, mit den Aktionen der Oberfläche
 //! * [`action`]: [`Action`], `Workspace::apply` und das Protokoll
 //! * [`demo`]: Beispieldaten, solange kein Backend angebunden ist
+//! * [`api`]: die JSON-Formen zwischen App und Backend (Server-Modus)
 //! * [`persist`]: Speichern und Laden des Workspace (JSON mit Versionsnummer)
 //!
 //! Jede Aktion der Oberfläche ist eine [`Action`], die `Workspace::apply` über Methoden
@@ -18,10 +20,12 @@
 
 pub mod action;
 pub mod agent;
+pub mod api;
 pub mod attention;
 pub mod connections;
 pub mod demo;
 pub mod model;
+pub mod notify;
 pub mod persist;
 pub mod review;
 pub mod search;
@@ -30,10 +34,16 @@ pub mod text;
 pub mod workspace;
 
 pub use action::{Action, ActionError, Actor, Applied, LogEntry, MAX_LOG, Target};
-pub use agent::{AgentOptions, AgentRun, Plan, RunState, Step, StepState};
+pub use agent::{
+    AgentOptions, AgentRun, MessageKind, Plan, Question, RunMessage, RunState, Speaker, Step,
+    StepState, Tick,
+};
 pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::Connections;
 pub use model::*;
+pub use notify::{
+    Channel, Channels, Delivery, Event as NotifyEvent, NotifyReason, NotifySettings, QuietHours,
+};
 pub use review::{
     Decision, DiffLine, FileDiff, Level, LineComment, LineKind, Review, SendError, Suggestion,
     Verdict,

@@ -31,13 +31,18 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
     });
     let reviews = Signal::derive(move || store.ws.with(|w| w.open_reviews()).to_string());
     let agents = Signal::derive(move || {
-        let (running, waiting) = store.ws.with(|w| (w.running_agents(), w.waiting_agents()));
+        let (running, waiting, paused) = store
+            .ws
+            .with(|w| (w.running_agents(), w.waiting_agents(), w.paused_agents()));
         let mut parts = Vec::new();
         if running > 0 {
             parts.push(format!("{running} aktiv"));
         }
         if waiting > 0 {
             parts.push(format!("{waiting} wartet"));
+        }
+        if paused > 0 {
+            parts.push(format!("{paused} pausiert"));
         }
         parts.join(" · ")
     });
@@ -110,6 +115,12 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
             {children()}
             <Spacer />
             <SidebarSection>
+                <SidebarItem
+                    href=Route::Notifications.hash()
+                    label="Benachrichtigungen"
+                    icon=icons::BELL
+                    current=on(Route::Notifications)
+                />
                 <SidebarItem href=Route::Setup.hash() label="Einstellungen" icon=icons::SLIDERS />
             </SidebarSection>
         </Sidebar>

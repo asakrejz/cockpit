@@ -1,6 +1,6 @@
 //! Ein Agent setzt ein Ticket um: Auftrag, Ablauf in fünf Schritten und Aktivität.
 
-use cockpit_core::{Action, AgentOptions, agent::STEPS};
+use cockpit_core::{Action, AgentOptions, MessageKind, RunMessage, Speaker, agent::STEPS};
 use feature_ui::*;
 use leptos::prelude::*;
 
@@ -11,6 +11,32 @@ fn step_state(state: cockpit_core::StepState) -> StepState {
         cockpit_core::StepState::Pending => StepState::Pending,
         cockpit_core::StepState::Active => StepState::Active,
         cockpit_core::StepState::Done => StepState::Done,
+    }
+}
+
+/// Eine Zeile des Verlaufs als Sprechblase.
+fn bubble(m: RunMessage) -> impl IntoView {
+    let own = m.from == Speaker::Du;
+    let who = match (m.from, m.kind) {
+        (Speaker::Agent, MessageKind::Question) => "Agent fragt",
+        (Speaker::Agent, _) => "Agent",
+        (Speaker::Du, MessageKind::Answer) => "Du antwortest",
+        (Speaker::Du, MessageKind::Hint) => "Du schickst einen Hinweis",
+        (Speaker::Du, _) => "Du",
+    };
+    let time = match m.step {
+        0 => "Start".to_string(),
+        n => format!("nach Schritt {n}"),
+    };
+    view! {
+        <CommentBubble
+            who=who
+            initials=if own { "AS" } else { "AG" }
+            time=time
+            text=m.text
+            own=own
+            agent=!own
+        />
     }
 }
 
@@ -74,6 +100,10 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let running = Signal::derive(move || run.get().is_some_and(|r| r.is_running()));
     let awaiting = Signal::derive(move || run.get().is_some_and(|r| r.is_awaiting()));
     let plan = Memo::new(move |_| run.get().and_then(|r| r.plan()));
+    let asking = Signal::derive(move || run.get().is_some_and(|r| r.is_asking()));
+    let paused = Signal::derive(move || run.get().is_some_and(|r| r.is_paused()));
+    // Der Agent arbeitet an den Schritten – dann nimmt er Hinweise an.
+    let working = Signal::derive(move || running.get() || asking.get() || paused.get());
     let done = Signal::derive(move || run.get().is_some_and(|r| r.is_done()));
     let locked = Signal::derive(move || !idle.get());
     let blocked = Signal::derive(move || store.conn.get().agent_blocked());
@@ -102,6 +132,39 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         });
         note.set(String::new());
     };
+    // Antwort auf eine Rückfrage und Hinweis an den laufenden Agenten.
+    let answer = RwSignal::new(String::new());
+    let steer = RwSignal::new(String::new());
+    let answer_empty = Signal::derive(move || answer.with(|a| a.trim().is_empty()));
+    let steer_empty = Signal::derive(move || steer.with(|a| a.trim().is_empty()));
+    let send_answer = move |text: String| {
+        let sent = store.dispatch(Action::AnswerAgent {
+            run: key.get_value(),
+            text,
+        });
+        if sent.is_ok() {
+            answer.set(String::new());
+        }
+    };
+    let send_steer = move |_| {
+        let sent = store.dispatch(Action::SteerAgent {
+            run: key.get_value(),
+            text: steer.get_untracked(),
+        });
+        if sent.is_ok() {
+            steer.set(String::new());
+        }
+    };
+    let pause = move |_| {
+        let _ = store.dispatch(Action::PauseAgent {
+            run: key.get_value(),
+        });
+    };
+    let resume = move |_| {
+        let _ = store.dispatch(Action::ResumeAgent {
+            run: key.get_value(),
+        });
+    };
     let note_empty = Signal::derive(move || note.with(|n| n.trim().is_empty()));
     let revise = move |_| {
         let text = note.get_untracked();
@@ -128,6 +191,10 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                 .map(|r| {
                     let state = if r.is_awaiting() {
                         "wartet"
+                    } else if r.is_asking() {
+                        "fragt"
+                    } else if r.is_paused() {
+                        "pausiert"
                     } else if r.is_running() {
                         "läuft"
                     } else if r.is_done() {
@@ -174,11 +241,25 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         .collect_view()
     };
 
+    // Gesprächsverlauf: Agent-Meldungen, Fragen, deine Antworten und Hinweise.
+    let history = move || {
+        let messages = run.get().map(|r| r.messages).unwrap_or_default();
+        if messages.is_empty() {
+            return view! { <p class="t-footnote t-secondary">"Noch nichts gesagt."</p> }
+                .into_any();
+        }
+        messages.into_iter().map(bubble).collect_view().into_any()
+    };
+
     let status = move || {
         if done.get() {
             ("Fertig", StatusTone::Green)
         } else if awaiting.get() {
             ("Wartet auf Freigabe", StatusTone::Orange)
+        } else if asking.get() {
+            ("Wartet auf Antwort", StatusTone::Orange)
+        } else if paused.get() {
+            ("Pausiert", StatusTone::Gray)
         } else if running.get() {
             ("Agent arbeitet", StatusTone::Blue)
         } else {
@@ -308,6 +389,16 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                 </Button>
                             </Show>
                             <Show when=move || running.get()>
+                                <Button size=ControlSize::Large on_click=pause>
+                                    "Pausieren"
+                                </Button>
+                            </Show>
+                            <Show when=move || paused.get()>
+                                <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large on_click=resume>
+                                    "Fortsetzen"
+                                </Button>
+                            </Show>
+                            <Show when=move || working.get()>
                                 <Button size=ControlSize::Large destructive=true on_click=cancel>
                                     "Abbrechen"
                                 </Button>
@@ -343,6 +434,71 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                     }
                                 })
                         }}
+
+                        {move || {
+                            let question = run.get().filter(|r| r.is_asking())?.question?;
+                            Some(
+                                view! {
+                                    <div class="ui-list__section" role="region" aria-label="Frage des Agenten">
+                                        <p class="ui-list__header">"Frage des Agenten – wartet auf deine Antwort"</p>
+                                        <SuggestionCard state=SuggestionState::Pending>
+                                            <p class="t-headline">{question.text.clone()}</p>
+                                            <div class="ui-hstack" style="--spacing: 8px">
+                                                {question
+                                                    .suggestions
+                                                    .iter()
+                                                    .cloned()
+                                                    .map(|text| {
+                                                        let label = text.clone();
+                                                        view! {
+                                                            <Button size=ControlSize::Small on_click=move |_| send_answer(text.clone())>
+                                                                {label}
+                                                            </Button>
+                                                        }
+                                                    })
+                                                    .collect_view()}
+                                            </div>
+                                        </SuggestionCard>
+                                        <div class="ui-vstack" style="--spacing: 10px">
+                                            <Textarea
+                                                value=answer
+                                                label="Deine Antwort"
+                                                placeholder="Oder eigene Antwort schreiben …"
+                                                min_height="72px"
+                                            />
+                                            <div class="ui-hstack">
+                                                <Button
+                                                    variant=ButtonStyle::GlassProminent
+                                                    disabled=answer_empty
+                                                    on_click=move |_| send_answer(answer.get_untracked())
+                                                >
+                                                    "Antworten"
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                },
+                            )
+                        }}
+
+                        <Show when=move || working.get()>
+                            <div class="ui-list__section" role="region" aria-label="Agent nachsteuern">
+                                <p class="ui-list__header">"Nachsteuern"</p>
+                                <div class="ui-vstack" style="--spacing: 10px">
+                                    <Textarea
+                                        value=steer
+                                        label="Anweisung an den Agenten"
+                                        placeholder="Anweisung für den nächsten Schritt, z. B.: Bitte auch die Doku anpassen."
+                                        min_height="72px"
+                                    />
+                                    <div class="ui-hstack">
+                                        <Button disabled=steer_empty on_click=send_steer>
+                                            "Hinweis senden"
+                                        </Button>
+                                    </div>
+                                </div>
+                            </div>
+                        </Show>
 
                         {move || {
                             let plan = plan.get()?;
@@ -404,6 +560,10 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                         <h2 class="t-title3 t-bold">"Aktivität"</h2>
                     </PaneHeader>
                     <PaneBody>
+                        <div class="ui-list__section" role="region" aria-label="Verlauf">
+                            <p class="ui-list__header">"Verlauf"</p>
+                            <div class="ck-thread">{history}</div>
+                        </div>
                         <Log text=Signal::derive(move || run.get().map(|r| r.log()).unwrap_or_default()) />
                         {move || {
                             // Sobald der Agent an den Dateien arbeitet, erscheinen sie hier.
