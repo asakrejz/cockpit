@@ -46,9 +46,11 @@ Grundsätze:
 - Logik nach `cockpit-core` mit Unit-Tests. Die App verdrahtet nur.
 - Texte und Kommentare auf Deutsch. CSS nur mit Tokens. `styles/tokens.css` und
   `features/ui/components.css` stammen 1:1 aus dem Design und bleiben unverändert.
-- Vor dem PR grün: `cargo fmt --all --check`, `cargo clippy --workspace --all-targets
-  --target wasm32-unknown-unknown -- -D warnings` (Server-Crates zusätzlich nativ),
-  `cargo test --workspace`, `trunk build` für beide Apps. Das Feature im Browser durchspielen.
+- Vor dem PR grün: `cargo fmt --all --check`; `cargo clippy --workspace --exclude
+  cockpit-server --exclude cockpit-integrations --all-targets --target wasm32-unknown-unknown
+  -- -D warnings` (die Server-Crates kompilieren nicht für Wasm); `cargo clippy -p cockpit-server
+  -p cockpit-integrations --all-targets -- -D warnings` (nativ); `cargo test --workspace`;
+  `trunk build` für beide Apps. Das Feature im Browser durchspielen.
 - Was nur mit echten Zugangsdaten prüfbar ist, wird gegen nachgebaute Antworten getestet
   und im PR klar als „nicht gegen den echten Dienst geprüft“ benannt.
 

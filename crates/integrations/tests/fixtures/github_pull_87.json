@@ -1,0 +1,12 @@
+{
+  "number": 87,
+  "state": "open",
+  "title": "BAU-142: Avatar-Größe über Tokens",
+  "body": "Ersetzt feste Pixelwerte durch Tokens.\n\nCloses BAU-142",
+  "draft": false,
+  "user": { "login": "tobias-lang" },
+  "head": { "ref": "feature/BAU-142-avatar-tokens", "sha": "aaa111" },
+  "base": { "ref": "main", "sha": "bbb222" },
+  "created_at": "2024-05-13T08:00:00Z",
+  "updated_at": "2024-05-14T10:00:00Z"
+}

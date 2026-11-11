@@ -1,0 +1,16 @@
+[
+  {
+    "sha": "f1", "filename": "features/ui/components.css", "status": "modified",
+    "additions": 2, "deletions": 2, "changes": 4,
+    "patch": "@@ -411,6 +411,6 @@ .ui-avatar {\n   display: grid;\n   place-items: center;\n-  width: 28px;\n-  height: 28px;\n+  width: var(--comp-avatar-size);\n+  height: var(--comp-avatar-size);\n   border-radius: 50%;\n }"
+  },
+  {
+    "sha": "f2", "filename": "styles/tokens.css", "status": "added",
+    "additions": 1, "deletions": 0, "changes": 1,
+    "patch": "@@ -0,0 +1 @@\n+--comp-avatar-size: 28px;\n\\ No newline at end of file"
+  },
+  {
+    "sha": "f3", "filename": "assets/logo.png", "status": "modified",
+    "additions": 0, "deletions": 0, "changes": 0
+  }
+]

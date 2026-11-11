@@ -32,6 +32,35 @@ trunk build --release               # fertige Seite nach ./dist
 Beim Lernen hilft: `trunk serve` laufen lassen, eine Datei ändern, Speichern – der Browser
 lädt neu, und der Compiler sagt dir sofort, was nicht passt.
 
+## Backend starten
+
+Das Backend (`server/`, Binary `cockpit-server`) ist ein lokaler Dienst für eine Person. Es lauscht nur
+auf `127.0.0.1`, liefert die gebaute Cockpit-App aus und hält Daten (SQLite) und Schlüssel
+(Schlüsselbund des Systems) – Schlüssel verlassen das Backend nie.
+
+```bash
+(cd cockpit && trunk build)     # App nach cockpit/dist bauen
+cargo run -p cockpit-server     # http://127.0.0.1:8787
+curl localhost:8787/api/health  # {"status":"ok","version":"…","verbindungen":{"github":false,"jira":false}}
+```
+
+Konfiguration (alles optional): Datei `config.toml` im Konfigurationsverzeichnis (`~/.config/cockpit/`
+unter Linux), darüber Umgebungsvariablen `COCKPIT_PORT` (8787), `COCKPIT_DIST` (`cockpit/dist`),
+`COCKPIT_DB` (Datenverzeichnis des Nutzers, `cockpit/cockpit.db`) und `COCKPIT_CONFIG` (Pfad der Datei).
+
+```toml
+port = 8787
+[github]                          # api_url ist optional
+[jira]
+site = "https://firma.atlassian.net"
+email = "ich@firma.example"
+```
+
+Schlüssel stehen nie in der Datei. Sie kommen über die Standardeingabe in den Schlüsselbund:
+`echo "$TOKEN" | cargo run -p cockpit-server -- token setzen github` (oder `jira`; `token loeschen <name>` entfernt sie).
+`/api/health` meldet je Verbindung nur ja/nein. Die Server-Crates (`server/`, `crates/integrations`)
+laufen nur nativ; für Wasm schließt die CI sie aus (siehe `docs/ROADMAP.md`).
+
 ## Lernpfad
 
 Die Konzepte bauen aufeinander auf. Jeder Schritt nennt die Stelle im Code, an der du es
@@ -76,7 +105,9 @@ statt `Glass`) und lies die Compiler-Meldung. Rust erklärt Fehler meist sehr ge
 │       ├── extras.css          # Ergänzungen und Korrekturen zum Design
 │       └── src/                # Leptos-Komponenten, eine Datei pro Gruppe
 ├── crates/
-│   └── cockpit-core/           # Fachlogik des Cockpits – ohne UI, mit Tests
+│   ├── cockpit-core/           # Fachlogik des Cockpits – ohne UI, mit Tests
+│   └── integrations/           # GitHub- und Jira-Clients (nur lesen), nativ
+├── server/                     # Backend: axum, SQLite, Schlüsselablage
 ├── cockpit/                    # die Cockpit-App (eigenes index.html und Trunk.toml)
 │   └── src/
 │       ├── main.rs             # Start, Routing, Takt der Agenten
