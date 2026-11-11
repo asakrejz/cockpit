@@ -639,7 +639,7 @@ impl AgentRun {
             1 => "1 Datei angepasst".to_string(),
             n => format!("{n} Dateien angepasst"),
         };
-        if self.rules.has_path_rules() {
+        if self.rules.has_path_rules() && self.violations().is_empty() {
             files.push_str(" · Pfad-Regeln eingehalten");
         }
         let texts: [(&str, String); STEPS] = [
