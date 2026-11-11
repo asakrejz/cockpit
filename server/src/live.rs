@@ -74,6 +74,12 @@ impl Live {
         sperre(&self.stand).revision
     }
 
+    /// Ersetzt den Stand (nur für Tests, die Daten brauchen, die keine Aktion herstellt).
+    #[cfg(test)]
+    pub fn setze_stand_fuer_test(&self, ws: Workspace) {
+        sperre(&self.stand).ws = ws;
+    }
+
     /// Wendet eine Aktion an, sichert den neuen Stand und meldet ihn. Blockierend (SQLite).
     pub fn anwenden(
         &self,
@@ -108,15 +114,18 @@ impl Live {
     }
 
     /// Der Takt: Jeder laufende Agent und jeder neu gestartete Check macht einen Schritt,
-    /// und abgelaufene Zurückstellungen kommen zurück in die Inbox. Ist nichts zu tun, passiert nichts
+    /// und abgelaufene Zurückstellungen kommen zurück in die Inbox, Pull Requests mit Ticket-Schlüssel
+    /// in Branch oder Titel werden verknüpft, und der Status verknüpfter Tickets folgt dem Pull Request. Ist nichts zu tun, passiert nichts
     /// (und es gibt keine Revision).
     pub fn takt(&self, db: &Mutex<Connection>, at_ms: u64) {
-        let (agenten, checks, wecken) = {
+        let (agenten, checks, wecken, verknuepfen, status) = {
             let stand = sperre(&self.stand);
             (
                 stand.ws.running_agents() > 0,
                 stand.ws.running_checks() > 0,
                 !stand.ws.expired_snoozes(at_ms).is_empty(),
+                !stand.ws.auto_links().is_empty(),
+                stand.ws.status_pending(),
             )
         };
         let mut schritte = Vec::new();
@@ -128,6 +137,12 @@ impl Live {
         }
         if wecken {
             schritte.push((Action::WakeSnoozed, Actor::System));
+        }
+        if verknuepfen {
+            schritte.push((Action::AutoLinkPrs, Actor::System));
+        }
+        if status {
+            schritte.push((Action::SyncTicketStatus, Actor::System));
         }
         for (action, actor) in schritte {
             match self.anwenden(db, action, actor, at_ms) {
