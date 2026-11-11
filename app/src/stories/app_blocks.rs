@@ -26,6 +26,8 @@ fn render() -> AnyView {
     let state = RwSignal::new(SuggestionState::Pending);
     let verdict = RwSignal::new("comment");
     let note = RwSignal::new(String::new());
+    // Diff mit auswählbaren Zeilen: Position der gewählten Zeile.
+    let line = RwSignal::new(None::<usize>);
 
     let timeline_state = move |i: usize| {
         Signal::derive(move || match progress.get() {
@@ -93,6 +95,42 @@ fn render() -> AnyView {
                     <Textarea value=note label="Antwort" placeholder="Antworten …" min_height="72px" />
                 </VStack>
             </Grid>
+        </Section>
+
+        <Section title="Diff mit auswählbaren Zeilen" api="<Diff on_select selected below>">
+            <Diff
+                label="toggle.css"
+                rows=vec![
+                    DiffRow { no: 20, kind: DiffKind::Context, text: ".ui-toggle input {".into() },
+                    DiffRow { no: 21, kind: DiffKind::Del, text: "  outline: 1px solid red;".into() },
+                    DiffRow { no: 21, kind: DiffKind::Add, text: "  outline: none;".into() },
+                    DiffRow { no: 22, kind: DiffKind::Context, text: "}".into() },
+                ]
+                on_select=Some(
+                    Callback::new(move |i: usize| line.update(|l| *l = if *l == Some(i) { None } else { Some(i) })),
+                )
+                selected=line
+                below=Some(
+                    Callback::new(move |i: usize| {
+                        view! {
+                            {move || {
+                                (line.get() == Some(i))
+                                    .then(|| {
+                                        view! {
+                                            <div class="ui-diff__note">
+                                                <span class="t-footnote t-secondary">"Inhalt unter Zeile "{i + 1}</span>
+                                                <p class="t-subheadline">
+                                                    "Der Slot nimmt beliebige Bausteine auf, hier ein Hinweis."
+                                                </p>
+                                            </div>
+                                        }
+                                    })
+                            }}
+                        }
+                            .into_any()
+                    }),
+                )
+            />
         </Section>
 
         <Section title="Diff & Vorschlag" api="<Diff rows> · <SuggestionCard state> · <SegmentedPicker stretch>">

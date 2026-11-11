@@ -1,9 +1,10 @@
 //! Aufmerksamkeit: links die Inbox aus Tickets und Pull Requests, rechts das Detail
 //! mit Status, Branch, Kommentaren und dem Weg zum Agenten.
 
-use cockpit_core::{Filter, Item, TicketStatus};
+use cockpit_core::{Filter, Item, SourceFilter, TicketStatus};
 use feature_ui::*;
-use leptos::prelude::*;
+use leptos::{ev, prelude::*, wasm_bindgen::JsCast};
+use web_sys::{HtmlElement, KeyboardEvent, ScrollIntoViewOptions, ScrollLogicalPosition};
 
 use crate::{
     route::Route,
@@ -18,9 +19,13 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
 
     // Die Memos melden sich nur, wenn sich ihr Ergebnis wirklich ändert. Ein tickender
     // Agent an einem anderen Ticket baut das Detail also nicht neu auf.
+    // Suchtext und Quelle gehören nur dieser Seite; sie bleiben nicht über Navigation hinweg.
+    let query = RwSignal::new(String::new());
+    let source = RwSignal::new(SourceFilter::All);
     let items = Memo::new(move |_| {
+        let (source, query) = (source.get(), query.get());
         store.ws.with(|w| {
-            w.visible(filter)
+            w.search(filter, source, &query)
                 .into_iter()
                 .cloned()
                 .collect::<Vec<Item>>()
@@ -38,6 +43,24 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
     Effect::new(move |_| {
         store.selected.track();
         draft.set(String::new());
+    });
+
+    // Tastaturbedienung: gilt, solange die Seite offen ist, und endet mit ihr.
+    let listener = window_event_listener(ev::keydown, move |event| {
+        on_key(store, items, current, event)
+    });
+    on_cleanup(move || listener.remove());
+
+    // Der gewählte Eintrag soll sichtbar bleiben, auch wenn er per Tastatur wechselt.
+    Effect::new(move |_| {
+        current.track();
+        request_animation_frame(|| {
+            if let Some(row) = query_html(".ck-inbox [aria-pressed=\"true\"]") {
+                let options = ScrollIntoViewOptions::new();
+                options.set_block(ScrollLogicalPosition::Nearest);
+                row.scroll_into_view_with_scroll_into_view_options(&options);
+            }
+        });
     });
 
     let (title, empty) = match filter {
@@ -85,11 +108,41 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                         }
                         aria_label="Filter"
                     />
+                    <SegmentedPicker
+                        options=SourceFilter::OPTIONS
+                        value=Signal::derive(move || source.get().id())
+                        on_change=move |id: &'static str| {
+                            source.set(SourceFilter::from_id(id).unwrap_or_default());
+                        }
+                        aria_label="Quelle"
+                    />
+                    <div class="ck-search">
+                        <SearchField value=query placeholder="Inbox durchsuchen" />
+                    </div>
+                    <p class="ui-sr-only" role="status">
+                        {move || format!("{} Einträge", items.with(Vec::len))}
+                    </p>
                 </PaneHeader>
                 <ul class="ck-inbox">
                     {move || {
                         let list = items.get();
-                        if list.is_empty() {
+                        if list.is_empty() && is_narrowed(&query.get(), source.get()) {
+                            let reset = move |_| {
+                                query.set(String::new());
+                                source.set(SourceFilter::All);
+                            };
+                            view! {
+                                <li class="ck-empty ui-vstack">
+                                    <p class="t-subheadline t-secondary">
+                                        "Keine Treffer. Passe Suche oder Quelle an."
+                                    </p>
+                                    <Button size=ControlSize::Small on_click=reset>
+                                        "Suche zurücksetzen"
+                                    </Button>
+                                </li>
+                            }
+                                .into_any()
+                        } else if list.is_empty() {
                             view! { <li class="ck-empty t-subheadline t-secondary">{empty}</li> }.into_any()
                         } else {
                             let active = current.get().map(|i| i.id);
@@ -103,6 +156,12 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                         }
                     }}
                 </ul>
+                <p class="ck-keys t-footnote t-secondary">
+                    <span><kbd>"↑"</kbd><kbd>"↓"</kbd>" wählen"</span>
+                    <span><kbd>"e"</kbd>" erledigt"</span>
+                    <span><kbd>"r"</kbd>" antworten"</span>
+                    <span><kbd>"/"</kbd>" suchen"</span>
+                </p>
             </Pane>
 
             <Pane label="Details">
@@ -119,6 +178,90 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                 }}
             </Pane>
         </SplitView>
+    }
+}
+
+/// Ist die Liste durch Suche oder Quelle eingeschränkt?
+fn is_narrowed(query: &str, source: SourceFilter) -> bool {
+    !query.trim().is_empty() || source != SourceFilter::All
+}
+
+/// Erstes Element, das zum Selektor passt.
+fn query_html(selector: &str) -> Option<HtmlElement> {
+    document()
+        .query_selector(selector)
+        .ok()
+        .flatten()
+        .and_then(|el| el.dyn_into().ok())
+}
+
+/// Setzt den Fokus auf ein Eingabefeld und markiert dessen Inhalt.
+fn focus_field(selector: &str) {
+    if let Some(el) = query_html(selector) {
+        let _ = el.focus();
+        if let Ok(input) = el.dyn_into::<web_sys::HtmlInputElement>() {
+            input.select();
+        }
+    }
+}
+
+/// Tippt der Nutzer gerade in ein Eingabefeld? Dann gehören die Tasten dem Feld.
+fn is_typing(event: &KeyboardEvent) -> bool {
+    event
+        .target()
+        .and_then(|t| t.dyn_into::<HtmlElement>().ok())
+        .is_some_and(|el| {
+            matches!(el.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
+                || el.is_content_editable()
+        })
+}
+
+/// Ein Tastendruck in der Inbox: ↑/↓ und j/k wechseln den Eintrag, `e` erledigt ihn,
+/// `r` springt ins Antwortfeld, `/` in die Suche.
+fn on_key(store: Store, items: Memo<Vec<Item>>, current: Memo<Option<Item>>, event: KeyboardEvent) {
+    if event.ctrl_key() || event.meta_key() || event.alt_key() {
+        return;
+    }
+    if is_typing(&event) {
+        // Escape verlässt das Feld und gibt die Kürzel wieder frei.
+        if event.key() == "Escape"
+            && let Some(el) = event
+                .target()
+                .and_then(|t| t.dyn_into::<HtmlElement>().ok())
+        {
+            let _ = el.blur();
+        }
+        return;
+    }
+    let step: isize = match event.key().as_str() {
+        "ArrowDown" | "j" => 1,
+        "ArrowUp" | "k" => -1,
+        "e" => {
+            if let Some(item) = current.get_untracked() {
+                store.ws.update(|w| w.mark_done(&item.id));
+            }
+            return;
+        }
+        "r" => {
+            event.prevent_default();
+            focus_field(".ck-reply textarea");
+            return;
+        }
+        "/" => {
+            event.prevent_default();
+            focus_field(".ck-search input");
+            return;
+        }
+        _ => return,
+    };
+    event.prevent_default();
+    let list = items.get_untracked();
+    let Some(now) = current.get_untracked() else {
+        return;
+    };
+    let at = list.iter().position(|i| i.id == now.id).unwrap_or(0);
+    if let Some(next) = at.checked_add_signed(step).and_then(|n| list.get(n)) {
+        store.selected.set(next.id.clone());
     }
 }
 
@@ -331,11 +474,13 @@ fn detail(store: Store, item: Item, draft: RwSignal<String>) -> impl IntoView {
                 <div class="ui-vstack" style="--spacing: 12px">
                     {comments}
                     <div class="ui-vstack" style="--spacing: 8px">
-                        <Textarea
-                            value=draft
-                            label="Antwort"
-                            placeholder=if is_ticket { "Im Ticket antworten …" } else { "Im Pull Request antworten …" }
-                        />
+                        <div class="ck-reply">
+                            <Textarea
+                                value=draft
+                                label="Antwort"
+                                placeholder=if is_ticket { "Im Ticket antworten …" } else { "Im Pull Request antworten …" }
+                            />
+                        </div>
                         <div class="ui-hstack" style="justify-content: space-between">
                             <span class="t-footnote t-secondary">
                                 {format!("Wird direkt in {source} gepostet.")}

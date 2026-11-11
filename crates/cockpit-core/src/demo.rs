@@ -168,6 +168,7 @@ pub fn workspace() -> Workspace {
             files,
             agent_reviewed: false,
             suggestions: Vec::new(),
+            line_comments: Vec::new(),
             verdict: Verdict::Comment,
             sent: false,
         };
