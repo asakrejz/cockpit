@@ -1,7 +1,9 @@
 //! Aufmerksamkeit: links die Inbox aus Tickets und Pull Requests, rechts das Detail
 //! mit Status, Branch, Kommentaren und dem Weg zum Agenten.
 
-use cockpit_core::{Action, Filter, Item, Rule, SnoozeChoice, SourceFilter, TicketStatus};
+use cockpit_core::{
+    Action, Filter, Item, Person, Priority, Rule, SnoozeChoice, SourceFilter, TicketStatus,
+};
 use feature_ui::*;
 use leptos::{ev, prelude::*, wasm_bindgen::JsCast};
 use web_sys::{HtmlElement, KeyboardEvent, ScrollIntoViewOptions, ScrollLogicalPosition};
@@ -45,6 +47,18 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
         draft.set(String::new());
     });
 
+    // Bearbeiten-Modus eines Tickets: Entwurf von Titel und Beschreibung. Mit jedem Wechsel
+    // des Eintrags endet er; ein Entwurf geht nicht in ein anderes Ticket über.
+    let edit = Edit {
+        on: RwSignal::new(false),
+        title: RwSignal::new(String::new()),
+        description: RwSignal::new(String::new()),
+    };
+    Effect::new(move |_| {
+        store.selected.track();
+        edit.on.set(false);
+    });
+
     // Tastaturbedienung: gilt, solange die Seite offen ist, und endet mit ihr.
     let listener = window_event_listener(ev::keydown, move |event| {
         on_key(store, items, current, event)
@@ -86,6 +100,9 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
             <AppSidebar>
                 <SidebarSection label="Regeln">
                     {Rule::ALL.into_iter().map(|rule| rule_switch(store, rule)).collect_view()}
+                </SidebarSection>
+                <SidebarSection label="Tickets">
+                    {status_follow_switch(store)}
                 </SidebarSection>
                 <SidebarSection label="Verbindungen">
                     {connection("Jira", |c| c.jira, "Verbunden")}
@@ -175,7 +192,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
 
             <Pane label="Details">
                 {move || match current.get() {
-                    Some(item) => detail(store, item, items, draft).into_any(),
+                    Some(item) => detail(store, item, items, draft, edit).into_any(),
                     None => {
                         view! {
                             <PaneHeader>
@@ -258,6 +275,43 @@ fn rule_switch(store: Store, rule: Rule) -> impl IntoView {
             </label>
         </li>
     }
+}
+
+/// Der Schalter „Status folgt dem Pull Request“. Wie bei den Regeln liegt der Zustand im
+/// Workspace und ändert sich nur per Action.
+fn status_follow_switch(store: Store) -> impl IntoView {
+    let on = RwSignal::new(store.ws.with_untracked(|w| !w.pr_status_off));
+    Effect::new(move |_| {
+        let enabled = store.ws.with(|w| !w.pr_status_off);
+        if on.get_untracked() != enabled {
+            on.set(enabled);
+        }
+    });
+    Effect::new(move |previous: Option<()>| {
+        let enabled = on.get();
+        if previous.is_some() {
+            let _ = store.dispatch(Action::SetStatusFollowsPr { enabled });
+        }
+    });
+    view! {
+        <li
+            class="ck-rule"
+            title="Pull Request als Entwurf oder offen: In Arbeit. Review angefragt: Review. Gemergt: Fertig."
+        >
+            <label class="t-subheadline">
+                <span>"Status folgt dem Pull Request"</span>
+                <Toggle checked=on aria_label="Status folgt dem Pull Request" />
+            </label>
+        </li>
+    }
+}
+
+/// Entwurf im Bearbeiten-Modus eines Tickets.
+#[derive(Clone, Copy)]
+struct Edit {
+    on: RwSignal<bool>,
+    title: RwSignal<String>,
+    description: RwSignal<String>,
 }
 
 /// Stellt einen Eintrag zurück und wählt danach den Nachbarn in der Liste.
@@ -426,6 +480,7 @@ fn detail(
     item: Item,
     items: Memo<Vec<Item>>,
     draft: RwSignal<String>,
+    edit: Edit,
 ) -> impl IntoView {
     let id = StoredValue::new(item.id.clone());
     let is_ticket = item.is_ticket();
@@ -499,6 +554,186 @@ fn detail(
         .into_any(),
         (None, false) => ().into_any(),
     };
+
+    // Ticket bearbeiten: Titel und Beschreibung, Zuweisung, Priorität.
+    let initial = StoredValue::new((item.title.clone(), item.description.clone()));
+    let start = move |_| {
+        let (title, description) = initial.get_value();
+        edit.title.set(title);
+        edit.description.set(description);
+        edit.on.set(true);
+    };
+    let save = move |_| {
+        let saved = store.dispatch(Action::EditTicket {
+            item: id.get_value(),
+            title: edit.title.get_untracked(),
+            description: edit.description.get_untracked(),
+        });
+        // „Es ändert sich nichts“ ist kein Grund, im Bearbeiten-Modus zu bleiben.
+        if saved.is_ok() || matches!(saved, Err(cockpit_core::ActionError::Unchanged)) {
+            edit.on.set(false);
+        }
+    };
+    let cancel = move |_| edit.on.set(false);
+    let edit_button = is_ticket.then(|| {
+        view! {
+            <Button size=ControlSize::Small on_click=start>
+                "Bearbeiten"
+            </Button>
+        }
+    });
+    let edit_form = is_ticket.then(|| {
+        view! {
+            <Show when=move || edit.on.get()>
+                <div class="ck-edit ui-vstack" style="--spacing: 12px">
+                    <TextField
+                        label="Titel"
+                        value=edit.title
+                        hint="Der Titel darf nicht leer sein."
+                        error=Signal::derive(move || edit.title.get().trim().is_empty())
+                    />
+                    <Textarea value=edit.description label="Beschreibung" />
+                    <div class="ui-hstack" style="--spacing: 8px; justify-content: flex-end">
+                        <Button on_click=cancel>"Abbrechen"</Button>
+                        <Button
+                            variant=ButtonStyle::BorderedProminent
+                            disabled=Signal::derive(move || edit.title.get().trim().is_empty())
+                            on_click=save
+                        >
+                            "Speichern"
+                        </Button>
+                    </div>
+                </div>
+            </Show>
+        }
+    });
+
+    let ticket_props = is_ticket.then(|| {
+        let people = store.ws.with_untracked(|w| w.people());
+        let people = people
+            .into_iter()
+            .map(|person: Person| {
+                let current = person == item.owner;
+                let label = person.name.clone();
+                view! {
+                    <Button
+                        size=ControlSize::Small
+                        variant=if current { ButtonStyle::BorderedProminent } else { ButtonStyle::Bordered }
+                        on_click=move |_| {
+                            let _ = store.dispatch(Action::AssignTicket {
+                                item: id.get_value(),
+                                person: person.clone(),
+                            });
+                        }
+                    >
+                        {label}
+                    </Button>
+                }
+            })
+            .collect_view();
+        view! {
+            <ListSection header="Ticket" nested=true>
+                <li>
+                    <div class="ui-list__row" style="flex-wrap: wrap">
+                        <span class="ui-list__title">"Priorität"</span>
+                        <SegmentedPicker
+                            options=Priority::OPTIONS
+                            value=item.priority.id()
+                            on_change=move |p: &'static str| {
+                                if let Some(priority) = Priority::from_id(p) {
+                                    let _ = store.dispatch(Action::SetPriority {
+                                        item: id.get_value(),
+                                        priority,
+                                    });
+                                }
+                            }
+                            aria_label="Priorität"
+                        />
+                    </div>
+                </li>
+                <li>
+                    <div class="ui-list__row" style="flex-wrap: wrap">
+                        <span class="ui-list__title">"Zugewiesen an"</span>
+                        <span class="ck-assignees ui-hstack" style="--spacing: 6px" role="group" aria-label="Zugewiesen an">
+                            {people}
+                        </span>
+                    </div>
+                </li>
+            </ListSection>
+        }
+    });
+
+    // Verknüpfung: am Ticket der Pull Request (lösen oder von Hand verknüpfen), am Pull Request das Ticket.
+    let link_actions = if is_ticket {
+        match item.pr.as_ref() {
+            Some(_) => view! {
+                <Button
+                    size=ControlSize::Small
+                    on_click=move |_| {
+                        let _ = store.dispatch(Action::UnlinkPr { item: id.get_value() });
+                    }
+                >
+                    "Verknüpfung lösen"
+                </Button>
+            }
+            .into_any(),
+            None => {
+                let open = store.ws.with_untracked(|w| {
+                    w.reviews
+                        .iter()
+                        .filter(|r| r.merged.is_none() && w.ticket_of_pr(r.number).is_none())
+                        .map(|r| (r.number, r.title.clone()))
+                        .collect::<Vec<_>>()
+                });
+                open.into_iter()
+                    .map(|(number, title)| {
+                        view! {
+                            <Button
+                                size=ControlSize::Small
+                                on_click=move |_| {
+                                    let _ = store.dispatch(Action::LinkPr {
+                                        item: id.get_value(),
+                                        pr: number,
+                                    });
+                                }
+                            >
+                                {format!("Mit #{number} verknüpfen")}
+                            </Button>
+                        }
+                        .attr("title", title)
+                    })
+                    .collect_view()
+                    .into_any()
+            }
+        }
+    } else {
+        ().into_any()
+    };
+    let linked_ticket = (!is_ticket)
+        .then(|| {
+            let number = item.pr.as_ref()?.number;
+            store.ws.with_untracked(|w| {
+                w.ticket_of_pr(number)
+                    .map(|t| (t.id.clone(), t.key.clone(), t.title.clone()))
+            })
+        })
+        .flatten()
+        .map(|(ticket_id, key, title)| {
+            view! {
+                <li>
+                    <div class="ui-list__row" style="flex-wrap: wrap">
+                        {row_icon(icons::GIT_PR)} <span class="ui-list__title">"Ticket"</span>
+                        <span class="ui-list__detail ck-ellipsis">{format!("{key} · {title}")}</span>
+                        <Button
+                            size=ControlSize::Small
+                            on_click=move |_| store.open_item(&ticket_id)
+                        >
+                            {format!("{key} öffnen")}
+                        </Button>
+                    </div>
+                </li>
+            }
+        });
 
     let comments = item
         .comments
@@ -580,12 +815,18 @@ fn detail(
                     <span class="t-subheadline">{item.owner.name.clone()}</span>
                 </span>
             </div>
-            <h2 class="t-title1 t-bold">{item.title.clone()}</h2>
+            <div class="ui-hstack" style="justify-content: space-between; align-items: flex-start">
+                <h2 class="t-title1 t-bold">{item.title.clone()}</h2>
+                {edit_button}
+            </div>
             {state}
         </PaneHeader>
 
         <PaneBody>
-            <p class="t-body">{item.description.clone()}</p>
+            {edit_form}
+            <p class="t-body" hidden=move || edit.on.get() && is_ticket>{item.description.clone()}</p>
+
+            <List>{ticket_props}</List>
 
             <List>
                 <ListSection header="Entwicklung" nested=true>
@@ -600,6 +841,7 @@ fn detail(
                             <span class="ui-list__detail">
                                 {item.pr.as_ref().map_or("Noch keiner".to_string(), |pr| pr.label())}
                             </span>
+                            {link_actions}
                             {(!is_ticket)
                                 .then(|| review_href.clone())
                                 .flatten()
@@ -608,6 +850,7 @@ fn detail(
                                 })}
                         </div>
                     </li>
+                    {linked_ticket}
                     {item
                         .agent_note
                         .clone()

@@ -36,6 +36,30 @@ fn short_sha(seed: &str) -> String {
     format!("{:07x}", hash & 0x0fff_ffff)
 }
 
+/// Warum sich Ticket und Pull Request nicht verknüpfen lassen.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LinkError {
+    /// Es gibt kein Review (keinen Pull Request) mit dieser Nummer.
+    UnknownPr(u32),
+    /// Das Ticket hängt schon an diesem Pull Request.
+    Same,
+    /// Das Ticket hat schon einen anderen Pull Request (Nummer).
+    TicketHasPr(u32),
+    /// Der Pull Request gehört schon zu einem anderen Ticket (Schlüssel).
+    PrHasTicket(String),
+}
+
+/// Ein Statuswechsel, den der Pull Request ausgelöst hat.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StatusChange {
+    /// Interne ID des Tickets.
+    pub item: String,
+    pub key: String,
+    pub pr: u32,
+    pub from: TicketStatus,
+    pub to: TicketStatus,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Workspace {
     #[serde(default)]
@@ -56,6 +80,19 @@ pub struct Workspace {
     /// Zurückgestellte Einträge.
     #[serde(default)]
     pub snoozed: Vec<Snooze>,
+    /// Von Hand gelöste Verknüpfungen `(Pull Request, Ticket-Schlüssel)`: Die Automatik
+    /// setzt sie nicht wieder.
+    #[serde(default)]
+    pub unlinked: Vec<(u32, String)>,
+    /// Ist der Haken „Status folgt dem Pull Request“ aus? Gespeichert wird die Abschaltung:
+    /// So gilt die Automatik in alten Ständen sofort.
+    #[serde(default)]
+    pub pr_status_off: bool,
+    /// Zu welchem Stand des Pull Requests der Status zuletzt nachgeführt wurde
+    /// `(Ticket-Schlüssel, Status)`. Eine Änderung von Hand bleibt so lange stehen, bis sich
+    /// der Pull Request wieder bewegt.
+    #[serde(default)]
+    pub status_seen: Vec<(String, TicketStatus)>,
 }
 
 impl Workspace {
@@ -265,6 +302,293 @@ impl Workspace {
         true
     }
 
+    // ---------- Tickets bearbeiten ----------
+
+    /// Ändert Titel und Beschreibung eines Tickets. Der Titel darf nicht leer sein.
+    pub fn edit_ticket(&mut self, id: &str, title: &str, description: &str) -> bool {
+        let title = title.trim();
+        match self.item_mut(id) {
+            Some(item) if item.is_ticket() && !title.is_empty() => {
+                item.title = title.to_string();
+                item.description = description.trim().to_string();
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Personen, denen sich ein Ticket zuweisen lässt: erst du, dann alle anderen, die in der
+    /// Inbox, als Autor eines Pull Requests oder in den Kommentaren auftauchen. Der Agent bekommt Tickets über
+    /// seinen Lauf, nicht über die Zuweisung.
+    pub fn people(&self) -> Vec<Person> {
+        let mut list = vec![Person::me()];
+        let owners = self.items.iter().map(|i| &i.owner);
+        let authors = self.reviews.iter().map(|r| &r.author);
+        let commenters = self
+            .items
+            .iter()
+            .flat_map(|i| i.comments.iter().map(|c| &c.author));
+        for person in owners.chain(authors).chain(commenters) {
+            if !person.is_agent() && !person.name.is_empty() && !list.contains(person) {
+                list.push(person.clone());
+            }
+        }
+        list
+    }
+
+    /// Weist ein Ticket jemandem zu. Wem es gehört, entscheidet auch, unter „Ich“ oder „Team“ es
+    /// steht. Ein Ticket, das neu bei dir landet, gilt wieder als ungelesen und löst die Regel
+    /// „Zugewiesen“ aus; geht es an jemand anderen, endet sie.
+    pub fn assign(&mut self, id: &str, person: &Person) -> bool {
+        let me = Person::me();
+        let Some(item) = self.item_mut(id).filter(|i| i.is_ticket()) else {
+            return false;
+        };
+        item.owner = person.clone();
+        item.scope = if *person == me {
+            Scope::Mine
+        } else {
+            Scope::Team
+        };
+        if *person == me {
+            item.read = false;
+            item.reason = ReasonKind::Assigned;
+            item.reason_text = "Dir zugewiesen".into();
+            item.time = "gerade eben".into();
+        }
+        true
+    }
+
+    pub fn set_priority(&mut self, id: &str, priority: Priority) -> bool {
+        match self.item_mut(id) {
+            Some(item) if item.is_ticket() => {
+                item.priority = priority;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    // ---------- Ticket und Pull Request verknüpfen ----------
+
+    /// Das Ticket, das zu diesem Pull Request gehört (über das Review).
+    pub fn ticket_of_pr(&self, number: u32) -> Option<&Item> {
+        let key = self.review(number)?.ticket_key.as_deref()?;
+        self.item_by_key(key).filter(|i| i.is_ticket())
+    }
+
+    /// Die Kopie des Pull Requests für ein Ticket: der Eintrag aus der Inbox, sonst aus dem Review.
+    fn pr_ref_of(&self, number: u32) -> Option<PrRef> {
+        let from_item = self
+            .items
+            .iter()
+            .filter(|i| i.kind == Kind::PullRequest)
+            .find_map(|i| i.pr.clone().filter(|p| p.number == number));
+        from_item.or_else(|| {
+            self.review(number).map(|r| PrRef {
+                number,
+                draft: false,
+                checks: r.checks,
+                changes_requested: false,
+                merged: r.merged.is_some(),
+                review_requested: false,
+            })
+        })
+    }
+
+    /// Verknüpft ein Ticket mit einem Pull Request. Das Ticket bekommt den Pull Request (und,
+    /// wenn es noch keinen hat, den Branch), das Review das Ticket.
+    pub fn link_pr(&mut self, ticket_id: &str, number: u32) -> Result<(), LinkError> {
+        let key = self
+            .item(ticket_id)
+            .map(|i| i.key.clone())
+            .unwrap_or_default();
+        let review = self.review(number).ok_or(LinkError::UnknownPr(number))?;
+        let branch = review.branch.clone();
+        if let Some(other) = self.ticket_of_pr(number).map(|t| t.key.clone()) {
+            return Err(if other == key {
+                LinkError::Same
+            } else {
+                LinkError::PrHasTicket(other)
+            });
+        }
+        let current = self
+            .item(ticket_id)
+            .and_then(|i| i.pr.as_ref().map(|p| p.number));
+        if let Some(n) = current {
+            // Zeigt das Ticket schon auf diesen Pull Request, fehlt nur die Gegenseite.
+            if n != number
+                && self
+                    .review(n)
+                    .is_some_and(|r| r.ticket_key.as_deref() == Some(&key))
+            {
+                return Err(LinkError::TicketHasPr(n));
+            }
+        }
+        let pr = self.pr_ref_of(number);
+        if let Some(item) = self.item_mut(ticket_id) {
+            item.pr = pr;
+            if item.branch.is_none() && !branch.is_empty() {
+                item.branch = Some(branch);
+            }
+        }
+        if let Some(review) = self.review_mut(number) {
+            review.ticket_key = Some(key.clone());
+        }
+        self.unlinked.retain(|(n, k)| !(*n == number && *k == key));
+        Ok(())
+    }
+
+    /// Löst die Verknüpfung eines Tickets. Gibt die Nummer des Pull Requests zurück.
+    /// Die Automatik verknüpft dasselbe Paar nicht wieder.
+    pub fn unlink_pr(&mut self, ticket_id: &str) -> Option<u32> {
+        let item = self.item(ticket_id).filter(|i| i.is_ticket())?;
+        let (key, number) = (item.key.clone(), item.pr.as_ref()?.number);
+        let review_branch = self.review(number).map(|r| r.branch.clone());
+        if let Some(review) = self
+            .review_mut(number)
+            .filter(|r| r.ticket_key.as_deref() == Some(&key))
+        {
+            review.ticket_key = None;
+        }
+        if let Some(item) = self.item_mut(ticket_id) {
+            item.pr = None;
+            if item.branch == review_branch {
+                item.branch = None;
+            }
+        }
+        self.status_seen.retain(|(k, _)| *k != key);
+        if !self.unlinked.contains(&(number, key.clone())) {
+            self.unlinked.push((number, key));
+        }
+        Some(number)
+    }
+
+    /// Welche Pull Requests die Automatik jetzt verknüpfen würde: `(Ticket-ID, Pull Request)`.
+    /// Ein Pull Request kommt in Frage, solange kein vorhandenes Ticket zu ihm gehört und
+    /// Branch oder Titel den Schlüssel eines Tickets ohne Pull Request nennen. Von Hand
+    /// gelöste Paare bleiben gelöst.
+    pub fn auto_links(&self) -> Vec<(String, u32)> {
+        let mut taken: Vec<&str> = Vec::new();
+        let mut links = Vec::new();
+        for review in self
+            .reviews
+            .iter()
+            .filter(|r| self.ticket_of_pr(r.number).is_none())
+        {
+            let free = self.items.iter().filter(|i| {
+                i.is_ticket()
+                    && i.pr.is_none()
+                    && !taken.contains(&i.key.as_str())
+                    && !self.unlinked.contains(&(review.number, i.key.clone()))
+            });
+            let known = free.clone().map(|i| i.key.as_str());
+            if let Some(key) = crate::link::find_ticket(&[&review.branch, &review.title], known)
+                && let Some(ticket) = free.clone().find(|i| i.key == key)
+            {
+                taken.push(&ticket.key);
+                links.push((ticket.id.clone(), review.number));
+            }
+        }
+        links
+    }
+
+    /// Verknüpft, was `auto_links` findet. Gibt `(Ticket-ID, Schlüssel, Pull Request)` zurück.
+    pub fn auto_link(&mut self) -> Vec<(String, String, u32)> {
+        let mut done = Vec::new();
+        for (id, number) in self.auto_links() {
+            if self.link_pr(&id, number).is_ok() {
+                let key = self.item(&id).map(|i| i.key.clone()).unwrap_or_default();
+                done.push((id, key, number));
+            }
+        }
+        done
+    }
+
+    // ---------- Status folgt dem Pull Request ----------
+
+    /// Verknüpfte Tickets mit dem Status, den ihr Pull Request nahelegt: `(Index, Pull Request, Ziel)`.
+    fn linked_targets(&self) -> Vec<(usize, u32, TicketStatus)> {
+        self.items
+            .iter()
+            .enumerate()
+            .filter(|(_, i)| i.is_ticket())
+            .filter_map(|(at, i)| {
+                let pr = i.pr.as_ref()?;
+                let is_linked = self
+                    .review(pr.number)
+                    .is_some_and(|r| r.ticket_key.as_deref() == Some(i.key.as_str()));
+                is_linked.then(|| (at, pr.number, pr.target_status()))
+            })
+            .collect()
+    }
+
+    /// Hat sich ein Pull Request seit dem letzten Nachführen bewegt? (Ohne etwas zu ändern.)
+    pub fn status_pending(&self) -> bool {
+        !self.pr_status_off
+            && self.linked_targets().into_iter().any(|(at, _, target)| {
+                let key = &self.items[at].key;
+                self.status_seen
+                    .iter()
+                    .find(|(k, _)| k == key)
+                    .map(|(_, t)| *t)
+                    != Some(target)
+            })
+    }
+
+    /// Merkt sich, dass der Status zum aktuellen Stand des Pull Requests passt, ohne ihn zu ändern.
+    fn mark_status_seen(&mut self, key: &str, target: TicketStatus) {
+        match self.status_seen.iter_mut().find(|(k, _)| k == key) {
+            Some((_, seen)) => *seen = target,
+            None => self.status_seen.push((key.to_string(), target)),
+        }
+    }
+
+    /// Führt den Status verknüpfter Tickets nach: Pull Request gemergt → Fertig, Review
+    /// angefragt → Review, sonst → In Arbeit. Nur, wenn sich der Stand des Pull Requests seit
+    /// dem letzten Mal geändert hat; ein Status, den du danach von Hand setzt, bleibt so lange
+    /// stehen, bis sich der Pull Request wieder bewegt. Bei ausgeschalteter Automatik tut es nichts.
+    pub fn follow_status(&mut self) -> Vec<StatusChange> {
+        if self.pr_status_off {
+            return Vec::new();
+        }
+        let mut changes = Vec::new();
+        for (at, pr, target) in self.linked_targets() {
+            let key = self.items[at].key.clone();
+            let seen = self.status_seen.iter().find(|(k, _)| *k == key);
+            if seen.is_some_and(|(_, t)| *t == target) {
+                continue;
+            }
+            self.mark_status_seen(&key, target);
+            let item = &mut self.items[at];
+            if item.status == target {
+                continue;
+            }
+            changes.push(StatusChange {
+                item: item.id.clone(),
+                key,
+                pr,
+                from: item.status,
+                to: target,
+            });
+            item.status = target;
+            if target == TicketStatus::Done {
+                item.read = true;
+                item.agent_note = None;
+            }
+        }
+        changes
+    }
+
+    /// Schaltet „Status folgt dem Pull Request“ ein oder aus. `false`, wenn sich nichts ändert.
+    pub fn set_status_follows_pr(&mut self, enabled: bool) -> bool {
+        if self.pr_status_off != enabled {
+            return false;
+        }
+        self.pr_status_off = !enabled;
+        true
+    }
+
     // ---------- Review ----------
 
     pub fn decide(&mut self, number: u32, suggestion: &str, decision: Option<Decision>) -> bool {
@@ -441,9 +765,14 @@ impl Workspace {
         blockers
     }
 
-    /// Mergt den Pull Request. Das verknüpfte Ticket geht auf „Fertig“ und gilt als
-    /// erledigt, der Eintrag in der Inbox zeigt „Gemergt“.
-    pub fn merge_pr(&mut self, number: u32, method: MergeMethod) -> Result<(), Vec<MergeBlocker>> {
+    /// Mergt den Pull Request. Der Eintrag in der Inbox zeigt „Gemergt“. Das verknüpfte Ticket
+    /// folgt über [`Workspace::follow_status`] (sofern das eingeschaltet ist); gibt dessen
+    /// Statuswechsel zurück.
+    pub fn merge_pr(
+        &mut self,
+        number: u32,
+        method: MergeMethod,
+    ) -> Result<Vec<StatusChange>, Vec<MergeBlocker>> {
         let blockers = self.merge_blockers(number);
         if !blockers.is_empty() {
             return Err(blockers);
@@ -469,14 +798,33 @@ impl Workspace {
                 item.reason_text = format!("Gemergt ({})", method.label());
             }
         }
-        if let Some(item) = ticket.and_then(|key| self.items.iter_mut().find(|i| i.key == key))
-            && item.is_ticket()
+        // Ein verknüpftes Ticket ohne eigene Kopie des Pull Requests bekommt sie jetzt.
+        if let Some(id) = ticket
+            .and_then(|key| self.item_by_key(&key))
+            .filter(|i| i.is_ticket() && i.pr.is_none())
+            .map(|i| i.id.clone())
         {
-            item.status = TicketStatus::Done;
-            item.read = true;
-            item.agent_note = None;
+            let pr = self.pr_ref_of(number);
+            if let (Some(item), Some(pr)) = (self.item_mut(&id), pr) {
+                item.pr = Some(pr);
+            }
         }
-        Ok(())
+        Ok(self.follow_status())
+    }
+
+    /// Fragt ein Review an: Der Pull Request gilt als „Review angefragt“. `false`, wenn er es schon ist.
+    pub fn request_review(&mut self, number: u32) -> bool {
+        let mut changed = false;
+        for pr in self
+            .items
+            .iter_mut()
+            .filter_map(|i| i.pr.as_mut())
+            .filter(|p| p.number == number && !p.review_requested)
+        {
+            pr.review_requested = true;
+            changed = true;
+        }
+        changed
     }
 
     // ---------- Agenten ----------
@@ -955,6 +1303,7 @@ impl Workspace {
             "Tests übersprungen"
         };
 
+        let mut seen = None;
         if let Some(item) = self.items.iter_mut().find(|i| i.key == run.ticket_key) {
             item.branch = Some(run.branch());
             item.pr = Some(PrRef {
@@ -963,13 +1312,22 @@ impl Workspace {
                 checks,
                 changes_requested: false,
                 merged: false,
+                review_requested: true,
             });
-            item.status = TicketStatus::Review;
+            // Der Pull Request wartet als Review – derselbe Weg wie bei jedem verknüpften Ticket.
+            item.status = item
+                .pr
+                .as_ref()
+                .map_or(TicketStatus::Review, PrRef::target_status);
+            seen = Some((item.key.clone(), item.status));
             item.agent_note = Some(format!("Vom Agenten umgesetzt · {tests}"));
             item.reason = ReasonKind::AgentFinished;
             item.reason_text = format!("Agent fertig · Pull Request #{number} erstellt");
             item.time = "gerade eben".into();
             item.read = false;
+        }
+        if let Some((key, status)) = seen {
+            self.mark_status_seen(&key, status);
         }
         self.reviews.push(Review {
             number,
@@ -1351,6 +1709,7 @@ mod tests {
                 checks: Checks::Running,
                 changes_requested: false,
                 merged: false,
+                review_requested: true,
             })
         );
         assert_eq!(

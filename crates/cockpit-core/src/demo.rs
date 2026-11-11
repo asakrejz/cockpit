@@ -46,6 +46,7 @@ fn item(
         scope: if mine { Scope::Mine } else { Scope::Team },
         owner,
         status: TicketStatus::Open,
+        priority: Priority::default(),
         branch: None,
         pr: None,
         agent_note: None,
@@ -86,6 +87,7 @@ pub fn workspace() -> Workspace {
             checks: Checks::Passed,
             changes_requested: false,
             merged: false,
+            review_requested: true,
         }),
         agent_note: Some("3 Kommentare vom Agenten warten auf deine Freigabe".into()),
         comments: vec![Comment::new(
@@ -113,6 +115,7 @@ pub fn workspace() -> Workspace {
             checks: Checks::Passed,
             changes_requested: true,
             merged: false,
+            review_requested: true,
         }),
         agent_note: Some("Vom Agenten umgesetzt · Tests bestanden".into()),
         ..item(
@@ -137,6 +140,7 @@ pub fn workspace() -> Workspace {
             checks: Checks::Failed,
             changes_requested: false,
             merged: false,
+            review_requested: false,
         }),
         comments: vec![Comment::new(
             mira(),
@@ -345,6 +349,8 @@ pub fn workspace() -> Workspace {
         reviews: vec![review87, review91, review85],
         runs: vec![run138],
         log: Vec::new(),
+        // BAU-138 hängt an #91 (Review angefragt) und steht schon auf „Review“.
+        status_seen: vec![("BAU-138".to_string(), TicketStatus::Review)],
         ..Workspace::default()
     }
 }

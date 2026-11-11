@@ -29,7 +29,8 @@ use store::{Mode, Store, current_hash, navigate, now_ms};
 
 /// So lange braucht der Demo-Agent für einen Schritt.
 const AGENT_STEP: Duration = Duration::from_millis(2200);
-/// So oft prüft der Takt, ob zurückgestellte Einträge zurückkehren und ob ein Ticket überfällig wurde.
+/// So oft prüft der Takt, ob zurückgestellte Einträge zurückkehren, ob ein Ticket überfällig wurde
+/// und ob Tickets und Pull Requests zu verknüpfen oder im Status nachzuführen sind.
 const CLOCK_TICK: Duration = Duration::from_secs(15);
 
 fn main() {
@@ -94,6 +95,16 @@ fn App() -> impl IntoView {
                 .is_empty()
             {
                 let _ = store.dispatch_as(Action::WakeSnoozed, Actor::System);
+            }
+            // Pull Requests mit Ticket-Schlüssel im Branch oder Titel verknüpfen, den Status
+            // verknüpfter Tickets nachführen. Im Server-Modus macht auch das der Server.
+            if store.mode.get_untracked() == Mode::Demo {
+                if !store.ws.with_untracked(|w| w.auto_links()).is_empty() {
+                    let _ = store.dispatch_as(Action::AutoLinkPrs, Actor::System);
+                }
+                if store.ws.with_untracked(|w| w.status_pending()) {
+                    let _ = store.dispatch_as(Action::SyncTicketStatus, Actor::System);
+                }
             }
         },
         CLOCK_TICK,

@@ -6,6 +6,7 @@
 //! * [`agent`]: der Lauf eines Agenten als Zustandsmaschine
 //! * [`diagnosis`]: Ursache und Fix-Vorschlag zu einem roten Check
 //! * [`connections`]: Verbindungen, Berechtigungen und Eingabeprüfung
+//! * [`link`]: Ticket und Pull Request über den Ticket-Schlüssel verknüpfen
 //! * [`search`]: Suche und Filter der Inbox
 //! * [`notify`]: Ereignisse für Benachrichtigungen, Kanäle und Ruhezeiten
 //! * [`team`]: Auslastung pro Person und was gerade hängt
@@ -26,6 +27,7 @@ pub mod attention;
 pub mod connections;
 pub mod demo;
 pub mod diagnosis;
+pub mod link;
 pub mod model;
 pub mod notify;
 pub mod persist;
@@ -53,4 +55,4 @@ pub use review::{
     merge_blockers,
 };
 pub use team::{CAPACITY, LoadLevel, Member, Stuck, StuckKind, state_label};
-pub use workspace::{AgentError, Workspace};
+pub use workspace::{AgentError, LinkError, StatusChange, Workspace};

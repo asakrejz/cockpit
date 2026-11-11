@@ -481,6 +481,7 @@ mod tests {
             checks: Checks::Passed,
             changes_requested: false,
             merged: false,
+            review_requested: false,
         });
         after.items.push(item);
         let e = only(events(&before, &after));
