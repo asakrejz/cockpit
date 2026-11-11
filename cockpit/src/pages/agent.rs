@@ -25,7 +25,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
             let running = w
                 .runs
                 .iter()
-                .find(|r| r.is_running())
+                .find(|r| r.is_active())
                 .map(|r| r.ticket_key.clone());
             let open = w
                 .items
@@ -49,11 +49,15 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let run_tests = RwSignal::new(options.run_tests);
     let draft_pr = RwSignal::new(options.draft_pr);
     let hint = RwSignal::new(options.hint);
+    let plan_first = RwSignal::new(options.plan_first);
+    // Anmerkung für einen neuen Plan.
+    let note = RwSignal::new(String::new());
     let tests_allowed = Signal::derive(move || store.conn.get().may_run_tests);
     let chosen = move || AgentOptions {
         run_tests: run_tests.get() && tests_allowed.get(),
         draft_pr: draft_pr.get(),
         hint: hint.get(),
+        plan_first: plan_first.get(),
         ..Default::default()
     };
 
@@ -68,6 +72,8 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let steps = Memo::new(move |_| run.get().map(|r| r.steps()).unwrap_or_default());
     let idle = Signal::derive(move || run.get().is_some_and(|r| r.is_idle()));
     let running = Signal::derive(move || run.get().is_some_and(|r| r.is_running()));
+    let awaiting = Signal::derive(move || run.get().is_some_and(|r| r.is_awaiting()));
+    let plan = Memo::new(move |_| run.get().and_then(|r| r.plan()));
     let done = Signal::derive(move || run.get().is_some_and(|r| r.is_done()));
     let locked = Signal::derive(move || !idle.get());
     let blocked = Signal::derive(move || store.conn.get().agent_blocked());
@@ -79,6 +85,29 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         });
     };
     let cancel = move |_| store.ws.update(|w| w.cancel_agent(&key.get_value()));
+    let approve = move |_| {
+        store.ws.update(|w| {
+            w.approve_plan(&key.get_value());
+        });
+        note.set(String::new());
+    };
+    let reject = move |_| {
+        store.ws.update(|w| {
+            w.reject_plan(&key.get_value());
+        });
+        note.set(String::new());
+    };
+    let note_empty = Signal::derive(move || note.with(|n| n.trim().is_empty()));
+    let revise = move |_| {
+        let text = note.get_untracked();
+        let mut ok = false;
+        store
+            .ws
+            .update(|w| ok = w.revise_plan(&key.get_value(), &text));
+        if ok {
+            note.set(String::new());
+        }
+    };
     let to_ticket = move |_| {
         if let Some(item) = item.get_untracked() {
             store.open_item(&item.id);
@@ -92,7 +121,9 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
             w.runs
                 .iter()
                 .map(|r| {
-                    let state = if r.is_running() {
+                    let state = if r.is_awaiting() {
+                        "wartet"
+                    } else if r.is_running() {
                         "läuft"
                     } else if r.is_done() {
                         "fertig"
@@ -141,6 +172,8 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let status = move || {
         if done.get() {
             ("Fertig", StatusTone::Green)
+        } else if awaiting.get() {
+            ("Wartet auf Freigabe", StatusTone::Orange)
         } else if running.get() {
             ("Agent arbeitet", StatusTone::Blue)
         } else {
@@ -241,6 +274,9 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                         <ListRow title="Pull Request als Entwurf anlegen" toggle_row=true>
                                             <Toggle checked=draft_pr disabled=locked />
                                         </ListRow>
+                                        <ListRow title="Plan vor dem Start zeigen" toggle_row=true>
+                                            <Toggle checked=plan_first disabled=locked />
+                                        </ListRow>
                                     </ListSection>
                                 </List>
                             </div>
@@ -256,6 +292,14 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                 >
                                     <Icon path=icons::SPARKLES />
                                     "Agent starten"
+                                </Button>
+                            </Show>
+                            <Show when=move || awaiting.get()>
+                                <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large on_click=approve>
+                                    "Plan freigeben"
+                                </Button>
+                                <Button size=ControlSize::Large destructive=true on_click=reject>
+                                    "Plan ablehnen"
                                 </Button>
                             </Show>
                             <Show when=move || running.get()>
@@ -293,6 +337,54 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                         </p>
                                     }
                                 })
+                        }}
+
+                        {move || {
+                            let plan = plan.get()?;
+                            let waiting = awaiting.get();
+                            Some(
+                                view! {
+                                    <div class="ui-list__section" role="region" aria-label="Plan des Agenten">
+                                        <p class="ui-list__header">
+                                            {if waiting { "Plan – wartet auf deine Freigabe" } else { "Freigegebener Plan" }}
+                                        </p>
+                                        <SuggestionCard state=SuggestionState::Pending>
+                                            <p class="t-subheadline">{plan.summary.clone()}</p>
+                                            <p class="t-footnote t-secondary">"Dateien"</p>
+                                            <ul class="ck-plan">
+                                                {plan
+                                                    .files
+                                                    .iter()
+                                                    .map(|f| view! { <li class="t-mono t-footnote">{f.clone()}</li> })
+                                                    .collect_view()}
+                                            </ul>
+                                            <p class="t-footnote t-secondary">"Schritte"</p>
+                                            <ol class="ck-plan">
+                                                {plan
+                                                    .steps
+                                                    .iter()
+                                                    .map(|s| view! { <li class="t-subheadline">{s.clone()}</li> })
+                                                    .collect_view()}
+                                            </ol>
+                                        </SuggestionCard>
+                                        <Show when=move || awaiting.get()>
+                                            <div class="ui-vstack" style="--spacing: 10px">
+                                                <Textarea
+                                                    value=note
+                                                    label="Anmerkung für einen neuen Plan"
+                                                    placeholder="Anmerkung für einen neuen Plan, z. B.: Bitte auch den Slider-Thumb ändern."
+                                                    min_height="72px"
+                                                />
+                                                <div class="ui-hstack">
+                                                    <Button disabled=note_empty on_click=revise>
+                                                        "Neuen Plan anfordern"
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </Show>
+                                    </div>
+                                },
+                            )
                         }}
 
                         <div class="ui-list__section">
