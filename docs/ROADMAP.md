@@ -76,24 +76,18 @@ Aufgaben parallel; sie sind so geschnitten, dass je Bereich nur eine Aufgabe lä
 | Kern | **Action-Schicht und Protokoll:** `Action`-Enum, `Workspace::apply`, `store.dispatch`; alle Seiten stellen um. Jede Aktion landet mit Zeit und Urheber im Protokoll (eigene Seite). |
 | Backend | **Grundgerüst `server/`:** axum, SQLite, Schlüsselablage, Konfiguration, `GET /api/health`. Clients für GitHub und Jira als Bibliothek, getestet gegen nachgebaute Antworten, mit Abbildung auf die Typen aus `cockpit-core`. |
 
-### Welle 2 – läuft
+### Welle 2 – erledigt (#14–#18)
+
+Aufmerksamkeits-Regeln und Zurückstellen, Review (Änderungsvorschläge, Mergen nur durch dich, Checks mit Log), Agent-Rückfragen und Nachsteuern, Benachrichtigungen, Server-Modus.
+
+### Welle 3 – läuft
 
 | Bereich | Aufgabe | Branch |
 |---------|---------|--------|
-| Inbox | Aufmerksamkeits-Regeln (Erwähnung, Review-Anfrage, blockierter PR, überfälliges Ticket) und Zurückstellen | `claude/cockpit-attention-snooze` |
-| Review | Änderungsvorschläge am Diff; Mergen; fehlgeschlagene Checks mit Log ansehen und neu starten | `claude/cockpit-review-merge-checks` |
-| Agent | Rückfragen des Agenten und Nachsteuern während des Laufs | `claude/cockpit-agent-questions` |
-| Einstellungen | Benachrichtigungen (Browser; E-Mail und Slack über das Backend vorbereitet), einstellbar je Grund | `claude/cockpit-notifications` |
-| Backend | **Server-Modus:** `POST /api/actions`, `GET /api/workspace`, `GET /api/events`; die App schaltet zwischen Demo und Server um | `claude/cockpit-server-mode` |
-
-### Welle 3 – Echte Daten
-
-| Bereich | Aufgabe |
-|---------|---------|
-| Inbox | Tickets bearbeiten (Titel, Beschreibung, Zuweisung, Priorität); Ticket und PR automatisch verknüpfen, Status folgt dem PR |
-| Review / Agent | Folgeauftrag „Review-Kommentare umsetzen“; Agent untersucht rote Checks und schlägt einen Fix vor |
-| Agent | Kosten und Grenzen (Verbrauch, Budget, Zeitlimit, parallele Läufe); Regeln pro Repo (Pfade, Pflicht-Tests, Anweisungen) |
-| Backend | GitHub und Jira lesen und schreiben über die Aktionen; Abgleich per regelmäßiger Abfrage |
+| Inbox | Tickets bearbeiten (Titel, Beschreibung, Zuweisung, Priorität); Ticket und PR automatisch verknüpfen, Status folgt dem PR | `claude/cockpit-ticket-edit-link` |
+| Review / Agent | Folgeauftrag „Review-Kommentare umsetzen“; Agent untersucht rote Checks und schlägt einen Fix vor | `claude/cockpit-agent-followups` |
+| Agent | Kosten und Grenzen (Verbrauch, Budget, Zeitlimit, parallele Läufe); Regeln pro Repo (Pfade, Pflicht-Tests, Anweisungen) | `claude/cockpit-agent-limits-rules` |
+| Backend | GitHub und Jira lesen und schreiben über die Aktionen; Abgleich per regelmäßiger Abfrage | `claude/cockpit-sync-github-jira` |
 
 ### Welle 4 – Anbindung vollenden
 
