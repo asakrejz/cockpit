@@ -42,6 +42,11 @@ impl Workspace {
             .collect()
     }
 
+    /// Einträge der Inbox nach Besitzer, Quelle und Suchtext.
+    pub fn search(&self, filter: Filter, source: SourceFilter, query: &str) -> Vec<&Item> {
+        crate::search::search(&self.items, filter, source, query)
+    }
+
     /// Einträge, die noch Aufmerksamkeit brauchen.
     pub fn unread(&self, filter: Filter) -> usize {
         self.visible(filter).iter().filter(|i| !i.read).count()
@@ -62,6 +67,11 @@ impl Workspace {
 
     pub fn running_agents(&self) -> usize {
         self.runs.iter().filter(|r| r.is_running()).count()
+    }
+
+    /// Agenten, die einen Plan vorgelegt haben und auf den Nutzer warten.
+    pub fn waiting_agents(&self) -> usize {
+        self.runs.iter().filter(|r| r.is_awaiting()).count()
     }
 
     /// Nummer, die der nächste Pull Request bekommt.
@@ -125,6 +135,27 @@ impl Workspace {
     pub fn edit_suggestion(&mut self, number: u32, suggestion: &str, text: &str) -> bool {
         self.review_mut(number)
             .is_some_and(|r| r.edit(suggestion, text))
+    }
+
+    /// Eigener Kommentar an einer Diff-Zeile. Gibt die ID des Kommentars zurück.
+    pub fn add_line_comment(
+        &mut self,
+        number: u32,
+        file: &str,
+        line: usize,
+        text: &str,
+    ) -> Option<String> {
+        self.review_mut(number)?.add_line_comment(file, line, text)
+    }
+
+    pub fn edit_line_comment(&mut self, number: u32, comment: &str, text: &str) -> bool {
+        self.review_mut(number)
+            .is_some_and(|r| r.edit_line_comment(comment, text))
+    }
+
+    pub fn delete_line_comment(&mut self, number: u32, comment: &str) -> bool {
+        self.review_mut(number)
+            .is_some_and(|r| r.delete_line_comment(comment))
     }
 
     pub fn set_verdict(&mut self, number: u32, verdict: Verdict) {
@@ -204,34 +235,79 @@ impl Workspace {
         options: AgentOptions,
     ) -> Result<(), AgentError> {
         let mut run = self.run(ticket_key).ok_or(AgentError::UnknownTicket)?;
-        if run.is_running() {
+        if run.is_active() {
             return Err(AgentError::AlreadyRunning);
         }
         run.start(options, self.next_pr_number());
+        let waiting = run.is_awaiting();
         match self.runs.iter_mut().find(|r| r.ticket_key == ticket_key) {
             Some(slot) => *slot = run,
             None => self.runs.push(run),
         }
         if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket_key) {
-            item.status = TicketStatus::InProgress;
-            item.agent_note = Some("Der Agent arbeitet an der Umsetzung".into());
+            // Wartet der Agent noch auf die Freigabe, bleibt das Ticket unverändert.
+            if waiting {
+                item.agent_note = Some("Der Agent wartet auf die Freigabe seines Plans".into());
+            } else {
+                item.status = TicketStatus::InProgress;
+                item.agent_note = Some("Der Agent arbeitet an der Umsetzung".into());
+            }
         }
         Ok(())
     }
 
-    /// Bricht einen laufenden Agenten ab.
-    pub fn cancel_agent(&mut self, ticket_key: &str) {
-        let Some(run) = self
-            .runs
+    fn active_run_mut(&mut self, ticket_key: &str) -> Option<&mut AgentRun> {
+        self.runs
             .iter_mut()
-            .find(|r| r.ticket_key == ticket_key && r.is_running())
-        else {
-            return;
-        };
-        run.reset();
+            .find(|r| r.ticket_key == ticket_key && r.is_active())
+    }
+
+    fn clear_agent_note(&mut self, ticket_key: &str) {
         if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket_key) {
             item.agent_note = None;
         }
+    }
+
+    /// Bricht einen wartenden oder laufenden Agenten ab.
+    pub fn cancel_agent(&mut self, ticket_key: &str) {
+        let Some(run) = self.active_run_mut(ticket_key) else {
+            return;
+        };
+        run.reset();
+        self.clear_agent_note(ticket_key);
+    }
+
+    /// Gibt den Plan frei: Der Agent legt los, das Ticket geht auf „In Arbeit“.
+    pub fn approve_plan(&mut self, ticket_key: &str) -> bool {
+        if !self
+            .active_run_mut(ticket_key)
+            .is_some_and(AgentRun::approve)
+        {
+            return false;
+        }
+        if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket_key) {
+            item.status = TicketStatus::InProgress;
+            item.agent_note = Some("Der Agent arbeitet an der Umsetzung".into());
+        }
+        true
+    }
+
+    /// Lehnt den Plan ab. Der Lauf endet ohne Spuren.
+    pub fn reject_plan(&mut self, ticket_key: &str) -> bool {
+        if !self
+            .active_run_mut(ticket_key)
+            .is_some_and(AgentRun::reject)
+        {
+            return false;
+        }
+        self.clear_agent_note(ticket_key);
+        true
+    }
+
+    /// Fordert mit einer Anmerkung einen neuen Plan an.
+    pub fn revise_plan(&mut self, ticket_key: &str, note: &str) -> bool {
+        self.active_run_mut(ticket_key)
+            .is_some_and(|r| r.revise(note))
     }
 
     /// Lässt jeden laufenden Agenten einen Schritt abschließen. Gibt die Tickets
@@ -292,6 +368,7 @@ impl Workspace {
             files: demo::agent_changes(&run.ticket_key),
             agent_reviewed: false,
             suggestions: Vec::new(),
+            line_comments: Vec::new(),
             verdict: Verdict::Comment,
             sent: false,
         });
@@ -305,6 +382,14 @@ mod tests {
 
     fn ws() -> Workspace {
         demo::workspace()
+    }
+
+    /// Optionen ohne Plan-Freigabe: der Agent läuft sofort.
+    fn direct() -> AgentOptions {
+        AgentOptions {
+            plan_first: false,
+            ..Default::default()
+        }
     }
 
     fn finish_agents(w: &mut Workspace) -> Vec<String> {
@@ -393,6 +478,28 @@ mod tests {
     }
 
     #[test]
+    fn own_line_comments_go_out_with_the_review() {
+        let mut w = ws();
+        let file = w.review(87).unwrap().files[0].name.clone();
+        assert_eq!(w.add_line_comment(1, &file, 0, "x"), None);
+        let id = w.add_line_comment(87, &file, 0, "Warum hier?").unwrap();
+        for s in ["a", "b", "c"] {
+            w.decide(87, s, Some(Decision::Declined));
+        }
+        // Eigene Kommentare allein zählen mit, auch wenn alle Vorschläge abgelehnt sind.
+        assert_eq!(w.send_review(87, ""), Ok(1));
+        assert_eq!(
+            w.item("pr87").unwrap().comments.last().unwrap().text,
+            "Review gesendet: Kommentieren · 1 Kommentar"
+        );
+        assert!(w.review(87).unwrap().sent);
+        assert!(w.edit_line_comment(87, &id, "Anders"));
+        assert!(!w.review(87).unwrap().sent);
+        assert!(w.delete_line_comment(87, &id));
+        assert!(!w.delete_line_comment(1, &id));
+    }
+
+    #[test]
     fn agent_review_prepares_suggestions() {
         let mut w = ws();
         assert!(!w.review(85).unwrap().agent_reviewed);
@@ -414,11 +521,11 @@ mod tests {
     fn an_agent_turns_a_ticket_into_a_pull_request() {
         let mut w = ws();
         assert_eq!(w.next_pr_number(), 92);
-        w.start_agent("BAU-142", AgentOptions::default()).unwrap();
+        w.start_agent("BAU-142", direct()).unwrap();
         assert_eq!(w.running_agents(), 1);
         assert_eq!(w.item("bau142").unwrap().status, TicketStatus::InProgress);
         assert_eq!(
-            w.start_agent("BAU-142", AgentOptions::default()),
+            w.start_agent("BAU-142", direct()),
             Err(AgentError::AlreadyRunning)
         );
 
@@ -445,8 +552,8 @@ mod tests {
     #[test]
     fn two_agents_get_different_pull_requests() {
         let mut w = ws();
-        w.start_agent("BAU-142", AgentOptions::default()).unwrap();
-        w.start_agent("BAU-150", AgentOptions::default()).unwrap();
+        w.start_agent("BAU-142", direct()).unwrap();
+        w.start_agent("BAU-150", direct()).unwrap();
         assert_eq!(w.running_agents(), 2);
         let mut finished = finish_agents(&mut w);
         finished.sort();
@@ -461,7 +568,7 @@ mod tests {
         let options = AgentOptions {
             run_tests: false,
             draft_pr: false,
-            ..Default::default()
+            ..direct()
         };
         w.start_agent("BAU-150", options).unwrap();
         finish_agents(&mut w);
@@ -483,7 +590,7 @@ mod tests {
     #[test]
     fn a_cancelled_agent_leaves_no_traces() {
         let mut w = ws();
-        w.start_agent("BAU-142", AgentOptions::default()).unwrap();
+        w.start_agent("BAU-142", direct()).unwrap();
         w.advance_agents();
         w.cancel_agent("BAU-142");
         assert_eq!(w.running_agents(), 0);
@@ -504,14 +611,80 @@ mod tests {
     }
 
     #[test]
+    fn a_plan_is_shown_before_anything_happens() {
+        let mut w = ws();
+        w.start_agent("BAU-142", AgentOptions::default()).unwrap();
+        assert_eq!((w.running_agents(), w.waiting_agents()), (0, 1));
+        assert_eq!(
+            w.start_agent("BAU-142", AgentOptions::default()),
+            Err(AgentError::AlreadyRunning)
+        );
+        // Der Takt bringt keinen Fortschritt ohne Freigabe.
+        assert!(finish_agents(&mut w).is_empty());
+        let run = w.run("BAU-142").unwrap();
+        assert!(run.is_awaiting());
+        assert_eq!(run.completed, 0);
+        // Weder Branch noch Pull Request noch neuer Status.
+        let item = w.item("bau142").unwrap();
+        assert_eq!((item.branch.clone(), item.pr.clone()), (None, None));
+        assert_eq!(item.status, ws().item("bau142").unwrap().status);
+        assert_eq!(
+            item.agent_note.as_deref(),
+            Some("Der Agent wartet auf die Freigabe seines Plans")
+        );
+        assert!(w.review(92).is_none());
+    }
+
+    #[test]
+    fn approving_continues_to_the_pull_request() {
+        let mut w = ws();
+        w.start_agent("BAU-142", AgentOptions::default()).unwrap();
+        assert!(w.approve_plan("BAU-142"));
+        assert!(!w.approve_plan("BAU-142"), "nur einmal freigeben");
+        assert_eq!((w.running_agents(), w.waiting_agents()), (1, 0));
+        assert_eq!(finish_agents(&mut w), vec!["BAU-142".to_string()]);
+        assert_eq!(w.item("bau142").unwrap().pr.as_ref().unwrap().number, 92);
+        assert!(w.review(92).is_some());
+    }
+
+    #[test]
+    fn rejecting_a_plan_leaves_no_traces() {
+        let mut w = ws();
+        let before = w.clone();
+        w.start_agent("BAU-142", AgentOptions::default()).unwrap();
+        assert!(w.reject_plan("BAU-142"));
+        assert!(!w.reject_plan("BAU-142"));
+        assert_eq!((w.running_agents(), w.waiting_agents()), (0, 0));
+        assert!(finish_agents(&mut w).is_empty());
+        assert_eq!(w.item("bau142"), before.item("bau142"));
+        assert!(w.review(92).is_none());
+        assert!(w.run("BAU-142").unwrap().is_idle());
+        // Danach lässt sich neu starten.
+        assert!(w.start_agent("BAU-142", AgentOptions::default()).is_ok());
+    }
+
+    #[test]
+    fn a_waiting_plan_can_be_cancelled_and_revised() {
+        let mut w = ws();
+        w.start_agent("BAU-150", AgentOptions::default()).unwrap();
+        assert!(!w.revise_plan("BAU-150", "  "), "leer zählt nicht");
+        assert!(w.revise_plan("BAU-150", "Auch die Doku anpassen"));
+        assert!(w.run("BAU-150").unwrap().is_awaiting());
+        w.cancel_agent("BAU-150");
+        assert!(w.run("BAU-150").unwrap().is_idle());
+        assert_eq!(w.item("bau150").unwrap().agent_note, None);
+        assert!(!w.revise_plan("BAU-150", "zu spät"));
+    }
+
+    #[test]
     fn agents_only_work_on_tickets() {
         let mut w = ws();
         assert_eq!(
-            w.start_agent("#87", AgentOptions::default()),
+            w.start_agent("#87", direct()),
             Err(AgentError::UnknownTicket)
         );
         assert_eq!(
-            w.start_agent("NOPE-1", AgentOptions::default()),
+            w.start_agent("NOPE-1", direct()),
             Err(AgentError::UnknownTicket)
         );
         assert!(w.run("#87").is_none());
