@@ -4,6 +4,7 @@
 //! * [`attention`]: Regeln, warum ein Eintrag Aufmerksamkeit braucht, und Zurückstellen
 //! * [`review`]: Diff, Vorschläge des Agenten, Freigabe und Urteil
 //! * [`agent`]: der Lauf eines Agenten als Zustandsmaschine
+//! * [`diagnosis`]: Ursache und Fix-Vorschlag zu einem roten Check
 //! * [`connections`]: Verbindungen, Berechtigungen und Eingabeprüfung
 //! * [`search`]: Suche und Filter der Inbox
 //! * [`notify`]: Ereignisse für Benachrichtigungen, Kanäle und Ruhezeiten
@@ -24,6 +25,7 @@ pub mod api;
 pub mod attention;
 pub mod connections;
 pub mod demo;
+pub mod diagnosis;
 pub mod model;
 pub mod notify;
 pub mod persist;
@@ -35,11 +37,12 @@ pub mod workspace;
 
 pub use action::{Action, ActionError, Actor, Applied, LogEntry, MAX_LOG, Target};
 pub use agent::{
-    AgentOptions, AgentRun, MessageKind, Plan, Question, RunMessage, RunState, Speaker, Step,
-    StepState, Tick,
+    AgentOptions, AgentRun, MessageKind, Plan, Question, RunKind, RunMessage, RunState, Speaker,
+    Step, StepState, Tick,
 };
 pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::Connections;
+pub use diagnosis::{Diagnosis, Fix};
 pub use model::*;
 pub use notify::{
     Channel, Channels, Delivery, Event as NotifyEvent, NotifyReason, NotifySettings, QuietHours,

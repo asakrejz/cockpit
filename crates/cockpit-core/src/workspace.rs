@@ -3,9 +3,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::action::LogEntry;
-use crate::agent::{AgentOptions, AgentRun, Tick};
+use crate::agent::{AgentOptions, AgentRun, RunKind, Tick};
 use crate::attention::{self, Hit, Rule, Rules, Snooze};
 use crate::demo;
+use crate::diagnosis::diagnose;
 use crate::model::*;
 use crate::notify::NotifySettings;
 use crate::review::{CHECK_STEPS, Decision, MergeBlocker, MergeMethod, Review, SendError, Verdict};
@@ -15,6 +16,24 @@ use crate::text::slug;
 pub enum AgentError {
     UnknownTicket,
     AlreadyRunning,
+    /// Den Pull Request gibt es nicht.
+    UnknownReview,
+    /// Der Pull Request ist gemergt und bleibt, wie er ist.
+    Merged,
+    /// Es sind keine offenen Kommentare ausgewählt (oder einer ist unbekannt oder erledigt).
+    NoComments,
+    /// Untersuchen lässt sich nur ein roter Check.
+    CheckNotFailed,
+}
+
+/// Kurze Kennung für einen Commit der Demo: stabil, aber nicht echt.
+fn short_sha(seed: &str) -> String {
+    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+    for byte in seed.bytes() {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x0100_0000_01b3);
+    }
+    format!("{:07x}", hash & 0x0fff_ffff)
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
@@ -179,12 +198,10 @@ impl Workspace {
         self.runs.iter().filter(|r| r.is_running()).count()
     }
 
-    /// Agenten, die auf den Nutzer warten: auf die Freigabe eines Plans oder eine Antwort.
+    /// Agenten, die auf den Nutzer warten: auf die Freigabe eines Plans, eine Antwort oder
+    /// die Entscheidung über einen Fix.
     pub fn waiting_agents(&self) -> usize {
-        self.runs
-            .iter()
-            .filter(|r| r.is_awaiting() || r.is_asking())
-            .count()
+        self.runs.iter().filter(|r| r.is_waiting_for_you()).count()
     }
 
     /// Agenten, die eine Frage gestellt haben.
@@ -466,7 +483,7 @@ impl Workspace {
 
     /// Der Lauf zu einem Ticket. Gibt es noch keinen, kommt ein startbereiter zurück.
     pub fn run(&self, ticket_key: &str) -> Option<AgentRun> {
-        if let Some(run) = self.runs.iter().find(|r| r.ticket_key == ticket_key) {
+        if let Some(run) = self.runs.iter().find(|r| r.key() == ticket_key) {
             return Some(run.clone());
         }
         let item = self.item_by_key(ticket_key).filter(|i| i.is_ticket())?;
@@ -486,12 +503,16 @@ impl Workspace {
         options: AgentOptions,
     ) -> Result<(), AgentError> {
         let mut run = self.run(ticket_key).ok_or(AgentError::UnknownTicket)?;
+        // Folgeaufträge starten über das Review, nicht über ein Ticket.
+        if run.is_followup() {
+            return Err(AgentError::UnknownTicket);
+        }
         if run.is_active() {
             return Err(AgentError::AlreadyRunning);
         }
         run.start(options, self.next_pr_number());
         let waiting = run.is_awaiting();
-        match self.runs.iter_mut().find(|r| r.ticket_key == ticket_key) {
+        match self.runs.iter_mut().find(|r| r.key() == ticket_key) {
             Some(slot) => *slot = run,
             None => self.runs.push(run),
         }
@@ -507,16 +528,32 @@ impl Workspace {
         Ok(())
     }
 
-    fn active_run_mut(&mut self, ticket_key: &str) -> Option<&mut AgentRun> {
+    fn active_run_mut(&mut self, key: &str) -> Option<&mut AgentRun> {
         self.runs
             .iter_mut()
-            .find(|r| r.ticket_key == ticket_key && r.is_active())
+            .find(|r| r.key() == key && r.is_active())
     }
 
-    fn clear_agent_note(&mut self, ticket_key: &str) {
-        if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket_key) {
+    /// Der Eintrag, an dem der Lauf hängt: bei Folgeaufträgen der mit dem Pull Request.
+    fn run_item_mut(&mut self, key: &str) -> Option<&mut Item> {
+        let item_key = self
+            .runs
+            .iter()
+            .find(|r| r.key() == key)
+            .map(|r| r.ticket_key.clone())?;
+        self.items.iter_mut().find(|i| i.key == item_key)
+    }
+
+    fn clear_agent_note(&mut self, key: &str) {
+        if let Some(item) = self.run_item_mut(key) {
             item.agent_note = None;
         }
+    }
+
+    /// Ein Folgeauftrag, der nicht mehr läuft, hinterlässt keinen Lauf. (Beim Ticket
+    /// bleibt der bereite Lauf stehen, wie bisher.)
+    fn drop_idle_followups(&mut self) {
+        self.runs.retain(|r| !(r.is_followup() && r.is_idle()));
     }
 
     /// Bricht einen wartenden oder laufenden Agenten ab.
@@ -526,18 +563,26 @@ impl Workspace {
         };
         run.reset();
         self.clear_agent_note(ticket_key);
+        self.drop_idle_followups();
     }
 
     /// Gibt den Plan frei: Der Agent legt los, das Ticket geht auf „In Arbeit“.
     pub fn approve_plan(&mut self, ticket_key: &str) -> bool {
+        let followup = self
+            .runs
+            .iter()
+            .any(|r| r.key() == ticket_key && r.is_followup());
         if !self
             .active_run_mut(ticket_key)
             .is_some_and(AgentRun::approve)
         {
             return false;
         }
-        if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket_key) {
-            item.status = TicketStatus::InProgress;
+        if let Some(item) = self.run_item_mut(ticket_key) {
+            // Ein Folgeauftrag ändert den Status des Tickets nicht.
+            if !followup {
+                item.status = TicketStatus::InProgress;
+            }
             item.agent_note = Some("Der Agent arbeitet an der Umsetzung".into());
         }
         true
@@ -552,6 +597,7 @@ impl Workspace {
             return false;
         }
         self.clear_agent_note(ticket_key);
+        self.drop_idle_followups();
         true
     }
 
@@ -561,8 +607,8 @@ impl Workspace {
             .is_some_and(|r| r.revise(note))
     }
 
-    fn set_agent_note(&mut self, ticket_key: &str, note: &str) {
-        if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket_key) {
+    fn set_agent_note(&mut self, key: &str, note: &str) {
+        if let Some(item) = self.run_item_mut(key) {
             item.agent_note = Some(note.into());
         }
     }
@@ -607,24 +653,291 @@ impl Workspace {
     }
 
     /// Lässt jeden laufenden Agenten einen Schritt abschließen oder eine Frage stellen.
-    /// Gibt die Tickets zurück, deren Lauf dabei fertig geworden ist.
+    /// Gibt die Schlüssel der Läufe zurück, die dabei fertig geworden sind.
     pub fn advance_agents(&mut self) -> Vec<String> {
         let mut finished = Vec::new();
         let mut asking = Vec::new();
+        let mut diagnosed = Vec::new();
         for run in &mut self.runs {
             match run.tick() {
                 Tick::Finished => finished.push(run.clone()),
-                Tick::Asked => asking.push(run.ticket_key.clone()),
+                Tick::Asked => asking.push(run.key()),
+                Tick::Diagnosed => diagnosed.push(run.key()),
                 Tick::Stepped | Tick::Idle => {}
             }
         }
         for key in &asking {
             self.set_agent_note(key, "Der Agent hat eine Frage an dich");
         }
-        for run in &finished {
-            self.publish(run);
+        for key in &diagnosed {
+            self.diagnose_run(key);
         }
-        finished.into_iter().map(|r| r.ticket_key).collect()
+        for run in &finished {
+            if run.is_followup() {
+                self.finish_followup(run);
+            } else {
+                self.publish(run);
+            }
+        }
+        finished.into_iter().map(|r| r.key()).collect()
+    }
+
+    // ---------- Folgeaufträge: Review-Kommentare umsetzen, rote Checks untersuchen ----------
+
+    /// Der Schlüssel des Eintrags, an dem der Pull Request hängt (Ticket oder PR-Eintrag).
+    fn item_key_of_pr(&self, number: u32) -> String {
+        self.items
+            .iter()
+            .find(|i| i.pr.as_ref().is_some_and(|p| p.number == number))
+            .map_or_else(|| format!("#{number}"), |i| i.key.clone())
+    }
+
+    /// Läuft oder wartet schon ein Folgeauftrag auf diesem Pull Request?
+    pub fn active_followup(&self, review: u32) -> Option<&AgentRun> {
+        self.runs
+            .iter()
+            .find(|r| r.is_followup() && r.kind.review() == Some(review) && r.is_active())
+    }
+
+    /// Alle Folgeaufträge zu einem Pull Request, auch die fertigen.
+    pub fn followups(&self, review: u32) -> Vec<&AgentRun> {
+        self.runs
+            .iter()
+            .filter(|r| r.is_followup() && r.kind.review() == Some(review))
+            .collect()
+    }
+
+    /// Prüft, dass auf dem Pull Request ein Folgeauftrag starten darf.
+    fn check_followup(&self, review: u32) -> Result<&Review, AgentError> {
+        let r = self.review(review).ok_or(AgentError::UnknownReview)?;
+        if r.merged.is_some() {
+            return Err(AgentError::Merged);
+        }
+        if self.active_followup(review).is_some() {
+            return Err(AgentError::AlreadyRunning);
+        }
+        Ok(r)
+    }
+
+    fn start_followup(&mut self, mut run: AgentRun, options: AgentOptions) -> String {
+        run.start(options, 0);
+        let key = run.key();
+        let waiting = run.is_awaiting();
+        let note = match &run.kind {
+            _ if waiting => "Der Agent wartet auf die Freigabe seines Plans",
+            RunKind::Diagnose { .. } => "Der Agent untersucht einen roten Check",
+            _ => "Der Agent setzt Review-Kommentare um",
+        };
+        let number = run.pr_number;
+        match self.runs.iter_mut().find(|r| r.key() == key) {
+            Some(slot) => *slot = run,
+            None => self.runs.push(run),
+        }
+        if let Some(item) = number.and_then(|n| self.pr_item_mut(n)) {
+            item.agent_note = Some(note.into());
+        }
+        key
+    }
+
+    /// Beauftragt den Agenten, Kommentare eines Reviews umzusetzen. Es zählen nur offene
+    /// Zeilenkommentare dieses Reviews. Gibt den Schlüssel des Laufs zurück (`review-91`).
+    ///
+    /// Der Lauf pusht auf den Branch des Pull Requests; einen neuen Pull Request gibt es nicht.
+    pub fn address_review(
+        &mut self,
+        review: u32,
+        comments: &[String],
+        options: AgentOptions,
+    ) -> Result<String, AgentError> {
+        let r = self.check_followup(review)?;
+        let mut files: Vec<String> = Vec::new();
+        for id in comments {
+            let c = r
+                .line_comments
+                .iter()
+                .find(|c| c.id == *id && c.is_open())
+                .ok_or(AgentError::NoComments)?;
+            if !files.contains(&c.file) {
+                files.push(c.file.clone());
+            }
+        }
+        if comments.is_empty() {
+            return Err(AgentError::NoComments);
+        }
+        let mut ids: Vec<String> = Vec::new();
+        for id in comments {
+            if !ids.contains(id) {
+                ids.push(id.clone());
+            }
+        }
+        let (title, branch) = (r.title.clone(), r.branch.clone());
+        let mut run = AgentRun::followup(
+            RunKind::AddressReview {
+                review,
+                comments: ids,
+            },
+            &self.item_key_of_pr(review),
+            &title,
+            &branch,
+        );
+        run.files = files;
+        Ok(self.start_followup(run, options))
+    }
+
+    /// Beauftragt den Agenten, einen roten Check zu untersuchen. Er legt eine Diagnose vor und
+    /// ändert nichts, bevor du den Fix übernimmst. Gibt den Schlüssel des Laufs zurück.
+    pub fn investigate_check(&mut self, review: u32, check: &str) -> Result<String, AgentError> {
+        let r = self.check_followup(review)?;
+        let failed = r
+            .check_runs
+            .iter()
+            .any(|c| c.name == check && c.status == Checks::Failed);
+        if !failed {
+            return Err(AgentError::CheckNotFailed);
+        }
+        let (title, branch) = (r.title.clone(), r.branch.clone());
+        let run = AgentRun::followup(
+            RunKind::Diagnose {
+                review,
+                check: check.to_string(),
+            },
+            &self.item_key_of_pr(review),
+            &title,
+            &branch,
+        );
+        // Eine Untersuchung ändert nichts, bevor du den Fix übernimmst – einen Plan braucht sie nicht.
+        let options = AgentOptions {
+            plan_first: false,
+            ..AgentOptions::default()
+        };
+        Ok(self.start_followup(run, options))
+    }
+
+    /// Die Untersuchung hat das Log gelesen: Die Diagnose wird erstellt und liegt am Lauf.
+    fn diagnose_run(&mut self, key: &str) {
+        let Some((review, check)) =
+            self.runs
+                .iter()
+                .find(|r| r.key() == key)
+                .and_then(|r| match &r.kind {
+                    RunKind::Diagnose { review, check } => Some((*review, check.clone())),
+                    _ => None,
+                })
+        else {
+            return;
+        };
+        let diagnosis = self.review(review).and_then(|r| {
+            let c = r.check_runs.iter().find(|c| c.name == check)?;
+            Some(diagnose(r, c))
+        });
+        let note = match &diagnosis {
+            Some(d) => format!("Diagnose zu „{check}“ liegt vor: {}", d.cause),
+            None => format!("Der Check „{check}“ ist nicht mehr da"),
+        };
+        if let Some(run) = self.runs.iter_mut().find(|r| r.key() == key) {
+            run.diagnosis = diagnosis;
+        }
+        self.set_agent_note(key, &note);
+    }
+
+    /// Übernimmt den Fix der Diagnose: Der Agent wendet ihn an, pusht und startet den Check neu.
+    pub fn accept_fix(&mut self, key: &str) -> bool {
+        if !self.active_run_mut(key).is_some_and(AgentRun::accept_fix) {
+            return false;
+        }
+        self.set_agent_note(key, "Der Agent wendet den Fix an");
+        true
+    }
+
+    /// Verwirft die Diagnose: Der Lauf endet, der Branch bleibt unberührt.
+    pub fn discard_fix(&mut self, key: &str) -> bool {
+        if !self.runs.iter().any(|r| r.key() == key && r.is_diagnosed()) {
+            return false;
+        }
+        if let Some(run) = self.active_run_mut(key) {
+            run.reset();
+        }
+        self.clear_agent_note(key);
+        self.drop_idle_followups();
+        true
+    }
+
+    /// Ein Folgeauftrag ist fertig: Der neue Commit steht auf dem Branch des Pull Requests.
+    fn finish_followup(&mut self, run: &AgentRun) {
+        let Some(number) = run.kind.review() else {
+            return;
+        };
+        match &run.kind {
+            RunKind::AddressReview { comments, .. } => {
+                let key = run.key();
+                let sha = short_sha(&format!("{key}:{}", comments.join(",")));
+                let done = self.review_mut(number).map_or(0, |r| {
+                    // Änderungsvorschläge landen im Diff, dann sind die Kommentare erledigt.
+                    for id in comments {
+                        r.apply_comment_suggestion(id);
+                    }
+                    let done = r.resolve_comments(comments, &key);
+                    // Das Review ist eine neue Runde: das alte Urteil gilt nicht mehr.
+                    r.verdict = Verdict::Comment;
+                    r.sent = false;
+                    done
+                });
+                let what = match done {
+                    1 => "1 Review-Kommentar".to_string(),
+                    n => format!("{n} Review-Kommentare"),
+                };
+                if let Some(item) = self.pr_item_mut(number) {
+                    if let Some(pr) = item.pr.as_mut() {
+                        pr.changes_requested = false;
+                    }
+                    item.agent_note = Some(format!("Neuer Commit {sha}: {what} umgesetzt"));
+                    item.reason = ReasonKind::ReviewRequested;
+                    item.reason_text = format!("Review angefragt · Agent hat {what} umgesetzt");
+                    item.time = "gerade eben".into();
+                    item.read = false;
+                    item.comments.push(Comment::new(
+                        Person::agent(),
+                        "gerade eben",
+                        &format!(
+                            "Commit {sha} auf {}: {what} umgesetzt. Bitte noch einmal prüfen.",
+                            run.branch()
+                        ),
+                    ));
+                }
+            }
+            RunKind::Diagnose { check, .. } => {
+                let fix = run.diagnosis.as_ref().and_then(|d| d.fix.clone());
+                let pushed = self
+                    .review_mut(number)
+                    .zip(fix.as_ref())
+                    .is_some_and(|(r, fix)| {
+                        let applied = r.apply_fix(fix);
+                        if applied {
+                            // Der Fix behebt den Fehler; ein wackliger Check braucht nur den Neustart.
+                            r.set_rerun(check, Checks::Passed);
+                        }
+                        applied
+                    });
+                self.restart_check(number, check);
+                let sha = short_sha(&format!("{}:{check}", run.key()));
+                let note = if pushed {
+                    format!("Fix {sha} gepusht, „{check}“ läuft erneut")
+                } else {
+                    format!("„{check}“ neu gestartet")
+                };
+                if let Some(item) = self.pr_item_mut(number) {
+                    item.agent_note = Some(note.clone());
+                    if pushed {
+                        item.comments.push(Comment::new(
+                            Person::agent(),
+                            "gerade eben",
+                            &format!("Commit {sha} auf {}: {note}.", run.branch()),
+                        ));
+                    }
+                }
+            }
+            RunKind::Implement => {}
+        }
     }
 
     /// Ein Lauf ist fertig: Branch und Pull Request erscheinen am Ticket, und der
