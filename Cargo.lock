@@ -250,8 +250,11 @@ dependencies = [
  "cockpit-core",
  "console_error_panic_hook",
  "feature-ui",
+ "gloo-net",
  "js-sys",
  "leptos",
+ "serde",
+ "serde_json",
  "web-sys",
 ]
 

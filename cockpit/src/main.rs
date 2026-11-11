@@ -3,14 +3,18 @@
 //! Die Oberfläche folgt dem Design „Baukasten“ und besteht aus den Bausteinen in
 //! `feature-ui`. Was die Knöpfe tun, steht in `cockpit-core`. Diese App verbindet beides.
 
+mod banner;
+mod mode_switch;
 mod pages;
 mod route;
+mod server;
 mod sidebar;
 mod store;
 mod view;
 
 use std::time::Duration;
 
+use banner::ServerBanner;
 use cockpit_core::{Action, Actor};
 use feature_ui::{Root, Theme};
 use leptos::prelude::*;
@@ -19,7 +23,7 @@ use pages::{
     setup::SetupPage,
 };
 use route::Route;
-use store::{Store, current_hash, navigate};
+use store::{Mode, Store, current_hash, navigate};
 
 /// So lange braucht der Demo-Agent für einen Schritt.
 const AGENT_STEP: Duration = Duration::from_millis(2200);
@@ -59,17 +63,21 @@ fn App() -> impl IntoView {
     });
 
     // Ein Takt für alle Agenten – sie arbeiten weiter, egal welche Seite offen ist.
-    set_interval(
-        move || {
-            if store.ws.with_untracked(|w| w.running_agents()) > 0 {
-                let _ = store.dispatch_as(Action::AdvanceAgents, Actor::Agent);
-            }
-        },
-        AGENT_STEP,
-    );
+    // Im Server-Modus macht den Takt der Server.
+    if store.mode == Mode::Demo {
+        set_interval(
+            move || {
+                if store.ws.with_untracked(|w| w.running_agents()) > 0 {
+                    let _ = store.dispatch_as(Action::AdvanceAgents, Actor::Agent);
+                }
+            },
+            AGENT_STEP,
+        );
+    }
 
     view! {
         <Root theme=system_theme() class="ck-root">
+            <ServerBanner />
             {move || match store.route.get() {
                 Route::Setup => view! { <SetupPage /> }.into_any(),
                 Route::Inbox(filter) => view! { <InboxPage filter=filter /> }.into_any(),

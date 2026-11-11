@@ -9,15 +9,22 @@ leptos = { workspace = true, features = ["csr"] }
 console_error_panic_hook = { workspace = true }
 web-sys = { workspace = true, features = [
     "HtmlElement",
+    "Event",
+    "EventSource",
     "HtmlInputElement",
     "KeyboardEvent",
     "Location",
     "MediaQueryList",
+    "MessageEvent",
     "ScrollIntoViewOptions",
     "ScrollLogicalPosition",
     "Storage",
 ] }
 
 js-sys = "0.3"
+# Server-Modus: Anfragen an das lokale Backend (nur die App braucht das)
+gloo-net = { version = "0.6", default-features = false, features = ["http", "json"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
 cockpit-core = { workspace = true }
 feature-ui = { workspace = true }

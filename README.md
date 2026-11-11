@@ -61,6 +61,30 @@ Schlüssel stehen nie in der Datei. Sie kommen über die Standardeingabe in den 
 `/api/health` meldet je Verbindung nur ja/nein. Die Server-Crates (`server/`, `crates/integrations`)
 laufen nur nativ; für Wasm schließt die CI sie aus (siehe `docs/ROADMAP.md`).
 
+### Server-Modus
+
+Standardmäßig rechnet die App im Browser (**Demo**). Mit dem Backend kann sie umschalten: Unter
+„Einrichten“ › Übersicht wählst du bei „Modus“ **Lokaler Server**. Das geht nur, wenn `GET /api/health`
+antwortet, also wenn du die App über den Server öffnest (`http://127.0.0.1:8787`, nicht über `trunk serve`).
+Der gewählte Modus steht in `localStorage` (`cockpit.mode`), der Wechsel lädt die Seite neu.
+
+Im Server-Modus hält das Backend den `Workspace` (SQLite, Migration 2) und wendet jede Aktion selbst an;
+der Takt des simulierten Agenten läuft ebenfalls dort. Beim ersten Start ohne gespeicherten Stand beginnt es
+mit den Beispieldaten. Die App lädt den Stand, schickt Aktionen und hört auf Änderungen:
+
+| Route | Zweck |
+|-------|-------|
+| `GET /api/workspace` | Stand als JSON (Form von `cockpit_core::persist`, dazu `revision`) |
+| `POST /api/actions` | Body `{"action": <Action>}`; wendet sie als „Du“ an. Antwort `{revision, zusammenfassung, protokolliert}`; eine abgelehnte Aktion ist `422` (unbekannte Form `400`) mit `{"fehler": "…"}` |
+| `GET /api/events` | Server-Sent Events: erst die aktuelle Revision, dann je Aktion ein Ereignis mit neuer Revision und den neuen Protokolleinträgen, dazu Keep-Alive |
+
+Wer nicht erreichbar ist, sieht einen Hinweis mit „Erneut versuchen“ und „Zurück zu Demo“. Der Demo-Stand im
+Browser bleibt dabei unberührt.
+
+Alle Routen unter `/api` prüfen die Gegenstelle (nur Loopback) und den `Host`-Header (`127.0.0.1:<port>` oder
+`localhost:<port>`, gegen DNS-Rebinding). Schreibende Anfragen brauchen zusätzlich `Content-Type: application/json`
+und einen fehlenden oder eigenen `Origin`.
+
 ## Lernpfad
 
 Die Konzepte bauen aufeinander auf. Jeder Schritt nennt die Stelle im Code, an der du es
