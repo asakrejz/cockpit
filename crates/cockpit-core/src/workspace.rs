@@ -1,5 +1,7 @@
 //! Der Workspace: alle Daten des Cockpits und die Aktionen der Oberfläche.
 
+use serde::{Deserialize, Serialize};
+
 use crate::agent::{AgentOptions, AgentRun};
 use crate::demo;
 use crate::model::*;
@@ -12,10 +14,13 @@ pub enum AgentError {
     AlreadyRunning,
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Workspace {
+    #[serde(default)]
     pub items: Vec<Item>,
+    #[serde(default)]
     pub reviews: Vec<Review>,
+    #[serde(default)]
     pub runs: Vec<AgentRun>,
 }
 

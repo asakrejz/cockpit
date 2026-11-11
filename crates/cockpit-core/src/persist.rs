@@ -1,0 +1,244 @@
+//! Speichern und Laden des [`Workspace`] als Text (JSON) – ohne Browser und ohne UI.
+//!
+//! Die App legt den Text in `localStorage` ab; hier steht nur, wie er aussieht und wie
+//! er sicher wieder eingelesen wird:
+//!
+//! * Der Text trägt eine **Versionsnummer** ([`VERSION`]). Wer die Form der Daten
+//!   unverträglich ändert, erhöht sie – alte Stände werden dann verworfen.
+//! * **Neue Felder** in den Typen sind unkritisch: Alte Daten ohne das Feld bekommen
+//!   den Standardwert (`#[serde(default)]`), unbekannte Felder werden ignoriert. Neue
+//!   Felder bekommen deshalb dieses Attribut, sofern ihr Typ `Default` kann.
+//! * **Unlesbare Daten** führen nie zum Absturz: [`restore`] fällt auf die Beispieldaten zurück.
+//!
+//! Schlüssel und Tokens sind nicht Teil des Workspace und landen hier nie.
+
+use serde::{Deserialize, Serialize};
+
+use crate::{Workspace, demo};
+
+/// Version der Speicherform. Bei unverträglichen Änderungen am Datenmodell erhöhen.
+pub const VERSION: u32 = 1;
+
+/// Nur die Versionsnummer – damit sie auch gelesen werden kann, wenn der Rest nicht passt.
+#[derive(Deserialize)]
+struct Header {
+    version: u32,
+}
+
+#[derive(Serialize)]
+struct Out<'a> {
+    version: u32,
+    workspace: &'a Workspace,
+}
+
+#[derive(Deserialize)]
+struct In {
+    workspace: Workspace,
+}
+
+/// Warum gespeicherte Daten nicht verwendet werden.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LoadError {
+    /// Kein gültiges JSON oder nicht in der erwarteten Form.
+    Unreadable,
+    /// Stammt aus einer anderen Version der App.
+    Version(u32),
+}
+
+/// Wandelt den Workspace in Text um.
+pub fn save(workspace: &Workspace) -> String {
+    serde_json::to_string(&Out {
+        version: VERSION,
+        workspace,
+    })
+    // Der Workspace enthält nur Texte, Zahlen und Aufzählungen – das scheitert nicht.
+    .unwrap_or_default()
+}
+
+/// Liest gespeicherten Text. Prüft zuerst die Version, dann den Inhalt.
+pub fn load(text: &str) -> Result<Workspace, LoadError> {
+    let header: Header = serde_json::from_str(text).map_err(|_| LoadError::Unreadable)?;
+    if header.version != VERSION {
+        return Err(LoadError::Version(header.version));
+    }
+    serde_json::from_str::<In>(text)
+        .map(|saved| saved.workspace)
+        .map_err(|_| LoadError::Unreadable)
+}
+
+/// Der Workspace für den Start: der gespeicherte Stand, sonst die Beispieldaten.
+/// Der zweite Wert sagt, ob der gespeicherte Stand verwendet wurde.
+pub fn restore(saved: Option<&str>) -> (Workspace, bool) {
+    match saved.map(load) {
+        Some(Ok(workspace)) => (workspace, true),
+        _ => (demo::workspace(), false),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{AgentOptions, Decision, RunState, Verdict, agent::STEPS};
+
+    fn json(text: &str) -> serde_json::Value {
+        serde_json::from_str(text).unwrap()
+    }
+
+    #[test]
+    fn demo_workspace_roundtrip() {
+        let ws = demo::workspace();
+        assert_eq!(load(&save(&ws)), Ok(ws));
+    }
+
+    #[test]
+    fn changed_state_survives() {
+        let mut ws = demo::workspace();
+        let id = ws.items[0].id.clone();
+        ws.mark_done(&id);
+        let number = ws.reviews[0].number;
+        let suggestion = ws.reviews[0].suggestions[0].id.clone();
+        ws.decide(number, &suggestion, Some(Decision::Approved));
+        ws.set_verdict(number, Verdict::Approve);
+        let back = load(&save(&ws)).unwrap();
+        assert!(back.item(&id).unwrap().read);
+        assert_eq!(back.review(number).unwrap().verdict, Verdict::Approve);
+        assert_eq!(back, ws);
+    }
+
+    #[test]
+    fn running_agent_continues_at_its_step() {
+        let mut ws = demo::workspace();
+        let key = ws.items.iter().find(|i| i.is_ticket()).unwrap().key.clone();
+        ws.start_agent(&key, AgentOptions::default()).unwrap();
+        ws.advance_agents();
+        ws.advance_agents();
+        let mut back = load(&save(&ws)).unwrap();
+        assert_eq!(back.running_agents(), 1);
+        let run = back.runs.iter().find(|r| r.is_running()).unwrap();
+        assert_eq!((run.completed, run.state), (2, RunState::Running));
+        // … und läuft nach dem Laden zu Ende, mit neuem Pull Request.
+        for _ in 0..STEPS {
+            back.advance_agents();
+        }
+        assert_eq!(back.running_agents(), 0);
+        assert!(
+            back.runs
+                .iter()
+                .any(|r| r.is_done() && r.pr_number.is_some())
+        );
+    }
+
+    #[test]
+    fn garbage_is_unreadable() {
+        for text in [
+            "",
+            "kaputt",
+            "{",
+            "null",
+            "[]",
+            "{\"version\":1}",
+            "{\"version\":1,\"workspace\":5}",
+        ] {
+            assert_eq!(load(text), Err(LoadError::Unreadable), "{text:?}");
+        }
+    }
+
+    #[test]
+    fn other_version_is_rejected() {
+        let mut value = json(&save(&demo::workspace()));
+        value["version"] = (VERSION + 1).into();
+        assert_eq!(
+            load(&value.to_string()),
+            Err(LoadError::Version(VERSION + 1))
+        );
+        // Auch wenn der Rest nicht mehr zur heutigen Form passt.
+        assert_eq!(
+            load("{\"version\":0,\"workspace\":\"alt\"}"),
+            Err(LoadError::Version(0))
+        );
+    }
+
+    #[test]
+    fn missing_fields_get_defaults() {
+        let mut value = json(&save(&demo::workspace()));
+        let review = &mut value["workspace"]["reviews"][0];
+        let number = review["number"].as_u64().unwrap() as u32;
+        review["sent"] = true.into();
+        review.as_object_mut().unwrap().remove("verdict");
+        review.as_object_mut().unwrap().remove("suggestions");
+        review.as_object_mut().unwrap().remove("sent");
+        let item = &mut value["workspace"]["items"][0];
+        item.as_object_mut().unwrap().remove("read");
+        item.as_object_mut().unwrap().remove("comments");
+        // Unbekannte Felder aus einer neueren App stören nicht.
+        item["etwas_neues"] = "x".into();
+
+        let ws = load(&value.to_string()).unwrap();
+        let review = ws.review(number).unwrap();
+        assert_eq!(review.verdict, Verdict::default());
+        assert!(review.suggestions.is_empty());
+        assert!(!review.sent);
+        assert!(!ws.items[0].read);
+        assert!(ws.items[0].comments.is_empty());
+    }
+
+    #[test]
+    fn missing_agent_options_get_defaults() {
+        let mut ws = demo::workspace();
+        let key = ws.items.iter().find(|i| i.is_ticket()).unwrap().key.clone();
+        ws.start_agent(&key, AgentOptions::default()).unwrap();
+        let mut value = json(&save(&ws));
+        let run = &mut value["workspace"]["runs"][0];
+        run.as_object_mut().unwrap().remove("options");
+        run["options"] = json("{\"hint\":\"nur ein Hinweis\"}");
+        let back = load(&value.to_string()).unwrap();
+        let options = &back.runs[0].options;
+        assert_eq!(options.hint, "nur ein Hinweis");
+        assert_eq!(options.base_branch, "main");
+        assert!(options.run_tests);
+    }
+
+    #[test]
+    fn restore_falls_back_to_demo() {
+        let demo = demo::workspace();
+        assert_eq!(restore(None), (demo.clone(), false));
+        assert_eq!(restore(Some("kaputt")), (demo.clone(), false));
+        assert_eq!(restore(Some("{\"version\":99}")), (demo.clone(), false));
+        let mut changed = demo.clone();
+        let id = changed.items[0].id.clone();
+        changed.mark_done(&id);
+        let (back, restored) = restore(Some(&save(&changed)));
+        assert!(restored);
+        assert_eq!(back, changed);
+    }
+
+    /// Sammelt alle Feldnamen eines JSON-Werts.
+    fn keys(value: &serde_json::Value, out: &mut Vec<String>) {
+        match value {
+            serde_json::Value::Object(map) => {
+                for (name, inner) in map {
+                    out.push(name.to_lowercase());
+                    keys(inner, out);
+                }
+            }
+            serde_json::Value::Array(list) => list.iter().for_each(|v| keys(v, out)),
+            _ => {}
+        }
+    }
+
+    #[test]
+    fn no_secret_fields_in_saved_text() {
+        // Der Workspace kennt keine Felder für Schlüssel, Tokens oder Passwörter.
+        let mut ws = demo::workspace();
+        let key = ws.items.iter().find(|i| i.is_ticket()).unwrap().key.clone();
+        ws.start_agent(&key, AgentOptions::default()).unwrap();
+        let mut names = Vec::new();
+        keys(&json(&save(&ws)), &mut names);
+        assert!(names.len() > 20);
+        for name in names {
+            for word in ["token", "secret", "password", "passwort", "api"] {
+                assert!(!name.contains(word), "Feld {name}");
+            }
+        }
+    }
+}

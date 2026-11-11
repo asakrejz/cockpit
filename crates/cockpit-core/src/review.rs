@@ -2,25 +2,31 @@
 //!
 //! Die Kernregel: **Nichts wird gesendet, bevor über jeden Vorschlag entschieden ist.**
 
+use serde::{Deserialize, Serialize};
+
 use crate::model::{Checks, Person};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LineKind {
     Context,
     Add,
     Del,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct DiffLine {
+    #[serde(default)]
     pub no: u32,
     pub kind: LineKind,
+    #[serde(default)]
     pub text: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct FileDiff {
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub lines: Vec<DiffLine>,
 }
 
@@ -55,7 +61,7 @@ impl FileDiff {
 }
 
 /// Gewicht eines Vorschlags.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Level {
     Note,
     Important,
@@ -70,21 +76,25 @@ impl Level {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Decision {
     Approved,
     Declined,
 }
 
 /// Kommentar, den der Agent vorbereitet hat.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Suggestion {
+    #[serde(default)]
     pub id: String,
     /// Datei und Zeile, z. B. `components.css · Zeile 417`.
+    #[serde(default)]
     pub location: String,
     pub level: Level,
+    #[serde(default)]
     pub text: String,
     /// `None` = noch nicht entschieden.
+    #[serde(default)]
     pub decision: Option<Decision>,
 }
 
@@ -101,7 +111,7 @@ impl Suggestion {
 }
 
 /// Ergebnis des Reviews.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Verdict {
     #[default]
     Comment,
@@ -146,21 +156,32 @@ pub enum SendError {
     UnknownReview,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Review {
+    #[serde(default)]
     pub number: u32,
+    #[serde(default)]
     pub title: String,
+    #[serde(default)]
     pub description: String,
     pub author: Person,
+    #[serde(default)]
     pub branch: String,
+    #[serde(default)]
     pub base: String,
+    #[serde(default)]
     pub ticket_key: Option<String>,
     pub checks: Checks,
+    #[serde(default)]
     pub files: Vec<FileDiff>,
     /// Hat der Agent diesen Pull Request schon durchgesehen?
+    #[serde(default)]
     pub agent_reviewed: bool,
+    #[serde(default)]
     pub suggestions: Vec<Suggestion>,
+    #[serde(default)]
     pub verdict: Verdict,
+    #[serde(default)]
     pub sent: bool,
 }
 

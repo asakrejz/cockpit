@@ -4,6 +4,9 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-# Bewusst ohne Abhängigkeiten: reine Fachlogik, die nativ getestet wird und im
-# Browser läuft. Ein späteres Backend kann dasselbe Crate verwenden.
+# Schlank gehalten: reine Fachlogik, die nativ getestet wird und im Browser läuft.
+# Einzige Abhängigkeiten sind `serde` und `serde_json` – nur für das Speichern des
+# Workspace im Modul `persist`. Ein späteres Backend kann dasselbe Crate verwenden.
 [dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }

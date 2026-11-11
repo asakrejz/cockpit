@@ -172,10 +172,17 @@ Die Oberfläche und die Abläufe sind vollständig, die Daten sind Beispieldaten
 einem Modell-Anbieter.** Im Einzelnen:
 
 - Einrichten prüft das Format der Eingaben, nicht die Schlüssel selbst.
-- Schlüssel werden nie gespeichert. Im Browser liegen nur die Haken „verbunden" und die Berechtigungen.
+- Schlüssel werden nie gespeichert. Im Browser (`localStorage`) liegen nur die Haken „verbunden" und die
+  Berechtigungen (`cockpit.connections`) sowie der Stand der Beispieldaten (`cockpit.workspace`).
 - Der Agent ist ein Timer, der die fünf Schritte durchläuft. Sein „Review" sind einfache Regeln
   (feste Farbwerte, feste Pixelwerte, entfernter Fokus-Ring).
-- Nach dem Neuladen der Seite beginnen die Beispieldaten von vorn.
+- Der Stand der Beispieldaten (gelesen, Status, Branches, Kommentare, Reviews, Agenten-Läufe) überlebt das
+  Neuladen. Ein laufender Agent macht danach an seinem Schritt weiter. Gespeichert wird gebündelt (nicht bei
+  jedem Tastendruck) als JSON mit Versionsnummer, siehe `crates/cockpit-core/src/persist.rs`. Passt die Version
+  nicht oder sind die Daten unlesbar, startet die App mit den Beispieldaten und überschreibt den alten Stand.
+  Neue Felder in den Typen brauchen `#[serde(default)]`, damit ältere Stände lesbar bleiben.
+- Unter „Einrichten“ › Übersicht setzt „Demo-Daten zurücksetzen“ (mit Rückfrage) alles auf den Ausgangszustand.
+  Die Verbindungen bleiben.
 
 Für den echten Betrieb braucht es ein Backend, das die Schlüssel hält und die Aktionen aus
 `cockpit-core::Workspace` gegen die Dienste ausführt. Schlüssel gehören nicht in den Browser,

@@ -1,6 +1,8 @@
 //! Datenmodell: Einträge der Inbox und was dazugehört.
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Source {
     Jira,
     GitHub,
@@ -15,14 +17,14 @@ impl Source {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Kind {
     Ticket,
     PullRequest,
 }
 
 /// Gehört der Eintrag mir oder jemandem im Team?
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scope {
     Mine,
     Team,
@@ -65,7 +67,7 @@ impl Filter {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TicketStatus {
     #[default]
     Open,
@@ -116,7 +118,7 @@ pub enum Tone {
 }
 
 /// Warum ein Eintrag Aufmerksamkeit braucht.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReasonKind {
     Comment,
     ReviewRequested,
@@ -137,9 +139,11 @@ impl ReasonKind {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Person {
+    #[serde(default)]
     pub name: String,
+    #[serde(default)]
     pub initials: String,
 }
 
@@ -165,12 +169,15 @@ impl Person {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Comment {
     pub author: Person,
+    #[serde(default)]
     pub time: String,
+    #[serde(default)]
     pub text: String,
     /// Von mir geschrieben.
+    #[serde(default)]
     pub own: bool,
 }
 
@@ -185,7 +192,7 @@ impl Comment {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Checks {
     Passed,
     Failed,
@@ -211,9 +218,11 @@ impl Checks {
 }
 
 /// Verweis auf einen Pull Request, wie er an einem Eintrag hängt.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PrRef {
+    #[serde(default)]
     pub number: u32,
+    #[serde(default)]
     pub draft: bool,
     pub checks: Checks,
 }
@@ -239,29 +248,41 @@ impl PrRef {
 }
 
 /// Ein Eintrag der Inbox: ein Jira-Ticket oder ein GitHub Pull Request.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Item {
     /// Interne ID, z. B. `bau142`.
+    #[serde(default)]
     pub id: String,
     pub kind: Kind,
     pub source: Source,
     /// Sichtbarer Schlüssel: `BAU-142` oder `#87`.
+    #[serde(default)]
     pub key: String,
+    #[serde(default)]
     pub title: String,
+    #[serde(default)]
     pub description: String,
     pub reason: ReasonKind,
+    #[serde(default)]
     pub reason_text: String,
+    #[serde(default)]
     pub time: String,
     pub scope: Scope,
     pub owner: Person,
     /// Nur für Tickets von Bedeutung.
+    #[serde(default)]
     pub status: TicketStatus,
+    #[serde(default)]
     pub branch: Option<String>,
+    #[serde(default)]
     pub pr: Option<PrRef>,
     /// Hinweis des Agenten, z. B. „Vom Agenten umgesetzt · Tests bestanden“.
+    #[serde(default)]
     pub agent_note: Option<String>,
+    #[serde(default)]
     pub comments: Vec<Comment>,
     /// Erledigt – braucht keine Aufmerksamkeit mehr.
+    #[serde(default)]
     pub read: bool,
 }
 
