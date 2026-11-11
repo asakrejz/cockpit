@@ -137,6 +137,7 @@ dependencies = [
  "cockpit-core",
  "console_error_panic_hook",
  "feature-ui",
+ "js-sys",
  "leptos",
  "web-sys",
 ]

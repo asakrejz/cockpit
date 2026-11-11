@@ -1,6 +1,6 @@
 //! Ein Agent setzt ein Ticket um: Auftrag, Ablauf in fünf Schritten und Aktivität.
 
-use cockpit_core::{AgentOptions, agent::STEPS};
+use cockpit_core::{Action, AgentOptions, agent::STEPS};
 use feature_ui::*;
 use leptos::prelude::*;
 
@@ -80,31 +80,36 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
 
     let start = move |_| {
         let options = chosen();
-        store.ws.update(|w| {
-            let _ = w.start_agent(&key.get_value(), options);
+        let _ = store.dispatch(Action::StartAgent {
+            ticket: key.get_value(),
+            options,
         });
     };
-    let cancel = move |_| store.ws.update(|w| w.cancel_agent(&key.get_value()));
+    let cancel = move |_| {
+        let _ = store.dispatch(Action::CancelAgent {
+            ticket: key.get_value(),
+        });
+    };
     let approve = move |_| {
-        store.ws.update(|w| {
-            w.approve_plan(&key.get_value());
+        let _ = store.dispatch(Action::ApprovePlan {
+            ticket: key.get_value(),
         });
         note.set(String::new());
     };
     let reject = move |_| {
-        store.ws.update(|w| {
-            w.reject_plan(&key.get_value());
+        let _ = store.dispatch(Action::RejectPlan {
+            ticket: key.get_value(),
         });
         note.set(String::new());
     };
     let note_empty = Signal::derive(move || note.with(|n| n.trim().is_empty()));
     let revise = move |_| {
         let text = note.get_untracked();
-        let mut ok = false;
-        store
-            .ws
-            .update(|w| ok = w.revise_plan(&key.get_value(), &text));
-        if ok {
+        let revised = store.dispatch(Action::RevisePlan {
+            ticket: key.get_value(),
+            note: text,
+        });
+        if revised.is_ok() {
             note.set(String::new());
         }
     };

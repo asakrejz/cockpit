@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use cockpit_core::{Decision, Level, Review, Suggestion, Verdict};
+use cockpit_core::{Action, Decision, Level, Review, Suggestion, Verdict};
 use feature_ui::*;
 use leptos::prelude::*;
 
@@ -135,8 +135,10 @@ fn line_notes(store: Store, r: &Review, file: &str, index: usize, ui: LineUi) ->
                                         on_click=move |_| {
                                             let new_text = ui.edit_text.get_untracked();
                                             ui.editing.set(None);
-                                            store.ws.update(|w| {
-                                                w.edit_line_comment(number, &id.get_value(), &new_text);
+                                            let _ = store.dispatch(Action::EditLineComment {
+                                                review: number,
+                                                comment: id.get_value(),
+                                                text: new_text,
                                             });
                                         }
                                     >
@@ -175,9 +177,10 @@ fn line_notes(store: Store, r: &Review, file: &str, index: usize, ui: LineUi) ->
                                                     size=ControlSize::Small
                                                     destructive=true
                                                     on_click=move |_| {
-                                                        store.ws.update(|w| {
-                                                            w.delete_line_comment(number, &id.get_value());
-                                                        })
+                                                        let _ = store.dispatch(Action::DeleteLineComment {
+                                                            review: number,
+                                                            comment: id.get_value(),
+                                                        });
                                                     }
                                                 >
                                                     "Löschen"
@@ -216,12 +219,13 @@ fn line_notes(store: Store, r: &Review, file: &str, index: usize, ui: LineUi) ->
                             disabled=Signal::derive(move || ui.draft.get().trim().is_empty())
                             on_click=move |_| {
                                 let text = ui.draft.get_untracked();
-                                let added = store
-                                    .ws
-                                    .try_update(|w| {
-                                        w.add_line_comment(number, &file.get_value(), index, &text).is_some()
-                                    });
-                                if added == Some(true) {
+                                let added = store.dispatch(Action::AddLineComment {
+                                    review: number,
+                                    file: file.get_value(),
+                                    line: index,
+                                    text,
+                                });
+                                if added.is_ok() {
                                     ui.draft.set(String::new());
                                     ui.open.set(None);
                                 }
@@ -373,9 +377,7 @@ fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView {
         panel.agent_reading.set(true);
         set_timeout(
             move || {
-                store.ws.update(|w| {
-                    w.request_agent_review(number);
-                });
+                let _ = store.dispatch(Action::RequestAgentReview { review: number });
                 // Die Seite kann inzwischen verlassen worden sein.
                 let _ = panel.agent_reading.try_set(false);
             },
@@ -384,7 +386,11 @@ fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView {
     };
     let send = move |_| {
         let own = panel.own_comment.get_untracked();
-        if store.ws.try_update(|w| w.send_review(number, &own).is_ok()) == Some(true) {
+        let sent = store.dispatch(Action::SendReview {
+            review: number,
+            comment: own,
+        });
+        if sent.is_ok() {
             panel.own_comment.set(String::new());
         }
     };
@@ -448,7 +454,7 @@ fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView {
                         value=verdict
                         on_change=move |id: &'static str| {
                             if let Some(verdict) = Verdict::from_id(id) {
-                                store.ws.update(|w| w.set_verdict(number, verdict));
+                                let _ = store.dispatch(Action::SetVerdict { review: number, verdict });
                             }
                         }
                         aria_label="Ergebnis"
@@ -491,9 +497,11 @@ fn suggestion(store: Store, number: u32, s: Suggestion, panel: Panel) -> impl In
     let editing = Signal::derive(move || panel.editing.get().is_some_and(|e| e == id.get_value()));
     let decide = move |decision: Option<Decision>| {
         move |_| {
-            store.ws.update(|w| {
-                w.decide(number, &id.get_value(), decision);
-            })
+            let _ = store.dispatch(Action::Decide {
+                review: number,
+                suggestion: id.get_value(),
+                decision,
+            });
         }
     };
 
@@ -520,8 +528,10 @@ fn suggestion(store: Store, number: u32, s: Suggestion, panel: Panel) -> impl In
                     on_click=move |_| {
                         let new_text = panel.edit_text.get_untracked();
                         panel.editing.set(None);
-                        store.ws.update(|w| {
-                            w.edit_suggestion(number, &id.get_value(), &new_text);
+                        let _ = store.dispatch(Action::EditSuggestion {
+                            review: number,
+                            suggestion: id.get_value(),
+                            text: new_text,
                         });
                     }
                 >

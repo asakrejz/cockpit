@@ -11,10 +11,11 @@ mod view;
 
 use std::time::Duration;
 
+use cockpit_core::{Action, Actor};
 use feature_ui::{Root, Theme};
 use leptos::prelude::*;
 use pages::{
-    agent::AgentPage, inbox::InboxPage, overview::OverviewPage, review::ReviewPage,
+    agent::AgentPage, inbox::InboxPage, log::LogPage, overview::OverviewPage, review::ReviewPage,
     setup::SetupPage,
 };
 use route::Route;
@@ -61,9 +62,7 @@ fn App() -> impl IntoView {
     set_interval(
         move || {
             if store.ws.with_untracked(|w| w.running_agents()) > 0 {
-                store.ws.update(|w| {
-                    w.advance_agents();
-                });
+                let _ = store.dispatch_as(Action::AdvanceAgents, Actor::Agent);
             }
         },
         AGENT_STEP,
@@ -75,6 +74,7 @@ fn App() -> impl IntoView {
                 Route::Setup => view! { <SetupPage /> }.into_any(),
                 Route::Inbox(filter) => view! { <InboxPage filter=filter /> }.into_any(),
                 Route::Overview => view! { <OverviewPage /> }.into_any(),
+                Route::Log => view! { <LogPage /> }.into_any(),
                 Route::Review(number) => view! { <ReviewPage number=number /> }.into_any(),
                 Route::Agent(ticket) => view! { <AgentPage ticket=ticket /> }.into_any(),
             }}

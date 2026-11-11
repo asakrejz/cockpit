@@ -3,7 +3,7 @@
 
 use std::time::Duration;
 
-use cockpit_core::{Connections, Filter, Workspace, demo, persist};
+use cockpit_core::{Action, ActionError, Actor, Applied, Connections, Filter, Workspace, persist};
 use leptos::prelude::*;
 
 use crate::route::Route;
@@ -90,11 +90,27 @@ impl Store {
         on_cleanup(move || flush.remove());
     }
 
-    /// Setzt die Beispieldaten zurück. Die Verbindungen bleiben.
-    pub fn reset_demo(&self) {
-        let ws = demo::workspace();
-        self.selected.set(first_id(&ws));
-        self.ws.set(ws);
+    /// Der einzige Weg, den Workspace zu ändern: wendet die Aktion als „Du“ an und
+    /// protokolliert sie. Fehler kommen zurück und ändern nichts.
+    pub fn dispatch(&self, action: Action) -> Result<Applied, ActionError> {
+        self.dispatch_as(action, Actor::Du)
+    }
+
+    /// Wie [`Store::dispatch`], für Änderungen, die nicht vom Nutzer kommen (Takt des Agenten).
+    pub fn dispatch_as(&self, action: Action, actor: Actor) -> Result<Applied, ActionError> {
+        let reset = action == Action::ResetDemo;
+        // Die Zeit kommt aus dem Browser; die Logik in `cockpit-core` kennt keine Uhr.
+        let at_ms = js_sys::Date::now() as u64;
+        // Erst anwenden, dann melden: Bei einem Fehler soll sich nichts neu zeichnen.
+        let mut work = self.ws.get_untracked();
+        let result = work.apply(action, actor, at_ms);
+        if result.is_ok() {
+            if reset {
+                self.selected.set(first_id(&work));
+            }
+            self.ws.set(work);
+        }
+        result
     }
 
     /// Wählt einen Eintrag und zeigt ihn in der ungefilterten Inbox.
