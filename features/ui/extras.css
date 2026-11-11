@@ -24,3 +24,13 @@
 
 /* Das Karussell blendet Seiten außerhalb des Sichtbereichs für Tastatur/Screenreader aus. */
 .ui-pager__page[aria-hidden="true"] { visibility: hidden; transition: visibility 0s linear var(--sys-motion-duration, 0.35s); }
+
+/* Korrektur zum Design: `data-role="destructive"` setzt dort nur --sys-color-tint.
+   Die Button-Farben (--comp-button-*) sind aber schon am Theme-Element aufgelöst und
+   bleiben deshalb in der Akzentfarbe. Hier werden sie für den Button neu abgeleitet. */
+.ui-button[data-role="destructive"] {
+  --comp-button-prominent-bg: var(--sys-color-destructive);
+  --comp-button-bordered-fg: var(--sys-color-destructive);
+  --comp-button-bordered-bg: color-mix(in oklab, var(--sys-color-destructive) 15%, transparent);
+}
+.ui-button[data-role="destructive"][data-style="borderless"] { color: var(--sys-color-destructive); }

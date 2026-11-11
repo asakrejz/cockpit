@@ -16,12 +16,27 @@ pub fn ListSection(
     /// Zeilen haben farbige Icons – Trennlinien beginnen hinter dem Icon.
     #[prop(optional)]
     icons: bool,
+    /// Große, fette Überschrift (z. B. Titel eines Onboarding-Schritts).
+    #[prop(optional)]
+    prominent: bool,
+    /// Hellere Fläche für Listen, die schon auf einer Karte oder in einem `Pane` liegen.
+    #[prop(optional)]
+    nested: bool,
     children: Children,
 ) -> impl IntoView {
     view! {
         <div class="ui-list__section">
-            {header.map(|h| view! { <p class="ui-list__header">{h}</p> })}
-            <ul class="ui-list__group" data-icons=icons.then_some("")>{children()}</ul>
+            {header
+                .map(|h| {
+                    view! { <p class="ui-list__header" data-prominent=prominent.then_some("")>{h}</p> }
+                })}
+            <ul
+                class="ui-list__group"
+                data-icons=icons.then_some("")
+                style=nested.then_some("background: var(--sys-color-tertiary-grouped-background)")
+            >
+                {children()}
+            </ul>
             {footer.map(|f| view! { <p class="ui-list__footer">{f}</p> })}
         </div>
     }
@@ -47,6 +62,9 @@ pub fn ListRow(
     #[prop(optional)] chevron: bool,
     #[prop(optional, into)] href: Option<String>,
     #[prop(optional)] toggle_row: bool,
+    /// Lässt den Inhalt bei Platzmangel umbrechen.
+    #[prop(optional)]
+    wrap: bool,
     #[prop(optional)] children: Option<Children>,
 ) -> impl IntoView {
     let body = view! {
@@ -78,12 +96,15 @@ pub fn ListRow(
             })}
     };
 
+    let wrap_css = wrap.then_some("flex-wrap: wrap");
     let row = match (href, toggle_row) {
-        (Some(href), _) => view! { <a class="ui-list__row" href=href>{body}</a> }.into_any(),
+        (Some(href), _) => {
+            view! { <a class="ui-list__row" href=href style=wrap_css>{body}</a> }.into_any()
+        }
         (None, true) => {
             view! { <label class="ui-list__row" style="cursor: pointer">{body}</label> }.into_any()
         }
-        (None, false) => view! { <div class="ui-list__row">{body}</div> }.into_any(),
+        (None, false) => view! { <div class="ui-list__row" style=wrap_css>{body}</div> }.into_any(),
     };
     view! { <li>{row}</li> }
 }

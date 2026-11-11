@@ -54,6 +54,49 @@ pub fn Segmented(
     }
 }
 
+/// Segmentierter Picker, dessen Wert von außen kommt (z. B. aus einem Datenmodell).
+///
+/// Anders als [`Segmented`] schreibt er nicht selbst, sondern meldet die Auswahl über
+/// `on_change`. So bleibt das Modell die einzige Quelle der Wahrheit.
+#[component]
+pub fn SegmentedPicker(
+    options: &'static [(&'static str, &'static str)],
+    #[prop(into)] value: Signal<&'static str>,
+    #[prop(into)] on_change: Callback<&'static str>,
+    #[prop(into)] aria_label: String,
+    /// Füllt die volle Breite; alle Segmente sind gleich breit.
+    #[prop(optional)]
+    stretch: bool,
+) -> impl IntoView {
+    let (group_css, button_css) = if stretch {
+        (
+            "align-self: stretch",
+            Some("flex: 1 1 0; padding-inline: 8px"),
+        )
+    } else {
+        ("align-self: flex-start", None)
+    };
+    view! {
+        <div class="ui-segmented" role="group" aria-label=aria_label style=group_css>
+            {options
+                .iter()
+                .map(|&(id, label)| {
+                    view! {
+                        <button
+                            type="button"
+                            style=button_css
+                            aria-pressed=move || (value.get() == id).to_string()
+                            on:click=move |_| on_change.run(id)
+                        >
+                            {label}
+                        </button>
+                    }
+                })
+                .collect_view()}
+        </div>
+    }
+}
+
 /// Schieberegler (`Slider`).
 #[component]
 pub fn Slider(

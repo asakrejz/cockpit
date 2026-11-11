@@ -1,0 +1,7 @@
+# Cockpit wird aus diesem Ordner gebaut:  cd cockpit && trunk serve --open
+[build]
+target = "index.html"
+dist = "dist"
+
+[serve]
+port = 8081

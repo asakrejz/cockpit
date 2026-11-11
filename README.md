@@ -5,6 +5,13 @@ bekommt im Playground einen eigenen Reiter, ähnlich wie bei Storybook. So lerns
 an kleinen, sichtbaren Beispielen und baust nebenbei eine Bibliothek, die du in anderen
 Projekten wiederverwenden kannst.
 
+Im Repo liegen zwei Apps, die sich die Bausteine teilen:
+
+- **Playground** (`app/`): zeigt jeden Baustein einzeln.
+- **Cockpit** (`cockpit/`): ein Dashboard für Jira, GitHub und Agenten, gebaut aus denselben Bausteinen.
+
+Technik:
+
 - UI-Framework: [Leptos](https://leptos.dev) (läuft komplett im Browser)
 - Build-Tool: [Trunk](https://trunkrs.dev) (Rust → WASM → fertige Seite)
 - Aussehen: Design **„Baukasten"** (iOS 26 / Liquid Glass), gesteuert über Design-Tokens
@@ -16,9 +23,10 @@ Projekten wiederverwenden kannst.
 rustup target add wasm32-unknown-unknown   # passiert dank rust-toolchain.toml auch automatisch
 cargo install trunk --locked
 
-trunk serve --open     # Entwicklungsserver mit Live-Reload auf http://localhost:8080
-cargo test             # Tests laufen nativ, ohne Browser
-trunk build --release  # fertige Seite nach ./dist
+trunk serve --open                  # Playground auf http://localhost:8080
+(cd cockpit && trunk serve --open)  # Cockpit auf http://localhost:8081
+cargo test                          # Tests laufen nativ, ohne Browser
+trunk build --release               # fertige Seite nach ./dist
 ```
 
 Beim Lernen hilft: `trunk serve` laufen lassen, eine Datei ändern, Speichern – der Browser
@@ -47,7 +55,9 @@ siehst, und die Story im Playground, in der es sichtbar wird.
 | 14 | **Ereignisse aus dem Browser**: `window_event_listener`, Aufräumen mit `on_cleanup` | `app/src/main.rs` | Navigation per URL (`#button`) |
 | 15 | **Globaler Zähler**: `AtomicU32` für eindeutige IDs | `features/ui/src/field.rs` | TextField & Search |
 | 16 | **Tests**: `#[cfg(test)]`, `include_str!` liest das CSS zur Compile-Zeit | `features/ui/src/lib.rs` | `cargo test` |
-| 17 | **Workspace und Crates**: gemeinsame Versionen, ein Crate pro Baustein | `Cargo.toml`, `features/ui/Cargo.toml` | – |
+| 17 | **Logik ohne UI**: `struct`, `impl`, `Result`, Zustandsmaschine, viele Tests | `crates/cockpit-core/src/agent.rs`, `workspace.rs` | Cockpit |
+| 18 | **Gemeinsamer Zustand**: ein `Copy`-Store im Kontext, `Memo`, `Effect` | `cockpit/src/store.rs`, `cockpit/src/pages/inbox.rs` | Cockpit |
+| 19 | **Workspace und Crates**: gemeinsame Versionen, ein Crate pro Baustein | `Cargo.toml`, `features/ui/Cargo.toml` | – |
 
 Gute Übung für jeden Schritt: Ändere etwas absichtlich falsch (z. B. `ButtonStyle::Glas`
 statt `Glass`) und lies die Compiler-Meldung. Rust erklärt Fehler meist sehr genau.
@@ -63,8 +73,16 @@ statt `Glass`) und lies die Compiler-Meldung. Rust erklärt Fehler meist sehr ge
 ├── features/
 │   └── ui/                     # wiederverwendbare Bausteine (Crate `feature-ui`)
 │       ├── components.css      # Komponenten-CSS, 1:1 aus dem Design
-│       ├── extras.css          # kleine Ergänzungen für Rust
+│       ├── extras.css          # Ergänzungen und Korrekturen zum Design
 │       └── src/                # Leptos-Komponenten, eine Datei pro Gruppe
+├── crates/
+│   └── cockpit-core/           # Fachlogik des Cockpits – ohne UI, mit Tests
+├── cockpit/                    # die Cockpit-App (eigenes index.html und Trunk.toml)
+│   └── src/
+│       ├── main.rs             # Start, Routing, Takt der Agenten
+│       ├── route.rs            # Seiten und ihre Adressen (#/review/87)
+│       ├── store.rs            # gemeinsamer Zustand
+│       └── pages/              # Einrichten, Inbox, Review, Agent
 └── app/                        # der Playground
     ├── index.html              # bindet WASM und CSS ein
     ├── style.css               # Layout der Hülle (nur Tokens, keine festen Farben)
@@ -130,6 +148,38 @@ view! {
 | Inhalt     | `List`, `ListSection`, `ListRow`, `ListButtonRow`, `Card`, `CardBody`, `Media` |
 | Navigation | `Navbar`, `IosNav`, `TabBar`, `Pager`, `Footer` |
 | Overlay    | `Sheet` |
+| App        | `SplitView`, `Sidebar`, `Pane`, `Status`, `Avatar`, `Chip`, `InboxRow`, `CommentBubble`, `Textarea`, `Diff`, `SuggestionCard`, `Timeline`, `Progress`, `Log`, `Steps` |
+
+## Cockpit
+
+Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Vier Seiten nach dem Design:
+
+| Seite | Adresse | Was sie kann |
+|-------|---------|--------------|
+| Einrichten | `#/einrichten` | Jira, GitHub und Agent verbinden; festlegen, was der Agent darf |
+| Aufmerksamkeit | `#/`, `#/meine`, `#/team` | Inbox aus Tickets und Pull Requests; Status ändern, Branch erstellen, antworten, Agent beauftragen |
+| Review | `#/review/87` | Diff lesen; Kommentare des Agenten freigeben, ablehnen oder bearbeiten; Review senden |
+| Agent | `#/agent/BAU-142` | Auftrag mit Optionen; Ablauf in fünf Schritten bis zum Pull Request |
+
+Zwei Regeln sind in der Logik verankert und getestet: Ein Review wird erst gesendet, wenn über
+jeden Vorschlag entschieden ist. Und der Agent merged nie – sein Ergebnis ist ein Pull Request,
+der auf dein Review wartet.
+
+### Stand: Demo ohne Backend
+
+Die Oberfläche und die Abläufe sind vollständig, die Daten sind Beispieldaten
+(`crates/cockpit-core/src/demo.rs`). **Es gibt noch keine echte Verbindung zu Jira, GitHub oder
+einem Modell-Anbieter.** Im Einzelnen:
+
+- Einrichten prüft das Format der Eingaben, nicht die Schlüssel selbst.
+- Schlüssel werden nie gespeichert. Im Browser liegen nur die Haken „verbunden" und die Berechtigungen.
+- Der Agent ist ein Timer, der die fünf Schritte durchläuft. Sein „Review" sind einfache Regeln
+  (feste Farbwerte, feste Pixelwerte, entfernter Fokus-Ring).
+- Nach dem Neuladen der Seite beginnen die Beispieldaten von vorn.
+
+Für den echten Betrieb braucht es ein Backend, das die Schlüssel hält und die Aktionen aus
+`cockpit-core::Workspace` gegen die Dienste ausführt. Schlüssel gehören nicht in den Browser,
+und ein Agent, der Code ändert und testet, braucht eine Umgebung zum Ausführen.
 
 ## Eigene Story hinzufügen
 
