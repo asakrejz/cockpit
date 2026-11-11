@@ -464,6 +464,7 @@ mod tests {
             number: 99,
             draft: false,
             checks: Checks::Passed,
+            changes_requested: false,
         });
         after.items.push(item);
         let e = only(events(&before, &after));

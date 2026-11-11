@@ -1,7 +1,7 @@
 //! Aufmerksamkeit: links die Inbox aus Tickets und Pull Requests, rechts das Detail
 //! mit Status, Branch, Kommentaren und dem Weg zum Agenten.
 
-use cockpit_core::{Action, Filter, Item, SourceFilter, TicketStatus};
+use cockpit_core::{Action, Filter, Item, Rule, SnoozeChoice, SourceFilter, TicketStatus};
 use feature_ui::*;
 use leptos::{ev, prelude::*, wasm_bindgen::JsCast};
 use web_sys::{HtmlElement, KeyboardEvent, ScrollIntoViewOptions, ScrollLogicalPosition};
@@ -9,7 +9,7 @@ use web_sys::{HtmlElement, KeyboardEvent, ScrollIntoViewOptions, ScrollLogicalPo
 use crate::{
     route::Route,
     sidebar::AppSidebar,
-    store::{Store, navigate, use_store},
+    store::{Store, navigate, now_ms, use_store, utc_offset_min},
     view,
 };
 
@@ -23,11 +23,11 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
     let query = RwSignal::new(String::new());
     let source = RwSignal::new(SourceFilter::All);
     let items = Memo::new(move |_| {
-        let (source, query) = (source.get(), query.get());
+        let (source, query, now) = (source.get(), query.get(), store.now.get());
         store.ws.with(|w| {
-            w.search(filter, source, &query)
+            w.search(filter, source, &query, now)
                 .into_iter()
-                .cloned()
+                .map(|item| with_reason(w, item, filter, now))
                 .collect::<Vec<Item>>()
         })
     });
@@ -67,6 +67,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
         Filter::All => ("Aufmerksamkeit", "Nichts wartet auf dich."),
         Filter::Mine => ("Meine Aufgaben", "Du hast gerade keine Aufgaben."),
         Filter::Team => ("Team", "Im Team ist gerade nichts offen."),
+        Filter::Snoozed => ("Zurückgestellt", "Nichts ist zurückgestellt."),
     };
     let connection = move |label: &'static str,
                            on: fn(&cockpit_core::Connections) -> bool,
@@ -83,6 +84,9 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
     view! {
         <SplitView>
             <AppSidebar>
+                <SidebarSection label="Regeln">
+                    {Rule::ALL.into_iter().map(|rule| rule_switch(store, rule)).collect_view()}
+                </SidebarSection>
                 <SidebarSection label="Verbindungen">
                     {connection("Jira", |c| c.jira, "Verbunden")}
                     {connection("GitHub", |c| c.github, "Verbunden")}
@@ -95,7 +99,10 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                     <div class="ui-hstack" style="justify-content: space-between; flex-wrap: nowrap">
                         <h1 class="t-large-title t-bold">{title}</h1>
                         <Badge variant=BadgeVariant::Count>
-                            {move || store.ws.with(|w| w.unread(filter)).to_string()}
+                            {move || {
+                                let now = store.now.get();
+                                store.ws.with(|w| w.unread(filter, now)).to_string()
+                            }}
                         </Badge>
                     </div>
                     <SegmentedPicker
@@ -160,13 +167,15 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                     <span><kbd>"↑"</kbd><kbd>"↓"</kbd>" wählen"</span>
                     <span><kbd>"e"</kbd>" erledigt"</span>
                     <span><kbd>"r"</kbd>" antworten"</span>
+                    <span><kbd>"s"</kbd>" zurückstellen"</span>
+                    <span><kbd>"u"</kbd>" zurückholen"</span>
                     <span><kbd>"/"</kbd>" suchen"</span>
                 </p>
             </Pane>
 
             <Pane label="Details">
                 {move || match current.get() {
-                    Some(item) => detail(store, item, draft).into_any(),
+                    Some(item) => detail(store, item, items, draft).into_any(),
                     None => {
                         view! {
                             <PaneHeader>
@@ -178,6 +187,97 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                 }}
             </Pane>
         </SplitView>
+    }
+}
+
+/// Der Eintrag mit dem Grund, den die Regeln liefern: Der wichtigste Treffer bestimmt Icon,
+/// Farbe und Satz in der Zeile. In „Zurückgestellt“ steht stattdessen, bis wann.
+fn with_reason(w: &cockpit_core::Workspace, item: &Item, filter: Filter, now: u64) -> Item {
+    let mut item = item.clone();
+    if let Some(hit) = w.hits(&item, now).into_iter().next() {
+        item.reason = hit.reason;
+        item.reason_text = hit.text;
+    }
+    if filter == Filter::Snoozed
+        && let Some(snooze) = w.snooze_of(&item.id)
+    {
+        item.reason_text = snooze_text(snooze.until_ms);
+    }
+    item
+}
+
+/// „Zurückgestellt bis Do., 12.11., 08:00“ oder „… bis sich etwas ändert“.
+fn snooze_text(until_ms: Option<u64>) -> String {
+    match until_ms {
+        Some(ms) => format!("Zurückgestellt bis {}", format_time(ms)),
+        None => "Zurückgestellt, bis sich etwas ändert".to_string(),
+    }
+}
+
+/// Zeitpunkt in der Ortszeit des Browsers, kurz und deutsch.
+fn format_time(ms: u64) -> String {
+    let options = js_sys::Object::new();
+    for (key, value) in [
+        ("weekday", "short"),
+        ("day", "numeric"),
+        ("month", "numeric"),
+        ("hour", "2-digit"),
+        ("minute", "2-digit"),
+    ] {
+        let _ = js_sys::Reflect::set(&options, &key.into(), &value.into());
+    }
+    js_sys::Date::new(&(ms as f64).into())
+        .to_locale_string("de-DE", &options)
+        .as_string()
+        .unwrap_or_default()
+}
+
+/// Ein Schalter für eine Regel. Der Zustand liegt im Workspace und ändert sich nur per Action;
+/// der Schalter spiegelt ihn.
+fn rule_switch(store: Store, rule: Rule) -> impl IntoView {
+    let on = RwSignal::new(store.ws.with_untracked(|w| w.rules.enabled(rule)));
+    // Workspace → Schalter (z. B. nach dem Zurücksetzen der Demo).
+    Effect::new(move |_| {
+        let enabled = store.ws.with(|w| w.rules.enabled(rule));
+        if on.get_untracked() != enabled {
+            on.set(enabled);
+        }
+    });
+    // Schalter → Workspace. Der erste Lauf ändert nichts.
+    Effect::new(move |previous: Option<()>| {
+        let enabled = on.get();
+        if previous.is_some() {
+            let _ = store.dispatch(Action::SetRule { rule, enabled });
+        }
+    });
+    view! {
+        <li class="ck-rule" title=rule.describe()>
+            <label class="t-subheadline">
+                <span>{rule.label()}</span>
+                <Toggle checked=on aria_label=rule.label() />
+            </label>
+        </li>
+    }
+}
+
+/// Stellt einen Eintrag zurück und wählt danach den Nachbarn in der Liste.
+fn snooze(store: Store, items: Memo<Vec<Item>>, id: &str, choice: SnoozeChoice) {
+    let until_ms = choice.until_ms(now_ms(), utc_offset_min());
+    let list = items.get_untracked();
+    let neighbour = list.iter().position(|i| i.id == id).and_then(|at| {
+        list.get(at + 1)
+            .or_else(|| at.checked_sub(1).and_then(|n| list.get(n)))
+            .map(|i| i.id.clone())
+    });
+    if store
+        .dispatch(Action::Snooze {
+            item: id.to_string(),
+            until_ms,
+        })
+        .is_ok()
+        && let Some(next) = neighbour
+    {
+        store.selected.set(next);
     }
 }
 
@@ -217,7 +317,8 @@ fn is_typing(event: &KeyboardEvent) -> bool {
 }
 
 /// Ein Tastendruck in der Inbox: ↑/↓ und j/k wechseln den Eintrag, `e` erledigt ihn,
-/// `r` springt ins Antwortfeld, `/` in die Suche.
+/// `r` springt ins Antwortfeld, `s` zu den Möglichkeiten zum Zurückstellen, `u` holt einen
+/// zurückgestellten Eintrag zurück, `/` springt in die Suche.
 fn on_key(store: Store, items: Memo<Vec<Item>>, current: Memo<Option<Item>>, event: KeyboardEvent) {
     if event.ctrl_key() || event.meta_key() || event.alt_key() {
         return;
@@ -247,6 +348,19 @@ fn on_key(store: Store, items: Memo<Vec<Item>>, current: Memo<Option<Item>>, eve
         "r" => {
             event.prevent_default();
             focus_field(".ck-reply textarea");
+            return;
+        }
+        "s" => {
+            event.prevent_default();
+            if let Some(button) = query_html(".ck-snooze button") {
+                let _ = button.focus();
+            }
+            return;
+        }
+        "u" => {
+            if let Some(item) = current.get_untracked() {
+                let _ = store.dispatch(Action::Unsnooze { item: item.id });
+            }
             return;
         }
         "/" => {
@@ -307,7 +421,12 @@ fn row_icon(path: &'static str) -> impl IntoView {
 }
 
 /// Das Detail zum gewählten Eintrag.
-fn detail(store: Store, item: Item, draft: RwSignal<String>) -> impl IntoView {
+fn detail(
+    store: Store,
+    item: Item,
+    items: Memo<Vec<Item>>,
+    draft: RwSignal<String>,
+) -> impl IntoView {
     let id = StoredValue::new(item.id.clone());
     let is_ticket = item.is_ticket();
     let source = item.source.label();
@@ -397,6 +516,48 @@ fn detail(store: Store, item: Item, draft: RwSignal<String>) -> impl IntoView {
         })
         .collect_view();
 
+    // Zurückstellen: vier Möglichkeiten; ist der Eintrag schon zurückgestellt, steht dort wie lange.
+    let snoozed = store.ws.with_untracked(|w| w.snooze_of(&item.id).cloned());
+    let snooze_row = match snoozed {
+        Some(snooze) => view! {
+            <div class="ck-snooze ui-hstack" style="--spacing: 10px; justify-content: space-between">
+                <span class="t-subheadline t-secondary">{snooze_text(snooze.until_ms)}</span>
+                <Button
+                    size=ControlSize::Small
+                    on_click=move |_| {
+                        let _ = store.dispatch(Action::Unsnooze { item: id.get_value() });
+                    }
+                >
+                    "Zurückholen"
+                </Button>
+            </div>
+        }
+        .into_any(),
+        None => view! {
+            <div class="ck-snooze ui-hstack" style="--spacing: 8px" role="group" aria-label="Zurückstellen">
+                <span class="t-subheadline t-secondary">"Zurückstellen:"</span>
+                {SnoozeChoice::ALL
+                    .into_iter()
+                    .map(|choice| {
+                        let label = SnoozeChoice::OPTIONS
+                            .iter()
+                            .find(|(key, _)| *key == choice.id())
+                            .map_or("", |(_, label)| label);
+                        view! {
+                            <Button
+                                size=ControlSize::Small
+                                on_click=move |_| snooze(store, items, &id.get_value(), choice)
+                            >
+                                {label}
+                            </Button>
+                        }
+                    })
+                    .collect_view()}
+            </div>
+        }
+        .into_any(),
+    };
+
     let send = move |_| {
         let text = draft.get_untracked();
         let sent = store.dispatch(Action::Reply {
@@ -475,6 +636,8 @@ fn detail(store: Store, item: Item, draft: RwSignal<String>) -> impl IntoView {
                     {if item.read { "Erledigt" } else { "Als erledigt markieren" }}
                 </Button>
             </div>
+
+            {snooze_row}
 
             <div class="ui-list__section">
                 <p class="ui-list__header">"Kommentare"</p>

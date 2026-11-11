@@ -16,10 +16,12 @@ pub fn tone(tone: Tone) -> StatusTone {
 
 pub fn reason_icon(reason: ReasonKind) -> &'static str {
     match reason {
-        ReasonKind::Comment => icons::COMMENT,
+        ReasonKind::Comment | ReasonKind::Mention => icons::COMMENT,
         ReasonKind::ReviewRequested => icons::EYE,
         ReasonKind::AgentFinished => icons::SPARKLE,
-        ReasonKind::ChecksFailed => icons::ALERT,
+        ReasonKind::ChecksFailed | ReasonKind::ChangesRequested | ReasonKind::Overdue => {
+            icons::ALERT
+        }
         ReasonKind::Assigned => icons::ASSIGN,
     }
 }

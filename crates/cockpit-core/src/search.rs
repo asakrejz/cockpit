@@ -124,13 +124,16 @@ mod tests {
     }
 
     #[test]
-    fn workspace_search_matches_visible_without_query() {
+    fn workspace_search_is_the_rule_based_subset_of_visible() {
         let ws = demo::workspace();
+        let now = crate::attention::day_start_ms("2026-11-11").unwrap();
         for f in [Filter::All, Filter::Mine, Filter::Team] {
-            assert_eq!(
-                keys(&ws.search(f, SourceFilter::All, "")),
-                keys(&ws.visible(f))
-            );
+            let found = keys(&ws.search(f, SourceFilter::All, "", now));
+            let visible = keys(&ws.visible(f));
+            assert!(found.iter().all(|k| visible.contains(k)), "{f:?}");
+            assert!(found.len() < visible.len() || f == Filter::Mine, "{f:?}");
+            let expected: Vec<_> = visible.into_iter().filter(|k| found.contains(k)).collect();
+            assert_eq!(found, expected, "Reihenfolge bleibt");
         }
     }
 }

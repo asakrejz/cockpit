@@ -51,8 +51,12 @@ fn item(
         agent_note: None,
         comments: Vec::new(),
         read: false,
+        due: None,
     }
 }
+
+/// Fälligkeit des Demo-Tickets BAU-150: liegt vor dem Tag, an dem die Demo entstand.
+pub const DEMO_OVERDUE: &str = "2026-11-09";
 
 /// Der Ausgangszustand des Cockpits.
 pub fn workspace() -> Workspace {
@@ -61,7 +65,7 @@ pub fn workspace() -> Workspace {
         comments: vec![Comment::new(
             lena(),
             "vor 12 Min.",
-            "Betrifft auch den Slider-Thumb. Kannst du das gleich mit prüfen?",
+            "@AS Betrifft auch den Slider-Thumb. Kannst du das gleich mit prüfen?",
         )],
         ..item(
             "bau142",
@@ -80,6 +84,7 @@ pub fn workspace() -> Workspace {
             number: 87,
             draft: false,
             checks: Checks::Passed,
+            changes_requested: false,
         }),
         agent_note: Some("3 Kommentare vom Agenten warten auf deine Freigabe".into()),
         comments: vec![Comment::new(
@@ -105,6 +110,7 @@ pub fn workspace() -> Workspace {
             number: 91,
             draft: true,
             checks: Checks::Passed,
+            changes_requested: true,
         }),
         agent_note: Some("Vom Agenten umgesetzt · Tests bestanden".into()),
         ..item(
@@ -127,6 +133,7 @@ pub fn workspace() -> Workspace {
             number: 85,
             draft: false,
             checks: Checks::Failed,
+            changes_requested: false,
         }),
         comments: vec![Comment::new(
             mira(),
@@ -144,16 +151,20 @@ pub fn workspace() -> Workspace {
             mira(),
         )
     };
-    let bau150 = item(
-        "bau150",
-        Kind::Ticket,
-        "BAU-150",
-        "Sheet: Detents mittel und groß",
-        "Das Sheet soll zwei Höhen unterstützen (mittel, groß) und sich per Grabber zwischen ihnen ziehen lassen.",
-        (ReasonKind::Assigned, "Dir zugewiesen von Mira"),
-        "gestern",
-        Person::me(),
-    );
+    let bau150 = Item {
+        // Fällig vor „heute“ (11.11.2026): greift die Regel „überfälliges Ticket“.
+        due: Some(DEMO_OVERDUE.into()),
+        ..item(
+            "bau150",
+            Kind::Ticket,
+            "BAU-150",
+            "Sheet: Detents mittel und groß",
+            "Das Sheet soll zwei Höhen unterstützen (mittel, groß) und sich per Grabber zwischen ihnen ziehen lassen.",
+            (ReasonKind::Assigned, "Dir zugewiesen von Mira"),
+            "gestern",
+            Person::me(),
+        )
+    };
 
     let review =
         |number: u32, item: &Item, author: Person, ticket: &str, files: Vec<FileDiff>| Review {

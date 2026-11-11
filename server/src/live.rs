@@ -107,15 +107,29 @@ impl Live {
         })
     }
 
-    /// Der Takt des simulierten Agenten: Jeder laufende Agent macht einen Schritt.
-    /// Läuft keiner, passiert nichts (und es gibt keine Revision).
+    /// Der Takt: Jeder laufende Agent macht einen Schritt, und abgelaufene
+    /// Zurückstellungen kommen zurück in die Inbox. Ist nichts zu tun, passiert nichts
+    /// (und es gibt keine Revision).
     pub fn takt(&self, db: &Mutex<Connection>, at_ms: u64) {
-        if sperre(&self.stand).ws.running_agents() == 0 {
-            return;
+        let (agenten, wecken) = {
+            let stand = sperre(&self.stand);
+            (
+                stand.ws.running_agents() > 0,
+                !stand.ws.expired_snoozes(at_ms).is_empty(),
+            )
+        };
+        let mut schritte = Vec::new();
+        if agenten {
+            schritte.push((Action::AdvanceAgents, Actor::Agent));
         }
-        match self.anwenden(db, Action::AdvanceAgents, Actor::Agent, at_ms) {
-            Ok(_) | Err(Fehler::Aktion(_)) => {}
-            Err(Fehler::Speichern(m)) => tracing::warn!("Takt nicht gesichert: {m}"),
+        if wecken {
+            schritte.push((Action::WakeSnoozed, Actor::System));
+        }
+        for (action, actor) in schritte {
+            match self.anwenden(db, action, actor, at_ms) {
+                Ok(_) | Err(Fehler::Aktion(_)) => {}
+                Err(Fehler::Speichern(m)) => tracing::warn!("Takt nicht gesichert: {m}"),
+            }
         }
     }
 

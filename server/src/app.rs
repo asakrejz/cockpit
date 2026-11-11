@@ -691,6 +691,41 @@ mod tests {
         assert_eq!(ws.log.last().unwrap().actor, Actor::Agent);
     }
 
+    #[tokio::test]
+    async fn takt_holt_zurueckgestellte_eintraege_zurueck() {
+        let state = zustand(Arc::new(MemoryStore::new()));
+        let app = || router(state.clone(), PathBuf::from("/x"));
+        let id = erste_id();
+        let bis = jetzt_ms() + 60_000;
+        let snooze = serde_json::to_string(&ActionRequest {
+            action: cockpit_core::Action::Snooze {
+                item: id.clone(),
+                until_ms: Some(bis),
+            },
+        })
+        .unwrap();
+        let (status, body) = schicke(app(), &snooze).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let vorher = state.inner.live.revision();
+
+        // Vor Ablauf tut der Takt nichts …
+        let s = state.clone();
+        tokio::task::spawn_blocking(move || s.inner.live.takt(&s.inner.db, bis - 1))
+            .await
+            .unwrap();
+        assert_eq!(state.inner.live.revision(), vorher);
+        // … danach ist der Eintrag zurück, protokolliert als System.
+        let s = state.clone();
+        tokio::task::spawn_blocking(move || s.inner.live.takt(&s.inner.db, bis + 1))
+            .await
+            .unwrap();
+        assert_eq!(state.inner.live.revision(), vorher + 1);
+        let (_, body) = hole(app(), "/api/workspace").await;
+        let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();
+        assert!(ws.snoozed.is_empty());
+        assert_eq!(ws.log.last().unwrap().actor, Actor::System);
+    }
+
     // ---------- Persistenz ----------
 
     #[tokio::test]

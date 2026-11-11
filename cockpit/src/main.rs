@@ -25,10 +25,12 @@ use pages::{
     overview::OverviewPage, review::ReviewPage, setup::SetupPage,
 };
 use route::Route;
-use store::{Mode, Store, current_hash, navigate};
+use store::{Mode, Store, current_hash, navigate, now_ms};
 
 /// So lange braucht der Demo-Agent für einen Schritt.
 const AGENT_STEP: Duration = Duration::from_millis(2200);
+/// So oft prüft der Takt, ob zurückgestellte Einträge zurückkehren und ob ein Ticket überfällig wurde.
+const CLOCK_TICK: Duration = Duration::from_secs(15);
 
 fn main() {
     // Rust-Panics landen lesbar in der Browser-Konsole.
@@ -75,6 +77,22 @@ fn App() -> impl IntoView {
             }
         },
         AGENT_STEP,
+    );
+
+    // Die Uhr der Aufmerksamkeit: aktualisiert die Zeit und holt zurückgestellte Einträge
+    // zurück, sobald ihre Zeit um ist oder sich etwas geändert hat.
+    set_interval(
+        move || {
+            store.now.set(now_ms());
+            if !store
+                .ws
+                .with_untracked(|w| w.expired_snoozes(store.now.get_untracked()))
+                .is_empty()
+            {
+                let _ = store.dispatch_as(Action::WakeSnoozed, Actor::System);
+            }
+        },
+        CLOCK_TICK,
     );
 
     view! {
