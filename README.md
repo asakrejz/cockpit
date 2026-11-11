@@ -213,6 +213,11 @@ einem Modell-Anbieter.** Im Einzelnen:
   jedem Tastendruck) als JSON mit Versionsnummer, siehe `crates/cockpit-core/src/persist.rs`. Passt die Version
   nicht oder sind die Daten unlesbar, startet die App mit den Beispieldaten und überschreibt den alten Stand.
   Neue Felder in den Typen brauchen `#[serde(default)]`, damit ältere Stände lesbar bleiben.
+- Review: Beim Zeilenkommentar lässt sich mit „Änderung vorschlagen“ Ersatz-Code für die Zeile angeben (Vorher/Nachher-Diff,
+  gesendet als `suggestion`-Block). Rechts stehen die Checks des Pull Requests mit Log; rote lassen sich neu starten
+  (in der Demo fest hinterlegtes Ergebnis nach ein paar Takten, #85: „Lint“ bleibt rot, „Tests (Browser)“ wird grün).
+  „Mergen“ (Merge/Squash/Rebase) geht nur mit grünen Checks, gesendetem Review und ohne „Änderungen“ – und nur für
+  dich, nie für den Agenten. Gemergt wird nur simuliert, nichts geht an GitHub.
 - Unter „Einrichten“ › Übersicht setzt „Demo-Daten zurücksetzen“ (mit Rückfrage) alles auf den Ausgangszustand.
   Die Verbindungen bleiben.
 
