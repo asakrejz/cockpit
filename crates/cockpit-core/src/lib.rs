@@ -32,7 +32,10 @@ pub mod text;
 pub mod workspace;
 
 pub use action::{Action, ActionError, Actor, Applied, LogEntry, MAX_LOG, Target};
-pub use agent::{AgentOptions, AgentRun, Plan, RunState, Step, StepState};
+pub use agent::{
+    AgentOptions, AgentRun, MessageKind, Plan, Question, RunMessage, RunState, Speaker, Step,
+    StepState, Tick,
+};
 pub use connections::Connections;
 pub use model::*;
 pub use notify::{

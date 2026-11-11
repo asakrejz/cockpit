@@ -1,7 +1,7 @@
 //! Beispieldaten nach dem Design. Sie stehen für Jira, GitHub und den Agenten,
 //! solange kein Backend angebunden ist.
 
-use crate::agent::{AgentRun, RunState, STEPS};
+use crate::agent::{AgentRun, Question, RunState, STEPS};
 use crate::model::*;
 use crate::review::LineKind::{Add, Context as Ctx, Del};
 use crate::review::{FileDiff, Level, Review, Suggestion, Verdict};
@@ -291,6 +291,25 @@ pub fn workspace() -> Workspace {
         runs: vec![run138],
         log: Vec::new(),
         ..Workspace::default()
+    }
+}
+
+/// Die Rückfrage, die der Demo-Agent für ein Ticket stellt: vor welchem Schritt (Zahl
+/// der abgeschlossenen Schritte) und was. Für alle anderen Tickets fragt er nichts.
+pub fn agent_question(ticket_key: &str) -> Option<(usize, Question)> {
+    match ticket_key {
+        "BAU-142" => Some((
+            2,
+            Question {
+                text: "Soll der alte Stil entfernt oder als deprecated markiert werden?".into(),
+                suggestions: vec![
+                    "Entfernen".into(),
+                    "Als deprecated markieren".into(),
+                    "Erst markieren, später entfernen".into(),
+                ],
+            },
+        )),
+        _ => None,
     }
 }
 

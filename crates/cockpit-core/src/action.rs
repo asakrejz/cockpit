@@ -94,6 +94,22 @@ pub enum Action {
         ticket: String,
         note: String,
     },
+    /// Antwort auf eine Rückfrage des Agenten (`run` ist der Ticket-Schlüssel).
+    AnswerAgent {
+        run: String,
+        text: String,
+    },
+    /// Hinweis an den laufenden Agenten, den er beim nächsten Schritt berücksichtigt.
+    SteerAgent {
+        run: String,
+        text: String,
+    },
+    PauseAgent {
+        run: String,
+    },
+    ResumeAgent {
+        run: String,
+    },
     /// Der Takt: jeder laufende Agent schließt einen Schritt ab.
     AdvanceAgents,
     // Benachrichtigungen
@@ -615,6 +631,56 @@ impl Workspace {
                 };
                 Ok(vec![Note::new(Target::Settings, text)])
             }
+            Action::AnswerAgent { run, text } => {
+                if !self
+                    .runs
+                    .iter()
+                    .any(|r| r.ticket_key == run && r.is_asking())
+                {
+                    return Err(ActionError::NothingToDo);
+                }
+                if !self.answer_agent(&run, &text) {
+                    return Err(ActionError::InvalidInput);
+                }
+                Ok(vec![Note::new(
+                    Target::Run(run.clone()),
+                    format!("Frage des Agenten für {run} beantwortet: „{}“", text.trim()),
+                )])
+            }
+            Action::SteerAgent { run, text } => {
+                if !self
+                    .runs
+                    .iter()
+                    .any(|r| r.ticket_key == run && r.is_active() && !r.is_awaiting())
+                {
+                    return Err(ActionError::NothingToDo);
+                }
+                if !self.steer_agent(&run, &text) {
+                    return Err(ActionError::InvalidInput);
+                }
+                Ok(vec![Note::new(
+                    Target::Run(run.clone()),
+                    format!("Hinweis an den Agenten für {run}: „{}“", text.trim()),
+                )])
+            }
+            Action::PauseAgent { run } => {
+                if !self.pause_agent(&run) {
+                    return Err(ActionError::NothingToDo);
+                }
+                Ok(vec![Note::new(
+                    Target::Run(run.clone()),
+                    format!("Agent für {run} pausiert"),
+                )])
+            }
+            Action::ResumeAgent { run } => {
+                if !self.resume_agent(&run) {
+                    return Err(ActionError::NothingToDo);
+                }
+                Ok(vec![Note::new(
+                    Target::Run(run.clone()),
+                    format!("Agent für {run} fortgesetzt"),
+                )])
+            }
             Action::AdvanceAgents => self.advance_logged(),
             Action::ResetDemo => {
                 // Die Einstellungen gehören nicht zu den Beispieldaten und bleiben.
@@ -632,10 +698,10 @@ impl Workspace {
         }
     }
 
-    /// Der Takt der Agenten, mit einem Eintrag pro abgeschlossenem Schritt.
+    /// Der Takt der Agenten, mit einem Eintrag pro abgeschlossenem Schritt oder gestellter Frage.
     fn advance_logged(&mut self) -> Result<Vec<Note>, ActionError> {
-        // Vorher festhalten, welcher Schritt gleich fertig wird.
-        let stepping: Vec<(String, usize, String, Option<u32>, bool)> = self
+        // Vorher festhalten, welcher Schritt gleich fertig wird und welche Hinweise warten.
+        let stepping: Vec<(String, usize, String, Option<u32>, bool, usize)> = self
             .runs
             .iter()
             .filter(|r| r.is_running())
@@ -647,6 +713,7 @@ impl Workspace {
                     title,
                     r.pr_number,
                     r.options.draft_pr,
+                    r.pending_hints.len(),
                 )
             })
             .collect();
@@ -654,21 +721,40 @@ impl Workspace {
             return Err(ActionError::NothingToDo);
         }
         self.advance_agents();
-        Ok(stepping
-            .into_iter()
-            .map(
-                |(key, done, title, pr, draft)| match (done + 1 == STEPS, pr) {
-                    (true, Some(n)) => Note::new(
-                        Target::Review(n),
+        let mut notes = Vec::new();
+        for (key, done, title, pr, draft, hints) in stepping {
+            if hints > 0 {
+                notes.push(
+                    Note::new(
+                        Target::Run(key.clone()),
                         format!(
-                            "{key}: Pull Request #{n} {}erstellt",
-                            if draft { "als Entwurf " } else { "" }
+                            "{key}: {} berücksichtigt",
+                            plural(hints, "Hinweis", "Hinweise")
                         ),
+                    )
+                    .by(Actor::Agent),
+                );
+            }
+            let asking = self
+                .runs
+                .iter()
+                .any(|r| r.ticket_key == key && r.is_asking());
+            notes.push(match (asking, done + 1 == STEPS, pr) {
+                (true, _, _) => Note::new(
+                    Target::Run(key.clone()),
+                    format!("{key}: Der Agent hat eine Frage und wartet auf deine Antwort"),
+                ),
+                (_, true, Some(n)) => Note::new(
+                    Target::Review(n),
+                    format!(
+                        "{key}: Pull Request #{n} {}erstellt",
+                        if draft { "als Entwurf " } else { "" }
                     ),
-                    _ => Note::new(Target::Run(key.clone()), format!("{key}: {title}")),
-                },
-            )
-            .collect())
+                ),
+                _ => Note::new(Target::Run(key.clone()), format!("{key}: {title}")),
+            });
+        }
+        Ok(notes)
     }
 }
 
@@ -831,6 +917,26 @@ mod tests {
             1,
         );
         ok(&mut w, Action::AdvanceAgents, 1);
+        ok(
+            &mut w,
+            Action::SteerAgent {
+                run: key.clone(),
+                text: "Auch den Slider".into(),
+            },
+            1,
+        );
+        ok(&mut w, Action::PauseAgent { run: key.clone() }, 1);
+        ok(&mut w, Action::ResumeAgent { run: key.clone() }, 1);
+        ok(&mut w, Action::AdvanceAgents, 2);
+        ok(&mut w, Action::AdvanceAgents, 1);
+        ok(
+            &mut w,
+            Action::AnswerAgent {
+                run: key.clone(),
+                text: "Entfernen".into(),
+            },
+            1,
+        );
         ok(
             &mut w,
             Action::CancelAgent {
@@ -1058,7 +1164,18 @@ mod tests {
             T,
         )
         .unwrap();
-        for i in 0..STEPS {
+        for i in 0..=STEPS {
+            if w.run("BAU-142").unwrap().is_asking() {
+                w.apply(
+                    Action::AnswerAgent {
+                        run: "BAU-142".into(),
+                        text: "Entfernen".into(),
+                    },
+                    Actor::Du,
+                    T + 1 + i as u64,
+                )
+                .unwrap();
+            }
             w.apply(Action::AdvanceAgents, Actor::Agent, T + 1 + i as u64)
                 .unwrap();
         }
@@ -1073,6 +1190,7 @@ mod tests {
             [
                 "BAU-142: Ticket gelesen",
                 "BAU-142: Branch erstellt",
+                "BAU-142: Der Agent hat eine Frage und wartet auf deine Antwort",
                 "BAU-142: Änderungen umgesetzt",
                 "BAU-142: Tests ausgeführt",
                 "BAU-142: Pull Request #92 als Entwurf erstellt",
@@ -1081,10 +1199,10 @@ mod tests {
         let last = w.log.last().unwrap();
         assert_eq!(last.target, Some(Target::Review(92)));
         assert_eq!(w.log[1].target, Some(Target::Run("BAU-142".into())));
-        assert_eq!(w.log_entries(Some(Actor::Du)).len(), 1);
-        assert_eq!(w.log_entries(None).len(), 6);
+        assert_eq!(w.log_entries(Some(Actor::Du)).len(), 2, "Start und Antwort");
+        assert_eq!(w.log_entries(None).len(), 8);
         assert_eq!(w.log_entries(Some(Actor::System)).len(), 0);
-        assert_eq!(w.log_entries(None)[0].id, 6, "neueste zuerst");
+        assert_eq!(w.log_entries(None)[0].id, 8, "neueste zuerst");
         // Danach läuft nichts mehr.
         assert_eq!(
             w.apply(Action::AdvanceAgents, Actor::Agent, T),
@@ -1307,5 +1425,243 @@ mod tests {
             assert_eq!(Actor::from_id(a.id()), Some(a));
         }
         assert_eq!(Actor::from_id("x"), None);
+    }
+
+    /// Bringt BAU-142 bis zur Rückfrage des Agenten.
+    fn asking_ws() -> Workspace {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::StartAgent {
+                ticket: "BAU-142".into(),
+                options: direct(),
+            },
+            1,
+        );
+        ok(&mut w, Action::AdvanceAgents, 1);
+        ok(&mut w, Action::AdvanceAgents, 1);
+        ok(&mut w, Action::AdvanceAgents, 1);
+        assert!(w.run("BAU-142").unwrap().is_asking());
+        w
+    }
+
+    #[test]
+    fn answering_continues_the_agent_and_is_logged() {
+        let mut w = asking_ws();
+        assert_eq!(
+            w.item("bau142").unwrap().agent_note.as_deref(),
+            Some("Der Agent hat eine Frage an dich")
+        );
+        let applied = ok(
+            &mut w,
+            Action::AnswerAgent {
+                run: "BAU-142".into(),
+                text: " Als deprecated markieren ".into(),
+            },
+            1,
+        );
+        assert_eq!(
+            applied.summary,
+            "Frage des Agenten für BAU-142 beantwortet: „Als deprecated markieren“"
+        );
+        let last = w.log.last().unwrap();
+        assert_eq!(
+            (last.actor, &last.target),
+            (Actor::Du, &Some(Target::Run("BAU-142".into())))
+        );
+        assert!(w.run("BAU-142").unwrap().is_running());
+        assert_eq!(
+            w.item("bau142").unwrap().agent_note.as_deref(),
+            Some("Der Agent arbeitet an der Umsetzung")
+        );
+    }
+
+    #[test]
+    fn invalid_answers_change_nothing() {
+        let mut w = asking_ws();
+        fails(
+            &mut w,
+            Action::AnswerAgent {
+                run: "BAU-142".into(),
+                text: "  ".into(),
+            },
+            ActionError::InvalidInput,
+        );
+        let mut idle = ws();
+        for action in [
+            Action::AnswerAgent {
+                run: "BAU-142".into(),
+                text: "Ja".into(),
+            },
+            Action::SteerAgent {
+                run: "BAU-142".into(),
+                text: "Ja".into(),
+            },
+            Action::PauseAgent {
+                run: "BAU-142".into(),
+            },
+            Action::ResumeAgent {
+                run: "BAU-142".into(),
+            },
+        ] {
+            fails(&mut idle, action, ActionError::NothingToDo);
+        }
+        // Wer fragt, läuft nicht: pausieren geht erst nach der Antwort.
+        fails(
+            &mut w,
+            Action::PauseAgent {
+                run: "BAU-142".into(),
+            },
+            ActionError::NothingToDo,
+        );
+        fails(
+            &mut w,
+            Action::ResumeAgent {
+                run: "BAU-142".into(),
+            },
+            ActionError::NothingToDo,
+        );
+    }
+
+    #[test]
+    fn steering_is_acknowledged_by_the_agent_in_the_next_step() {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::StartAgent {
+                ticket: "BAU-150".into(),
+                options: direct(),
+            },
+            1,
+        );
+        fails(
+            &mut w,
+            Action::SteerAgent {
+                run: "BAU-150".into(),
+                text: "".into(),
+            },
+            ActionError::InvalidInput,
+        );
+        ok(
+            &mut w,
+            Action::SteerAgent {
+                run: "BAU-150".into(),
+                text: "Bitte auch die Doku".into(),
+            },
+            1,
+        );
+        // Der Takt protokolliert den berücksichtigten Hinweis und den Schritt.
+        let tick = w.apply(Action::AdvanceAgents, Actor::Agent, T).unwrap();
+        assert_eq!(tick.logged, 2);
+        assert_eq!(tick.summary, "BAU-150: 1 Hinweis berücksichtigt");
+        let run = w.run("BAU-150").unwrap();
+        assert!(
+            run.messages
+                .iter()
+                .any(|m| m.text == "Hinweis erhalten: Bitte auch die Doku")
+        );
+    }
+
+    #[test]
+    fn a_paused_agent_makes_no_progress_until_resumed() {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::StartAgent {
+                ticket: "BAU-150".into(),
+                options: direct(),
+            },
+            1,
+        );
+        ok(
+            &mut w,
+            Action::PauseAgent {
+                run: "BAU-150".into(),
+            },
+            1,
+        );
+        assert_eq!(
+            w.item("bau150").unwrap().agent_note.as_deref(),
+            Some("Der Agent ist pausiert")
+        );
+        fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
+        fails(
+            &mut w,
+            Action::PauseAgent {
+                run: "BAU-150".into(),
+            },
+            ActionError::NothingToDo,
+        );
+        // Abbrechen geht auch pausiert.
+        ok(
+            &mut w,
+            Action::ResumeAgent {
+                run: "BAU-150".into(),
+            },
+            1,
+        );
+        ok(&mut w, Action::AdvanceAgents, 1);
+        ok(
+            &mut w,
+            Action::PauseAgent {
+                run: "BAU-150".into(),
+            },
+            1,
+        );
+        ok(
+            &mut w,
+            Action::CancelAgent {
+                ticket: "BAU-150".into(),
+            },
+            1,
+        );
+        assert!(w.run("BAU-150").unwrap().is_idle());
+    }
+
+    #[test]
+    fn the_agent_still_never_merges_after_questions() {
+        let mut w = asking_ws();
+        ok(
+            &mut w,
+            Action::AnswerAgent {
+                run: "BAU-142".into(),
+                text: "Entfernen".into(),
+            },
+            1,
+        );
+        for _ in 0..STEPS {
+            let _ = w.apply(Action::AdvanceAgents, Actor::Agent, T);
+        }
+        // Am Ende wartet ein Pull Request auf das Review, gemergt ist nichts.
+        let review = w.review(92).unwrap();
+        assert!(!review.sent);
+        assert!(
+            w.log
+                .iter()
+                .all(|e| !e.text.to_lowercase().contains("gemergt"))
+        );
+    }
+
+    #[test]
+    fn new_actions_survive_json() {
+        for action in [
+            Action::AnswerAgent {
+                run: "BAU-142".into(),
+                text: "Ja".into(),
+            },
+            Action::SteerAgent {
+                run: "BAU-142".into(),
+                text: "Ja".into(),
+            },
+            Action::PauseAgent {
+                run: "BAU-142".into(),
+            },
+            Action::ResumeAgent {
+                run: "BAU-142".into(),
+            },
+        ] {
+            let json = serde_json::to_string(&action).unwrap();
+            assert_eq!(serde_json::from_str::<Action>(&json).unwrap(), action);
+        }
     }
 }

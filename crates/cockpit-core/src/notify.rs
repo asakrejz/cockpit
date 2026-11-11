@@ -75,7 +75,9 @@ impl NotifyReason {
         match self {
             NotifyReason::ReviewRequested => "Jemand bittet dich um ein Review",
             NotifyReason::Mention => "Dein Name oder dein Kürzel steht in einem Kommentar (@Du)",
-            NotifyReason::AgentWaiting => "Ein Plan liegt zur Freigabe vor",
+            NotifyReason::AgentWaiting => {
+                "Ein Plan liegt zur Freigabe vor oder der Agent hat eine Rückfrage"
+            }
             NotifyReason::AgentFinished => "Der Agent hat einen Pull Request erstellt",
             NotifyReason::ChecksFailed => "Die Checks deines Pull Requests werden rot",
             NotifyReason::Assigned => "Dir wird ein Ticket zugewiesen",
@@ -393,6 +395,17 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
                 route: format!("#/agent/{}", run.ticket_key),
             });
         }
+        if run.is_asking() && !old.is_some_and(AgentRun::is_asking) {
+            out.push(Event {
+                reason: NotifyReason::AgentWaiting,
+                title: format!("Agent fragt: {}", run.ticket_key),
+                text: run
+                    .question
+                    .as_ref()
+                    .map_or_else(|| "Der Agent hat eine Rückfrage".into(), |q| q.text.clone()),
+                route: format!("#/agent/{}", run.ticket_key),
+            });
+        }
         if run.is_done() && !old.is_some_and(AgentRun::is_done) {
             let (text, route) = match run.pr_number {
                 Some(n) => (
@@ -575,12 +588,40 @@ mod tests {
     }
 
     #[test]
+    fn agent_question_is_reported_once() {
+        let mut before = ws();
+        let direct = AgentOptions {
+            plan_first: false,
+            ..AgentOptions::default()
+        };
+        before.start_agent("BAU-142", direct).unwrap();
+        let mut after = before.clone();
+        let mut found = None;
+        for _ in 0..crate::agent::STEPS {
+            let prev = after.clone();
+            after.advance_agents();
+            let list = events(&prev, &after);
+            if !list.is_empty() {
+                found = Some(only(list));
+                break;
+            }
+        }
+        let e = found.expect("Rückfrage wird gemeldet");
+        assert_eq!(e.reason, NotifyReason::AgentWaiting);
+        assert_eq!(e.route, "#/agent/BAU-142");
+        assert!(e.text.contains("deprecated"), "{e:?}");
+        // Solange sie offen ist, kommt sie nicht noch einmal.
+        assert!(events(&after, &after.clone()).is_empty());
+    }
+
+    #[test]
     fn agent_waiting_and_finished() {
         let before = ws();
         let key = before
             .items
             .iter()
-            .find(|i| i.is_ticket() && i.pr.is_none())
+            // Ohne Rückfrage in der Demo, damit der Lauf durchläuft.
+            .find(|i| i.is_ticket() && i.pr.is_none() && demo::agent_question(&i.key).is_none())
             .unwrap()
             .key
             .clone();

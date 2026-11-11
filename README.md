@@ -216,7 +216,16 @@ Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Diese S
 | Review | `#/review/87` | Diff lesen; Zeilen auswählen und eigene Kommentare schreiben; Kommentare des Agenten freigeben, ablehnen oder bearbeiten; Review senden |
 | Übersicht | `#/uebersicht` | Pro Person offene Einträge und Auslastung; „Hängt“ zeigt fehlgeschlagene Checks, wartende Reviews, Tickets ohne Branch und Agenten, die auf dich warten |
 | Benachrichtigungen | `#/benachrichtigungen` | Je Anlass (Review-Anfrage, Erwähnung, Agent wartet, Agent fertig, Checks rot, Ticket zugewiesen) Browser, E-Mail und Slack wählen; Ruhezeiten; Erlaubnis des Browsers per Knopf anfragen; Test-Benachrichtigung |
-| Agent | `#/agent/BAU-142` | Auftrag mit Optionen; Plan zur Freigabe (abschaltbar); Ablauf in fünf Schritten bis zum Pull Request |
+| Agent | `#/agent/BAU-142` | Auftrag mit Optionen; Plan zur Freigabe (abschaltbar); Ablauf in fünf Schritten bis zum Pull Request; Rückfragen beantworten, Hinweise schicken, pausieren; Verlauf als Gespräch |
+
+**Agent: Rückfragen und Nachsteuern.** Der Agent kann an einem Schritt anhalten und eine Frage stellen
+(Status „Wartet auf Antwort“, mit vorgeschlagenen Antworten zum Anklicken oder eigenem Text). Die Frage
+zählt als Aufmerksamkeit: Sie steht in der Übersicht unter „Hängt“ (Knopf „Frage beantworten“) und in der
+Sidebar bei „Agenten“. In der Demo fragt der Lauf für **BAU-142** nach dem zweiten Schritt, ob der alte Stil
+entfernt oder als deprecated markiert werden soll. Läuft der Agent, schickst du ihm unter „Nachsteuern“ einen
+Hinweis; er bestätigt ihn beim nächsten Schritt („Hinweis erhalten: …“). „Pausieren“ hält den Lauf an,
+„Fortsetzen“ geht weiter. Alles Gesagte steht im Verlauf neben der Timeline. Die Aktionen heißen
+`AnswerAgent`, `SteerAgent`, `PauseAgent` und `ResumeAgent`.
 
 Zwei Regeln sind in der Logik verankert und getestet: Ein Review wird erst gesendet, wenn über
 jeden Vorschlag entschieden ist (eigene Zeilenkommentare brauchen keine Freigabe). Der Agent legt vor dem Start einen Plan vor und tut nichts, bis du ihn freigibst (ablehnen oder mit Anmerkung neu anfordern ist möglich). Und der Agent merged nie – sein Ergebnis ist ein Pull Request,
