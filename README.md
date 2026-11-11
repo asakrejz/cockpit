@@ -157,7 +157,7 @@ Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Vier Se
 | Seite | Adresse | Was sie kann |
 |-------|---------|--------------|
 | Einrichten | `#/einrichten` | Jira, GitHub und Agent verbinden; festlegen, was der Agent darf |
-| Aufmerksamkeit | `#/`, `#/meine`, `#/team` | Inbox aus Tickets und Pull Requests; Status ändern, Branch erstellen, antworten, Agent beauftragen |
+| Aufmerksamkeit | `#/`, `#/meine`, `#/team` | Inbox aus Tickets und Pull Requests; Status ändern, Branch erstellen, antworten, Agent beauftragen; Suche und Quellen-Filter; Tasten `↑↓`/`j k`, `e`, `r`, `/` |
 | Review | `#/review/87` | Diff lesen; Kommentare des Agenten freigeben, ablehnen oder bearbeiten; Review senden |
 | Agent | `#/agent/BAU-142` | Auftrag mit Optionen; Ablauf in fünf Schritten bis zum Pull Request |
 
