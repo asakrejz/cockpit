@@ -10,6 +10,22 @@ pub struct Myself {
     pub account_id: String,
 }
 
+/// `GET /rest/api/3/issue/{key}/transitions`
+#[derive(Debug, Clone, Deserialize)]
+pub struct TransitionList {
+    #[serde(default)]
+    pub transitions: Vec<Transition>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Transition {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    /// Der Status, in den die Transition führt.
+    pub to: Status,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JiraUser {
@@ -20,9 +36,13 @@ pub struct JiraUser {
 
 /// `GET /rest/api/3/search/jql`
 #[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SearchResult {
     #[serde(default)]
     pub issues: Vec<Issue>,
+    /// Token für die nächste Seite; fehlt auf der letzten.
+    #[serde(default)]
+    pub next_page_token: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -45,6 +65,9 @@ pub struct Fields {
     pub reporter: Option<JiraUser>,
     #[serde(default)]
     pub updated: String,
+    /// Fälligkeitsdatum als Tag (`2026-11-09`).
+    #[serde(default)]
+    pub duedate: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

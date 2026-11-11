@@ -11,6 +11,7 @@ mod route;
 mod server;
 mod sidebar;
 mod store;
+mod sync_status;
 mod toasts;
 mod view;
 

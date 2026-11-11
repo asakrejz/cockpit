@@ -27,6 +27,17 @@ pub struct ActionResponse {
     pub protokolliert: usize,
 }
 
+/// Antwort auf `POST /api/sync` („jetzt abgleichen“).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct SyncResponse {
+    /// `false`, wenn keine Quelle eingerichtet ist (Jira oder GitHub mit Schlüssel).
+    pub aktiv: bool,
+    /// Revision des Stands nach dem Abgleich.
+    pub revision: u64,
+    /// Zahl der neuen Protokolleinträge.
+    pub protokolliert: usize,
+}
+
 /// Fehlerantwort (4xx/5xx) mit deutscher Meldung für die Oberfläche.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ErrorBody {

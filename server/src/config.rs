@@ -8,13 +8,22 @@
 //! dist = "/pfad/zu/cockpit/dist"
 //! db = "/pfad/zur/cockpit.db"
 //!
+//! intervall_s = 120                    # Abgleich alle 2 Minuten (mindestens 30)
+//!
 //! [github]
 //! api_url = "https://api.github.com"   # optional
+//! repos = ["firma/app", "firma/web"]   # Repos für den Abgleich (owner/name)
 //!
 //! [jira]
 //! site = "https://firma.atlassian.net"
 //! email = "ich@firma.example"
+//! projects = ["BAU", "WEB"]            # optional: nur diese Projekte
+//! jql = "project = BAU AND ..."        # optional: eigene Abfrage statt der Projekte
 //! ```
+//!
+//! Eine Quelle gleicht nur ab, wenn sie hier eingerichtet ist **und** ihr Schlüssel im
+//! Schlüsselbund liegt (`cockpit-server token setzen <github|jira>`). Ohne Quelle bleiben
+//! die Beispieldaten.
 //!
 //! Umgebungsvariablen: `COCKPIT_PORT`, `COCKPIT_DIST`, `COCKPIT_DB`, `COCKPIT_CONFIG`
 //! (Pfad der Konfigurationsdatei).
@@ -25,6 +34,10 @@ use serde::Deserialize;
 
 pub const STANDARD_PORT: u16 = 8787;
 pub const STANDARD_GITHUB_API: &str = "https://api.github.com";
+/// So oft wird abgeglichen, wenn nichts eingestellt ist.
+pub const STANDARD_INTERVALL_S: u64 = 120;
+/// Kürzer geht nicht: Die Dienste begrenzen die Zahl der Abrufe.
+pub const MIN_INTERVALL_S: u64 = 30;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
@@ -34,17 +47,23 @@ pub struct Config {
     pub db: PathBuf,
     pub github: Option<GitHubKonfig>,
     pub jira: Option<JiraKonfig>,
+    /// Abstand des Abgleichs in Sekunden.
+    pub intervall_s: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitHubKonfig {
     pub api_url: String,
+    /// `owner/name`; ohne Repos gleicht GitHub nicht ab.
+    pub repos: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JiraKonfig {
     pub site: String,
     pub email: String,
+    pub projects: Vec<String>,
+    pub jql: Option<String>,
 }
 
 #[derive(Debug)]
@@ -74,6 +93,7 @@ struct Datei {
     port: Option<u16>,
     dist: Option<PathBuf>,
     db: Option<PathBuf>,
+    intervall_s: Option<u64>,
     github: Option<DateiGitHub>,
     jira: Option<DateiJira>,
 }
@@ -82,6 +102,8 @@ struct Datei {
 #[serde(deny_unknown_fields)]
 struct DateiGitHub {
     api_url: Option<String>,
+    #[serde(default)]
+    repos: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -89,6 +111,20 @@ struct DateiGitHub {
 struct DateiJira {
     site: String,
     email: String,
+    #[serde(default)]
+    projects: Vec<String>,
+    jql: Option<String>,
+}
+
+/// `owner/name` aus Buchstaben, Ziffern, `.`, `-` und `_`.
+fn repo_gueltig(r: &str) -> bool {
+    let teil = |t: &str| {
+        !t.is_empty()
+            && t.chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+    };
+    r.split_once('/')
+        .is_some_and(|(o, n)| teil(o) && teil(n) && !n.contains('/'))
 }
 
 /// Standardpfad der Konfigurationsdatei.
@@ -112,6 +148,7 @@ impl Config {
             db: standard_db_pfad(),
             github: None,
             jira: None,
+            intervall_s: STANDARD_INTERVALL_S,
         }
     }
 
@@ -137,15 +174,40 @@ impl Config {
         if let Some(p) = d.db {
             c.db = p;
         }
+        if let Some(i) = d.intervall_s {
+            if i < MIN_INTERVALL_S {
+                return Err(KonfigFehler::Wert(format!(
+                    "intervall_s = {i} ist zu kurz, mindestens {MIN_INTERVALL_S} Sekunden"
+                )));
+            }
+            c.intervall_s = i;
+        }
         if let Some(g) = d.github {
+            for r in &g.repos {
+                if !repo_gueltig(r) {
+                    return Err(KonfigFehler::Wert(format!(
+                        "GitHub-Repo „{r}“ ist nicht von der Form owner/name"
+                    )));
+                }
+            }
             c.github = Some(GitHubKonfig {
                 api_url: g.api_url.unwrap_or_else(|| STANDARD_GITHUB_API.into()),
+                repos: g.repos,
             });
         }
         if let Some(j) = d.jira {
+            for p in &j.projects {
+                if cockpit_integrations::jira::jql_fuer(std::slice::from_ref(p), None).is_err() {
+                    return Err(KonfigFehler::Wert(format!(
+                        "Jira-Projekt „{p}“ ist kein gültiger Schlüssel"
+                    )));
+                }
+            }
             c.jira = Some(JiraKonfig {
                 site: j.site,
                 email: j.email,
+                projects: j.projects,
+                jql: j.jql.filter(|q| !q.trim().is_empty()),
             });
         }
 
@@ -228,6 +290,42 @@ mod tests {
         assert_eq!(c.dist, PathBuf::from("/srv/app"));
         assert_eq!(c.github.unwrap().api_url, STANDARD_GITHUB_API);
         assert_eq!(c.jira.unwrap().email, "ich@firma.example");
+        assert_eq!(c.intervall_s, 120);
+    }
+
+    #[test]
+    fn quellen_und_intervall() {
+        let toml = r#"
+            intervall_s = 60
+            [github]
+            repos = ["firma/app", "firma/web.v2"]
+            [jira]
+            site = "https://firma.atlassian.net"
+            email = "ich@firma.example"
+            projects = ["BAU", "WEB"]
+            jql = "  "
+        "#;
+        let c = Config::aus(Some(toml), keine_env).unwrap();
+        assert_eq!(c.intervall_s, 60);
+        assert_eq!(c.github.unwrap().repos, ["firma/app", "firma/web.v2"]);
+        let j = c.jira.unwrap();
+        assert_eq!(j.projects, ["BAU", "WEB"]);
+        assert_eq!(j.jql, None, "leere Abfrage zählt nicht");
+        for kaputt in [
+            "intervall_s = 5",
+            "[github]\nrepos = [\"nur-name\"]",
+            "[github]\nrepos = [\"a/b/c\"]",
+            "[github]\nrepos = [\"a b/c\"]",
+            "[jira]\nsite = \"https://x\"\nemail = \"a@b\"\nprojects = [\"A) OR (B\"]",
+        ] {
+            assert!(
+                matches!(
+                    Config::aus(Some(kaputt), keine_env),
+                    Err(KonfigFehler::Wert(_))
+                ),
+                "{kaputt}"
+            );
+        }
     }
 
     #[test]

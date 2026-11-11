@@ -17,6 +17,7 @@ use web_sys::wasm_bindgen::JsCast;
 
 use crate::mode_switch::ModeSwitch;
 use crate::store::{Mode, use_store};
+use crate::sync_status::SyncStatus;
 
 const STEPS: &[&str] = &["Jira", "GitHub", "Agent"];
 /// Nach dem letzten Schritt folgt die Übersicht.
@@ -351,6 +352,7 @@ pub fn SetupPage() -> impl IntoView {
                     </ListSection>
                 </List>
                 <ModeSwitch />
+                <SyncStatus />
                 <ResetDemo />
                 <HStack css="justify-content: space-between">
                     <HStack>

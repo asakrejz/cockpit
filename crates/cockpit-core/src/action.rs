@@ -17,6 +17,7 @@ use crate::model::{Checks, Item, Person, Priority, TicketStatus};
 use crate::notify::{Channel, NotifyReason, QuietHours};
 use crate::review::{Decision, MergeBlocker, MergeMethod, SendError, Verdict};
 use crate::rules::{PathViolation, RepoRules};
+use crate::sync::{self, Remote};
 use crate::usage::{AgentLimits, StopReason, format_euro};
 use crate::workspace::{AgentError, LinkError, ResumeError, StatusChange, Workspace};
 
@@ -242,6 +243,18 @@ pub enum Action {
     // Sonstiges
     /// Zurück zu den Beispieldaten. Das Protokoll beginnt neu.
     ResetDemo,
+    /// Der Abgleich: führt den Stand von Jira und GitHub mit dem Workspace zusammen
+    /// (siehe [`crate::sync`]). Nur das System löst sie aus – das Backend nach jedem Abruf.
+    SyncRemote {
+        remote: Remote,
+    },
+}
+
+impl Action {
+    /// Aktionen, die nur das Backend selbst auslösen darf (nie die Oberfläche).
+    pub fn system_only(&self) -> bool {
+        matches!(self, Action::SyncRemote { .. })
+    }
 }
 
 /// Wer die Aktion ausgelöst hat.
@@ -349,6 +362,8 @@ pub enum ActionError {
     LimitStillReached(StopReason),
     /// Dieses Repo gibt es nicht.
     UnknownRepo(String),
+    /// Diese Aktion löst nur das System aus (der Abgleich).
+    SystemOnly,
     /// Es gibt noch Gründe, die gegen das Mergen sprechen.
     MergeBlocked(Vec<MergeBlocker>),
 }
@@ -424,6 +439,9 @@ impl ActionError {
                     Actor::Du => "du",
                 }
             ),
+            ActionError::SystemOnly => {
+                "Das macht nur das System – der Abgleich läuft im Server".into()
+            }
             ActionError::MergeBlocked(blockers) => {
                 let reasons: Vec<&str> = blockers.iter().map(|b| b.reason()).collect();
                 format!("Mergen geht noch nicht: {}", reasons.join(" "))
@@ -532,6 +550,9 @@ impl Workspace {
         // Mergen ist Sache des Nutzers: Das prüft schon die Schicht, nicht erst die Oberfläche.
         if matches!(action, Action::MergePr { .. }) && actor != Actor::Du {
             return Err(ActionError::MergeNotAllowed(actor));
+        }
+        if action.system_only() && actor != Actor::System {
+            return Err(ActionError::SystemOnly);
         }
         let notes = self.perform(action, at_ms)?;
         let mut summary = String::new();
@@ -1343,9 +1364,25 @@ impl Workspace {
                 };
                 Ok(vec![Note::new(Target::Settings, text)])
             }
+            Action::SyncRemote { remote } => {
+                let (merged, changes) = sync::merge(self, &remote, at_ms);
+                *self = merged;
+                let mut notes: Vec<Note> = changes
+                    .into_iter()
+                    .map(|c| Note {
+                        actor: Some(Actor::System),
+                        target: c.target(),
+                        text: c.text(),
+                    })
+                    .collect();
+                // Den Satz im Ergebnis liefert die erste Änderung; ohne Änderung bleibt er leer.
+                notes.truncate(MAX_LOG);
+                Ok(notes)
+            }
             Action::ResetDemo => {
                 // Die Einstellungen gehören nicht zu den Beispieldaten und bleiben.
                 let notifications = std::mem::take(&mut self.notifications);
+                let sources = std::mem::take(&mut self.sync.sources);
                 let pr_status_off = self.pr_status_off;
                 let limits = self.limits.clone();
                 let repo_rules = std::mem::take(&mut self.repo_rules);
@@ -1354,6 +1391,7 @@ impl Workspace {
                 self.pr_status_off = pr_status_off;
                 self.limits = limits;
                 self.repo_rules = repo_rules;
+                self.sync.sources = sources;
                 Ok(vec![
                     Note::new(
                         Target::Item(self.items.first().map(|i| i.id.clone()).unwrap_or_default()),

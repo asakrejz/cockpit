@@ -11,6 +11,7 @@
 //! * [`notify`]: Ereignisse für Benachrichtigungen, Kanäle und Ruhezeiten
 //! * [`usage`]: Verbrauch, Kosten, Grenzen und das Kassenbuch der Agenten
 //! * [`rules`]: Regeln pro Repository (Pfade, Pflicht-Tests, Anweisungen)
+//! * [`sync`]: Abgleich mit Jira und GitHub (reine Zusammenführung)
 //! * [`team`]: Auslastung pro Person und was gerade hängt
 //! * [`workspace`]: alles zusammen, mit den Aktionen der Oberfläche
 //! * [`action`]: [`Action`], `Workspace::apply` und das Protokoll
@@ -36,6 +37,7 @@ pub mod persist;
 pub mod review;
 pub mod rules;
 pub mod search;
+pub mod sync;
 pub mod team;
 pub mod text;
 pub mod usage;
@@ -59,6 +61,9 @@ pub use review::{
     merge_blockers,
 };
 pub use rules::{DEMO_REPO, PathViolation, RepoRules, ViolationKind, glob_match};
+pub use sync::{
+    Change, Loaded, Outcome, PrLink, Problem, Remote, SourceData, SourceState, SyncState,
+};
 pub use team::{CAPACITY, LoadLevel, Member, Stuck, StuckKind, state_label};
 pub use usage::{AgentLimits, Charge, Pricing, StopReason, Usage};
 pub use workspace::{AgentError, LinkError, ResumeError, StatusChange, Workspace};

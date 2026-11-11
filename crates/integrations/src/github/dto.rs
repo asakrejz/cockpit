@@ -97,8 +97,10 @@ pub struct CheckRuns {
     pub check_runs: Vec<CheckRun>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct CheckRun {
+    #[serde(default)]
+    pub id: u64,
     #[serde(default)]
     pub name: String,
     /// `queued`, `in_progress`, `completed`
@@ -107,4 +109,63 @@ pub struct CheckRun {
     /// Nur bei `completed`: `success`, `failure`, `neutral`, `cancelled`, `skipped` …
     #[serde(default)]
     pub conclusion: Option<String>,
+    #[serde(default)]
+    pub started_at: Option<String>,
+    #[serde(default)]
+    pub completed_at: Option<String>,
+    #[serde(default)]
+    pub output: Option<CheckOutput>,
+}
+
+impl CheckRun {
+    /// Ausgabe des Laufs (Titel und Zusammenfassung), soweit GitHub sie liefert.
+    pub fn log(&self) -> String {
+        let Some(out) = &self.output else {
+            return String::new();
+        };
+        [out.title.as_deref(), out.summary.as_deref()]
+            .into_iter()
+            .flatten()
+            .filter(|t| !t.trim().is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct CheckOutput {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub summary: Option<String>,
+}
+
+/// `GET /repos/{owner}/{repo}/pulls/{number}/reviews`
+#[derive(Debug, Clone, Deserialize)]
+pub struct PullReview {
+    pub user: User,
+    /// `APPROVED`, `CHANGES_REQUESTED`, `COMMENTED`, `DISMISSED`, `PENDING`
+    #[serde(default)]
+    pub state: String,
+    #[serde(default)]
+    pub body: Option<String>,
+    #[serde(default)]
+    pub submitted_at: String,
+}
+
+/// `GET /repos/{owner}/{repo}`
+#[derive(Debug, Clone, Deserialize)]
+pub struct Repo {
+    pub default_branch: String,
+}
+
+/// `GET /repos/{owner}/{repo}/git/ref/heads/{branch}`
+#[derive(Debug, Clone, Deserialize)]
+pub struct GitRefAntwort {
+    pub object: GitObject,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct GitObject {
+    pub sha: String,
 }
