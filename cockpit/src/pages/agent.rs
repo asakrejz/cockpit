@@ -1,6 +1,10 @@
 //! Ein Agent setzt ein Ticket um: Auftrag, Ablauf in fünf Schritten und Aktivität.
 
-use cockpit_core::{Action, AgentOptions, MessageKind, RunMessage, Speaker, agent::STEPS};
+use cockpit_core::{
+    Action, AgentOptions, MessageKind, RunMessage, Speaker,
+    agent::STEPS,
+    usage::{format_euro, format_number},
+};
 use feature_ui::*;
 use leptos::prelude::*;
 
@@ -48,23 +52,25 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     // Pull Request, sonst der letzte Lauf.
     let key = ticket.or_else(|| {
         store.ws.with_untracked(|w| {
-            let running = w
-                .runs
-                .iter()
-                .find(|r| r.is_active())
-                .map(|r| r.ticket_key.clone());
+            let running = w.runs.iter().find(|r| r.is_active()).map(|r| r.key());
             let open = w
                 .items
                 .iter()
                 .find(|i| i.is_ticket() && i.pr.is_none())
                 .map(|i| i.key.clone());
-            running
-                .or(open)
-                .or(w.runs.last().map(|r| r.ticket_key.clone()))
+            running.or(open).or(w.runs.last().map(|r| r.key()))
         })
     });
     let key = StoredValue::new(key.unwrap_or_default());
-    let item = Memo::new(move |_| store.ws.with(|w| w.item_by_key(&key.get_value()).cloned()));
+    // Der Eintrag zum Lauf: das Ticket, bei Folgeaufträgen der Eintrag mit dem Pull Request.
+    let item = Memo::new(move |_| {
+        store.ws.with(|w| {
+            let key = w
+                .run(&key.get_value())
+                .map_or_else(|| key.get_value(), |r| r.ticket_key);
+            w.item_by_key(&key).cloned()
+        })
+    });
 
     // Optionen des Auftrags. Läuft der Agent schon, gelten die des Laufs.
     let saved = store
@@ -102,18 +108,45 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let plan = Memo::new(move |_| run.get().and_then(|r| r.plan()));
     let asking = Signal::derive(move || run.get().is_some_and(|r| r.is_asking()));
     let paused = Signal::derive(move || run.get().is_some_and(|r| r.is_paused()));
+    let diagnosed = Signal::derive(move || run.get().is_some_and(|r| r.is_diagnosed()));
+    // Folgeaufträge (Review-Kommentare, roter Check) starten auf der Review-Seite.
+    let followup = Signal::derive(move || run.get().is_some_and(|r| r.is_followup()));
     // Der Agent arbeitet an den Schritten – dann nimmt er Hinweise an.
-    let working = Signal::derive(move || running.get() || asking.get() || paused.get());
+    let stopped = Signal::derive(move || run.get().is_some_and(|r| r.is_stopped()));
+    let working = Signal::derive(move || {
+        running.get() || asking.get() || paused.get() || diagnosed.get() || stopped.get()
+    });
+    // Meldung der letzten Aktion, die nicht ging (z. B. Grenze paralleler Läufe, Regelverstoß).
+    let problem = RwSignal::new(None::<String>);
+    let note_result = move |result: Result<cockpit_core::Applied, cockpit_core::ActionError>| {
+        problem.set(result.err().map(|e| e.message()));
+    };
+    // Die Regeln des Repos binden den Auftrag: Pflicht-Tests und Plan-Pflicht lassen sich nicht abwählen.
+    let rules = Memo::new(move |_| run.get().map(|r| r.rules).unwrap_or_default());
+    let violations = Memo::new(move |_| run.get().map(|r| r.violations()).unwrap_or_default());
+    let tests_forced = Signal::derive(move || !rules.get().required_tests.is_empty());
+    let plan_forced =
+        Signal::derive(move || rules.get().plan_required || !violations.get().is_empty());
     let done = Signal::derive(move || run.get().is_some_and(|r| r.is_done()));
     let locked = Signal::derive(move || !idle.get());
     let blocked = Signal::derive(move || store.conn.get().agent_blocked());
 
+    // Was die Regeln verlangen, steht schon vor dem Start in den Schaltern.
+    Effect::new(move |_| {
+        if tests_forced.get() {
+            run_tests.set(true);
+        }
+        if plan_forced.get() {
+            plan_first.set(true);
+        }
+    });
+
     let start = move |_| {
         let options = chosen();
-        let _ = store.dispatch(Action::StartAgent {
+        note_result(store.dispatch(Action::StartAgent {
             ticket: key.get_value(),
             options,
-        });
+        }));
     };
     let cancel = move |_| {
         let _ = store.dispatch(Action::CancelAgent {
@@ -121,10 +154,17 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         });
     };
     let approve = move |_| {
-        let _ = store.dispatch(Action::ApprovePlan {
+        note_result(store.dispatch(Action::ApprovePlan {
             ticket: key.get_value(),
-        });
+        }));
         note.set(String::new());
+    };
+    // Angehaltenen Lauf nach einer Erhöhung der Grenze fortsetzen.
+    let raise = move |extra: u64| {
+        note_result(store.dispatch(Action::ResumeStopped {
+            run: key.get_value(),
+            extra,
+        }));
     };
     let reject = move |_| {
         let _ = store.dispatch(Action::RejectPlan {
@@ -161,9 +201,9 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         });
     };
     let resume = move |_| {
-        let _ = store.dispatch(Action::ResumeAgent {
+        note_result(store.dispatch(Action::ResumeAgent {
             run: key.get_value(),
-        });
+        }));
     };
     let note_empty = Signal::derive(move || note.with(|n| n.trim().is_empty()));
     let revise = move |_| {
@@ -181,6 +221,16 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
             store.open_item(&item.id);
         }
     };
+    let apply_fix = move |_| {
+        let _ = store.dispatch(Action::ApplyFix {
+            run: key.get_value(),
+        });
+    };
+    let discard_fix = move |_| {
+        let _ = store.dispatch(Action::DiscardFix {
+            run: key.get_value(),
+        });
+    };
 
     // Läufe für die Sidebar. Das gewählte Ticket steht dabei, auch wenn es noch keinen Lauf hat.
     let runs = move || {
@@ -189,12 +239,14 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
             w.runs
                 .iter()
                 .map(|r| {
-                    let state = if r.is_awaiting() {
+                    let state = if r.is_awaiting() || r.is_diagnosed() {
                         "wartet"
                     } else if r.is_asking() {
                         "fragt"
                     } else if r.is_paused() {
                         "pausiert"
+                    } else if r.is_stopped() {
+                        "angehalten"
                     } else if r.is_running() {
                         "läuft"
                     } else if r.is_done() {
@@ -202,7 +254,12 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                     } else {
                         "bereit"
                     };
-                    (r.ticket_key.clone(), r.ticket_title.clone(), state)
+                    let title = if r.is_followup() {
+                        r.label()
+                    } else {
+                        r.ticket_title.clone()
+                    };
+                    (r.key(), title, state)
                 })
                 .collect()
         });
@@ -234,7 +291,14 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                     number=i + 1
                     state=Signal::derive(move || step().map(|s| step_state(s.state)).unwrap_or_default())
                     title=Signal::derive(move || step().map(|s| s.title).unwrap_or_default())
-                    text=Signal::derive(move || step().map(|s| s.text).unwrap_or_default())
+                    text=Signal::derive(move || {
+                        step()
+                            .map(|s| match s.usage {
+                                Some(u) => format!("{} · {}", s.text, u.line()),
+                                None => s.text,
+                            })
+                            .unwrap_or_default()
+                    })
                 />
             }
         })
@@ -254,12 +318,16 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let status = move || {
         if done.get() {
             ("Fertig", StatusTone::Green)
+        } else if diagnosed.get() {
+            ("Wartet auf Entscheidung", StatusTone::Orange)
         } else if awaiting.get() {
             ("Wartet auf Freigabe", StatusTone::Orange)
         } else if asking.get() {
             ("Wartet auf Antwort", StatusTone::Orange)
         } else if paused.get() {
             ("Pausiert", StatusTone::Gray)
+        } else if stopped.get() {
+            ("Angehalten", StatusTone::Red)
         } else if running.get() {
             ("Agent arbeitet", StatusTone::Blue)
         } else {
@@ -271,6 +339,25 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let result = move || {
         let run = run.get().filter(|r| r.is_done())?;
         let number = run.pr_number?;
+        if run.is_followup() {
+            return Some(view! {
+                <SuggestionCard state=SuggestionState::Approved>
+                    <div class="ui-hstack" style="--spacing: 8px">
+                        <Badge variant=BadgeVariant::Neutral>"GitHub"</Badge>
+                        <span class="t-footnote t-mono t-secondary">{format!("#{number}")}</span>
+                        <span class="ui-spacer"></span>
+                        <Status tone=StatusTone::Green>"Gepusht"</Status>
+                    </div>
+                    <p class="t-headline">{run.label()}</p>
+                    <span style="align-self: flex-start; max-width: 100%">
+                        <Chip>{run.branch()}</Chip>
+                    </span>
+                    <p class="t-footnote t-secondary">
+                        "Kein neuer Pull Request, der Agent merged nie. Das Review liegt wieder bei dir."
+                    </p>
+                </SuggestionCard>
+            });
+        }
         Some(view! {
             <SuggestionCard state=SuggestionState::Approved>
                 <div class="ui-hstack" style="--spacing: 8px">
@@ -319,12 +406,21 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                 <Pane label="Agent-Auftrag">
                     <PaneHeader>
                         <div class="ui-hstack" style="--spacing: 10px">
-                            <Badge variant=BadgeVariant::Neutral>"Jira"</Badge>
+                            <Badge variant=BadgeVariant::Neutral>
+                                {move || if followup.get() { "GitHub" } else { "Jira" }}
+                            </Badge>
                             <span class="t-subheadline t-mono t-secondary">{key.get_value()}</span>
                             <span class="ui-spacer"></span>
                             <Status tone=Signal::derive(move || status().1)>{move || status().0}</Status>
                         </div>
-                        <h1 class="t-title1 t-bold">{move || item.get().map(|i| i.title)}</h1>
+                        <h1 class="t-title1 t-bold">
+                            {move || {
+                                match run.get().filter(|r| r.is_followup()) {
+                                    Some(r) => format!("{} · {}", r.label(), r.ticket_title),
+                                    None => item.get().map(|i| i.title).unwrap_or_default(),
+                                }
+                            }}
+                        </h1>
                         <Progress
                             value=Signal::derive(move || run.get().map_or(0, |r| r.completed))
                             max=STEPS
@@ -333,6 +429,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                     </PaneHeader>
 
                     <PaneBody>
+                        <Show when=move || !followup.get()>
                         <div class="ui-list__section">
                             <p class="ui-list__header">"Auftrag"</p>
                             <div class="ui-vstack" style="--spacing: 10px">
@@ -352,24 +449,36 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                             <Show when=move || !tests_allowed.get()>
                                                 <span class="t-footnote t-secondary">"In den Einstellungen aus"</span>
                                             </Show>
+                                            <Show when=move || tests_forced.get()>
+                                                <span class="t-footnote t-secondary">"Pflicht laut Regeln"</span>
+                                            </Show>
                                             <Toggle
                                                 checked=run_tests
-                                                disabled=Signal::derive(move || locked.get() || !tests_allowed.get())
+                                                disabled=Signal::derive(move || {
+                                                    locked.get() || !tests_allowed.get() || tests_forced.get()
+                                                })
                                             />
                                         </ListRow>
                                         <ListRow title="Pull Request als Entwurf anlegen" toggle_row=true>
                                             <Toggle checked=draft_pr disabled=locked />
                                         </ListRow>
                                         <ListRow title="Plan vor dem Start zeigen" toggle_row=true>
-                                            <Toggle checked=plan_first disabled=locked />
+                                            <Show when=move || plan_forced.get()>
+                                                <span class="t-footnote t-secondary">"Pflicht laut Regeln"</span>
+                                            </Show>
+                                            <Toggle
+                                                checked=plan_first
+                                                disabled=Signal::derive(move || locked.get() || plan_forced.get())
+                                            />
                                         </ListRow>
                                     </ListSection>
                                 </List>
                             </div>
                         </div>
+                        </Show>
 
                         <div class="ui-hstack" style="--spacing: 10px">
-                            <Show when=move || idle.get()>
+                            <Show when=move || idle.get() && !followup.get()>
                                 <Button
                                     variant=ButtonStyle::GlassProminent
                                     size=ControlSize::Large
@@ -381,7 +490,12 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                 </Button>
                             </Show>
                             <Show when=move || awaiting.get()>
-                                <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large on_click=approve>
+                                <Button
+                                    variant=ButtonStyle::GlassProminent
+                                    size=ControlSize::Large
+                                    disabled=Signal::derive(move || !violations.get().is_empty())
+                                    on_click=approve
+                                >
                                     "Plan freigeben"
                                 </Button>
                                 <Button size=ControlSize::Large destructive=true on_click=reject>
@@ -398,13 +512,27 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                     "Fortsetzen"
                                 </Button>
                             </Show>
-                            <Show when=move || working.get()>
+                            <Show when=move || diagnosed.get()>
+                                <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large on_click=apply_fix>
+                                    {move || {
+                                        if run.get().and_then(|r| r.diagnosis).is_some_and(|d| !d.changes_code()) {
+                                            "Check neu starten"
+                                        } else {
+                                            "Fix übernehmen"
+                                        }
+                                    }}
+                                </Button>
+                                <Button size=ControlSize::Large destructive=true on_click=discard_fix>
+                                    "Verwerfen"
+                                </Button>
+                            </Show>
+                            <Show when=move || working.get() && !diagnosed.get()>
                                 <Button size=ControlSize::Large destructive=true on_click=cancel>
                                     "Abbrechen"
                                 </Button>
                             </Show>
                             {move || {
-                                let number = run.get().filter(|r| r.is_done())?.pr_number?;
+                                let number = run.get().filter(|r| r.is_done() || r.is_followup())?.pr_number?;
                                 Some(
                                     view! {
                                         <Button
@@ -412,13 +540,13 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                             size=ControlSize::Large
                                             href=Route::Review(Some(number)).hash()
                                         >
-                                            "Pull Request prüfen"
+                                            {move || if followup.get() { "Zum Review" } else { "Pull Request prüfen" }}
                                         </Button>
                                     },
                                 )
                             }}
                             <Button variant=ButtonStyle::Borderless size=ControlSize::Large on_click=to_ticket>
-                                "Zum Ticket"
+                                {move || if followup.get() { "Zum Eintrag" } else { "Zum Ticket" }}
                             </Button>
                         </div>
                         {move || {
@@ -433,6 +561,93 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                         </p>
                                     }
                                 })
+                        }}
+
+                        {move || {
+                            problem
+                                .get()
+                                .map(|text| {
+                                    view! { <p class="t-footnote ck-problem" role="alert">{text}</p> }
+                                })
+                        }}
+
+                        {move || {
+                            let d = run.get().filter(|r| r.is_diagnosed())?.diagnosis?;
+                            Some(
+                                view! {
+                                    <div class="ui-list__section" role="region" aria-label="Diagnose des Agenten">
+                                        <p class="ui-list__header">"Diagnose – wartet auf deine Entscheidung"</p>
+                                        <SuggestionCard state=SuggestionState::Pending>
+                                            <div class="ui-hstack" style="--spacing: 8px">
+                                                <Badge variant=BadgeVariant::Tint>{format!("Check {}", d.check)}</Badge>
+                                                {d
+                                                    .location()
+                                                    .map(|l| view! { <span class="t-footnote t-mono t-secondary">{l}</span> })}
+                                            </div>
+                                            <p class="t-headline">{d.cause.clone()}</p>
+                                            <p class="t-footnote t-secondary">"Vorschlag: " {d.remedy.clone()}</p>
+                                            {d
+                                                .patch
+                                                .clone()
+                                                .map(|p| {
+                                                    view! {
+                                                        <Diff
+                                                            rows=crate::view::diff_rows(&p)
+                                                            label=format!("Fix für {}", p.name)
+                                                        />
+                                                    }
+                                                })}
+                                            <p class="t-footnote t-secondary">
+                                                "Bis du entscheidest, bleibt der Branch unverändert."
+                                            </p>
+                                        </SuggestionCard>
+                                    </div>
+                                },
+                            )
+                        }}
+
+                        {move || {
+                            // Eine Grenze hat den Lauf angehalten: erhöhen und fortsetzen oder abbrechen.
+                            let run = run.get().filter(|r| r.is_stopped())?;
+                            let reason = run.stop_reason()?;
+                            let (limits, month) = store
+                                .ws
+                                .with(|w| (w.limits.clone(), w.spent_month(store.now.get()).cost_cents));
+                            let detail = limits.describe(reason, &run, month);
+                            let options = reason.raise_options();
+                            Some(
+                                view! {
+                                    <div class="ui-list__section" role="region" aria-label="Lauf angehalten">
+                                        <p class="ui-list__header">"Lauf angehalten – wartet auf dich"</p>
+                                        <SuggestionCard state=SuggestionState::Pending>
+                                            <p class="t-headline">{reason.label()}</p>
+                                            <p class="t-subheadline t-secondary">{detail}</p>
+                                            <div class="ui-hstack" style="--spacing: 8px; flex-wrap: wrap">
+                                                {options
+                                                    .into_iter()
+                                                    .map(|extra| {
+                                                        view! {
+                                                            <Button
+                                                                variant=ButtonStyle::GlassProminent
+                                                                size=ControlSize::Small
+                                                                on_click=move |_| raise(extra)
+                                                            >
+                                                                {format!("Um {} erhöhen und fortsetzen", reason.raise_label(extra))}
+                                                            </Button>
+                                                        }
+                                                    })
+                                                    .collect_view()}
+                                                <Button size=ControlSize::Small destructive=true on_click=cancel>
+                                                    "Abbrechen"
+                                                </Button>
+                                            </div>
+                                            <p class="t-footnote t-secondary">
+                                                {format!("Erhöht wird {}.", reason.raises())}
+                                            </p>
+                                        </SuggestionCard>
+                                    </div>
+                                },
+                            )
                         }}
 
                         {move || {
@@ -527,6 +742,39 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                                     .map(|s| view! { <li class="t-subheadline">{s.clone()}</li> })
                                                     .collect_view()}
                                             </ol>
+                                            {(!plan.rules.is_empty())
+                                                .then(|| {
+                                                    view! {
+                                                        <p class="t-footnote t-secondary">"Regeln, die gelten"</p>
+                                                        <ul class="ck-plan" aria-label="Regeln, die gelten">
+                                                            {plan
+                                                                .rules
+                                                                .iter()
+                                                                .map(|r| view! { <li class="t-subheadline">{r.clone()}</li> })
+                                                                .collect_view()}
+                                                        </ul>
+                                                    }
+                                                })}
+                                            {(!plan.violations.is_empty())
+                                                .then(|| {
+                                                    view! {
+                                                        <p class="t-footnote ck-problem">
+                                                            "Nicht freigebbar – der Plan verstößt gegen die Regeln:"
+                                                        </p>
+                                                        <ul class="ck-plan" aria-label="Regelverstöße">
+                                                            {plan
+                                                                .violations
+                                                                .iter()
+                                                                .map(|v| view! { <li class="t-subheadline">{v.reason()}</li> })
+                                                                .collect_view()}
+                                                        </ul>
+                                                        <p class="t-footnote t-secondary">
+                                                            "Ändere die Regeln unter "
+                                                            <a class="ui-link" href=Route::Limits.hash()>"Grenzen & Regeln"</a>
+                                                            " oder lehne den Plan ab."
+                                                        </p>
+                                                    }
+                                                })}
                                         </SuggestionCard>
                                         <Show when=move || awaiting.get()>
                                             <div class="ui-vstack" style="--spacing: 10px">
@@ -543,6 +791,49 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                                 </div>
                                             </div>
                                         </Show>
+                                    </div>
+                                },
+                            )
+                        }}
+
+                        {move || {
+                            // Verbrauch dieses Laufs und Summen über alle Läufe.
+                            let run = run.get().filter(|r| !r.is_idle())?;
+                            let usage = run.usage();
+                            let (limits, today, month) = store.ws.with(|w| {
+                                let now = store.now.get();
+                                (w.limits.clone(), w.spent_today(now), w.spent_month(now))
+                            });
+                            let budget = limits.run_budget_cents.map(|b| b + run.extra_budget_cents);
+                            Some(
+                                view! {
+                                    <div class="ui-list__section" role="region" aria-label="Verbrauch">
+                                        <p class="ui-list__header">"Verbrauch"</p>
+                                        <div class="ck-usage">
+                                            <p class="t-subheadline">
+                                                {format!(
+                                                    "Dieser Lauf: {} Token ein · {} aus · {} · {}",
+                                                    format_number(usage.input_tokens),
+                                                    format_number(usage.output_tokens),
+                                                    format_euro(usage.cost_cents),
+                                                    cockpit_core::usage::format_duration(usage.millis),
+                                                )}
+                                                {budget.map(|b| format!(" (Budget {})", format_euro(b)))}
+                                            </p>
+                                            <p class="t-footnote t-secondary">
+                                                {format!(
+                                                    "Heute {} · diesen Monat {}{}",
+                                                    format_euro(today.cost_cents),
+                                                    format_euro(month.cost_cents),
+                                                    limits
+                                                        .month_budget_cents
+                                                        .map(|b| format!(" von {}", format_euro(b)))
+                                                        .unwrap_or_default(),
+                                                )}
+                                                " · "
+                                                <a class="ui-link" href=Route::Limits.hash()>"Grenzen & Regeln"</a>
+                                            </p>
+                                        </div>
                                     </div>
                                 },
                             )

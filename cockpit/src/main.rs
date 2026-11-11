@@ -22,15 +22,16 @@ use cockpit_core::{Action, Actor};
 use feature_ui::{Root, Theme};
 use leptos::prelude::*;
 use pages::{
-    agent::AgentPage, inbox::InboxPage, log::LogPage, notifications::NotificationsPage,
-    overview::OverviewPage, review::ReviewPage, setup::SetupPage,
+    agent::AgentPage, inbox::InboxPage, limits::LimitsPage, log::LogPage,
+    notifications::NotificationsPage, overview::OverviewPage, review::ReviewPage, setup::SetupPage,
 };
 use route::Route;
 use store::{Mode, Store, current_hash, navigate, now_ms};
 
 /// So lange braucht der Demo-Agent für einen Schritt.
 const AGENT_STEP: Duration = Duration::from_millis(2200);
-/// So oft prüft der Takt, ob zurückgestellte Einträge zurückkehren und ob ein Ticket überfällig wurde.
+/// So oft prüft der Takt, ob zurückgestellte Einträge zurückkehren, ob ein Ticket überfällig wurde
+/// und ob Tickets und Pull Requests zu verknüpfen oder im Status nachzuführen sind.
 const CLOCK_TICK: Duration = Duration::from_secs(15);
 
 fn main() {
@@ -96,6 +97,16 @@ fn App() -> impl IntoView {
             {
                 let _ = store.dispatch_as(Action::WakeSnoozed, Actor::System);
             }
+            // Pull Requests mit Ticket-Schlüssel im Branch oder Titel verknüpfen, den Status
+            // verknüpfter Tickets nachführen. Im Server-Modus macht auch das der Server.
+            if store.mode.get_untracked() == Mode::Demo {
+                if !store.ws.with_untracked(|w| w.auto_links()).is_empty() {
+                    let _ = store.dispatch_as(Action::AutoLinkPrs, Actor::System);
+                }
+                if store.ws.with_untracked(|w| w.status_pending()) {
+                    let _ = store.dispatch_as(Action::SyncTicketStatus, Actor::System);
+                }
+            }
         },
         CLOCK_TICK,
     );
@@ -109,6 +120,7 @@ fn App() -> impl IntoView {
                 Route::Overview => view! { <OverviewPage /> }.into_any(),
                 Route::Log => view! { <LogPage /> }.into_any(),
                 Route::Notifications => view! { <NotificationsPage /> }.into_any(),
+                Route::Limits => view! { <LimitsPage /> }.into_any(),
                 Route::Review(number) => view! { <ReviewPage number=number /> }.into_any(),
                 Route::Agent(ticket) => view! { <AgentPage ticket=ticket /> }.into_any(),
             }}

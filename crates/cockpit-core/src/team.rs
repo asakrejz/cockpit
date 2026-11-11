@@ -118,18 +118,30 @@ pub fn members(ws: &Workspace) -> Vec<Member> {
     }
 
     let agent = &mut list[1];
+    // Pro Eintrag zählt der Agent einmal: ein aktiver Lauf (auch ein Folgeauftrag) geht vor
+    // einem fertigen, der auf Review wartet.
+    let mut active_ids: Vec<String> = Vec::new();
     for run in &ws.runs {
         let Some(item) = ws.item_by_key(&run.ticket_key).filter(|i| is_open(i)) else {
             continue;
         };
+        let seen = agent.item_ids.contains(&item.id);
         if run.is_active() {
+            if active_ids.contains(&item.id) {
+                continue;
+            }
+            if seen {
+                // Der Eintrag war als „Review“ gezählt und ist jetzt wieder in Arbeit.
+                agent.review = agent.review.saturating_sub(1);
+            } else {
+                agent.item_ids.push(item.id.clone());
+            }
+            active_ids.push(item.id.clone());
             agent.in_progress += 1;
-        } else if run.is_done() && run.pr_number.is_some_and(|n| review_pending(ws, n)) {
+        } else if !seen && run.is_done() && run.pr_number.is_some_and(|n| review_pending(ws, n)) {
             agent.review += 1;
-        } else {
-            continue;
+            agent.item_ids.push(item.id.clone());
         }
-        agent.item_ids.push(item.id.clone());
     }
     list
 }
@@ -160,8 +172,12 @@ pub fn state_label(item: &Item) -> (String, Tone) {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StuckKind {
     ChecksFailed,
+    /// Eine Grenze (Budget, Zeitlimit) hat den Agenten angehalten.
+    AgentStopped,
     /// Der Agent hat eine Rückfrage und wartet auf die Antwort.
     QuestionWaiting,
+    /// Der Agent hat einen roten Check untersucht und wartet, ob er den Fix übernehmen soll.
+    DiagnosisWaiting,
     PlanWaiting,
     AgentWaiting,
     ReviewWaiting,
@@ -172,7 +188,9 @@ impl StuckKind {
     pub fn label(self) -> &'static str {
         match self {
             StuckKind::ChecksFailed => "Checks fehlgeschlagen",
+            StuckKind::AgentStopped => "Agent angehalten",
             StuckKind::QuestionWaiting => "Frage wartet",
+            StuckKind::DiagnosisWaiting => "Diagnose wartet",
             StuckKind::PlanWaiting => "Plan wartet",
             StuckKind::AgentWaiting => "Agent wartet",
             StuckKind::ReviewWaiting => "Review wartet",
@@ -198,12 +216,31 @@ pub struct Stuck {
     pub plan: Option<String>,
     /// Ticket, bei dem der Agent eine Frage gestellt hat.
     pub question: Option<String>,
+    /// Lauf, dessen Diagnose auf deine Entscheidung wartet.
+    pub diagnosis: Option<String>,
 }
 
 /// Die erste Regel, die auf den Eintrag passt. Ein Eintrag hängt nur einmal.
 fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> {
     let me = Person::me();
     let pr = item.pr.as_ref();
+
+    // Die Diagnose geht vor: Der Check ist rot, der Agent hat aber schon einen Vorschlag.
+    if let Some(run) = ws
+        .runs
+        .iter()
+        .find(|r| r.ticket_key == item.key && r.is_diagnosed())
+    {
+        let cause = run
+            .diagnosis
+            .as_ref()
+            .map_or("Der Agent hat den Check untersucht.", |d| d.cause.as_str());
+        return Some((
+            StuckKind::DiagnosisWaiting,
+            me,
+            format!("Diagnose des Agenten wartet auf deine Entscheidung: {cause}"),
+        ));
+    }
 
     if let Some(pr) = pr.filter(|p| p.checks == Checks::Failed) {
         return Some((
@@ -213,6 +250,22 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
                 "Die Checks von #{} sind fehlgeschlagen – {} kommt nicht weiter.",
                 pr.number,
                 who_name(&item.owner)
+            ),
+        ));
+    }
+
+    if let Some(reason) = ws
+        .runs
+        .iter()
+        .find(|r| r.ticket_key == item.key)
+        .and_then(|r| r.stop_reason())
+    {
+        return Some((
+            StuckKind::AgentStopped,
+            me,
+            format!(
+                "Der Agent ist angehalten: {}. Erhöhe das Limit und setze ihn fort – oder brich ab.",
+                reason.label()
             ),
         ));
     }
@@ -315,6 +368,13 @@ pub fn stuck(ws: &Workspace) -> Vec<Stuck> {
         .filter(|i| is_open(i))
         .filter_map(|item| {
             let (kind, who, reason) = classify(ws, item)?;
+            // Der Schlüssel des Laufs, der wartet (bei Folgeaufträgen nicht der des Eintrags).
+            let waiting = |ok: fn(&crate::AgentRun) -> bool| {
+                ws.runs
+                    .iter()
+                    .find(|r| r.ticket_key == item.key && ok(r))
+                    .map(crate::AgentRun::key)
+            };
             Some(Stuck {
                 item_id: item.id.clone(),
                 key: item.key.clone(),
@@ -323,8 +383,12 @@ pub fn stuck(ws: &Workspace) -> Vec<Stuck> {
                 who,
                 reason,
                 review: item.pr.as_ref().map(|p| p.number),
-                plan: (kind == StuckKind::PlanWaiting).then(|| item.key.clone()),
-                question: (kind == StuckKind::QuestionWaiting).then(|| item.key.clone()),
+                plan: waiting(crate::AgentRun::is_awaiting)
+                    .filter(|_| kind == StuckKind::PlanWaiting),
+                question: waiting(crate::AgentRun::is_asking)
+                    .filter(|_| kind == StuckKind::QuestionWaiting),
+                diagnosis: waiting(crate::AgentRun::is_diagnosed)
+                    .filter(|_| kind == StuckKind::DiagnosisWaiting),
             })
         })
         .collect();

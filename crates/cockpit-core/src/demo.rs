@@ -4,8 +4,11 @@
 use crate::agent::{AgentRun, Question, RunState, STEPS};
 use crate::model::*;
 use crate::review::LineKind::{Add, Context as Ctx, Del};
-use crate::review::{CheckRun, FileDiff, Level, Review, Suggestion, Verdict};
+use crate::review::{CheckRun, FileDiff, Level, LineComment, Review, Suggestion, Verdict};
+use crate::rules::{DEMO_REPO, RepoRules};
+use crate::usage::Usage;
 use crate::workspace::Workspace;
+use std::collections::BTreeMap;
 
 fn lena() -> Person {
     Person::new("Lena", "LK")
@@ -46,6 +49,7 @@ fn item(
         scope: if mine { Scope::Mine } else { Scope::Team },
         owner,
         status: TicketStatus::Open,
+        priority: Priority::default(),
         branch: None,
         pr: None,
         agent_note: None,
@@ -86,6 +90,7 @@ pub fn workspace() -> Workspace {
             checks: Checks::Passed,
             changes_requested: false,
             merged: false,
+            review_requested: true,
         }),
         agent_note: Some("3 Kommentare vom Agenten warten auf deine Freigabe".into()),
         comments: vec![Comment::new(
@@ -113,6 +118,7 @@ pub fn workspace() -> Workspace {
             checks: Checks::Passed,
             changes_requested: true,
             merged: false,
+            review_requested: true,
         }),
         agent_note: Some("Vom Agenten umgesetzt · Tests bestanden".into()),
         ..item(
@@ -137,6 +143,7 @@ pub fn workspace() -> Workspace {
             checks: Checks::Failed,
             changes_requested: false,
             merged: false,
+            review_requested: false,
         }),
         comments: vec![Comment::new(
             mira(),
@@ -251,7 +258,40 @@ pub fn workspace() -> Workspace {
             ],
         )
     };
+    // Zwei Kommentare von Reviewern zu BAU-138: Der Agent kann sie umsetzen (Folgeauftrag).
+    let foreign =
+        |id: &str, who: Person, file: &str, line: usize, text: &str, code: Option<&str>| {
+            LineComment {
+                id: id.into(),
+                file: file.into(),
+                line,
+                text: text.into(),
+                suggestion: code.map(str::to_string),
+                author: Some(who),
+                resolved: None,
+            }
+        };
     let review91 = Review {
+        line_comments: vec![
+            foreign(
+                "c1",
+                mira(),
+                "controls.rs",
+                6,
+                "Bitte Home und End mit unterstützen, nicht nur die Pfeiltasten.",
+                Some(
+                    "                            on:keydown=move |ev| select_with_keys(&ev, options, value)",
+                ),
+            ),
+            foreign(
+                "c2",
+                jonas(),
+                "components.css",
+                1,
+                "Wozu braucht der Fokus-Zustand ein z-index? Bitte kurz begründen oder weglassen.",
+                None,
+            ),
+        ],
         description:
             "Vom Agenten für BAU-138 umgesetzt · Tests bestanden. Der Agent führt keinen Merge aus."
                 .into(),
@@ -306,14 +346,52 @@ pub fn workspace() -> Workspace {
     run138.state = RunState::Done;
     run138.completed = STEPS;
     run138.pr_number = Some(91);
+    run138.repo = DEMO_REPO.into();
+    let pricing = crate::Pricing::default();
+    for step in 0..STEPS {
+        let (input, output, millis) = step_tokens(&run138.ticket_key, step);
+        run138
+            .step_usage
+            .push(Usage::priced(input, output, millis, &pricing));
+    }
 
     Workspace {
         items: vec![bau142, pr87, bau138, pr85, bau150],
         reviews: vec![review87, review91, review85],
         runs: vec![run138],
         log: Vec::new(),
+        // BAU-138 hängt an #91 (Review angefragt) und steht schon auf „Review“.
+        status_seen: vec![("BAU-138".to_string(), TicketStatus::Review)],
+        repo_rules: BTreeMap::from([(DEMO_REPO.to_string(), repo_rules())]),
         ..Workspace::default()
     }
+}
+
+/// Die Regeln, mit denen das Demo-Repo startet: Workflows und Sperrdateien bleiben tabu.
+pub fn repo_rules() -> RepoRules {
+    RepoRules {
+        forbidden_paths: vec![".github/workflows/**".into(), "*.lock".into()],
+        ..RepoRules::default()
+    }
+}
+
+/// Verbrauch eines Demo-Schritts: Eingabe-Tokens, Ausgabe-Tokens und Laufzeit in Millisekunden.
+/// Fest und vom Ticket abhängig, damit Demo und Tests immer dasselbe zeigen. Ein echter Agent
+/// meldet diese Werte selbst (siehe [`AgentRun::record_usage`]).
+pub fn step_tokens(ticket_key: &str, step: usize) -> (u64, u64, u64) {
+    const INPUT: [u64; STEPS] = [8_200, 15_600, 46_300, 28_900, 9_400];
+    const OUTPUT: [u64; STEPS] = [900, 1_400, 6_800, 2_300, 1_500];
+    const MILLIS: [u64; STEPS] = [18_000, 22_000, 85_000, 61_000, 27_000];
+    let seed = ticket_key
+        .bytes()
+        .fold(0u64, |a, b| a.wrapping_mul(31).wrapping_add(u64::from(b)))
+        % 7;
+    let i = step.min(STEPS - 1);
+    (
+        INPUT[i] + seed * 1_100,
+        OUTPUT[i] + seed * 140,
+        MILLIS[i] + seed * 2_500,
+    )
 }
 
 /// Die Rückfrage, die der Demo-Agent für ein Ticket stellt: vor welchem Schritt (Zahl
@@ -328,6 +406,18 @@ pub fn agent_question(ticket_key: &str) -> Option<(usize, Question)> {
                     "Entfernen".into(),
                     "Als deprecated markieren".into(),
                     "Erst markieren, später entfernen".into(),
+                ],
+            },
+        )),
+        // Folgeauftrag „Kommentare in #91 umsetzen“.
+        "review-91" => Some((
+            2,
+            Question {
+                text: "Soll ich vor dem Push auch die Browser-Tests laufen lassen? Das dauert etwa zwei Minuten."
+                    .into(),
+                suggestions: vec![
+                    "Ja, mit Browser-Tests".into(),
+                    "Nein, Lint und Unit-Tests genügen".into(),
                 ],
             },
         )),

@@ -4,7 +4,8 @@
 use std::time::Duration;
 
 use cockpit_core::{
-    Action, Checks, Decision, Level, MergeMethod, Review, Suggestion, SuggestionDiff, Verdict,
+    Action, AgentOptions, AgentRun, Checks, Decision, Level, MergeMethod, Review, RunKind,
+    Suggestion, SuggestionDiff, Verdict,
 };
 use feature_ui::*;
 use leptos::prelude::*;
@@ -54,6 +55,7 @@ pub fn ReviewPage(number: Option<u32>) -> impl IntoView {
         agent_reading: RwSignal::new(false),
         merge_method: RwSignal::new(MergeMethod::default().id()),
         open_check: RwSignal::new(None),
+        deselected: RwSignal::new(Vec::new()),
     };
 
     let list = move || {
@@ -111,6 +113,8 @@ struct Panel {
     merge_method: RwSignal<&'static str>,
     /// Name des Checks, dessen Log aufgeklappt ist.
     open_check: RwSignal<Option<String>>,
+    /// IDs der Kommentare, die der Agent nicht umsetzen soll. Standard: alle offenen.
+    deselected: RwSignal<Vec<String>>,
 }
 
 /// Eingaben der Zeilenkommentare im Diff.
@@ -199,13 +203,22 @@ fn line_notes(store: Store, r: &Review, file: &str, index: usize, ui: LineUi) ->
         .map(|c| {
             let (id, text) = (StoredValue::new(c.id.clone()), StoredValue::new(c.text.clone()));
             let code = StoredValue::new(c.suggestion.clone());
-            let diff = r.suggestion_diff(c);
+            // Ein umgesetzter Vorschlag steht schon im Diff, der Vorher/Nachher entfällt.
+            let diff = r.suggestion_diff(c).filter(|_| c.is_open());
             let original = original.clone();
+            // Fremde Kommentare lassen sich nicht ändern, erledigte auch nicht.
+            let (own, open) = (c.is_own(), c.is_open());
+            let resolved = c.resolved.clone();
+            let author = c
+                .author
+                .as_ref()
+                .map_or_else(|| "Dein Kommentar".to_string(), |p| format!("Kommentar von {}", p.name));
+            let label = if diff.is_some() { format!("{author} · Änderungsvorschlag") } else { author };
             let editing = move || ui.editing.get().is_some_and(|e| e == id.get_value());
             view! {
                 <div class="ui-diff__note" role="group" aria-label="Eigener Kommentar">
                     {move || {
-                        if editing() && !sent {
+                        if editing() && !sent && own && open {
                             view! {
                                 <Textarea value=ui.edit_text label="Kommentar bearbeiten" min_height="64px" />
                                 {suggestion_editor(ui.edit_suggest, ui.edit_code, original.clone())}
@@ -249,13 +262,23 @@ fn line_notes(store: Store, r: &Review, file: &str, index: usize, ui: LineUi) ->
                                 .into_any()
                         } else {
                             view! {
-                                <span class="t-footnote t-secondary">
-                                    {if diff.is_some() { "Dein Kommentar · Änderungsvorschlag" } else { "Dein Kommentar" }}
+                                <span class="ui-hstack t-footnote t-secondary" style="--spacing: 8px">
+                                    {label.clone()}
+                                    {resolved
+                                        .clone()
+                                        .map(|run| {
+                                            view! {
+                                                <Status tone=StatusTone::Green>"Erledigt"</Status>
+                                                <a class="ui-link" href=Route::Agent(Some(run.clone())).hash()>
+                                                    {format!("Lauf {run}")}
+                                                </a>
+                                            }
+                                        })}
                                 </span>
                                 {(!text.with_value(String::is_empty))
                                     .then(|| view! { <p class="t-subheadline">{text.get_value()}</p> })}
                                 {diff.as_ref().map(suggestion_view)}
-                                {(!sent)
+                                {(!sent && own && open)
                                     .then(|| {
                                         view! {
                                             <div class="ui-hstack" style="--spacing: 8px">
@@ -602,6 +625,7 @@ fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView {
                         })}
                 </div>
 
+                {comments_section(store, &r, panel)}
                 {checks_section(store, &r, panel)}
                 {merge_section(store, &r, panel)}
             </PaneBody>
@@ -669,6 +693,8 @@ fn checks_section(store: Store, r: &Review, panel: Panel) -> impl IntoView + use
                             })}
                     </div>
                     {move || open().then(|| view! { <Log text=log.get_value() /> })}
+                    {(c.status == Checks::Failed && !merged)
+                        .then(|| investigation(store, number, name.get_value(), !c.log.trim().is_empty()))}
                 </div>
             }
         })
@@ -862,5 +888,260 @@ fn suggestion(store: Store, number: u32, s: Suggestion, panel: Panel) -> impl In
                 }
             }}
         </SuggestionCard>
+    }
+}
+
+/// Der Folgeauftrag zu diesem Check, falls es einen gibt.
+fn diagnose_run(store: Store, number: u32, check: &str) -> Option<AgentRun> {
+    store.ws.with(|w| {
+        w.followups(number)
+            .into_iter()
+            .find(|r| matches!(&r.kind, RunKind::Diagnose { check: c, .. } if c == check))
+            .cloned()
+    })
+}
+
+/// Unter einem roten Check: „Agent untersuchen lassen“, der Stand der Untersuchung und die
+/// Diagnose mit „Fix übernehmen“ und „Verwerfen“. Nichts wird ohne dich übernommen.
+fn investigation(store: Store, number: u32, check: String, has_log: bool) -> impl IntoView {
+    let check = StoredValue::new(check);
+    let blocked = Signal::derive(move || store.conn.get().agent_blocked().is_some());
+    move || {
+        let run = diagnose_run(store, number, &check.get_value()).filter(|r| !r.is_idle());
+        let key = run.as_ref().map(AgentRun::key);
+        match run {
+            Some(r) if r.is_diagnosed() => {
+                let key = StoredValue::new(key.unwrap_or_default());
+                let d = r.diagnosis.clone();
+                let changes = d.as_ref().is_some_and(|d| d.changes_code());
+                view! {
+                    <SuggestionCard state=SuggestionState::Pending>
+                        <div class="ui-hstack" style="--spacing: 8px">
+                            <Badge variant=BadgeVariant::Tint>"Diagnose"</Badge>
+                            <span class="ui-spacer"></span>
+                            <a class="ui-link t-footnote" href=Route::Agent(Some(key.get_value())).hash()>
+                                "Lauf ansehen"
+                            </a>
+                        </div>
+                        <p class="t-subheadline">
+                            {d.as_ref().map(|d| d.cause.clone()).unwrap_or_default()}
+                        </p>
+                        {d
+                            .as_ref()
+                            .and_then(|d| d.location())
+                            .map(|l| view! { <span class="t-footnote t-mono t-secondary">{l}</span> })}
+                        <p class="t-footnote t-secondary">
+                            "Vorschlag: " {d.as_ref().map(|d| d.remedy.clone()).unwrap_or_default()}
+                        </p>
+                        {d
+                            .and_then(|d| d.patch)
+                            .map(|p| view! { <Diff rows=view::diff_rows(&p) label=format!("Fix für {}", p.name) /> })}
+                        <div class="ui-hstack" style="--spacing: 8px">
+                            <Button
+                                variant=ButtonStyle::BorderedProminent
+                                size=ControlSize::Small
+                                on_click=move |_| {
+                                    let _ = store.dispatch(Action::ApplyFix { run: key.get_value() });
+                                }
+                            >
+                                {if changes { "Fix übernehmen" } else { "Check neu starten" }}
+                            </Button>
+                            <Button
+                                size=ControlSize::Small
+                                destructive=true
+                                on_click=move |_| {
+                                    let _ = store.dispatch(Action::DiscardFix { run: key.get_value() });
+                                }
+                            >
+                                "Verwerfen"
+                            </Button>
+                        </div>
+                    </SuggestionCard>
+                }
+                .into_any()
+            }
+            Some(r) if r.is_active() => {
+                let key = key.unwrap_or_default();
+                view! {
+                    <p class="t-footnote t-secondary">
+                        "Der Agent untersucht den Check … "
+                        <a class="ui-link" href=Route::Agent(Some(key)).hash()>"Lauf ansehen"</a>
+                    </p>
+                }
+                .into_any()
+            }
+            _ if has_log => view! {
+                <div class="ui-hstack">
+                    <Button
+                        size=ControlSize::Small
+                        disabled=blocked
+                        on_click=move |_| {
+                            let _ = store.dispatch(Action::InvestigateCheck {
+                                review: number,
+                                check: check.get_value(),
+                            });
+                        }
+                    >
+                        <Icon path=icons::SPARKLES />
+                        "Agent untersuchen lassen"
+                    </Button>
+                </div>
+            }
+            .into_any(),
+            _ => ().into_any(),
+        }
+    }
+}
+
+/// Review-Kommentare umsetzen: offene Kommentare auswählen und den Agenten beauftragen.
+/// Dazu der Stand eines laufenden Folgeauftrags und das, was schon umgesetzt wurde.
+fn comments_section(store: Store, r: &Review, panel: Panel) -> impl IntoView + use<> {
+    let number = r.number;
+    let merged = r.merged.is_some();
+    move || {
+        let (review, active, done) = store.ws.with(|w| {
+            let runs = w.followups(number);
+            (
+                w.review(number).cloned(),
+                w.active_followup(number).cloned(),
+                runs.into_iter()
+                    .filter(|r| r.is_done())
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            )
+        });
+        let review = review?;
+        let open: Vec<_> = review.open_comments().into_iter().cloned().collect();
+        if open.is_empty() && active.is_none() && done.is_empty() {
+            return None;
+        }
+        let state = active.map(|run| {
+            let (label, tone) = if run.is_awaiting() {
+                ("Wartet auf Freigabe des Plans", StatusTone::Orange)
+            } else if run.is_asking() {
+                ("Wartet auf deine Antwort", StatusTone::Orange)
+            } else if run.is_diagnosed() {
+                ("Wartet auf deine Entscheidung", StatusTone::Orange)
+            } else if run.is_paused() {
+                ("Pausiert", StatusTone::Gray)
+            } else {
+                ("Agent arbeitet", StatusTone::Blue)
+            };
+            let key = run.key();
+            view! {
+                <div class="ui-hstack" style="--spacing: 8px">
+                    <Status tone=tone>{label}</Status>
+                    <span class="t-footnote t-secondary">{run.label()}</span>
+                    <span class="ui-spacer"></span>
+                    <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>"Lauf ansehen"</a>
+                </div>
+            }
+        });
+        let busy = state.is_some();
+        let finished = done
+            .into_iter()
+            .map(|run| {
+                let key = run.key();
+                view! {
+                    <div class="ui-hstack" style="--spacing: 8px">
+                        <Status tone=StatusTone::Green>"Erledigt"</Status>
+                        <span class="t-footnote t-secondary">{run.label()}</span>
+                        <span class="ui-spacer"></span>
+                        <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>"Lauf ansehen"</a>
+                    </div>
+                }
+            })
+            .collect_view();
+        let rows = open
+            .iter()
+            .map(|c| {
+                let id = c.id.clone();
+                let on = RwSignal::new(!panel.deselected.with_untracked(|d| d.contains(&id)));
+                let id2 = id.clone();
+                Effect::new(move |prev: Option<()>| {
+                    let checked = on.get();
+                    if prev.is_some() {
+                        panel.deselected.update(|d| {
+                            d.retain(|x| *x != id2);
+                            if !checked {
+                                d.push(id2.clone());
+                            }
+                        });
+                    }
+                });
+                let who = c.author.as_ref().map_or("Du".to_string(), |p| p.name.clone());
+                let place = review.line_location(c).unwrap_or_else(|| c.file.clone());
+                let text = if c.text.is_empty() { "Änderungsvorschlag".to_string() } else { c.text.clone() };
+                view! {
+                    <label class="ui-hstack ck-pick" style="--spacing: 10px; align-items: flex-start">
+                        <Toggle checked=on disabled=busy aria_label=format!("Kommentar {id} umsetzen") />
+                        <span class="ui-vstack" style="--spacing: 2px; min-width: 0">
+                            <span class="t-footnote t-secondary t-mono">{format!("{who} · {place}")}</span>
+                            <span class="t-subheadline">{text}</span>
+                        </span>
+                    </label>
+                }
+            })
+            .collect_view();
+        let ids: Vec<String> = open.iter().map(|c| c.id.clone()).collect();
+        let count = Signal::derive({
+            let ids = ids.clone();
+            move || {
+                panel
+                    .deselected
+                    .with(|d| ids.iter().filter(|i| !d.contains(*i)).count())
+            }
+        });
+        let blocked = Signal::derive(move || store.conn.get().agent_blocked().is_some());
+        let start = {
+            let ids = ids.clone();
+            move |_| {
+                let chosen: Vec<String> = panel
+                    .deselected
+                    .with_untracked(|d| ids.iter().filter(|i| !d.contains(*i)).cloned().collect());
+                let options = AgentOptions {
+                    run_tests: store.conn.get_untracked().may_run_tests,
+                    ..Default::default()
+                };
+                let started = store.dispatch(Action::AddressReview {
+                    review: number,
+                    comments: chosen,
+                    options,
+                });
+                // Der Plan liegt zur Freigabe auf der Agent-Seite.
+                if started.is_ok() {
+                    crate::store::navigate(&Route::Agent(Some(format!("review-{number}"))));
+                }
+            }
+        };
+        let can_start = !open.is_empty() && !merged;
+        Some(view! {
+            <div class="ui-vstack" style="--spacing: 10px" role="region" aria-label="Review-Kommentare umsetzen">
+                <h3 class="t-headline">"Review-Kommentare umsetzen"</h3>
+                {state}
+                {finished}
+                {(can_start && !open.is_empty())
+                    .then(|| {
+                        view! {
+                            <p class="t-footnote t-secondary">
+                                "Der Agent setzt die gewählten Kommentare um und pusht auf denselben Branch – ohne neuen Pull Request."
+                            </p>
+                            <div class="ui-vstack" style="--spacing: 8px">{rows}</div>
+                            <Button
+                                variant=ButtonStyle::BorderedProminent
+                                size=ControlSize::Large
+                                disabled=Signal::derive(move || busy || blocked.get() || count.get() == 0)
+                                on_click=start
+                            >
+                                <Icon path=icons::SPARKLES />
+                                {move || format!("Agent: {} umsetzen", match count.get() {
+                                    1 => "1 Kommentar".to_string(),
+                                    n => format!("{n} Kommentare"),
+                                })}
+                            </Button>
+                        }
+                    })}
+            </div>
+        })
     }
 }

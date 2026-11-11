@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::diagnosis::Fix;
 use crate::model::{Checks, Person};
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -124,9 +125,26 @@ pub struct LineComment {
     /// haben. `None` = nur Text.
     #[serde(default)]
     pub suggestion: Option<String>,
+    /// Wer den Kommentar geschrieben hat. `None` = ich. Fremde Kommentare stehen schon bei
+    /// GitHub, sie gehen nicht mit dem eigenen Review hinaus und lassen sich nicht ändern.
+    #[serde(default)]
+    pub author: Option<Person>,
+    /// Schlüssel des Agenten-Laufs, der den Kommentar umgesetzt hat. `None` = noch offen.
+    #[serde(default)]
+    pub resolved: Option<String>,
 }
 
 impl LineComment {
+    /// Von mir geschrieben.
+    pub fn is_own(&self) -> bool {
+        self.author.is_none()
+    }
+
+    /// Noch nicht umgesetzt.
+    pub fn is_open(&self) -> bool {
+        self.resolved.is_none()
+    }
+
     /// Der Kommentar, wie er an GitHub geht: Text, danach der Vorschlag als
     /// ```` ```suggestion ````-Block.
     pub fn body(&self) -> String {
@@ -520,6 +538,8 @@ impl Review {
             line,
             text: text.into(),
             suggestion,
+            author: None,
+            resolved: None,
         });
         self.sent = false;
         Some(id)
@@ -537,7 +557,11 @@ impl Review {
     pub fn edit_line_comment(&mut self, id: &str, text: &str, suggestion: Option<&str>) -> bool {
         let text = text.trim();
         let suggestion = clean_suggestion(suggestion);
-        let Some(index) = self.line_comments.iter().position(|c| c.id == id) else {
+        let Some(index) = self
+            .line_comments
+            .iter()
+            .position(|c| c.id == id && c.is_own())
+        else {
             return false;
         };
         let comment = &self.line_comments[index];
@@ -559,12 +583,114 @@ impl Review {
 
     pub fn delete_line_comment(&mut self, id: &str) -> bool {
         let before = self.line_comments.len();
-        self.line_comments.retain(|c| c.id != id);
+        self.line_comments.retain(|c| c.id != id || !c.is_own());
         let removed = self.line_comments.len() < before;
         if removed {
             self.sent = false;
         }
         removed
+    }
+
+    // ---------- Kommentare umsetzen (Folgeauftrag an den Agenten) ----------
+
+    /// Kommentare, die noch nicht umgesetzt sind – eigene wie fremde.
+    pub fn open_comments(&self) -> Vec<&LineComment> {
+        self.line_comments.iter().filter(|c| c.is_open()).collect()
+    }
+
+    /// Setzt die Kommentare auf „erledigt“, mit Verweis auf den Lauf. Gibt zurück, wie
+    /// viele es waren; schon erledigte und unbekannte zählen nicht. Dem Urteil ändert das
+    /// nichts, das Review gilt danach aber als neu zu senden.
+    pub fn resolve_comments(&mut self, ids: &[String], run: &str) -> usize {
+        let mut n = 0;
+        for c in self
+            .line_comments
+            .iter_mut()
+            .filter(|c| c.is_open() && ids.contains(&c.id))
+        {
+            c.resolved = Some(run.to_string());
+            n += 1;
+        }
+        n
+    }
+
+    /// Übernimmt den Änderungsvorschlag eines Kommentars in den Diff: Die Zeile wird durch
+    /// den Ersatz ersetzt. Eine unveränderte Zeile bleibt als entfernte stehen. Kommentare
+    /// weiter unten in der Datei rücken mit. `false`, wenn es nichts zu übernehmen gibt.
+    pub fn apply_comment_suggestion(&mut self, id: &str) -> bool {
+        let Some((file, index, code)) = self
+            .line_comments
+            .iter()
+            .find(|c| c.id == id)
+            .and_then(|c| Some((c.file.clone(), c.line, c.suggestion.clone()?)))
+        else {
+            return false;
+        };
+        let Some(diff) = self.files.iter_mut().find(|f| f.name == file) else {
+            return false;
+        };
+        let Some(old) = diff.lines.get(index).cloned() else {
+            return false;
+        };
+        if old.kind == LineKind::Del {
+            return false;
+        }
+        let mut replacement = Vec::new();
+        if old.kind == LineKind::Context {
+            replacement.push(DiffLine {
+                kind: LineKind::Del,
+                ..old.clone()
+            });
+        }
+        replacement.extend(code.lines().enumerate().map(|(i, text)| DiffLine {
+            no: old.no + i as u32,
+            kind: LineKind::Add,
+            text: text.to_string(),
+        }));
+        let grown = replacement.len() - 1;
+        diff.lines.splice(index..=index, replacement);
+        self.shift_comments(&file, index, grown as isize);
+        true
+    }
+
+    /// Verschiebt die Kommentare unterhalb von `index` um `by` Zeilen.
+    fn shift_comments(&mut self, file: &str, index: usize, by: isize) {
+        for c in self
+            .line_comments
+            .iter_mut()
+            .filter(|c| c.file == file && c.line > index)
+        {
+            c.line = c.line.saturating_add_signed(by);
+        }
+    }
+
+    /// Wendet die Änderung einer Diagnose an: Die Zeile wird ersetzt oder entfernt.
+    /// `false`, wenn Datei oder Zeile (nicht mehr) passen.
+    pub fn apply_fix(&mut self, fix: &Fix) -> bool {
+        let Some(diff) = self.files.iter_mut().find(|f| f.name == fix.file) else {
+            return false;
+        };
+        let Some(index) = diff.lines.iter().position(|l| {
+            l.no == fix.no && l.kind != LineKind::Del && l.text.trim_end() == fix.before.trim_end()
+        }) else {
+            return false;
+        };
+        let file = fix.file.clone();
+        match &fix.after {
+            Some(after) => diff.lines[index].text = after.clone(),
+            None => {
+                diff.lines.remove(index);
+                self.shift_comments(&file, index, -1);
+            }
+        }
+        true
+    }
+
+    /// Legt fest, wie der nächste Neustart eines Checks ausgeht (nach einem Fix: grün).
+    pub fn set_rerun(&mut self, check: &str, rerun: Checks) {
+        if let Some(c) = self.check_runs.iter_mut().find(|c| c.name == check) {
+            c.rerun = rerun;
+        }
     }
 
     /// Eigene Kommentare an einer Zeile, in der Reihenfolge des Anlegens.
@@ -598,10 +724,18 @@ impl Review {
         })
     }
 
+    /// Eigene Zeilenkommentare, die beim Senden rausgehen: Fremde stehen schon bei GitHub,
+    /// umgesetzte sind erledigt.
+    fn outgoing(&self) -> impl Iterator<Item = &LineComment> {
+        self.line_comments
+            .iter()
+            .filter(|c| c.is_own() && c.is_open())
+    }
+
     /// So viele Kommentare gehen beim Senden raus: freigegebene Vorschläge des Agenten
-    /// und alle eigenen Zeilenkommentare.
+    /// und die offenen eigenen Zeilenkommentare.
     pub fn comment_count(&self) -> usize {
-        self.approved() + self.line_comments.len()
+        self.approved() + self.outgoing().count()
     }
 
     pub fn can_send(&self) -> bool {
@@ -634,7 +768,7 @@ impl Review {
             .iter()
             .filter(|s| s.decision == Some(Decision::Approved))
             .map(|s| s.text.clone());
-        let own = self.line_comments.iter().map(LineComment::body);
+        let own = self.outgoing().map(LineComment::body);
         Ok(approved.chain(own).collect())
     }
 

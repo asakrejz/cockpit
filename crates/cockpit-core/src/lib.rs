@@ -4,9 +4,13 @@
 //! * [`attention`]: Regeln, warum ein Eintrag Aufmerksamkeit braucht, und Zurückstellen
 //! * [`review`]: Diff, Vorschläge des Agenten, Freigabe und Urteil
 //! * [`agent`]: der Lauf eines Agenten als Zustandsmaschine
+//! * [`diagnosis`]: Ursache und Fix-Vorschlag zu einem roten Check
 //! * [`connections`]: Verbindungen, Berechtigungen und Eingabeprüfung
+//! * [`link`]: Ticket und Pull Request über den Ticket-Schlüssel verknüpfen
 //! * [`search`]: Suche und Filter der Inbox
 //! * [`notify`]: Ereignisse für Benachrichtigungen, Kanäle und Ruhezeiten
+//! * [`usage`]: Verbrauch, Kosten, Grenzen und das Kassenbuch der Agenten
+//! * [`rules`]: Regeln pro Repository (Pfade, Pflicht-Tests, Anweisungen)
 //! * [`sync`]: Abgleich mit Jira und GitHub (reine Zusammenführung)
 //! * [`team`]: Auslastung pro Person und was gerade hängt
 //! * [`workspace`]: alles zusammen, mit den Aktionen der Oberfläche
@@ -25,23 +29,28 @@ pub mod api;
 pub mod attention;
 pub mod connections;
 pub mod demo;
+pub mod diagnosis;
+pub mod link;
 pub mod model;
 pub mod notify;
 pub mod persist;
 pub mod review;
+pub mod rules;
 pub mod search;
 pub mod sync;
 pub mod team;
 pub mod text;
+pub mod usage;
 pub mod workspace;
 
 pub use action::{Action, ActionError, Actor, Applied, LogEntry, MAX_LOG, Target};
 pub use agent::{
-    AgentOptions, AgentRun, MessageKind, Plan, Question, RunMessage, RunState, Speaker, Step,
-    StepState, Tick,
+    AgentOptions, AgentRun, MessageKind, Plan, Question, RunKind, RunMessage, RunState, Speaker,
+    Step, StepState, Tick,
 };
 pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::Connections;
+pub use diagnosis::{Diagnosis, Fix};
 pub use model::*;
 pub use notify::{
     Channel, Channels, Delivery, Event as NotifyEvent, NotifyReason, NotifySettings, QuietHours,
@@ -51,8 +60,10 @@ pub use review::{
     MergeBlocker, MergeMethod, Review, SendError, Suggestion, SuggestionDiff, Verdict,
     merge_blockers,
 };
+pub use rules::{DEMO_REPO, PathViolation, RepoRules, ViolationKind, glob_match};
 pub use sync::{
     Change, Loaded, Outcome, PrLink, Problem, Remote, SourceData, SourceState, SyncState,
 };
 pub use team::{CAPACITY, LoadLevel, Member, Stuck, StuckKind, state_label};
-pub use workspace::{AgentError, Workspace};
+pub use usage::{AgentLimits, Charge, Pricing, StopReason, Usage};
+pub use workspace::{AgentError, LinkError, ResumeError, StatusChange, Workspace};

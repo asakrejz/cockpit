@@ -53,6 +53,7 @@ pub fn issue_to_item(issue: &Issue, ich: &str, jetzt: i64) -> Item {
         scope,
         owner,
         status: status(issue),
+        priority: cockpit_core::Priority::default(),
         branch: None,
         pr: None,
         agent_note: None,

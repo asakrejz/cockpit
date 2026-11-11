@@ -31,9 +31,16 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
     });
     let reviews = Signal::derive(move || store.ws.with(|w| w.open_reviews()).to_string());
     let agents = Signal::derive(move || {
-        let (running, waiting, paused) = store
-            .ws
-            .with(|w| (w.running_agents(), w.waiting_agents(), w.paused_agents()));
+        let (running, waiting, paused, stopped) = store.ws.with(|w| {
+            (
+                w.running_agents(),
+                w.waiting_agents(),
+                w.paused_agents(),
+                w.stopped_agents(),
+            )
+        });
+        // Angehaltene zählen schon als „wartet“; hier steht nur, wie viele davon eine Grenze traf.
+        let waiting = waiting - stopped;
         let mut parts = Vec::new();
         if running > 0 {
             parts.push(format!("{running} aktiv"));
@@ -43,6 +50,9 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
         }
         if paused > 0 {
             parts.push(format!("{paused} pausiert"));
+        }
+        if stopped > 0 {
+            parts.push(format!("{stopped} angehalten"));
         }
         parts.join(" · ")
     });
@@ -115,6 +125,12 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
             {children()}
             <Spacer />
             <SidebarSection>
+                <SidebarItem
+                    href=Route::Limits.hash()
+                    label="Grenzen & Regeln"
+                    icon=icons::SETTINGS
+                    current=on(Route::Limits)
+                />
                 <SidebarItem
                     href=Route::Notifications.hash()
                     label="Benachrichtigungen"

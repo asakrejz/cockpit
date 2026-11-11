@@ -439,10 +439,12 @@ mod tests {
                 checks: Checks::Passed,
                 changes_requested: false,
                 merged: false,
+                review_requested: false,
             }),
             agent_note: None,
             comments: Vec::<Comment>::new(),
             read: false,
+            priority: Default::default(),
             due: None,
         }
     }

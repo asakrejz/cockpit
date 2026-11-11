@@ -462,6 +462,14 @@ fn merge_item(old: Item, remote: &Item, changes: &mut Vec<Change>) -> Item {
     if item.branch.is_none() {
         item.branch = old.branch.clone();
     }
+    // Priorität und Verknüpfung mit dem Pull Request pflegt Cockpit (Jira liefert beides heute
+    // nicht mit): Was du gesetzt hast, bleibt, bis der Dienst selbst einen Wert meldet.
+    if item.priority == crate::model::Priority::default() {
+        item.priority = old.priority;
+    }
+    if item.is_ticket() && item.pr.is_none() {
+        item.pr = old.pr.clone();
+    }
     // Das Ergebnis des Agenten ist ein lokaler Grund; er bleibt, bis der Dienst etwas Neues sagt.
     if old.reason == crate::model::ReasonKind::AgentFinished && old.is_ticket() {
         item.reason = old.reason;
@@ -649,6 +657,7 @@ mod tests {
             comments: Vec::new(),
             read: false,
             due: None,
+            priority: Default::default(),
         }
     }
 
@@ -667,6 +676,7 @@ mod tests {
                 checks: Checks::Passed,
                 changes_requested: false,
                 merged: false,
+                review_requested: true,
             }),
             branch: Some("feature/x".into()),
             ..ticket("X-1", "")
@@ -949,6 +959,18 @@ mod tests {
         let (after, changes) = merge(&ws, &jira(vec![t]), T + 1);
         assert!(changes.is_empty());
         assert!(after.item("abc-1").unwrap().read);
+    }
+
+    #[test]
+    fn local_priority_and_pr_link_survive_the_sync() {
+        let mut local = ticket("X-1", "Titel");
+        local.priority = crate::model::Priority::Highest;
+        local.pr = pr_item(7).pr;
+        let mut changes = Vec::new();
+        let merged = merge_item(local, &ticket("X-1", "Neuer Titel"), &mut changes);
+        assert_eq!(merged.title, "Neuer Titel");
+        assert_eq!(merged.priority, crate::model::Priority::Highest);
+        assert_eq!(merged.pr.map(|p| p.number), Some(7));
     }
 
     #[test]
