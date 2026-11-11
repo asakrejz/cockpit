@@ -64,16 +64,16 @@ fn App() -> impl IntoView {
 
     // Ein Takt für alle Agenten – sie arbeiten weiter, egal welche Seite offen ist.
     // Im Server-Modus macht den Takt der Server.
-    if store.mode == Mode::Demo {
-        set_interval(
-            move || {
-                if store.ws.with_untracked(|w| w.running_agents()) > 0 {
-                    let _ = store.dispatch_as(Action::AdvanceAgents, Actor::Agent);
-                }
-            },
-            AGENT_STEP,
-        );
-    }
+    set_interval(
+        move || {
+            if store.mode.get_untracked() == Mode::Demo
+                && store.ws.with_untracked(|w| w.running_agents()) > 0
+            {
+                let _ = store.dispatch_as(Action::AdvanceAgents, Actor::Agent);
+            }
+        },
+        AGENT_STEP,
+    );
 
     view! {
         <Root theme=system_theme() class="ck-root">

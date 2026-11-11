@@ -33,11 +33,11 @@ pub fn ModeSwitch() -> impl IntoView {
     check();
 
     let choose = Callback::new(move |id: &'static str| {
-        if id == store.mode.id() {
+        if id == store.mode.get_untracked().id() {
             return;
         }
         if id == Mode::Demo.id() {
-            Mode::Demo.switch_to();
+            store.switch_to_demo();
             return;
         }
         // Erst prüfen, dann wechseln: Ohne Server bleibt die App im Demo-Modus.
@@ -51,7 +51,7 @@ pub fn ModeSwitch() -> impl IntoView {
         });
     });
 
-    let hint = move || match (store.mode, probe.get()) {
+    let hint = move || match (store.mode.get(), probe.get()) {
         (_, Probe::Checking) => "Suche den lokalen Server …",
         (Mode::Server, _) => {
             "Der Server hält den Stand und lässt den Agenten arbeiten. Demo-Daten im Browser bleiben unberührt."
@@ -72,7 +72,7 @@ pub fn ModeSwitch() -> impl IntoView {
                 >
                     <SegmentedPicker
                         options=OPTIONS
-                        value=Signal::derive(move || store.mode.id())
+                        value=Signal::derive(move || store.mode.get().id())
                         on_change=choose
                         aria_label="Modus"
                     />

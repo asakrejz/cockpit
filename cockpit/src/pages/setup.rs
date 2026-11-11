@@ -385,7 +385,7 @@ pub fn SetupPage() -> impl IntoView {
                             </span>
                             <span class="t-title3 t-bold">"Cockpit"</span>
                             <Badge variant=BadgeVariant::Neutral>
-                                {move || if use_store().mode == Mode::Server { "Server" } else { "Demo" }}
+                                {move || if use_store().mode.get() == Mode::Server { "Server" } else { "Demo" }}
                             </Badge>
                         </HStack>
                         <h1 class="t-display">"Einrichten."</h1>

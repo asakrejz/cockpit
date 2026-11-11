@@ -9,13 +9,11 @@ use crate::store::{Link, Mode, use_store};
 #[component]
 pub fn ServerBanner() -> impl IntoView {
     let store = use_store();
-    if store.mode != Mode::Server {
-        return ().into_any();
-    }
-    let status = move || match store.link.get() {
-        Link::Connecting => Some("Verbinde mit dem Server …"),
-        Link::Offline => Some("Der Server ist nicht erreichbar."),
-        Link::Online => None,
+    let server = move || store.mode.get() == Mode::Server;
+    let status = move || match (server(), store.link.get()) {
+        (true, Link::Connecting) => Some("Verbinde mit dem Server …"),
+        (true, Link::Offline) => Some("Der Server ist nicht erreichbar."),
+        _ => None,
     };
     view! {
         <div class="ck-banner-stack">
@@ -30,7 +28,7 @@ pub fn ServerBanner() -> impl IntoView {
                             <Button
                                 size=ControlSize::Small
                                 variant=ButtonStyle::GlassProminent
-                                on_click=move |_| Mode::Demo.switch_to()
+                                on_click=move |_| store.switch_to_demo()
                             >
                                 "Zurück zu Demo"
                             </Button>
@@ -52,5 +50,4 @@ pub fn ServerBanner() -> impl IntoView {
             </Show>
         </div>
     }
-    .into_any()
 }

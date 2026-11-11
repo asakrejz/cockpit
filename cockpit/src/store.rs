@@ -77,7 +77,7 @@ pub enum Link {
 
 #[derive(Clone, Copy)]
 pub struct Store {
-    pub mode: Mode,
+    pub mode: RwSignal<Mode>,
     pub link: RwSignal<Link>,
     /// Kurzer Hinweis, z. B. wenn der Server eine Aktion ablehnt. Verschwindet von selbst.
     pub notice: RwSignal<Option<String>>,
@@ -86,6 +86,8 @@ pub struct Store {
     loading: StoredValue<bool>,
     reload: StoredValue<bool>,
     events: StoredValue<Option<Events>, LocalStorage>,
+    /// Ob das Sichern des Demo-Stands in `localStorage` schon läuft.
+    persisting: StoredValue<bool>,
     pub ws: RwSignal<Workspace>,
     pub conn: RwSignal<Connections>,
     /// ID des Eintrags, der in der Inbox gewählt ist.
@@ -107,7 +109,8 @@ impl Store {
             Mode::Server => (Workspace::default(), false),
         };
         let store = Store {
-            mode,
+            mode: RwSignal::new(mode),
+            persisting: StoredValue::new(false),
             link: RwSignal::new(Link::Connecting),
             notice: RwSignal::new(None),
             revision: StoredValue::new(None),
@@ -127,10 +130,32 @@ impl Store {
             }
         });
         match mode {
-            Mode::Demo => store.persist_workspace(),
+            Mode::Demo => store.start_persisting(),
             Mode::Server => store.connect(),
         }
         store
+    }
+
+    fn start_persisting(&self) {
+        if !self.persisting.get_value() {
+            self.persisting.set_value(true);
+            self.persist_workspace();
+        }
+    }
+
+    /// Zurück zu Demo, ohne die Seite neu zu laden – auch wenn der Server weg ist, von dem die
+    /// App kam. Der Demo-Stand im Browser war die ganze Zeit unberührt.
+    pub fn switch_to_demo(&self) {
+        if let Some(storage) = storage() {
+            let _ = storage.set_item(MODE_KEY, Mode::Demo.id());
+        }
+        self.events.set_value(None);
+        self.mode.set(Mode::Demo);
+        self.revision.set_value(None);
+        let saved = storage().and_then(|s| s.get_item(WORKSPACE_KEY).ok().flatten());
+        let (ws, _) = persist::restore(saved.as_deref());
+        self.adopt(ws);
+        self.start_persisting();
     }
 
     // ---------- Server-Modus ----------
@@ -169,7 +194,11 @@ impl Store {
                     store.refresh();
                 }
             },
-            move || store.link.set(Link::Offline),
+            move || {
+                if store.mode.get_untracked() == Mode::Server {
+                    store.link.set(Link::Offline);
+                }
+            },
         );
         store.events.set_value(events);
         store.refresh();
@@ -186,7 +215,12 @@ impl Store {
         spawn_local(async move {
             loop {
                 store.reload.set_value(false);
-                match server::fetch_workspace().await {
+                let result = server::fetch_workspace().await;
+                // Inzwischen zu Demo gewechselt? Dann gehört der Stand nicht mehr dem Server.
+                if store.mode.get_untracked() != Mode::Server {
+                    break;
+                }
+                match result {
                     Ok((ws, revision)) => {
                         store.link.set(Link::Online);
                         if store.revision.get_value() != Some(revision) {
@@ -221,7 +255,11 @@ impl Store {
     fn send(&self, action: Action) {
         let store = *self;
         spawn_local(async move {
-            match server::post_action(action).await {
+            let result = server::post_action(action).await;
+            if store.mode.get_untracked() != Mode::Server {
+                return;
+            }
+            match result {
                 Ok(response) => {
                     store.link.set(Link::Online);
                     if store.revision.get_value() != Some(response.revision) {
@@ -283,7 +321,7 @@ impl Store {
 
     /// Wie [`Store::dispatch`], für Änderungen, die nicht vom Nutzer kommen (Takt des Agenten).
     pub fn dispatch_as(&self, action: Action, actor: Actor) -> Result<Applied, ActionError> {
-        if self.mode == Mode::Server {
+        if self.mode.get_untracked() == Mode::Server {
             // Der Server wendet an (als „Du“, mit seiner Uhr) und meldet das Ergebnis über den
             // Ereignisstrom. Fehler erscheinen als Hinweis. Den Takt der Agenten macht er selbst.
             if actor == Actor::Du {
