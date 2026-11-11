@@ -25,6 +25,7 @@ pub use agent::{AgentOptions, AgentRun, RunState, Step, StepState};
 pub use connections::Connections;
 pub use model::*;
 pub use review::{
-    Decision, DiffLine, FileDiff, Level, LineKind, Review, SendError, Suggestion, Verdict,
+    Decision, DiffLine, FileDiff, Level, LineComment, LineKind, Review, SendError, Suggestion,
+    Verdict,
 };
 pub use workspace::{AgentError, Workspace};

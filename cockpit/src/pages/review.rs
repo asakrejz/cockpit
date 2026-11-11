@@ -32,6 +32,14 @@ pub fn ReviewPage(number: Option<u32>) -> impl IntoView {
     });
     let review = Memo::new(move |_| number.and_then(|n| store.ws.with(|w| w.review(n).cloned())));
 
+    // Zustand der Zeilenkommentare im Diff.
+    let lines = LineUi {
+        open: RwSignal::new(None),
+        draft: RwSignal::new(String::new()),
+        editing: RwSignal::new(None),
+        edit_text: RwSignal::new(String::new()),
+    };
+
     // Zustand der rechten Spalte. Er überlebt, wenn sich das Review ändert.
     let panel = Panel {
         own_comment: RwSignal::new(String::new()),
@@ -64,7 +72,7 @@ pub fn ReviewPage(number: Option<u32>) -> impl IntoView {
                 <SidebarSection label="Reviews">{list}</SidebarSection>
             </AppSidebar>
             {move || match review.get() {
-                Some(r) => view! { {diff_pane(store, r.clone())} {agent_pane(store, r, panel)} }.into_any(),
+                Some(r) => view! { {diff_pane(store, r.clone(), lines)} {agent_pane(store, r, panel)} }.into_any(),
                 None => {
                     view! {
                         <Pane label="Pull Request">
@@ -93,8 +101,155 @@ struct Panel {
     agent_reading: RwSignal<bool>,
 }
 
+/// Eingaben der Zeilenkommentare im Diff.
+#[derive(Clone, Copy)]
+struct LineUi {
+    /// Datei und Position der Zeile, an der gerade ein Kommentar entsteht.
+    open: RwSignal<Option<(String, usize)>>,
+    draft: RwSignal<String>,
+    /// ID des eigenen Kommentars, der gerade bearbeitet wird.
+    editing: RwSignal<Option<String>>,
+    edit_text: RwSignal<String>,
+}
+
+/// Inhalt unter einer Diff-Zeile: eigene Kommentare und, bei Auswahl, das Eingabefeld.
+fn line_notes(store: Store, r: &Review, file: &str, index: usize, ui: LineUi) -> AnyView {
+    let (number, sent) = (r.number, r.sent);
+    let comments = r
+        .line_comments_at(file, index)
+        .into_iter()
+        .map(|c| {
+            let (id, text) = (StoredValue::new(c.id.clone()), StoredValue::new(c.text.clone()));
+            let editing = move || ui.editing.get().is_some_and(|e| e == id.get_value());
+            view! {
+                <div class="ui-diff__note" role="group" aria-label="Eigener Kommentar">
+                    {move || {
+                        if editing() && !sent {
+                            view! {
+                                <Textarea value=ui.edit_text label="Kommentar bearbeiten" min_height="64px" />
+                                <div class="ui-hstack" style="--spacing: 8px">
+                                    <Button
+                                        variant=ButtonStyle::BorderedProminent
+                                        size=ControlSize::Small
+                                        disabled=Signal::derive(move || ui.edit_text.get().trim().is_empty())
+                                        on_click=move |_| {
+                                            let new_text = ui.edit_text.get_untracked();
+                                            ui.editing.set(None);
+                                            store.ws.update(|w| {
+                                                w.edit_line_comment(number, &id.get_value(), &new_text);
+                                            });
+                                        }
+                                    >
+                                        "Sichern"
+                                    </Button>
+                                    <Button
+                                        variant=ButtonStyle::Borderless
+                                        size=ControlSize::Small
+                                        on_click=move |_| ui.editing.set(None)
+                                    >
+                                        "Abbrechen"
+                                    </Button>
+                                </div>
+                            }
+                                .into_any()
+                        } else {
+                            view! {
+                                <span class="t-footnote t-secondary">"Dein Kommentar"</span>
+                                <p class="t-subheadline">{text.get_value()}</p>
+                                {(!sent)
+                                    .then(|| {
+                                        view! {
+                                            <div class="ui-hstack" style="--spacing: 8px">
+                                                <Button
+                                                    variant=ButtonStyle::Borderless
+                                                    size=ControlSize::Small
+                                                    on_click=move |_| {
+                                                        ui.edit_text.set(text.get_value());
+                                                        ui.editing.set(Some(id.get_value()));
+                                                    }
+                                                >
+                                                    "Bearbeiten"
+                                                </Button>
+                                                <Button
+                                                    variant=ButtonStyle::Borderless
+                                                    size=ControlSize::Small
+                                                    destructive=true
+                                                    on_click=move |_| {
+                                                        store.ws.update(|w| {
+                                                            w.delete_line_comment(number, &id.get_value());
+                                                        })
+                                                    }
+                                                >
+                                                    "Löschen"
+                                                </Button>
+                                            </div>
+                                        }
+                                    })}
+                            }
+                                .into_any()
+                        }
+                    }}
+                </div>
+            }
+        })
+        .collect_view();
+
+    let file = StoredValue::new(file.to_string());
+    let composer = move || {
+        let here = ui.open.with(|o| {
+            o.as_ref()
+                .is_some_and(|(f, i)| *f == file.get_value() && *i == index)
+        });
+        (here && !sent).then(|| {
+            view! {
+                <div class="ui-diff__note">
+                    <Textarea
+                        value=ui.draft
+                        label="Kommentar zu dieser Zeile"
+                        placeholder="Kommentar zu dieser Zeile …"
+                        min_height="64px"
+                    />
+                    <div class="ui-hstack" style="--spacing: 8px">
+                        <Button
+                            variant=ButtonStyle::BorderedProminent
+                            size=ControlSize::Small
+                            disabled=Signal::derive(move || ui.draft.get().trim().is_empty())
+                            on_click=move |_| {
+                                let text = ui.draft.get_untracked();
+                                let added = store
+                                    .ws
+                                    .try_update(|w| {
+                                        w.add_line_comment(number, &file.get_value(), index, &text).is_some()
+                                    });
+                                if added == Some(true) {
+                                    ui.draft.set(String::new());
+                                    ui.open.set(None);
+                                }
+                            }
+                        >
+                            "Hinzufügen"
+                        </Button>
+                        <Button
+                            variant=ButtonStyle::Borderless
+                            size=ControlSize::Small
+                            on_click=move |_| ui.open.set(None)
+                        >
+                            "Abbrechen"
+                        </Button>
+                    </div>
+                </div>
+            }
+        })
+    };
+    view! {
+        {comments}
+        {composer}
+    }
+    .into_any()
+}
+
 /// Mitte: Kopf des Pull Requests und der Diff.
-fn diff_pane(store: Store, r: Review) -> impl IntoView {
+fn diff_pane(store: Store, r: Review, ui: LineUi) -> impl IntoView {
     let ticket = r.ticket_key.clone().map(|key| {
         // Liegt das Ticket in der Inbox, führt der Link dorthin.
         let id = store
@@ -120,17 +275,49 @@ fn diff_pane(store: Store, r: Review) -> impl IntoView {
             }
         }
     });
+    let sent = r.sent;
     let files = r
         .files
         .iter()
         .map(|file| {
+            let name = StoredValue::new(file.name.clone());
+            let selected = Signal::derive(move || {
+                ui.open.with(|o| {
+                    o.as_ref()
+                        .filter(|(f, _)| *f == name.get_value())
+                        .map(|(_, i)| *i)
+                })
+            });
+            // Nach dem Senden ist nichts mehr zu kommentieren; die Kommentare bleiben sichtbar.
+            let on_select = (!sent).then(|| {
+                Callback::new(move |index: usize| {
+                    ui.editing.set(None);
+                    let same = ui.open.with_untracked(|o| {
+                        o.as_ref()
+                            .is_some_and(|(f, i)| *f == name.get_value() && *i == index)
+                    });
+                    ui.open.set((!same).then(|| (name.get_value(), index)));
+                })
+            });
+            let notes = {
+                let r = r.clone();
+                Callback::new(move |index: usize| {
+                    line_notes(store, &r, &name.get_value(), index, ui)
+                })
+            };
             view! {
                 <div class="ui-vstack" style="--spacing: 8px">
                     <div class="ui-hstack" style="justify-content: space-between">
                         <span class="t-subheadline t-semibold t-mono">{file.name.clone()}</span>
                         <span class="t-footnote t-secondary t-mono">{file.stat()}</span>
                     </div>
-                    <Diff rows=view::diff_rows(file) label=file.name.clone() />
+                    <Diff
+                        rows=view::diff_rows(file)
+                        label=file.name.clone()
+                        on_select=on_select
+                        selected=selected
+                        below=Some(notes)
+                    />
                 </div>
             }
         })
