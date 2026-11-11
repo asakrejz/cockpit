@@ -42,6 +42,11 @@ impl Workspace {
             .collect()
     }
 
+    /// Einträge der Inbox nach Besitzer, Quelle und Suchtext.
+    pub fn search(&self, filter: Filter, source: SourceFilter, query: &str) -> Vec<&Item> {
+        crate::search::search(&self.items, filter, source, query)
+    }
+
     /// Einträge, die noch Aufmerksamkeit brauchen.
     pub fn unread(&self, filter: Filter) -> usize {
         self.visible(filter).iter().filter(|i| !i.read).count()
