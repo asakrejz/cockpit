@@ -290,6 +290,7 @@ pub fn workspace() -> Workspace {
         reviews: vec![review87, review91, review85],
         runs: vec![run138],
         log: Vec::new(),
+        ..Workspace::default()
     }
 }
 

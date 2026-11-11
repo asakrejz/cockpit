@@ -97,6 +97,12 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
             {children()}
             <Spacer />
             <SidebarSection>
+                <SidebarItem
+                    href=Route::Notifications.hash()
+                    label="Benachrichtigungen"
+                    icon=icons::BELL
+                    current=on(Route::Notifications)
+                />
                 <SidebarItem href=Route::Setup.hash() label="Einstellungen" icon=icons::SLIDERS />
             </SidebarSection>
         </Sidebar>

@@ -1,0 +1,120 @@
+//! Der Server-Modus aus Sicht des Browsers: Anfragen an das lokale Backend
+//! (`cockpit-server`) und der Ereignisstrom. Die Formen der Daten stehen in
+//! `cockpit_core::api`. Hier steht kein Schlüssel und es wird keiner gespeichert.
+
+use cockpit_core::api::{ActionRequest, ActionResponse, ErrorBody, ServerEvent};
+use cockpit_core::{Action, Workspace, persist};
+use gloo_net::http::Request;
+use web_sys::wasm_bindgen::{JsCast, closure::Closure};
+
+/// Warum eine Anfrage an den Server nichts ergab.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CallError {
+    /// Der Server hat die Anfrage gesehen und abgelehnt – mit Meldung für die Oberfläche.
+    Rejected(String),
+    /// Keine Antwort: Der Server läuft nicht oder ist nicht unter dieser Adresse.
+    Unreachable,
+}
+
+impl CallError {
+    pub fn message(&self) -> String {
+        match self {
+            CallError::Rejected(m) => m.clone(),
+            CallError::Unreachable => "Der Server ist nicht erreichbar".into(),
+        }
+    }
+}
+
+/// Die Meldung aus einer Fehlerantwort, sonst eine allgemeine.
+async fn rejection(resp: gloo_net::http::Response) -> CallError {
+    let status = resp.status();
+    let message = resp
+        .json::<ErrorBody>()
+        .await
+        .map(|e| e.fehler)
+        .unwrap_or_else(|_| format!("Der Server antwortet mit Fehler {status}"));
+    CallError::Rejected(message)
+}
+
+/// Ob unter dieser Adresse ein Cockpit-Server antwortet (`GET /api/health`).
+pub async fn health_ok() -> bool {
+    match Request::get("/api/health").send().await {
+        Ok(resp) if resp.ok() => resp
+            .json::<serde_json::Value>()
+            .await
+            .is_ok_and(|v| v["status"] == "ok"),
+        _ => false,
+    }
+}
+
+/// Lädt den aktuellen Stand samt Revision.
+pub async fn fetch_workspace() -> Result<(Workspace, u64), CallError> {
+    let resp = Request::get("/api/workspace")
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    let text = resp.text().await.map_err(|_| CallError::Unreachable)?;
+    persist::load_with_revision(&text)
+        .map_err(|_| CallError::Rejected("Der Server schickt einen unlesbaren Stand".into()))
+}
+
+/// Schickt eine Aktion. Der Server wendet sie als „Du“ an.
+pub async fn post_action(action: Action) -> Result<ActionResponse, CallError> {
+    let request = Request::post("/api/actions")
+        .header("Content-Type", "application/json")
+        .json(&ActionRequest { action })
+        .map_err(|_| CallError::Rejected("Die Aktion lässt sich nicht senden".into()))?;
+    let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<ActionResponse>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Offener Ereignisstrom. Beim Schließen (`Drop`) wird die Verbindung beendet.
+pub struct Events {
+    source: web_sys::EventSource,
+}
+
+impl Drop for Events {
+    fn drop(&mut self) {
+        self.source.close();
+    }
+}
+
+impl Events {
+    /// Öffnet `GET /api/events`. Der Browser verbindet nach einem Abbruch selbst neu; dann
+    /// kommt wieder `on_open`.
+    pub fn open(
+        on_open: impl Fn() + 'static,
+        on_event: impl Fn(ServerEvent) + 'static,
+        on_error: impl Fn() + 'static,
+    ) -> Option<Self> {
+        let source = web_sys::EventSource::new("/api/events").ok()?;
+        let open = Closure::<dyn Fn()>::new(on_open);
+        let error = Closure::<dyn Fn()>::new(on_error);
+        let message =
+            Closure::<dyn Fn(web_sys::MessageEvent)>::new(move |ev: web_sys::MessageEvent| {
+                let parsed = ev
+                    .data()
+                    .as_string()
+                    .and_then(|text| serde_json::from_str::<ServerEvent>(&text).ok());
+                if let Some(event) = parsed {
+                    on_event(event);
+                }
+            });
+        source.set_onopen(Some(open.as_ref().unchecked_ref()));
+        source.set_onerror(Some(error.as_ref().unchecked_ref()));
+        source.set_onmessage(Some(message.as_ref().unchecked_ref()));
+        // Die Rückrufe leben, solange die Seite offen ist.
+        open.forget();
+        error.forget();
+        message.forget();
+        Some(Self { source })
+    }
+}

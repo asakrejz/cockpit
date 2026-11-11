@@ -73,6 +73,12 @@ fn link(store: Store, target: Option<Target>) -> AnyView {
             }
             .into_any()
         }
+        Target::Settings => view! {
+            <Button size=ControlSize::Small href=Route::Notifications.hash()>
+                "Einstellungen öffnen"
+            </Button>
+        }
+        .into_any(),
     }
 }
 
