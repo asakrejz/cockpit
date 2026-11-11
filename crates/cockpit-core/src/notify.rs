@@ -81,9 +81,11 @@ impl NotifyReason {
             NotifyReason::ReviewRequested => "Jemand bittet dich um ein Review",
             NotifyReason::Mention => "Dein Name oder dein Kürzel steht in einem Kommentar (@Du)",
             NotifyReason::AgentWaiting => {
-                "Ein Plan liegt zur Freigabe vor oder der Agent hat eine Rückfrage"
+                "Ein Plan liegt zur Freigabe vor, der Agent hat eine Rückfrage oder eine Diagnose wartet auf deine Entscheidung"
             }
-            NotifyReason::AgentFinished => "Der Agent hat einen Pull Request erstellt",
+            NotifyReason::AgentFinished => {
+                "Der Agent hat einen Pull Request erstellt, Review-Kommentare umgesetzt oder einen Fix gepusht"
+            }
             NotifyReason::ChecksFailed => "Die Checks deines Pull Requests werden rot",
             NotifyReason::Assigned => "Dir wird ein Ticket zugewiesen",
             NotifyReason::AgentStopped => {
@@ -339,7 +341,7 @@ fn fresh(before: Option<&Item>, after: &Item, reason: ReasonKind) -> bool {
 }
 
 fn run_of<'a>(ws: &'a Workspace, key: &str) -> Option<&'a AgentRun> {
-    ws.runs.iter().find(|r| r.ticket_key == key)
+    ws.runs.iter().find(|r| r.key() == key)
 }
 
 /// Die Ereignisse, die zwischen zwei Ständen des Workspace entstanden sind.
@@ -394,24 +396,36 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
     }
 
     for run in &after.runs {
-        let old = run_of(before, &run.ticket_key);
+        let old = run_of(before, &run.key());
+        let (key, label) = (run.key(), run.label());
         if run.is_awaiting() && !old.is_some_and(AgentRun::is_awaiting) {
             out.push(Event {
                 reason: NotifyReason::AgentWaiting,
-                title: format!("Agent wartet: {}", run.ticket_key),
+                title: format!("Agent wartet: {label}"),
                 text: "Der Plan wartet auf deine Freigabe".into(),
-                route: format!("#/agent/{}", run.ticket_key),
+                route: format!("#/agent/{key}"),
             });
         }
         if run.is_asking() && !old.is_some_and(AgentRun::is_asking) {
             out.push(Event {
                 reason: NotifyReason::AgentWaiting,
-                title: format!("Agent fragt: {}", run.ticket_key),
+                title: format!("Agent fragt: {label}"),
                 text: run
                     .question
                     .as_ref()
                     .map_or_else(|| "Der Agent hat eine Rückfrage".into(), |q| q.text.clone()),
-                route: format!("#/agent/{}", run.ticket_key),
+                route: format!("#/agent/{key}"),
+            });
+        }
+        if run.is_diagnosed() && !old.is_some_and(AgentRun::is_diagnosed) {
+            out.push(Event {
+                reason: NotifyReason::AgentWaiting,
+                title: format!("Agent wartet: {label}"),
+                text: run.diagnosis.as_ref().map_or_else(
+                    || "Die Diagnose wartet auf deine Entscheidung".into(),
+                    |d| format!("Diagnose: {} – Fix übernehmen?", d.cause),
+                ),
+                route: format!("#/agent/{key}"),
             });
         }
         if let Some(reason) = run.stop_reason()
@@ -426,6 +440,10 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
         }
         if run.is_done() && !old.is_some_and(AgentRun::is_done) {
             let (text, route) = match run.pr_number {
+                Some(n) if run.is_followup() => (
+                    format!("{} · #{n} wartet wieder auf dein Review", run.ticket_title),
+                    format!("#/review/{n}"),
+                ),
                 Some(n) => (
                     format!(
                         "{} · Pull Request #{n} wartet auf dein Review",
@@ -433,14 +451,11 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
                     ),
                     format!("#/review/{n}"),
                 ),
-                None => (
-                    run.ticket_title.clone(),
-                    format!("#/agent/{}", run.ticket_key),
-                ),
+                None => (run.ticket_title.clone(), format!("#/agent/{key}")),
             };
             out.push(Event {
                 reason: NotifyReason::AgentFinished,
-                title: format!("Agent fertig: {}", run.ticket_key),
+                title: format!("Agent fertig: {label}"),
                 text,
                 route,
             });
@@ -484,6 +499,7 @@ mod tests {
             checks: Checks::Passed,
             changes_requested: false,
             merged: false,
+            review_requested: false,
         });
         after.items.push(item);
         let e = only(events(&before, &after));

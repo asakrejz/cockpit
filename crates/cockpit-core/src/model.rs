@@ -149,6 +149,57 @@ impl TicketStatus {
     }
 }
 
+/// Wie wichtig ein Ticket ist. Alte Stände ohne Angabe gelten als „Mittel“.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Priority {
+    Highest,
+    High,
+    #[default]
+    Medium,
+    Low,
+    Lowest,
+}
+
+impl Priority {
+    pub const ALL: [Priority; 5] = [
+        Priority::Highest,
+        Priority::High,
+        Priority::Medium,
+        Priority::Low,
+        Priority::Lowest,
+    ];
+
+    /// ID und Beschriftung, in Anzeigereihenfolge (wichtigste zuerst).
+    pub const OPTIONS: &'static [(&'static str, &'static str)] = &[
+        ("hoechste", "Höchste"),
+        ("hoch", "Hoch"),
+        ("mittel", "Mittel"),
+        ("niedrig", "Niedrig"),
+        ("niedrigste", "Niedrigste"),
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Priority::Highest => "hoechste",
+            Priority::High => "hoch",
+            Priority::Medium => "mittel",
+            Priority::Low => "niedrig",
+            Priority::Lowest => "niedrigste",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Priority> {
+        Priority::ALL.into_iter().find(|p| p.id() == id)
+    }
+
+    pub fn label(self) -> &'static str {
+        Priority::OPTIONS
+            .iter()
+            .find(|(id, _)| *id == self.id())
+            .map_or("", |(_, label)| label)
+    }
+}
+
 /// Farbton für Status-Punkte und Icons.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Tone {
@@ -283,9 +334,24 @@ pub struct PrRef {
     /// Schon gemergt.
     #[serde(default)]
     pub merged: bool,
+    /// Ein Review ist angefragt.
+    #[serde(default)]
+    pub review_requested: bool,
 }
 
 impl PrRef {
+    /// Welchen Ticket-Status dieser Pull Request nahelegt: gemergt → Erledigt, Review
+    /// angefragt → Review, sonst (Entwurf oder offen) → In Arbeit.
+    pub fn target_status(&self) -> TicketStatus {
+        if self.merged {
+            TicketStatus::Done
+        } else if self.review_requested {
+            TicketStatus::Review
+        } else {
+            TicketStatus::InProgress
+        }
+    }
+
     /// `#87 · offen`
     pub fn label(&self) -> String {
         let state = match (self.merged, self.draft) {
@@ -334,6 +400,9 @@ pub struct Item {
     /// Nur für Tickets von Bedeutung.
     #[serde(default)]
     pub status: TicketStatus,
+    /// Nur für Tickets von Bedeutung.
+    #[serde(default)]
+    pub priority: Priority,
     #[serde(default)]
     pub branch: Option<String>,
     #[serde(default)]
@@ -398,6 +467,36 @@ mod tests {
     }
 
     #[test]
+    fn priorities_roundtrip_and_default_is_medium() {
+        for (id, label) in Priority::OPTIONS {
+            let p = Priority::from_id(id).unwrap();
+            assert_eq!((p.id(), p.label()), (*id, *label));
+        }
+        assert_eq!(Priority::from_id("???"), None);
+        assert_eq!(Priority::default(), Priority::Medium);
+        assert_eq!(Priority::OPTIONS.len(), Priority::ALL.len());
+    }
+
+    #[test]
+    fn pr_state_suggests_ticket_status() {
+        let mut pr = PrRef {
+            number: 1,
+            draft: true,
+            checks: Checks::Passed,
+            changes_requested: false,
+            merged: false,
+            review_requested: false,
+        };
+        assert_eq!(pr.target_status(), TicketStatus::InProgress);
+        pr.draft = false;
+        assert_eq!(pr.target_status(), TicketStatus::InProgress, "offen");
+        pr.review_requested = true;
+        assert_eq!(pr.target_status(), TicketStatus::Review);
+        pr.merged = true;
+        assert_eq!(pr.target_status(), TicketStatus::Done);
+    }
+
+    #[test]
     fn pr_labels() {
         let pr = PrRef {
             number: 87,
@@ -405,6 +504,7 @@ mod tests {
             checks: Checks::Passed,
             changes_requested: false,
             merged: false,
+            review_requested: false,
         };
         assert_eq!(pr.label(), "#87 · offen");
         assert_eq!(pr.status().1, Tone::Orange);
@@ -414,6 +514,7 @@ mod tests {
             checks: Checks::Failed,
             changes_requested: false,
             merged: false,
+            review_requested: false,
         };
         assert_eq!(failed.label(), "#85 · Entwurf");
         assert_eq!(

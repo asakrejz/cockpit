@@ -40,6 +40,7 @@ fn kind_icon(kind: StuckKind) -> &'static str {
         StuckKind::ChecksFailed => icons::ALERT,
         StuckKind::AgentStopped => icons::ALERT,
         StuckKind::QuestionWaiting => icons::SPARKLES,
+        StuckKind::DiagnosisWaiting => icons::SPARKLES,
         StuckKind::PlanWaiting => icons::TASKS,
         StuckKind::AgentWaiting => icons::SPARKLE,
         StuckKind::ReviewWaiting => icons::EYE,
@@ -52,6 +53,7 @@ fn kind_tone(kind: StuckKind) -> Tone {
         StuckKind::ChecksFailed => Tone::Red,
         StuckKind::AgentStopped => Tone::Red,
         StuckKind::QuestionWaiting => Tone::Orange,
+        StuckKind::DiagnosisWaiting => Tone::Orange,
         StuckKind::PlanWaiting => Tone::Orange,
         StuckKind::AgentWaiting => Tone::Green,
         StuckKind::ReviewWaiting => Tone::Orange,
@@ -232,6 +234,16 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
                             view! {
                                 <Button size=ControlSize::Small href=Route::Agent(Some(key.clone())).hash()>
                                     "Limit erhöhen oder abbrechen"
+                                </Button>
+                            }
+                        })}
+                    {s
+                        .diagnosis
+                        .clone()
+                        .map(|key| {
+                            view! {
+                                <Button size=ControlSize::Small href=Route::Agent(Some(key)).hash()>
+                                    "Diagnose ansehen"
                                 </Button>
                             }
                         })}
