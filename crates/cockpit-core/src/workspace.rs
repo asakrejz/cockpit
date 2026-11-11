@@ -3,9 +3,11 @@
 use serde::{Deserialize, Serialize};
 
 use crate::action::LogEntry;
-use crate::agent::{AgentOptions, AgentRun};
+use crate::agent::{AgentOptions, AgentRun, Tick};
+use crate::attention::{self, Hit, Rule, Rules, Snooze};
 use crate::demo;
 use crate::model::*;
+use crate::notify::NotifySettings;
 use crate::review::{CHECK_STEPS, Decision, MergeBlocker, MergeMethod, Review, SendError, Verdict};
 use crate::text::slug;
 
@@ -26,6 +28,15 @@ pub struct Workspace {
     /// Protokoll aller Aktionen, älteste zuerst. Siehe [`crate::action`].
     #[serde(default)]
     pub log: Vec<LogEntry>,
+    /// Benachrichtigungen je Grund und Kanal, dazu die Ruhezeiten.
+    #[serde(default)]
+    pub notifications: NotifySettings,
+    /// Welche Aufmerksamkeits-Regeln gelten. Siehe [`crate::attention`].
+    #[serde(default)]
+    pub rules: Rules,
+    /// Zurückgestellte Einträge.
+    #[serde(default)]
+    pub snoozed: Vec<Snooze>,
 }
 
 impl Workspace {
@@ -52,13 +63,103 @@ impl Workspace {
     }
 
     /// Einträge der Inbox nach Besitzer, Quelle und Suchtext.
-    pub fn search(&self, filter: Filter, source: SourceFilter, query: &str) -> Vec<&Item> {
-        crate::search::search(&self.items, filter, source, query)
+    ///
+    /// Es zählen die Regeln: Ein Eintrag steht nur drin, wenn mindestens eine
+    /// eingeschaltete Regel zutrifft und er nicht zurückgestellt ist. Der Filter
+    /// „Zurückgestellt“ zeigt stattdessen die zurückgestellten Einträge.
+    pub fn search(
+        &self,
+        filter: Filter,
+        source: SourceFilter,
+        query: &str,
+        now_ms: u64,
+    ) -> Vec<&Item> {
+        self.attention(filter, now_ms)
+            .into_iter()
+            .filter(|i| source.matches(i.source) && crate::search::matches_query(i, query))
+            .collect()
     }
 
-    /// Einträge, die noch Aufmerksamkeit brauchen.
-    pub fn unread(&self, filter: Filter) -> usize {
-        self.visible(filter).iter().filter(|i| !i.read).count()
+    /// Einträge, die für diesen Filter Aufmerksamkeit brauchen (oder, bei
+    /// [`Filter::Snoozed`], gerade zurückgestellt sind), in Anzeigereihenfolge.
+    pub fn attention(&self, filter: Filter, now_ms: u64) -> Vec<&Item> {
+        self.visible(filter)
+            .into_iter()
+            .filter(|i| match filter {
+                Filter::Snoozed => self.is_snoozed(&i.id, now_ms),
+                _ => !self.is_snoozed(&i.id, now_ms) && self.needs_attention(i, now_ms),
+            })
+            .collect()
+    }
+
+    /// Treffer der eingeschalteten Regeln für einen Eintrag, wichtigster zuerst.
+    pub fn hits(&self, item: &Item, now_ms: u64) -> Vec<Hit> {
+        attention::hits(item, &self.rules, now_ms)
+    }
+
+    pub fn needs_attention(&self, item: &Item, now_ms: u64) -> bool {
+        !self.hits(item, now_ms).is_empty()
+    }
+
+    /// Einträge, die noch Aufmerksamkeit brauchen. Bei [`Filter::Snoozed`]: wie viele zurückgestellt sind.
+    pub fn unread(&self, filter: Filter, now_ms: u64) -> usize {
+        self.attention(filter, now_ms)
+            .iter()
+            .filter(|i| filter == Filter::Snoozed || !i.read)
+            .count()
+    }
+
+    pub fn snooze_of(&self, id: &str) -> Option<&Snooze> {
+        self.snoozed.iter().find(|s| s.item == id)
+    }
+
+    /// Ist der Eintrag gerade zurückgestellt?
+    pub fn is_snoozed(&self, id: &str, now_ms: u64) -> bool {
+        match (self.snooze_of(id), self.item(id)) {
+            (Some(snooze), Some(item)) => snooze.holds(item, now_ms),
+            _ => false,
+        }
+    }
+
+    /// IDs der Einträge, deren Zurückstellung abgelaufen oder durch eine Änderung
+    /// aufgehoben ist (und die `wake` deshalb noch entfernen muss).
+    pub fn expired_snoozes(&self, now_ms: u64) -> Vec<String> {
+        self.snoozed
+            .iter()
+            .filter(|s| !self.is_snoozed(&s.item, now_ms))
+            .map(|s| s.item.clone())
+            .collect()
+    }
+
+    /// Stellt einen Eintrag zurück (`until_ms`: bis dann; `None`: bis sich etwas ändert).
+    /// Eine frühere Zurückstellung wird ersetzt.
+    pub fn snooze(&mut self, id: &str, until_ms: Option<u64>) -> bool {
+        let Some(item) = self.item(id) else {
+            return false;
+        };
+        let snooze = Snooze::new(item, until_ms);
+        self.snoozed.retain(|s| s.item != id);
+        self.snoozed.push(snooze);
+        true
+    }
+
+    /// Holt einen Eintrag zurück. `false`, wenn er nicht zurückgestellt war.
+    pub fn unsnooze(&mut self, id: &str) -> bool {
+        let before = self.snoozed.len();
+        self.snoozed.retain(|s| s.item != id);
+        self.snoozed.len() != before
+    }
+
+    /// Entfernt abgelaufene Zurückstellungen. Gibt die IDs der zurückgekehrten Einträge zurück.
+    pub fn wake(&mut self, now_ms: u64) -> Vec<String> {
+        let back = self.expired_snoozes(now_ms);
+        self.snoozed.retain(|s| !back.contains(&s.item));
+        back
+    }
+
+    /// Schaltet eine Regel ein oder aus. `false`, wenn sich nichts ändert.
+    pub fn set_rule(&mut self, rule: Rule, enabled: bool) -> bool {
+        self.rules.set(rule, enabled)
     }
 
     pub fn review(&self, number: u32) -> Option<&Review> {
@@ -78,9 +179,22 @@ impl Workspace {
         self.runs.iter().filter(|r| r.is_running()).count()
     }
 
-    /// Agenten, die einen Plan vorgelegt haben und auf den Nutzer warten.
+    /// Agenten, die auf den Nutzer warten: auf die Freigabe eines Plans oder eine Antwort.
     pub fn waiting_agents(&self) -> usize {
-        self.runs.iter().filter(|r| r.is_awaiting()).count()
+        self.runs
+            .iter()
+            .filter(|r| r.is_awaiting() || r.is_asking())
+            .count()
+    }
+
+    /// Agenten, die eine Frage gestellt haben.
+    pub fn asking_agents(&self) -> usize {
+        self.runs.iter().filter(|r| r.is_asking()).count()
+    }
+
+    /// Pausierte Agenten.
+    pub fn paused_agents(&self) -> usize {
+        self.runs.iter().filter(|r| r.is_paused()).count()
     }
 
     /// Nummer, die der nächste Pull Request bekommt.
@@ -224,6 +338,10 @@ impl Workspace {
             });
             item.agent_note = None;
             item.read = true;
+            // Das Review ist abgegeben; die Anfrage ist beantwortet.
+            if item.reason == ReasonKind::ReviewRequested {
+                item.reason = ReasonKind::Comment;
+            }
         }
         Ok(sent)
     }
@@ -443,14 +561,66 @@ impl Workspace {
             .is_some_and(|r| r.revise(note))
     }
 
-    /// Lässt jeden laufenden Agenten einen Schritt abschließen. Gibt die Tickets
-    /// zurück, deren Lauf dabei fertig geworden ist.
+    fn set_agent_note(&mut self, ticket_key: &str, note: &str) {
+        if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket_key) {
+            item.agent_note = Some(note.into());
+        }
+    }
+
+    /// Beantwortet die Frage des Agenten; er arbeitet danach weiter.
+    pub fn answer_agent(&mut self, ticket_key: &str, text: &str) -> bool {
+        if !self
+            .active_run_mut(ticket_key)
+            .is_some_and(|r| r.answer(text))
+        {
+            return false;
+        }
+        self.set_agent_note(ticket_key, "Der Agent arbeitet an der Umsetzung");
+        true
+    }
+
+    /// Schickt dem laufenden Agenten einen Hinweis für den nächsten Schritt.
+    pub fn steer_agent(&mut self, ticket_key: &str, text: &str) -> bool {
+        self.active_run_mut(ticket_key)
+            .is_some_and(|r| r.steer(text))
+    }
+
+    /// Hält einen laufenden Agenten an.
+    pub fn pause_agent(&mut self, ticket_key: &str) -> bool {
+        if !self.active_run_mut(ticket_key).is_some_and(AgentRun::pause) {
+            return false;
+        }
+        self.set_agent_note(ticket_key, "Der Agent ist pausiert");
+        true
+    }
+
+    /// Setzt einen pausierten Agenten fort.
+    pub fn resume_agent(&mut self, ticket_key: &str) -> bool {
+        if !self
+            .active_run_mut(ticket_key)
+            .is_some_and(AgentRun::resume)
+        {
+            return false;
+        }
+        self.set_agent_note(ticket_key, "Der Agent arbeitet an der Umsetzung");
+        true
+    }
+
+    /// Lässt jeden laufenden Agenten einen Schritt abschließen oder eine Frage stellen.
+    /// Gibt die Tickets zurück, deren Lauf dabei fertig geworden ist.
     pub fn advance_agents(&mut self) -> Vec<String> {
-        let finished: Vec<AgentRun> = self
-            .runs
-            .iter_mut()
-            .filter_map(|run| run.advance().then(|| run.clone()))
-            .collect();
+        let mut finished = Vec::new();
+        let mut asking = Vec::new();
+        for run in &mut self.runs {
+            match run.tick() {
+                Tick::Finished => finished.push(run.clone()),
+                Tick::Asked => asking.push(run.ticket_key.clone()),
+                Tick::Stepped | Tick::Idle => {}
+            }
+        }
+        for key in &asking {
+            self.set_agent_note(key, "Der Agent hat eine Frage an dich");
+        }
         for run in &finished {
             self.publish(run);
         }
@@ -478,6 +648,7 @@ impl Workspace {
                 number,
                 draft: run.options.draft_pr,
                 checks,
+                changes_requested: false,
                 merged: false,
             });
             item.status = TicketStatus::Review;
@@ -526,6 +697,7 @@ impl Workspace {
 mod tests {
     use super::*;
     use crate::agent::STEPS;
+    use crate::attention::Rule;
 
     fn ws() -> Workspace {
         demo::workspace()
@@ -539,15 +711,29 @@ mod tests {
         }
     }
 
+    /// Lässt alle Agenten zu Ende laufen und beantwortet dabei jede Rückfrage.
     fn finish_agents(w: &mut Workspace) -> Vec<String> {
-        (0..STEPS).flat_map(|_| w.advance_agents()).collect()
+        let mut finished = Vec::new();
+        for _ in 0..=STEPS {
+            let asking: Vec<String> = w
+                .runs
+                .iter()
+                .filter(|r| r.is_asking())
+                .map(|r| r.ticket_key.clone())
+                .collect();
+            for key in asking {
+                assert!(w.answer_agent(&key, "Entfernen"));
+            }
+            finished.extend(w.advance_agents());
+        }
+        finished
     }
 
     #[test]
     fn demo_data_matches_the_design() {
         let w = ws();
         assert_eq!(w.items.len(), 5);
-        assert_eq!(w.unread(Filter::All), 5);
+        assert_eq!(w.unread(Filter::All, NOW), 4, "pr85 gehört nicht mir");
         assert_eq!(
             (w.visible(Filter::Mine).len(), w.visible(Filter::Team).len()),
             (3, 2)
@@ -564,10 +750,132 @@ mod tests {
     #[test]
     fn done_items_stop_counting() {
         let mut w = ws();
+        assert_eq!(w.unread(Filter::Mine, NOW), 3);
         w.mark_done("bau142");
-        assert_eq!(w.unread(Filter::All), 4);
-        assert_eq!(w.unread(Filter::Mine), 2);
-        assert_eq!(w.unread(Filter::Team), 2);
+        assert_eq!(w.unread(Filter::All, NOW), 3);
+        assert_eq!(w.unread(Filter::Mine, NOW), 2);
+        assert_eq!(w.unread(Filter::Team, NOW), 1);
+    }
+
+    /// 11.11.2026, 12:00 UTC.
+    const NOW: u64 = 1_794_398_400_000;
+    const HOUR: u64 = 3_600_000;
+
+    fn ids(items: Vec<&Item>) -> Vec<&str> {
+        items.into_iter().map(|i| i.id.as_str()).collect()
+    }
+
+    #[test]
+    fn the_inbox_follows_the_rules() {
+        let mut w = ws();
+        // pr85 (Checks rot, aber von Mira) trifft keine Regel und fehlt.
+        assert_eq!(
+            ids(w.attention(Filter::All, NOW)),
+            ["bau142", "pr87", "bau138", "bau150"]
+        );
+        assert_eq!(ids(w.attention(Filter::Team, NOW)), ["pr87"]);
+        // Regel aus: die Treffer dahinter verschwinden – bau150 bleibt wegen „Zugewiesen“.
+        w.set_rule(Rule::ReviewRequested, false);
+        assert_eq!(ids(w.attention(Filter::Team, NOW)), Vec::<&str>::new());
+        w.set_rule(Rule::Overdue, false);
+        w.set_rule(Rule::Assigned, false);
+        assert!(!ids(w.attention(Filter::All, NOW)).contains(&"bau150"));
+        // Der Grund des Eintrags ist der erste Treffer.
+        assert_eq!(
+            w.hits(w.item("bau142").unwrap(), NOW)[0].rule,
+            Rule::Mention
+        );
+        // Antworten erledigt die Erwähnung.
+        w.reply("bau142", "Mache ich.");
+        w.set_rule(Rule::Assigned, true);
+        assert_eq!(
+            w.hits(w.item("bau142").unwrap(), NOW)[0].rule,
+            Rule::Assigned
+        );
+    }
+
+    #[test]
+    fn counts_follow_the_rules_and_snoozing() {
+        let mut w = ws();
+        assert_eq!(w.unread(Filter::Mine, NOW), 3);
+        w.set_rule(Rule::Mention, false);
+        w.set_rule(Rule::Assigned, false);
+        // bau142 hat nun keinen Grund mehr; bau138 (blockiert) und bau150 (überfällig) bleiben.
+        assert_eq!(w.unread(Filter::Mine, NOW), 2);
+        assert!(w.snooze("bau138", Some(NOW + HOUR)));
+        assert_eq!(w.unread(Filter::Mine, NOW), 1);
+        assert_eq!(w.unread(Filter::Snoozed, NOW), 1);
+        // Nach Ablauf zählt er wieder – auch ohne dass jemand `wake` aufruft.
+        assert_eq!(w.unread(Filter::Mine, NOW + HOUR), 2);
+        assert_eq!(w.unread(Filter::Snoozed, NOW + HOUR), 0);
+    }
+
+    #[test]
+    fn snoozed_items_leave_the_inbox_and_show_in_their_filter() {
+        let mut w = ws();
+        assert!(w.snooze("pr87", Some(NOW + HOUR)));
+        assert!(!w.snooze("gibt-es-nicht", None));
+        assert!(!ids(w.attention(Filter::All, NOW)).contains(&"pr87"));
+        assert_eq!(ids(w.attention(Filter::Snoozed, NOW)), ["pr87"]);
+        assert_eq!(
+            ids(w.search(Filter::Snoozed, SourceFilter::GitHub, "slider", NOW)),
+            ["pr87"]
+        );
+        assert!(
+            w.search(Filter::Snoozed, SourceFilter::Jira, "", NOW)
+                .is_empty()
+        );
+        // Suche und Quelle arbeiten auf den Regeln, nicht auf allen Einträgen.
+        assert!(
+            w.search(Filter::All, SourceFilter::All, "pr85", NOW)
+                .is_empty()
+        );
+        // Erneut zurückstellen ersetzt die alte Zurückstellung.
+        w.snooze("pr87", None);
+        assert_eq!(w.snoozed.len(), 1);
+        assert!(w.unsnooze("pr87"));
+        assert!(!w.unsnooze("pr87"));
+        assert!(ids(w.attention(Filter::All, NOW)).contains(&"pr87"));
+    }
+
+    #[test]
+    fn wake_removes_only_what_expired() {
+        let mut w = ws();
+        w.snooze("pr87", Some(NOW + HOUR));
+        w.snooze("bau150", Some(NOW + 5 * HOUR));
+        w.snooze("bau138", None);
+        assert!(w.wake(NOW).is_empty());
+        assert_eq!(w.wake(NOW + 2 * HOUR), ["pr87"]);
+        assert_eq!(w.snoozed.len(), 2);
+        // „Bis sich etwas ändert“: ein Kommentar holt den Eintrag zurück.
+        w.reply("bau138", "Hallo");
+        assert!(ids(w.attention(Filter::All, NOW)).contains(&"bau138"));
+        assert_eq!(w.expired_snoozes(NOW), ["bau138"]);
+        assert_eq!(w.wake(NOW), ["bau138"]);
+        assert_eq!(w.snoozed.len(), 1);
+    }
+
+    #[test]
+    fn a_status_change_wakes_a_change_snooze() {
+        let mut w = ws();
+        w.snooze("bau150", None);
+        assert!(w.is_snoozed("bau150", NOW + 1000 * HOUR));
+        w.set_status("bau150", TicketStatus::InProgress);
+        assert!(!w.is_snoozed("bau150", NOW));
+    }
+
+    #[test]
+    fn answering_a_review_request_ends_the_attention() {
+        let mut w = ws();
+        for (s, d) in [
+            ("a", Decision::Approved),
+            ("b", Decision::Approved),
+            ("c", Decision::Approved),
+        ] {
+            w.decide(87, s, Some(d));
+        }
+        w.send_review(87, "").unwrap();
+        assert!(!ids(w.attention(Filter::All, NOW)).contains(&"pr87"));
     }
 
     #[test]
@@ -728,6 +1036,7 @@ mod tests {
                 number: 92,
                 draft: false,
                 checks: Checks::Running,
+                changes_requested: false,
                 merged: false,
             })
         );

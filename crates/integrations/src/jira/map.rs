@@ -54,6 +54,7 @@ pub fn issue_to_item(issue: &Issue, ich: &str, jetzt: i64) -> Item {
         agent_note: None,
         comments: Vec::new(),
         read: false,
+        due: None,
     }
 }
 

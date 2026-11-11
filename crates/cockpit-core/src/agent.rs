@@ -5,6 +5,10 @@
 //!
 //! Auf Wunsch legt der Agent vorher einen [`Plan`] vor und wartet auf die Freigabe
 //! ([`RunState::AwaitingApproval`]). Bis dahin entsteht nichts: kein Branch, keine Änderung.
+//!
+//! Während des Laufs kann der Agent eine [`Question`] stellen ([`RunState::AwaitingAnswer`]),
+//! der Nutzer kann ihm Hinweise schicken ([`AgentRun::steer`]) und ihn pausieren
+//! ([`RunState::Paused`]). Alles Gesagte steht im Gesprächsverlauf ([`AgentRun::messages`]).
 
 use serde::{Deserialize, Serialize};
 
@@ -45,7 +49,62 @@ pub enum RunState {
     /// Der Plan liegt vor, der Agent wartet auf den Nutzer.
     AwaitingApproval,
     Running,
+    /// Der Agent hat eine Frage gestellt und wartet auf die Antwort.
+    AwaitingAnswer,
+    /// Der Nutzer hat den Lauf angehalten.
+    Paused,
     Done,
+}
+
+/// Eine Rückfrage des Agenten, optional mit vorgeschlagenen Antworten.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Question {
+    pub text: String,
+    #[serde(default)]
+    pub suggestions: Vec<String>,
+}
+
+/// Wer im Verlauf spricht.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Speaker {
+    Agent,
+    Du,
+}
+
+/// Was eine Meldung im Verlauf ist.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MessageKind {
+    /// Normale Meldung (Auftrag, Schritt abgeschlossen).
+    Info,
+    Question,
+    Answer,
+    /// Hinweis des Nutzers, auch eine Anmerkung zum Plan.
+    Hint,
+    /// Der Agent bestätigt, dass er einen Hinweis berücksichtigt.
+    Ack,
+}
+
+/// Eine Zeile im Gesprächsverlauf eines Laufs.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct RunMessage {
+    pub from: Speaker,
+    pub kind: MessageKind,
+    /// Zahl der abgeschlossenen Schritte, als die Meldung entstand.
+    pub step: usize,
+    pub text: String,
+}
+
+/// Was ein Takt bewirkt hat.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Tick {
+    /// Der Lauf läuft nicht, nichts geschah.
+    Idle,
+    /// Der Agent hat angehalten und eine Frage gestellt.
+    Asked,
+    /// Ein Schritt wurde abgeschlossen.
+    Stepped,
+    /// Der letzte Schritt wurde abgeschlossen.
+    Finished,
 }
 
 /// Was der Agent vorhat. Wird aus Ticket, Hinweisen und Dateien abgeleitet.
@@ -98,6 +157,18 @@ pub struct AgentRun {
     /// Der Lauf hat mit einem Plan begonnen (auch nach der Freigabe).
     #[serde(default)]
     pub planned: bool,
+    /// Gesprächsverlauf: Meldungen des Agenten, Fragen, Antworten und Hinweise.
+    #[serde(default)]
+    pub messages: Vec<RunMessage>,
+    /// Die offene Frage, solange der Lauf auf eine Antwort wartet.
+    #[serde(default)]
+    pub question: Option<Question>,
+    /// Die Frage wurde in diesem Lauf schon gestellt (sie kommt nur einmal).
+    #[serde(default)]
+    pub asked: bool,
+    /// Hinweise, die der Agent beim nächsten Schritt berücksichtigt.
+    #[serde(default)]
+    pub pending_hints: Vec<String>,
 }
 
 impl AgentRun {
@@ -113,6 +184,10 @@ impl AgentRun {
             pr_number: None,
             plan_notes: Vec::new(),
             planned: false,
+            messages: Vec::new(),
+            question: None,
+            asked: false,
+            pending_hints: Vec::new(),
         }
     }
 
@@ -124,9 +199,23 @@ impl AgentRun {
         self.state == RunState::AwaitingApproval
     }
 
-    /// Wartet auf Freigabe oder läuft – der Lauf belegt das Ticket.
+    /// Wartet auf die Antwort auf eine Rückfrage.
+    pub fn is_asking(&self) -> bool {
+        self.state == RunState::AwaitingAnswer
+    }
+
+    pub fn is_paused(&self) -> bool {
+        self.state == RunState::Paused
+    }
+
+    /// Wartet, fragt, pausiert oder läuft – der Lauf belegt das Ticket.
     pub fn is_active(&self) -> bool {
-        self.is_awaiting() || self.is_running()
+        self.is_awaiting() || self.is_running() || self.is_asking() || self.is_paused()
+    }
+
+    /// Der Agent arbeitet an den Schritten (läuft, fragt oder ist pausiert).
+    fn is_working(&self) -> bool {
+        self.is_running() || self.is_asking() || self.is_paused()
     }
 
     pub fn is_running(&self) -> bool {
@@ -153,6 +242,40 @@ impl AgentRun {
         self.completed = 0;
         self.pr_number = Some(pr_number);
         self.plan_notes.clear();
+        self.clear_conversation();
+        self.say(
+            Speaker::Agent,
+            MessageKind::Info,
+            format!("Auftrag für {} angenommen.", self.ticket_key),
+        );
+        let hint = self.options.hint.trim().to_string();
+        if !hint.is_empty() {
+            self.say(Speaker::Du, MessageKind::Hint, hint);
+        }
+        if self.planned {
+            self.say(
+                Speaker::Agent,
+                MessageKind::Info,
+                "Ich habe einen Plan vorgelegt und warte auf deine Freigabe.".into(),
+            );
+        }
+    }
+
+    fn clear_conversation(&mut self) {
+        self.messages.clear();
+        self.question = None;
+        self.asked = false;
+        self.pending_hints.clear();
+    }
+
+    fn say(&mut self, from: Speaker, kind: MessageKind, text: String) {
+        let step = self.completed;
+        self.messages.push(RunMessage {
+            from,
+            kind,
+            step,
+            text,
+        });
     }
 
     /// Bricht ab oder setzt zurück: Der Lauf ist danach wieder startbereit.
@@ -162,6 +285,7 @@ impl AgentRun {
         self.pr_number = None;
         self.plan_notes.clear();
         self.planned = false;
+        self.clear_conversation();
     }
 
     /// Gibt den Plan frei: Ab jetzt arbeitet der Agent. `false`, wenn es nichts freizugeben gibt.
@@ -170,6 +294,7 @@ impl AgentRun {
             return false;
         }
         self.state = RunState::Running;
+        self.say(Speaker::Du, MessageKind::Info, "Plan freigegeben.".into());
         true
     }
 
@@ -189,6 +314,56 @@ impl AgentRun {
             return false;
         }
         self.plan_notes.push(note.to_string());
+        self.say(
+            Speaker::Du,
+            MessageKind::Hint,
+            format!("Anmerkung zum Plan: {note}"),
+        );
+        true
+    }
+
+    /// Beantwortet die offene Frage; danach arbeitet der Agent weiter. Leere Antworten
+    /// zählen nicht.
+    pub fn answer(&mut self, text: &str) -> bool {
+        let text = text.trim();
+        if !self.is_asking() || text.is_empty() {
+            return false;
+        }
+        self.question = None;
+        self.state = RunState::Running;
+        self.say(Speaker::Du, MessageKind::Answer, text.to_string());
+        true
+    }
+
+    /// Schickt dem Agenten einen Hinweis. Er berücksichtigt ihn beim nächsten Schritt.
+    /// Möglich, solange der Lauf an den Schritten arbeitet (auch pausiert oder wartend).
+    pub fn steer(&mut self, text: &str) -> bool {
+        let text = text.trim();
+        if !self.is_working() || text.is_empty() {
+            return false;
+        }
+        self.pending_hints.push(text.to_string());
+        self.say(Speaker::Du, MessageKind::Hint, text.to_string());
+        true
+    }
+
+    /// Hält einen laufenden Agenten an. Eine offene Frage bleibt dabei bestehen.
+    pub fn pause(&mut self) -> bool {
+        if !self.is_running() {
+            return false;
+        }
+        self.state = RunState::Paused;
+        self.say(Speaker::Du, MessageKind::Info, "Lauf pausiert.".into());
+        true
+    }
+
+    /// Setzt einen pausierten Lauf fort.
+    pub fn resume(&mut self) -> bool {
+        if !self.is_paused() {
+            return false;
+        }
+        self.state = RunState::Running;
+        self.say(Speaker::Du, MessageKind::Info, "Lauf fortgesetzt.".into());
         true
     }
 
@@ -248,14 +423,47 @@ impl AgentRun {
     /// Schließt den aktuellen Schritt ab. Gibt `true` zurück, wenn der Lauf damit
     /// fertig geworden ist.
     pub fn advance(&mut self) -> bool {
+        self.tick() == Tick::Finished
+    }
+
+    /// Ein Takt: Der Agent berücksichtigt wartende Hinweise, stellt vielleicht eine
+    /// Frage und schließt sonst den aktuellen Schritt ab.
+    pub fn tick(&mut self) -> Tick {
         if !self.is_running() {
-            return false;
+            return Tick::Idle;
         }
+        for hint in std::mem::take(&mut self.pending_hints) {
+            self.say(
+                Speaker::Agent,
+                MessageKind::Ack,
+                format!("Hinweis erhalten: {hint}"),
+            );
+        }
+        // Die Rückfrage ist in der Demo fest verdrahtet (siehe `demo::agent_question`);
+        // ein Backend würde sie vom echten Agenten bekommen.
+        if !self.asked
+            && let Some((step, question)) = crate::demo::agent_question(&self.ticket_key)
+            && step == self.completed
+        {
+            self.asked = true;
+            self.state = RunState::AwaitingAnswer;
+            self.say(Speaker::Agent, MessageKind::Question, question.text.clone());
+            self.question = Some(question);
+            return Tick::Asked;
+        }
+        let done = self.steps()[self.completed.min(STEPS - 1)].clone();
+        self.say(
+            Speaker::Agent,
+            MessageKind::Info,
+            format!("{}: {}", done.title, done.text),
+        );
         self.completed += 1;
         if self.completed == STEPS {
             self.state = RunState::Done;
+            Tick::Finished
+        } else {
+            Tick::Stepped
         }
-        self.is_done()
     }
 
     fn pr_label(&self) -> String {
@@ -315,12 +523,35 @@ impl AgentRun {
                         state: StepState::Active,
                     };
                 }
+                if i == self.completed && self.is_asking() {
+                    return Step {
+                        title: "Frage an dich".to_string(),
+                        text: "Wartet auf deine Antwort".to_string(),
+                        state: StepState::Active,
+                    };
+                }
+                if i == self.completed && self.is_paused() {
+                    return Step {
+                        title: title.to_string(),
+                        text: "Pausiert – setze den Lauf fort, damit es weitergeht".to_string(),
+                        state: StepState::Active,
+                    };
+                }
+                // Hat der Nutzer an diesem Schritt eine Frage beantwortet, steht es dabei.
+                let text = match self
+                    .messages
+                    .iter()
+                    .find(|m| m.kind == MessageKind::Answer && m.step == i)
+                {
+                    Some(answer) => format!("{text} · Deine Antwort: {}", answer.text),
+                    None => text,
+                };
                 Step {
                     title: title.to_string(),
                     text,
                     state: if i < self.completed {
                         StepState::Done
-                    } else if i == self.completed && self.is_running() {
+                    } else if i == self.completed && self.is_working() {
                         StepState::Active
                     } else {
                         StepState::Pending
@@ -334,7 +565,7 @@ impl AgentRun {
     pub fn log(&self) -> String {
         let shown = if self.is_awaiting() {
             1
-        } else if self.is_running() {
+        } else if self.is_working() {
             self.completed + 1
         } else {
             self.completed
@@ -383,6 +614,20 @@ impl AgentRun {
                     if o.draft_pr { " (Entwurf)" } else { "" }
                 )),
             }
+            // Fragen, Antworten und berücksichtigte Hinweise dieses Schritts.
+            for m in self.messages.iter().filter(|m| m.step == step) {
+                match m.kind {
+                    MessageKind::Question => lines.push(format!("› Frage: {}", m.text)),
+                    MessageKind::Answer => lines.push(format!("› Antwort: {}", m.text)),
+                    MessageKind::Ack => lines.push(format!("› {}", m.text)),
+                    _ => {}
+                }
+            }
+        }
+        if self.is_asking() {
+            lines.push("› Warte auf deine Antwort".into());
+        } else if self.is_paused() {
+            lines.push("› Pausiert".into());
         }
         lines.join("\n")
     }
@@ -398,6 +643,13 @@ mod tests {
             plan_first: false,
             ..Default::default()
         }
+    }
+
+    /// Ein Lauf ohne Rückfrage (die Demo fragt nur bei BAU-142).
+    fn quiet() -> AgentRun {
+        let mut r = run();
+        r.ticket_key = "BAU-200".into();
+        r
     }
 
     fn run() -> AgentRun {
@@ -425,7 +677,7 @@ mod tests {
 
     #[test]
     fn exactly_one_step_is_active_while_running() {
-        let mut r = run();
+        let mut r = quiet();
         r.start(direct(), 92);
         for done in 0..STEPS {
             let states: Vec<_> = r.steps().into_iter().map(|s| s.state).collect();
@@ -451,7 +703,7 @@ mod tests {
 
     #[test]
     fn options_show_up_in_steps_and_log() {
-        let mut r = run();
+        let mut r = quiet();
         let options = AgentOptions {
             run_tests: false,
             draft_pr: false,
@@ -559,5 +811,188 @@ mod tests {
         assert!(r.is_running() && r.plan().is_none());
         assert!(!r.approve());
         assert!(!r.log().contains("Plan"));
+    }
+
+    /// Bringt BAU-142 bis zur Rückfrage.
+    fn asking() -> AgentRun {
+        let mut r = run();
+        r.start(direct(), 92);
+        assert_eq!(r.tick(), Tick::Stepped);
+        assert_eq!(r.tick(), Tick::Stepped);
+        assert_eq!(r.tick(), Tick::Asked);
+        r
+    }
+
+    #[test]
+    fn the_agent_asks_a_question_and_waits() {
+        let mut r = asking();
+        assert!(r.is_asking() && r.is_active() && !r.is_running());
+        assert_eq!(r.completed, 2, "die Frage ist kein Schritt");
+        let q = r.question.clone().unwrap();
+        assert!(q.text.contains("deprecated"));
+        assert_eq!(q.suggestions.len(), 3);
+        assert_eq!(r.tick(), Tick::Idle, "ohne Antwort kein Fortschritt");
+        assert!(!r.advance());
+        assert_eq!(r.completed, 2);
+        let steps = r.steps();
+        assert_eq!(steps[2].title, "Frage an dich");
+        assert_eq!(steps[2].state, StepState::Active);
+        assert!(steps[3..].iter().all(|s| s.state == StepState::Pending));
+        assert!(
+            r.log().contains("› Frage: Soll der alte Stil"),
+            "{}",
+            r.log()
+        );
+        assert!(r.log().ends_with("› Warte auf deine Antwort"));
+    }
+
+    #[test]
+    fn an_answer_continues_the_run_and_stays_in_the_history() {
+        let mut r = asking();
+        assert!(!r.answer("   "), "leer zählt nicht");
+        assert!(r.is_asking());
+        assert!(r.answer("  Als deprecated markieren "));
+        assert!(r.is_running() && r.question.is_none());
+        assert!(!r.answer("noch einmal"), "nur einmal antworten");
+        let last = r.messages.last().unwrap();
+        assert_eq!(
+            (last.from, last.kind, last.text.as_str()),
+            (Speaker::Du, MessageKind::Answer, "Als deprecated markieren")
+        );
+        assert!(r.log().contains("› Antwort: Als deprecated markieren"));
+        // Die Frage kommt nur einmal; der Lauf geht zu Ende.
+        while !r.advance() {}
+        assert!(r.is_done());
+        assert_eq!(
+            r.messages
+                .iter()
+                .filter(|m| m.kind == MessageKind::Question)
+                .count(),
+            1
+        );
+        assert!(
+            r.steps()[2]
+                .text
+                .ends_with("Deine Antwort: Als deprecated markieren")
+        );
+    }
+
+    #[test]
+    fn other_tickets_ask_nothing() {
+        let mut r = quiet();
+        r.start(direct(), 92);
+        while !r.advance() {}
+        assert!(r.messages.iter().all(|m| m.kind != MessageKind::Question));
+    }
+
+    #[test]
+    fn a_hint_is_taken_into_account_at_the_next_step() {
+        let mut r = quiet();
+        r.start(direct(), 92);
+        assert!(!r.steer("  "), "leer zählt nicht");
+        assert!(r.steer(" Auch den Slider prüfen "));
+        assert_eq!(r.pending_hints, ["Auch den Slider prüfen"]);
+        assert!(
+            !r.messages.iter().any(|m| m.kind == MessageKind::Ack),
+            "noch nicht berücksichtigt"
+        );
+        assert_eq!(r.tick(), Tick::Stepped);
+        assert!(r.pending_hints.is_empty());
+        let ack = r
+            .messages
+            .iter()
+            .find(|m| m.kind == MessageKind::Ack)
+            .unwrap();
+        assert_eq!(
+            (ack.from, ack.text.as_str()),
+            (Speaker::Agent, "Hinweis erhalten: Auch den Slider prüfen")
+        );
+        assert!(
+            r.log()
+                .contains("› Hinweis erhalten: Auch den Slider prüfen")
+        );
+    }
+
+    #[test]
+    fn hints_only_work_while_the_agent_works() {
+        let mut r = quiet();
+        assert!(!r.steer("zu früh"), "idle");
+        r.start(AgentOptions::default(), 92);
+        assert!(
+            !r.steer("Plan noch offen"),
+            "dafür gibt es die Plan-Anmerkung"
+        );
+        r.approve();
+        assert!(r.steer("jetzt"));
+        while !r.advance() {}
+        assert!(!r.steer("zu spät"), "fertig");
+    }
+
+    #[test]
+    fn pause_and_resume() {
+        let mut r = quiet();
+        assert!(!r.pause() && !r.resume());
+        r.start(direct(), 92);
+        r.advance();
+        assert!(r.pause() && r.is_paused() && r.is_active());
+        assert!(!r.pause(), "schon pausiert");
+        assert_eq!(r.tick(), Tick::Idle);
+        assert_eq!(r.completed, 1, "pausiert heißt: kein Fortschritt");
+        assert_eq!(r.steps()[1].state, StepState::Active);
+        assert!(r.steps()[1].text.starts_with("Pausiert"));
+        assert!(r.log().ends_with("› Pausiert"));
+        // Hinweise lassen sich auch pausiert schicken und warten bis zur Fortsetzung.
+        assert!(r.steer("Während der Pause"));
+        assert_eq!(r.tick(), Tick::Idle);
+        assert_eq!(r.pending_hints.len(), 1);
+        assert!(r.resume() && r.is_running() && !r.resume());
+        assert_eq!(r.tick(), Tick::Stepped);
+        assert!(r.pending_hints.is_empty());
+    }
+
+    #[test]
+    fn a_question_cannot_be_skipped_by_pausing() {
+        let mut r = asking();
+        assert!(!r.pause(), "wer fragt, läuft nicht");
+        assert!(r.is_asking());
+    }
+
+    #[test]
+    fn reset_clears_the_conversation() {
+        let mut r = asking();
+        r.steer("noch ein Hinweis");
+        r.reset();
+        assert!(r.messages.is_empty() && r.question.is_none() && r.pending_hints.is_empty());
+        // Ein neuer Lauf fragt wieder.
+        r.start(direct(), 93);
+        assert_eq!(r.messages.len(), 1);
+        r.advance();
+        r.advance();
+        assert_eq!(r.tick(), Tick::Asked);
+    }
+
+    #[test]
+    fn the_history_tells_the_story() {
+        let mut r = run();
+        r.start(
+            AgentOptions {
+                hint: "Bitte vorsichtig".into(),
+                ..AgentOptions::default()
+            },
+            92,
+        );
+        r.revise("Auch Tests");
+        r.approve();
+        let texts: Vec<_> = r.messages.iter().map(|m| (m.from, m.kind)).collect();
+        assert_eq!(
+            texts,
+            [
+                (Speaker::Agent, MessageKind::Info),
+                (Speaker::Du, MessageKind::Hint),
+                (Speaker::Agent, MessageKind::Info),
+                (Speaker::Du, MessageKind::Hint),
+                (Speaker::Du, MessageKind::Info),
+            ]
+        );
     }
 }

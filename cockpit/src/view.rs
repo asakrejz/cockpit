@@ -1,6 +1,6 @@
 //! Übersetzt Begriffe der Fachlogik in Bausteine der Oberfläche.
 
-use cockpit_core::{FileDiff, LineKind, ReasonKind, Tone};
+use cockpit_core::{FileDiff, LineKind, NotifyReason, ReasonKind, Tone};
 use feature_ui::{DiffKind, DiffRow, StatusTone, icons};
 
 pub fn tone(tone: Tone) -> StatusTone {
@@ -16,10 +16,12 @@ pub fn tone(tone: Tone) -> StatusTone {
 
 pub fn reason_icon(reason: ReasonKind) -> &'static str {
     match reason {
-        ReasonKind::Comment => icons::COMMENT,
+        ReasonKind::Comment | ReasonKind::Mention => icons::COMMENT,
         ReasonKind::ReviewRequested => icons::EYE,
         ReasonKind::AgentFinished => icons::SPARKLE,
-        ReasonKind::ChecksFailed => icons::ALERT,
+        ReasonKind::ChecksFailed | ReasonKind::ChangesRequested | ReasonKind::Overdue => {
+            icons::ALERT
+        }
         ReasonKind::Assigned => icons::ASSIGN,
     }
 }
@@ -37,4 +39,15 @@ pub fn diff_rows(file: &FileDiff) -> Vec<DiffRow> {
             text: line.text.clone(),
         })
         .collect()
+}
+
+pub fn notify_icon(reason: NotifyReason) -> &'static str {
+    match reason {
+        NotifyReason::ReviewRequested => icons::EYE,
+        NotifyReason::Mention => icons::COMMENT,
+        NotifyReason::AgentWaiting => icons::TASKS,
+        NotifyReason::AgentFinished => icons::SPARKLE,
+        NotifyReason::ChecksFailed => icons::ALERT,
+        NotifyReason::Assigned => icons::ASSIGN,
+    }
 }

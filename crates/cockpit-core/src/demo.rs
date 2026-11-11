@@ -1,7 +1,7 @@
 //! Beispieldaten nach dem Design. Sie stehen für Jira, GitHub und den Agenten,
 //! solange kein Backend angebunden ist.
 
-use crate::agent::{AgentRun, RunState, STEPS};
+use crate::agent::{AgentRun, Question, RunState, STEPS};
 use crate::model::*;
 use crate::review::LineKind::{Add, Context as Ctx, Del};
 use crate::review::{CheckRun, FileDiff, Level, Review, Suggestion, Verdict};
@@ -51,8 +51,12 @@ fn item(
         agent_note: None,
         comments: Vec::new(),
         read: false,
+        due: None,
     }
 }
+
+/// Fälligkeit des Demo-Tickets BAU-150: liegt vor dem Tag, an dem die Demo entstand.
+pub const DEMO_OVERDUE: &str = "2026-11-09";
 
 /// Der Ausgangszustand des Cockpits.
 pub fn workspace() -> Workspace {
@@ -61,7 +65,7 @@ pub fn workspace() -> Workspace {
         comments: vec![Comment::new(
             lena(),
             "vor 12 Min.",
-            "Betrifft auch den Slider-Thumb. Kannst du das gleich mit prüfen?",
+            "@AS Betrifft auch den Slider-Thumb. Kannst du das gleich mit prüfen?",
         )],
         ..item(
             "bau142",
@@ -80,6 +84,7 @@ pub fn workspace() -> Workspace {
             number: 87,
             draft: false,
             checks: Checks::Passed,
+            changes_requested: false,
             merged: false,
         }),
         agent_note: Some("3 Kommentare vom Agenten warten auf deine Freigabe".into()),
@@ -106,6 +111,7 @@ pub fn workspace() -> Workspace {
             number: 91,
             draft: true,
             checks: Checks::Passed,
+            changes_requested: true,
             merged: false,
         }),
         agent_note: Some("Vom Agenten umgesetzt · Tests bestanden".into()),
@@ -129,6 +135,7 @@ pub fn workspace() -> Workspace {
             number: 85,
             draft: false,
             checks: Checks::Failed,
+            changes_requested: false,
             merged: false,
         }),
         comments: vec![Comment::new(
@@ -147,16 +154,20 @@ pub fn workspace() -> Workspace {
             mira(),
         )
     };
-    let bau150 = item(
-        "bau150",
-        Kind::Ticket,
-        "BAU-150",
-        "Sheet: Detents mittel und groß",
-        "Das Sheet soll zwei Höhen unterstützen (mittel, groß) und sich per Grabber zwischen ihnen ziehen lassen.",
-        (ReasonKind::Assigned, "Dir zugewiesen von Mira"),
-        "gestern",
-        Person::me(),
-    );
+    let bau150 = Item {
+        // Fällig vor „heute“ (11.11.2026): greift die Regel „überfälliges Ticket“.
+        due: Some(DEMO_OVERDUE.into()),
+        ..item(
+            "bau150",
+            Kind::Ticket,
+            "BAU-150",
+            "Sheet: Detents mittel und groß",
+            "Das Sheet soll zwei Höhen unterstützen (mittel, groß) und sich per Grabber zwischen ihnen ziehen lassen.",
+            (ReasonKind::Assigned, "Dir zugewiesen von Mira"),
+            "gestern",
+            Person::me(),
+        )
+    };
 
     let review =
         |number: u32, item: &Item, author: Person, ticket: &str, files: Vec<FileDiff>| Review {
@@ -301,6 +312,26 @@ pub fn workspace() -> Workspace {
         reviews: vec![review87, review91, review85],
         runs: vec![run138],
         log: Vec::new(),
+        ..Workspace::default()
+    }
+}
+
+/// Die Rückfrage, die der Demo-Agent für ein Ticket stellt: vor welchem Schritt (Zahl
+/// der abgeschlossenen Schritte) und was. Für alle anderen Tickets fragt er nichts.
+pub fn agent_question(ticket_key: &str) -> Option<(usize, Question)> {
+    match ticket_key {
+        "BAU-142" => Some((
+            2,
+            Question {
+                text: "Soll der alte Stil entfernt oder als deprecated markiert werden?".into(),
+                suggestions: vec![
+                    "Entfernen".into(),
+                    "Als deprecated markieren".into(),
+                    "Erst markieren, später entfernen".into(),
+                ],
+            },
+        )),
+        _ => None,
     }
 }
 

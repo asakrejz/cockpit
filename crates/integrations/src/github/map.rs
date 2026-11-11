@@ -68,11 +68,13 @@ pub fn pull_to_item(
             number: pull.number,
             draft: pull.draft,
             checks,
+            changes_requested: false,
             merged: false,
         }),
         agent_note: None,
         comments: Vec::new(),
         read: false,
+        due: None,
     }
 }
 

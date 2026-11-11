@@ -37,30 +37,37 @@ pub enum Filter {
     All,
     Mine,
     Team,
+    /// Zurückgestellte Einträge (siehe [`crate::attention`]).
+    Snoozed,
 }
 
 impl Filter {
     /// ID und Beschriftung, in Anzeigereihenfolge.
-    pub const OPTIONS: &'static [(&'static str, &'static str)] =
-        &[("alle", "Alle"), ("ich", "Ich"), ("team", "Team")];
+    pub const OPTIONS: &'static [(&'static str, &'static str)] = &[
+        ("alle", "Alle"),
+        ("ich", "Ich"),
+        ("team", "Team"),
+        ("zurueckgestellt", "Zurückgestellt"),
+    ];
 
     pub fn id(self) -> &'static str {
         match self {
             Filter::All => "alle",
             Filter::Mine => "ich",
             Filter::Team => "team",
+            Filter::Snoozed => "zurueckgestellt",
         }
     }
 
     pub fn from_id(id: &str) -> Option<Filter> {
-        [Filter::All, Filter::Mine, Filter::Team]
+        [Filter::All, Filter::Mine, Filter::Team, Filter::Snoozed]
             .into_iter()
             .find(|f| f.id() == id)
     }
 
     pub fn matches(self, scope: Scope) -> bool {
         match self {
-            Filter::All => true,
+            Filter::All | Filter::Snoozed => true,
             Filter::Mine => scope == Scope::Mine,
             Filter::Team => scope == Scope::Team,
         }
@@ -158,9 +165,15 @@ pub enum Tone {
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReasonKind {
     Comment,
+    /// Jemand hat mich in einem Kommentar mit `@Name` erwähnt.
+    Mention,
     ReviewRequested,
     AgentFinished,
     ChecksFailed,
+    /// Für meinen Pull Request wurden Änderungen angefordert.
+    ChangesRequested,
+    /// Das Fälligkeitsdatum eines Tickets liegt in der Vergangenheit.
+    Overdue,
     Assigned,
 }
 
@@ -168,9 +181,11 @@ impl ReasonKind {
     pub fn tone(self) -> Tone {
         match self {
             ReasonKind::Comment => Tone::Blue,
+            ReasonKind::Mention => Tone::Blue,
             ReasonKind::ReviewRequested => Tone::Orange,
             ReasonKind::AgentFinished => Tone::Green,
-            ReasonKind::ChecksFailed => Tone::Red,
+            ReasonKind::ChecksFailed | ReasonKind::ChangesRequested => Tone::Red,
+            ReasonKind::Overdue => Tone::Orange,
             ReasonKind::Assigned => Tone::Indigo,
         }
     }
@@ -262,6 +277,9 @@ pub struct PrRef {
     #[serde(default)]
     pub draft: bool,
     pub checks: Checks,
+    /// Ein Reviewer hat Änderungen angefordert.
+    #[serde(default)]
+    pub changes_requested: bool,
     /// Schon gemergt.
     #[serde(default)]
     pub merged: bool,
@@ -328,6 +346,9 @@ pub struct Item {
     /// Erledigt – braucht keine Aufmerksamkeit mehr.
     #[serde(default)]
     pub read: bool,
+    /// Fälligkeitsdatum als Tag (`2026-11-09`), nur für Tickets.
+    #[serde(default)]
+    pub due: Option<String>,
 }
 
 impl Item {
@@ -382,6 +403,7 @@ mod tests {
             number: 87,
             draft: false,
             checks: Checks::Passed,
+            changes_requested: false,
             merged: false,
         };
         assert_eq!(pr.label(), "#87 · offen");
@@ -390,6 +412,7 @@ mod tests {
             number: 85,
             draft: true,
             checks: Checks::Failed,
+            changes_requested: false,
             merged: false,
         };
         assert_eq!(failed.label(), "#85 · Entwurf");

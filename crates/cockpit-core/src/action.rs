@@ -11,8 +11,10 @@
 use serde::{Deserialize, Serialize};
 
 use crate::agent::{AgentOptions, STEPS};
+use crate::attention::Rule;
 use crate::demo;
 use crate::model::{Checks, Item, TicketStatus};
+use crate::notify::{Channel, NotifyReason, QuietHours};
 use crate::review::{Decision, MergeBlocker, MergeMethod, SendError, Verdict};
 use crate::workspace::{AgentError, Workspace};
 
@@ -37,6 +39,25 @@ pub enum Action {
     Reply {
         item: String,
         text: String,
+    },
+    /// Eintrag zurückstellen. `until_ms` ist der Zeitpunkt (Millisekunden seit 1970), zu
+    /// dem er zurückkommt; ohne (`None`) bleibt er weg, bis sich etwas ändert: ein neuer
+    /// Kommentar, ein anderer Status oder neue Check-Ergebnisse.
+    Snooze {
+        item: String,
+        until_ms: Option<u64>,
+    },
+    /// Zurückgestellten Eintrag sofort zurückholen.
+    Unsnooze {
+        item: String,
+    },
+    /// Der Takt: Einträge zurückholen, deren Zurückstellung abgelaufen oder durch eine
+    /// Änderung aufgehoben ist.
+    WakeSnoozed,
+    /// Aufmerksamkeits-Regel ein- oder ausschalten.
+    SetRule {
+        rule: Rule,
+        enabled: bool,
     },
     // Review
     Decide {
@@ -111,8 +132,35 @@ pub enum Action {
         ticket: String,
         note: String,
     },
+    /// Antwort auf eine Rückfrage des Agenten (`run` ist der Ticket-Schlüssel).
+    AnswerAgent {
+        run: String,
+        text: String,
+    },
+    /// Hinweis an den laufenden Agenten, den er beim nächsten Schritt berücksichtigt.
+    SteerAgent {
+        run: String,
+        text: String,
+    },
+    PauseAgent {
+        run: String,
+    },
+    ResumeAgent {
+        run: String,
+    },
     /// Der Takt: jeder laufende Agent schließt einen Schritt ab.
     AdvanceAgents,
+    // Benachrichtigungen
+    /// Kanal für einen Grund an- oder ausschalten.
+    SetNotifyChannel {
+        reason: NotifyReason,
+        channel: Channel,
+        on: bool,
+    },
+    /// Ruhezeiten setzen (Minuten seit Mitternacht, siehe [`QuietHours`]).
+    SetQuietHours {
+        quiet: QuietHours,
+    },
     // Sonstiges
     /// Zurück zu den Beispieldaten. Das Protokoll beginnt neu.
     ResetDemo,
@@ -159,6 +207,8 @@ pub enum Target {
     Review(u32),
     /// Der Lauf eines Agenten (Ticket-Schlüssel).
     Run(String),
+    /// Die Einstellungen (Benachrichtigungen).
+    Settings,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -265,7 +315,7 @@ impl std::error::Error for ActionError {}
 /// Ein Eintrag, den eine Aktion ins Protokoll schreiben will.
 struct Note {
     actor: Option<Actor>,
-    target: Target,
+    target: Option<Target>,
     text: String,
 }
 
@@ -273,7 +323,16 @@ impl Note {
     fn new(target: Target, text: impl Into<String>) -> Self {
         Self {
             actor: None,
-            target,
+            target: Some(target),
+            text: text.into(),
+        }
+    }
+
+    /// Ein Eintrag ohne bestimmtes Ziel (Einstellungen).
+    fn general(text: impl Into<String>) -> Self {
+        Self {
+            actor: None,
+            target: None,
             text: text.into(),
         }
     }
@@ -315,7 +374,7 @@ impl Workspace {
         if matches!(action, Action::MergePr { .. }) && actor != Actor::Du {
             return Err(ActionError::MergeNotAllowed(actor));
         }
-        let notes = self.perform(action)?;
+        let notes = self.perform(action, at_ms)?;
         let mut summary = String::new();
         let logged = notes.len();
         for note in notes {
@@ -327,13 +386,13 @@ impl Workspace {
         Ok(Applied { summary, logged })
     }
 
-    fn push_log(&mut self, at_ms: u64, actor: Actor, target: Target, text: String) {
+    fn push_log(&mut self, at_ms: u64, actor: Actor, target: Option<Target>, text: String) {
         let id = self.log.last().map_or(1, |e| e.id + 1);
         self.log.push(LogEntry {
             id,
             at_ms,
             actor,
-            target: Some(target),
+            target,
             text,
         });
         if self.log.len() > MAX_LOG {
@@ -373,7 +432,7 @@ impl Workspace {
     }
 
     /// Führt die Aktion aus und liefert die Protokolleinträge dazu.
-    fn perform(&mut self, action: Action) -> Result<Vec<Note>, ActionError> {
+    fn perform(&mut self, action: Action, at_ms: u64) -> Result<Vec<Note>, ActionError> {
         match action {
             Action::MarkDone { item } => {
                 let key = self.key_of(&item)?;
@@ -417,6 +476,56 @@ impl Workspace {
                     Target::Item(item),
                     format!("Antwort an {key} gesendet"),
                 )])
+            }
+            Action::Snooze { item, until_ms } => {
+                let key = self.key_of(&item)?;
+                if until_ms.is_some_and(|t| t <= at_ms) {
+                    return Err(ActionError::InvalidInput);
+                }
+                self.snooze(&item, until_ms);
+                let text = match until_ms {
+                    Some(_) => format!("{key} zurückgestellt"),
+                    None => format!("{key} zurückgestellt, bis sich etwas ändert"),
+                };
+                Ok(vec![Note::new(Target::Item(item), text)])
+            }
+            Action::Unsnooze { item } => {
+                let key = self.key_of(&item)?;
+                if !self.unsnooze(&item) {
+                    return Err(ActionError::NothingToDo);
+                }
+                Ok(vec![Note::new(
+                    Target::Item(item),
+                    format!("{key} aus der Zurückstellung geholt"),
+                )])
+            }
+            Action::WakeSnoozed => {
+                let back = self.wake(at_ms);
+                if back.is_empty() {
+                    return Err(ActionError::NothingToDo);
+                }
+                Ok(back
+                    .into_iter()
+                    .map(|id| {
+                        let key = self.item(&id).map_or(id.clone(), |i| i.key.clone());
+                        Note::new(Target::Item(id), format!("{key} ist zurück in der Inbox"))
+                            .by(Actor::System)
+                    })
+                    .collect())
+            }
+            Action::SetRule { rule, enabled } => {
+                if !self.set_rule(rule, enabled) {
+                    return Err(ActionError::Unchanged);
+                }
+                Ok(vec![Note::general(format!(
+                    "Regel „{}“ {}",
+                    rule.label(),
+                    if enabled {
+                        "eingeschaltet"
+                    } else {
+                        "ausgeschaltet"
+                    }
+                ))])
             }
             Action::Decide {
                 review,
@@ -679,9 +788,98 @@ impl Workspace {
                     format!("Neuen Plan für {ticket} angefordert"),
                 )])
             }
+            Action::SetNotifyChannel {
+                reason,
+                channel,
+                on,
+            } => {
+                if !self.notifications.set(reason, channel, on) {
+                    return Err(ActionError::Unchanged);
+                }
+                Ok(vec![Note::new(
+                    Target::Settings,
+                    format!(
+                        "Benachrichtigung „{}“ über {} {}",
+                        reason.label(),
+                        channel.label(),
+                        if on { "eingeschaltet" } else { "ausgeschaltet" }
+                    ),
+                )])
+            }
+            Action::SetQuietHours { quiet } => {
+                if !quiet.is_valid() {
+                    return Err(ActionError::InvalidInput);
+                }
+                if !self.notifications.set_quiet(quiet) {
+                    return Err(ActionError::Unchanged);
+                }
+                let text = if quiet.enabled {
+                    format!(
+                        "Ruhezeiten von {} bis {} Uhr eingeschaltet",
+                        QuietHours::format(quiet.from),
+                        QuietHours::format(quiet.to)
+                    )
+                } else {
+                    "Ruhezeiten ausgeschaltet".to_string()
+                };
+                Ok(vec![Note::new(Target::Settings, text)])
+            }
+            Action::AnswerAgent { run, text } => {
+                if !self
+                    .runs
+                    .iter()
+                    .any(|r| r.ticket_key == run && r.is_asking())
+                {
+                    return Err(ActionError::NothingToDo);
+                }
+                if !self.answer_agent(&run, &text) {
+                    return Err(ActionError::InvalidInput);
+                }
+                Ok(vec![Note::new(
+                    Target::Run(run.clone()),
+                    format!("Frage des Agenten für {run} beantwortet: „{}“", text.trim()),
+                )])
+            }
+            Action::SteerAgent { run, text } => {
+                if !self
+                    .runs
+                    .iter()
+                    .any(|r| r.ticket_key == run && r.is_active() && !r.is_awaiting())
+                {
+                    return Err(ActionError::NothingToDo);
+                }
+                if !self.steer_agent(&run, &text) {
+                    return Err(ActionError::InvalidInput);
+                }
+                Ok(vec![Note::new(
+                    Target::Run(run.clone()),
+                    format!("Hinweis an den Agenten für {run}: „{}“", text.trim()),
+                )])
+            }
+            Action::PauseAgent { run } => {
+                if !self.pause_agent(&run) {
+                    return Err(ActionError::NothingToDo);
+                }
+                Ok(vec![Note::new(
+                    Target::Run(run.clone()),
+                    format!("Agent für {run} pausiert"),
+                )])
+            }
+            Action::ResumeAgent { run } => {
+                if !self.resume_agent(&run) {
+                    return Err(ActionError::NothingToDo);
+                }
+                Ok(vec![Note::new(
+                    Target::Run(run.clone()),
+                    format!("Agent für {run} fortgesetzt"),
+                )])
+            }
             Action::AdvanceAgents => self.advance_logged(),
             Action::ResetDemo => {
+                // Die Einstellungen gehören nicht zu den Beispieldaten und bleiben.
+                let notifications = std::mem::take(&mut self.notifications);
                 *self = demo::workspace();
+                self.notifications = notifications;
                 Ok(vec![
                     Note::new(
                         Target::Item(self.items.first().map(|i| i.id.clone()).unwrap_or_default()),
@@ -693,10 +891,10 @@ impl Workspace {
         }
     }
 
-    /// Der Takt der Agenten, mit einem Eintrag pro abgeschlossenem Schritt.
+    /// Der Takt der Agenten, mit einem Eintrag pro abgeschlossenem Schritt oder gestellter Frage.
     fn advance_logged(&mut self) -> Result<Vec<Note>, ActionError> {
-        // Vorher festhalten, welcher Schritt gleich fertig wird.
-        let stepping: Vec<(String, usize, String, Option<u32>, bool)> = self
+        // Vorher festhalten, welcher Schritt gleich fertig wird und welche Hinweise warten.
+        let stepping: Vec<(String, usize, String, Option<u32>, bool, usize)> = self
             .runs
             .iter()
             .filter(|r| r.is_running())
@@ -708,6 +906,7 @@ impl Workspace {
                     title,
                     r.pr_number,
                     r.options.draft_pr,
+                    r.pending_hints.len(),
                 )
             })
             .collect();
@@ -715,21 +914,40 @@ impl Workspace {
             return Err(ActionError::NothingToDo);
         }
         self.advance_agents();
-        Ok(stepping
-            .into_iter()
-            .map(
-                |(key, done, title, pr, draft)| match (done + 1 == STEPS, pr) {
-                    (true, Some(n)) => Note::new(
-                        Target::Review(n),
+        let mut notes = Vec::new();
+        for (key, done, title, pr, draft, hints) in stepping {
+            if hints > 0 {
+                notes.push(
+                    Note::new(
+                        Target::Run(key.clone()),
                         format!(
-                            "{key}: Pull Request #{n} {}erstellt",
-                            if draft { "als Entwurf " } else { "" }
+                            "{key}: {} berücksichtigt",
+                            plural(hints, "Hinweis", "Hinweise")
                         ),
+                    )
+                    .by(Actor::Agent),
+                );
+            }
+            let asking = self
+                .runs
+                .iter()
+                .any(|r| r.ticket_key == key && r.is_asking());
+            notes.push(match (asking, done + 1 == STEPS, pr) {
+                (true, _, _) => Note::new(
+                    Target::Run(key.clone()),
+                    format!("{key}: Der Agent hat eine Frage und wartet auf deine Antwort"),
+                ),
+                (_, true, Some(n)) => Note::new(
+                    Target::Review(n),
+                    format!(
+                        "{key}: Pull Request #{n} {}erstellt",
+                        if draft { "als Entwurf " } else { "" }
                     ),
-                    _ => Note::new(Target::Run(key.clone()), format!("{key}: {title}")),
-                },
-            )
-            .collect())
+                ),
+                _ => Note::new(Target::Run(key.clone()), format!("{key}: {title}")),
+            });
+        }
+        Ok(notes)
     }
 }
 
@@ -737,6 +955,7 @@ impl Workspace {
 mod tests {
     use super::*;
     use crate::model::{ReasonKind, Tone};
+    use crate::notify::NotifySettings;
     use crate::persist;
     use crate::review::{CHECK_STEPS, Decision};
 
@@ -894,6 +1113,26 @@ mod tests {
             1,
         );
         ok(&mut w, Action::AdvanceAgents, 1);
+        ok(
+            &mut w,
+            Action::SteerAgent {
+                run: key.clone(),
+                text: "Auch den Slider".into(),
+            },
+            1,
+        );
+        ok(&mut w, Action::PauseAgent { run: key.clone() }, 1);
+        ok(&mut w, Action::ResumeAgent { run: key.clone() }, 1);
+        ok(&mut w, Action::AdvanceAgents, 2);
+        ok(&mut w, Action::AdvanceAgents, 1);
+        ok(
+            &mut w,
+            Action::AnswerAgent {
+                run: key.clone(),
+                text: "Entfernen".into(),
+            },
+            1,
+        );
         ok(
             &mut w,
             Action::CancelAgent {
@@ -1122,7 +1361,18 @@ mod tests {
             T,
         )
         .unwrap();
-        for i in 0..STEPS {
+        for i in 0..=STEPS {
+            if w.run("BAU-142").unwrap().is_asking() {
+                w.apply(
+                    Action::AnswerAgent {
+                        run: "BAU-142".into(),
+                        text: "Entfernen".into(),
+                    },
+                    Actor::Du,
+                    T + 1 + i as u64,
+                )
+                .unwrap();
+            }
             w.apply(Action::AdvanceAgents, Actor::Agent, T + 1 + i as u64)
                 .unwrap();
         }
@@ -1137,6 +1387,7 @@ mod tests {
             [
                 "BAU-142: Ticket gelesen",
                 "BAU-142: Branch erstellt",
+                "BAU-142: Der Agent hat eine Frage und wartet auf deine Antwort",
                 "BAU-142: Änderungen umgesetzt",
                 "BAU-142: Tests ausgeführt",
                 "BAU-142: Pull Request #92 als Entwurf erstellt",
@@ -1145,10 +1396,10 @@ mod tests {
         let last = w.log.last().unwrap();
         assert_eq!(last.target, Some(Target::Review(92)));
         assert_eq!(w.log[1].target, Some(Target::Run("BAU-142".into())));
-        assert_eq!(w.log_entries(Some(Actor::Du)).len(), 1);
-        assert_eq!(w.log_entries(None).len(), 6);
+        assert_eq!(w.log_entries(Some(Actor::Du)).len(), 2, "Start und Antwort");
+        assert_eq!(w.log_entries(None).len(), 8);
         assert_eq!(w.log_entries(Some(Actor::System)).len(), 0);
-        assert_eq!(w.log_entries(None)[0].id, 6, "neueste zuerst");
+        assert_eq!(w.log_entries(None)[0].id, 8, "neueste zuerst");
         // Danach läuft nichts mehr.
         assert_eq!(
             w.apply(Action::AdvanceAgents, Actor::Agent, T),
@@ -1213,6 +1464,100 @@ mod tests {
     }
 
     #[test]
+    fn notification_settings_are_changed_by_actions() {
+        let mut w = ws();
+        let mention = |on| Action::SetNotifyChannel {
+            reason: NotifyReason::Mention,
+            channel: Channel::Slack,
+            on,
+        };
+        let applied = ok(&mut w, mention(true), 1);
+        assert_eq!(
+            applied.summary,
+            "Benachrichtigung „Erwähnung“ über Slack eingeschaltet"
+        );
+        assert!(
+            w.notifications
+                .enabled(NotifyReason::Mention, Channel::Slack)
+        );
+        assert_eq!(w.log.last().unwrap().target, Some(Target::Settings));
+        fails(&mut w, mention(true), ActionError::Unchanged);
+        let applied = ok(&mut w, mention(false), 1);
+        assert!(applied.summary.ends_with("ausgeschaltet"));
+
+        let quiet = QuietHours {
+            enabled: true,
+            from: 22 * 60,
+            to: 7 * 60,
+        };
+        let applied = ok(&mut w, Action::SetQuietHours { quiet }, 1);
+        assert_eq!(
+            applied.summary,
+            "Ruhezeiten von 22:00 bis 07:00 Uhr eingeschaltet"
+        );
+        fails(
+            &mut w,
+            Action::SetQuietHours { quiet },
+            ActionError::Unchanged,
+        );
+        fails(
+            &mut w,
+            Action::SetQuietHours {
+                quiet: QuietHours {
+                    to: 24 * 60,
+                    ..quiet
+                },
+            },
+            ActionError::InvalidInput,
+        );
+        let off = QuietHours {
+            enabled: false,
+            ..quiet
+        };
+        let applied = ok(&mut w, Action::SetQuietHours { quiet: off }, 1);
+        assert_eq!(applied.summary, "Ruhezeiten ausgeschaltet");
+    }
+
+    #[test]
+    fn reset_keeps_notification_settings() {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::SetNotifyChannel {
+                reason: NotifyReason::Assigned,
+                channel: Channel::Browser,
+                on: false,
+            },
+            1,
+        );
+        w.apply(Action::ResetDemo, Actor::Du, T).unwrap();
+        assert!(
+            !w.notifications
+                .enabled(NotifyReason::Assigned, Channel::Browser)
+        );
+    }
+
+    #[test]
+    fn notification_settings_survive_save_and_load() {
+        let mut w = ws();
+        w.notifications
+            .set(NotifyReason::AgentFinished, Channel::Email, true);
+        let back = persist::load(&persist::save(&w)).unwrap();
+        assert!(
+            back.notifications
+                .enabled(NotifyReason::AgentFinished, Channel::Email)
+        );
+        // Ältere Stände ohne das Feld laden weiter, mit den Standardwerten.
+        let mut json: serde_json::Value = serde_json::from_str(&persist::save(&w)).unwrap();
+        json["workspace"]
+            .as_object_mut()
+            .unwrap()
+            .remove("notifications");
+        let old = persist::load(&json.to_string()).unwrap();
+        assert_eq!(old.notifications, NotifySettings::default());
+    }
+
+    #[test]
     fn actions_roundtrip_as_json() {
         let action = Action::Decide {
             review: 87,
@@ -1272,11 +1617,325 @@ mod tests {
     }
 
     #[test]
+    fn snoozing_is_an_action_and_comes_back_by_itself() {
+        let mut w = ws();
+        let hour = 3_600_000;
+        let applied = ok(
+            &mut w,
+            Action::Snooze {
+                item: "pr87".into(),
+                until_ms: Some(T + hour),
+            },
+            1,
+        );
+        assert_eq!(applied.summary, "#87 zurückgestellt");
+        assert!(w.is_snoozed("pr87", T));
+        // Nichts zu wecken, solange die Zeit nicht um ist.
+        fails(&mut w, Action::WakeSnoozed, ActionError::NothingToDo);
+        // Der Takt holt ihn zurück und protokolliert es als System.
+        let woke = w
+            .apply(Action::WakeSnoozed, Actor::System, T + hour)
+            .unwrap();
+        assert_eq!(woke.summary, "#87 ist zurück in der Inbox");
+        assert!(w.snoozed.is_empty());
+        assert_eq!(w.log.last().unwrap().actor, Actor::System);
+
+        ok(
+            &mut w,
+            Action::Snooze {
+                item: "pr87".into(),
+                until_ms: None,
+            },
+            1,
+        );
+        assert_eq!(
+            w.log.last().unwrap().text,
+            "#87 zurückgestellt, bis sich etwas ändert"
+        );
+        ok(
+            &mut w,
+            Action::Unsnooze {
+                item: "pr87".into(),
+            },
+            1,
+        );
+        fails(
+            &mut w,
+            Action::Unsnooze {
+                item: "pr87".into(),
+            },
+            ActionError::NothingToDo,
+        );
+        fails(
+            &mut w,
+            Action::Snooze {
+                item: "gibt-es-nicht".into(),
+                until_ms: None,
+            },
+            ActionError::UnknownItem("gibt-es-nicht".into()),
+        );
+        // Ein Zeitpunkt in der Vergangenheit ist keine Zurückstellung.
+        fails(
+            &mut w,
+            Action::Snooze {
+                item: "pr87".into(),
+                until_ms: Some(T),
+            },
+            ActionError::InvalidInput,
+        );
+    }
+
+    #[test]
+    fn a_change_wakes_a_snooze_and_the_tick_logs_it() {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::Snooze {
+                item: "bau142".into(),
+                until_ms: None,
+            },
+            1,
+        );
+        fails(&mut w, Action::WakeSnoozed, ActionError::NothingToDo);
+        ok(
+            &mut w,
+            Action::Reply {
+                item: "bau142".into(),
+                text: "Mache ich.".into(),
+            },
+            1,
+        );
+        let woke = w.apply(Action::WakeSnoozed, Actor::System, T).unwrap();
+        assert_eq!(woke.summary, "BAU-142 ist zurück in der Inbox");
+    }
+
+    #[test]
+    fn rules_are_switched_by_action() {
+        let mut w = ws();
+        let off = ok(
+            &mut w,
+            Action::SetRule {
+                rule: Rule::Overdue,
+                enabled: false,
+            },
+            1,
+        );
+        assert_eq!(off.summary, "Regel „Überfälliges Ticket“ ausgeschaltet");
+        assert!(!w.rules.enabled(Rule::Overdue));
+        assert_eq!(w.log.last().unwrap().target, None);
+        fails(
+            &mut w,
+            Action::SetRule {
+                rule: Rule::Overdue,
+                enabled: false,
+            },
+            ActionError::Unchanged,
+        );
+        let on = ok(
+            &mut w,
+            Action::SetRule {
+                rule: Rule::Overdue,
+                enabled: true,
+            },
+            1,
+        );
+        assert_eq!(on.summary, "Regel „Überfälliges Ticket“ eingeschaltet");
+    }
+
+    #[test]
+    fn rules_and_snoozes_survive_save_and_load() {
+        let mut w = ws();
+        w.apply(
+            Action::SetRule {
+                rule: Rule::Assigned,
+                enabled: false,
+            },
+            Actor::Du,
+            T,
+        )
+        .unwrap();
+        w.apply(
+            Action::Snooze {
+                item: "pr87".into(),
+                until_ms: Some(T + 1),
+            },
+            Actor::Du,
+            T,
+        )
+        .unwrap();
+        let back = persist::load(&persist::save(&w)).unwrap();
+        assert_eq!(back, w);
+        assert!(!back.rules.enabled(Rule::Assigned));
+        let text = serde_json::to_string(&Action::Snooze {
+            item: "x".into(),
+            until_ms: None,
+        })
+        .unwrap();
+        assert!(matches!(
+            serde_json::from_str::<Action>(&text),
+            Ok(Action::Snooze { until_ms: None, .. })
+        ));
+    }
+
+    #[test]
+    fn old_saves_without_rules_snoozes_or_due_dates_still_load() {
+        let mut value: serde_json::Value = serde_json::from_str(&persist::save(&ws())).unwrap();
+        let workspace = value["workspace"].as_object_mut().unwrap();
+        workspace.remove("rules");
+        workspace.remove("snoozed");
+        for item in workspace["items"].as_array_mut().unwrap() {
+            item.as_object_mut().unwrap().remove("due");
+            if let Some(pr) = item.get_mut("pr").and_then(|p| p.as_object_mut()) {
+                pr.remove("changes_requested");
+            }
+        }
+        let back = persist::load(&value.to_string()).unwrap();
+        assert!(Rule::ALL.iter().all(|r| back.rules.enabled(*r)));
+        assert!(back.snoozed.is_empty());
+        assert_eq!(back.item("bau150").unwrap().due, None);
+    }
+
+    #[test]
     fn actor_ids_roundtrip() {
         for a in Actor::ALL {
             assert_eq!(Actor::from_id(a.id()), Some(a));
         }
         assert_eq!(Actor::from_id("x"), None);
+    }
+
+    /// Bringt BAU-142 bis zur Rückfrage des Agenten.
+    fn asking_ws() -> Workspace {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::StartAgent {
+                ticket: "BAU-142".into(),
+                options: direct(),
+            },
+            1,
+        );
+        ok(&mut w, Action::AdvanceAgents, 1);
+        ok(&mut w, Action::AdvanceAgents, 1);
+        ok(&mut w, Action::AdvanceAgents, 1);
+        assert!(w.run("BAU-142").unwrap().is_asking());
+        w
+    }
+
+    #[test]
+    fn answering_continues_the_agent_and_is_logged() {
+        let mut w = asking_ws();
+        assert_eq!(
+            w.item("bau142").unwrap().agent_note.as_deref(),
+            Some("Der Agent hat eine Frage an dich")
+        );
+        let applied = ok(
+            &mut w,
+            Action::AnswerAgent {
+                run: "BAU-142".into(),
+                text: " Als deprecated markieren ".into(),
+            },
+            1,
+        );
+        assert_eq!(
+            applied.summary,
+            "Frage des Agenten für BAU-142 beantwortet: „Als deprecated markieren“"
+        );
+        let last = w.log.last().unwrap();
+        assert_eq!(
+            (last.actor, &last.target),
+            (Actor::Du, &Some(Target::Run("BAU-142".into())))
+        );
+        assert!(w.run("BAU-142").unwrap().is_running());
+        assert_eq!(
+            w.item("bau142").unwrap().agent_note.as_deref(),
+            Some("Der Agent arbeitet an der Umsetzung")
+        );
+    }
+
+    #[test]
+    fn invalid_answers_change_nothing() {
+        let mut w = asking_ws();
+        fails(
+            &mut w,
+            Action::AnswerAgent {
+                run: "BAU-142".into(),
+                text: "  ".into(),
+            },
+            ActionError::InvalidInput,
+        );
+        let mut idle = ws();
+        for action in [
+            Action::AnswerAgent {
+                run: "BAU-142".into(),
+                text: "Ja".into(),
+            },
+            Action::SteerAgent {
+                run: "BAU-142".into(),
+                text: "Ja".into(),
+            },
+            Action::PauseAgent {
+                run: "BAU-142".into(),
+            },
+            Action::ResumeAgent {
+                run: "BAU-142".into(),
+            },
+        ] {
+            fails(&mut idle, action, ActionError::NothingToDo);
+        }
+        // Wer fragt, läuft nicht: pausieren geht erst nach der Antwort.
+        fails(
+            &mut w,
+            Action::PauseAgent {
+                run: "BAU-142".into(),
+            },
+            ActionError::NothingToDo,
+        );
+        fails(
+            &mut w,
+            Action::ResumeAgent {
+                run: "BAU-142".into(),
+            },
+            ActionError::NothingToDo,
+        );
+    }
+
+    #[test]
+    fn steering_is_acknowledged_by_the_agent_in_the_next_step() {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::StartAgent {
+                ticket: "BAU-150".into(),
+                options: direct(),
+            },
+            1,
+        );
+        fails(
+            &mut w,
+            Action::SteerAgent {
+                run: "BAU-150".into(),
+                text: "".into(),
+            },
+            ActionError::InvalidInput,
+        );
+        ok(
+            &mut w,
+            Action::SteerAgent {
+                run: "BAU-150".into(),
+                text: "Bitte auch die Doku".into(),
+            },
+            1,
+        );
+        // Der Takt protokolliert den berücksichtigten Hinweis und den Schritt.
+        let tick = w.apply(Action::AdvanceAgents, Actor::Agent, T).unwrap();
+        assert_eq!(tick.logged, 2);
+        assert_eq!(tick.summary, "BAU-150: 1 Hinweis berücksichtigt");
+        let run = w.run("BAU-150").unwrap();
+        assert!(
+            run.messages
+                .iter()
+                .any(|m| m.text == "Hinweis erhalten: Bitte auch die Doku")
+        );
     }
 
     // ---------- Mergen, Checks, Änderungsvorschläge ----------
@@ -1342,6 +2001,109 @@ mod tests {
             merge(1, MergeMethod::Merge),
             ActionError::UnknownReview(1),
         );
+    }
+
+    #[test]
+    fn a_paused_agent_makes_no_progress_until_resumed() {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::StartAgent {
+                ticket: "BAU-150".into(),
+                options: direct(),
+            },
+            1,
+        );
+        ok(
+            &mut w,
+            Action::PauseAgent {
+                run: "BAU-150".into(),
+            },
+            1,
+        );
+        assert_eq!(
+            w.item("bau150").unwrap().agent_note.as_deref(),
+            Some("Der Agent ist pausiert")
+        );
+        fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
+        fails(
+            &mut w,
+            Action::PauseAgent {
+                run: "BAU-150".into(),
+            },
+            ActionError::NothingToDo,
+        );
+        // Abbrechen geht auch pausiert.
+        ok(
+            &mut w,
+            Action::ResumeAgent {
+                run: "BAU-150".into(),
+            },
+            1,
+        );
+        ok(&mut w, Action::AdvanceAgents, 1);
+        ok(
+            &mut w,
+            Action::PauseAgent {
+                run: "BAU-150".into(),
+            },
+            1,
+        );
+        ok(
+            &mut w,
+            Action::CancelAgent {
+                ticket: "BAU-150".into(),
+            },
+            1,
+        );
+        assert!(w.run("BAU-150").unwrap().is_idle());
+    }
+
+    #[test]
+    fn the_agent_still_never_merges_after_questions() {
+        let mut w = asking_ws();
+        ok(
+            &mut w,
+            Action::AnswerAgent {
+                run: "BAU-142".into(),
+                text: "Entfernen".into(),
+            },
+            1,
+        );
+        for _ in 0..STEPS {
+            let _ = w.apply(Action::AdvanceAgents, Actor::Agent, T);
+        }
+        // Am Ende wartet ein Pull Request auf das Review, gemergt ist nichts.
+        let review = w.review(92).unwrap();
+        assert!(!review.sent);
+        assert!(
+            w.log
+                .iter()
+                .all(|e| !e.text.to_lowercase().contains("gemergt"))
+        );
+    }
+
+    #[test]
+    fn new_actions_survive_json() {
+        for action in [
+            Action::AnswerAgent {
+                run: "BAU-142".into(),
+                text: "Ja".into(),
+            },
+            Action::SteerAgent {
+                run: "BAU-142".into(),
+                text: "Ja".into(),
+            },
+            Action::PauseAgent {
+                run: "BAU-142".into(),
+            },
+            Action::ResumeAgent {
+                run: "BAU-142".into(),
+            },
+        ] {
+            let json = serde_json::to_string(&action).unwrap();
+            assert_eq!(serde_json::from_str::<Action>(&json).unwrap(), action);
+        }
     }
 
     #[test]

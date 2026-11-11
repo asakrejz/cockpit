@@ -3,26 +3,34 @@
 //! Die Oberfläche folgt dem Design „Baukasten“ und besteht aus den Bausteinen in
 //! `feature-ui`. Was die Knöpfe tun, steht in `cockpit-core`. Diese App verbindet beides.
 
+mod banner;
+mod mode_switch;
+mod notify;
 mod pages;
 mod route;
+mod server;
 mod sidebar;
 mod store;
+mod toasts;
 mod view;
 
 use std::time::Duration;
 
+use banner::ServerBanner;
 use cockpit_core::{Action, Actor};
 use feature_ui::{Root, Theme};
 use leptos::prelude::*;
 use pages::{
-    agent::AgentPage, inbox::InboxPage, log::LogPage, overview::OverviewPage, review::ReviewPage,
-    setup::SetupPage,
+    agent::AgentPage, inbox::InboxPage, log::LogPage, notifications::NotificationsPage,
+    overview::OverviewPage, review::ReviewPage, setup::SetupPage,
 };
 use route::Route;
-use store::{Store, current_hash, navigate};
+use store::{Mode, Store, current_hash, navigate, now_ms};
 
 /// So lange braucht der Demo-Agent für einen Schritt.
 const AGENT_STEP: Duration = Duration::from_millis(2200);
+/// So oft prüft der Takt, ob zurückgestellte Einträge zurückkehren und ob ein Ticket überfällig wurde.
+const CLOCK_TICK: Duration = Duration::from_secs(15);
 
 fn main() {
     // Rust-Panics landen lesbar in der Browser-Konsole.
@@ -59,9 +67,12 @@ fn App() -> impl IntoView {
     });
 
     // Ein Takt für alle Agenten und Checks – sie arbeiten weiter, egal welche Seite offen ist.
+    // Im Server-Modus macht den Takt der Server.
     set_interval(
         move || {
-            if store.ws.with_untracked(|w| w.running_agents()) > 0 {
+            if store.mode.get_untracked() == Mode::Demo
+                && store.ws.with_untracked(|w| w.running_agents()) > 0
+            {
                 let _ = store.dispatch_as(Action::AdvanceAgents, Actor::Agent);
             }
             // Neu gestartete Checks laufen im selben Takt zu Ende.
@@ -72,16 +83,35 @@ fn App() -> impl IntoView {
         AGENT_STEP,
     );
 
+    // Die Uhr der Aufmerksamkeit: aktualisiert die Zeit und holt zurückgestellte Einträge
+    // zurück, sobald ihre Zeit um ist oder sich etwas geändert hat.
+    set_interval(
+        move || {
+            store.now.set(now_ms());
+            if !store
+                .ws
+                .with_untracked(|w| w.expired_snoozes(store.now.get_untracked()))
+                .is_empty()
+            {
+                let _ = store.dispatch_as(Action::WakeSnoozed, Actor::System);
+            }
+        },
+        CLOCK_TICK,
+    );
+
     view! {
         <Root theme=system_theme() class="ck-root">
+            <ServerBanner />
             {move || match store.route.get() {
                 Route::Setup => view! { <SetupPage /> }.into_any(),
                 Route::Inbox(filter) => view! { <InboxPage filter=filter /> }.into_any(),
                 Route::Overview => view! { <OverviewPage /> }.into_any(),
                 Route::Log => view! { <LogPage /> }.into_any(),
+                Route::Notifications => view! { <NotificationsPage /> }.into_any(),
                 Route::Review(number) => view! { <ReviewPage number=number /> }.into_any(),
                 Route::Agent(ticket) => view! { <AgentPage ticket=ticket /> }.into_any(),
             }}
+            <toasts::Toasts />
         </Root>
     }
 }

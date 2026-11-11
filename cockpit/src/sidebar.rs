@@ -12,21 +12,37 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
     let store = use_store();
     let on = move |route: Route| Signal::derive(move || store.route.get() == route);
     let count = move |filter: Filter| {
-        Signal::derive(move || store.ws.with(|w| w.unread(filter)).to_string())
+        Signal::derive(move || {
+            let now = store.now.get();
+            store.ws.with(|w| w.unread(filter, now)).to_string()
+        })
     };
+    // Leer, solange nichts zurückgestellt ist.
+    let snoozed = Signal::derive(move || {
+        let now = store.now.get();
+        match store.ws.with(|w| w.unread(Filter::Snoozed, now)) {
+            0 => String::new(),
+            n => n.to_string(),
+        }
+    });
     let stuck = Signal::derive(move || match store.ws.with(|w| team::stuck(w).len()) {
         0 => String::new(),
         n => format!("{n} hängt"),
     });
     let reviews = Signal::derive(move || store.ws.with(|w| w.open_reviews()).to_string());
     let agents = Signal::derive(move || {
-        let (running, waiting) = store.ws.with(|w| (w.running_agents(), w.waiting_agents()));
+        let (running, waiting, paused) = store
+            .ws
+            .with(|w| (w.running_agents(), w.waiting_agents(), w.paused_agents()));
         let mut parts = Vec::new();
         if running > 0 {
             parts.push(format!("{running} aktiv"));
         }
         if waiting > 0 {
             parts.push(format!("{waiting} wartet"));
+        }
+        if paused > 0 {
+            parts.push(format!("{paused} pausiert"));
         }
         parts.join(" · ")
     });
@@ -62,6 +78,13 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
                     current=on(Route::Inbox(Filter::Team))
                 />
                 <SidebarItem
+                    href=Route::Inbox(Filter::Snoozed).hash()
+                    label="Zurückgestellt"
+                    icon=icons::MOON
+                    count=snoozed
+                    current=on(Route::Inbox(Filter::Snoozed))
+                />
+                <SidebarItem
                     href=Route::Overview.hash()
                     label="Übersicht"
                     icon=icons::CHART
@@ -92,6 +115,12 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
             {children()}
             <Spacer />
             <SidebarSection>
+                <SidebarItem
+                    href=Route::Notifications.hash()
+                    label="Benachrichtigungen"
+                    icon=icons::BELL
+                    current=on(Route::Notifications)
+                />
                 <SidebarItem href=Route::Setup.hash() label="Einstellungen" icon=icons::SLIDERS />
             </SidebarSection>
         </Sidebar>
