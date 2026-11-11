@@ -58,11 +58,15 @@ fn App() -> impl IntoView {
         }
     });
 
-    // Ein Takt für alle Agenten – sie arbeiten weiter, egal welche Seite offen ist.
+    // Ein Takt für alle Agenten und Checks – sie arbeiten weiter, egal welche Seite offen ist.
     set_interval(
         move || {
             if store.ws.with_untracked(|w| w.running_agents()) > 0 {
                 let _ = store.dispatch_as(Action::AdvanceAgents, Actor::Agent);
+            }
+            // Neu gestartete Checks laufen im selben Takt zu Ende.
+            if store.ws.with_untracked(|w| w.running_checks()) > 0 {
+                let _ = store.dispatch_as(Action::AdvanceChecks, Actor::System);
             }
         },
         AGENT_STEP,

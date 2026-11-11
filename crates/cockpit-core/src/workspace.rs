@@ -6,7 +6,7 @@ use crate::action::LogEntry;
 use crate::agent::{AgentOptions, AgentRun};
 use crate::demo;
 use crate::model::*;
-use crate::review::{Decision, Review, SendError, Verdict};
+use crate::review::{CHECK_STEPS, Decision, MergeBlocker, MergeMethod, Review, SendError, Verdict};
 use crate::text::slug;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -153,13 +153,21 @@ impl Workspace {
         file: &str,
         line: usize,
         text: &str,
+        suggestion: Option<&str>,
     ) -> Option<String> {
-        self.review_mut(number)?.add_line_comment(file, line, text)
+        self.review_mut(number)?
+            .add_line_comment(file, line, text, suggestion)
     }
 
-    pub fn edit_line_comment(&mut self, number: u32, comment: &str, text: &str) -> bool {
+    pub fn edit_line_comment(
+        &mut self,
+        number: u32,
+        comment: &str,
+        text: &str,
+        suggestion: Option<&str>,
+    ) -> bool {
         self.review_mut(number)
-            .is_some_and(|r| r.edit_line_comment(comment, text))
+            .is_some_and(|r| r.edit_line_comment(comment, text, suggestion))
     }
 
     pub fn delete_line_comment(&mut self, number: u32, comment: &str) -> bool {
@@ -218,6 +226,122 @@ impl Workspace {
             item.read = true;
         }
         Ok(sent)
+    }
+
+    // ---------- Checks ----------
+
+    /// Checks, die noch laufen (über alle Pull Requests).
+    pub fn running_checks(&self) -> usize {
+        self.reviews.iter().map(Review::running_checks).sum()
+    }
+
+    /// Schreibt den Gesamtstand der Checks in die Einträge der Inbox.
+    fn sync_pr_checks(&mut self, number: u32) {
+        let Some(checks) = self.review(number).map(|r| r.checks) else {
+            return;
+        };
+        for item in self
+            .items
+            .iter_mut()
+            .filter(|i| i.pr.as_ref().is_some_and(|p| p.number == number))
+        {
+            if let Some(pr) = item.pr.as_mut() {
+                pr.checks = checks;
+            }
+            // Wieder grün: Der Eintrag hängt nicht mehr an den Checks.
+            if checks == Checks::Passed && item.reason == ReasonKind::ChecksFailed {
+                item.reason = ReasonKind::ReviewRequested;
+                item.reason_text = "Checks wieder bestanden".into();
+            }
+        }
+    }
+
+    /// Startet einen fehlgeschlagenen Check neu.
+    pub fn restart_check(&mut self, number: u32, check: &str) -> bool {
+        let restarted = self
+            .review_mut(number)
+            .is_some_and(|r| r.restart_check(check));
+        if restarted {
+            self.sync_pr_checks(number);
+        }
+        restarted
+    }
+
+    /// Der Takt der Checks: jeder laufende kommt einen Schritt weiter. Gibt
+    /// `(Pull Request, Check, Ergebnis)` für jeden zurück, der dabei fertig geworden ist.
+    pub fn advance_checks(&mut self) -> Vec<(u32, String, Checks)> {
+        let mut finished = Vec::new();
+        for review in &mut self.reviews {
+            for name in review.advance_checks() {
+                let status = review
+                    .check_runs
+                    .iter()
+                    .find(|c| c.name == name)
+                    .map_or(Checks::Failed, |c| c.status);
+                finished.push((review.number, name, status));
+            }
+        }
+        let numbers: Vec<u32> = finished.iter().map(|(n, ..)| *n).collect();
+        for n in numbers {
+            self.sync_pr_checks(n);
+        }
+        finished
+    }
+
+    // ---------- Mergen ----------
+
+    /// Was das Mergen von Pull Request `number` verhindert. Unbekannt = leer.
+    pub fn merge_blockers(&self, number: u32) -> Vec<MergeBlocker> {
+        let Some(review) = self.review(number) else {
+            return Vec::new();
+        };
+        let mut blockers = review.merge_blockers();
+        let draft = self
+            .items
+            .iter()
+            .any(|i| i.pr.as_ref().is_some_and(|p| p.number == number && p.draft));
+        if draft && review.merged.is_none() {
+            blockers.insert(0, MergeBlocker::Draft);
+        }
+        blockers
+    }
+
+    /// Mergt den Pull Request. Das verknüpfte Ticket geht auf „Fertig“ und gilt als
+    /// erledigt, der Eintrag in der Inbox zeigt „Gemergt“.
+    pub fn merge_pr(&mut self, number: u32, method: MergeMethod) -> Result<(), Vec<MergeBlocker>> {
+        let blockers = self.merge_blockers(number);
+        if !blockers.is_empty() {
+            return Err(blockers);
+        }
+        let Some(review) = self.review_mut(number) else {
+            return Err(Vec::new());
+        };
+        review.merged = Some(method);
+        let ticket = review.ticket_key.clone();
+
+        for item in self
+            .items
+            .iter_mut()
+            .filter(|i| i.pr.as_ref().is_some_and(|p| p.number == number))
+        {
+            if let Some(pr) = item.pr.as_mut() {
+                pr.merged = true;
+                pr.draft = false;
+            }
+            item.read = true;
+            item.agent_note = None;
+            if item.kind == Kind::PullRequest {
+                item.reason_text = format!("Gemergt ({})", method.label());
+            }
+        }
+        if let Some(item) = ticket.and_then(|key| self.items.iter_mut().find(|i| i.key == key))
+            && item.is_ticket()
+        {
+            item.status = TicketStatus::Done;
+            item.read = true;
+            item.agent_note = None;
+        }
+        Ok(())
     }
 
     // ---------- Agenten ----------
@@ -354,6 +478,7 @@ impl Workspace {
                 number,
                 draft: run.options.draft_pr,
                 checks,
+                merged: false,
             });
             item.status = TicketStatus::Review;
             item.agent_note = Some(format!("Vom Agenten umgesetzt · {tests}"));
@@ -380,6 +505,19 @@ impl Workspace {
             line_comments: Vec::new(),
             verdict: Verdict::Comment,
             sent: false,
+            check_runs: {
+                let mut runs = demo::passing_checks();
+                // Ohne Tests läuft der Test-Check noch; der Takt der Checks schließt ihn ab.
+                if checks == Checks::Running
+                    && let Some(tests) = runs.last_mut()
+                {
+                    tests.status = Checks::Running;
+                    tests.remaining = CHECK_STEPS;
+                    tests.log = "$ cargo test\nwird ausgeführt …\n".into();
+                }
+                runs
+            },
+            merged: None,
         });
     }
 }
@@ -490,8 +628,10 @@ mod tests {
     fn own_line_comments_go_out_with_the_review() {
         let mut w = ws();
         let file = w.review(87).unwrap().files[0].name.clone();
-        assert_eq!(w.add_line_comment(1, &file, 0, "x"), None);
-        let id = w.add_line_comment(87, &file, 0, "Warum hier?").unwrap();
+        assert_eq!(w.add_line_comment(1, &file, 0, "x", None), None);
+        let id = w
+            .add_line_comment(87, &file, 0, "Warum hier?", None)
+            .unwrap();
         for s in ["a", "b", "c"] {
             w.decide(87, s, Some(Decision::Declined));
         }
@@ -502,7 +642,7 @@ mod tests {
             "Review gesendet: Kommentieren · 1 Kommentar"
         );
         assert!(w.review(87).unwrap().sent);
-        assert!(w.edit_line_comment(87, &id, "Anders"));
+        assert!(w.edit_line_comment(87, &id, "Anders", None));
         assert!(!w.review(87).unwrap().sent);
         assert!(w.delete_line_comment(87, &id));
         assert!(!w.delete_line_comment(1, &id));
@@ -587,7 +727,8 @@ mod tests {
             Some(PrRef {
                 number: 92,
                 draft: false,
-                checks: Checks::Running
+                checks: Checks::Running,
+                merged: false,
             })
         );
         assert_eq!(
@@ -700,5 +841,27 @@ mod tests {
         let fresh = w.run("BAU-150").unwrap();
         assert!(fresh.is_idle());
         assert_eq!(fresh.files.len(), 2);
+    }
+
+    #[test]
+    fn an_agent_pull_request_without_tests_gets_green_when_its_check_finishes() {
+        let mut w = ws();
+        let options = AgentOptions {
+            run_tests: false,
+            ..direct()
+        };
+        w.start_agent("BAU-150", options).unwrap();
+        finish_agents(&mut w);
+        assert_eq!(w.review(92).unwrap().checks, Checks::Running);
+        assert_eq!(w.running_checks(), 1);
+        assert_eq!(w.merge_blockers(92)[0], MergeBlocker::Draft);
+        for _ in 0..CHECK_STEPS {
+            w.advance_checks();
+        }
+        assert_eq!(w.review(92).unwrap().checks, Checks::Passed);
+        assert_eq!(
+            w.item("bau150").unwrap().pr.as_ref().unwrap().checks,
+            Checks::Passed
+        );
     }
 }

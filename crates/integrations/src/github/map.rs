@@ -68,6 +68,7 @@ pub fn pull_to_item(
             number: pull.number,
             draft: pull.draft,
             checks,
+            merged: false,
         }),
         agent_note: None,
         comments: Vec::new(),
@@ -103,6 +104,8 @@ pub fn pull_to_review(pull: &Pull, files: &[PullFile], checks: Checks) -> Review
         line_comments: Vec::new(),
         verdict: Verdict::default(),
         sent: false,
+        check_runs: Vec::new(),
+        merged: None,
     }
 }
 
