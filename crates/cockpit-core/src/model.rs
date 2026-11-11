@@ -67,6 +67,43 @@ impl Filter {
     }
 }
 
+/// Filter der Inbox nach Quelle: alles, nur Jira oder nur GitHub.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SourceFilter {
+    #[default]
+    All,
+    Jira,
+    GitHub,
+}
+
+impl SourceFilter {
+    /// ID und Beschriftung, in Anzeigereihenfolge.
+    pub const OPTIONS: &'static [(&'static str, &'static str)] =
+        &[("alle", "Alle"), ("jira", "Jira"), ("github", "GitHub")];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            SourceFilter::All => "alle",
+            SourceFilter::Jira => "jira",
+            SourceFilter::GitHub => "github",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<SourceFilter> {
+        [SourceFilter::All, SourceFilter::Jira, SourceFilter::GitHub]
+            .into_iter()
+            .find(|f| f.id() == id)
+    }
+
+    pub fn matches(self, source: Source) -> bool {
+        match self {
+            SourceFilter::All => true,
+            SourceFilter::Jira => source == Source::Jira,
+            SourceFilter::GitHub => source == Source::GitHub,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TicketStatus {
     #[default]
@@ -304,7 +341,11 @@ mod tests {
         for (id, _) in TicketStatus::OPTIONS {
             assert_eq!(TicketStatus::from_id(id).map(TicketStatus::id), Some(*id));
         }
+        for (id, _) in SourceFilter::OPTIONS {
+            assert_eq!(SourceFilter::from_id(id).map(SourceFilter::id), Some(*id));
+        }
         assert_eq!(Filter::from_id("???"), None);
+        assert_eq!(SourceFilter::from_id("???"), None);
     }
 
     #[test]
@@ -312,6 +353,20 @@ mod tests {
         assert!(Filter::All.matches(Scope::Mine) && Filter::All.matches(Scope::Team));
         assert!(Filter::Mine.matches(Scope::Mine) && !Filter::Mine.matches(Scope::Team));
         assert!(Filter::Team.matches(Scope::Team) && !Filter::Team.matches(Scope::Mine));
+    }
+
+    #[test]
+    fn source_filter_matches_source() {
+        assert!(
+            SourceFilter::All.matches(Source::Jira) && SourceFilter::All.matches(Source::GitHub)
+        );
+        assert!(
+            SourceFilter::Jira.matches(Source::Jira) && !SourceFilter::Jira.matches(Source::GitHub)
+        );
+        assert!(
+            SourceFilter::GitHub.matches(Source::GitHub)
+                && !SourceFilter::GitHub.matches(Source::Jira)
+        );
     }
 
     #[test]

@@ -110,6 +110,18 @@ impl Suggestion {
     }
 }
 
+/// Eigener Kommentar an einer Zeile des Diffs. Braucht keine Freigabe.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct LineComment {
+    pub id: String,
+    /// Name der Datei im Diff.
+    pub file: String,
+    /// Position der Zeile in `FileDiff::lines`. Die Zeilennummer allein genügt nicht,
+    /// sie kommt für entfernte und neue Zeilen doppelt vor.
+    pub line: usize,
+    pub text: String,
+}
+
 /// Ergebnis des Reviews.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Verdict {
@@ -179,6 +191,9 @@ pub struct Review {
     pub agent_reviewed: bool,
     #[serde(default)]
     pub suggestions: Vec<Suggestion>,
+    /// Eigene Kommentare an Diff-Zeilen.
+    #[serde(default)]
+    pub line_comments: Vec<LineComment>,
     #[serde(default)]
     pub verdict: Verdict,
     #[serde(default)]
@@ -246,6 +261,85 @@ impl Review {
         self.sent = false;
     }
 
+    // ---------- Eigene Zeilenkommentare ----------
+
+    /// Legt einen Kommentar an der Zeile `line` (Position im Diff) der Datei `file` an.
+    /// Gibt die ID zurück. Leerer Text, unbekannte Datei oder Zeile werden abgelehnt.
+    /// Wie jede Änderung macht das ein gesendetes Review wieder offen.
+    pub fn add_line_comment(&mut self, file: &str, line: usize, text: &str) -> Option<String> {
+        let text = text.trim();
+        let exists = self
+            .files
+            .iter()
+            .any(|f| f.name == file && line < f.lines.len());
+        if text.is_empty() || !exists {
+            return None;
+        }
+        let next = self
+            .line_comments
+            .iter()
+            .filter_map(|c| c.id.strip_prefix('c')?.parse::<u32>().ok())
+            .max()
+            .unwrap_or(0)
+            + 1;
+        let id = format!("c{next}");
+        self.line_comments.push(LineComment {
+            id: id.clone(),
+            file: file.into(),
+            line,
+            text: text.into(),
+        });
+        self.sent = false;
+        Some(id)
+    }
+
+    /// Ändert den Text eines eigenen Kommentars. Leerer Text wird abgelehnt.
+    pub fn edit_line_comment(&mut self, id: &str, text: &str) -> bool {
+        let text = text.trim();
+        let Some(c) = self
+            .line_comments
+            .iter_mut()
+            .find(|c| c.id == id)
+            .filter(|_| !text.is_empty())
+        else {
+            return false;
+        };
+        c.text = text.to_string();
+        self.sent = false;
+        true
+    }
+
+    pub fn delete_line_comment(&mut self, id: &str) -> bool {
+        let before = self.line_comments.len();
+        self.line_comments.retain(|c| c.id != id);
+        let removed = self.line_comments.len() < before;
+        if removed {
+            self.sent = false;
+        }
+        removed
+    }
+
+    /// Eigene Kommentare an einer Zeile, in der Reihenfolge des Anlegens.
+    pub fn line_comments_at(&self, file: &str, line: usize) -> Vec<&LineComment> {
+        self.line_comments
+            .iter()
+            .filter(|c| c.file == file && c.line == line)
+            .collect()
+    }
+
+    /// Datei und Zeilennummer eines Kommentars, z. B. `a.css · Zeile 3`.
+    pub fn line_location(&self, comment: &LineComment) -> Option<String> {
+        let file = self.files.iter().find(|f| f.name == comment.file)?;
+        let line = file.lines.get(comment.line)?;
+        Some(format!("{} · Zeile {}", file.name, line.no))
+    }
+
+    /// So viele Kommentare gehen beim Senden raus: freigegebene Vorschläge des Agenten
+    /// und alle eigenen Zeilenkommentare.
+    pub fn comment_count(&self) -> usize {
+        self.approved() + self.line_comments.len()
+    }
+
     pub fn can_send(&self) -> bool {
         !self.sent && self.undecided() == 0
     }
@@ -254,14 +348,15 @@ impl Review {
         if self.sent {
             return "Gesendet".into();
         }
-        let n = self.approved();
+        let n = self.comment_count();
         format!(
             "Review senden · {n} {}",
             if n == 1 { "Kommentar" } else { "Kommentare" }
         )
     }
 
-    /// Sendet das Review und gibt die freigegebenen Kommentare zurück.
+    /// Sendet das Review und gibt die Kommentare zurück: erst die freigegebenen des
+    /// Agenten, dann die eigenen Zeilenkommentare.
     pub fn send(&mut self) -> Result<Vec<String>, SendError> {
         if self.sent {
             return Err(SendError::AlreadySent);
@@ -270,12 +365,13 @@ impl Review {
             return Err(SendError::Undecided(self.undecided()));
         }
         self.sent = true;
-        Ok(self
+        let approved = self
             .suggestions
             .iter()
             .filter(|s| s.decision == Some(Decision::Approved))
-            .map(|s| s.text.clone())
-            .collect())
+            .map(|s| s.text.clone());
+        let own = self.line_comments.iter().map(|c| c.text.clone());
+        Ok(approved.chain(own).collect())
     }
 
     /// Der Agent sieht den Diff durch und bereitet Vorschläge vor.
@@ -381,6 +477,7 @@ mod tests {
                 Suggestion::new("a", "a.css · Zeile 2", Level::Note, "Erster"),
                 Suggestion::new("b", "a.css · Zeile 3", Level::Important, "Zweiter"),
             ],
+            line_comments: Vec::new(),
             verdict: Verdict::Comment,
             sent: false,
         }
@@ -482,5 +579,94 @@ mod tests {
             let v = Verdict::from_id(id).unwrap();
             assert_eq!((v.id(), v.label()), (*id, *label));
         }
+    }
+
+    #[test]
+    fn line_comments_are_added_trimmed_and_found_per_line() {
+        let mut r = review();
+        assert_eq!(r.add_line_comment("a.css", 3, "  Neu  "), Some("c1".into()));
+        assert_eq!(
+            r.add_line_comment("a.css", 3, "Noch einer"),
+            Some("c2".into())
+        );
+        assert_eq!(r.line_comments_at("a.css", 3).len(), 2);
+        assert_eq!(r.line_comments_at("a.css", 3)[0].text, "Neu");
+        assert!(r.line_comments_at("a.css", 2).is_empty());
+        let c = r.line_comments[0].clone();
+        assert_eq!(r.line_location(&c).as_deref(), Some("a.css · Zeile 3"));
+    }
+
+    #[test]
+    fn invalid_line_comments_are_rejected() {
+        let mut r = review();
+        assert_eq!(r.add_line_comment("a.css", 0, "  "), None);
+        assert_eq!(r.add_line_comment("b.css", 0, "x"), None);
+        assert_eq!(r.add_line_comment("a.css", 4, "x"), None);
+        assert!(r.line_comments.is_empty());
+    }
+
+    #[test]
+    fn line_comments_can_be_edited_and_deleted() {
+        let mut r = review();
+        let id = r.add_line_comment("a.css", 1, "Alt").unwrap();
+        assert!(!r.edit_line_comment(&id, "   "));
+        assert!(!r.edit_line_comment("nope", "x"));
+        assert!(r.edit_line_comment(&id, " Neu "));
+        assert_eq!(r.line_comments[0].text, "Neu");
+        assert!(!r.delete_line_comment("nope"));
+        assert!(r.delete_line_comment(&id));
+        assert!(r.line_comments.is_empty());
+        // Die ID einer gelöschten Zeile wird nicht doppelt vergeben.
+        let a = r.add_line_comment("a.css", 1, "A").unwrap();
+        let b = r.add_line_comment("a.css", 1, "B").unwrap();
+        r.delete_line_comment(&a);
+        assert_ne!(r.add_line_comment("a.css", 1, "C").unwrap(), b);
+    }
+
+    #[test]
+    fn own_comments_are_sent_and_counted_without_approval() {
+        let mut r = review();
+        r.add_line_comment("a.css", 2, "Eigener");
+        assert_eq!(r.comment_count(), 1);
+        assert_eq!(r.send_label(), "Review senden · 1 Kommentar");
+        // Die Regel bleibt: erst über alle Vorschläge entscheiden.
+        assert_eq!(r.send(), Err(SendError::Undecided(2)));
+        r.decide("a", Some(Decision::Approved));
+        r.decide("b", Some(Decision::Declined));
+        assert_eq!(r.send_label(), "Review senden · 2 Kommentare");
+        assert_eq!(
+            r.send(),
+            Ok(vec!["Erster".to_string(), "Eigener".to_string()])
+        );
+        assert_eq!(r.send_label(), "Gesendet");
+    }
+
+    #[test]
+    fn a_review_without_suggestions_can_be_sent_with_only_own_comments() {
+        let mut r = review();
+        r.suggestions.clear();
+        r.add_line_comment("a.css", 0, "Nur ich");
+        assert!(r.can_send());
+        assert_eq!(r.send(), Ok(vec!["Nur ich".to_string()]));
+    }
+
+    #[test]
+    fn changing_line_comments_reopens_a_sent_review() {
+        let mut r = review();
+        r.suggestions.clear();
+        r.send().unwrap();
+        assert!(r.sent);
+        let id = r.add_line_comment("a.css", 0, "Spät").unwrap();
+        assert!(!r.sent);
+        r.send().unwrap();
+        assert!(r.edit_line_comment(&id, "Geändert"));
+        assert!(!r.sent);
+        r.send().unwrap();
+        assert!(r.delete_line_comment(&id));
+        assert!(!r.sent);
+        // Misslungene Änderungen öffnen nichts.
+        r.send().unwrap();
+        assert!(!r.edit_line_comment("nope", "x") && !r.delete_line_comment("nope"));
+        assert!(r.sent);
     }
 }

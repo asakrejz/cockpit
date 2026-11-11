@@ -2,6 +2,9 @@
 //!
 //! Der Lauf ist eine kleine Zustandsmaschine. Wer sie antreibt – in der Demo ein
 //! Timer, später ein Backend –, ruft nur [`AgentRun::advance`] auf.
+//!
+//! Auf Wunsch legt der Agent vorher einen [`Plan`] vor und wartet auf die Freigabe
+//! ([`RunState::AwaitingApproval`]). Bis dahin entsteht nichts: kein Branch, keine Änderung.
 
 use serde::{Deserialize, Serialize};
 
@@ -19,6 +22,8 @@ pub struct AgentOptions {
     /// Zusätzliche Hinweise an den Agenten.
     pub hint: String,
     pub base_branch: String,
+    /// Erst einen Plan vorlegen und auf die Freigabe warten.
+    pub plan_first: bool,
 }
 
 impl Default for AgentOptions {
@@ -28,6 +33,7 @@ impl Default for AgentOptions {
             draft_pr: true,
             hint: String::new(),
             base_branch: "main".into(),
+            plan_first: true,
         }
     }
 }
@@ -36,8 +42,18 @@ impl Default for AgentOptions {
 pub enum RunState {
     #[default]
     Idle,
+    /// Der Plan liegt vor, der Agent wartet auf den Nutzer.
+    AwaitingApproval,
     Running,
     Done,
+}
+
+/// Was der Agent vorhat. Wird aus Ticket, Hinweisen und Dateien abgeleitet.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Plan {
+    pub summary: String,
+    pub files: Vec<String>,
+    pub steps: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -76,6 +92,10 @@ pub struct AgentRun {
     /// Nummer des Pull Requests, den der Lauf anlegt.
     #[serde(default)]
     pub pr_number: Option<u32>,
+    /// Anmerkungen des Nutzers, die zu einem neuen Plan geführt haben.
+    pub plan_notes: Vec<String>,
+    /// Der Lauf hat mit einem Plan begonnen (auch nach der Freigabe).
+    pub planned: bool,
 }
 
 impl AgentRun {
@@ -89,11 +109,22 @@ impl AgentRun {
             state: RunState::Idle,
             completed: 0,
             pr_number: None,
+            plan_notes: Vec::new(),
+            planned: false,
         }
     }
 
     pub fn is_idle(&self) -> bool {
         self.state == RunState::Idle
+    }
+
+    pub fn is_awaiting(&self) -> bool {
+        self.state == RunState::AwaitingApproval
+    }
+
+    /// Wartet auf Freigabe oder läuft – der Lauf belegt das Ticket.
+    pub fn is_active(&self) -> bool {
+        self.is_awaiting() || self.is_running()
     }
 
     pub fn is_running(&self) -> bool {
@@ -110,10 +141,16 @@ impl AgentRun {
     }
 
     pub fn start(&mut self, options: AgentOptions, pr_number: u32) {
+        self.planned = options.plan_first;
+        self.state = if self.planned {
+            RunState::AwaitingApproval
+        } else {
+            RunState::Running
+        };
         self.options = options;
-        self.state = RunState::Running;
         self.completed = 0;
         self.pr_number = Some(pr_number);
+        self.plan_notes.clear();
     }
 
     /// Bricht ab oder setzt zurück: Der Lauf ist danach wieder startbereit.
@@ -121,6 +158,89 @@ impl AgentRun {
         self.state = RunState::Idle;
         self.completed = 0;
         self.pr_number = None;
+        self.plan_notes.clear();
+        self.planned = false;
+    }
+
+    /// Gibt den Plan frei: Ab jetzt arbeitet der Agent. `false`, wenn es nichts freizugeben gibt.
+    pub fn approve(&mut self) -> bool {
+        if !self.is_awaiting() {
+            return false;
+        }
+        self.state = RunState::Running;
+        true
+    }
+
+    /// Lehnt den Plan ab. Der Lauf endet ohne Spuren, wie beim Abbrechen.
+    pub fn reject(&mut self) -> bool {
+        if !self.is_awaiting() {
+            return false;
+        }
+        self.reset();
+        true
+    }
+
+    /// Fordert mit einer Anmerkung einen neuen Plan an. Leere Anmerkungen zählen nicht.
+    pub fn revise(&mut self, note: &str) -> bool {
+        let note = note.trim();
+        if !self.is_awaiting() || note.is_empty() {
+            return false;
+        }
+        self.plan_notes.push(note.to_string());
+        true
+    }
+
+    /// Der aktuelle Plan. Vor dem Start gibt es keinen.
+    pub fn plan(&self) -> Option<Plan> {
+        if !self.planned {
+            return None;
+        }
+        let o = &self.options;
+        let hint = o.hint.trim();
+        let files = match self.files.len() {
+            1 => "1 Datei".to_string(),
+            n => format!("{n} Dateien"),
+        };
+        let mut summary = format!(
+            "{} umsetzen: {files} ändern{}.",
+            self.ticket_key,
+            if o.run_tests {
+                ", Tests ausführen"
+            } else {
+                " (ohne Tests)"
+            }
+        );
+        if !hint.is_empty() {
+            summary.push_str(&format!(" Dein Hinweis: „{hint}“."));
+        }
+        let mut steps = vec![
+            format!(
+                "Ticket {} und {} Kommentar(e) auswerten",
+                self.ticket_key, self.comments
+            ),
+            format!("Branch {} von {} erstellen", self.branch(), o.base_branch),
+            format!("{} bearbeiten", self.files.join(", ")),
+        ];
+        for note in &self.plan_notes {
+            steps.push(format!("Berücksichtigen: {note}"));
+        }
+        steps.push(if o.run_tests {
+            "Lint und Tests ausführen".into()
+        } else {
+            "Tests überspringen".into()
+        });
+        steps.push(format!(
+            "Pull Request {}anlegen – ohne Merge",
+            if o.draft_pr { "als Entwurf " } else { "" }
+        ));
+        if !self.plan_notes.is_empty() {
+            summary.push_str(&format!(" Überarbeitet ({}×).", self.plan_notes.len()));
+        }
+        Some(Plan {
+            summary,
+            files: self.files.clone(),
+            steps,
+        })
     }
 
     /// Schließt den aktuellen Schritt ab. Gibt `true` zurück, wenn der Lauf damit
@@ -184,23 +304,35 @@ impl AgentRun {
         texts
             .into_iter()
             .enumerate()
-            .map(|(i, (title, text))| Step {
-                title: title.to_string(),
-                text,
-                state: if i < self.completed {
-                    StepState::Done
-                } else if i == self.completed && self.is_running() {
-                    StepState::Active
-                } else {
-                    StepState::Pending
-                },
+            .map(|(i, (title, text))| {
+                if i == 0 && self.is_awaiting() {
+                    return Step {
+                        title: "Plan liegt vor".to_string(),
+                        text: "Wartet auf deine Freigabe – bis dahin ändert der Agent nichts"
+                            .to_string(),
+                        state: StepState::Active,
+                    };
+                }
+                Step {
+                    title: title.to_string(),
+                    text,
+                    state: if i < self.completed {
+                        StepState::Done
+                    } else if i == self.completed && self.is_running() {
+                        StepState::Active
+                    } else {
+                        StepState::Pending
+                    },
+                }
             })
             .collect()
     }
 
     /// Protokoll bis einschließlich des Schritts, an dem der Agent gerade arbeitet.
     pub fn log(&self) -> String {
-        let shown = if self.is_running() {
+        let shown = if self.is_awaiting() {
+            1
+        } else if self.is_running() {
             self.completed + 1
         } else {
             self.completed
@@ -223,6 +355,21 @@ impl AgentRun {
                     if !hint.is_empty() {
                         lines.push(format!("› Hinweis: {hint}"));
                     }
+                    if let Some(plan) = self.plan() {
+                        lines.push(format!(
+                            "› Plan erstellt: {} Schritte, {} Dateien",
+                            plan.steps.len(),
+                            plan.files.len()
+                        ));
+                        for note in &self.plan_notes {
+                            lines.push(format!("› Neuer Plan angefordert: {note}"));
+                        }
+                        lines.push(if self.is_awaiting() {
+                            "› Warte auf Freigabe".into()
+                        } else {
+                            "› Plan freigegeben".into()
+                        });
+                    }
                 }
                 1 => lines.push(format!("› git switch -c {}", self.branch())),
                 2 => lines.push(format!("› Bearbeite {}", self.files.join(", "))),
@@ -242,6 +389,14 @@ impl AgentRun {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Ohne Plan-Freigabe: der Lauf startet sofort.
+    fn direct() -> AgentOptions {
+        AgentOptions {
+            plan_first: false,
+            ..Default::default()
+        }
+    }
 
     fn run() -> AgentRun {
         let mut r = AgentRun::new("BAU-142", "Toggle: Fokus-Ring fehlt im Dark Mode");
@@ -269,7 +424,7 @@ mod tests {
     #[test]
     fn exactly_one_step_is_active_while_running() {
         let mut r = run();
-        r.start(AgentOptions::default(), 92);
+        r.start(direct(), 92);
         for done in 0..STEPS {
             let states: Vec<_> = r.steps().into_iter().map(|s| s.state).collect();
             assert_eq!(
@@ -299,7 +454,7 @@ mod tests {
             run_tests: false,
             draft_pr: false,
             hint: " Auch den Slider prüfen ".into(),
-            ..Default::default()
+            ..direct()
         };
         r.start(options, 7);
         while !r.advance() {}
@@ -320,10 +475,87 @@ mod tests {
     #[test]
     fn reset_makes_the_run_startable_again() {
         let mut r = run();
-        r.start(AgentOptions::default(), 92);
+        r.start(direct(), 92);
         r.advance();
         r.reset();
         assert!(r.is_idle());
         assert_eq!((r.completed, r.pr_number), (0, None));
+    }
+
+    #[test]
+    fn a_plan_waits_for_approval() {
+        let mut r = run();
+        r.options.hint = "Auch den Slider prüfen".into();
+        let options = r.options.clone();
+        r.start(options, 92);
+        assert!(r.is_awaiting() && r.is_active() && !r.is_running());
+        assert!(!r.advance(), "ohne Freigabe kein Fortschritt");
+        assert_eq!(r.completed, 0);
+        let plan = r.plan().unwrap();
+        assert_eq!(plan.files, ["components.css", "tokens.css"]);
+        assert!(plan.summary.contains("Auch den Slider prüfen"));
+        assert!(plan.steps.iter().any(|s| s.contains("agent/BAU-142")));
+        let steps = r.steps();
+        assert_eq!(steps[0].state, StepState::Active);
+        assert_eq!(steps[0].title, "Plan liegt vor");
+        assert!(steps[1..].iter().all(|s| s.state == StepState::Pending));
+        assert!(r.log().ends_with("› Warte auf Freigabe"), "{}", r.log());
+        // Es steht noch kein Branch im Protokoll.
+        assert!(!r.log().contains("git switch"));
+
+        assert!(r.approve());
+        assert!(!r.approve());
+        assert!(r.log().ends_with("› Plan freigegeben"), "{}", r.log());
+        assert!(r.advance() || r.completed == 1);
+    }
+
+    #[test]
+    fn rejecting_resets_the_run() {
+        let mut r = run();
+        r.start(AgentOptions::default(), 92);
+        assert!(r.revise("noch eine Anmerkung"));
+        assert!(r.reject());
+        assert!(r.is_idle() && r.plan().is_none());
+        assert_eq!(
+            (r.pr_number, r.plan_notes.len(), r.planned),
+            (None, 0, false)
+        );
+        assert!(!r.reject());
+        assert!(!r.approve());
+    }
+
+    #[test]
+    fn a_note_creates_a_new_plan() {
+        let mut r = run();
+        r.start(AgentOptions::default(), 92);
+        let before = r.plan().unwrap();
+        assert!(!r.revise("   "));
+        assert!(r.revise("  Bitte auch Tests für den Slider  "));
+        let after = r.plan().unwrap();
+        assert_ne!(before, after);
+        assert_eq!(after.steps.len(), before.steps.len() + 1);
+        assert!(
+            after
+                .steps
+                .iter()
+                .any(|s| s == "Berücksichtigen: Bitte auch Tests für den Slider")
+        );
+        assert!(r.is_awaiting(), "der neue Plan braucht wieder Freigabe");
+        assert!(
+            r.log()
+                .contains("› Neuer Plan angefordert: Bitte auch Tests für den Slider")
+        );
+        // Nach der Freigabe lässt sich nicht mehr überarbeiten.
+        r.approve();
+        assert!(!r.revise("zu spät"));
+    }
+
+    #[test]
+    fn without_plan_first_the_agent_runs_right_away() {
+        let mut r = run();
+        r.start(direct(), 92);
+        assert!(r.is_running() && r.plan().is_none());
+        assert!(!r.approve());
+        assert!(!r.log().contains("Plan"));
     }
 }
