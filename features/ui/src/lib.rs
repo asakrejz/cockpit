@@ -22,6 +22,7 @@
 
 mod button;
 mod card;
+mod code;
 mod controls;
 mod field;
 mod footer;
@@ -30,12 +31,17 @@ mod layout;
 mod list;
 mod nav;
 mod pager;
+mod progress;
 mod root;
 mod sheet;
+mod shell;
+mod status;
 mod text;
+mod thread;
 
 pub use button::*;
 pub use card::*;
+pub use code::*;
 pub use controls::*;
 pub use field::*;
 pub use footer::*;
@@ -44,9 +50,20 @@ pub use layout::*;
 pub use list::*;
 pub use nav::*;
 pub use pager::*;
+pub use progress::*;
 pub use root::*;
 pub use sheet::*;
+pub use shell::*;
+pub use status::*;
 pub use text::*;
+pub use thread::*;
+
+/// Eindeutige IDs, um `<label for=…>` mit seinem Feld zu verbinden.
+pub(crate) fn next_id(prefix: &str) -> String {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+    format!("{prefix}-{}", COUNTER.fetch_add(1, Ordering::Relaxed))
+}
 
 #[cfg(test)]
 mod tests {
@@ -104,6 +121,14 @@ mod tests {
         for ratio in MediaRatio::ALL {
             if ratio != MediaRatio::R16x9 {
                 assert!(css.contains(&format!("data-ratio=\"{}\"", ratio.id())));
+            }
+        }
+        for tone in StatusTone::ALL {
+            if let Some(id) = tone.attr() {
+                assert!(
+                    css.contains(&format!("data-tone=\"{id}\"")),
+                    "kein CSS für Ton {id}"
+                );
             }
         }
         for style in TextStyle::ALL {

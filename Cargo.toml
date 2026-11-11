@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["app", "features/*"]
+members = ["app", "cockpit", "crates/*", "features/*"]
 
 [workspace.package]
 edition = "2024"
@@ -14,8 +14,9 @@ leptos = "0.8"
 console_error_panic_hook = "0.1"
 web-sys = "0.3"
 
-# Feature-Crates – so kann die App (oder jedes andere Projekt) sie einbinden.
+# Eigene Crates – so können die Apps (oder andere Projekte) sie einbinden.
 feature-ui = { path = "features/ui" }
+cockpit-core = { path = "crates/cockpit-core" }
 
 [profile.release]
 opt-level = "z"   # klein statt schnell – für WASM meist die bessere Wahl

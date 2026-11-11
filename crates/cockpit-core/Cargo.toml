@@ -1,0 +1,9 @@
+[package]
+name = "cockpit-core"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+# Bewusst ohne Abhängigkeiten: reine Fachlogik, die nativ getestet wird und im
+# Browser läuft. Ein späteres Backend kann dasselbe Crate verwenden.
+[dependencies]

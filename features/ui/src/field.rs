@@ -1,14 +1,6 @@
-use std::sync::atomic::{AtomicU32, Ordering};
-
 use leptos::prelude::*;
 
-use crate::{Icon, icons};
-
-/// Eindeutige IDs für `label for=…`.
-fn next_id(prefix: &str) -> String {
-    static COUNTER: AtomicU32 = AtomicU32::new(0);
-    format!("{prefix}-{}", COUNTER.fetch_add(1, Ordering::Relaxed))
-}
+use crate::{Icon, icons, next_id};
 
 /// Textfeld mit Label und optionalem Hinweis. Mit `error` wird es rot markiert.
 #[component]

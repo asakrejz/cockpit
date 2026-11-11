@@ -1,0 +1,522 @@
+//! Der Workspace: alle Daten des Cockpits und die Aktionen der Oberfläche.
+
+use crate::agent::{AgentOptions, AgentRun};
+use crate::demo;
+use crate::model::*;
+use crate::review::{Decision, Review, SendError, Verdict};
+use crate::text::slug;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AgentError {
+    UnknownTicket,
+    AlreadyRunning,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Workspace {
+    pub items: Vec<Item>,
+    pub reviews: Vec<Review>,
+    pub runs: Vec<AgentRun>,
+}
+
+impl Workspace {
+    // ---------- Lesen ----------
+
+    pub fn item(&self, id: &str) -> Option<&Item> {
+        self.items.iter().find(|i| i.id == id)
+    }
+
+    pub fn item_by_key(&self, key: &str) -> Option<&Item> {
+        self.items.iter().find(|i| i.key == key)
+    }
+
+    fn item_mut(&mut self, id: &str) -> Option<&mut Item> {
+        self.items.iter_mut().find(|i| i.id == id)
+    }
+
+    /// Einträge der Inbox für einen Filter, in Anzeigereihenfolge.
+    pub fn visible(&self, filter: Filter) -> Vec<&Item> {
+        self.items
+            .iter()
+            .filter(|i| filter.matches(i.scope))
+            .collect()
+    }
+
+    /// Einträge, die noch Aufmerksamkeit brauchen.
+    pub fn unread(&self, filter: Filter) -> usize {
+        self.visible(filter).iter().filter(|i| !i.read).count()
+    }
+
+    pub fn review(&self, number: u32) -> Option<&Review> {
+        self.reviews.iter().find(|r| r.number == number)
+    }
+
+    fn review_mut(&mut self, number: u32) -> Option<&mut Review> {
+        self.reviews.iter_mut().find(|r| r.number == number)
+    }
+
+    /// Reviews, die noch nicht gesendet sind.
+    pub fn open_reviews(&self) -> usize {
+        self.reviews.iter().filter(|r| !r.sent).count()
+    }
+
+    pub fn running_agents(&self) -> usize {
+        self.runs.iter().filter(|r| r.is_running()).count()
+    }
+
+    /// Nummer, die der nächste Pull Request bekommt.
+    pub fn next_pr_number(&self) -> u32 {
+        let reviews = self.reviews.iter().map(|r| r.number);
+        let items = self
+            .items
+            .iter()
+            .filter_map(|i| i.pr.as_ref().map(|p| p.number));
+        let runs = self.runs.iter().filter_map(|r| r.pr_number);
+        reviews.chain(items).chain(runs).max().unwrap_or(0) + 1
+    }
+
+    // ---------- Tickets und Pull Requests ----------
+
+    pub fn mark_done(&mut self, id: &str) {
+        if let Some(item) = self.item_mut(id) {
+            item.read = true;
+        }
+    }
+
+    /// Ändert den Status eines Tickets. Pull Requests haben keinen.
+    pub fn set_status(&mut self, id: &str, status: TicketStatus) -> bool {
+        match self.item_mut(id) {
+            Some(item) if item.is_ticket() => {
+                item.status = status;
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Legt für einen Eintrag ohne Branch einen an und gibt den Namen zurück.
+    pub fn create_branch(&mut self, id: &str) -> Option<String> {
+        let item = self.item_mut(id).filter(|i| i.branch.is_none())?;
+        let name = format!("feature/{}-{}", item.key, slug(&item.title, 24));
+        item.branch = Some(name.clone());
+        Some(name)
+    }
+
+    /// Antwortet im Ticket oder Pull Request. Leerer Text wird ignoriert.
+    pub fn reply(&mut self, id: &str, text: &str) -> bool {
+        let text = text.trim();
+        let Some(item) = self.item_mut(id).filter(|_| !text.is_empty()) else {
+            return false;
+        };
+        item.comments.push(Comment {
+            own: true,
+            ..Comment::new(Person::me(), "gerade eben", text)
+        });
+        true
+    }
+
+    // ---------- Review ----------
+
+    pub fn decide(&mut self, number: u32, suggestion: &str, decision: Option<Decision>) -> bool {
+        self.review_mut(number)
+            .is_some_and(|r| r.decide(suggestion, decision))
+    }
+
+    pub fn edit_suggestion(&mut self, number: u32, suggestion: &str, text: &str) -> bool {
+        self.review_mut(number)
+            .is_some_and(|r| r.edit(suggestion, text))
+    }
+
+    pub fn set_verdict(&mut self, number: u32, verdict: Verdict) {
+        if let Some(r) = self.review_mut(number) {
+            r.set_verdict(verdict);
+        }
+    }
+
+    /// Lässt den Agenten einen Pull Request durchsehen. Gibt die Zahl der Vorschläge zurück.
+    pub fn request_agent_review(&mut self, number: u32) -> usize {
+        let count = self.review_mut(number).map_or(0, Review::run_agent_review);
+        if let Some(item) = self.pr_item_mut(number) {
+            item.agent_note = Some(match count {
+                0 => "Der Agent hat nichts zu beanstanden".to_string(),
+                1 => "1 Kommentar vom Agenten wartet auf deine Freigabe".to_string(),
+                n => format!("{n} Kommentare vom Agenten warten auf deine Freigabe"),
+            });
+        }
+        count
+    }
+
+    /// Der Eintrag, der für diesen Pull Request in der Inbox steht.
+    fn pr_item_mut(&mut self, number: u32) -> Option<&mut Item> {
+        self.items
+            .iter_mut()
+            .find(|i| i.pr.as_ref().is_some_and(|p| p.number == number))
+    }
+
+    /// Sendet das Review. Der Eintrag in der Inbox bekommt eine Zusammenfassung als
+    /// eigenen Kommentar und gilt als erledigt. Gibt die Zahl der Kommentare zurück.
+    pub fn send_review(&mut self, number: u32, own_comment: &str) -> Result<usize, SendError> {
+        let review = self.review_mut(number).ok_or(SendError::UnknownReview)?;
+        let verdict = review.verdict;
+        let sent = review.send()?.len();
+
+        let mut text = format!(
+            "Review gesendet: {} · {sent} {}",
+            verdict.label(),
+            if sent == 1 { "Kommentar" } else { "Kommentare" }
+        );
+        if !own_comment.trim().is_empty() {
+            text.push('\n');
+            text.push_str(own_comment.trim());
+        }
+        if let Some(item) = self.pr_item_mut(number) {
+            item.comments.push(Comment {
+                own: true,
+                ..Comment::new(Person::me(), "gerade eben", &text)
+            });
+            item.agent_note = None;
+            item.read = true;
+        }
+        Ok(sent)
+    }
+
+    // ---------- Agenten ----------
+
+    /// Der Lauf zu einem Ticket. Gibt es noch keinen, kommt ein startbereiter zurück.
+    pub fn run(&self, ticket_key: &str) -> Option<AgentRun> {
+        if let Some(run) = self.runs.iter().find(|r| r.ticket_key == ticket_key) {
+            return Some(run.clone());
+        }
+        let item = self.item_by_key(ticket_key).filter(|i| i.is_ticket())?;
+        let mut run = AgentRun::new(&item.key, &item.title);
+        run.comments = item.comments.len();
+        run.files = demo::agent_changes(&item.key)
+            .into_iter()
+            .map(|f| f.name)
+            .collect();
+        Some(run)
+    }
+
+    /// Beauftragt den Agenten mit einem Ticket.
+    pub fn start_agent(
+        &mut self,
+        ticket_key: &str,
+        options: AgentOptions,
+    ) -> Result<(), AgentError> {
+        let mut run = self.run(ticket_key).ok_or(AgentError::UnknownTicket)?;
+        if run.is_running() {
+            return Err(AgentError::AlreadyRunning);
+        }
+        run.start(options, self.next_pr_number());
+        match self.runs.iter_mut().find(|r| r.ticket_key == ticket_key) {
+            Some(slot) => *slot = run,
+            None => self.runs.push(run),
+        }
+        if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket_key) {
+            item.status = TicketStatus::InProgress;
+            item.agent_note = Some("Der Agent arbeitet an der Umsetzung".into());
+        }
+        Ok(())
+    }
+
+    /// Bricht einen laufenden Agenten ab.
+    pub fn cancel_agent(&mut self, ticket_key: &str) {
+        let Some(run) = self
+            .runs
+            .iter_mut()
+            .find(|r| r.ticket_key == ticket_key && r.is_running())
+        else {
+            return;
+        };
+        run.reset();
+        if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket_key) {
+            item.agent_note = None;
+        }
+    }
+
+    /// Lässt jeden laufenden Agenten einen Schritt abschließen. Gibt die Tickets
+    /// zurück, deren Lauf dabei fertig geworden ist.
+    pub fn advance_agents(&mut self) -> Vec<String> {
+        let finished: Vec<AgentRun> = self
+            .runs
+            .iter_mut()
+            .filter_map(|run| run.advance().then(|| run.clone()))
+            .collect();
+        for run in &finished {
+            self.publish(run);
+        }
+        finished.into_iter().map(|r| r.ticket_key).collect()
+    }
+
+    /// Ein Lauf ist fertig: Branch und Pull Request erscheinen am Ticket, und der
+    /// Pull Request wartet als Review.
+    fn publish(&mut self, run: &AgentRun) {
+        let Some(number) = run.pr_number else { return };
+        let checks = if run.options.run_tests {
+            Checks::Passed
+        } else {
+            Checks::Running
+        };
+        let tests = if run.options.run_tests {
+            "Tests bestanden"
+        } else {
+            "Tests übersprungen"
+        };
+
+        if let Some(item) = self.items.iter_mut().find(|i| i.key == run.ticket_key) {
+            item.branch = Some(run.branch());
+            item.pr = Some(PrRef {
+                number,
+                draft: run.options.draft_pr,
+                checks,
+            });
+            item.status = TicketStatus::Review;
+            item.agent_note = Some(format!("Vom Agenten umgesetzt · {tests}"));
+            item.reason = ReasonKind::AgentFinished;
+            item.reason_text = format!("Agent fertig · Pull Request #{number} erstellt");
+            item.time = "gerade eben".into();
+            item.read = false;
+        }
+        self.reviews.push(Review {
+            number,
+            title: run.ticket_title.clone(),
+            description: format!(
+                "Vom Agenten für {} umgesetzt · {tests}. Der Agent führt keinen Merge aus.",
+                run.ticket_key
+            ),
+            author: Person::agent(),
+            branch: run.branch(),
+            base: run.options.base_branch.clone(),
+            ticket_key: Some(run.ticket_key.clone()),
+            checks,
+            files: demo::agent_changes(&run.ticket_key),
+            agent_reviewed: false,
+            suggestions: Vec::new(),
+            verdict: Verdict::Comment,
+            sent: false,
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent::STEPS;
+
+    fn ws() -> Workspace {
+        demo::workspace()
+    }
+
+    fn finish_agents(w: &mut Workspace) -> Vec<String> {
+        (0..STEPS).flat_map(|_| w.advance_agents()).collect()
+    }
+
+    #[test]
+    fn demo_data_matches_the_design() {
+        let w = ws();
+        assert_eq!(w.items.len(), 5);
+        assert_eq!(w.unread(Filter::All), 5);
+        assert_eq!(
+            (w.visible(Filter::Mine).len(), w.visible(Filter::Team).len()),
+            (3, 2)
+        );
+        assert_eq!(w.review(87).unwrap().suggestions.len(), 3);
+        assert_eq!(w.open_reviews(), 3);
+        assert_eq!(w.running_agents(), 0);
+        // Jeder Pull Request an einem Eintrag hat ein Review.
+        for pr in w.items.iter().filter_map(|i| i.pr.as_ref()) {
+            assert!(w.review(pr.number).is_some(), "#{}", pr.number);
+        }
+    }
+
+    #[test]
+    fn done_items_stop_counting() {
+        let mut w = ws();
+        w.mark_done("bau142");
+        assert_eq!(w.unread(Filter::All), 4);
+        assert_eq!(w.unread(Filter::Mine), 2);
+        assert_eq!(w.unread(Filter::Team), 2);
+    }
+
+    #[test]
+    fn only_tickets_have_a_status() {
+        let mut w = ws();
+        assert!(w.set_status("bau150", TicketStatus::Done));
+        assert_eq!(w.item("bau150").unwrap().status, TicketStatus::Done);
+        assert!(!w.set_status("pr87", TicketStatus::Done));
+        assert!(!w.set_status("gibt-es-nicht", TicketStatus::Done));
+    }
+
+    #[test]
+    fn branch_is_named_after_key_and_title() {
+        let mut w = ws();
+        assert_eq!(
+            w.create_branch("bau150").as_deref(),
+            Some("feature/BAU-150-sheet-detents-mittel-und")
+        );
+        assert_eq!(w.create_branch("bau150"), None, "es gibt schon einen");
+        assert_eq!(w.create_branch("pr87"), None);
+    }
+
+    #[test]
+    fn replies_are_trimmed_and_mine() {
+        let mut w = ws();
+        assert!(!w.reply("bau142", "  \n "));
+        assert!(w.reply("bau142", "  Mache ich.  "));
+        let last = w.item("bau142").unwrap().comments.last().unwrap();
+        assert_eq!(
+            (last.text.as_str(), last.own, last.author.name.as_str()),
+            ("Mache ich.", true, "Du")
+        );
+    }
+
+    #[test]
+    fn sending_a_review_closes_the_inbox_item() {
+        let mut w = ws();
+        assert_eq!(w.send_review(87, ""), Err(SendError::Undecided(3)));
+        assert_eq!(w.send_review(1, ""), Err(SendError::UnknownReview));
+        w.decide(87, "a", Some(Decision::Approved));
+        w.decide(87, "b", Some(Decision::Declined));
+        w.decide(87, "c", Some(Decision::Approved));
+        w.set_verdict(87, Verdict::RequestChanges);
+        assert_eq!(w.send_review(87, " Bitte Fokus prüfen. "), Ok(2));
+
+        let item = w.item("pr87").unwrap();
+        let comment = item.comments.last().unwrap();
+        assert_eq!(
+            comment.text,
+            "Review gesendet: Änderungen · 2 Kommentare\nBitte Fokus prüfen."
+        );
+        assert!(comment.own && item.read);
+        assert_eq!(item.agent_note, None);
+        assert_eq!(w.open_reviews(), 2);
+    }
+
+    #[test]
+    fn agent_review_prepares_suggestions() {
+        let mut w = ws();
+        assert!(!w.review(85).unwrap().agent_reviewed);
+        let count = w.request_agent_review(85);
+        assert!(count >= 1);
+        assert!(w.review(85).unwrap().agent_reviewed);
+        assert!(
+            w.item("pr85")
+                .unwrap()
+                .agent_note
+                .as_ref()
+                .unwrap()
+                .contains("vom Agenten")
+        );
+        assert_eq!(w.send_review(85, ""), Err(SendError::Undecided(count)));
+    }
+
+    #[test]
+    fn an_agent_turns_a_ticket_into_a_pull_request() {
+        let mut w = ws();
+        assert_eq!(w.next_pr_number(), 92);
+        w.start_agent("BAU-142", AgentOptions::default()).unwrap();
+        assert_eq!(w.running_agents(), 1);
+        assert_eq!(w.item("bau142").unwrap().status, TicketStatus::InProgress);
+        assert_eq!(
+            w.start_agent("BAU-142", AgentOptions::default()),
+            Err(AgentError::AlreadyRunning)
+        );
+
+        assert_eq!(finish_agents(&mut w), vec!["BAU-142".to_string()]);
+        assert_eq!(w.running_agents(), 0);
+
+        let item = w.item("bau142").unwrap();
+        assert_eq!(
+            item.branch.as_deref(),
+            Some("agent/BAU-142-toggle-fokus-ring-fehlt")
+        );
+        assert_eq!(item.pr.as_ref().unwrap().label(), "#92 · Entwurf");
+        assert_eq!(item.status, TicketStatus::Review);
+        assert_eq!(item.reason, ReasonKind::AgentFinished);
+        assert!(!item.read, "ein fertiger Lauf braucht Aufmerksamkeit");
+
+        let review = w.review(92).unwrap();
+        assert!(review.author.is_agent());
+        assert_eq!(review.files.len(), 2);
+        assert_eq!(review.ticket_key.as_deref(), Some("BAU-142"));
+        assert_eq!(w.next_pr_number(), 93);
+    }
+
+    #[test]
+    fn two_agents_get_different_pull_requests() {
+        let mut w = ws();
+        w.start_agent("BAU-142", AgentOptions::default()).unwrap();
+        w.start_agent("BAU-150", AgentOptions::default()).unwrap();
+        assert_eq!(w.running_agents(), 2);
+        let mut finished = finish_agents(&mut w);
+        finished.sort();
+        assert_eq!(finished, ["BAU-142", "BAU-150"]);
+        assert_eq!(w.item("bau142").unwrap().pr.as_ref().unwrap().number, 92);
+        assert_eq!(w.item("bau150").unwrap().pr.as_ref().unwrap().number, 93);
+    }
+
+    #[test]
+    fn options_decide_draft_and_checks() {
+        let mut w = ws();
+        let options = AgentOptions {
+            run_tests: false,
+            draft_pr: false,
+            ..Default::default()
+        };
+        w.start_agent("BAU-150", options).unwrap();
+        finish_agents(&mut w);
+        let item = w.item("bau150").unwrap();
+        assert_eq!(
+            item.pr,
+            Some(PrRef {
+                number: 92,
+                draft: false,
+                checks: Checks::Running
+            })
+        );
+        assert_eq!(
+            item.agent_note.as_deref(),
+            Some("Vom Agenten umgesetzt · Tests übersprungen")
+        );
+    }
+
+    #[test]
+    fn a_cancelled_agent_leaves_no_traces() {
+        let mut w = ws();
+        w.start_agent("BAU-142", AgentOptions::default()).unwrap();
+        w.advance_agents();
+        w.cancel_agent("BAU-142");
+        assert_eq!(w.running_agents(), 0);
+        assert!(finish_agents(&mut w).is_empty());
+        let item = w.item("bau142").unwrap();
+        assert_eq!(
+            (
+                item.branch.clone(),
+                item.pr.clone(),
+                item.agent_note.clone()
+            ),
+            (None, None, None)
+        );
+        assert!(w.review(92).is_none());
+        // Ein fertiger Lauf lässt sich nicht mehr abbrechen.
+        w.cancel_agent("BAU-138");
+        assert!(w.run("BAU-138").unwrap().is_done());
+    }
+
+    #[test]
+    fn agents_only_work_on_tickets() {
+        let mut w = ws();
+        assert_eq!(
+            w.start_agent("#87", AgentOptions::default()),
+            Err(AgentError::UnknownTicket)
+        );
+        assert_eq!(
+            w.start_agent("NOPE-1", AgentOptions::default()),
+            Err(AgentError::UnknownTicket)
+        );
+        assert!(w.run("#87").is_none());
+        let fresh = w.run("BAU-150").unwrap();
+        assert!(fresh.is_idle());
+        assert_eq!(fresh.files.len(), 2);
+    }
+}

@@ -4,6 +4,7 @@
 //! Der Baustein selbst lebt im Crate unter `features/` und weiß nichts
 //! vom Playground – so bleibt er wiederverwendbar.
 
+mod app_blocks;
 mod button;
 mod common;
 mod controls;
@@ -47,6 +48,7 @@ pub static STORIES: &[Story] = &[
     pager::STORY,
     layout::STORY,
     phone::STORY,
+    app_blocks::STORY,
 ];
 
 pub fn find(id: &str) -> Option<&'static Story> {
