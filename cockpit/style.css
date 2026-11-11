@@ -22,3 +22,12 @@ body { margin: 0; }
 
 /* Plan des Agenten: Dateien und Schritte als schlichte Listen. */
 .ck-plan { margin: 0; padding-inline-start: var(--ref-space-20); display: flex; flex-direction: column; gap: var(--ref-space-4); }
+
+/* Übersicht: Karten für Einträge, die hängen, und für die Einträge einer Person. */
+.ck-stuck-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ref-space-8); }
+.ck-stuck { display: flex; gap: var(--ref-space-12); padding: var(--ref-space-12); border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-grouped-background); }
+.ck-stuck .ck-reason { flex: none; }
+
+/* Leerer Zustand: nichts hängt. */
+.ck-empty-state { display: flex; flex-direction: column; align-items: center; gap: var(--ref-space-8); padding: var(--ref-space-20); text-align: center; border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-grouped-background); }
+.ck-empty-state__icon { display: inline-flex; padding: var(--ref-space-8); border-radius: var(--ref-radius-full); color: var(--sys-color-label); background: var(--sys-color-green); }

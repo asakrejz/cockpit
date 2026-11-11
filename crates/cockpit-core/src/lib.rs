@@ -5,6 +5,7 @@
 //! * [`agent`]: der Lauf eines Agenten als Zustandsmaschine
 //! * [`connections`]: Verbindungen, Berechtigungen und Eingabeprüfung
 //! * [`search`]: Suche und Filter der Inbox
+//! * [`team`]: Auslastung pro Person und was gerade hängt
 //! * [`workspace`]: alles zusammen, mit den Aktionen der Oberfläche
 //! * [`demo`]: Beispieldaten, solange kein Backend angebunden ist
 //!
@@ -18,6 +19,7 @@ pub mod demo;
 pub mod model;
 pub mod review;
 pub mod search;
+pub mod team;
 pub mod text;
 pub mod workspace;
 
@@ -28,4 +30,5 @@ pub use review::{
     Decision, DiffLine, FileDiff, Level, LineComment, LineKind, Review, SendError, Suggestion,
     Verdict,
 };
+pub use team::{CAPACITY, LoadLevel, Member, Stuck, StuckKind, state_label};
 pub use workspace::{AgentError, Workspace};

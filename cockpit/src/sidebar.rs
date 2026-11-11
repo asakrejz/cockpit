@@ -1,6 +1,6 @@
 //! Die Sidebar, die alle Seiten außer dem Einrichten teilen.
 
-use cockpit_core::Filter;
+use cockpit_core::{Filter, team};
 use feature_ui::*;
 use leptos::prelude::*;
 
@@ -14,6 +14,10 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
     let count = move |filter: Filter| {
         Signal::derive(move || store.ws.with(|w| w.unread(filter)).to_string())
     };
+    let stuck = Signal::derive(move || match store.ws.with(|w| team::stuck(w).len()) {
+        0 => String::new(),
+        n => format!("{n} hängt"),
+    });
     let reviews = Signal::derive(move || store.ws.with(|w| w.open_reviews()).to_string());
     let agents = Signal::derive(move || {
         let (running, waiting) = store.ws.with(|w| (w.running_agents(), w.waiting_agents()));
@@ -56,6 +60,13 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
                     icon=icons::USERS
                     count=count(Filter::Team)
                     current=on(Route::Inbox(Filter::Team))
+                />
+                <SidebarItem
+                    href=Route::Overview.hash()
+                    label="Übersicht"
+                    icon=icons::CHART
+                    count=stuck
+                    current=on(Route::Overview)
                 />
                 <SidebarItem
                     href=Route::Review(None).hash()
