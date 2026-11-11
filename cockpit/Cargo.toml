@@ -8,14 +8,19 @@ license.workspace = true
 leptos = { workspace = true, features = ["csr"] }
 console_error_panic_hook = { workspace = true }
 web-sys = { workspace = true, features = [
+    "Document",
     "HtmlElement",
     "HtmlInputElement",
     "KeyboardEvent",
     "Location",
     "MediaQueryList",
+    "Notification",
+    "NotificationOptions",
+    "NotificationPermission",
     "ScrollIntoViewOptions",
     "ScrollLogicalPosition",
     "Storage",
+    "VisibilityState",
 ] }
 
 js-sys = "0.3"

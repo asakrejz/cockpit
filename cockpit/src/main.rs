@@ -3,10 +3,12 @@
 //! Die Oberfläche folgt dem Design „Baukasten“ und besteht aus den Bausteinen in
 //! `feature-ui`. Was die Knöpfe tun, steht in `cockpit-core`. Diese App verbindet beides.
 
+mod notify;
 mod pages;
 mod route;
 mod sidebar;
 mod store;
+mod toasts;
 mod view;
 
 use std::time::Duration;
@@ -15,8 +17,8 @@ use cockpit_core::{Action, Actor};
 use feature_ui::{Root, Theme};
 use leptos::prelude::*;
 use pages::{
-    agent::AgentPage, inbox::InboxPage, log::LogPage, overview::OverviewPage, review::ReviewPage,
-    setup::SetupPage,
+    agent::AgentPage, inbox::InboxPage, log::LogPage, notifications::NotificationsPage,
+    overview::OverviewPage, review::ReviewPage, setup::SetupPage,
 };
 use route::Route;
 use store::{Store, current_hash, navigate};
@@ -75,9 +77,11 @@ fn App() -> impl IntoView {
                 Route::Inbox(filter) => view! { <InboxPage filter=filter /> }.into_any(),
                 Route::Overview => view! { <OverviewPage /> }.into_any(),
                 Route::Log => view! { <LogPage /> }.into_any(),
+                Route::Notifications => view! { <NotificationsPage /> }.into_any(),
                 Route::Review(number) => view! { <ReviewPage number=number /> }.into_any(),
                 Route::Agent(ticket) => view! { <AgentPage ticket=ticket /> }.into_any(),
             }}
+            <toasts::Toasts />
         </Root>
     }
 }
