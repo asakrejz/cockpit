@@ -10,6 +10,7 @@
 //! cockpit-server token loeschen <github|jira>    Schlüssel entfernen
 //! ```
 
+mod abgleich;
 mod app;
 mod config;
 mod db;
@@ -117,7 +118,12 @@ async fn starten() -> Result<(), String> {
         );
     }
 
-    let state = app::AppState::mit_port(conn, Arc::new(KeyringStore), config.port);
+    let state = app::AppState::mit_quellen(
+        conn,
+        Arc::new(KeyringStore),
+        config.port,
+        abgleich::Quellen::aus(&config),
+    );
     let router = app::router(state.clone(), config.dist.clone());
 
     // Nur lokal erreichbar – bewusst nicht einstellbar.
@@ -128,7 +134,9 @@ async fn starten() -> Result<(), String> {
     tracing::info!("Cockpit läuft auf http://{adresse}");
 
     // Im Server-Modus läuft der Takt des simulierten Agenten hier, nicht im Browser.
-    app::agent_takt_starten(state);
+    app::agent_takt_starten(state.clone());
+    // Jira und GitHub: regelmäßig abgleichen. Ohne Quelle oder Schlüssel passiert nichts.
+    abgleich::abgleich_starten(state);
 
     // Die Adresse der Gegenstelle braucht `zugang`, um Fremde abzuweisen.
     axum::serve(

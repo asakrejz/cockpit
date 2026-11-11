@@ -2,6 +2,7 @@
 
 use std::convert::Infallible;
 use std::path::PathBuf;
+use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -13,7 +14,6 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get, post};
 use axum::{Json, Router};
-use cockpit_core::Actor;
 use cockpit_core::api::{ActionRequest, ErrorBody, ServerEvent};
 use rusqlite::Connection;
 use serde::Serialize;
@@ -21,8 +21,9 @@ use tokio_stream::StreamExt;
 use tokio_stream::wrappers::BroadcastStream;
 use tower_http::services::ServeDir;
 
+use crate::abgleich::{AktionFehler, Quellen};
 use crate::db;
-use crate::live::{Fehler, Live};
+use crate::live::Live;
 use crate::secrets::{self, SecretStore};
 use crate::zugang;
 
@@ -36,15 +37,23 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Gemeinsamer Zustand der Handler. Klonen ist billig.
 #[derive(Clone)]
 pub struct AppState {
-    inner: Arc<Inner>,
+    pub(crate) inner: Arc<Inner>,
 }
 
-struct Inner {
-    db: Mutex<Connection>,
-    secrets: Arc<dyn SecretStore>,
-    live: Live,
+pub(crate) struct Inner {
+    pub(crate) db: Mutex<Connection>,
+    pub(crate) secrets: Arc<dyn SecretStore>,
+    pub(crate) live: Live,
     /// Der Port, auf dem der Server lauscht – für die Prüfung von `Host` und `Origin`.
     port: u16,
+    /// Jira und GitHub, wie konfiguriert (ob sie laufen, hängt noch vom Schlüssel ab).
+    pub(crate) quellen: Quellen,
+    /// Schreibzugriffe nach außen und das Übernehmen eines Abgleichs gehen nacheinander.
+    pub(crate) sperre: tokio::sync::Mutex<()>,
+    /// Zählt erfolgreiche Schreibzugriffe: Ein Abruf, der währenddessen begann, ist veraltet.
+    pub(crate) geschrieben: AtomicU64,
+    /// Nur ein Abgleich gleichzeitig.
+    pub(crate) abgleich: tokio::sync::Mutex<()>,
 }
 
 impl AppState {
@@ -55,7 +64,18 @@ impl AppState {
     }
 
     /// Lädt dabei den gespeicherten Workspace (sonst die Beispieldaten).
+    #[cfg(test)]
     pub fn mit_port(db: Connection, secrets: Arc<dyn SecretStore>, port: u16) -> Self {
+        Self::mit_quellen(db, secrets, port, Quellen::default())
+    }
+
+    /// Wie [`AppState::mit_port`], mit Jira und GitHub für den Abgleich.
+    pub fn mit_quellen(
+        db: Connection,
+        secrets: Arc<dyn SecretStore>,
+        port: u16,
+        quellen: Quellen,
+    ) -> Self {
         let live = Live::laden(&db);
         Self {
             inner: Arc::new(Inner {
@@ -63,6 +83,10 @@ impl AppState {
                 secrets,
                 live,
                 port,
+                quellen,
+                sperre: tokio::sync::Mutex::new(()),
+                geschrieben: AtomicU64::new(0),
+                abgleich: tokio::sync::Mutex::new(()),
             }),
         }
     }
@@ -73,7 +97,7 @@ impl AppState {
     }
 }
 
-fn jetzt_ms() -> u64 {
+pub(crate) fn jetzt_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_millis() as u64)
@@ -100,11 +124,22 @@ pub struct Verbindungen {
     pub jira: bool,
 }
 
+/// Zustand des Abgleichs je Quelle: `aus` (nicht eingerichtet oder ohne Schlüssel), `wartet`
+/// (noch kein Abruf), `ok`, `nicht-angemeldet`, `keine-berechtigung`, `kontingent`,
+/// `offline` oder `fehler`.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct AbgleichZustand {
+    pub github: String,
+    pub jira: String,
+    pub intervall_s: u64,
+}
+
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Health {
     pub status: &'static str,
     pub version: &'static str,
     pub verbindungen: Verbindungen,
+    pub abgleich: AbgleichZustand,
 }
 
 impl AppState {
@@ -124,13 +159,38 @@ impl AppState {
                     false
                 })
         };
+        let verbindungen = Verbindungen {
+            github: eingerichtet(secrets::GITHUB),
+            jira: eingerichtet(secrets::JIRA),
+        };
+        let hat_schluessel = |name: &str| self.inner.secrets.has(name).unwrap_or(false);
+        let ws = self.inner.live.kopie();
+        let zustand = |aktiv: bool, quelle: cockpit_core::Source| {
+            if !aktiv {
+                return "aus".to_string();
+            }
+            ws.sync
+                .state_of(quelle)
+                .map_or("wartet", cockpit_core::SourceState::id)
+                .to_string()
+        };
+        let q = &self.inner.quellen;
         Health {
             status: "ok",
             version: VERSION,
-            verbindungen: Verbindungen {
-                github: eingerichtet(secrets::GITHUB),
-                jira: eingerichtet(secrets::JIRA),
+            abgleich: AbgleichZustand {
+                github: zustand(
+                    q.github.as_ref().is_some_and(|g| !g.repos.is_empty())
+                        && hat_schluessel(secrets::GITHUB),
+                    cockpit_core::Source::GitHub,
+                ),
+                jira: zustand(
+                    q.jira.is_some() && hat_schluessel(secrets::JIRA),
+                    cockpit_core::Source::Jira,
+                ),
+                intervall_s: q.intervall.as_secs(),
             },
+            verbindungen,
         }
     }
 }
@@ -168,8 +228,9 @@ async fn workspace(State(state): State<AppState>) -> Response {
         .into_response()
 }
 
-/// `POST /api/actions`: wendet die Aktion als „Du“ mit der Uhrzeit des Servers an.
-/// Den Body lesen wir selbst, damit eine unbekannte Aktion eine deutsche Meldung bekommt.
+/// `POST /api/actions`: wendet die Aktion als „Du“ mit der Uhrzeit des Servers an. Wirkt sie
+/// nach außen (Jira, GitHub), geht erst der Aufruf an den Dienst; scheitert er, ändert sich
+/// nichts. Den Body lesen wir selbst, damit eine unbekannte Aktion eine deutsche Meldung bekommt.
 async fn aktion(State(state): State<AppState>, body: Bytes) -> Response {
     let Ok(anfrage) = serde_json::from_slice::<ActionRequest>(&body) else {
         return fehler(
@@ -177,25 +238,35 @@ async fn aktion(State(state): State<AppState>, body: Bytes) -> Response {
             "Die Anfrage ist keine bekannte Aktion",
         );
     };
-    let ergebnis = tokio::task::spawn_blocking(move || {
-        state
-            .inner
-            .live
-            .anwenden(&state.inner.db, anfrage.action, Actor::Du, jetzt_ms())
-    })
-    .await;
-    match ergebnis {
-        Ok(Ok(antwort)) => Json(antwort).into_response(),
+    match state.aktion_ausfuehren(anfrage.action).await {
+        Ok(antwort) => Json(antwort).into_response(),
+        Err(e) => aktions_fehler(e),
+    }
+}
+
+/// `POST /api/sync`: „jetzt abgleichen“.
+async fn abgleichen(State(state): State<AppState>) -> Response {
+    match state.abgleichen().await {
+        Ok(antwort) => Json(antwort).into_response(),
+        Err(e) => aktions_fehler(e),
+    }
+}
+
+fn aktions_fehler(e: AktionFehler) -> Response {
+    match e {
         // Alle Ablehnungen der Regeln sind 422 – ohne einzelne Fehler aufzuzählen.
-        Ok(Err(Fehler::Aktion(e))) => fehler(StatusCode::UNPROCESSABLE_ENTITY, e.message()),
-        Ok(Err(Fehler::Speichern(m))) => {
+        AktionFehler::Regel(e) => fehler(StatusCode::UNPROCESSABLE_ENTITY, e.message()),
+        AktionFehler::Plan(m) => fehler(StatusCode::UNPROCESSABLE_ENTITY, m),
+        // Der Dienst hat abgelehnt oder ist nicht erreichbar.
+        AktionFehler::Dienst(m) => fehler(StatusCode::BAD_GATEWAY, m),
+        AktionFehler::Speichern(m) => {
             tracing::error!("Workspace nicht gesichert: {m}");
             fehler(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Der Stand konnte nicht gespeichert werden",
             )
         }
-        Err(_) => fehler(StatusCode::INTERNAL_SERVER_ERROR, "Interner Fehler"),
+        AktionFehler::Intern => fehler(StatusCode::INTERNAL_SERVER_ERROR, "Interner Fehler"),
     }
 }
 
@@ -224,6 +295,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/health", get(health))
         .route("/api/workspace", get(workspace))
         .route("/api/actions", post(aktion))
+        .route("/api/sync", post(abgleichen))
         .route("/api/events", get(ereignisse))
         .route("/api/{*rest}", any(api_unbekannt))
         // Gilt nur für `/api`, nicht für die Dateien der App.
@@ -243,6 +315,7 @@ mod tests {
     use axum::body::Body;
     use axum::extract::ConnectInfo;
     use axum::http::Request;
+    use cockpit_core::Actor;
     use cockpit_integrations::Secret;
     use http_body_util::BodyExt;
     use tower::ServiceExt;

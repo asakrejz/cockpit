@@ -70,6 +70,11 @@ impl Live {
         persist::save_with_revision(&stand.ws, stand.revision)
     }
 
+    /// Eine Kopie des aktuellen Stands (für Proben und den Abgleich).
+    pub fn kopie(&self) -> Workspace {
+        sperre(&self.stand).ws.clone()
+    }
+
     pub fn revision(&self) -> u64 {
         sperre(&self.stand).revision
     }

@@ -298,6 +298,14 @@ impl ReviewDaten {
 }
 
 impl Ausgehend {
+    /// Name des Dienstes für Meldungen.
+    pub fn dienst(&self) -> &'static str {
+        match self {
+            Ausgehend::JiraKommentar { .. } | Ausgehend::JiraStatus { .. } => "Jira",
+            _ => "GitHub",
+        }
+    }
+
     /// Der eine Aufruf, soweit einer genügt. Mehrstufige Abläufe geben `None` zurück.
     pub fn anfrage(&self) -> Option<Anfrage> {
         Some(match self {
