@@ -10,6 +10,7 @@
 //! * [`workspace`]: alles zusammen, mit den Aktionen der Oberfläche
 //! * [`action`]: [`Action`], `Workspace::apply` und das Protokoll
 //! * [`demo`]: Beispieldaten, solange kein Backend angebunden ist
+//! * [`api`]: die JSON-Formen zwischen App und Backend (Server-Modus)
 //! * [`persist`]: Speichern und Laden des Workspace (JSON mit Versionsnummer)
 //!
 //! Jede Aktion der Oberfläche ist eine [`Action`], die `Workspace::apply` über Methoden
@@ -18,6 +19,7 @@
 
 pub mod action;
 pub mod agent;
+pub mod api;
 pub mod connections;
 pub mod demo;
 pub mod model;

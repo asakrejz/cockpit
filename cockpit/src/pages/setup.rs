@@ -15,7 +15,8 @@ use feature_ui::*;
 use leptos::{html, prelude::*};
 use web_sys::wasm_bindgen::JsCast;
 
-use crate::store::use_store;
+use crate::mode_switch::ModeSwitch;
+use crate::store::{Mode, use_store};
 
 const STEPS: &[&str] = &["Jira", "GitHub", "Agent"];
 /// Nach dem letzten Schritt folgt die Übersicht.
@@ -349,6 +350,7 @@ pub fn SetupPage() -> impl IntoView {
                         {row("Agent", agent)}
                     </ListSection>
                 </List>
+                <ModeSwitch />
                 <ResetDemo />
                 <HStack css="justify-content: space-between">
                     <HStack>
@@ -382,7 +384,9 @@ pub fn SetupPage() -> impl IntoView {
                                 <Icon path=icons::BRAND size=26 />
                             </span>
                             <span class="t-title3 t-bold">"Cockpit"</span>
-                            <Badge variant=BadgeVariant::Neutral>"Demo"</Badge>
+                            <Badge variant=BadgeVariant::Neutral>
+                                {move || if use_store().mode.get() == Mode::Server { "Server" } else { "Demo" }}
+                            </Badge>
                         </HStack>
                         <h1 class="t-display">"Einrichten."</h1>
                         <p class="t-title3 t-secondary">

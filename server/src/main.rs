@@ -13,7 +13,9 @@
 mod app;
 mod config;
 mod db;
+mod live;
 mod secrets;
+mod zugang;
 
 use std::io::Read;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -115,8 +117,8 @@ async fn starten() -> Result<(), String> {
         );
     }
 
-    let state = app::AppState::new(conn, Arc::new(KeyringStore));
-    let router = app::router(state, config.dist.clone());
+    let state = app::AppState::mit_port(conn, Arc::new(KeyringStore), config.port);
+    let router = app::router(state.clone(), config.dist.clone());
 
     // Nur lokal erreichbar – bewusst nicht einstellbar.
     let adresse = SocketAddr::from((Ipv4Addr::LOCALHOST, config.port));
@@ -125,11 +127,18 @@ async fn starten() -> Result<(), String> {
         .map_err(|e| format!("Port {} nicht verfügbar: {e}", config.port))?;
     tracing::info!("Cockpit läuft auf http://{adresse}");
 
-    axum::serve(listener, router)
-        .with_graceful_shutdown(async {
-            let _ = tokio::signal::ctrl_c().await;
-            tracing::info!("Beende …");
-        })
-        .await
-        .map_err(|e| format!("Server beendet mit Fehler: {e}"))
+    // Im Server-Modus läuft der Takt des simulierten Agenten hier, nicht im Browser.
+    app::agent_takt_starten(state);
+
+    // Die Adresse der Gegenstelle braucht `zugang`, um Fremde abzuweisen.
+    axum::serve(
+        listener,
+        router.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .with_graceful_shutdown(async {
+        let _ = tokio::signal::ctrl_c().await;
+        tracing::info!("Beende …");
+    })
+    .await
+    .map_err(|e| format!("Server beendet mit Fehler: {e}"))
 }

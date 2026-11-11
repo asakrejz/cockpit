@@ -17,6 +17,13 @@ const MIGRATIONEN: &[&str] = &[
          account    TEXT,               -- Jira: E-Mail; GitHub: später der Login
          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
      );",
+    // 2: Der Workspace des Server-Modus als eine Zeile (JSON im Format von `cockpit_core::persist`).
+    "CREATE TABLE workspace (
+         id         INTEGER PRIMARY KEY CHECK (id = 1),
+         revision   INTEGER NOT NULL,
+         json       TEXT NOT NULL,
+         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+     );",
 ];
 
 /// Die Version, auf die [`migrate`] die Datenbank bringt.
@@ -115,6 +122,25 @@ pub fn verbindung_setzen(
     Ok(())
 }
 
+/// Der gespeicherte Workspace des Server-Modus (JSON mit Revision), falls es einen gibt.
+pub fn workspace_laden(conn: &Connection) -> Result<Option<String>, DbFehler> {
+    match conn.query_row("SELECT json FROM workspace WHERE id = 1", [], |r| r.get(0)) {
+        Ok(json) => Ok(Some(json)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// Ersetzt den gespeicherten Workspace.
+pub fn workspace_speichern(conn: &Connection, revision: u64, json: &str) -> Result<(), DbFehler> {
+    conn.execute(
+        "INSERT INTO workspace (id, revision, json) VALUES (1, ?1, ?2)
+         ON CONFLICT(id) DO UPDATE SET revision = ?1, json = ?2, updated_at = CURRENT_TIMESTAMP",
+        params![revision as i64, json],
+    )?;
+    Ok(())
+}
+
 /// Namen aller gespeicherten Verbindungen.
 pub fn verbindungen(conn: &Connection) -> Result<Vec<String>, DbFehler> {
     let mut stmt = conn.prepare("SELECT name FROM connections ORDER BY name")?;
@@ -151,6 +177,19 @@ pub fn einstellung(conn: &Connection, key: &str) -> Result<Option<String>, DbFeh
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn workspace_wird_ersetzt_nicht_vermehrt() {
+        let conn = open_im_speicher().unwrap();
+        assert_eq!(workspace_laden(&conn).unwrap(), None);
+        workspace_speichern(&conn, 1, "eins").unwrap();
+        workspace_speichern(&conn, 2, "zwei").unwrap();
+        assert_eq!(workspace_laden(&conn).unwrap().as_deref(), Some("zwei"));
+        let n: u32 = conn
+            .query_row("SELECT COUNT(*) FROM workspace", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(n, 1);
+    }
 
     #[test]
     fn frische_datenbank_wird_migriert() {

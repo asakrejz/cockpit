@@ -29,11 +29,16 @@ struct Header {
 struct Out<'a> {
     version: u32,
     workspace: &'a Workspace,
+    /// Nur im Server-Modus: Nummer des Stands (zählt mit jeder angewendeten Aktion).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    revision: Option<u64>,
 }
 
 #[derive(Deserialize)]
 struct In {
     workspace: Workspace,
+    #[serde(default)]
+    revision: u64,
 }
 
 /// Warum gespeicherte Daten nicht verwendet werden.
@@ -47,9 +52,20 @@ pub enum LoadError {
 
 /// Wandelt den Workspace in Text um.
 pub fn save(workspace: &Workspace) -> String {
+    to_text(workspace, None)
+}
+
+/// Wie [`save`], mit der Revisionsnummer des Servers. Dieselbe Form, nur ein Feld mehr;
+/// [`load`] liest den Text weiterhin.
+pub fn save_with_revision(workspace: &Workspace, revision: u64) -> String {
+    to_text(workspace, Some(revision))
+}
+
+fn to_text(workspace: &Workspace, revision: Option<u64>) -> String {
     serde_json::to_string(&Out {
         version: VERSION,
         workspace,
+        revision,
     })
     // Der Workspace enthält nur Texte, Zahlen und Aufzählungen – das scheitert nicht.
     .unwrap_or_default()
@@ -57,12 +73,17 @@ pub fn save(workspace: &Workspace) -> String {
 
 /// Liest gespeicherten Text. Prüft zuerst die Version, dann den Inhalt.
 pub fn load(text: &str) -> Result<Workspace, LoadError> {
+    load_with_revision(text).map(|(workspace, _)| workspace)
+}
+
+/// Wie [`load`], dazu die Revisionsnummer (0, wenn der Text keine enthält).
+pub fn load_with_revision(text: &str) -> Result<(Workspace, u64), LoadError> {
     let header: Header = serde_json::from_str(text).map_err(|_| LoadError::Unreadable)?;
     if header.version != VERSION {
         return Err(LoadError::Version(header.version));
     }
     serde_json::from_str::<In>(text)
-        .map(|saved| saved.workspace)
+        .map(|saved| (saved.workspace, saved.revision))
         .map_err(|_| LoadError::Unreadable)
 }
 
@@ -82,6 +103,17 @@ mod tests {
 
     fn json(text: &str) -> serde_json::Value {
         serde_json::from_str(text).unwrap()
+    }
+
+    #[test]
+    fn revision_roundtrip_and_load_still_reads_it() {
+        let ws = demo::workspace();
+        let text = save_with_revision(&ws, 42);
+        assert_eq!(load_with_revision(&text), Ok((ws.clone(), 42)));
+        // Wer die Revision nicht kennt, liest denselben Text.
+        assert_eq!(load(&text), Ok(ws.clone()));
+        // Ohne Revision im Text: 0.
+        assert_eq!(load_with_revision(&save(&ws)), Ok((ws, 0)));
     }
 
     #[test]
