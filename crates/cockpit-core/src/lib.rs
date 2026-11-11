@@ -21,7 +21,7 @@ pub mod search;
 pub mod text;
 pub mod workspace;
 
-pub use agent::{AgentOptions, AgentRun, RunState, Step, StepState};
+pub use agent::{AgentOptions, AgentRun, Plan, RunState, Step, StepState};
 pub use connections::Connections;
 pub use model::*;
 pub use review::{

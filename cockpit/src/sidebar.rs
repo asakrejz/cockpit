@@ -15,9 +15,16 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
         Signal::derive(move || store.ws.with(|w| w.unread(filter)).to_string())
     };
     let reviews = Signal::derive(move || store.ws.with(|w| w.open_reviews()).to_string());
-    let agents = Signal::derive(move || match store.ws.with(|w| w.running_agents()) {
-        0 => String::new(),
-        n => format!("{n} aktiv"),
+    let agents = Signal::derive(move || {
+        let (running, waiting) = store.ws.with(|w| (w.running_agents(), w.waiting_agents()));
+        let mut parts = Vec::new();
+        if running > 0 {
+            parts.push(format!("{running} aktiv"));
+        }
+        if waiting > 0 {
+            parts.push(format!("{waiting} wartet"));
+        }
+        parts.join(" · ")
     });
 
     view! {

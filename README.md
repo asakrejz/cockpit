@@ -159,10 +159,10 @@ Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Vier Se
 | Einrichten | `#/einrichten` | Jira, GitHub und Agent verbinden; festlegen, was der Agent darf |
 | Aufmerksamkeit | `#/`, `#/meine`, `#/team` | Inbox aus Tickets und Pull Requests; Status ändern, Branch erstellen, antworten, Agent beauftragen; Suche und Quellen-Filter; Tasten `↑↓`/`j k`, `e`, `r`, `/` |
 | Review | `#/review/87` | Diff lesen; Zeilen auswählen und eigene Kommentare schreiben; Kommentare des Agenten freigeben, ablehnen oder bearbeiten; Review senden |
-| Agent | `#/agent/BAU-142` | Auftrag mit Optionen; Ablauf in fünf Schritten bis zum Pull Request |
+| Agent | `#/agent/BAU-142` | Auftrag mit Optionen; Plan zur Freigabe (abschaltbar); Ablauf in fünf Schritten bis zum Pull Request |
 
 Zwei Regeln sind in der Logik verankert und getestet: Ein Review wird erst gesendet, wenn über
-jeden Vorschlag entschieden ist (eigene Zeilenkommentare brauchen keine Freigabe). Und der Agent merged nie – sein Ergebnis ist ein Pull Request,
+jeden Vorschlag entschieden ist (eigene Zeilenkommentare brauchen keine Freigabe). Der Agent legt vor dem Start einen Plan vor und tut nichts, bis du ihn freigibst (ablehnen oder mit Anmerkung neu anfordern ist möglich). Und der Agent merged nie – sein Ergebnis ist ein Pull Request,
 der auf dein Review wartet.
 
 ### Stand: Demo ohne Backend
