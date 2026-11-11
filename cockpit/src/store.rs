@@ -1,14 +1,23 @@
 //! Gemeinsamer Zustand der App. Liegt als Kontext im Baum; `Store` ist `Copy`,
 //! lässt sich also frei in Closures verwenden.
 
-use std::time::Duration;
+use std::{
+    sync::atomic::{AtomicU32, Ordering},
+    time::Duration,
+};
 
-use cockpit_core::{Action, ActionError, Actor, Applied, Connections, Filter, Workspace, persist};
+use cockpit_core::{
+    Action, ActionError, Actor, Applied, Channel, Connections, Filter, NotifyEvent, Workspace,
+    notify, persist,
+};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use crate::route::Route;
 use crate::server::{self, CallError, Events};
+use crate::{
+    notify::{self as browser, Permission},
+    route::Route,
+};
 
 /// Unter diesem Namen liegen die Verbindungs-Haken im Browser. Schlüssel nie.
 const STORAGE_KEY: &str = "cockpit.connections";
@@ -21,6 +30,17 @@ const MODE_KEY: &str = "cockpit.mode";
 const NOTICE_TIME: Duration = Duration::from_secs(6);
 /// Änderungen innerhalb dieser Zeit werden zu einem Schreibvorgang zusammengefasst.
 const SAVE_DELAY: Duration = Duration::from_millis(400);
+/// So lange bleibt ein Hinweis in der App stehen.
+const TOAST_TIME: Duration = Duration::from_secs(7);
+/// Mehr Hinweise gleichzeitig wären zu viel.
+const MAX_TOASTS: usize = 3;
+
+/// Ein kleiner Hinweis in der App (Toast).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Toast {
+    pub id: u32,
+    pub event: NotifyEvent,
+}
 
 fn storage() -> Option<web_sys::Storage> {
     window().local_storage().ok().flatten()
@@ -93,6 +113,10 @@ pub struct Store {
     /// ID des Eintrags, der in der Inbox gewählt ist.
     pub selected: RwSignal<String>,
     pub route: RwSignal<Route>,
+    /// Hinweise, die gerade zu sehen sind.
+    pub toasts: RwSignal<Vec<Toast>>,
+    /// Erlaubnis für Systemmeldungen des Browsers.
+    pub permission: RwSignal<Permission>,
 }
 
 impl Store {
@@ -121,6 +145,8 @@ impl Store {
             ws: RwSignal::new(ws),
             conn: RwSignal::new(saved.map(|s| Connections::decode(&s)).unwrap_or_default()),
             route: RwSignal::new(Route::parse(&current_hash())),
+            toasts: RwSignal::new(Vec::new()),
+            permission: RwSignal::new(browser::permission()),
         };
         // Jede Änderung der Verbindungen wird gesichert.
         Effect::new(move |_| {
@@ -154,7 +180,7 @@ impl Store {
         self.revision.set_value(None);
         let saved = storage().and_then(|s| s.get_item(WORKSPACE_KEY).ok().flatten());
         let (ws, _) = persist::restore(saved.as_deref());
-        self.adopt(ws);
+        self.adopt(ws, false);
         self.start_persisting();
     }
 
@@ -223,9 +249,11 @@ impl Store {
                 match result {
                     Ok((ws, revision)) => {
                         store.link.set(Link::Online);
-                        if store.revision.get_value() != Some(revision) {
+                        let previous = store.revision.get_value();
+                        if previous != Some(revision) {
                             store.revision.set_value(Some(revision));
-                            store.adopt(ws);
+                            // Beim ersten Laden ist alles „neu“ – das soll nicht klingeln.
+                            store.adopt(ws, previous.is_some());
                         }
                     }
                     Err(CallError::Unreachable) => store.link.set(Link::Offline),
@@ -243,7 +271,12 @@ impl Store {
     }
 
     /// Übernimmt den Stand des Servers; die Auswahl bleibt, wenn es den Eintrag noch gibt.
-    fn adopt(&self, ws: Workspace) {
+    /// Mit `announce` meldet sie, was sich gegenüber dem bisherigen Stand geändert hat.
+    fn adopt(&self, ws: Workspace, announce: bool) {
+        if announce {
+            let before = self.ws.get_untracked();
+            self.announce_changes(&before, &ws);
+        }
         let keep = self.selected.with_untracked(|id| ws.item(id).is_some());
         if !keep {
             self.selected.set(first_id(&ws));
@@ -336,15 +369,63 @@ impl Store {
         // Die Zeit kommt aus dem Browser; die Logik in `cockpit-core` kennt keine Uhr.
         let at_ms = js_sys::Date::now() as u64;
         // Erst anwenden, dann melden: Bei einem Fehler soll sich nichts neu zeichnen.
-        let mut work = self.ws.get_untracked();
+        let before = self.ws.get_untracked();
+        let mut work = before.clone();
         let result = work.apply(action, actor, at_ms);
         if result.is_ok() {
             if reset {
                 self.selected.set(first_id(&work));
             }
+            // Beim Zurücksetzen kommt alles „neu“ – das soll nicht klingeln.
+            if !reset {
+                self.announce_changes(&before, &work);
+            }
             self.ws.set(work);
         }
         result
+    }
+
+    /// Leitet aus dem Vorher/Nachher die Ereignisse ab und meldet die für den Browser.
+    /// Gilt für beide Modi: im Demo-Modus nach `apply`, im Server-Modus nach dem Laden.
+    fn announce_changes(&self, before: &Workspace, after: &Workspace) {
+        let events = notify::events(before, after);
+        let deliveries =
+            notify::deliveries(&events, &after.notifications, browser::minute_of_day());
+        for delivery in deliveries {
+            // E-Mail und Slack versendet später das Backend.
+            if delivery.channel == Channel::Browser {
+                self.announce(delivery.event, false);
+            }
+        }
+    }
+
+    /// Meldet ein Ereignis: im Vordergrund als Hinweis in der App, sonst als Systemmeldung.
+    /// Mit `both` (Test) kommt beides.
+    pub fn announce(&self, event: NotifyEvent, both: bool) {
+        let visible = browser::foreground();
+        if visible || both {
+            self.toast(event.clone());
+        }
+        if !visible || both {
+            browser::show_system(&event);
+        }
+    }
+
+    fn toast(&self, event: NotifyEvent) {
+        static NEXT: AtomicU32 = AtomicU32::new(1);
+        let id = NEXT.fetch_add(1, Ordering::Relaxed);
+        self.toasts.update(|list| {
+            list.push(Toast { id, event });
+            if list.len() > MAX_TOASTS {
+                list.remove(0);
+            }
+        });
+        let store = *self;
+        set_timeout(move || store.dismiss(id), TOAST_TIME);
+    }
+
+    pub fn dismiss(&self, id: u32) {
+        let _ = self.toasts.try_update(|list| list.retain(|t| t.id != id));
     }
 
     /// Wählt einen Eintrag und zeigt ihn in der ungefilterten Inbox.
@@ -364,6 +445,11 @@ pub fn use_store() -> Store {
 
 pub fn current_hash() -> String {
     window().location().hash().unwrap_or_default()
+}
+
+/// Wechselt zu einer Adresse wie `#/review/87`.
+pub fn navigate_hash(hash: &str) {
+    let _ = window().location().set_hash(hash);
 }
 
 /// Wechselt die Seite über die Adresse. Die App reagiert auf `hashchange`.

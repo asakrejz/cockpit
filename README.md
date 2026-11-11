@@ -207,7 +207,7 @@ view! {
 
 ## Cockpit
 
-Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Fünf Seiten:
+Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Diese Seiten gibt es:
 
 | Seite | Adresse | Was sie kann |
 |-------|---------|--------------|
@@ -215,11 +215,16 @@ Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Fünf S
 | Aufmerksamkeit | `#/`, `#/meine`, `#/team` | Inbox aus Tickets und Pull Requests; Status ändern, Branch erstellen, antworten, Agent beauftragen; Suche und Quellen-Filter; Tasten `↑↓`/`j k`, `e`, `r`, `/` |
 | Review | `#/review/87` | Diff lesen; Zeilen auswählen und eigene Kommentare schreiben; Kommentare des Agenten freigeben, ablehnen oder bearbeiten; Review senden |
 | Übersicht | `#/uebersicht` | Pro Person offene Einträge und Auslastung; „Hängt“ zeigt fehlgeschlagene Checks, wartende Reviews, Tickets ohne Branch und Agenten, die auf dich warten |
+| Benachrichtigungen | `#/benachrichtigungen` | Je Anlass (Review-Anfrage, Erwähnung, Agent wartet, Agent fertig, Checks rot, Ticket zugewiesen) Browser, E-Mail und Slack wählen; Ruhezeiten; Erlaubnis des Browsers per Knopf anfragen; Test-Benachrichtigung |
 | Agent | `#/agent/BAU-142` | Auftrag mit Optionen; Plan zur Freigabe (abschaltbar); Ablauf in fünf Schritten bis zum Pull Request |
 
 Zwei Regeln sind in der Logik verankert und getestet: Ein Review wird erst gesendet, wenn über
 jeden Vorschlag entschieden ist (eigene Zeilenkommentare brauchen keine Freigabe). Der Agent legt vor dem Start einen Plan vor und tut nichts, bis du ihn freigibst (ablehnen oder mit Anmerkung neu anfordern ist möglich). Und der Agent merged nie – sein Ergebnis ist ein Pull Request,
 der auf dein Review wartet.
+
+### Benachrichtigungen
+
+Welche Ereignisse melden, leitet `crates/cockpit-core/src/notify.rs` rein aus dem Vergleich des Workspace vor und nach einer Aktion ab (mit Tests). Die Einstellungen liegen im Workspace und ändern sich über Aktionen (`SetNotifyChannel`, `SetQuietHours`). Im **Browser** fragt Cockpit nie von selbst nach der Erlaubnis, nur über den Knopf unter „Benachrichtigungen“. Ist der Tab im Vordergrund, erscheint ein Hinweis in der App, sonst eine Systemmeldung; ein Klick darauf öffnet das Ziel. In den Ruhezeiten bleibt es still. **E-Mail** und **Slack** sind nur vorbereitet: Die Auswahl wird gespeichert, versendet wird später über das Backend. Adressen und Webhook-URLs liegen nie im Browser.
 
 ### Stand: Demo ohne Backend
 
