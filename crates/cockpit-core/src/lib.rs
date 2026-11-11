@@ -8,6 +8,7 @@
 //! * [`team`]: Auslastung pro Person und was gerade hängt
 //! * [`workspace`]: alles zusammen, mit den Aktionen der Oberfläche
 //! * [`demo`]: Beispieldaten, solange kein Backend angebunden ist
+//! * [`persist`]: Speichern und Laden des Workspace (JSON mit Versionsnummer)
 //!
 //! Jede Aktion der Oberfläche ist eine Methode auf [`Workspace`] und damit mit
 //! `cargo test` prüfbar. Ein echtes Backend würde dieselben Aktionen gegen Jira,
@@ -17,6 +18,7 @@ pub mod agent;
 pub mod connections;
 pub mod demo;
 pub mod model;
+pub mod persist;
 pub mod review;
 pub mod search;
 pub mod team;

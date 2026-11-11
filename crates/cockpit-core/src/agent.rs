@@ -6,12 +6,15 @@
 //! Auf Wunsch legt der Agent vorher einen [`Plan`] vor und wartet auf die Freigabe
 //! ([`RunState::AwaitingApproval`]). Bis dahin entsteht nichts: kein Branch, keine Änderung.
 
+use serde::{Deserialize, Serialize};
+
 use crate::text::slug;
 
 /// Anzahl der Schritte eines Laufs.
 pub const STEPS: usize = 5;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+#[serde(default)]
 pub struct AgentOptions {
     pub run_tests: bool,
     /// Pull Request als Entwurf anlegen.
@@ -35,7 +38,7 @@ impl Default for AgentOptions {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum RunState {
     #[default]
     Idle,
@@ -67,23 +70,33 @@ pub struct Step {
     pub state: StepState,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct AgentRun {
+    #[serde(default)]
     pub ticket_key: String,
+    #[serde(default)]
     pub ticket_title: String,
     /// Kommentare am Ticket, die der Agent mitliest.
+    #[serde(default)]
     pub comments: usize,
     /// Namen der Dateien, die der Agent ändert.
+    #[serde(default)]
     pub files: Vec<String>,
+    #[serde(default)]
     pub options: AgentOptions,
+    #[serde(default)]
     pub state: RunState,
     /// Zahl der abgeschlossenen Schritte (0 bis [`STEPS`]).
+    #[serde(default)]
     pub completed: usize,
     /// Nummer des Pull Requests, den der Lauf anlegt.
+    #[serde(default)]
     pub pr_number: Option<u32>,
     /// Anmerkungen des Nutzers, die zu einem neuen Plan geführt haben.
+    #[serde(default)]
     pub plan_notes: Vec<String>,
     /// Der Lauf hat mit einem Plan begonnen (auch nach der Freigabe).
+    #[serde(default)]
     pub planned: bool,
 }
 

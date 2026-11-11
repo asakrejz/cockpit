@@ -2,7 +2,8 @@
 //!
 //! Das Format der Eingaben wird wirklich geprüft. Die Verbindung selbst ist in dieser
 //! Demo simuliert. Schlüssel leben nur in den Feldern dieser Seite: Sie werden nie
-//! gespeichert und verschwinden, sobald die Seite verlassen wird.
+//! gespeichert und verschwinden, sobald die Seite verlassen wird. In der Übersicht lassen
+//! sich außerdem die Demo-Daten zurücksetzen.
 
 use std::time::Duration;
 
@@ -11,7 +12,8 @@ use cockpit_core::{
     connections::{check_agent, check_github, check_jira},
 };
 use feature_ui::*;
-use leptos::prelude::*;
+use leptos::{html, prelude::*};
+use web_sys::wasm_bindgen::JsCast;
 
 use crate::store::use_store;
 
@@ -347,6 +349,7 @@ pub fn SetupPage() -> impl IntoView {
                         {row("Agent", agent)}
                     </ListSection>
                 </List>
+                <ResetDemo />
                 <HStack css="justify-content: space-between">
                     <HStack>
                         <Button variant=ButtonStyle::Borderless size=ControlSize::Large on_click=back>
@@ -397,7 +400,7 @@ pub fn SetupPage() -> impl IntoView {
                     }}
 
                     <p class="t-footnote t-secondary" style="padding-inline: 4px">
-                        "Wo deine Schlüssel gespeichert werden: nirgends. Sie stehen nur in den Feldern dieser Seite und verschwinden, wenn du sie verlässt. Dies ist eine Demo – Cockpit prüft das Format deiner Eingaben, verbindet sich aber noch nicht mit Jira, GitHub oder einem Modell-Anbieter."
+                        "Wo deine Schlüssel gespeichert werden: nirgends. Sie stehen nur in den Feldern dieser Seite und verschwinden, wenn du sie verlässt. Im Browser bleiben nur die Haken „verbunden“, die Berechtigungen des Agenten und der Stand der Beispieldaten (gelesen, Status, Kommentare, Reviews, Agenten-Läufe). Dies ist eine Demo – Cockpit prüft das Format deiner Eingaben, verbindet sich aber noch nicht mit Jira, GitHub oder einem Modell-Anbieter."
                     </p>
                 </VStack>
             </Container>
@@ -413,5 +416,105 @@ fn Intro(title: &'static str, text: &'static str) -> impl IntoView {
             <p class="ui-list__header" data-prominent="">{title}</p>
             <p class="t-subheadline t-secondary" style="padding-inline: 4px">{text}</p>
         </div>
+    }
+}
+
+/// „Demo-Daten zurücksetzen“ mit Rückfrage. Die Rückfrage ist ein eigener Block mit
+/// `role="alertdialog"`: Der Fokus springt auf „Abbrechen“ (die sichere Wahl),
+/// Esc bricht ab, beide Antworten sind echte Buttons.
+#[component]
+fn ResetDemo() -> impl IntoView {
+    let store = use_store();
+    let asking = RwSignal::new(false);
+    let cancel_box = NodeRef::<html::Div>::new();
+    let ask_box = NodeRef::<html::Div>::new();
+
+    // Fokus: beim Öffnen auf „Abbrechen“, beim Schließen zurück auf „Zurücksetzen“.
+    let focus_in = move |node: NodeRef<html::Div>| {
+        if let Some(button) = node
+            .get_untracked()
+            .and_then(|b| b.query_selector("button").ok().flatten())
+            .and_then(|b| b.dyn_into::<web_sys::HtmlElement>().ok())
+        {
+            let _ = button.focus();
+        }
+    };
+    Effect::new(move |previous: Option<bool>| {
+        let open = asking.get();
+        if previous == Some(open) {
+            return open;
+        }
+        // Erst nach dem Zeichnen, sonst gibt es den Button noch nicht.
+        let target = if open { cancel_box } else { ask_box };
+        if previous.is_some() {
+            set_timeout(move || focus_in(target), Duration::ZERO);
+        }
+        open
+    });
+
+    let confirm = move |_| {
+        store.reset_demo();
+        asking.set(false);
+    };
+
+    view! {
+        <List>
+            <ListSection
+                header="Demo-Daten"
+                footer="Gelesen, Status, Branches, Kommentare, Reviews und Agenten-Läufe bleiben beim Neuladen erhalten. Deine Verbindungen bleiben auch nach dem Zurücksetzen."
+            >
+                <ListRow
+                    title="Demo-Daten zurücksetzen"
+                    subtitle="Tickets, Pull Requests, Reviews und Agenten beginnen wieder von vorn"
+                    wrap=true
+                >
+                    <div node_ref=ask_box>
+                        <Button
+                            destructive=true
+                            disabled=Signal::derive(move || asking.get())
+                            on_click=move |_| asking.set(true)
+                        >
+                            "Zurücksetzen …"
+                        </Button>
+                    </div>
+                </ListRow>
+            </ListSection>
+        </List>
+        <Show when=move || asking.get()>
+            <div
+                role="alertdialog"
+                aria-labelledby="ck-reset-title"
+                aria-describedby="ck-reset-text"
+                on:keydown=move |ev| {
+                    if ev.key() == "Escape" {
+                        asking.set(false);
+                    }
+                }
+            >
+                <Card>
+                    <CardBody css="gap: 12px">
+                        <p id="ck-reset-title" class="t-headline">"Demo-Daten wirklich zurücksetzen?"</p>
+                        <p id="ck-reset-text" class="t-subheadline t-secondary">
+                            "Alle Änderungen an Tickets, Reviews und Agenten-Läufen gehen verloren und die Beispieldaten beginnen von vorn. Deine Verbindungen bleiben."
+                        </p>
+                        <HStack>
+                            <div node_ref=cancel_box>
+                                <Button size=ControlSize::Large on_click=move |_| asking.set(false)>
+                                    "Abbrechen"
+                                </Button>
+                            </div>
+                            <Button
+                                variant=ButtonStyle::GlassProminent
+                                size=ControlSize::Large
+                                destructive=true
+                                on_click=confirm
+                            >
+                                "Ja, zurücksetzen"
+                            </Button>
+                        </HStack>
+                    </CardBody>
+                </Card>
+            </div>
+        </Show>
     }
 }
