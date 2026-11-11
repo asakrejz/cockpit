@@ -129,9 +129,10 @@ pub fn plane(
                 return Ok(None);
             }
             match (i.source, i.pr.as_ref()) {
-                (cockpit_core::Source::Jira, _) if ziele.jira => {
-                    Some(Ausgehend::JiraKommentar { key: i.key.clone(), text })
-                }
+                (cockpit_core::Source::Jira, _) if ziele.jira => Some(Ausgehend::JiraKommentar {
+                    key: i.key.clone(),
+                    text,
+                }),
                 (cockpit_core::Source::GitHub, Some(pr)) => {
                     repo_von_pr(pr.number).map(|(repo, _)| Ausgehend::GitHubKommentar {
                         repo,
@@ -146,8 +147,12 @@ pub fn plane(
             let Some(i) = vorher.item(item).filter(|i| vorher.sync.is_synced(&i.id)) else {
                 return Ok(None);
             };
-            (i.source == cockpit_core::Source::Jira && i.is_ticket() && ziele.jira)
-                .then(|| Ausgehend::JiraStatus { key: i.key.clone(), status: *status })
+            (i.source == cockpit_core::Source::Jira && i.is_ticket() && ziele.jira).then(|| {
+                Ausgehend::JiraStatus {
+                    key: i.key.clone(),
+                    status: *status,
+                }
+            })
         }
         Action::CreateBranch { item } => {
             let Some(i) = vorher.item(item).filter(|i| vorher.sync.is_synced(&i.id)) else {
@@ -165,10 +170,14 @@ pub fn plane(
                 .item(item)
                 .and_then(|n| n.branch.clone())
                 .ok_or_else(|| PlanFehler("Der Branch-Name steht nicht fest".into()))?;
-            Some(Ausgehend::GitHubBranch { repo: repo.clone(), name })
+            Some(Ausgehend::GitHubBranch {
+                repo: repo.clone(),
+                name,
+            })
         }
         Action::SendReview { review, comment } => {
-            let (Some(r), Some((repo, sha))) = (vorher.review(*review), repo_von_pr(*review)) else {
+            let (Some(r), Some((repo, sha))) = (vorher.review(*review), repo_von_pr(*review))
+            else {
                 return Ok(None);
             };
             Some(Ausgehend::GitHubReview {
@@ -177,9 +186,14 @@ pub fn plane(
                 review: review_daten(r, comment, &sha),
             })
         }
-        Action::MergePr { review, method } => repo_von_pr(*review).map(|(repo, sha)| {
-            Ausgehend::GitHubMerge { repo, nummer: *review, methode: *method, sha }
-        }),
+        Action::MergePr { review, method } => {
+            repo_von_pr(*review).map(|(repo, sha)| Ausgehend::GitHubMerge {
+                repo,
+                nummer: *review,
+                methode: *method,
+                sha,
+            })
+        }
         Action::RestartCheck { review, check } => {
             repo_von_pr(*review).map(|(repo, _)| Ausgehend::GitHubCheckNeu {
                 repo,
@@ -222,7 +236,10 @@ pub fn review_daten(review: &Review, kommentar: &str, sha: &str) -> ReviewDaten 
     {
         let zeile = ort_lesen(&s.location).filter(|(datei, nr)| {
             review.files.iter().any(|f| {
-                f.name == *datei && f.lines.iter().any(|l| l.no == *nr && l.kind != LineKind::Del)
+                f.name == *datei
+                    && f.lines
+                        .iter()
+                        .any(|l| l.no == *nr && l.kind != LineKind::Del)
             })
         });
         match zeile {
@@ -245,7 +262,11 @@ pub fn review_daten(review: &Review, kommentar: &str, sha: &str) -> ReviewDaten 
             Some(l) => zeilen.push(ZeilenKommentar {
                 pfad: c.file.clone(),
                 zeile: l.no,
-                seite: if l.kind == LineKind::Del { "LEFT" } else { "RIGHT" },
+                seite: if l.kind == LineKind::Del {
+                    "LEFT"
+                } else {
+                    "RIGHT"
+                },
                 text: c.body(),
             }),
             None => lose.push(format!("{}: {}", c.file, c.body())),
@@ -319,12 +340,21 @@ impl Ausgehend {
                 pfad: format!("/repos/{repo}/issues/{nummer}/comments"),
                 body: Some(json!({ "body": text })),
             },
-            Ausgehend::GitHubReview { repo, nummer, review } => Anfrage {
+            Ausgehend::GitHubReview {
+                repo,
+                nummer,
+                review,
+            } => Anfrage {
                 methode: "POST",
                 pfad: format!("/repos/{repo}/pulls/{nummer}/reviews"),
                 body: Some(review.body()),
             },
-            Ausgehend::GitHubMerge { repo, nummer, methode, sha } => {
+            Ausgehend::GitHubMerge {
+                repo,
+                nummer,
+                methode,
+                sha,
+            } => {
                 let mut b = json!({ "merge_method": methode.id() });
                 if !sha.is_empty() {
                     b["sha"] = json!(sha);
@@ -387,7 +417,11 @@ mod tests {
     fn item(id: &str, key: &str, source: Source) -> Item {
         Item {
             id: id.into(),
-            kind: if source == Source::Jira { Kind::Ticket } else { Kind::PullRequest },
+            kind: if source == Source::Jira {
+                Kind::Ticket
+            } else {
+                Kind::PullRequest
+            },
             source,
             key: key.into(),
             title: "Avatar Größe".into(),
@@ -399,7 +433,7 @@ mod tests {
             owner: Person::me(),
             status: TicketStatus::Open,
             branch: None,
-            pr: (source == Source::GitHub).then(|| PrRef {
+            pr: (source == Source::GitHub).then_some(PrRef {
                 number: 7,
                 draft: false,
                 checks: Checks::Passed,
@@ -419,22 +453,45 @@ mod tests {
         r.files = vec![FileDiff {
             name: "a.rs".into(),
             lines: vec![
-                DiffLine { no: 1, kind: LineKind::Context, text: "fn a() {".into() },
-                DiffLine { no: 2, kind: LineKind::Del, text: "    alt();".into() },
-                DiffLine { no: 2, kind: LineKind::Add, text: "    neu();".into() },
+                DiffLine {
+                    no: 1,
+                    kind: LineKind::Context,
+                    text: "fn a() {".into(),
+                },
+                DiffLine {
+                    no: 2,
+                    kind: LineKind::Del,
+                    text: "    alt();".into(),
+                },
+                DiffLine {
+                    no: 2,
+                    kind: LineKind::Add,
+                    text: "    neu();".into(),
+                },
             ],
         }];
         r.suggestions = vec![
-            Suggestion::new("s1", "a.rs · Zeile 2", cockpit_core::Level::Note, "Name prüfen"),
+            Suggestion::new(
+                "s1",
+                "a.rs · Zeile 2",
+                cockpit_core::Level::Note,
+                "Name prüfen",
+            ),
             Suggestion::new("s2", "unklar", cockpit_core::Level::Note, "Allgemein"),
-            Suggestion::new("s3", "a.rs · Zeile 1", cockpit_core::Level::Note, "abgelehnt"),
+            Suggestion::new(
+                "s3",
+                "a.rs · Zeile 1",
+                cockpit_core::Level::Note,
+                "abgelehnt",
+            ),
         ];
         r.suggestions[0].decision = Some(Decision::Approved);
         r.suggestions[1].decision = Some(Decision::Approved);
         r.suggestions[2].decision = Some(Decision::Declined);
         r.line_comments.clear();
         r.verdict = Verdict::RequestChanges;
-        r.add_line_comment("a.rs", 2, "Besser so", Some("    neuer();")).unwrap();
+        r.add_line_comment("a.rs", 2, "Besser so", Some("    neuer();"))
+            .unwrap();
         r.add_line_comment("a.rs", 0, "Warum?", None).unwrap();
         r
     }
@@ -454,7 +511,11 @@ mod tests {
                     outcome: Outcome::Loaded(Loaded {
                         items: vec![item("gh-a-x-7", "#7", Source::GitHub)],
                         reviews: vec![review()],
-                        prs: vec![PrLink { number: 7, repo: "a/x".into(), head_sha: "abc123".into() }],
+                        prs: vec![PrLink {
+                            number: 7,
+                            repo: "a/x".into(),
+                            head_sha: "abc123".into(),
+                        }],
                         warnings: vec![],
                     }),
                 },
@@ -464,7 +525,11 @@ mod tests {
     }
 
     fn alles() -> Ziele {
-        Ziele { github: true, jira: true, repos: vec!["a/x".into()] }
+        Ziele {
+            github: true,
+            jira: true,
+            repos: vec!["a/x".into()],
+        }
     }
 
     fn plan(ws: &Workspace, a: Action, z: &Ziele) -> Result<Option<Ausgehend>, PlanFehler> {
@@ -476,25 +541,66 @@ mod tests {
     #[test]
     fn reply_geht_je_quelle_an_den_richtigen_dienst() {
         let w = ws();
-        let a = plan(&w, Action::Reply { item: "abc-1".into(), text: " Hallo ".into() }, &alles());
-        assert_eq!(a, Ok(Some(Ausgehend::JiraKommentar { key: "ABC-1".into(), text: "Hallo".into() })));
-        let a = plan(&w, Action::Reply { item: "gh-a-x-7".into(), text: "Hi".into() }, &alles());
+        let a = plan(
+            &w,
+            Action::Reply {
+                item: "abc-1".into(),
+                text: " Hallo ".into(),
+            },
+            &alles(),
+        );
         assert_eq!(
             a,
-            Ok(Some(Ausgehend::GitHubKommentar { repo: "a/x".into(), nummer: 7, text: "Hi".into() }))
+            Ok(Some(Ausgehend::JiraKommentar {
+                key: "ABC-1".into(),
+                text: "Hallo".into()
+            }))
+        );
+        let a = plan(
+            &w,
+            Action::Reply {
+                item: "gh-a-x-7".into(),
+                text: "Hi".into(),
+            },
+            &alles(),
+        );
+        assert_eq!(
+            a,
+            Ok(Some(Ausgehend::GitHubKommentar {
+                repo: "a/x".into(),
+                nummer: 7,
+                text: "Hi".into()
+            }))
         );
         let anfrage = a.unwrap().unwrap().anfrage().unwrap();
         assert_eq!(
             (anfrage.methode, anfrage.pfad.as_str(), anfrage.body),
-            ("POST", "/repos/a/x/issues/7/comments", Some(json!({"body": "Hi"})))
+            (
+                "POST",
+                "/repos/a/x/issues/7/comments",
+                Some(json!({"body": "Hi"}))
+            )
         );
-        let jira = plan(&w, Action::Reply { item: "abc-1".into(), text: "a\nb".into() }, &alles())
-            .unwrap()
-            .unwrap()
-            .anfrage()
-            .unwrap();
+        let jira = plan(
+            &w,
+            Action::Reply {
+                item: "abc-1".into(),
+                text: "a\nb".into(),
+            },
+            &alles(),
+        )
+        .unwrap()
+        .unwrap()
+        .anfrage()
+        .unwrap();
         assert_eq!(jira.pfad, "/rest/api/3/issue/ABC-1/comment");
-        assert_eq!(jira.body.unwrap()["body"]["content"].as_array().unwrap().len(), 2);
+        assert_eq!(
+            jira.body.unwrap()["body"]["content"]
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
     }
 
     #[test]
@@ -502,16 +608,49 @@ mod tests {
         let w = ws();
         let demo = cockpit_core::demo::workspace();
         // Beispieldaten: nie nach außen.
-        let a = plan(&demo, Action::Reply { item: "bau142".into(), text: "x".into() }, &alles());
+        let a = plan(
+            &demo,
+            Action::Reply {
+                item: "bau142".into(),
+                text: "x".into(),
+            },
+            &alles(),
+        );
         assert_eq!(a, Ok(None));
         // Quelle aus.
         let aus = Ziele::default();
-        assert_eq!(plan(&w, Action::Reply { item: "abc-1".into(), text: "x".into() }, &aus), Ok(None));
+        assert_eq!(
+            plan(
+                &w,
+                Action::Reply {
+                    item: "abc-1".into(),
+                    text: "x".into()
+                },
+                &aus
+            ),
+            Ok(None)
+        );
         // Andere Aktionen.
-        assert_eq!(plan(&w, Action::MarkDone { item: "abc-1".into() }, &alles()), Ok(None));
+        assert_eq!(
+            plan(
+                &w,
+                Action::MarkDone {
+                    item: "abc-1".into()
+                },
+                &alles()
+            ),
+            Ok(None)
+        );
         assert_eq!(plan(&w, Action::AdvanceAgents, &alles()), Ok(None));
         assert_eq!(
-            plan(&w, Action::SetVerdict { review: 7, verdict: Verdict::Approve }, &alles()),
+            plan(
+                &w,
+                Action::SetVerdict {
+                    review: 7,
+                    verdict: Verdict::Approve
+                },
+                &alles()
+            ),
             Ok(None)
         );
     }
@@ -520,27 +659,77 @@ mod tests {
     fn status_branch_merge_und_check() {
         let w = ws();
         assert_eq!(
-            plan(&w, Action::SetStatus { item: "abc-1".into(), status: TicketStatus::Done }, &alles()),
-            Ok(Some(Ausgehend::JiraStatus { key: "ABC-1".into(), status: TicketStatus::Done }))
+            plan(
+                &w,
+                Action::SetStatus {
+                    item: "abc-1".into(),
+                    status: TicketStatus::Done
+                },
+                &alles()
+            ),
+            Ok(Some(Ausgehend::JiraStatus {
+                key: "ABC-1".into(),
+                status: TicketStatus::Done
+            }))
         );
-        let Ok(Some(Ausgehend::GitHubBranch { repo, name })) =
-            plan(&w, Action::CreateBranch { item: "abc-1".into() }, &alles())
-        else {
+        let Ok(Some(Ausgehend::GitHubBranch { repo, name })) = plan(
+            &w,
+            Action::CreateBranch {
+                item: "abc-1".into(),
+            },
+            &alles(),
+        ) else {
             panic!("Branch erwartet");
         };
         assert_eq!(repo, "a/x");
         assert_eq!(name, "feature/ABC-1-avatar-groesse");
-        let ohne_repo = Ziele { repos: vec![], ..alles() };
-        assert!(plan(&w, Action::CreateBranch { item: "abc-1".into() }, &ohne_repo).is_err());
+        let ohne_repo = Ziele {
+            repos: vec![],
+            ..alles()
+        };
+        assert!(
+            plan(
+                &w,
+                Action::CreateBranch {
+                    item: "abc-1".into()
+                },
+                &ohne_repo
+            )
+            .is_err()
+        );
 
-        let m = plan(&w, Action::MergePr { review: 7, method: MergeMethod::Squash }, &alles());
+        let m = plan(
+            &w,
+            Action::MergePr {
+                review: 7,
+                method: MergeMethod::Squash,
+            },
+            &alles(),
+        );
         let anf = m.unwrap().unwrap().anfrage().unwrap();
-        assert_eq!((anf.methode, anf.pfad.as_str()), ("PUT", "/repos/a/x/pulls/7/merge"));
-        assert_eq!(anf.body, Some(json!({"merge_method": "squash", "sha": "abc123"})));
+        assert_eq!(
+            (anf.methode, anf.pfad.as_str()),
+            ("PUT", "/repos/a/x/pulls/7/merge")
+        );
+        assert_eq!(
+            anf.body,
+            Some(json!({"merge_method": "squash", "sha": "abc123"}))
+        );
 
         assert_eq!(
-            plan(&w, Action::RestartCheck { review: 7, check: "Tests".into() }, &alles()),
-            Ok(Some(Ausgehend::GitHubCheckNeu { repo: "a/x".into(), nummer: 7, check: "Tests".into() }))
+            plan(
+                &w,
+                Action::RestartCheck {
+                    review: 7,
+                    check: "Tests".into()
+                },
+                &alles()
+            ),
+            Ok(Some(Ausgehend::GitHubCheckNeu {
+                repo: "a/x".into(),
+                nummer: 7,
+                check: "Tests".into()
+            }))
         );
     }
 
@@ -552,9 +741,17 @@ mod tests {
         assert_eq!(d.kommentare.len(), 3);
         assert_eq!(
             d.kommentare[0],
-            ZeilenKommentar { pfad: "a.rs".into(), zeile: 2, seite: "RIGHT", text: "Name prüfen".into() }
+            ZeilenKommentar {
+                pfad: "a.rs".into(),
+                zeile: 2,
+                seite: "RIGHT",
+                text: "Name prüfen".into()
+            }
         );
-        assert_eq!(d.kommentare[1].text, "Besser so\n\n```suggestion\n    neuer();\n```");
+        assert_eq!(
+            d.kommentare[1].text,
+            "Besser so\n\n```suggestion\n    neuer();\n```"
+        );
         assert_eq!(d.kommentare[1].seite, "RIGHT");
         assert_eq!(d.kommentare[2].zeile, 1);
         assert!(d.text.starts_with("Insgesamt gut"));
@@ -600,9 +797,20 @@ mod tests {
             {"id": "31", "name": "Fertig", "to": {"name": "Done", "statusCategory": {"key": "done"}}}
         ]))
         .unwrap();
-        assert_eq!(waehle_transition(&liste, TicketStatus::InProgress).unwrap().id, "11");
-        assert_eq!(waehle_transition(&liste, TicketStatus::Review).unwrap().id, "21");
-        assert_eq!(waehle_transition(&liste, TicketStatus::Done).unwrap().id, "31");
+        assert_eq!(
+            waehle_transition(&liste, TicketStatus::InProgress)
+                .unwrap()
+                .id,
+            "11"
+        );
+        assert_eq!(
+            waehle_transition(&liste, TicketStatus::Review).unwrap().id,
+            "21"
+        );
+        assert_eq!(
+            waehle_transition(&liste, TicketStatus::Done).unwrap().id,
+            "31"
+        );
         assert!(waehle_transition(&liste, TicketStatus::Open).is_none());
         let a = transition_anfrage("ABC-1", "31");
         assert_eq!(a.pfad, "/rest/api/3/issue/ABC-1/transitions");
@@ -613,8 +821,14 @@ mod tests {
     fn branch_und_check_aufrufe() {
         let a = branch_anfrage("a/x", "feature/x", "deadbeef");
         assert_eq!(a.pfad, "/repos/a/x/git/refs");
-        assert_eq!(a.body, Some(json!({"ref": "refs/heads/feature/x", "sha": "deadbeef"})));
+        assert_eq!(
+            a.body,
+            Some(json!({"ref": "refs/heads/feature/x", "sha": "deadbeef"}))
+        );
         let c = check_neu_anfrage("a/x", 99);
-        assert_eq!((c.methode, c.pfad.as_str(), c.body), ("POST", "/repos/a/x/check-runs/99/rerequest", None));
+        assert_eq!(
+            (c.methode, c.pfad.as_str(), c.body),
+            ("POST", "/repos/a/x/check-runs/99/rerequest", None)
+        );
     }
 }

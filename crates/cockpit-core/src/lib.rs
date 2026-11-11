@@ -51,6 +51,8 @@ pub use review::{
     MergeBlocker, MergeMethod, Review, SendError, Suggestion, SuggestionDiff, Verdict,
     merge_blockers,
 };
-pub use sync::{Change, Loaded, Outcome, PrLink, Problem, Remote, SourceData, SourceState, SyncState};
+pub use sync::{
+    Change, Loaded, Outcome, PrLink, Problem, Remote, SourceData, SourceState, SyncState,
+};
 pub use team::{CAPACITY, LoadLevel, Member, Stuck, StuckKind, state_label};
 pub use workspace::{AgentError, Workspace};

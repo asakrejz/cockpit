@@ -319,7 +319,10 @@ mod tests {
             "[jira]\nsite = \"https://x\"\nemail = \"a@b\"\nprojects = [\"A) OR (B\"]",
         ] {
             assert!(
-                matches!(Config::aus(Some(kaputt), keine_env), Err(KonfigFehler::Wert(_))),
+                matches!(
+                    Config::aus(Some(kaputt), keine_env),
+                    Err(KonfigFehler::Wert(_))
+                ),
                 "{kaputt}"
             );
         }

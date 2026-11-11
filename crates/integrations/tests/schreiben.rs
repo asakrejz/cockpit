@@ -109,7 +109,9 @@ async fn github_merge_mit_methode() {
     Mock::given(method("PUT"))
         .and(path("/repos/a/x/pulls/7/merge"))
         .and(bearer())
-        .and(body_json(json!({"merge_method": "squash", "sha": "abc123"})))
+        .and(body_json(
+            json!({"merge_method": "squash", "sha": "abc123"}),
+        ))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({"merged": true})))
         .expect(1)
         .mount(&s)
@@ -177,10 +179,12 @@ async fn github_check_neu_anfordern() {
         .await;
     Mock::given(method("GET"))
         .and(path("/repos/a/x/commits/cafe/check-runs"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"check_runs": [
-            {"id": 11, "name": "Lint", "status": "completed", "conclusion": "success"},
-            {"id": 22, "name": "Tests", "status": "completed", "conclusion": "failure"}
-        ]})))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({"check_runs": [
+                {"id": 11, "name": "Lint", "status": "completed", "conclusion": "success"},
+                {"id": 22, "name": "Tests", "status": "completed", "conclusion": "failure"}
+            ]})),
+        )
         .mount(&s)
         .await;
     Mock::given(method("POST"))
@@ -214,10 +218,12 @@ async fn jira_kommentar_als_adf() {
     Mock::given(method("POST"))
         .and(path("/rest/api/3/issue/ABC-1/comment"))
         .and(header_exists("authorization"))
-        .and(body_json(json!({"body": {"type": "doc", "version": 1, "content": [
-            {"type": "paragraph", "content": [{"type": "text", "text": "Eins"}]},
-            {"type": "paragraph", "content": [{"type": "text", "text": "Zwei"}]}
-        ]}})))
+        .and(body_json(
+            json!({"body": {"type": "doc", "version": 1, "content": [
+                {"type": "paragraph", "content": [{"type": "text", "text": "Eins"}]},
+                {"type": "paragraph", "content": [{"type": "text", "text": "Zwei"}]}
+            ]}}),
+        ))
         .respond_with(ResponseTemplate::new(201).set_body_json(json!({"id": "1"})))
         .expect(1)
         .mount(&s)
@@ -232,7 +238,12 @@ async fn jira_kommentar_als_adf() {
         .unwrap();
     // Basic-Auth mit E-Mail und Token.
     let anfragen = s.received_requests().await.unwrap();
-    let auth = anfragen[0].headers.get("authorization").unwrap().to_str().unwrap();
+    let auth = anfragen[0]
+        .headers
+        .get("authorization")
+        .unwrap()
+        .to_str()
+        .unwrap();
     assert!(auth.starts_with("Basic "), "{auth}");
 }
 
@@ -378,9 +389,10 @@ async fn schluessel_steht_nie_in_fehlern_oder_debug() {
     // Ein Dienst, der den Schlüssel in der Meldung zurückspielt.
     let s = MockServer::start().await;
     Mock::given(method("POST"))
-        .respond_with(ResponseTemplate::new(422).set_body_json(
-            json!({"message": format!("Bad credentials: {TOKEN}")}),
-        ))
+        .respond_with(
+            ResponseTemplate::new(422)
+                .set_body_json(json!({"message": format!("Bad credentials: {TOKEN}")})),
+        )
         .mount(&s)
         .await;
     let c = github(&s).await;

@@ -81,7 +81,11 @@ impl AppState {
                 None
             }
         };
-        if let Some(g) = inner.quellen.github.as_ref().filter(|g| !g.repos.is_empty())
+        if let Some(g) = inner
+            .quellen
+            .github
+            .as_ref()
+            .filter(|g| !g.repos.is_empty())
             && let Some(t) = token(secrets::GITHUB)
         {
             match GitHubClient::new(&g.api_url, t) {
@@ -117,7 +121,11 @@ impl AppState {
             .unwrap_or_default()
     }
 
-    async fn lokal_anwenden(&self, action: Action, actor: Actor) -> Result<ActionResponse, LiveFehler> {
+    async fn lokal_anwenden(
+        &self,
+        action: Action,
+        actor: Actor,
+    ) -> Result<ActionResponse, LiveFehler> {
         let s = self.clone();
         tokio::task::spawn_blocking(move || {
             s.inner
@@ -188,9 +196,7 @@ impl AppState {
             });
         }
         for versuch in 0..=WIEDERHOLUNGEN {
-            let stand = inner
-                .geschrieben
-                .load(std::sync::atomic::Ordering::SeqCst);
+            let stand = inner.geschrieben.load(std::sync::atomic::Ordering::SeqCst);
             let jetzt = jetzt_ms();
             let bekannt = inner.live.kopie();
             let pausiert: Vec<Source> = [Source::GitHub, Source::Jira]
@@ -206,10 +212,7 @@ impl AppState {
                 });
             }
             let _sperre = inner.sperre.lock().await;
-            let veraltet = inner
-                .geschrieben
-                .load(std::sync::atomic::Ordering::SeqCst)
-                != stand;
+            let veraltet = inner.geschrieben.load(std::sync::atomic::Ordering::SeqCst) != stand;
             if veraltet && versuch < WIEDERHOLUNGEN {
                 continue;
             }
@@ -329,7 +332,9 @@ mod tests {
     }
 
     async fn stand(state: &AppState) -> (Workspace, u64) {
-        let req = anfrage("GET", "/api/workspace").body(Body::empty()).unwrap();
+        let req = anfrage("GET", "/api/workspace")
+            .body(Body::empty())
+            .unwrap();
         let (_, body) = sende(state, req).await;
         persist::load_with_revision(&body).unwrap()
     }
@@ -344,7 +349,11 @@ mod tests {
     }
 
     async fn get(s: &MockServer, p: &str, a: ResponseTemplate) {
-        Mock::given(method("GET")).and(path(p)).respond_with(a).mount(s).await;
+        Mock::given(method("GET"))
+            .and(path(p))
+            .respond_with(a)
+            .mount(s)
+            .await;
     }
 
     /// GitHub mit einem Pull Request (#7, Review angefragt, Checks grün).
@@ -352,7 +361,10 @@ mod tests {
         let s = MockServer::start().await;
         get(&s, "/user", ok(json!({"login": "ich"}))).await;
         for (q, treffer) in [
-            ("is:pr is:open archived:false review-requested:@me repo:a/x", true),
+            (
+                "is:pr is:open archived:false review-requested:@me repo:a/x",
+                true,
+            ),
             ("is:pr is:open archived:false author:@me repo:a/x", false),
         ] {
             let items = if treffer {
@@ -367,17 +379,27 @@ mod tests {
                 .mount(&s)
                 .await;
         }
-        get(&s, "/repos/a/x/pulls/7", ok(json!({
+        get(
+            &s,
+            "/repos/a/x/pulls/7",
+            ok(json!({
             "number": 7, "title": "Avatar", "user": {"login": "lena"},
             "head": {"ref": "feature/x", "sha": "s1"}, "base": {"ref": "main"},
-            "updated_at": "2024-05-14T10:00:00Z"}))).await;
+            "updated_at": "2024-05-14T10:00:00Z"})),
+        )
+        .await;
         get(&s, "/repos/a/x/pulls/7/files", ok(json!([
             {"filename": "a.rs", "patch": "@@ -1,2 +1,2 @@\n fn a() {\n-    alt();\n+    neu();\n }"}]))).await;
         get(&s, "/repos/a/x/issues/7/comments", ok(json!([]))).await;
         get(&s, "/repos/a/x/pulls/7/comments", ok(json!([]))).await;
         get(&s, "/repos/a/x/pulls/7/reviews", ok(json!([]))).await;
-        get(&s, "/repos/a/x/commits/s1/check-runs", ok(json!({"check_runs": [
-            {"id": 5, "name": "Tests", "status": "completed", "conclusion": "success"}]}))).await;
+        get(
+            &s,
+            "/repos/a/x/commits/s1/check-runs",
+            ok(json!({"check_runs": [
+            {"id": 5, "name": "Tests", "status": "completed", "conclusion": "success"}]})),
+        )
+        .await;
         s
     }
 
@@ -425,7 +447,11 @@ mod tests {
         assert_eq!(h["abgleich"]["intervall_s"], 120);
         // Jeder Abruf trug den Schlüssel – und nur dort.
         let anfragen = g.received_requests().await.unwrap();
-        assert!(anfragen.iter().all(|r| r.headers.get("authorization").is_some()));
+        assert!(
+            anfragen
+                .iter()
+                .all(|r| r.headers.get("authorization").is_some())
+        );
         assert!(!persist::save(&ws).contains(TOKEN));
     }
 
@@ -443,7 +469,10 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         let (ws, _) = stand(&state).await;
         assert!(ws.item("gh-a-x-7").is_some());
-        assert_eq!(health(&state).await["abgleich"]["github"], "nicht-angemeldet");
+        assert_eq!(
+            health(&state).await["abgleich"]["github"],
+            "nicht-angemeldet"
+        );
     }
 
     #[tokio::test]
@@ -484,11 +513,20 @@ mod tests {
             .await;
         let state = zustand(quellen(&g.uri()), true);
         sync(&state).await;
-        let (status, body) =
-            aktion(&state, json!({"Reply": {"item": "gh-a-x-7", "text": "Danke!"}})).await;
+        let (status, body) = aktion(
+            &state,
+            json!({"Reply": {"item": "gh-a-x-7", "text": "Danke!"}}),
+        )
+        .await;
         assert_eq!(status, StatusCode::OK, "{body}");
         let (ws, _) = stand(&state).await;
-        let c = ws.item("gh-a-x-7").unwrap().comments.last().unwrap().clone();
+        let c = ws
+            .item("gh-a-x-7")
+            .unwrap()
+            .comments
+            .last()
+            .unwrap()
+            .clone();
         assert!(c.own && c.text == "Danke!");
         assert_eq!(ws.log.last().unwrap().actor, Actor::Du);
     }
@@ -508,16 +546,24 @@ mod tests {
         let (status, body) =
             aktion(&state, json!({"Reply": {"item": "gh-a-x-7", "text": "Hi"}})).await;
         assert_eq!(status, StatusCode::BAD_GATEWAY);
-        assert!(body.contains("GitHub hat die Aktion nicht ausgeführt"), "{body}");
+        assert!(
+            body.contains("GitHub hat die Aktion nicht ausgeführt"),
+            "{body}"
+        );
         assert!(body.contains("Es wurde nichts geändert"));
-        assert!(!body.contains(TOKEN), "der Schlüssel taucht nie auf: {body}");
+        assert!(
+            !body.contains(TOKEN),
+            "der Schlüssel taucht nie auf: {body}"
+        );
         let (nachher, rev2) = stand(&state).await;
         assert_eq!((vorher, rev), (nachher, rev2));
 
         // Ablehnung (422) bekommt die Meldung des Dienstes.
         g.reset().await;
         Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(422).set_body_json(json!({"message": "Validation Failed"})))
+            .respond_with(
+                ResponseTemplate::new(422).set_body_json(json!({"message": "Validation Failed"})),
+            )
             .mount(&g)
             .await;
         let (status, body) =
@@ -542,8 +588,11 @@ mod tests {
             .await;
         let state = zustand(quellen(&g.uri()), true);
         sync(&state).await;
-        let (status, body) =
-            aktion(&state, json!({"MergePr": {"review": 7, "method": "Squash"}})).await;
+        let (status, body) = aktion(
+            &state,
+            json!({"MergePr": {"review": 7, "method": "Squash"}}),
+        )
+        .await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
         assert!(body.contains("Mergen geht noch nicht"));
         // Der Abgleich ist Sache des Systems, nicht der Oberfläche.
@@ -567,7 +616,9 @@ mod tests {
             .await;
         Mock::given(method("PUT"))
             .and(path("/repos/a/x/pulls/7/merge"))
-            .and(wiremock::matchers::body_json(json!({"merge_method": "squash", "sha": "s1"})))
+            .and(wiremock::matchers::body_json(
+                json!({"merge_method": "squash", "sha": "s1"}),
+            ))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({"merged": true})))
             .expect(1)
             .mount(&g)
@@ -578,10 +629,18 @@ mod tests {
         let (s, b) = aktion(&state, json!({"AddLineComment": {
             "review": 7, "file": "a.rs", "line": 2, "text": "Schöner so", "suggestion": "    neuer();"}})).await;
         assert_eq!(s, StatusCode::OK, "{b}");
-        aktion(&state, json!({"SetVerdict": {"review": 7, "verdict": "Approve"}})).await;
+        aktion(
+            &state,
+            json!({"SetVerdict": {"review": 7, "verdict": "Approve"}}),
+        )
+        .await;
         let (s, b) = aktion(&state, json!({"SendReview": {"review": 7, "comment": ""}})).await;
         assert_eq!(s, StatusCode::OK, "{b}");
-        let (s, b) = aktion(&state, json!({"MergePr": {"review": 7, "method": "Squash"}})).await;
+        let (s, b) = aktion(
+            &state,
+            json!({"MergePr": {"review": 7, "method": "Squash"}}),
+        )
+        .await;
         assert_eq!(s, StatusCode::OK, "{b}");
         let (ws, _) = stand(&state).await;
         assert!(ws.review(7).unwrap().sent && ws.review(7).unwrap().merged.is_some());

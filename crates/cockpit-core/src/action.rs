@@ -311,7 +311,9 @@ impl ActionError {
                     Actor::Du => "du",
                 }
             ),
-            ActionError::SystemOnly => "Das macht nur das System – der Abgleich läuft im Server".into(),
+            ActionError::SystemOnly => {
+                "Das macht nur das System – der Abgleich läuft im Server".into()
+            }
             ActionError::MergeBlocked(blockers) => {
                 let reasons: Vec<&str> = blockers.iter().map(|b| b.reason()).collect();
                 format!("Mergen geht noch nicht: {}", reasons.join(" "))
@@ -899,12 +901,10 @@ impl Workspace {
                 *self = merged;
                 let mut notes: Vec<Note> = changes
                     .into_iter()
-                    .map(|c| {
-                        Note {
-                            actor: Some(Actor::System),
-                            target: c.target(),
-                            text: c.text(),
-                        }
+                    .map(|c| Note {
+                        actor: Some(Actor::System),
+                        target: c.target(),
+                        text: c.text(),
                     })
                     .collect();
                 // Den Satz im Ergebnis liefert die erste Änderung; ohne Änderung bleibt er leer.

@@ -31,7 +31,10 @@ pub(crate) fn wartezeit(h: &HeaderMap, jetzt_s: u64) -> Option<u64> {
     if let Some(s) = kopfzeile(h, "retry-after").and_then(|v| v.trim().parse::<u64>().ok()) {
         return Some(s);
     }
-    let reset = kopfzeile(h, "x-ratelimit-reset")?.trim().parse::<u64>().ok()?;
+    let reset = kopfzeile(h, "x-ratelimit-reset")?
+        .trim()
+        .parse::<u64>()
+        .ok()?;
     Some(reset.saturating_sub(jetzt_s))
 }
 
@@ -188,7 +191,14 @@ mod tests {
         assert_eq!(f(404, &leer, ""), Fehler::NichtGefunden);
         assert_eq!(f(500, &leer, ""), Fehler::Status(500));
         assert_eq!(
-            f(403, &kopf(&[("x-ratelimit-remaining", "0"), ("x-ratelimit-reset", "1030")]), ""),
+            f(
+                403,
+                &kopf(&[
+                    ("x-ratelimit-remaining", "0"),
+                    ("x-ratelimit-reset", "1030")
+                ]),
+                ""
+            ),
             Fehler::RateLimit { warten_s: Some(30) }
         );
         // Sekundäres Limit von GitHub: 403 mit Retry-After.
@@ -201,7 +211,11 @@ mod tests {
             Fehler::RateLimit { warten_s: Some(7) }
         );
         assert_eq!(
-            f(422, &leer, r#"{"message":"Validation Failed","errors":[{"message":"Zeile fehlt"}]}"#),
+            f(
+                422,
+                &leer,
+                r#"{"message":"Validation Failed","errors":[{"message":"Zeile fehlt"}]}"#
+            ),
             Fehler::Abgelehnt("Validation Failed; Zeile fehlt".into())
         );
         assert_eq!(
@@ -209,7 +223,11 @@ mod tests {
             Fehler::Abgelehnt("Pull Request is not mergeable".into())
         );
         assert_eq!(
-            f(400, &leer, r#"{"errorMessages":["Feld ungültig"],"errors":{"x":"y"}}"#),
+            f(
+                400,
+                &leer,
+                r#"{"errorMessages":["Feld ungültig"],"errors":{"x":"y"}}"#
+            ),
             Fehler::Abgelehnt("Feld ungültig; y".into())
         );
         assert_eq!(f(409, &leer, "kein json"), Fehler::Abgelehnt(String::new()));

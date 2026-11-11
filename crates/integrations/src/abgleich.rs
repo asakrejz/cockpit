@@ -4,9 +4,7 @@
 //! Scheitert eine Quelle, bleibt ihr Stand im Workspace unverändert; der Fehler wird zum
 //! [`Problem`] der Quelle. Der Abruf selbst schreibt nichts.
 
-use cockpit_core::{
-    Loaded, Outcome, PrLink, Remote, Review, Source, SourceData, Workspace,
-};
+use cockpit_core::{Loaded, Outcome, PrLink, Remote, Review, Source, SourceData, Workspace};
 
 use crate::Fehler;
 use crate::ausgehend::{Ausgehend, Ziele};
@@ -53,7 +51,10 @@ impl Dienste {
 
     /// Führt den Aufruf beim zuständigen Dienst aus.
     pub async fn ausfuehren(&self, a: &Ausgehend) -> Result<(), Fehler> {
-        let jira = matches!(a, Ausgehend::JiraKommentar { .. } | Ausgehend::JiraStatus { .. });
+        let jira = matches!(
+            a,
+            Ausgehend::JiraKommentar { .. } | Ausgehend::JiraStatus { .. }
+        );
         if jira {
             match &self.jira {
                 Some(j) => j.client.ausfuehren(a).await,
@@ -72,11 +73,19 @@ impl Dienste {
     pub async fn holen(&self, bekannt: &Workspace, jetzt_ms: u64, pausiert: &[Source]) -> Remote {
         let jetzt_s = (jetzt_ms / 1000) as i64;
         let mut sources = Vec::new();
-        if let Some(g) = self.github.as_ref().filter(|_| !pausiert.contains(&Source::GitHub)) {
+        if let Some(g) = self
+            .github
+            .as_ref()
+            .filter(|_| !pausiert.contains(&Source::GitHub))
+        {
             let res = github_laden(&g.client, &g.repos, bekannt, jetzt_s).await;
             sources.push(als_quelle(Source::GitHub, res, jetzt_ms));
         }
-        if let Some(j) = self.jira.as_ref().filter(|_| !pausiert.contains(&Source::Jira)) {
+        if let Some(j) = self
+            .jira
+            .as_ref()
+            .filter(|_| !pausiert.contains(&Source::Jira))
+        {
             let res = jira_laden(&j.client, &j.jql, jetzt_s).await;
             sources.push(als_quelle(Source::Jira, res, jetzt_ms));
         }

@@ -9,9 +9,7 @@ use super::dto::{
     ReviewComment, SearchItem, SearchResult, User,
 };
 use super::map;
-use crate::ausgehend::{
-    Anfrage, Ausgehend, branch_anfrage, check_neu_anfrage,
-};
+use crate::ausgehend::{Anfrage, Ausgehend, branch_anfrage, check_neu_anfrage};
 use crate::http::{basis_url, client, sende};
 use crate::{Fehler, Secret};
 
@@ -84,7 +82,10 @@ impl GitHubClient {
             .map_err(|e| e.ohne_schluessel(self.token.expose()))
     }
 
-    async fn lies_json<T: DeserializeOwned>(&self, req: reqwest::RequestBuilder) -> Result<T, Fehler> {
+    async fn lies_json<T: DeserializeOwned>(
+        &self,
+        req: reqwest::RequestBuilder,
+    ) -> Result<T, Fehler> {
         let text = self.text(req).await?;
         serde_json::from_str(&text).map_err(|e| Fehler::Antwort(e.to_string()))
     }
@@ -149,7 +150,8 @@ impl GitHubClient {
     }
 
     pub async fn pull(&self, repo: &str, nr: u32) -> Result<Pull, Fehler> {
-        self.lies_json(self.get(&format!("/repos/{repo}/pulls/{nr}"))).await
+        self.lies_json(self.get(&format!("/repos/{repo}/pulls/{nr}")))
+            .await
     }
 
     /// Geänderte Dateien mit Patch.
@@ -239,9 +241,11 @@ impl GitHubClient {
     pub async fn ausfuehren(&self, a: &Ausgehend) -> Result<(), Fehler> {
         match a {
             Ausgehend::GitHubBranch { repo, name } => self.branch_anlegen(repo, name).await,
-            Ausgehend::GitHubCheckNeu { repo, nummer, check } => {
-                self.check_neu_starten(repo, *nummer, check).await
-            }
+            Ausgehend::GitHubCheckNeu {
+                repo,
+                nummer,
+                check,
+            } => self.check_neu_starten(repo, *nummer, check).await,
             andere => match andere.anfrage() {
                 Some(anfrage) => self.schicke(&anfrage).await.map(|_| ()),
                 None => Err(Fehler::Einstellung("Kein GitHub-Aufruf".into())),

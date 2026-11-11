@@ -302,7 +302,10 @@ async fn statuscodes_werden_zu_fehlern() {
         c.pull("a/b", 3).await.unwrap_err(),
         Fehler::KeineBerechtigung
     );
-    assert_eq!(c.pull("a/b", 4).await.unwrap_err(), Fehler::RateLimit { warten_s: None });
+    assert_eq!(
+        c.pull("a/b", 4).await.unwrap_err(),
+        Fehler::RateLimit { warten_s: None }
+    );
     assert_eq!(c.pull("a/b", 5).await.unwrap_err(), Fehler::Status(500));
     assert!(matches!(
         c.pull("a/b", 6).await.unwrap_err(),

@@ -56,13 +56,38 @@ async fn github_server() -> MockServer {
         .mount(&s)
         .await;
     let basis = format!("/repos/{REPO}");
-    get(&s, &format!("{basis}/pulls/87"), ok(fixture!("github_pull_87.json"))).await;
-    get(&s, &format!("{basis}/pulls/91"), ok(fixture!("github_pull_91.json"))).await;
-    get(&s, &format!("{basis}/pulls/87/files"), ok(fixture!("github_files_87.json"))).await;
+    get(
+        &s,
+        &format!("{basis}/pulls/87"),
+        ok(fixture!("github_pull_87.json")),
+    )
+    .await;
+    get(
+        &s,
+        &format!("{basis}/pulls/91"),
+        ok(fixture!("github_pull_91.json")),
+    )
+    .await;
+    get(
+        &s,
+        &format!("{basis}/pulls/87/files"),
+        ok(fixture!("github_files_87.json")),
+    )
+    .await;
     get(&s, &format!("{basis}/pulls/91/files"), ok("[]")).await;
-    get(&s, &format!("{basis}/issues/87/comments"), ok(fixture!("github_issue_comments_87.json"))).await;
+    get(
+        &s,
+        &format!("{basis}/issues/87/comments"),
+        ok(fixture!("github_issue_comments_87.json")),
+    )
+    .await;
     get(&s, &format!("{basis}/issues/91/comments"), ok("[]")).await;
-    get(&s, &format!("{basis}/pulls/87/comments"), ok(fixture!("github_review_comments_87.json"))).await;
+    get(
+        &s,
+        &format!("{basis}/pulls/87/comments"),
+        ok(fixture!("github_review_comments_87.json")),
+    )
+    .await;
     get(&s, &format!("{basis}/pulls/91/comments"), ok("[]")).await;
     get(
         &s,
@@ -71,8 +96,18 @@ async fn github_server() -> MockServer {
     )
     .await;
     get(&s, &format!("{basis}/pulls/87/reviews"), ok("[]")).await;
-    get(&s, &format!("{basis}/commits/aaa111/check-runs"), ok(fixture!("github_check_runs_ok.json"))).await;
-    get(&s, &format!("{basis}/commits/{}/check-runs", sha91()), ok(fixture!("github_check_runs_failed.json"))).await;
+    get(
+        &s,
+        &format!("{basis}/commits/aaa111/check-runs"),
+        ok(fixture!("github_check_runs_ok.json")),
+    )
+    .await;
+    get(
+        &s,
+        &format!("{basis}/commits/{}/check-runs", sha91()),
+        ok(fixture!("github_check_runs_failed.json")),
+    )
+    .await;
     s
 }
 
@@ -84,13 +119,28 @@ fn sha91() -> String {
 async fn jira_server() -> MockServer {
     let s = MockServer::start().await;
     get(&s, "/rest/api/3/myself", ok(fixture!("jira_myself.json"))).await;
-    get(&s, "/rest/api/3/search/jql", ok(fixture!("jira_search.json"))).await;
-    get(&s, "/rest/api/3/issue/BAU-142/comment", ok(fixture!("jira_comments_142.json"))).await;
+    get(
+        &s,
+        "/rest/api/3/search/jql",
+        ok(fixture!("jira_search.json")),
+    )
+    .await;
+    get(
+        &s,
+        "/rest/api/3/issue/BAU-142/comment",
+        ok(fixture!("jira_comments_142.json")),
+    )
+    .await;
     let andere: serde_json::Value = serde_json::from_str(fixture!("jira_search.json")).unwrap();
     for i in andere["issues"].as_array().unwrap() {
         let key = i["key"].as_str().unwrap();
         if key != "BAU-142" {
-            get(&s, &format!("/rest/api/3/issue/{key}/comment"), ok(r#"{"comments":[]}"#)).await;
+            get(
+                &s,
+                &format!("/rest/api/3/issue/{key}/comment"),
+                ok(r#"{"comments":[]}"#),
+            )
+            .await;
         }
     }
     s
@@ -112,8 +162,14 @@ fn dienste(g: Option<&MockServer>, j: Option<&MockServer>) -> Dienste {
 async fn abgleichen(d: &Dienste, ws: &Workspace, ms: u64) -> (Workspace, Remote) {
     let remote = d.holen(ws, ms, &[]).await;
     let mut neu = ws.clone();
-    neu.apply(Action::SyncRemote { remote: remote.clone() }, Actor::System, ms)
-        .unwrap();
+    neu.apply(
+        Action::SyncRemote {
+            remote: remote.clone(),
+        },
+        Actor::System,
+        ms,
+    )
+    .unwrap();
     (neu, remote)
 }
 
@@ -130,11 +186,19 @@ async fn holt_pull_requests_tickets_kommentare_checks_und_diffs() {
     assert_eq!(pr87.pr.as_ref().unwrap().number, 87);
     assert_eq!(pr87.comments.len(), 4, "Gespräch und Zeilenkommentare");
     let pr91 = ws.item("gh-acme-baukasten-91").expect("PR 91");
-    assert!(pr91.pr.as_ref().unwrap().changes_requested, "Urteil von mkeller");
     assert!(
-        pr91.comments.iter().any(|c| c.text.starts_with("Review: Änderungen angefordert")),
+        pr91.pr.as_ref().unwrap().changes_requested,
+        "Urteil von mkeller"
     );
-    assert_eq!(pr91.pr.as_ref().unwrap().checks, cockpit_core::Checks::Failed);
+    assert!(
+        pr91.comments
+            .iter()
+            .any(|c| c.text.starts_with("Review: Änderungen angefordert")),
+    );
+    assert_eq!(
+        pr91.pr.as_ref().unwrap().checks,
+        cockpit_core::Checks::Failed
+    );
     let jira = ws.item("bau-142").expect("BAU-142");
     assert_eq!(jira.source, Source::Jira);
     assert!(!jira.comments.is_empty());
@@ -172,11 +236,20 @@ async fn lokaler_zustand_bleibt_beim_naechsten_abgleich() {
     ws.add_line_comment(87, &file, line, "Eigener Entwurf", Some("neu"))
         .unwrap();
     ws.set_verdict(87, Verdict::Approve);
-    ws.reviews.iter_mut().find(|r| r.number == 87).unwrap().suggestions.push(
-        cockpit_core::Suggestion::new("s1", "x", cockpit_core::Level::Note, "Hm"),
-    );
+    ws.reviews
+        .iter_mut()
+        .find(|r| r.number == 87)
+        .unwrap()
+        .suggestions
+        .push(cockpit_core::Suggestion::new(
+            "s1",
+            "x",
+            cockpit_core::Level::Note,
+            "Hm",
+        ));
     ws.decide(87, "s1", Some(Decision::Declined));
-    ws.start_agent("BAU-142", cockpit_core::AgentOptions::default()).unwrap();
+    ws.start_agent("BAU-142", cockpit_core::AgentOptions::default())
+        .unwrap();
 
     let (nach, _) = abgleichen(&d, &ws, JETZT_MS + 120_000).await;
     assert!(nach.item("bau-142").unwrap().read);
@@ -209,12 +282,23 @@ async fn unveraendertes_pr_laedt_den_diff_nicht_noch_einmal() {
         .iter()
         .filter(|r| r.url.path().ends_with("/pulls/87/files"))
         .count();
-    assert_eq!((vorher, nachher), (1, 1), "gleicher Commit: kein neuer Abruf");
+    assert_eq!(
+        (vorher, nachher),
+        (1, 1),
+        "gleicher Commit: kein neuer Abruf"
+    );
     // Und der Diff steht trotzdem im Remote.
     let Outcome::Loaded(l) = &remote.sources[0].outcome else {
         panic!("geladen erwartet")
     };
-    assert!(!l.reviews.iter().find(|r| r.number == 87).unwrap().files.is_empty());
+    assert!(
+        !l.reviews
+            .iter()
+            .find(|r| r.number == 87)
+            .unwrap()
+            .files
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -228,7 +312,10 @@ async fn entferntes_verschwindet() {
     let g2 = github_server().await;
     Mock::given(method("GET"))
         .and(path("/search/issues"))
-        .and(query_param("q", format!("is:pr is:open archived:false author:@me repo:{REPO}")))
+        .and(query_param(
+            "q",
+            format!("is:pr is:open archived:false author:@me repo:{REPO}"),
+        ))
         .respond_with(ok(r#"{"items":[]}"#))
         .with_priority(1)
         .mount(&g2)
@@ -248,13 +335,19 @@ async fn fehler_werden_zum_zustand_der_quelle_und_nichts_geht_verloren() {
 
     let kaputt = |antwort: ResponseTemplate| async move {
         let s = MockServer::start().await;
-        Mock::given(method("GET")).respond_with(antwort).mount(&s).await;
+        Mock::given(method("GET"))
+            .respond_with(antwort)
+            .mount(&s)
+            .await;
         s
     };
     // 401: Token abgelaufen.
     let s = kaputt(ResponseTemplate::new(401)).await;
     let (nach, _) = abgleichen(&dienste(Some(&s), None), &ws, JETZT_MS + 1).await;
-    assert_eq!(nach.sync.state_of(Source::GitHub).unwrap().problem, Some(Problem::Unauthorized));
+    assert_eq!(
+        nach.sync.state_of(Source::GitHub).unwrap().problem,
+        Some(Problem::Unauthorized)
+    );
     assert!(nach.item("gh-acme-baukasten-87").is_some(), "Stand bleibt");
 
     // Kontingent: Pause bis Reset.
@@ -267,11 +360,18 @@ async fn fehler_werden_zum_zustand_der_quelle_und_nichts_geht_verloren() {
     let (nach, _) = abgleichen(&dienste(Some(&s), None), &ws, JETZT_MS + 2).await;
     assert_eq!(
         nach.sync.state_of(Source::GitHub).unwrap().problem,
-        Some(Problem::RateLimited { until_ms: Some(JETZT_MS + 2 + 90_000) })
+        Some(Problem::RateLimited {
+            until_ms: Some(JETZT_MS + 2 + 90_000)
+        })
     );
-    assert_eq!(nach.sync.paused_until(Source::GitHub, JETZT_MS + 3), Some(JETZT_MS + 2 + 90_000));
+    assert_eq!(
+        nach.sync.paused_until(Source::GitHub, JETZT_MS + 3),
+        Some(JETZT_MS + 2 + 90_000)
+    );
     // Pausiert: die Quelle wird gar nicht erst abgefragt.
-    let leer = dienste(Some(&s), None).holen(&nach, JETZT_MS + 3, &[Source::GitHub]).await;
+    let leer = dienste(Some(&s), None)
+        .holen(&nach, JETZT_MS + 3, &[Source::GitHub])
+        .await;
     assert!(leer.sources.is_empty());
 
     // Netz weg.
@@ -283,7 +383,10 @@ async fn fehler_werden_zum_zustand_der_quelle_und_nichts_geht_verloren() {
         jira: None,
     };
     let (nach, _) = abgleichen(&weg, &ws, JETZT_MS + 4).await;
-    assert_eq!(nach.sync.state_of(Source::GitHub).unwrap().problem, Some(Problem::Offline));
+    assert_eq!(
+        nach.sync.state_of(Source::GitHub).unwrap().problem,
+        Some(Problem::Offline)
+    );
     assert!(nach.item("gh-acme-baukasten-87").is_some());
 }
 
@@ -303,13 +406,19 @@ async fn unbekanntes_repo_ist_ein_hinweis_kein_ausfall() {
             "q",
             "is:pr is:open archived:false review-requested:@me repo:gibt/es-nicht",
         ))
-        .respond_with(ResponseTemplate::new(422).set_body_json(json!({"message": "Validation Failed"})))
+        .respond_with(
+            ResponseTemplate::new(422).set_body_json(json!({"message": "Validation Failed"})),
+        )
         .mount(&g)
         .await;
     let (ws, _) = abgleichen(&d, &Workspace::default(), JETZT_MS).await;
     let st = ws.sync.state_of(Source::GitHub).unwrap();
     assert!(st.is_ok());
-    assert!(st.warnings[0].contains("gibt/es-nicht"), "{:?}", st.warnings);
+    assert!(
+        st.warnings[0].contains("gibt/es-nicht"),
+        "{:?}",
+        st.warnings
+    );
     assert!(ws.item("gh-acme-baukasten-87").is_some());
 }
 
@@ -331,13 +440,19 @@ async fn jira_wird_seitenweise_gelesen() {
         .await;
     Mock::given(method("GET"))
         .and(path("/rest/api/3/search/jql"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(
-            json!({"issues": [issue(1), issue(2)], "nextPageToken": "seite2"}),
-        ))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({"issues": [issue(1), issue(2)], "nextPageToken": "seite2"})),
+        )
         .mount(&s)
         .await;
     for n in 1..=3 {
-        get(&s, &format!("/rest/api/3/issue/ABC-{n}/comment"), ok(r#"{"comments":[]}"#)).await;
+        get(
+            &s,
+            &format!("/rest/api/3/issue/ABC-{n}/comment"),
+            ok(r#"{"comments":[]}"#),
+        )
+        .await;
     }
     let (ws, _) = abgleichen(&dienste(None, Some(&s)), &Workspace::default(), JETZT_MS).await;
     let keys: Vec<&str> = ws.items.iter().map(|i| i.key.as_str()).collect();
@@ -365,7 +480,10 @@ async fn github_kommentare_seitenweise() {
         .mount(&g)
         .await;
     let (ws, _) = abgleichen(&dienste(Some(&g), None), &Workspace::default(), JETZT_MS).await;
-    assert_eq!(ws.item("gh-acme-baukasten-91").unwrap().comments.len(), 101 + 1);
+    assert_eq!(
+        ws.item("gh-acme-baukasten-91").unwrap().comments.len(),
+        101 + 1
+    );
 }
 
 #[test]
@@ -374,7 +492,10 @@ fn jql_aus_projekten_und_eigener_abfrage() {
         jql_fuer(&["BAU".into(), "WEB".into()], None).unwrap(),
         "project in (BAU, WEB) AND (assignee = currentUser() OR watcher = currentUser()) AND statusCategory != Done ORDER BY updated DESC"
     );
-    assert_eq!(jql_fuer(&["BAU".into()], Some(" project = X ")).unwrap(), "project = X");
+    assert_eq!(
+        jql_fuer(&["BAU".into()], Some(" project = X ")).unwrap(),
+        "project = X"
+    );
     assert!(jql_fuer(&["BAU) OR (x".into()], None).is_err());
     assert!(jql_fuer(&[], None).unwrap().contains("currentUser()"));
 }

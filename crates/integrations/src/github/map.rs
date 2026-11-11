@@ -228,7 +228,10 @@ pub fn aenderungen_angefordert(reviews: &[PullReview], ich: &str) -> bool {
             "APPROVED" | "DISMISSED" => false,
             _ => continue,
         };
-        match letzte.iter_mut().find(|(l, _)| l.eq_ignore_ascii_case(&r.user.login)) {
+        match letzte
+            .iter_mut()
+            .find(|(l, _)| l.eq_ignore_ascii_case(&r.user.login))
+        {
             Some(e) => e.1 = urteil,
             None => letzte.push((&r.user.login, urteil)),
         }

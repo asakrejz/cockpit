@@ -13,7 +13,9 @@ pub enum Fehler {
     KeineBerechtigung,
     /// 403/429 mit aufgebrauchtem Kontingent. `warten_s`: so lange sollen wir pausieren
     /// (aus `Retry-After` bzw. dem Zeitpunkt, an dem das Kontingent zurückkommt).
-    RateLimit { warten_s: Option<u64> },
+    RateLimit {
+        warten_s: Option<u64>,
+    },
     NichtGefunden,
     /// Der Dienst lehnt die Anfrage ab (400, 405, 409, 422) – mit seiner Meldung, falls er eine gibt.
     Abgelehnt(String),
@@ -92,7 +94,8 @@ mod tests {
 
     #[test]
     fn schluessel_wird_aus_meldungen_entfernt() {
-        let f = Fehler::Abgelehnt("Bad credentials ghp_geheim".into()).ohne_schluessel("ghp_geheim");
+        let f =
+            Fehler::Abgelehnt("Bad credentials ghp_geheim".into()).ohne_schluessel("ghp_geheim");
         assert!(!f.to_string().contains("ghp_geheim"));
         assert!(f.to_string().contains("***"));
     }

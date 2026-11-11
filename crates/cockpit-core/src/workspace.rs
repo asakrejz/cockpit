@@ -399,7 +399,11 @@ impl Workspace {
     pub fn advance_checks(&mut self) -> Vec<(u32, String, Checks)> {
         let mut finished = Vec::new();
         let linked: Vec<u32> = self.sync.prs.iter().map(|p| p.number).collect();
-        for review in self.reviews.iter_mut().filter(|r| !linked.contains(&r.number)) {
+        for review in self
+            .reviews
+            .iter_mut()
+            .filter(|r| !linked.contains(&r.number))
+        {
             for name in review.advance_checks() {
                 let status = review
                     .check_runs

@@ -29,7 +29,9 @@ pub fn jql_fuer(projekte: &[String], eigene: Option<&str>) -> Result<String, Feh
         let ok = p.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
             && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
         if !ok {
-            return Err(Fehler::Einstellung(format!("Ungültiger Projektschlüssel: {p}")));
+            return Err(Fehler::Einstellung(format!(
+                "Ungültiger Projektschlüssel: {p}"
+            )));
         }
     }
     Ok(format!(
@@ -91,7 +93,10 @@ impl JiraClient {
             .map_err(|e| e.ohne_schluessel(self.token.expose()))
     }
 
-    async fn lies_json<T: DeserializeOwned>(&self, req: reqwest::RequestBuilder) -> Result<T, Fehler> {
+    async fn lies_json<T: DeserializeOwned>(
+        &self,
+        req: reqwest::RequestBuilder,
+    ) -> Result<T, Fehler> {
         let text = self.text(req).await?;
         serde_json::from_str(&text).map_err(|e| Fehler::Antwort(e.to_string()))
     }

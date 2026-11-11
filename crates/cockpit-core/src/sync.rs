@@ -193,7 +193,13 @@ impl SyncState {
         }
     }
 
-    fn set_state(&mut self, source: Source, problem: Option<Problem>, now_ms: u64, warn: &[String]) {
+    fn set_state(
+        &mut self,
+        source: Source,
+        problem: Option<Problem>,
+        now_ms: u64,
+        warn: &[String],
+    ) {
         let entry = match self.sources.iter().position(|s| s.source == source) {
             Some(i) => &mut self.sources[i],
             None => {
@@ -276,7 +282,10 @@ impl Change {
             }
             Change::NewComment { key, author, .. } => format!("{author} hat {key} kommentiert"),
             Change::StatusChanged { key, to, .. } => {
-                format!("Status von {key} ist jetzt „{}“ (von außen geändert)", label(*to))
+                format!(
+                    "Status von {key} ist jetzt „{}“ (von außen geändert)",
+                    label(*to)
+                )
             }
             Change::ChecksChanged { number, to, .. } => {
                 format!("Checks für #{number}: {}", to.label())
@@ -350,8 +359,7 @@ pub fn merge(local: &Workspace, remote: &Remote, now_ms: u64) -> (Workspace, Vec
                     ws.sync.demo_dropped = true;
                 }
                 merge_source(&mut ws, source, loaded, &mut changes);
-                ws.sync
-                    .set_state(source, None, now_ms, &loaded.warnings);
+                ws.sync.set_state(source, None, now_ms, &loaded.warnings);
                 if before.is_some() {
                     changes.push(Change::SourceRecovered { source });
                 }
@@ -561,7 +569,11 @@ fn merge_review(old: Review, remote: &Review, changes: &mut Vec<Change>) -> Revi
 
 /// Eigene Entwürfe in den neuen Diff übertragen. Die Position ist ein Index in den Zeilen
 /// der Datei; ändert sich der Diff, suchen wir dieselbe Zeile (Art, Nummer, Text) neu.
-fn carry_drafts(old: &Review, new_files: &[FileDiff], changes: &mut Vec<Change>) -> Vec<LineComment> {
+fn carry_drafts(
+    old: &Review,
+    new_files: &[FileDiff],
+    changes: &mut Vec<Change>,
+) -> Vec<LineComment> {
     let mut out = Vec::new();
     for draft in &old.line_comments {
         if old.files == new_files {
@@ -759,7 +771,10 @@ mod tests {
 
     #[test]
     fn removed_entries_vanish_but_other_sources_stay() {
-        let mut ws = synced(&jira(vec![ticket("ABC-1", "Eins"), ticket("ABC-2", "Zwei")]));
+        let mut ws = synced(&jira(vec![
+            ticket("ABC-1", "Eins"),
+            ticket("ABC-2", "Zwei"),
+        ]));
         ws = merge(&ws, &github(vec![pr_item(5)], vec![review(5, vec![])]), T).0;
         let (ws, changes) = merge(&ws, &jira(vec![ticket("ABC-2", "Zwei")]), T + 1);
         assert!(ws.item("abc-1").is_none());
@@ -778,10 +793,7 @@ mod tests {
             (1, LineKind::Context, "fn a() {"),
             (2, LineKind::Add, "    foo();"),
         ];
-        let mut ws = synced(&github(
-            vec![pr_item(5)],
-            vec![review(5, files(&lines))],
-        ));
+        let mut ws = synced(&github(vec![pr_item(5)], vec![review(5, files(&lines))]));
         ws = merge(&ws, &jira(vec![ticket("ABC-1", "Eins")]), T).0;
         // Lokale Zustände …
         ws.mark_done("abc-1");
@@ -789,8 +801,12 @@ mod tests {
         ws.items[1].agent_note = Some("Agent wartet".into());
         ws.runs.push(AgentRun::new("ABC-1", "Eins"));
         let r = ws.reviews.iter_mut().find(|r| r.number == 5).unwrap();
-        r.suggestions
-            .push(Suggestion::new("s1", "a.rs · Zeile 2", crate::Level::Note, "Hm"));
+        r.suggestions.push(Suggestion::new(
+            "s1",
+            "a.rs · Zeile 2",
+            crate::Level::Note,
+            "Hm",
+        ));
         r.decide("s1", Some(Decision::Approved));
         r.set_verdict(Verdict::RequestChanges);
         r.add_line_comment("a.rs", 1, "Bitte prüfen", Some("    bar();"))
@@ -806,7 +822,10 @@ mod tests {
         };
         let (after, _) = merge(&ws, &remote, T + 1);
         let item = after.item("abc-1").unwrap();
-        assert_eq!(item.title, "Eins neu betitelt", "der Dienst bestimmt den Titel");
+        assert_eq!(
+            item.title, "Eins neu betitelt",
+            "der Dienst bestimmt den Titel"
+        );
         assert!(item.read, "erledigt bleibt erledigt");
         assert!(after.snooze_of("abc-1").is_some());
         assert_eq!(after.runs.len(), 1);
@@ -827,7 +846,11 @@ mod tests {
         let r = ws.reviews.iter_mut().find(|r| r.number == 5).unwrap();
         r.sent = true;
         r.merged = Some(crate::MergeMethod::Squash);
-        let (after, _) = merge(&ws, &github(vec![pr_item(5)], vec![review(5, vec![])]), T + 1);
+        let (after, _) = merge(
+            &ws,
+            &github(vec![pr_item(5)], vec![review(5, vec![])]),
+            T + 1,
+        );
         assert!(after.review(5).unwrap().sent);
         assert!(after.review(5).unwrap().merged.is_some());
     }
@@ -887,16 +910,30 @@ mod tests {
             .concat(),
         };
         let (after, changes) = merge(&ws, &remote, T + 1);
-        assert!(changes.iter().any(
-            |c| matches!(c, Change::StatusChanged { to: TicketStatus::Done, .. })
-        ));
-        assert!(changes.iter().any(
-            |c| matches!(c, Change::ChecksChanged { number: 5, to: Checks::Failed, .. })
-        ));
-        assert!(changes
-            .iter()
-            .any(|c| matches!(c, Change::ChangesRequested { number: 5, .. })));
-        assert!(!after.item("abc-1").unwrap().read, "Änderung von außen holt zurück");
+        assert!(changes.iter().any(|c| matches!(
+            c,
+            Change::StatusChanged {
+                to: TicketStatus::Done,
+                ..
+            }
+        )));
+        assert!(changes.iter().any(|c| matches!(
+            c,
+            Change::ChecksChanged {
+                number: 5,
+                to: Checks::Failed,
+                ..
+            }
+        )));
+        assert!(
+            changes
+                .iter()
+                .any(|c| matches!(c, Change::ChangesRequested { number: 5, .. }))
+        );
+        assert!(
+            !after.item("abc-1").unwrap().read,
+            "Änderung von außen holt zurück"
+        );
         // Gleicher Stand noch einmal: keine Änderungen.
         let (_, again) = merge(&after, &remote, T + 2);
         assert!(again.is_empty(), "{again:?}");
@@ -948,7 +985,12 @@ mod tests {
         // Erholt.
         let (ws, changes) = merge(&ws, &jira(vec![ticket("ABC-1", "Eins")]), T + 70_000);
         assert!(ws.sync.state_of(Source::Jira).unwrap().is_ok());
-        assert_eq!(changes, vec![Change::SourceRecovered { source: Source::Jira }]);
+        assert_eq!(
+            changes,
+            vec![Change::SourceRecovered {
+                source: Source::Jira
+            }]
+        );
     }
 
     #[test]

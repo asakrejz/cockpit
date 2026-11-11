@@ -41,7 +41,7 @@ auf `127.0.0.1`, liefert die gebaute Cockpit-App aus und hält Daten (SQLite) un
 ```bash
 (cd cockpit && trunk build)     # App nach cockpit/dist bauen
 cargo run -p cockpit-server     # http://127.0.0.1:8787
-curl localhost:8787/api/health  # {"status":"ok","version":"…","verbindungen":{"github":false,"jira":false}}
+curl localhost:8787/api/health  # {"status":"ok","version":"…","verbindungen":{…},"abgleich":{"github":"aus","jira":"aus","intervall_s":120}}
 ```
 
 Konfiguration (alles optional): Datei `config.toml` im Konfigurationsverzeichnis (`~/.config/cockpit/`
@@ -76,6 +76,7 @@ mit den Beispieldaten. Die App lädt den Stand, schickt Aktionen und hört auf �
 |-------|-------|
 | `GET /api/workspace` | Stand als JSON (Form von `cockpit_core::persist`, dazu `revision`) |
 | `POST /api/actions` | Body `{"action": <Action>}`; wendet sie als „Du“ an. Antwort `{revision, zusammenfassung, protokolliert}`; eine abgelehnte Aktion ist `422` (unbekannte Form `400`) mit `{"fehler": "…"}` |
+| `POST /api/sync` | „Jetzt abgleichen“ mit Jira und GitHub. Antwort `{aktiv, revision, protokolliert}`; `aktiv: false`, wenn keine Quelle eingerichtet ist |
 | `GET /api/events` | Server-Sent Events: erst die aktuelle Revision, dann je Aktion ein Ereignis mit neuer Revision und den neuen Protokolleinträgen, dazu Keep-Alive |
 
 Wer nicht erreichbar ist, sieht einen Hinweis mit „Erneut versuchen“ und „Zurück zu Demo“. Der Demo-Stand im
@@ -84,6 +85,81 @@ Browser bleibt dabei unberührt.
 Alle Routen unter `/api` prüfen die Gegenstelle (nur Loopback) und den `Host`-Header (`127.0.0.1:<port>` oder
 `localhost:<port>`, gegen DNS-Rebinding). Schreibende Anfragen brauchen zusätzlich `Content-Type: application/json`
 und einen fehlenden oder eigenen `Origin`.
+
+### Mit echten Diensten verbinden
+
+Ohne Einrichtung zeigt der Server-Modus die Beispieldaten. Sobald **eine Quelle eingerichtet ist und ihr Token im
+Schlüsselbund liegt**, gleicht das Backend ab: Beim ersten erfolgreichen Abruf verschwinden die (unveränderten)
+Beispieldaten, danach kommen Tickets, Pull Requests, Kommentare, Checks und Diffs von den Diensten. Eine Quelle
+ohne Konfiguration oder ohne Token bleibt aus.
+
+**1. Konfiguration** (`config.toml`, siehe oben; keine Schlüssel in der Datei):
+
+```toml
+intervall_s = 120                        # Abfrage-Intervall, Standard 2 Minuten, mindestens 30
+
+[github]
+repos = ["firma/app", "firma/web"]       # owner/name, mehrere möglich
+# api_url = "https://github.firma.example/api/v3"   # nur bei GitHub Enterprise
+
+[jira]
+site = "https://firma.atlassian.net"
+email = "ich@firma.example"
+projects = ["BAU", "WEB"]                # optional: mir zugewiesen oder beobachtet, offen, nur in diesen Projekten
+# jql = "project = BAU AND labels = cockpit ORDER BY updated DESC"   # optional: eigene Abfrage statt der Projekte
+```
+
+Ohne `projects` und `jql` holt Jira alle mir zugewiesenen oder von mir beobachteten offenen Tickets. Bei GitHub
+kommen Pull Requests der angegebenen Repos, bei denen ein Review von mir angefragt ist oder die mir gehören.
+
+**2. Token setzen** (von der Standardeingabe in den Schlüsselbund, nie in Datei, Datenbank, Log oder Browser):
+
+```bash
+echo "$GITHUB_TOKEN" | cargo run -p cockpit-server -- token setzen github
+echo "$JIRA_TOKEN"   | cargo run -p cockpit-server -- token setzen jira
+```
+
+Das Backend liest den Token bei jedem Gebrauch neu; ein neu gesetzter Token wirkt ohne Neustart.
+
+**3. Welche Rechte die Tokens brauchen**
+
+| Dienst | Token | Rechte |
+|--------|-------|--------|
+| GitHub | *fine-grained personal access token*, auf die konfigurierten Repos beschränkt | Repository-Rechte **Contents** (Read and write: Branch anlegen), **Pull requests** (Read and write: lesen, Review senden, mergen), **Checks** (Read and write: Check-Status lesen, Check neu anfordern), **Issues** (Read and write: Kommentare), **Metadata** (Read, automatisch) |
+| Jira | *API-Token* des Atlassian-Kontos (id.atlassian.com › Sicherheit › API-Token) | Das Konto braucht in den Projekten „Projekte durchsuchen“, „Kommentare hinzufügen“ und „Vorgänge bearbeiten/Transitionen ausführen“. Anmeldung mit der E-Mail aus der Konfiguration |
+
+**Was abgeglichen wird.** Das Backend fragt im Takt (und bei `POST /api/sync`, in der App unter „Einrichten“ ›
+Übersicht › Abgleich › „Jetzt abgleichen“) beide Dienste ab und führt das Ergebnis über die Aktion `SyncRemote`
+(Urheber „System“) mit dem Workspace zusammen – als reine Funktion in `cockpit_core::sync::merge`:
+
+- Neue Einträge kommen dazu, entfernte verschwinden. Lokaler Zustand bleibt: gelesen/erledigt, Zurückstellungen,
+  Agent-Läufe und -Hinweise, Vorschläge und Entscheidungen im Review, eigene noch nicht gesendete Zeilenkommentare
+  (sie wandern mit ihrer Zeile, wenn sich der Diff verschiebt), Urteil und „gesendet“.
+- Neue Kommentare, Status-, Check- und Review-Änderungen von außen stehen mit Urheber „System“ im Protokoll und
+  lösen die Benachrichtigungen aus. `@dein-Login` in Kommentaren zählt als Erwähnung.
+- Pro Quelle gibt es einen Zustand (`/api/health` › `abgleich`, in der App unter „Abgleich“): `ok`,
+  `nicht-angemeldet` (401, Token abgelaufen), `keine-berechtigung` (403), `kontingent` (Rate-Limit: die Quelle
+  pausiert bis zum Zeitpunkt aus `Retry-After`/`X-RateLimit-Reset`), `offline`, `fehler`. Bei einem Fehler bleiben
+  die letzten Daten der Quelle stehen.
+- Die Nummer eines Pull Requests ist im Modell der Schlüssel eines Reviews. Haben zwei Repos dieselbe Nummer,
+  steht nur der erste im Cockpit (Hinweis beim Zustand der Quelle).
+
+**Was nach außen geht.** Im Server-Modus gehen diese Aktionen erst an den Dienst; **erst wenn er bestätigt, wird die
+Aktion lokal angewendet**. Schlägt der Aufruf fehl, kommt eine deutsche Meldung (Status 502) und nichts ändert sich.
+Die Regeln des Workspace (auch „nur Du darfst mergen“, „Review erst nach Entscheidung über jeden Vorschlag“)
+gelten vor jedem Aufruf.
+
+| Aktion | Aufruf |
+|--------|--------|
+| `Reply` | Jira: Kommentar (`POST /rest/api/3/issue/{key}/comment`, ADF) · GitHub: `POST /repos/{repo}/issues/{n}/comments` |
+| `SetStatus` | Jira: passende Transition zum Ziel-Status suchen (`GET …/transitions`), dann `POST …/transitions` |
+| `CreateBranch` | GitHub: Ref vom Standard-Branch des **ersten** konfigurierten Repos (`POST /repos/{repo}/git/refs`) |
+| `SendReview` | `POST /repos/{repo}/pulls/{n}/reviews` mit Urteil, Text, freigegebenen Vorschlägen und eigenen Zeilenkommentaren als Positionskommentare (`suggestion`-Blöcke inklusive), gebunden an den gesehenen Commit |
+| `MergePr` | `PUT /repos/{repo}/pulls/{n}/merge` mit Methode und gesehenem Commit (neuer Push → GitHub lehnt ab) |
+| `RestartCheck` | `POST /repos/{repo}/check-runs/{id}/rerequest` |
+
+Alle anderen Aktionen – und alle Einträge, die aus den Beispieldaten stammen – bleiben lokal. Die Aktion
+`SyncRemote` darf nur das Backend auslösen; `POST /api/actions` lehnt sie ab.
 
 ## Lernpfad
 
@@ -130,7 +206,7 @@ statt `Glass`) und lies die Compiler-Meldung. Rust erklärt Fehler meist sehr ge
 │       └── src/                # Leptos-Komponenten, eine Datei pro Gruppe
 ├── crates/
 │   ├── cockpit-core/           # Fachlogik des Cockpits – ohne UI, mit Tests
-│   └── integrations/           # GitHub- und Jira-Clients (nur lesen), nativ
+│   └── integrations/           # GitHub- und Jira-Clients (lesen, schreiben, abgleichen), nativ
 ├── server/                     # Backend: axum, SQLite, Schlüsselablage
 ├── cockpit/                    # die Cockpit-App (eigenes index.html und Trunk.toml)
 │   └── src/
@@ -238,8 +314,9 @@ Welche Ereignisse melden, leitet `crates/cockpit-core/src/notify.rs` rein aus de
 ### Stand: Demo ohne Backend
 
 Die Oberfläche und die Abläufe sind vollständig, die Daten sind Beispieldaten
-(`crates/cockpit-core/src/demo.rs`). **Es gibt noch keine echte Verbindung zu Jira, GitHub oder
-einem Modell-Anbieter.** Im Einzelnen:
+(`crates/cockpit-core/src/demo.rs`). **Im Demo-Modus gibt es keine Verbindung zu Jira, GitHub oder
+einem Modell-Anbieter** – die gibt es nur im Server-Modus (siehe „Mit echten Diensten verbinden“, ohne
+Modell-Anbieter). Im Einzelnen:
 
 - Einrichten prüft das Format der Eingaben, nicht die Schlüssel selbst.
 - Schlüssel werden nie gespeichert. Im Browser (`localStorage`) liegen nur die Haken „verbunden" und die

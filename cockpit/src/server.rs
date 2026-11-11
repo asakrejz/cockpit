@@ -2,7 +2,7 @@
 //! (`cockpit-server`) und der Ereignisstrom. Die Formen der Daten stehen in
 //! `cockpit_core::api`. Hier steht kein Schlüssel und es wird keiner gespeichert.
 
-use cockpit_core::api::{ActionRequest, ActionResponse, ErrorBody, ServerEvent};
+use cockpit_core::api::{ActionRequest, ActionResponse, ErrorBody, ServerEvent, SyncResponse};
 use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
 use web_sys::wasm_bindgen::{JsCast, closure::Closure};
@@ -72,6 +72,21 @@ pub async fn post_action(action: Action) -> Result<ActionResponse, CallError> {
         return Err(rejection(resp).await);
     }
     resp.json::<ActionResponse>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// „Jetzt abgleichen“: stößt den Abgleich mit Jira und GitHub an (`POST /api/sync`).
+pub async fn post_sync() -> Result<SyncResponse, CallError> {
+    let request = Request::post("/api/sync")
+        .header("Content-Type", "application/json")
+        .build()
+        .map_err(|_| CallError::Rejected("Der Abgleich lässt sich nicht starten".into()))?;
+    let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<SyncResponse>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
