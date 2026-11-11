@@ -38,6 +38,7 @@ fn counts(m: &Member) -> String {
 fn kind_icon(kind: StuckKind) -> &'static str {
     match kind {
         StuckKind::ChecksFailed => icons::ALERT,
+        StuckKind::PlanWaiting => icons::TASKS,
         StuckKind::AgentWaiting => icons::SPARKLE,
         StuckKind::ReviewWaiting => icons::EYE,
         StuckKind::NoBranch => icons::GIT_BRANCH,
@@ -47,6 +48,7 @@ fn kind_icon(kind: StuckKind) -> &'static str {
 fn kind_tone(kind: StuckKind) -> Tone {
     match kind {
         StuckKind::ChecksFailed => Tone::Red,
+        StuckKind::PlanWaiting => Tone::Orange,
         StuckKind::AgentWaiting => Tone::Green,
         StuckKind::ReviewWaiting => Tone::Orange,
         StuckKind::NoBranch => Tone::Indigo,
@@ -200,6 +202,16 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
                     <Button size=ControlSize::Small on_click=move |_| store.open_item(&id)>
                         "Zum Eintrag"
                     </Button>
+                    {s
+                        .plan
+                        .clone()
+                        .map(|key| {
+                            view! {
+                                <Button size=ControlSize::Small href=Route::Agent(Some(key)).hash()>
+                                    "Plan ansehen"
+                                </Button>
+                            }
+                        })}
                     {s
                         .review
                         .map(|n| {

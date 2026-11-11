@@ -122,7 +122,7 @@ pub fn members(ws: &Workspace) -> Vec<Member> {
         let Some(item) = ws.item_by_key(&run.ticket_key).filter(|i| is_open(i)) else {
             continue;
         };
-        if run.is_running() {
+        if run.is_active() {
             agent.in_progress += 1;
         } else if run.is_done() && run.pr_number.is_some_and(|n| review_pending(ws, n)) {
             agent.review += 1;
@@ -160,6 +160,7 @@ pub fn state_label(item: &Item) -> (String, Tone) {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StuckKind {
     ChecksFailed,
+    PlanWaiting,
     AgentWaiting,
     ReviewWaiting,
     NoBranch,
@@ -169,6 +170,7 @@ impl StuckKind {
     pub fn label(self) -> &'static str {
         match self {
             StuckKind::ChecksFailed => "Checks fehlgeschlagen",
+            StuckKind::PlanWaiting => "Plan wartet",
             StuckKind::AgentWaiting => "Agent wartet",
             StuckKind::ReviewWaiting => "Review wartet",
             StuckKind::NoBranch => "Ohne Branch",
@@ -189,6 +191,8 @@ pub struct Stuck {
     pub reason: String,
     /// Nummer des Pull Requests, falls es zum Review geht.
     pub review: Option<u32>,
+    /// Ticket, dessen Agenten-Plan auf Freigabe wartet.
+    pub plan: Option<String>,
 }
 
 /// Die erste Regel, die auf den Eintrag passt. Ein Eintrag hängt nur einmal.
@@ -205,6 +209,18 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
                 pr.number,
                 who_name(&item.owner)
             ),
+        ));
+    }
+
+    if ws
+        .runs
+        .iter()
+        .any(|r| r.ticket_key == item.key && r.is_awaiting())
+    {
+        return Some((
+            StuckKind::PlanWaiting,
+            me,
+            "Der Agent hat einen Plan vorgelegt und wartet auf deine Freigabe.".to_string(),
         ));
     }
 
@@ -242,7 +258,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
     let agent_working = ws
         .runs
         .iter()
-        .any(|r| r.ticket_key == item.key && r.is_running());
+        .any(|r| r.ticket_key == item.key && r.is_active());
     if item.is_ticket()
         && item.status == TicketStatus::InProgress
         && item.branch.is_none()
@@ -289,6 +305,7 @@ pub fn stuck(ws: &Workspace) -> Vec<Stuck> {
                 who,
                 reason,
                 review: item.pr.as_ref().map(|p| p.number),
+                plan: (kind == StuckKind::PlanWaiting).then(|| item.key.clone()),
             })
         })
         .collect();
@@ -301,6 +318,31 @@ pub fn stuck(ws: &Workspace) -> Vec<Stuck> {
 mod tests {
     use super::*;
     use crate::{AgentOptions, demo};
+
+    /// Ohne Plan-Schritt: Der Agent legt sofort los.
+    fn direct() -> AgentOptions {
+        AgentOptions {
+            plan_first: false,
+            ..AgentOptions::default()
+        }
+    }
+
+    #[test]
+    fn a_plan_waiting_for_approval_is_stuck_with_me() {
+        let mut w = demo::workspace();
+        w.set_status("bau150", TicketStatus::InProgress);
+        w.start_agent("BAU-150", AgentOptions::default()).unwrap();
+        let s = stuck(&w);
+        let entry = s.iter().find(|s| s.key == "BAU-150").unwrap();
+        assert_eq!(entry.kind, StuckKind::PlanWaiting);
+        assert_eq!(entry.who, Person::me());
+        assert_eq!(entry.plan.as_deref(), Some("BAU-150"));
+        // Der wartende Agent belegt das Ticket.
+        assert_eq!(member(&members(&w), "Agent").in_progress, 1);
+        // Nach der Freigabe läuft er – dann hängt nichts mehr.
+        assert!(w.approve_plan("BAU-150"));
+        assert!(stuck(&w).iter().all(|s| s.key != "BAU-150"));
+    }
 
     fn member<'a>(list: &'a [Member], name: &str) -> &'a Member {
         list.iter().find(|m| m.person.name == name).unwrap()
@@ -364,7 +406,7 @@ mod tests {
     #[test]
     fn running_agent_counts_as_in_progress() {
         let mut w = demo::workspace();
-        w.start_agent("BAU-150", AgentOptions::default()).unwrap();
+        w.start_agent("BAU-150", direct()).unwrap();
         let list = members(&w);
         let agent = member(&list, "Agent");
         assert_eq!((agent.in_progress, agent.review), (1, 1));
@@ -440,7 +482,7 @@ mod tests {
     #[test]
     fn finished_agent_run_waits_for_review_until_sent() {
         let mut w = demo::workspace();
-        w.start_agent("BAU-150", AgentOptions::default()).unwrap();
+        w.start_agent("BAU-150", direct()).unwrap();
         // Läuft er noch, hängt nichts – auch wenn der Branch erst am Ende entsteht.
         assert!(stuck(&w).iter().all(|s| s.key != "BAU-150"));
         for _ in 0..crate::agent::STEPS {
