@@ -52,3 +52,7 @@ body { margin: 0; }
 .ck-rule { list-style: none; padding: var(--ref-space-4) var(--ref-space-12); }
 .ck-rule label { display: flex; align-items: center; justify-content: space-between; gap: var(--ref-space-8); }
 .ck-snooze { flex-wrap: wrap; }
+
+/* Ticket bearbeiten und zuweisen */
+.ck-edit { padding-bottom: var(--ref-space-8); }
+.ck-assignees { flex-wrap: wrap; }

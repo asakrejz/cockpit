@@ -63,6 +63,7 @@ pub fn pull_to_item(
         scope: Scope::Mine,
         owner: text::person(&pull.user.login),
         status: TicketStatus::Review,
+        priority: cockpit_core::Priority::default(),
         branch: Some(pull.head.name.clone()),
         pr: Some(PrRef {
             number: pull.number,
@@ -70,6 +71,7 @@ pub fn pull_to_item(
             checks,
             changes_requested: false,
             merged: false,
+            review_requested: matches!(relation, Relation::ReviewAngefragt),
         }),
         agent_note: None,
         comments: Vec::new(),

@@ -697,6 +697,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn takt_verknuepft_pull_requests_und_fuehrt_den_status_nach() {
+        let state = zustand(Arc::new(MemoryStore::new()));
+        let app = || router(state.clone(), PathBuf::from("/x"));
+        // Der Branch von #85 nennt BAU-150: Der Takt verknüpft ihn (als System).
+        let mut ws = cockpit_core::demo::workspace();
+        ws.reviews
+            .iter_mut()
+            .find(|r| r.number == 85)
+            .unwrap()
+            .branch = "feature/bau-150-sheet".into();
+        state.inner.live.setze_stand_fuer_test(ws);
+        let s = state.clone();
+        tokio::task::spawn_blocking(move || s.takt()).await.unwrap();
+        let (_, body) = hole(app(), "/api/workspace").await;
+        let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();
+        assert_eq!(
+            ws.review(85).unwrap().ticket_key.as_deref(),
+            Some("BAU-150")
+        );
+        assert!(ws.log.iter().all(|e| e.actor == Actor::System));
+        assert!(ws.log.len() >= 2, "Verknüpfung und Status: {:?}", ws.log);
+        // Beim zweiten Takt gibt es nichts mehr zu tun.
+        let vorher = state.inner.live.revision();
+        let s = state.clone();
+        tokio::task::spawn_blocking(move || s.takt()).await.unwrap();
+        assert_eq!(state.inner.live.revision(), vorher);
+    }
+
+    #[tokio::test]
     async fn takt_holt_zurueckgestellte_eintraege_zurueck() {
         let state = zustand(Arc::new(MemoryStore::new()));
         let app = || router(state.clone(), PathBuf::from("/x"));
