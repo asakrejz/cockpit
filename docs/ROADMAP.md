@@ -59,7 +59,7 @@ Grundsätze:
 Jede Welle baut auf den gemergten PRs der vorigen auf. Innerhalb einer Welle laufen die
 Aufgaben parallel; sie sind so geschnitten, dass je Bereich nur eine Aufgabe läuft.
 
-### Welle 0 – läuft
+### Welle 0 – erledigt (#6–#10)
 
 | Bereich | Aufgabe | Branch |
 |---------|---------|--------|
@@ -69,22 +69,22 @@ Aufgaben parallel; sie sind so geschnitten, dass je Bereich nur eine Aufgabe lä
 | Zustand | Speicherung im Browser | `claude/cockpit-persist-state` |
 | Neue Seite | Team-Sicht: wer arbeitet woran, wo hängt etwas | `claude/cockpit-team-view` |
 
-### Welle 1 – Fundament
+### Welle 1 – erledigt (#11, #12)
 
 | Bereich | Aufgabe |
 |---------|---------|
 | Kern | **Action-Schicht und Protokoll:** `Action`-Enum, `Workspace::apply`, `store.dispatch`; alle Seiten stellen um. Jede Aktion landet mit Zeit und Urheber im Protokoll (eigene Seite). |
 | Backend | **Grundgerüst `server/`:** axum, SQLite, Schlüsselablage, Konfiguration, `GET /api/health`. Clients für GitHub und Jira als Bibliothek, getestet gegen nachgebaute Antworten, mit Abbildung auf die Typen aus `cockpit-core`. |
 
-### Welle 2 – Funktionen in der Demo
+### Welle 2 – läuft
 
-| Bereich | Aufgabe |
-|---------|---------|
-| Inbox | Aufmerksamkeits-Regeln (Erwähnung, Review-Anfrage, blockierter PR, überfälliges Ticket) und Zurückstellen |
-| Review | Änderungsvorschläge am Diff; Mergen; fehlgeschlagene Checks mit Log ansehen und neu starten |
-| Agent | Rückfragen des Agenten und Nachsteuern während des Laufs |
-| Einstellungen | Benachrichtigungen (Browser; E-Mail und Slack über das Backend vorbereitet), einstellbar je Grund |
-| Backend | **Server-Modus:** `POST /api/actions`, `GET /api/workspace`, `GET /api/events`; die App schaltet zwischen Demo und Server um |
+| Bereich | Aufgabe | Branch |
+|---------|---------|--------|
+| Inbox | Aufmerksamkeits-Regeln (Erwähnung, Review-Anfrage, blockierter PR, überfälliges Ticket) und Zurückstellen | `claude/cockpit-attention-snooze` |
+| Review | Änderungsvorschläge am Diff; Mergen; fehlgeschlagene Checks mit Log ansehen und neu starten | `claude/cockpit-review-merge-checks` |
+| Agent | Rückfragen des Agenten und Nachsteuern während des Laufs | `claude/cockpit-agent-questions` |
+| Einstellungen | Benachrichtigungen (Browser; E-Mail und Slack über das Backend vorbereitet), einstellbar je Grund | `claude/cockpit-notifications` |
+| Backend | **Server-Modus:** `POST /api/actions`, `GET /api/workspace`, `GET /api/events`; die App schaltet zwischen Demo und Server um | `claude/cockpit-server-mode` |
 
 ### Welle 3 – Echte Daten
 
