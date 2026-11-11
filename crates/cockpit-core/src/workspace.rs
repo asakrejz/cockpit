@@ -6,6 +6,7 @@ use crate::action::LogEntry;
 use crate::agent::{AgentOptions, AgentRun};
 use crate::demo;
 use crate::model::*;
+use crate::notify::NotifySettings;
 use crate::review::{Decision, Review, SendError, Verdict};
 use crate::text::slug;
 
@@ -26,6 +27,9 @@ pub struct Workspace {
     /// Protokoll aller Aktionen, älteste zuerst. Siehe [`crate::action`].
     #[serde(default)]
     pub log: Vec<LogEntry>,
+    /// Benachrichtigungen je Grund und Kanal, dazu die Ruhezeiten.
+    #[serde(default)]
+    pub notifications: NotifySettings,
 }
 
 impl Workspace {

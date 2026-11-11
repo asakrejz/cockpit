@@ -13,6 +13,8 @@ pub enum Route {
     Overview,
     /// Protokoll aller Änderungen.
     Log,
+    /// Einstellungen für Benachrichtigungen.
+    Notifications,
     /// Ein Review. Ohne Nummer: das erste offene.
     Review(Option<u32>),
     /// Ein Agenten-Lauf. Ohne Ticket: ein sinnvoller Vorschlag.
@@ -31,6 +33,7 @@ impl Route {
             (Some("team"), _) => Route::Inbox(Filter::Team),
             (Some("uebersicht"), _) => Route::Overview,
             (Some("protokoll"), _) => Route::Log,
+            (Some("benachrichtigungen"), _) => Route::Notifications,
             (Some("review"), number) => Route::Review(number.and_then(|n| n.parse().ok())),
             (Some("agent"), key) => Route::Agent(key.map(str::to_string)),
             _ => Route::Inbox(Filter::All),
@@ -45,6 +48,7 @@ impl Route {
             Route::Inbox(Filter::Team) => "#/team".into(),
             Route::Overview => "#/uebersicht".into(),
             Route::Log => "#/protokoll".into(),
+            Route::Notifications => "#/benachrichtigungen".into(),
             Route::Review(None) => "#/review".into(),
             Route::Review(Some(number)) => format!("#/review/{number}"),
             Route::Agent(None) => "#/agent".into(),
@@ -66,6 +70,7 @@ mod tests {
             Route::Inbox(Filter::Team),
             Route::Overview,
             Route::Log,
+            Route::Notifications,
             Route::Review(None),
             Route::Review(Some(87)),
             Route::Agent(None),

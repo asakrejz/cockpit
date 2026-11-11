@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::agent::{AgentOptions, STEPS};
 use crate::demo;
 use crate::model::TicketStatus;
+use crate::notify::{Channel, NotifyReason, QuietHours};
 use crate::review::{Decision, SendError, Verdict};
 use crate::workspace::{AgentError, Workspace};
 
@@ -95,6 +96,17 @@ pub enum Action {
     },
     /// Der Takt: jeder laufende Agent schließt einen Schritt ab.
     AdvanceAgents,
+    // Benachrichtigungen
+    /// Kanal für einen Grund an- oder ausschalten.
+    SetNotifyChannel {
+        reason: NotifyReason,
+        channel: Channel,
+        on: bool,
+    },
+    /// Ruhezeiten setzen (Minuten seit Mitternacht, siehe [`QuietHours`]).
+    SetQuietHours {
+        quiet: QuietHours,
+    },
     // Sonstiges
     /// Zurück zu den Beispieldaten. Das Protokoll beginnt neu.
     ResetDemo,
@@ -141,6 +153,8 @@ pub enum Target {
     Review(u32),
     /// Der Lauf eines Agenten (Ticket-Schlüssel).
     Run(String),
+    /// Die Einstellungen (Benachrichtigungen).
+    Settings,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -565,9 +579,48 @@ impl Workspace {
                     format!("Neuen Plan für {ticket} angefordert"),
                 )])
             }
+            Action::SetNotifyChannel {
+                reason,
+                channel,
+                on,
+            } => {
+                if !self.notifications.set(reason, channel, on) {
+                    return Err(ActionError::Unchanged);
+                }
+                Ok(vec![Note::new(
+                    Target::Settings,
+                    format!(
+                        "Benachrichtigung „{}“ über {} {}",
+                        reason.label(),
+                        channel.label(),
+                        if on { "eingeschaltet" } else { "ausgeschaltet" }
+                    ),
+                )])
+            }
+            Action::SetQuietHours { quiet } => {
+                if !quiet.is_valid() {
+                    return Err(ActionError::InvalidInput);
+                }
+                if !self.notifications.set_quiet(quiet) {
+                    return Err(ActionError::Unchanged);
+                }
+                let text = if quiet.enabled {
+                    format!(
+                        "Ruhezeiten von {} bis {} Uhr eingeschaltet",
+                        QuietHours::format(quiet.from),
+                        QuietHours::format(quiet.to)
+                    )
+                } else {
+                    "Ruhezeiten ausgeschaltet".to_string()
+                };
+                Ok(vec![Note::new(Target::Settings, text)])
+            }
             Action::AdvanceAgents => self.advance_logged(),
             Action::ResetDemo => {
+                // Die Einstellungen gehören nicht zu den Beispieldaten und bleiben.
+                let notifications = std::mem::take(&mut self.notifications);
                 *self = demo::workspace();
+                self.notifications = notifications;
                 Ok(vec![
                     Note::new(
                         Target::Item(self.items.first().map(|i| i.id.clone()).unwrap_or_default()),
@@ -622,6 +675,7 @@ impl Workspace {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::notify::NotifySettings;
     use crate::persist;
     use crate::review::Decision;
 
@@ -1092,6 +1146,100 @@ mod tests {
         assert_eq!(w.log.len(), MAX_LOG);
         assert_eq!(w.log.last().unwrap().id, (MAX_LOG + 20) as u64);
         assert_eq!(w.log[0].id, 21);
+    }
+
+    #[test]
+    fn notification_settings_are_changed_by_actions() {
+        let mut w = ws();
+        let mention = |on| Action::SetNotifyChannel {
+            reason: NotifyReason::Mention,
+            channel: Channel::Slack,
+            on,
+        };
+        let applied = ok(&mut w, mention(true), 1);
+        assert_eq!(
+            applied.summary,
+            "Benachrichtigung „Erwähnung“ über Slack eingeschaltet"
+        );
+        assert!(
+            w.notifications
+                .enabled(NotifyReason::Mention, Channel::Slack)
+        );
+        assert_eq!(w.log.last().unwrap().target, Some(Target::Settings));
+        fails(&mut w, mention(true), ActionError::Unchanged);
+        let applied = ok(&mut w, mention(false), 1);
+        assert!(applied.summary.ends_with("ausgeschaltet"));
+
+        let quiet = QuietHours {
+            enabled: true,
+            from: 22 * 60,
+            to: 7 * 60,
+        };
+        let applied = ok(&mut w, Action::SetQuietHours { quiet }, 1);
+        assert_eq!(
+            applied.summary,
+            "Ruhezeiten von 22:00 bis 07:00 Uhr eingeschaltet"
+        );
+        fails(
+            &mut w,
+            Action::SetQuietHours { quiet },
+            ActionError::Unchanged,
+        );
+        fails(
+            &mut w,
+            Action::SetQuietHours {
+                quiet: QuietHours {
+                    to: 24 * 60,
+                    ..quiet
+                },
+            },
+            ActionError::InvalidInput,
+        );
+        let off = QuietHours {
+            enabled: false,
+            ..quiet
+        };
+        let applied = ok(&mut w, Action::SetQuietHours { quiet: off }, 1);
+        assert_eq!(applied.summary, "Ruhezeiten ausgeschaltet");
+    }
+
+    #[test]
+    fn reset_keeps_notification_settings() {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::SetNotifyChannel {
+                reason: NotifyReason::Assigned,
+                channel: Channel::Browser,
+                on: false,
+            },
+            1,
+        );
+        w.apply(Action::ResetDemo, Actor::Du, T).unwrap();
+        assert!(
+            !w.notifications
+                .enabled(NotifyReason::Assigned, Channel::Browser)
+        );
+    }
+
+    #[test]
+    fn notification_settings_survive_save_and_load() {
+        let mut w = ws();
+        w.notifications
+            .set(NotifyReason::AgentFinished, Channel::Email, true);
+        let back = persist::load(&persist::save(&w)).unwrap();
+        assert!(
+            back.notifications
+                .enabled(NotifyReason::AgentFinished, Channel::Email)
+        );
+        // Ältere Stände ohne das Feld laden weiter, mit den Standardwerten.
+        let mut json: serde_json::Value = serde_json::from_str(&persist::save(&w)).unwrap();
+        json["workspace"]
+            .as_object_mut()
+            .unwrap()
+            .remove("notifications");
+        let old = persist::load(&json.to_string()).unwrap();
+        assert_eq!(old.notifications, NotifySettings::default());
     }
 
     #[test]

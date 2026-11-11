@@ -5,6 +5,7 @@
 //! * [`agent`]: der Lauf eines Agenten als Zustandsmaschine
 //! * [`connections`]: Verbindungen, Berechtigungen und Eingabeprüfung
 //! * [`search`]: Suche und Filter der Inbox
+//! * [`notify`]: Ereignisse für Benachrichtigungen, Kanäle und Ruhezeiten
 //! * [`team`]: Auslastung pro Person und was gerade hängt
 //! * [`workspace`]: alles zusammen, mit den Aktionen der Oberfläche
 //! * [`action`]: [`Action`], `Workspace::apply` und das Protokoll
@@ -20,6 +21,7 @@ pub mod agent;
 pub mod connections;
 pub mod demo;
 pub mod model;
+pub mod notify;
 pub mod persist;
 pub mod review;
 pub mod search;
@@ -31,6 +33,9 @@ pub use action::{Action, ActionError, Actor, Applied, LogEntry, MAX_LOG, Target}
 pub use agent::{AgentOptions, AgentRun, Plan, RunState, Step, StepState};
 pub use connections::Connections;
 pub use model::*;
+pub use notify::{
+    Channel, Channels, Delivery, Event as NotifyEvent, NotifyReason, NotifySettings, QuietHours,
+};
 pub use review::{
     Decision, DiffLine, FileDiff, Level, LineComment, LineKind, Review, SendError, Suggestion,
     Verdict,
