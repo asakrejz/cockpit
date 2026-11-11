@@ -1,7 +1,7 @@
 //! Aufmerksamkeit: links die Inbox aus Tickets und Pull Requests, rechts das Detail
 //! mit Status, Branch, Kommentaren und dem Weg zum Agenten.
 
-use cockpit_core::{Filter, Item, SourceFilter, TicketStatus};
+use cockpit_core::{Action, Filter, Item, SourceFilter, TicketStatus};
 use feature_ui::*;
 use leptos::{ev, prelude::*, wasm_bindgen::JsCast};
 use web_sys::{HtmlElement, KeyboardEvent, ScrollIntoViewOptions, ScrollLogicalPosition};
@@ -238,7 +238,9 @@ fn on_key(store: Store, items: Memo<Vec<Item>>, current: Memo<Option<Item>>, eve
         "ArrowUp" | "k" => -1,
         "e" => {
             if let Some(item) = current.get_untracked() {
-                store.ws.update(|w| w.mark_done(&item.id));
+                let _ = store.dispatch(Action::MarkDone {
+                    item: item.id.clone(),
+                });
             }
             return;
         }
@@ -322,8 +324,9 @@ fn detail(store: Store, item: Item, draft: RwSignal<String>) -> impl IntoView {
                 value=item.status.id()
                 on_change=move |status: &'static str| {
                     if let Some(status) = TicketStatus::from_id(status) {
-                        store.ws.update(|w| {
-                            w.set_status(&id.get_value(), status);
+                        let _ = store.dispatch(Action::SetStatus {
+                            item: id.get_value(),
+                            status,
                         });
                     }
                 }
@@ -347,9 +350,7 @@ fn detail(store: Store, item: Item, draft: RwSignal<String>) -> impl IntoView {
             <Button
                 size=ControlSize::Small
                 on_click=move |_| {
-                    store.ws.update(|w| {
-                        w.create_branch(&id.get_value());
-                    })
+                    let _ = store.dispatch(Action::CreateBranch { item: id.get_value() });
                 }
             >
                 "Branch erstellen"
@@ -398,7 +399,11 @@ fn detail(store: Store, item: Item, draft: RwSignal<String>) -> impl IntoView {
 
     let send = move |_| {
         let text = draft.get_untracked();
-        if store.ws.try_update(|w| w.reply(&id.get_value(), &text)) == Some(true) {
+        let sent = store.dispatch(Action::Reply {
+            item: id.get_value(),
+            text,
+        });
+        if sent.is_ok() {
             draft.set(String::new());
         }
     };
@@ -463,7 +468,9 @@ fn detail(store: Store, item: Item, draft: RwSignal<String>) -> impl IntoView {
                 <Button
                     size=ControlSize::Large
                     disabled=item.read
-                    on_click=move |_| store.ws.update(|w| w.mark_done(&id.get_value()))
+                    on_click=move |_| {
+                        let _ = store.dispatch(Action::MarkDone { item: id.get_value() });
+                    }
                 >
                     {if item.read { "Erledigt" } else { "Als erledigt markieren" }}
                 </Button>

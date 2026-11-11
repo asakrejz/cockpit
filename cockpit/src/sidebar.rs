@@ -82,6 +82,12 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
                     count=agents
                     current=Signal::derive(move || matches!(store.route.get(), Route::Agent(_)))
                 />
+                <SidebarItem
+                    href=Route::Log.hash()
+                    label="Protokoll"
+                    icon=icons::LIBRARY
+                    current=on(Route::Log)
+                />
             </SidebarSection>
             {children()}
             <Spacer />

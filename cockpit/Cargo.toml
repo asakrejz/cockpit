@@ -18,5 +18,6 @@ web-sys = { workspace = true, features = [
     "Storage",
 ] }
 
+js-sys = "0.3"
 cockpit-core = { workspace = true }
 feature-ui = { workspace = true }

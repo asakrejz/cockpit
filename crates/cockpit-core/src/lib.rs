@@ -7,13 +7,15 @@
 //! * [`search`]: Suche und Filter der Inbox
 //! * [`team`]: Auslastung pro Person und was gerade hängt
 //! * [`workspace`]: alles zusammen, mit den Aktionen der Oberfläche
+//! * [`action`]: [`Action`], `Workspace::apply` und das Protokoll
 //! * [`demo`]: Beispieldaten, solange kein Backend angebunden ist
 //! * [`persist`]: Speichern und Laden des Workspace (JSON mit Versionsnummer)
 //!
-//! Jede Aktion der Oberfläche ist eine Methode auf [`Workspace`] und damit mit
-//! `cargo test` prüfbar. Ein echtes Backend würde dieselben Aktionen gegen Jira,
+//! Jede Aktion der Oberfläche ist eine [`Action`], die `Workspace::apply` über Methoden
+//! auf [`Workspace`] ausführt und protokolliert – und damit mit `cargo test` prüfbar. Ein echtes Backend würde dieselben Aktionen gegen Jira,
 //! GitHub und den Agenten ausführen und das Ergebnis in den Workspace schreiben.
 
+pub mod action;
 pub mod agent;
 pub mod connections;
 pub mod demo;
@@ -25,6 +27,7 @@ pub mod team;
 pub mod text;
 pub mod workspace;
 
+pub use action::{Action, ActionError, Actor, Applied, LogEntry, MAX_LOG, Target};
 pub use agent::{AgentOptions, AgentRun, Plan, RunState, Step, StepState};
 pub use connections::Connections;
 pub use model::*;

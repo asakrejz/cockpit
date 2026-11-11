@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::action::LogEntry;
 use crate::agent::{AgentOptions, AgentRun};
 use crate::demo;
 use crate::model::*;
@@ -22,6 +23,9 @@ pub struct Workspace {
     pub reviews: Vec<Review>,
     #[serde(default)]
     pub runs: Vec<AgentRun>,
+    /// Protokoll aller Aktionen, älteste zuerst. Siehe [`crate::action`].
+    #[serde(default)]
+    pub log: Vec<LogEntry>,
 }
 
 impl Workspace {

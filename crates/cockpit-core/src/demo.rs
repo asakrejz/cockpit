@@ -289,6 +289,7 @@ pub fn workspace() -> Workspace {
         items: vec![bau142, pr87, bau138, pr85, bau150],
         reviews: vec![review87, review91, review85],
         runs: vec![run138],
+        log: Vec::new(),
     }
 }
 

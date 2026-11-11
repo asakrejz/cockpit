@@ -8,7 +8,7 @@
 use std::time::Duration;
 
 use cockpit_core::{
-    Connections,
+    Action, Connections,
     connections::{check_agent, check_github, check_jira},
 };
 use feature_ui::*;
@@ -453,7 +453,7 @@ fn ResetDemo() -> impl IntoView {
     });
 
     let confirm = move |_| {
-        store.reset_demo();
+        let _ = store.dispatch(Action::ResetDemo);
         asking.set(false);
     };
 
