@@ -11,6 +11,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::agent::{AgentOptions, STEPS};
+use crate::attention::Rule;
 use crate::demo;
 use crate::model::TicketStatus;
 use crate::review::{Decision, SendError, Verdict};
@@ -37,6 +38,25 @@ pub enum Action {
     Reply {
         item: String,
         text: String,
+    },
+    /// Eintrag zurückstellen. `until_ms` ist der Zeitpunkt (Millisekunden seit 1970), zu
+    /// dem er zurückkommt; ohne (`None`) bleibt er weg, bis sich etwas ändert: ein neuer
+    /// Kommentar, ein anderer Status oder neue Check-Ergebnisse.
+    Snooze {
+        item: String,
+        until_ms: Option<u64>,
+    },
+    /// Zurückgestellten Eintrag sofort zurückholen.
+    Unsnooze {
+        item: String,
+    },
+    /// Der Takt: Einträge zurückholen, deren Zurückstellung abgelaufen oder durch eine
+    /// Änderung aufgehoben ist.
+    WakeSnoozed,
+    /// Aufmerksamkeits-Regel ein- oder ausschalten.
+    SetRule {
+        rule: Rule,
+        enabled: bool,
     },
     // Review
     Decide {
@@ -225,7 +245,7 @@ impl std::error::Error for ActionError {}
 /// Ein Eintrag, den eine Aktion ins Protokoll schreiben will.
 struct Note {
     actor: Option<Actor>,
-    target: Target,
+    target: Option<Target>,
     text: String,
 }
 
@@ -233,7 +253,16 @@ impl Note {
     fn new(target: Target, text: impl Into<String>) -> Self {
         Self {
             actor: None,
-            target,
+            target: Some(target),
+            text: text.into(),
+        }
+    }
+
+    /// Ein Eintrag ohne bestimmtes Ziel (Einstellungen).
+    fn general(text: impl Into<String>) -> Self {
+        Self {
+            actor: None,
+            target: None,
             text: text.into(),
         }
     }
@@ -271,7 +300,7 @@ impl Workspace {
         actor: Actor,
         at_ms: u64,
     ) -> Result<Applied, ActionError> {
-        let notes = self.perform(action)?;
+        let notes = self.perform(action, at_ms)?;
         let mut summary = String::new();
         let logged = notes.len();
         for note in notes {
@@ -283,13 +312,13 @@ impl Workspace {
         Ok(Applied { summary, logged })
     }
 
-    fn push_log(&mut self, at_ms: u64, actor: Actor, target: Target, text: String) {
+    fn push_log(&mut self, at_ms: u64, actor: Actor, target: Option<Target>, text: String) {
         let id = self.log.last().map_or(1, |e| e.id + 1);
         self.log.push(LogEntry {
             id,
             at_ms,
             actor,
-            target: Some(target),
+            target,
             text,
         });
         if self.log.len() > MAX_LOG {
@@ -320,7 +349,7 @@ impl Workspace {
     }
 
     /// Führt die Aktion aus und liefert die Protokolleinträge dazu.
-    fn perform(&mut self, action: Action) -> Result<Vec<Note>, ActionError> {
+    fn perform(&mut self, action: Action, at_ms: u64) -> Result<Vec<Note>, ActionError> {
         match action {
             Action::MarkDone { item } => {
                 let key = self.key_of(&item)?;
@@ -364,6 +393,56 @@ impl Workspace {
                     Target::Item(item),
                     format!("Antwort an {key} gesendet"),
                 )])
+            }
+            Action::Snooze { item, until_ms } => {
+                let key = self.key_of(&item)?;
+                if until_ms.is_some_and(|t| t <= at_ms) {
+                    return Err(ActionError::InvalidInput);
+                }
+                self.snooze(&item, until_ms);
+                let text = match until_ms {
+                    Some(_) => format!("{key} zurückgestellt"),
+                    None => format!("{key} zurückgestellt, bis sich etwas ändert"),
+                };
+                Ok(vec![Note::new(Target::Item(item), text)])
+            }
+            Action::Unsnooze { item } => {
+                let key = self.key_of(&item)?;
+                if !self.unsnooze(&item) {
+                    return Err(ActionError::NothingToDo);
+                }
+                Ok(vec![Note::new(
+                    Target::Item(item),
+                    format!("{key} aus der Zurückstellung geholt"),
+                )])
+            }
+            Action::WakeSnoozed => {
+                let back = self.wake(at_ms);
+                if back.is_empty() {
+                    return Err(ActionError::NothingToDo);
+                }
+                Ok(back
+                    .into_iter()
+                    .map(|id| {
+                        let key = self.item(&id).map_or(id.clone(), |i| i.key.clone());
+                        Note::new(Target::Item(id), format!("{key} ist zurück in der Inbox"))
+                            .by(Actor::System)
+                    })
+                    .collect())
+            }
+            Action::SetRule { rule, enabled } => {
+                if !self.set_rule(rule, enabled) {
+                    return Err(ActionError::Unchanged);
+                }
+                Ok(vec![Note::general(format!(
+                    "Regel „{}“ {}",
+                    rule.label(),
+                    if enabled {
+                        "eingeschaltet"
+                    } else {
+                        "ausgeschaltet"
+                    }
+                ))])
             }
             Action::Decide {
                 review,
@@ -1151,6 +1230,185 @@ mod tests {
         )
         .unwrap();
         assert_eq!(back.log.len(), 1);
+    }
+
+    #[test]
+    fn snoozing_is_an_action_and_comes_back_by_itself() {
+        let mut w = ws();
+        let hour = 3_600_000;
+        let applied = ok(
+            &mut w,
+            Action::Snooze {
+                item: "pr87".into(),
+                until_ms: Some(T + hour),
+            },
+            1,
+        );
+        assert_eq!(applied.summary, "#87 zurückgestellt");
+        assert!(w.is_snoozed("pr87", T));
+        // Nichts zu wecken, solange die Zeit nicht um ist.
+        fails(&mut w, Action::WakeSnoozed, ActionError::NothingToDo);
+        // Der Takt holt ihn zurück und protokolliert es als System.
+        let woke = w
+            .apply(Action::WakeSnoozed, Actor::System, T + hour)
+            .unwrap();
+        assert_eq!(woke.summary, "#87 ist zurück in der Inbox");
+        assert!(w.snoozed.is_empty());
+        assert_eq!(w.log.last().unwrap().actor, Actor::System);
+
+        ok(
+            &mut w,
+            Action::Snooze {
+                item: "pr87".into(),
+                until_ms: None,
+            },
+            1,
+        );
+        assert_eq!(
+            w.log.last().unwrap().text,
+            "#87 zurückgestellt, bis sich etwas ändert"
+        );
+        ok(
+            &mut w,
+            Action::Unsnooze {
+                item: "pr87".into(),
+            },
+            1,
+        );
+        fails(
+            &mut w,
+            Action::Unsnooze {
+                item: "pr87".into(),
+            },
+            ActionError::NothingToDo,
+        );
+        fails(
+            &mut w,
+            Action::Snooze {
+                item: "gibt-es-nicht".into(),
+                until_ms: None,
+            },
+            ActionError::UnknownItem("gibt-es-nicht".into()),
+        );
+        // Ein Zeitpunkt in der Vergangenheit ist keine Zurückstellung.
+        fails(
+            &mut w,
+            Action::Snooze {
+                item: "pr87".into(),
+                until_ms: Some(T),
+            },
+            ActionError::InvalidInput,
+        );
+    }
+
+    #[test]
+    fn a_change_wakes_a_snooze_and_the_tick_logs_it() {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::Snooze {
+                item: "bau142".into(),
+                until_ms: None,
+            },
+            1,
+        );
+        fails(&mut w, Action::WakeSnoozed, ActionError::NothingToDo);
+        ok(
+            &mut w,
+            Action::Reply {
+                item: "bau142".into(),
+                text: "Mache ich.".into(),
+            },
+            1,
+        );
+        let woke = w.apply(Action::WakeSnoozed, Actor::System, T).unwrap();
+        assert_eq!(woke.summary, "BAU-142 ist zurück in der Inbox");
+    }
+
+    #[test]
+    fn rules_are_switched_by_action() {
+        let mut w = ws();
+        let off = ok(
+            &mut w,
+            Action::SetRule {
+                rule: Rule::Overdue,
+                enabled: false,
+            },
+            1,
+        );
+        assert_eq!(off.summary, "Regel „Überfälliges Ticket“ ausgeschaltet");
+        assert!(!w.rules.enabled(Rule::Overdue));
+        assert_eq!(w.log.last().unwrap().target, None);
+        fails(
+            &mut w,
+            Action::SetRule {
+                rule: Rule::Overdue,
+                enabled: false,
+            },
+            ActionError::Unchanged,
+        );
+        let on = ok(
+            &mut w,
+            Action::SetRule {
+                rule: Rule::Overdue,
+                enabled: true,
+            },
+            1,
+        );
+        assert_eq!(on.summary, "Regel „Überfälliges Ticket“ eingeschaltet");
+    }
+
+    #[test]
+    fn rules_and_snoozes_survive_save_and_load() {
+        let mut w = ws();
+        w.apply(
+            Action::SetRule {
+                rule: Rule::Assigned,
+                enabled: false,
+            },
+            Actor::Du,
+            T,
+        )
+        .unwrap();
+        w.apply(
+            Action::Snooze {
+                item: "pr87".into(),
+                until_ms: Some(T + 1),
+            },
+            Actor::Du,
+            T,
+        )
+        .unwrap();
+        let back = persist::load(&persist::save(&w)).unwrap();
+        assert_eq!(back, w);
+        assert!(!back.rules.enabled(Rule::Assigned));
+        let text = serde_json::to_string(&Action::Snooze {
+            item: "x".into(),
+            until_ms: None,
+        })
+        .unwrap();
+        assert!(matches!(
+            serde_json::from_str::<Action>(&text),
+            Ok(Action::Snooze { until_ms: None, .. })
+        ));
+    }
+
+    #[test]
+    fn old_saves_without_rules_snoozes_or_due_dates_still_load() {
+        let mut value: serde_json::Value = serde_json::from_str(&persist::save(&ws())).unwrap();
+        let workspace = value["workspace"].as_object_mut().unwrap();
+        workspace.remove("rules");
+        workspace.remove("snoozed");
+        for item in workspace["items"].as_array_mut().unwrap() {
+            item.as_object_mut().unwrap().remove("due");
+            if let Some(pr) = item.get_mut("pr").and_then(|p| p.as_object_mut()) {
+                pr.remove("changes_requested");
+            }
+        }
+        let back = persist::load(&value.to_string()).unwrap();
+        assert!(Rule::ALL.iter().all(|r| back.rules.enabled(*r)));
+        assert!(back.snoozed.is_empty());
+        assert_eq!(back.item("bau150").unwrap().due, None);
     }
 
     #[test]

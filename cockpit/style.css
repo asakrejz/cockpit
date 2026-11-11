@@ -31,3 +31,8 @@ body { margin: 0; }
 /* Leerer Zustand: nichts hängt. */
 .ck-empty-state { display: flex; flex-direction: column; align-items: center; gap: var(--ref-space-8); padding: var(--ref-space-20); text-align: center; border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-grouped-background); }
 .ck-empty-state__icon { display: inline-flex; padding: var(--ref-space-8); border-radius: var(--ref-radius-full); color: var(--sys-color-label); background: var(--sys-color-green); }
+
+/* Aufmerksamkeit: Regeln in der Sidebar und Zurückstellen im Detail */
+.ck-rule { list-style: none; padding: var(--ref-space-4) var(--ref-space-12); }
+.ck-rule label { display: flex; align-items: center; justify-content: space-between; gap: var(--ref-space-8); }
+.ck-snooze { flex-wrap: wrap; }

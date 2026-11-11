@@ -27,6 +27,9 @@ pub struct Store {
     /// ID des Eintrags, der in der Inbox gewählt ist.
     pub selected: RwSignal<String>,
     pub route: RwSignal<Route>,
+    /// Die Uhrzeit (Millisekunden seit 1970), wie sie der Takt zuletzt gelesen hat. Die
+    /// Regeln für Aufmerksamkeit und Zurückstellen rechnen damit, nicht mit einer eigenen Uhr.
+    pub now: RwSignal<u64>,
 }
 
 impl Store {
@@ -40,6 +43,7 @@ impl Store {
             ws: RwSignal::new(ws),
             conn: RwSignal::new(saved.map(|s| Connections::decode(&s)).unwrap_or_default()),
             route: RwSignal::new(Route::parse(&current_hash())),
+            now: RwSignal::new(now_ms()),
         };
         // Jede Änderung der Verbindungen wird gesichert.
         Effect::new(move |_| {
@@ -100,7 +104,8 @@ impl Store {
     pub fn dispatch_as(&self, action: Action, actor: Actor) -> Result<Applied, ActionError> {
         let reset = action == Action::ResetDemo;
         // Die Zeit kommt aus dem Browser; die Logik in `cockpit-core` kennt keine Uhr.
-        let at_ms = js_sys::Date::now() as u64;
+        let at_ms = now_ms();
+        self.now.set(at_ms);
         // Erst anwenden, dann melden: Bei einem Fehler soll sich nichts neu zeichnen.
         let mut work = self.ws.get_untracked();
         let result = work.apply(action, actor, at_ms);
@@ -118,6 +123,16 @@ impl Store {
         self.selected.set(id.to_string());
         navigate(&Route::Inbox(Filter::All));
     }
+}
+
+/// Die Uhr des Browsers. Nur hier wird sie gelesen; `cockpit-core` bekommt die Zeit übergeben.
+pub fn now_ms() -> u64 {
+    js_sys::Date::now() as u64
+}
+
+/// Abstand UTC − Ortszeit in Minuten, wie ihn `Date.getTimezoneOffset()` liefert.
+pub fn utc_offset_min() -> i32 {
+    js_sys::Date::new_0().get_timezone_offset() as i32
 }
 
 fn first_id(ws: &Workspace) -> String {

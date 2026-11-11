@@ -12,8 +12,19 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
     let store = use_store();
     let on = move |route: Route| Signal::derive(move || store.route.get() == route);
     let count = move |filter: Filter| {
-        Signal::derive(move || store.ws.with(|w| w.unread(filter)).to_string())
+        Signal::derive(move || {
+            let now = store.now.get();
+            store.ws.with(|w| w.unread(filter, now)).to_string()
+        })
     };
+    // Leer, solange nichts zurückgestellt ist.
+    let snoozed = Signal::derive(move || {
+        let now = store.now.get();
+        match store.ws.with(|w| w.unread(Filter::Snoozed, now)) {
+            0 => String::new(),
+            n => n.to_string(),
+        }
+    });
     let stuck = Signal::derive(move || match store.ws.with(|w| team::stuck(w).len()) {
         0 => String::new(),
         n => format!("{n} hängt"),
@@ -60,6 +71,13 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
                     icon=icons::USERS
                     count=count(Filter::Team)
                     current=on(Route::Inbox(Filter::Team))
+                />
+                <SidebarItem
+                    href=Route::Inbox(Filter::Snoozed).hash()
+                    label="Zurückgestellt"
+                    icon=icons::MOON
+                    count=snoozed
+                    current=on(Route::Inbox(Filter::Snoozed))
                 />
                 <SidebarItem
                     href=Route::Overview.hash()

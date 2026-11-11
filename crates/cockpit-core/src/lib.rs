@@ -1,6 +1,7 @@
 //! Fachlogik des Cockpits – ohne UI und ohne Netzwerk.
 //!
 //! * [`model`]: Tickets, Pull Requests und warum sie Aufmerksamkeit brauchen
+//! * [`attention`]: Regeln, warum ein Eintrag Aufmerksamkeit braucht, und Zurückstellen
 //! * [`review`]: Diff, Vorschläge des Agenten, Freigabe und Urteil
 //! * [`agent`]: der Lauf eines Agenten als Zustandsmaschine
 //! * [`connections`]: Verbindungen, Berechtigungen und Eingabeprüfung
@@ -17,6 +18,7 @@
 
 pub mod action;
 pub mod agent;
+pub mod attention;
 pub mod connections;
 pub mod demo;
 pub mod model;
@@ -29,6 +31,7 @@ pub mod workspace;
 
 pub use action::{Action, ActionError, Actor, Applied, LogEntry, MAX_LOG, Target};
 pub use agent::{AgentOptions, AgentRun, Plan, RunState, Step, StepState};
+pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::Connections;
 pub use model::*;
 pub use review::{

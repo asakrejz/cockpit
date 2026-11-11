@@ -188,7 +188,7 @@ Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Fünf S
 | Seite | Adresse | Was sie kann |
 |-------|---------|--------------|
 | Einrichten | `#/einrichten` | Jira, GitHub und Agent verbinden; festlegen, was der Agent darf |
-| Aufmerksamkeit | `#/`, `#/meine`, `#/team` | Inbox aus Tickets und Pull Requests; Status ändern, Branch erstellen, antworten, Agent beauftragen; Suche und Quellen-Filter; Tasten `↑↓`/`j k`, `e`, `r`, `/` |
+| Aufmerksamkeit | `#/`, `#/meine`, `#/team`, `#/zurueckgestellt` | Inbox aus Tickets und Pull Requests, gefiltert nach einschaltbaren Regeln (Erwähnung, Review-Anfrage, blockierter PR, überfälliges Ticket, Agent fertig, zugewiesen); Zurückstellen (1 Stunde, morgen früh, nächste Woche, bis sich etwas ändert); Status ändern, Branch erstellen, antworten, Agent beauftragen; Suche und Quellen-Filter; Tasten `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
 | Review | `#/review/87` | Diff lesen; Zeilen auswählen und eigene Kommentare schreiben; Kommentare des Agenten freigeben, ablehnen oder bearbeiten; Review senden |
 | Übersicht | `#/uebersicht` | Pro Person offene Einträge und Auslastung; „Hängt“ zeigt fehlgeschlagene Checks, wartende Reviews, Tickets ohne Branch und Agenten, die auf dich warten |
 | Agent | `#/agent/BAU-142` | Auftrag mit Optionen; Plan zur Freigabe (abschaltbar); Ablauf in fünf Schritten bis zum Pull Request |
