@@ -4,7 +4,7 @@
 use crate::agent::{AgentRun, Question, RunState, STEPS};
 use crate::model::*;
 use crate::review::LineKind::{Add, Context as Ctx, Del};
-use crate::review::{CheckRun, FileDiff, Level, Review, Suggestion, Verdict};
+use crate::review::{CheckRun, FileDiff, Level, LineComment, Review, Suggestion, Verdict};
 use crate::workspace::Workspace;
 
 fn lena() -> Person {
@@ -255,7 +255,40 @@ pub fn workspace() -> Workspace {
             ],
         )
     };
+    // Zwei Kommentare von Reviewern zu BAU-138: Der Agent kann sie umsetzen (Folgeauftrag).
+    let foreign =
+        |id: &str, who: Person, file: &str, line: usize, text: &str, code: Option<&str>| {
+            LineComment {
+                id: id.into(),
+                file: file.into(),
+                line,
+                text: text.into(),
+                suggestion: code.map(str::to_string),
+                author: Some(who),
+                resolved: None,
+            }
+        };
     let review91 = Review {
+        line_comments: vec![
+            foreign(
+                "c1",
+                mira(),
+                "controls.rs",
+                6,
+                "Bitte Home und End mit unterstützen, nicht nur die Pfeiltasten.",
+                Some(
+                    "                            on:keydown=move |ev| select_with_keys(&ev, options, value)",
+                ),
+            ),
+            foreign(
+                "c2",
+                jonas(),
+                "components.css",
+                1,
+                "Wozu braucht der Fokus-Zustand ein z-index? Bitte kurz begründen oder weglassen.",
+                None,
+            ),
+        ],
         description:
             "Vom Agenten für BAU-138 umgesetzt · Tests bestanden. Der Agent führt keinen Merge aus."
                 .into(),
@@ -334,6 +367,18 @@ pub fn agent_question(ticket_key: &str) -> Option<(usize, Question)> {
                     "Entfernen".into(),
                     "Als deprecated markieren".into(),
                     "Erst markieren, später entfernen".into(),
+                ],
+            },
+        )),
+        // Folgeauftrag „Kommentare in #91 umsetzen“.
+        "review-91" => Some((
+            2,
+            Question {
+                text: "Soll ich vor dem Push auch die Browser-Tests laufen lassen? Das dauert etwa zwei Minuten."
+                    .into(),
+                suggestions: vec![
+                    "Ja, mit Browser-Tests".into(),
+                    "Nein, Lint und Unit-Tests genügen".into(),
                 ],
             },
         )),

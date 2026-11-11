@@ -726,6 +726,45 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn takt_treibt_folgeauftraege_bis_zur_diagnose() {
+        let state = zustand(Arc::new(MemoryStore::new()));
+        let app = || router(state.clone(), PathBuf::from("/x"));
+        let start = serde_json::to_string(&ActionRequest {
+            action: cockpit_core::Action::InvestigateCheck {
+                review: 85,
+                check: "Lint".into(),
+            },
+        })
+        .unwrap();
+        let (status, body) = schicke(app(), &start).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        for _ in 0..3 {
+            let s = state.clone();
+            tokio::task::spawn_blocking(move || s.takt()).await.unwrap();
+        }
+        let (_, body) = hole(app(), "/api/workspace").await;
+        let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();
+        let lauf = ws.run("check-85-lint").unwrap();
+        assert!(lauf.is_diagnosed(), "wartet auf deine Entscheidung");
+        assert!(lauf.diagnosis.is_some());
+        // Danach ruht der Takt, bis du den Fix übernimmst.
+        let vorher = state.inner.live.revision();
+        let s = state.clone();
+        tokio::task::spawn_blocking(move || s.takt()).await.unwrap();
+        assert_eq!(state.inner.live.revision(), vorher);
+        // Auch jetzt lässt sich nichts mergen: #85 hat rote Checks.
+        let merge = serde_json::to_string(&ActionRequest {
+            action: cockpit_core::Action::MergePr {
+                review: 85,
+                method: cockpit_core::MergeMethod::Squash,
+            },
+        })
+        .unwrap();
+        let (status, _) = schicke(app(), &merge).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    #[tokio::test]
     async fn takt_holt_zurueckgestellte_eintraege_zurueck() {
         let state = zustand(Arc::new(MemoryStore::new()));
         let app = || router(state.clone(), PathBuf::from("/x"));

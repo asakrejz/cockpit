@@ -9,9 +9,15 @@
 //! Während des Laufs kann der Agent eine [`Question`] stellen ([`RunState::AwaitingAnswer`]),
 //! der Nutzer kann ihm Hinweise schicken ([`AgentRun::steer`]) und ihn pausieren
 //! ([`RunState::Paused`]). Alles Gesagte steht im Gesprächsverlauf ([`AgentRun::messages`]).
+//!
+//! Neben dem Lauf „Ticket umsetzen“ gibt es zwei Folgeaufträge ([`RunKind`]): Review-Kommentare
+//! umsetzen (neuer Commit auf demselben Branch, kein neuer Pull Request) und einen roten Check
+//! untersuchen. Die Untersuchung hält nach der [`Diagnosis`] an ([`RunState::AwaitingFix`]) und
+//! tut nichts, bevor du den Fix übernimmst.
 
 use serde::{Deserialize, Serialize};
 
+use crate::diagnosis::Diagnosis;
 use crate::text::slug;
 
 /// Anzahl der Schritte eines Laufs.
@@ -53,8 +59,48 @@ pub enum RunState {
     AwaitingAnswer,
     /// Der Nutzer hat den Lauf angehalten.
     Paused,
+    /// Die Diagnose eines roten Checks liegt vor; der Agent wartet, ob er den Fix übernehmen soll.
+    AwaitingFix,
     Done,
 }
+
+/// Was der Lauf tut.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub enum RunKind {
+    /// Ein Ticket umsetzen und einen Pull Request anlegen.
+    #[default]
+    Implement,
+    /// Kommentare eines Reviews umsetzen und auf den Branch des Pull Requests pushen.
+    AddressReview {
+        /// Nummer des Pull Requests.
+        review: u32,
+        /// IDs der Zeilenkommentare, die der Agent umsetzen soll.
+        comments: Vec<String>,
+    },
+    /// Einen roten Check untersuchen, eine Diagnose vorlegen und – nach deiner Freigabe –
+    /// den Fix pushen.
+    Diagnose {
+        /// Nummer des Pull Requests.
+        review: u32,
+        /// Name des Checks.
+        check: String,
+    },
+}
+
+impl RunKind {
+    /// Der Pull Request, auf dem ein Folgeauftrag arbeitet.
+    pub fn review(&self) -> Option<u32> {
+        match self {
+            RunKind::Implement => None,
+            RunKind::AddressReview { review, .. } | RunKind::Diagnose { review, .. } => {
+                Some(*review)
+            }
+        }
+    }
+}
+
+/// Nach so vielen abgeschlossenen Schritten legt die Untersuchung die Diagnose vor.
+const DIAGNOSED_AT: usize = 3;
 
 /// Eine Rückfrage des Agenten, optional mit vorgeschlagenen Antworten.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
@@ -101,6 +147,8 @@ pub enum Tick {
     Idle,
     /// Der Agent hat angehalten und eine Frage gestellt.
     Asked,
+    /// Die Untersuchung hat die Diagnose vorgelegt und wartet auf die Entscheidung.
+    Diagnosed,
     /// Ein Schritt wurde abgeschlossen.
     Stepped,
     /// Der letzte Schritt wurde abgeschlossen.
@@ -169,6 +217,15 @@ pub struct AgentRun {
     /// Hinweise, die der Agent beim nächsten Schritt berücksichtigt.
     #[serde(default)]
     pub pending_hints: Vec<String>,
+    /// Was der Lauf tut. Alte Stände kennen nur „Ticket umsetzen“.
+    #[serde(default)]
+    pub kind: RunKind,
+    /// Branch des Pull Requests, auf den ein Folgeauftrag pusht. Leer bei „Ticket umsetzen“.
+    #[serde(default)]
+    pub target_branch: String,
+    /// Die Diagnose einer Untersuchung, sobald sie vorliegt.
+    #[serde(default)]
+    pub diagnosis: Option<Diagnosis>,
 }
 
 impl AgentRun {
@@ -188,7 +245,45 @@ impl AgentRun {
             question: None,
             asked: false,
             pending_hints: Vec::new(),
+            kind: RunKind::Implement,
+            target_branch: String::new(),
+            diagnosis: None,
         }
+    }
+
+    /// Ein Folgeauftrag auf einem bestehenden Pull Request. `item_key` ist der Eintrag, an dem
+    /// der Pull Request hängt, `branch` sein Branch.
+    pub fn followup(kind: RunKind, item_key: &str, title: &str, branch: &str) -> Self {
+        let mut run = Self::new(item_key, title);
+        run.pr_number = kind.review();
+        run.kind = kind;
+        run.target_branch = branch.into();
+        run
+    }
+
+    /// Der Schlüssel des Laufs, unter dem Seiten, Aktionen und Protokoll ihn finden:
+    /// bei „Ticket umsetzen“ der Ticket-Schlüssel, sonst `review-91` bzw. `check-85-lint`.
+    pub fn key(&self) -> String {
+        match &self.kind {
+            RunKind::Implement => self.ticket_key.clone(),
+            RunKind::AddressReview { review, .. } => format!("review-{review}"),
+            RunKind::Diagnose { review, check } => {
+                format!("check-{review}-{}", slug(check, 24))
+            }
+        }
+    }
+
+    /// Kurzer Name für Meldungen: der Schlüssel, bei Folgeaufträgen mit Klartext.
+    pub fn label(&self) -> String {
+        match &self.kind {
+            RunKind::Implement => self.ticket_key.clone(),
+            RunKind::AddressReview { review, .. } => format!("Kommentare in #{review}"),
+            RunKind::Diagnose { review, check } => format!("Check „{check}“ in #{review}"),
+        }
+    }
+
+    pub fn is_followup(&self) -> bool {
+        self.kind != RunKind::Implement
     }
 
     pub fn is_idle(&self) -> bool {
@@ -210,12 +305,27 @@ impl AgentRun {
 
     /// Wartet, fragt, pausiert oder läuft – der Lauf belegt das Ticket.
     pub fn is_active(&self) -> bool {
-        self.is_awaiting() || self.is_running() || self.is_asking() || self.is_paused()
+        self.is_awaiting()
+            || self.is_running()
+            || self.is_asking()
+            || self.is_paused()
+            || self.is_diagnosed()
     }
 
-    /// Der Agent arbeitet an den Schritten (läuft, fragt oder ist pausiert).
+    /// Der Agent arbeitet an den Schritten (läuft, fragt, ist pausiert oder wartet auf die
+    /// Entscheidung über seinen Fix).
     fn is_working(&self) -> bool {
-        self.is_running() || self.is_asking() || self.is_paused()
+        self.is_running() || self.is_asking() || self.is_paused() || self.is_diagnosed()
+    }
+
+    /// Die Diagnose liegt vor; der Agent wartet auf „Fix übernehmen“ oder „Verwerfen“.
+    pub fn is_diagnosed(&self) -> bool {
+        self.state == RunState::AwaitingFix
+    }
+
+    /// Wartet der Lauf auf eine Entscheidung von dir (Plan, Antwort oder Fix)?
+    pub fn is_waiting_for_you(&self) -> bool {
+        self.is_awaiting() || self.is_asking() || self.is_diagnosed()
     }
 
     pub fn is_running(&self) -> bool {
@@ -228,11 +338,17 @@ impl AgentRun {
 
     /// `agent/BAU-142-toggle-fokus-ring-fehlt`
     pub fn branch(&self) -> String {
+        if !self.target_branch.is_empty() {
+            return self.target_branch.clone();
+        }
         format!("agent/{}-{}", self.ticket_key, slug(&self.ticket_title, 24))
     }
 
     pub fn start(&mut self, options: AgentOptions, pr_number: u32) {
-        self.planned = options.plan_first;
+        // Eine Untersuchung ändert erst nach deiner Freigabe des Fixes etwas, ein Plan wäre
+        // doppelt. Folgeaufträge legen keinen neuen Pull Request an.
+        let investigate = matches!(self.kind, RunKind::Diagnose { .. });
+        self.planned = options.plan_first && !investigate;
         self.state = if self.planned {
             RunState::AwaitingApproval
         } else {
@@ -240,13 +356,14 @@ impl AgentRun {
         };
         self.options = options;
         self.completed = 0;
-        self.pr_number = Some(pr_number);
+        self.pr_number = Some(self.kind.review().unwrap_or(pr_number));
         self.plan_notes.clear();
+        self.diagnosis = None;
         self.clear_conversation();
         self.say(
             Speaker::Agent,
             MessageKind::Info,
-            format!("Auftrag für {} angenommen.", self.ticket_key),
+            format!("Auftrag für {} angenommen.", self.label()),
         );
         let hint = self.options.hint.trim().to_string();
         if !hint.is_empty() {
@@ -282,10 +399,22 @@ impl AgentRun {
     pub fn reset(&mut self) {
         self.state = RunState::Idle;
         self.completed = 0;
-        self.pr_number = None;
+        self.pr_number = self.kind.review();
         self.plan_notes.clear();
         self.planned = false;
+        self.diagnosis = None;
         self.clear_conversation();
+    }
+
+    /// Übernimmt den Fix der Diagnose: Der Agent wendet ihn an, pusht und startet den Check
+    /// neu. `false`, wenn keine Diagnose wartet.
+    pub fn accept_fix(&mut self) -> bool {
+        if !self.is_diagnosed() {
+            return false;
+        }
+        self.state = RunState::Running;
+        self.say(Speaker::Du, MessageKind::Info, "Fix übernommen.".into());
+        true
     }
 
     /// Gibt den Plan frei: Ab jetzt arbeitet der Agent. `false`, wenn es nichts freizugeben gibt.
@@ -372,6 +501,9 @@ impl AgentRun {
         if !self.planned {
             return None;
         }
+        if let RunKind::AddressReview { review, comments } = &self.kind {
+            return Some(self.address_plan(*review, comments.len()));
+        }
         let o = &self.options;
         let hint = o.hint.trim();
         let files = match self.files.len() {
@@ -420,6 +552,50 @@ impl AgentRun {
         })
     }
 
+    /// Plan für „Review-Kommentare umsetzen“: kein neuer Branch, kein neuer Pull Request.
+    fn address_plan(&self, review: u32, comments: usize) -> Plan {
+        let o = &self.options;
+        let hint = o.hint.trim();
+        let branch = self.branch();
+        let mut summary = format!(
+            "{} aus Review #{review} umsetzen: {} ändern{}, auf {branch} pushen.",
+            plural_comments(comments),
+            files_label(self.files.len()),
+            if o.run_tests {
+                ", Tests ausführen"
+            } else {
+                " (ohne Tests)"
+            }
+        );
+        if !hint.is_empty() {
+            summary.push_str(&format!(" Dein Hinweis: „{hint}“."));
+        }
+        let mut steps = vec![
+            format!("{} aus Review #{review} lesen", plural_comments(comments)),
+            format!("Branch {branch} auschecken"),
+            format!("{} bearbeiten", self.files.join(", ")),
+        ];
+        for note in &self.plan_notes {
+            steps.push(format!("Berücksichtigen: {note}"));
+        }
+        steps.push(if o.run_tests {
+            "Lint und Tests ausführen".into()
+        } else {
+            "Tests überspringen".into()
+        });
+        steps.push(format!(
+            "Auf {branch} pushen – kein neuer Pull Request, kein Merge"
+        ));
+        if !self.plan_notes.is_empty() {
+            summary.push_str(&format!(" Überarbeitet ({}×).", self.plan_notes.len()));
+        }
+        Plan {
+            summary,
+            files: self.files.clone(),
+            steps,
+        }
+    }
+
     /// Schließt den aktuellen Schritt ab. Gibt `true` zurück, wenn der Lauf damit
     /// fertig geworden ist.
     pub fn advance(&mut self) -> bool {
@@ -442,7 +618,7 @@ impl AgentRun {
         // Die Rückfrage ist in der Demo fest verdrahtet (siehe `demo::agent_question`);
         // ein Backend würde sie vom echten Agenten bekommen.
         if !self.asked
-            && let Some((step, question)) = crate::demo::agent_question(&self.ticket_key)
+            && let Some((step, question)) = crate::demo::agent_question(&self.key())
             && step == self.completed
         {
             self.asked = true;
@@ -461,6 +637,15 @@ impl AgentRun {
         if self.completed == STEPS {
             self.state = RunState::Done;
             Tick::Finished
+        } else if self.completed == DIAGNOSED_AT && matches!(self.kind, RunKind::Diagnose { .. }) {
+            // Die Diagnose liegt vor. Bis zu deiner Entscheidung bleibt der Branch unberührt.
+            self.state = RunState::AwaitingFix;
+            self.say(
+                Speaker::Agent,
+                MessageKind::Info,
+                "Die Diagnose liegt vor. Ich warte, ob ich den Fix übernehmen soll.".into(),
+            );
+            Tick::Diagnosed
         } else {
             Tick::Stepped
         }
@@ -471,14 +656,98 @@ impl AgentRun {
             .map_or("Pull Request".to_string(), |n| format!("#{n}"))
     }
 
-    /// Titel und Text jedes Schritts, passend zu den Optionen.
+    /// Titel und Text jedes Schritts, passend zu Art und Optionen des Laufs.
     pub fn steps(&self) -> Vec<Step> {
+        let texts = match &self.kind {
+            RunKind::Implement => self.implement_texts(),
+            RunKind::AddressReview { review, comments } => {
+                self.address_texts(*review, comments.len())
+            }
+            RunKind::Diagnose { review, check } => self.diagnose_texts(*review, check),
+        };
+        self.build_steps(texts)
+    }
+
+    fn address_texts(&self, review: u32, comments: usize) -> [(&'static str, String); STEPS] {
+        let o = &self.options;
+        [
+            (
+                "Kommentare gelesen",
+                format!(
+                    "{} aus Review #{review} ausgewertet",
+                    plural_comments(comments)
+                ),
+            ),
+            ("Branch ausgecheckt", self.branch()),
+            (
+                "Änderungen umgesetzt",
+                files_label(self.files.len()) + " angepasst",
+            ),
+            if o.run_tests {
+                (
+                    "Tests ausgeführt",
+                    "Lint und Tests laufen im Branch".to_string(),
+                )
+            } else {
+                (
+                    "Tests übersprungen",
+                    "In den Optionen abgeschaltet".to_string(),
+                )
+            },
+            (
+                "Auf Branch gepusht",
+                format!(
+                    "Neuer Commit auf {} – kein neuer Pull Request, das Review wartet wieder auf dich",
+                    self.branch()
+                ),
+            ),
+        ]
+    }
+
+    fn diagnose_texts(&self, review: u32, check: &str) -> [(&'static str, String); STEPS] {
+        let code = self.diagnosis.as_ref().is_none_or(Diagnosis::changes_code);
+        [
+            (
+                "Log gelesen",
+                format!("Check „{check}“ von #{review}: Ausgabe ausgewertet"),
+            ),
+            (
+                "Ursache eingegrenzt",
+                "Fehlermeldung, Datei und Zeile bestimmt".to_string(),
+            ),
+            (
+                "Diagnose erstellt",
+                "Ursache und Vorschlag liegen zur Entscheidung vor".to_string(),
+            ),
+            if code {
+                (
+                    "Fix angewendet",
+                    "Änderung im Branch, Lint und Tests laufen".to_string(),
+                )
+            } else {
+                (
+                    "Kein Code-Fix nötig",
+                    "Der Branch bleibt unverändert".to_string(),
+                )
+            },
+            if code {
+                (
+                    "Gepusht, Check neu gestartet",
+                    format!("{} aktualisiert, „{check}“ läuft erneut", self.branch()),
+                )
+            } else {
+                ("Check neu gestartet", format!("„{check}“ läuft erneut"))
+            },
+        ]
+    }
+
+    fn implement_texts(&self) -> [(&'static str, String); STEPS] {
         let o = &self.options;
         let files = match self.files.len() {
             1 => "1 Datei angepasst".to_string(),
             n => format!("{n} Dateien angepasst"),
         };
-        let texts: [(&str, String); STEPS] = [
+        [
             (
                 "Ticket gelesen",
                 format!(
@@ -510,7 +779,10 @@ impl AgentRun {
                     if o.draft_pr { " als Entwurf" } else { "" }
                 ),
             ),
-        ];
+        ]
+    }
+
+    fn build_steps(&self, texts: [(&'static str, String); STEPS]) -> Vec<Step> {
         texts
             .into_iter()
             .enumerate()
@@ -519,6 +791,14 @@ impl AgentRun {
                     return Step {
                         title: "Plan liegt vor".to_string(),
                         text: "Wartet auf deine Freigabe – bis dahin ändert der Agent nichts"
+                            .to_string(),
+                        state: StepState::Active,
+                    };
+                }
+                if i == self.completed && self.is_diagnosed() {
+                    return Step {
+                        title: "Diagnose liegt vor".to_string(),
+                        text: "Wartet auf deine Entscheidung – bis dahin bleibt der Branch unverändert"
                             .to_string(),
                         state: StepState::Active,
                     };
@@ -561,10 +841,72 @@ impl AgentRun {
             .collect()
     }
 
+    /// Protokollzeilen eines Schritts von „Review-Kommentare umsetzen“.
+    fn address_log(&self, lines: &mut Vec<String>, step: usize, review: u32, comments: usize) {
+        let o = &self.options;
+        let hint = o.hint.trim();
+        match step {
+            0 => {
+                lines.push(format!(
+                    "› Lese {} aus Review #{review}",
+                    plural_comments(comments)
+                ));
+                if !hint.is_empty() {
+                    lines.push(format!("› Hinweis: {hint}"));
+                }
+                if let Some(plan) = self.plan() {
+                    lines.push(format!(
+                        "› Plan erstellt: {} Schritte, {} Dateien",
+                        plan.steps.len(),
+                        plan.files.len()
+                    ));
+                    for note in &self.plan_notes {
+                        lines.push(format!("› Neuer Plan angefordert: {note}"));
+                    }
+                    lines.push(if self.is_awaiting() {
+                        "› Warte auf Freigabe".into()
+                    } else {
+                        "› Plan freigegeben".into()
+                    });
+                }
+            }
+            1 => lines.push(format!("› git switch {}", self.branch())),
+            2 => lines.push(format!("› Bearbeite {}", self.files.join(", "))),
+            3 if o.run_tests => lines.push("› Starte Lint und Tests … bestanden".into()),
+            3 => lines.push("› Tests übersprungen".into()),
+            _ => lines.push(format!(
+                "› git push origin {} (kein neuer Pull Request)",
+                self.branch()
+            )),
+        }
+    }
+
+    /// Protokollzeilen eines Schritts von „Check untersuchen“.
+    fn diagnose_log(&self, lines: &mut Vec<String>, step: usize, review: u32, check: &str) {
+        let code = self.diagnosis.as_ref().is_none_or(Diagnosis::changes_code);
+        match step {
+            0 => lines.push(format!("› Lese das Log von „{check}“ in #{review}")),
+            1 => lines.push("› Suche Fehlermeldung, Datei und Zeile".into()),
+            2 => lines.push(match &self.diagnosis {
+                Some(d) => format!("› Diagnose: {}", d.cause),
+                None => "› Diagnose erstellt".into(),
+            }),
+            3 if code => lines.push("› Wende den Fix an, starte Lint und Tests … bestanden".into()),
+            3 => lines.push("› Kein Code-Fix nötig, der Branch bleibt unverändert".into()),
+            _ if code => lines.push(format!(
+                "› git push origin {}, starte „{check}“ neu",
+                self.branch()
+            )),
+            _ => lines.push(format!("› Starte „{check}“ neu")),
+        }
+    }
+
     /// Protokoll bis einschließlich des Schritts, an dem der Agent gerade arbeitet.
     pub fn log(&self) -> String {
         let shown = if self.is_awaiting() {
             1
+        } else if self.is_diagnosed() {
+            self.completed
         } else if self.is_working() {
             self.completed + 1
         } else {
@@ -578,8 +920,14 @@ impl AgentRun {
         let hint = o.hint.trim();
         let mut lines = Vec::new();
         for step in 0..shown {
-            match step {
-                0 => {
+            match (&self.kind, step) {
+                (RunKind::AddressReview { review, comments }, _) => {
+                    self.address_log(&mut lines, step, *review, comments.len());
+                }
+                (RunKind::Diagnose { review, check }, _) => {
+                    self.diagnose_log(&mut lines, step, *review, check);
+                }
+                (RunKind::Implement, 0) => {
                     let comments = match self.comments {
                         1 => "1 Kommentar".to_string(),
                         n => format!("{n} Kommentare"),
@@ -604,11 +952,15 @@ impl AgentRun {
                         });
                     }
                 }
-                1 => lines.push(format!("› git switch -c {}", self.branch())),
-                2 => lines.push(format!("› Bearbeite {}", self.files.join(", "))),
-                3 if o.run_tests => lines.push("› Starte Lint und Tests … bestanden".into()),
-                3 => lines.push("› Tests übersprungen".into()),
-                _ => lines.push(format!(
+                (RunKind::Implement, 1) => lines.push(format!("› git switch -c {}", self.branch())),
+                (RunKind::Implement, 2) => {
+                    lines.push(format!("› Bearbeite {}", self.files.join(", ")))
+                }
+                (RunKind::Implement, 3) if o.run_tests => {
+                    lines.push("› Starte Lint und Tests … bestanden".into())
+                }
+                (RunKind::Implement, 3) => lines.push("› Tests übersprungen".into()),
+                (RunKind::Implement, _) => lines.push(format!(
                     "› Pull Request {} erstellt{}",
                     self.pr_label(),
                     if o.draft_pr { " (Entwurf)" } else { "" }
@@ -624,12 +976,28 @@ impl AgentRun {
                 }
             }
         }
-        if self.is_asking() {
+        if self.is_diagnosed() {
+            lines.push("› Warte auf deine Entscheidung über den Fix".into());
+        } else if self.is_asking() {
             lines.push("› Warte auf deine Antwort".into());
         } else if self.is_paused() {
             lines.push("› Pausiert".into());
         }
         lines.join("\n")
+    }
+}
+
+fn plural_comments(n: usize) -> String {
+    match n {
+        1 => "1 Kommentar".to_string(),
+        n => format!("{n} Kommentare"),
+    }
+}
+
+fn files_label(n: usize) -> String {
+    match n {
+        1 => "1 Datei".to_string(),
+        n => format!("{n} Dateien"),
     }
 }
 

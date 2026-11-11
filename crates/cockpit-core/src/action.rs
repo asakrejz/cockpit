@@ -10,7 +10,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::agent::{AgentOptions, STEPS};
+use crate::agent::{AgentOptions, AgentRun, RunKind, STEPS};
 use crate::attention::Rule;
 use crate::demo;
 use crate::model::{Checks, Item, Person, Priority, TicketStatus};
@@ -188,6 +188,28 @@ pub enum Action {
     },
     /// Der Takt: jeder laufende Agent schließt einen Schritt ab.
     AdvanceAgents,
+    /// Folgeauftrag: Der Agent setzt Kommentare eines Reviews um (IDs der Zeilenkommentare)
+    /// und pusht auf den Branch des Pull Requests. Der Lauf heißt dann `review-<Nummer>`.
+    AddressReview {
+        review: u32,
+        comments: Vec<String>,
+        options: AgentOptions,
+    },
+    /// Folgeauftrag: Der Agent untersucht einen roten Check und legt eine Diagnose vor.
+    /// Der Lauf heißt dann `check-<Nummer>-<Check>`.
+    InvestigateCheck {
+        review: u32,
+        check: String,
+    },
+    /// Übernimmt den Fix der Diagnose (`run` ist der Schlüssel des Laufs): Der Agent pusht ihn
+    /// auf den Branch und startet den Check neu.
+    ApplyFix {
+        run: String,
+    },
+    /// Verwirft die Diagnose. Der Lauf endet, der Branch bleibt unberührt.
+    DiscardFix {
+        run: String,
+    },
     // Benachrichtigungen
     /// Kanal für einen Grund an- oder ausschalten.
     SetNotifyChannel {
@@ -326,7 +348,17 @@ impl ActionError {
             ActionError::Send(SendError::UnknownReview) => "Das Review gibt es nicht".into(),
             ActionError::Agent(AgentError::UnknownTicket) => "Dieses Ticket gibt es nicht".into(),
             ActionError::Agent(AgentError::AlreadyRunning) => {
-                "Der Agent arbeitet schon an diesem Ticket".into()
+                "Der Agent arbeitet hier schon".into()
+            }
+            ActionError::Agent(AgentError::UnknownReview) => "Das Review gibt es nicht".into(),
+            ActionError::Agent(AgentError::Merged) => {
+                "Der Pull Request ist schon gemergt und bleibt, wie er ist".into()
+            }
+            ActionError::Agent(AgentError::NoComments) => {
+                "Wähle mindestens einen offenen Kommentar aus".into()
+            }
+            ActionError::Agent(AgentError::CheckNotFailed) => {
+                "Untersuchen lässt sich nur ein roter Check".into()
             }
             ActionError::UnknownCheck(name) => format!("Check „{name}“ gibt es nicht"),
             ActionError::UnknownPerson(name) => format!("{name} gibt es im Team nicht"),
@@ -961,51 +993,55 @@ impl Workspace {
                 Ok(notes)
             }
             Action::CancelAgent { ticket } => {
-                if !self
+                let Some(label) = self
                     .runs
                     .iter()
-                    .any(|r| r.ticket_key == ticket && r.is_active())
-                {
+                    .find(|r| r.key() == ticket && r.is_active())
+                    .map(AgentRun::label)
+                else {
                     return Err(ActionError::NothingToDo);
-                }
+                };
                 self.cancel_agent(&ticket);
                 Ok(vec![Note::new(
-                    Target::Run(ticket.clone()),
-                    format!("Lauf des Agenten für {ticket} abgebrochen"),
+                    Target::Run(ticket),
+                    format!("Lauf des Agenten für {label} abgebrochen"),
                 )])
             }
             Action::ApprovePlan { ticket } => {
+                let label = self.label_of(&ticket);
                 if !self.approve_plan(&ticket) {
                     return Err(ActionError::NothingToDo);
                 }
                 Ok(vec![Note::new(
-                    Target::Run(ticket.clone()),
-                    format!("Plan für {ticket} freigegeben"),
+                    Target::Run(ticket),
+                    format!("Plan für {label} freigegeben"),
                 )])
             }
             Action::RejectPlan { ticket } => {
+                let label = self.label_of(&ticket);
                 if !self.reject_plan(&ticket) {
                     return Err(ActionError::NothingToDo);
                 }
                 Ok(vec![Note::new(
-                    Target::Run(ticket.clone()),
-                    format!("Plan für {ticket} abgelehnt"),
+                    Target::Run(ticket),
+                    format!("Plan für {label} abgelehnt"),
                 )])
             }
             Action::RevisePlan { ticket, note } => {
                 let waiting = self
                     .runs
                     .iter()
-                    .any(|r| r.ticket_key == ticket && r.is_awaiting());
+                    .any(|r| r.key() == ticket && r.is_awaiting());
                 if !waiting {
                     return Err(ActionError::NothingToDo);
                 }
+                let label = self.label_of(&ticket);
                 if !self.revise_plan(&ticket, &note) {
                     return Err(ActionError::InvalidInput);
                 }
                 Ok(vec![Note::new(
-                    Target::Run(ticket.clone()),
-                    format!("Neuen Plan für {ticket} angefordert"),
+                    Target::Run(ticket),
+                    format!("Neuen Plan für {label} angefordert"),
                 )])
             }
             Action::SetNotifyChannel {
@@ -1045,56 +1081,140 @@ impl Workspace {
                 Ok(vec![Note::new(Target::Settings, text)])
             }
             Action::AnswerAgent { run, text } => {
-                if !self
-                    .runs
-                    .iter()
-                    .any(|r| r.ticket_key == run && r.is_asking())
-                {
+                if !self.runs.iter().any(|r| r.key() == run && r.is_asking()) {
                     return Err(ActionError::NothingToDo);
                 }
+                let label = self.label_of(&run);
                 if !self.answer_agent(&run, &text) {
                     return Err(ActionError::InvalidInput);
                 }
                 Ok(vec![Note::new(
-                    Target::Run(run.clone()),
-                    format!("Frage des Agenten für {run} beantwortet: „{}“", text.trim()),
+                    Target::Run(run),
+                    format!(
+                        "Frage des Agenten für {label} beantwortet: „{}“",
+                        text.trim()
+                    ),
                 )])
             }
             Action::SteerAgent { run, text } => {
                 if !self
                     .runs
                     .iter()
-                    .any(|r| r.ticket_key == run && r.is_active() && !r.is_awaiting())
+                    .any(|r| r.key() == run && r.is_active() && !r.is_awaiting())
                 {
                     return Err(ActionError::NothingToDo);
                 }
+                let label = self.label_of(&run);
                 if !self.steer_agent(&run, &text) {
                     return Err(ActionError::InvalidInput);
                 }
                 Ok(vec![Note::new(
-                    Target::Run(run.clone()),
-                    format!("Hinweis an den Agenten für {run}: „{}“", text.trim()),
+                    Target::Run(run),
+                    format!("Hinweis an den Agenten für {label}: „{}“", text.trim()),
                 )])
             }
             Action::PauseAgent { run } => {
+                let label = self.label_of(&run);
                 if !self.pause_agent(&run) {
                     return Err(ActionError::NothingToDo);
                 }
                 Ok(vec![Note::new(
-                    Target::Run(run.clone()),
-                    format!("Agent für {run} pausiert"),
+                    Target::Run(run),
+                    format!("Agent für {label} pausiert"),
                 )])
             }
             Action::ResumeAgent { run } => {
+                let label = self.label_of(&run);
                 if !self.resume_agent(&run) {
                     return Err(ActionError::NothingToDo);
                 }
                 Ok(vec![Note::new(
-                    Target::Run(run.clone()),
-                    format!("Agent für {run} fortgesetzt"),
+                    Target::Run(run),
+                    format!("Agent für {label} fortgesetzt"),
                 )])
             }
             Action::AdvanceAgents => self.advance_logged(),
+            Action::AddressReview {
+                review,
+                comments,
+                options,
+            } => {
+                self.need_open_review(review)?;
+                // Unbekannte Kommentare melden sich beim Namen, erledigte zählen wie fehlende.
+                if let Some(id) = comments.iter().find(|id| {
+                    self.review(review)
+                        .is_some_and(|r| !r.line_comments.iter().any(|c| &c.id == *id))
+                }) {
+                    return Err(ActionError::UnknownComment(id.clone()));
+                }
+                let plan_first = options.plan_first;
+                let n = comments.len();
+                let key = self
+                    .address_review(review, &comments, options)
+                    .map_err(ActionError::Agent)?;
+                let mut notes = vec![Note::new(
+                    Target::Review(review),
+                    format!(
+                        "Agent beauftragt, {} aus #{review} umzusetzen",
+                        plural(n, "Kommentar", "Kommentare")
+                    ),
+                )];
+                if plan_first {
+                    notes.push(
+                        Note::new(
+                            Target::Run(key),
+                            format!("Plan für die Kommentare in #{review} vorgelegt, wartet auf Freigabe"),
+                        )
+                        .by(Actor::Agent),
+                    );
+                }
+                Ok(notes)
+            }
+            Action::InvestigateCheck { review, check } => {
+                self.need_open_review(review)?;
+                let known = self
+                    .review(review)
+                    .is_some_and(|r| r.check_runs.iter().any(|c| c.name == check));
+                if !known {
+                    return Err(ActionError::UnknownCheck(check));
+                }
+                self.investigate_check(review, &check)
+                    .map_err(ActionError::Agent)?;
+                Ok(vec![Note::new(
+                    Target::Review(review),
+                    format!("Agent beauftragt, den Check „{check}“ in #{review} zu untersuchen"),
+                )])
+            }
+            Action::ApplyFix { run } => {
+                let label = self.label_of(&run);
+                let pushes = self
+                    .runs
+                    .iter()
+                    .find(|r| r.key() == run && r.is_diagnosed())
+                    .and_then(|r| r.diagnosis.as_ref())
+                    .is_none_or(|d| d.changes_code());
+                if !self.accept_fix(&run) {
+                    return Err(ActionError::NothingToDo);
+                }
+                let text = if pushes {
+                    format!(
+                        "Fix für {label} übernommen: Der Agent pusht ihn und startet den Check neu"
+                    )
+                } else {
+                    format!("Vorschlag für {label} übernommen: Der Agent startet den Check neu")
+                };
+                Ok(vec![Note::new(Target::Run(run), text)])
+            }
+            Action::DiscardFix { run } => {
+                let label = self.label_of(&run);
+                if !self.discard_fix(&run) {
+                    return Err(ActionError::NothingToDo);
+                }
+                Ok(vec![Note::new(
+                    Target::Run(run),
+                    format!("Diagnose für {label} verworfen, am Branch ändert sich nichts"),
+                )])
+            }
             Action::ResetDemo => {
                 // Die Einstellungen gehören nicht zu den Beispieldaten und bleiben.
                 let notifications = std::mem::take(&mut self.notifications);
@@ -1113,6 +1233,15 @@ impl Workspace {
         }
     }
 
+    /// Der Name des Laufs für Protokollsätze: der Ticket-Schlüssel, bei Folgeaufträgen mit
+    /// Klartext. Ein unbekannter Schlüssel bleibt, wie er ist.
+    fn label_of(&self, key: &str) -> String {
+        self.runs
+            .iter()
+            .find(|r| r.key() == key)
+            .map_or_else(|| key.to_string(), AgentRun::label)
+    }
+
     /// Der Takt der Agenten, mit einem Eintrag pro abgeschlossenem Schritt oder gestellter Frage.
     fn advance_logged(&mut self) -> Result<Vec<Note>, ActionError> {
         // Vorher festhalten, welcher Schritt gleich fertig wird und welche Hinweise warten.
@@ -1123,7 +1252,7 @@ impl Workspace {
             .map(|r| {
                 let title = r.steps()[r.completed.min(STEPS - 1)].title.clone();
                 (
-                    r.ticket_key.clone(),
+                    r.key(),
                     r.completed,
                     title,
                     r.pr_number,
@@ -1138,35 +1267,53 @@ impl Workspace {
         self.advance_agents();
         let mut notes = Vec::new();
         for (key, done, title, pr, draft, hints) in stepping {
+            let Some(run) = self.runs.iter().find(|r| r.key() == key) else {
+                continue;
+            };
+            let label = run.label();
+            let (asking, diagnosed) = (run.is_asking(), run.is_diagnosed());
+            let kind = run.kind.clone();
             if hints > 0 {
                 notes.push(
                     Note::new(
                         Target::Run(key.clone()),
                         format!(
-                            "{key}: {} berücksichtigt",
+                            "{label}: {} berücksichtigt",
                             plural(hints, "Hinweis", "Hinweise")
                         ),
                     )
                     .by(Actor::Agent),
                 );
             }
-            let asking = self
-                .runs
-                .iter()
-                .any(|r| r.ticket_key == key && r.is_asking());
-            notes.push(match (asking, done + 1 == STEPS, pr) {
-                (true, _, _) => Note::new(
+            let last = done + 1 == STEPS;
+            notes.push(match (asking, diagnosed, last, pr, kind) {
+                (true, ..) => Note::new(
                     Target::Run(key.clone()),
-                    format!("{key}: Der Agent hat eine Frage und wartet auf deine Antwort"),
+                    format!("{label}: Der Agent hat eine Frage und wartet auf deine Antwort"),
                 ),
-                (_, true, Some(n)) => Note::new(
+                (_, true, ..) => Note::new(
+                    Target::Run(key.clone()),
+                    format!("{label}: Diagnose liegt vor, der Agent wartet auf deine Entscheidung"),
+                ),
+                (_, _, true, Some(n), RunKind::AddressReview { comments, .. }) => Note::new(
+                    Target::Review(n),
+                    format!(
+                        "#{n}: {} umgesetzt und auf den Branch gepusht, das Review wartet wieder auf dich",
+                        plural(comments.len(), "Kommentar", "Kommentare")
+                    ),
+                ),
+                (_, _, true, Some(n), RunKind::Diagnose { check, .. }) => Note::new(
+                    Target::Review(n),
+                    format!("#{n}: Check „{check}“ nach dem Fix neu gestartet"),
+                ),
+                (_, _, true, Some(n), RunKind::Implement) => Note::new(
                     Target::Review(n),
                     format!(
                         "{key}: Pull Request #{n} {}erstellt",
                         if draft { "als Entwurf " } else { "" }
                     ),
                 ),
-                _ => Note::new(Target::Run(key.clone()), format!("{key}: {title}")),
+                _ => Note::new(Target::Run(key.clone()), format!("{label}: {title}")),
             });
         }
         Ok(notes)
@@ -3228,5 +3375,528 @@ mod tests {
             let json = serde_json::to_string(&a).unwrap();
             assert_eq!(serde_json::from_str::<Action>(&json).unwrap(), a);
         }
+    }
+
+    // ---------- Folgeaufträge ----------
+
+    fn run_to_end(w: &mut Workspace) {
+        for _ in 0..STEPS * 2 {
+            // Rückfragen beantwortet der Test mit dem ersten Vorschlag.
+            let asking = w
+                .runs
+                .iter()
+                .find(|r| r.is_asking())
+                .map(|r| (r.key(), r.question.as_ref().unwrap().suggestions[0].clone()));
+            if let Some((run, text)) = asking {
+                w.apply(Action::AnswerAgent { run, text }, Actor::Du, T)
+                    .unwrap();
+            }
+            if w.running_agents() == 0 {
+                break;
+            }
+            w.apply(Action::AdvanceAgents, Actor::Agent, T).unwrap();
+        }
+    }
+
+    fn address(review: u32, ids: &[&str], options: AgentOptions) -> Action {
+        Action::AddressReview {
+            review,
+            comments: ids.iter().map(|s| s.to_string()).collect(),
+            options,
+        }
+    }
+
+    #[test]
+    fn address_review_pushes_to_the_same_branch_and_resolves_the_comments() {
+        let mut w = ws();
+        let prs = w.next_pr_number();
+        let applied = ok(&mut w, address(91, &["c1", "c2"], direct()), 1);
+        assert!(
+            applied.summary.contains("2 Kommentare"),
+            "{}",
+            applied.summary
+        );
+        let run = w.run("review-91").unwrap();
+        assert!(run.is_running() && run.is_followup());
+        assert_eq!(run.branch(), "agent/BAU-138-segmented-picker");
+        assert_eq!(run.files, ["controls.rs", "components.css"]);
+        assert_eq!(w.next_pr_number(), prs, "kein neuer Pull Request");
+        // Das Ticket mit seinem Lauf „Ticket umsetzen“ bleibt unberührt.
+        assert!(w.run("BAU-138").unwrap().is_done());
+
+        run_to_end(&mut w);
+        let run = w.run("review-91").unwrap();
+        assert!(run.is_done());
+        let review = w.review(91).unwrap();
+        assert!(review.open_comments().is_empty());
+        assert!(
+            review
+                .line_comments
+                .iter()
+                .all(|c| c.resolved.as_deref() == Some("review-91"))
+        );
+        // Der Änderungsvorschlag aus c1 steht jetzt im Diff.
+        let file = review
+            .files
+            .iter()
+            .find(|f| f.name == "controls.rs")
+            .unwrap();
+        assert!(
+            file.lines
+                .iter()
+                .any(|l| l.text.contains("select_with_keys"))
+        );
+        assert!(!review.sent && review.verdict == Verdict::Comment);
+        assert_eq!(w.reviews.len(), 3);
+        // Der Eintrag zeigt den neuen Commit und steht wieder auf „Review angefragt“.
+        let item = w.item_by_key("BAU-138").unwrap();
+        assert_eq!(item.reason, crate::model::ReasonKind::ReviewRequested);
+        assert!(
+            item.agent_note
+                .as_deref()
+                .unwrap()
+                .starts_with("Neuer Commit")
+        );
+        assert!(!item.pr.as_ref().unwrap().changes_requested);
+        assert!(!item.read);
+        assert!(item.comments.last().unwrap().author.is_agent());
+        // Protokoll: Auftrag, Schritte, Ergebnis am Review.
+        let texts: Vec<&str> = w.log.iter().map(|e| e.text.as_str()).collect();
+        assert!(
+            texts
+                .iter()
+                .any(|t| t.contains("Kommentare in #91: Branch ausgecheckt"))
+        );
+        assert!(texts.last().unwrap().contains("auf den Branch gepusht"));
+    }
+
+    #[test]
+    fn address_review_takes_a_selection_and_rejects_bad_ones() {
+        let mut w = ws();
+        fails(
+            &mut w,
+            address(91, &[], direct()),
+            ActionError::Agent(AgentError::NoComments),
+        );
+        fails(
+            &mut w,
+            address(91, &["x9"], direct()),
+            ActionError::UnknownComment("x9".into()),
+        );
+        fails(
+            &mut w,
+            address(5, &["c1"], direct()),
+            ActionError::UnknownReview(5),
+        );
+        ok(&mut w, address(91, &["c2"], direct()), 1);
+        fails(
+            &mut w,
+            address(91, &["c1"], direct()),
+            ActionError::Agent(AgentError::AlreadyRunning),
+        );
+        run_to_end(&mut w);
+        // Nur c2 ist erledigt; c1 bleibt offen, und c2 lässt sich nicht noch einmal umsetzen.
+        let r = w.review(91).unwrap().clone();
+        assert_eq!(r.open_comments().len(), 1);
+        assert!(r.open_comments()[0].id == "c1");
+        fails(
+            &mut w,
+            address(91, &["c2"], direct()),
+            ActionError::Agent(AgentError::NoComments),
+        );
+        // Das Ergebnis der ersten Runde blieb, ohne dass c1 verändert wurde.
+        assert!(
+            r.files
+                .iter()
+                .all(|f| f.lines.iter().all(|l| !l.text.contains("select_with_keys")))
+        );
+    }
+
+    #[test]
+    fn address_review_waits_for_plan_approval_and_can_be_steered() {
+        let mut w = ws();
+        ok(&mut w, address(91, &["c1"], AgentOptions::default()), 2);
+        let run = w.run("review-91").unwrap();
+        assert!(run.is_awaiting());
+        assert!(
+            run.plan()
+                .unwrap()
+                .steps
+                .iter()
+                .any(|s| s.contains("kein neuer Pull Request"))
+        );
+        assert_eq!(w.waiting_agents(), 1);
+        // Nichts geschieht vor der Freigabe.
+        fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
+        assert!(w.review(91).unwrap().open_comments().len() == 2);
+        ok(
+            &mut w,
+            Action::ApprovePlan {
+                ticket: "review-91".into(),
+            },
+            1,
+        );
+        ok(
+            &mut w,
+            Action::SteerAgent {
+                run: "review-91".into(),
+                text: "Mit Tests".into(),
+            },
+            1,
+        );
+        ok(
+            &mut w,
+            Action::PauseAgent {
+                run: "review-91".into(),
+            },
+            1,
+        );
+        fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
+        ok(
+            &mut w,
+            Action::ResumeAgent {
+                run: "review-91".into(),
+            },
+            1,
+        );
+        // Rückfrage nach dem zweiten Schritt, mit Antwort geht es weiter.
+        // Der erste Takt bestätigt zusätzlich den Hinweis.
+        ok(&mut w, Action::AdvanceAgents, 2);
+        ok(&mut w, Action::AdvanceAgents, 1);
+        let step = w.apply(Action::AdvanceAgents, Actor::Agent, T).unwrap();
+        assert!(step.logged >= 1);
+        assert!(w.run("review-91").unwrap().is_asking());
+        ok(
+            &mut w,
+            Action::AnswerAgent {
+                run: "review-91".into(),
+                text: "Nein".into(),
+            },
+            1,
+        );
+        run_to_end(&mut w);
+        assert!(w.run("review-91").unwrap().is_done());
+        // Ablehnen räumt den Folgeauftrag ganz weg.
+        let mut w = ws();
+        ok(&mut w, address(91, &["c1"], AgentOptions::default()), 2);
+        ok(
+            &mut w,
+            Action::RejectPlan {
+                ticket: "review-91".into(),
+            },
+            1,
+        );
+        assert!(w.run("review-91").is_none());
+        assert_eq!(w.review(91).unwrap().open_comments().len(), 2);
+    }
+
+    #[test]
+    fn foreign_comments_stay_out_of_my_review_and_cannot_be_edited() {
+        let mut w = ws();
+        let r = w.review(91).unwrap();
+        assert_eq!(
+            r.comment_count(),
+            0,
+            "fremde Kommentare gehen nicht mit hinaus"
+        );
+        fails(
+            &mut w,
+            Action::EditLineComment {
+                review: 91,
+                comment: "c1".into(),
+                text: "Anders".into(),
+                suggestion: None,
+            },
+            ActionError::InvalidInput,
+        );
+        fails(
+            &mut w,
+            Action::DeleteLineComment {
+                review: 91,
+                comment: "c1".into(),
+            },
+            ActionError::UnknownComment("c1".into()),
+        );
+        // Eigene, umgesetzte Kommentare gehen nicht noch einmal hinaus.
+        let mut r = w.review(87).unwrap().clone();
+        let id = r
+            .add_line_comment("tokens.css", 1, "Eigener", None)
+            .unwrap();
+        assert_eq!(r.comment_count(), 1);
+        r.resolve_comments(&[id], "review-87");
+        assert_eq!(r.comment_count(), 0);
+    }
+
+    fn investigate_85(w: &mut Workspace, check: &str) {
+        ok(
+            w,
+            Action::InvestigateCheck {
+                review: 85,
+                check: check.into(),
+            },
+            1,
+        );
+    }
+
+    #[test]
+    fn a_red_check_is_diagnosed_and_nothing_changes_before_you_accept() {
+        let mut w = ws();
+        investigate_85(&mut w, "Lint");
+        let key = "check-85-lint";
+        assert!(w.run(key).unwrap().is_running());
+        let branch_before = w.review(85).unwrap().files.clone();
+        run_to_end(&mut w);
+        let run = w.run(key).unwrap();
+        assert!(run.is_diagnosed(), "wartet auf die Entscheidung");
+        let d = run.diagnosis.clone().unwrap();
+        assert_eq!(d.location().as_deref(), Some("list.rs · Zeile 62"));
+        assert!(d.patch.is_some());
+        assert_eq!(
+            w.review(85).unwrap().files,
+            branch_before,
+            "Branch unberührt"
+        );
+        assert_eq!(w.review(85).unwrap().checks, Checks::Failed);
+        assert_eq!(w.waiting_agents(), 1);
+        // Weiter geht es nicht von allein.
+        fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
+        // Aufmerksamkeit: Die Diagnose steht oben bei „hängt“.
+        let stuck = crate::team::stuck(&w);
+        let entry = stuck.iter().find(|s| s.key == "#85").unwrap();
+        assert_eq!(entry.kind, crate::team::StuckKind::DiagnosisWaiting);
+        assert_eq!(entry.diagnosis.as_deref(), Some(key));
+
+        ok(&mut w, Action::ApplyFix { run: key.into() }, 1);
+        run_to_end(&mut w);
+        assert!(w.run(key).unwrap().is_done());
+        let review = w.review(85).unwrap();
+        let list = review.files.iter().find(|f| f.name == "list.rs").unwrap();
+        assert!(list.lines.iter().all(|l| !l.text.contains("let inset")));
+        let lint = review.check_runs.iter().find(|c| c.name == "Lint").unwrap();
+        assert_eq!(lint.status, Checks::Running, "Check neu gestartet");
+        // Der Takt der Checks macht ihn grün; der Browser-Test bleibt rot.
+        while w.running_checks() > 0 {
+            w.apply(Action::AdvanceChecks, Actor::System, T).unwrap();
+        }
+        let review = w.review(85).unwrap();
+        assert_eq!(
+            review
+                .check_runs
+                .iter()
+                .find(|c| c.name == "Lint")
+                .unwrap()
+                .status,
+            Checks::Passed
+        );
+        assert_eq!(
+            review.checks,
+            Checks::Failed,
+            "Tests (Browser) ist weiter rot"
+        );
+        assert!(
+            w.item_by_key("#85")
+                .unwrap()
+                .comments
+                .last()
+                .unwrap()
+                .text
+                .contains("gepusht")
+        );
+    }
+
+    #[test]
+    fn discarding_a_diagnosis_ends_the_run_without_touching_the_branch() {
+        let mut w = ws();
+        investigate_85(&mut w, "Lint");
+        run_to_end(&mut w);
+        let before = w.review(85).unwrap().clone();
+        ok(
+            &mut w,
+            Action::DiscardFix {
+                run: "check-85-lint".into(),
+            },
+            1,
+        );
+        assert!(w.run("check-85-lint").is_none());
+        assert_eq!(*w.review(85).unwrap(), before);
+        fails(
+            &mut w,
+            Action::ApplyFix {
+                run: "check-85-lint".into(),
+            },
+            ActionError::NothingToDo,
+        );
+        // Danach lässt sich neu untersuchen.
+        investigate_85(&mut w, "Lint");
+    }
+
+    #[test]
+    fn a_flaky_check_is_only_restarted_and_turns_green() {
+        let mut w = ws();
+        investigate_85(&mut w, "Tests (Browser)");
+        let key = "check-85-tests-browser";
+        run_to_end(&mut w);
+        assert!(!w.run(key).unwrap().diagnosis.unwrap().changes_code());
+        let files = w.review(85).unwrap().files.clone();
+        ok(&mut w, Action::ApplyFix { run: key.into() }, 1);
+        run_to_end(&mut w);
+        assert_eq!(w.review(85).unwrap().files, files);
+        while w.running_checks() > 0 {
+            w.apply(Action::AdvanceChecks, Actor::System, T).unwrap();
+        }
+        let r = w.review(85).unwrap();
+        assert_eq!(
+            r.check_runs
+                .iter()
+                .find(|c| c.name == "Tests (Browser)")
+                .unwrap()
+                .status,
+            Checks::Passed
+        );
+    }
+
+    #[test]
+    fn only_a_red_check_can_be_investigated() {
+        let mut w = ws();
+        fails(
+            &mut w,
+            Action::InvestigateCheck {
+                review: 85,
+                check: "Build".into(),
+            },
+            ActionError::Agent(AgentError::CheckNotFailed),
+        );
+        fails(
+            &mut w,
+            Action::InvestigateCheck {
+                review: 85,
+                check: "Nope".into(),
+            },
+            ActionError::UnknownCheck("Nope".into()),
+        );
+        fails(
+            &mut w,
+            Action::InvestigateCheck {
+                review: 9,
+                check: "Lint".into(),
+            },
+            ActionError::UnknownReview(9),
+        );
+        investigate_85(&mut w, "Lint");
+        fails(
+            &mut w,
+            Action::InvestigateCheck {
+                review: 85,
+                check: "Lint".into(),
+            },
+            ActionError::Agent(AgentError::AlreadyRunning),
+        );
+    }
+
+    #[test]
+    fn followups_notify_when_waiting_and_when_done() {
+        use crate::notify::{NotifyReason, events};
+        let mut w = ws();
+        investigate_85(&mut w, "Lint");
+        let mut waiting = None;
+        let mut before = w.clone();
+        for _ in 0..STEPS {
+            w.apply(Action::AdvanceAgents, Actor::Agent, T).ok();
+            let e = events(&before, &w);
+            if !e.is_empty() {
+                waiting = Some(e);
+                break;
+            }
+            before = w.clone();
+        }
+        let e = waiting.unwrap();
+        assert_eq!(e.len(), 1);
+        assert_eq!(e[0].reason, NotifyReason::AgentWaiting);
+        assert!(e[0].title.contains("Check „Lint“ in #85"));
+        assert_eq!(e[0].route, "#/agent/check-85-lint");
+        ok(
+            &mut w,
+            Action::ApplyFix {
+                run: "check-85-lint".into(),
+            },
+            1,
+        );
+        let mut before = w.clone();
+        let mut done = Vec::new();
+        for _ in 0..STEPS {
+            w.apply(Action::AdvanceAgents, Actor::Agent, T).ok();
+            done.extend(events(&before, &w));
+            before = w.clone();
+        }
+        let finished: Vec<_> = done
+            .iter()
+            .filter(|e| e.reason == NotifyReason::AgentFinished)
+            .collect();
+        assert_eq!(finished.len(), 1);
+        assert_eq!(finished[0].route, "#/review/85");
+    }
+
+    #[test]
+    fn nobody_but_you_merges_after_followups_and_followups_count_for_the_team() {
+        let mut w = ws();
+        ok(&mut w, address(91, &["c1"], direct()), 1);
+        let team = crate::team::members(&w);
+        let agent = team.iter().find(|m| m.person.is_agent()).unwrap();
+        assert_eq!(
+            (agent.in_progress, agent.review),
+            (1, 0),
+            "BAU-138 zählt einmal, jetzt in Arbeit"
+        );
+        assert_eq!(agent.item_ids, ["bau138"]);
+        run_to_end(&mut w);
+        assert_eq!(
+            w.apply(
+                Action::MergePr {
+                    review: 91,
+                    method: MergeMethod::Squash
+                },
+                Actor::Agent,
+                T
+            ),
+            Err(ActionError::MergeNotAllowed(Actor::Agent))
+        );
+    }
+
+    #[test]
+    fn followup_actions_and_runs_survive_json_and_old_saves() {
+        let a = address(91, &["c1"], direct());
+        let json = serde_json::to_string(&a).unwrap();
+        assert_eq!(serde_json::from_str::<Action>(&json).unwrap(), a);
+        for a in [
+            Action::InvestigateCheck {
+                review: 85,
+                check: "Lint".into(),
+            },
+            Action::ApplyFix {
+                run: "check-85-lint".into(),
+            },
+            Action::DiscardFix {
+                run: "check-85-lint".into(),
+            },
+        ] {
+            let json = serde_json::to_string(&a).unwrap();
+            assert_eq!(serde_json::from_str::<Action>(&json).unwrap(), a);
+        }
+        // Mitten in der Diagnose speichern und laden.
+        let mut w = ws();
+        investigate_85(&mut w, "Lint");
+        run_to_end(&mut w);
+        let (back, _) = persist::restore(Some(&persist::save(&w)));
+        assert_eq!(back, w);
+        assert!(back.run("check-85-lint").unwrap().is_diagnosed());
+        // Alte Läufe ohne `kind` sind „Ticket umsetzen“.
+        let old: crate::agent::AgentRun =
+            serde_json::from_str(r#"{"ticket_key":"BAU-1","state":"Done"}"#).unwrap();
+        assert_eq!(old.kind, crate::agent::RunKind::Implement);
+        assert_eq!(old.key(), "BAU-1");
+        // Alte Kommentare ohne Autor gehören mir und sind offen.
+        let c: crate::review::LineComment =
+            serde_json::from_str(r#"{"id":"c1","file":"a","line":0,"text":"x"}"#).unwrap();
+        assert!(c.is_own() && c.is_open());
     }
 }

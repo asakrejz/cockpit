@@ -227,6 +227,13 @@ Hinweis; er bestätigt ihn beim nächsten Schritt („Hinweis erhalten: …“).
 „Fortsetzen“ geht weiter. Alles Gesagte steht im Verlauf neben der Timeline. Die Aktionen heißen
 `AnswerAgent`, `SteerAgent`, `PauseAgent` und `ResumeAgent`.
 
+**Agent: Folgeaufträge auf einem Pull Request.** Auf der Review-Seite (rechts) gibt es zwei Aufträge:
+
+- **Review-Kommentare umsetzen.** Unter „Review-Kommentare umsetzen“ stehen die offenen Zeilenkommentare (eigene und die von Reviewern, auch mit Änderungsvorschlag), standardmäßig alle ausgewählt. „Agent: n Kommentare umsetzen“ startet den Lauf `review-<Nr.>` (`RunKind::AddressReview`) mit eigenen Schritten (Kommentare lesen, Branch auschecken, Änderungen, Tests, Push). Er pusht auf **denselben Branch**, es entsteht **kein neuer Pull Request**. Plan-Freigabe, Rückfragen, Nachsteuern und Pausieren gelten wie beim Ticket-Lauf. Am Ende sind die Kommentare „Erledigt“ (mit Verweis auf den Lauf), Änderungsvorschläge stehen im Diff, der Eintrag meldet den neuen Commit und steht wieder auf „Review angefragt“. Fremde Kommentare gehen nie mit deinem Review hinaus und lassen sich nicht bearbeiten.
+- **Roten Check untersuchen.** Unter jedem roten Check mit Log: „Agent untersuchen lassen“ (Lauf `check-<Nr.>-<Check>`, `RunKind::Diagnose`). Der Agent liest das Log und legt eine **Diagnose** vor: Ursache in einem Satz, Datei und Zeile, Vorschlag als Diff. Bis du entscheidest, bleibt der Branch unberührt. „Fix übernehmen“ pusht den Vorschlag auf den Branch und startet den Check neu, „Verwerfen“ beendet den Lauf. Die Demo erkennt ungenutzte Variablen/Imports (Lint in #85, Fix: Zeile entfernen) und Zeitüberschreitungen (wacklig, nur Neustart).
+
+Die Aktionen heißen `AddressReview`, `InvestigateCheck`, `ApplyFix` und `DiscardFix`. Eine wartende Diagnose zählt als Aufmerksamkeit (Übersicht „Hängt“: „Diagnose wartet“, Sidebar „wartet“) und löst „Agent wartet“ bzw. „Agent fertig“ aus. Der Agent merged auch hier nie.
+
 Zwei Regeln sind in der Logik verankert und getestet: Ein Review wird erst gesendet, wenn über
 jeden Vorschlag entschieden ist (eigene Zeilenkommentare brauchen keine Freigabe). Der Agent legt vor dem Start einen Plan vor und tut nichts, bis du ihn freigibst (ablehnen oder mit Anmerkung neu anfordern ist möglich). Und der Agent merged nie – sein Ergebnis ist ein Pull Request,
 der auf dein Review wartet.
