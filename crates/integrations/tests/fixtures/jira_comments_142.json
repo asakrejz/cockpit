@@ -1,0 +1,19 @@
+{
+  "startAt": 0, "maxResults": 50, "total": 2,
+  "comments": [
+    {
+      "id": "1", "author": { "accountId": "acc-tobias", "displayName": "Tobias Lang" },
+      "body": { "type": "doc", "version": 1, "content": [
+        { "type": "paragraph", "content": [
+          { "type": "mention", "attrs": { "id": "acc-mira", "text": "@Mira Keller" } },
+          { "type": "text", "text": " kannst du das übernehmen?" } ] } ] },
+      "created": "2024-05-13T10:00:00.000+0200"
+    },
+    {
+      "id": "2", "author": { "accountId": "acc-mira", "displayName": "Mira Keller" },
+      "body": { "type": "doc", "version": 1, "content": [
+        { "type": "paragraph", "content": [ { "type": "text", "text": "Ja, bin dran." } ] } ] },
+      "created": "2024-05-14T09:30:00.000+0200"
+    }
+  ]
+}

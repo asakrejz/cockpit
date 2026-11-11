@@ -1,0 +1,46 @@
+{
+  "issues": [
+    {
+      "id": "10042", "key": "BAU-142",
+      "fields": {
+        "summary": "Avatar-Größe über Tokens steuern",
+        "description": {
+          "type": "doc", "version": 1,
+          "content": [
+            { "type": "paragraph", "content": [ { "type": "text", "text": "Feste Pixelwerte ersetzen." } ] },
+            { "type": "bulletList", "content": [
+              { "type": "listItem", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "Light und Dark prüfen" } ] } ] }
+            ] }
+          ]
+        },
+        "status": { "name": "In Progress", "statusCategory": { "key": "indeterminate", "name": "In Bearbeitung" } },
+        "assignee": { "accountId": "acc-mira", "displayName": "Mira Keller" },
+        "reporter": { "accountId": "acc-tobias", "displayName": "Tobias Lang" },
+        "updated": "2024-05-14T09:12:33.456+0200"
+      }
+    },
+    {
+      "id": "10050", "key": "BAU-150",
+      "fields": {
+        "summary": "Fokus-Ring prüfen",
+        "description": null,
+        "status": { "name": "In Review", "statusCategory": { "key": "indeterminate" } },
+        "assignee": { "accountId": "acc-tobias", "displayName": "Tobias Lang" },
+        "reporter": { "accountId": "acc-tobias", "displayName": "Tobias Lang" },
+        "updated": "2024-05-10T08:00:00.000+0200"
+      }
+    },
+    {
+      "id": "10051", "key": "BAU-151",
+      "fields": {
+        "summary": "Neues Ticket ohne Bearbeiter",
+        "description": null,
+        "status": { "name": "To Do", "statusCategory": { "key": "new" } },
+        "assignee": null,
+        "reporter": { "accountId": "acc-tobias", "displayName": "Tobias Lang" },
+        "updated": "2024-05-14T11:00:00.000+0200"
+      }
+    }
+  ],
+  "isLast": true
+}

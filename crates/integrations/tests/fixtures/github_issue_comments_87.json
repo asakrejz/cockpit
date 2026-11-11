@@ -1,0 +1,12 @@
+[
+  {
+    "id": 1, "user": { "login": "mkeller" },
+    "body": "Bitte noch das Dark-Theme prüfen.",
+    "created_at": "2024-05-14T09:00:00Z"
+  },
+  {
+    "id": 2, "user": { "login": "tobias-lang" },
+    "body": "Erledigt, siehe letzter Commit.",
+    "created_at": "2024-05-14T11:55:00Z"
+  }
+]

@@ -1,0 +1,18 @@
+[package]
+name = "cockpit-integrations"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+description = "Lesende Clients für GitHub und Jira Cloud und die Abbildung auf cockpit-core"
+
+# Nur nativ (Backend) – kompiliert nicht für WebAssembly.
+[dependencies]
+cockpit-core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+# rustls statt OpenSSL: keine System-Bibliothek nötig.
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
+wiremock = "0.6"

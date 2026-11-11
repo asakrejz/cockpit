@@ -1,0 +1,34 @@
+[package]
+name = "cockpit-server"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+description = "Lokales Backend des Cockpits: liefert die App aus, hält Daten und Schlüssel"
+
+# Nur nativ – kompiliert nicht für WebAssembly.
+[[bin]]
+name = "cockpit-server"
+path = "src/main.rs"
+
+[dependencies]
+cockpit-core = { workspace = true }
+cockpit-integrations = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+axum = "0.8"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
+# Statische Dateien (die gebaute Web-App)
+tower-http = { version = "0.6", features = ["fs"] }
+# SQLite, die Bibliothek wird mitgebaut (keine System-Bibliothek nötig)
+rusqlite = { version = "0.37", features = ["bundled"] }
+# Schlüsselbund des Systems
+keyring = { version = "3", default-features = false, features = ["apple-native", "windows-native", "sync-secret-service", "vendored"] }
+toml = "0.9"
+dirs = "6"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+http-body-util = "0.1"
+tempfile = "3"

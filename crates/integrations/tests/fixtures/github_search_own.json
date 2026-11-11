@@ -1,0 +1,20 @@
+{
+  "total_count": 2,
+  "incomplete_results": false,
+  "items": [
+    {
+      "number": 91,
+      "title": "Fokus-Ring wiederherstellen",
+      "state": "open",
+      "repository_url": "https://api.github.com/repos/acme/baukasten",
+      "pull_request": { "url": "https://api.github.com/repos/acme/baukasten/pulls/91" }
+    },
+    {
+      "number": 87,
+      "title": "BAU-142: Avatar-Größe über Tokens",
+      "state": "open",
+      "repository_url": "https://api.github.com/repos/acme/baukasten",
+      "pull_request": { "url": "https://api.github.com/repos/acme/baukasten/pulls/87" }
+    }
+  ]
+}

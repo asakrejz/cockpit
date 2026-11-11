@@ -17,8 +17,11 @@ jobs:
 
       - name: Format
         run: cargo fmt --all --check
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets --target wasm32-unknown-unknown -- -D warnings
+      # Die Server-Crates laufen nur nativ und kompilieren nicht für WebAssembly.
+      - name: Clippy (Wasm)
+        run: cargo clippy --workspace --exclude cockpit-server --exclude cockpit-integrations --all-targets --target wasm32-unknown-unknown -- -D warnings
+      - name: Clippy (Server, nativ)
+        run: cargo clippy -p cockpit-server -p cockpit-integrations --all-targets -- -D warnings
       - name: Tests
         run: cargo test --workspace
 
