@@ -1,5 +1,7 @@
 //! Der Workspace: alle Daten des Cockpits und die Aktionen der Oberfläche.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 use crate::action::LogEntry;
@@ -10,7 +12,12 @@ use crate::diagnosis::diagnose;
 use crate::model::*;
 use crate::notify::NotifySettings;
 use crate::review::{CHECK_STEPS, Decision, MergeBlocker, MergeMethod, Review, SendError, Verdict};
+use crate::rules::{DEMO_REPO, RepoRules};
 use crate::text::slug;
+use crate::usage::{
+    AgentLimits, Charge, KEEP_DAYS, MAX_CHARGES, StopReason, Usage, day_start, month_start,
+    next_month_start, sum_between,
+};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AgentError {
@@ -24,6 +31,8 @@ pub enum AgentError {
     NoComments,
     /// Untersuchen lässt sich nur ein roter Check.
     CheckNotFailed,
+    /// So viele Läufe arbeiten schon, wie die Grenze erlaubt (die Zahl).
+    ParallelLimit(u32),
 }
 
 /// Kurze Kennung für einen Commit der Demo: stabil, aber nicht echt.
@@ -60,6 +69,16 @@ pub struct StatusChange {
     pub to: TicketStatus,
 }
 
+/// Warum ein angehaltener Lauf sich nicht fortsetzen lässt.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ResumeError {
+    /// Der Lauf ist nicht angehalten.
+    NotStopped,
+    ParallelLimit(u32),
+    /// Auch mit der Erhöhung ist die Grenze noch erreicht.
+    StillReached(StopReason),
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Workspace {
     #[serde(default)]
@@ -93,6 +112,16 @@ pub struct Workspace {
     /// der Pull Request wieder bewegt.
     #[serde(default)]
     pub status_seen: Vec<(String, TicketStatus)>,
+    /// Preise und Grenzen der Agenten. Siehe [`crate::usage`].
+    #[serde(default)]
+    pub limits: AgentLimits,
+    /// Kassenbuch: was die Schritte der Agenten gekostet haben. Es bleibt, auch wenn ein Lauf
+    /// abgebrochen wird. Daraus entstehen „heute“ und „diesen Monat“.
+    #[serde(default)]
+    pub spend: Vec<Charge>,
+    /// Regeln pro Repository (Schlüssel: Name des Repos). Siehe [`crate::rules`].
+    #[serde(default)]
+    pub repo_rules: BTreeMap<String, RepoRules>,
 }
 
 impl Workspace {
@@ -235,10 +264,141 @@ impl Workspace {
         self.runs.iter().filter(|r| r.is_running()).count()
     }
 
-    /// Agenten, die auf den Nutzer warten: auf die Freigabe eines Plans, eine Antwort oder
-    /// die Entscheidung über einen Fix.
+    /// Agenten, die auf den Nutzer warten: auf die Freigabe eines Plans, eine Antwort, die
+    /// Entscheidung über einen Fix oder weil eine Grenze sie angehalten hat.
     pub fn waiting_agents(&self) -> usize {
-        self.runs.iter().filter(|r| r.is_waiting_for_you()).count()
+        self.runs
+            .iter()
+            .filter(|r| r.is_waiting_for_you() || r.is_stopped())
+            .count()
+    }
+
+    /// Agenten, die eine Grenze angehalten hat.
+    pub fn stopped_agents(&self) -> usize {
+        self.runs.iter().filter(|r| r.is_stopped()).count()
+    }
+
+    // ---------- Verbrauch und Grenzen ----------
+
+    /// Verbrauch am UTC-Tag von `now_ms`, über alle Läufe.
+    pub fn spent_today(&self, now_ms: u64) -> Usage {
+        let from = day_start(now_ms);
+        sum_between(&self.spend, from, from + 86_400_000)
+    }
+
+    /// Verbrauch im UTC-Monat von `now_ms`, über alle Läufe.
+    pub fn spent_month(&self, now_ms: u64) -> Usage {
+        sum_between(&self.spend, month_start(now_ms), next_month_start(now_ms))
+    }
+
+    /// Läufe, die gerade arbeiten oder mitten im Schritt auf eine Antwort warten.
+    pub fn consuming_agents(&self) -> usize {
+        self.runs.iter().filter(|r| r.is_consuming()).count()
+    }
+
+    /// Ist die Grenze paralleler Läufe erreicht? Dann die Zahl, sonst `None`.
+    pub fn parallel_full(&self) -> Option<u32> {
+        let max = self.limits.max_parallel;
+        (self.consuming_agents() >= max as usize).then_some(max)
+    }
+
+    /// Setzt Preise und Grenzen. `false`, wenn sie ungültig sind oder sich nichts ändert.
+    pub fn set_limits(&mut self, limits: AgentLimits) -> bool {
+        if !limits.is_valid() || limits == self.limits {
+            return false;
+        }
+        self.limits = limits;
+        true
+    }
+
+    fn charge(&mut self, at_ms: u64, ticket: &str, usage: Usage) {
+        self.spend.push(Charge {
+            at_ms,
+            ticket: ticket.to_string(),
+            usage,
+        });
+        let oldest = at_ms.saturating_sub(KEEP_DAYS * 86_400_000);
+        self.spend.retain(|c| c.at_ms >= oldest);
+        if self.spend.len() > MAX_CHARGES {
+            let excess = self.spend.len() - MAX_CHARGES;
+            self.spend.drain(..excess);
+        }
+    }
+
+    /// Setzt einen angehaltenen Lauf fort, nachdem die Grenze um `extra` erhöht wurde (Cent bei
+    /// Budgets, Minuten beim Zeitlimit). Das Monatsbudget gilt für alle Läufe und steigt in den
+    /// Einstellungen; Budget und Zeitlimit des Laufs steigen nur für diesen Lauf. Ist die Grenze
+    /// danach noch erreicht oder arbeiten schon zu viele Läufe, bleibt alles, wie es war.
+    /// Gibt zurück, welche Grenze angehoben wurde.
+    pub fn resume_stopped(
+        &mut self,
+        ticket_key: &str,
+        extra: u64,
+        now_ms: u64,
+    ) -> Result<StopReason, ResumeError> {
+        let idx = self
+            .runs
+            .iter()
+            .position(|r| r.key() == ticket_key && r.is_stopped())
+            .ok_or(ResumeError::NotStopped)?;
+        if let Some(max) = self.parallel_full() {
+            return Err(ResumeError::ParallelLimit(max));
+        }
+        let reason = self.runs[idx].stop_reason().unwrap_or(StopReason::Time);
+        let mut limits = self.limits.clone();
+        let mut run = self.runs[idx].clone();
+        if reason == StopReason::MonthBudget {
+            limits.month_budget_cents = limits.month_budget_cents.map(|b| b.saturating_add(extra));
+        }
+        run.resume_after_stop(extra);
+        if let Some(still) = limits.reached(&run, self.spent_month(now_ms).cost_cents) {
+            return Err(ResumeError::StillReached(still));
+        }
+        self.limits = limits;
+        self.runs[idx] = run;
+        self.set_agent_note(ticket_key, "Der Agent arbeitet an der Umsetzung");
+        Ok(reason)
+    }
+
+    // ---------- Regeln pro Repo ----------
+
+    /// Das Repo, in dem ein Ticket umgesetzt wird. Heute gibt es nur das Demo-Repo.
+    pub fn repo_of(&self, _ticket_key: &str) -> &'static str {
+        DEMO_REPO
+    }
+
+    /// Die Repos, für die sich Regeln festlegen lassen.
+    pub fn repos(&self) -> Vec<String> {
+        let mut repos = vec![DEMO_REPO.to_string()];
+        repos.extend(self.repo_rules.keys().filter(|k| *k != DEMO_REPO).cloned());
+        repos
+    }
+
+    /// Die Regeln eines Repos. Ohne Eintrag gibt es keine.
+    pub fn rules_for(&self, repo: &str) -> RepoRules {
+        self.repo_rules.get(repo).cloned().unwrap_or_default()
+    }
+
+    /// Legt die Regeln eines Repos fest (bereinigt). `false`, wenn das Repo unbekannt ist oder
+    /// sich nichts ändert. Wartende Pläne bekommen die neuen Regeln sofort, laufende Läufe
+    /// behalten die, mit denen sie gestartet sind.
+    pub fn set_repo_rules(&mut self, repo: &str, rules: RepoRules) -> bool {
+        if !self.repos().iter().any(|r| r == repo) {
+            return false;
+        }
+        let rules = rules.cleaned();
+        if self.rules_for(repo) == rules {
+            return false;
+        }
+        for run in self
+            .runs
+            .iter_mut()
+            .filter(|r| r.is_awaiting() && r.repo == repo)
+        {
+            run.rules = rules.clone();
+        }
+        self.repo_rules.insert(repo.to_string(), rules);
+        true
     }
 
     /// Agenten, die eine Frage gestellt haben.
@@ -832,16 +992,27 @@ impl Workspace {
     /// Der Lauf zu einem Ticket. Gibt es noch keinen, kommt ein startbereiter zurück.
     pub fn run(&self, ticket_key: &str) -> Option<AgentRun> {
         if let Some(run) = self.runs.iter().find(|r| r.key() == ticket_key) {
-            return Some(run.clone());
+            let mut run = run.clone();
+            // Ein startbereiter Lauf zeigt immer die aktuellen Regeln.
+            if run.is_idle() {
+                self.apply_rules(&mut run);
+            }
+            return Some(run);
         }
         let item = self.item_by_key(ticket_key).filter(|i| i.is_ticket())?;
         let mut run = AgentRun::new(&item.key, &item.title);
+        self.apply_rules(&mut run);
         run.comments = item.comments.len();
         run.files = demo::agent_changes(&item.key)
             .into_iter()
             .map(|f| f.name)
             .collect();
         Some(run)
+    }
+
+    fn apply_rules(&self, run: &mut AgentRun) {
+        run.repo = self.repo_of(&run.ticket_key).to_string();
+        run.rules = self.rules_for(&run.repo);
     }
 
     /// Beauftragt den Agenten mit einem Ticket.
@@ -859,6 +1030,12 @@ impl Workspace {
             return Err(AgentError::AlreadyRunning);
         }
         run.start(options, self.next_pr_number());
+        // Ein Lauf, der sofort arbeitet, braucht einen freien Platz.
+        if run.is_consuming()
+            && let Some(max) = self.parallel_full()
+        {
+            return Err(AgentError::ParallelLimit(max));
+        }
         let waiting = run.is_awaiting();
         match self.runs.iter_mut().find(|r| r.key() == ticket_key) {
             Some(slot) => *slot = run,
@@ -1001,17 +1178,49 @@ impl Workspace {
     }
 
     /// Lässt jeden laufenden Agenten einen Schritt abschließen oder eine Frage stellen.
-    /// Gibt die Schlüssel der Läufe zurück, die dabei fertig geworden sind.
+    /// Gibt die Schlüssel der Läufe zurück, die dabei fertig geworden sind. Ohne Uhr: Buchungen
+    /// tragen die Zeit 0. Wer die Zeit kennt, nimmt [`Workspace::advance_agents_at`].
     pub fn advance_agents(&mut self) -> Vec<String> {
+        self.advance_agents_at(0)
+    }
+
+    /// Wie [`Workspace::advance_agents`], mit der Zeit des Takts (Millisekunden seit 1970).
+    /// Der Verbrauch jedes Schritts kommt ins Kassenbuch; ist eine Grenze erreicht, hält der Lauf an.
+    pub fn advance_agents_at(&mut self, now_ms: u64) -> Vec<String> {
         let mut finished = Vec::new();
         let mut asking = Vec::new();
         let mut diagnosed = Vec::new();
+        let mut stopped = Vec::new();
+        let mut charges = Vec::new();
+        let limits = self.limits.clone();
+        let mut month_spent = self.spent_month(now_ms).cost_cents;
         for run in &mut self.runs {
-            match run.tick() {
+            let before = run.step_usage.len();
+            let tick = run.tick_with(&limits, month_spent);
+            // Neu gemeldeter Verbrauch gehört ins Kassenbuch.
+            if run.step_usage.len() > before
+                && let Some(usage) = run.step_usage.last().copied()
+            {
+                month_spent = month_spent.saturating_add(usage.cost_cents);
+                charges.push((run.ticket_key.clone(), usage));
+            }
+            match tick {
                 Tick::Finished => finished.push(run.clone()),
                 Tick::Asked => asking.push(run.key()),
                 Tick::Diagnosed => diagnosed.push(run.key()),
+                Tick::Stopped => stopped.push((run.key(), run.stop_reason())),
                 Tick::Stepped | Tick::Idle => {}
+            }
+        }
+        for (key, usage) in charges {
+            self.charge(now_ms, &key, usage);
+        }
+        for (key, reason) in &stopped {
+            if let Some(reason) = reason {
+                self.set_agent_note(
+                    key,
+                    &format!("Der Agent ist angehalten: {}", reason.label()),
+                );
             }
         }
         for key in &asking {

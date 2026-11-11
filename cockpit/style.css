@@ -59,3 +59,10 @@ body { margin: 0; }
 
 /* Review-Kommentare umsetzen: auswählbare Kommentare */
 .ck-pick { padding: var(--ref-space-8) var(--ref-space-12); border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-grouped-background); cursor: pointer; }
+/* Regeln pro Repo: Pfade, Tests, Anweisungen */
+.ck-rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--ref-space-12); }
+/* Verbrauch und Grenzen am Agent-Lauf */
+.ck-usage { display: flex; flex-direction: column; gap: var(--ref-space-4); }
+.ck-usage__bar { display: flex; flex-wrap: wrap; gap: var(--ref-space-4) var(--ref-space-16); }
+.ck-rules-list { margin: 0; padding-inline-start: var(--ref-space-20); display: flex; flex-direction: column; gap: var(--ref-space-4); }
+.ck-problem { color: var(--sys-color-red); }

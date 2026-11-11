@@ -9,6 +9,8 @@
 //! * [`link`]: Ticket und Pull Request über den Ticket-Schlüssel verknüpfen
 //! * [`search`]: Suche und Filter der Inbox
 //! * [`notify`]: Ereignisse für Benachrichtigungen, Kanäle und Ruhezeiten
+//! * [`usage`]: Verbrauch, Kosten, Grenzen und das Kassenbuch der Agenten
+//! * [`rules`]: Regeln pro Repository (Pfade, Pflicht-Tests, Anweisungen)
 //! * [`team`]: Auslastung pro Person und was gerade hängt
 //! * [`workspace`]: alles zusammen, mit den Aktionen der Oberfläche
 //! * [`action`]: [`Action`], `Workspace::apply` und das Protokoll
@@ -32,9 +34,11 @@ pub mod model;
 pub mod notify;
 pub mod persist;
 pub mod review;
+pub mod rules;
 pub mod search;
 pub mod team;
 pub mod text;
+pub mod usage;
 pub mod workspace;
 
 pub use action::{Action, ActionError, Actor, Applied, LogEntry, MAX_LOG, Target};
@@ -54,5 +58,7 @@ pub use review::{
     MergeBlocker, MergeMethod, Review, SendError, Suggestion, SuggestionDiff, Verdict,
     merge_blockers,
 };
+pub use rules::{DEMO_REPO, PathViolation, RepoRules, ViolationKind, glob_match};
 pub use team::{CAPACITY, LoadLevel, Member, Stuck, StuckKind, state_label};
-pub use workspace::{AgentError, LinkError, StatusChange, Workspace};
+pub use usage::{AgentLimits, Charge, Pricing, StopReason, Usage};
+pub use workspace::{AgentError, LinkError, ResumeError, StatusChange, Workspace};

@@ -21,8 +21,8 @@ use cockpit_core::{Action, Actor};
 use feature_ui::{Root, Theme};
 use leptos::prelude::*;
 use pages::{
-    agent::AgentPage, inbox::InboxPage, log::LogPage, notifications::NotificationsPage,
-    overview::OverviewPage, review::ReviewPage, setup::SetupPage,
+    agent::AgentPage, inbox::InboxPage, limits::LimitsPage, log::LogPage,
+    notifications::NotificationsPage, overview::OverviewPage, review::ReviewPage, setup::SetupPage,
 };
 use route::Route;
 use store::{Mode, Store, current_hash, navigate, now_ms};
@@ -119,6 +119,7 @@ fn App() -> impl IntoView {
                 Route::Overview => view! { <OverviewPage /> }.into_any(),
                 Route::Log => view! { <LogPage /> }.into_any(),
                 Route::Notifications => view! { <NotificationsPage /> }.into_any(),
+                Route::Limits => view! { <LimitsPage /> }.into_any(),
                 Route::Review(number) => view! { <ReviewPage number=number /> }.into_any(),
                 Route::Agent(ticket) => view! { <AgentPage ticket=ticket /> }.into_any(),
             }}

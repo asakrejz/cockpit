@@ -14,11 +14,18 @@
 //! umsetzen (neuer Commit auf demselben Branch, kein neuer Pull Request) und einen roten Check
 //! untersuchen. Die Untersuchung hält nach der [`Diagnosis`] an ([`RunState::AwaitingFix`]) und
 //! tut nichts, bevor du den Fix übernimmst.
+//!
+//! Jeder Schritt hat einen Verbrauch ([`AgentRun::step_usage`]). Erreicht ein Lauf eine Grenze
+//! ([`AgentLimits`]), hält er an ([`RunState::Stopped`]) und wartet darauf, dass du das Limit
+//! erhöhst und ihn fortsetzt – oder abbrichst. Die Regeln des Repos ([`RepoRules`]) gelten ab dem
+//! Start: Sie stehen im Plan, und ein Plan, der verbotene Pfade berührt, lässt sich nicht freigeben.
 
 use serde::{Deserialize, Serialize};
 
 use crate::diagnosis::Diagnosis;
+use crate::rules::{PathViolation, RepoRules};
 use crate::text::slug;
+use crate::usage::{AgentLimits, StopReason, Usage};
 
 /// Anzahl der Schritte eines Laufs.
 pub const STEPS: usize = 5;
@@ -61,6 +68,8 @@ pub enum RunState {
     Paused,
     /// Die Diagnose eines roten Checks liegt vor; der Agent wartet, ob er den Fix übernehmen soll.
     AwaitingFix,
+    /// Eine Grenze (Budget, Zeitlimit) ist erreicht: Der Lauf wartet auf dich.
+    Stopped(StopReason),
     Done,
 }
 
@@ -153,6 +162,8 @@ pub enum Tick {
     Stepped,
     /// Der letzte Schritt wurde abgeschlossen.
     Finished,
+    /// Eine Grenze ist erreicht: Der Lauf hat angehalten, ohne einen Schritt zu machen.
+    Stopped,
 }
 
 /// Was der Agent vorhat. Wird aus Ticket, Hinweisen und Dateien abgeleitet.
@@ -161,6 +172,11 @@ pub struct Plan {
     pub summary: String,
     pub files: Vec<String>,
     pub steps: Vec<String>,
+    /// Die Regeln des Repos, die für diesen Lauf gelten (eine Zeile je Regel).
+    pub rules: Vec<String>,
+    /// Dateien des Plans, die gegen die Pfad-Regeln verstoßen. Solange es welche gibt, ist der
+    /// Plan nicht freigebbar.
+    pub violations: Vec<PathViolation>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -175,6 +191,8 @@ pub struct Step {
     pub title: String,
     pub text: String,
     pub state: StepState,
+    /// Verbrauch des Schritts, sobald er abgeschlossen ist.
+    pub usage: Option<Usage>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -226,6 +244,21 @@ pub struct AgentRun {
     /// Die Diagnose einer Untersuchung, sobald sie vorliegt.
     #[serde(default)]
     pub diagnosis: Option<Diagnosis>,
+    /// Das Repo, in dem der Lauf arbeitet (Schlüssel der Regeln).
+    #[serde(default)]
+    pub repo: String,
+    /// Die Regeln des Repos, wie sie beim Start (bzw. beim Planen) galten.
+    #[serde(default)]
+    pub rules: RepoRules,
+    /// Verbrauch je abgeschlossenem Schritt (Index = Schritt).
+    #[serde(default)]
+    pub step_usage: Vec<Usage>,
+    /// Beim Fortsetzen zusätzlich erlaubtes Budget dieses Laufs, in Cent.
+    #[serde(default)]
+    pub extra_budget_cents: u64,
+    /// Beim Fortsetzen zusätzlich erlaubte Minuten dieses Laufs.
+    #[serde(default)]
+    pub extra_minutes: u64,
 }
 
 impl AgentRun {
@@ -248,6 +281,11 @@ impl AgentRun {
             kind: RunKind::Implement,
             target_branch: String::new(),
             diagnosis: None,
+            repo: String::new(),
+            rules: RepoRules::default(),
+            step_usage: Vec::new(),
+            extra_budget_cents: 0,
+            extra_minutes: 0,
         }
     }
 
@@ -303,19 +341,37 @@ impl AgentRun {
         self.state == RunState::Paused
     }
 
-    /// Wartet, fragt, pausiert oder läuft – der Lauf belegt das Ticket.
+    /// Eine Grenze hat den Lauf angehalten.
+    pub fn is_stopped(&self) -> bool {
+        matches!(self.state, RunState::Stopped(_))
+    }
+
+    /// Welche Grenze den Lauf angehalten hat.
+    pub fn stop_reason(&self) -> Option<StopReason> {
+        match self.state {
+            RunState::Stopped(reason) => Some(reason),
+            _ => None,
+        }
+    }
+
+    /// Wartet, fragt, pausiert, ist angehalten oder läuft – der Lauf belegt das Ticket.
     pub fn is_active(&self) -> bool {
         self.is_awaiting()
             || self.is_running()
             || self.is_asking()
             || self.is_paused()
             || self.is_diagnosed()
+            || self.is_stopped()
     }
 
-    /// Der Agent arbeitet an den Schritten (läuft, fragt, ist pausiert oder wartet auf die
-    /// Entscheidung über seinen Fix).
+    /// Der Agent arbeitet an den Schritten (läuft, fragt, ist pausiert, angehalten oder wartet
+    /// auf die Entscheidung über seinen Fix).
     fn is_working(&self) -> bool {
-        self.is_running() || self.is_asking() || self.is_paused() || self.is_diagnosed()
+        self.is_running()
+            || self.is_asking()
+            || self.is_paused()
+            || self.is_diagnosed()
+            || self.is_stopped()
     }
 
     /// Die Diagnose liegt vor; der Agent wartet auf „Fix übernehmen“ oder „Verwerfen“.
@@ -326,6 +382,36 @@ impl AgentRun {
     /// Wartet der Lauf auf eine Entscheidung von dir (Plan, Antwort oder Fix)?
     pub fn is_waiting_for_you(&self) -> bool {
         self.is_awaiting() || self.is_asking() || self.is_diagnosed()
+    }
+
+    /// Der Lauf verbraucht gerade Ressourcen: Er arbeitet oder wartet mitten im Schritt auf eine
+    /// Antwort. Nur diese Läufe zählen für die Grenze paralleler Läufe.
+    pub fn is_consuming(&self) -> bool {
+        self.is_running() || self.is_asking()
+    }
+
+    /// Verbrauch des ganzen Laufs (Summe der Schritte).
+    pub fn usage(&self) -> Usage {
+        let mut sum = Usage::default();
+        for u in &self.step_usage {
+            sum.add(u);
+        }
+        sum
+    }
+
+    /// Trägt den Verbrauch des Schritts ein, an dem der Agent gerade arbeitet. In der Demo macht
+    /// das der Takt; der echte Agent meldet hier die Werte aus dem Lauf. Mehrere Meldungen für
+    /// denselben Schritt addieren sich.
+    pub fn record_usage(&mut self, usage: Usage) {
+        while self.step_usage.len() <= self.completed {
+            self.step_usage.push(Usage::default());
+        }
+        self.step_usage[self.completed].add(&usage);
+    }
+
+    /// Dateien des Laufs, die gegen die Pfad-Regeln verstoßen.
+    pub fn violations(&self) -> Vec<PathViolation> {
+        self.rules.violations(&self.files)
     }
 
     pub fn is_running(&self) -> bool {
@@ -344,7 +430,15 @@ impl AgentRun {
         format!("agent/{}-{}", self.ticket_key, slug(&self.ticket_title, 24))
     }
 
-    pub fn start(&mut self, options: AgentOptions, pr_number: u32) {
+    pub fn start(&mut self, mut options: AgentOptions, pr_number: u32) {
+        // Die Regeln des Repos gehen vor: Pflicht-Tests lassen sich nicht abschalten, und wer
+        // gegen die Pfad-Regeln verstößt oder dessen Repo es verlangt, legt immer einen Plan vor.
+        if !self.rules.required_tests.is_empty() {
+            options.run_tests = true;
+        }
+        if self.rules.plan_required || !self.violations().is_empty() {
+            options.plan_first = true;
+        }
         // Eine Untersuchung ändert erst nach deiner Freigabe des Fixes etwas, ein Plan wäre
         // doppelt. Folgeaufträge legen keinen neuen Pull Request an.
         let investigate = matches!(self.kind, RunKind::Diagnose { .. });
@@ -359,6 +453,7 @@ impl AgentRun {
         self.pr_number = Some(self.kind.review().unwrap_or(pr_number));
         self.plan_notes.clear();
         self.diagnosis = None;
+        self.clear_usage();
         self.clear_conversation();
         self.say(
             Speaker::Agent,
@@ -376,6 +471,12 @@ impl AgentRun {
                 "Ich habe einen Plan vorgelegt und warte auf deine Freigabe.".into(),
             );
         }
+    }
+
+    fn clear_usage(&mut self) {
+        self.step_usage.clear();
+        self.extra_budget_cents = 0;
+        self.extra_minutes = 0;
     }
 
     fn clear_conversation(&mut self) {
@@ -403,6 +504,7 @@ impl AgentRun {
         self.plan_notes.clear();
         self.planned = false;
         self.diagnosis = None;
+        self.clear_usage();
         self.clear_conversation();
     }
 
@@ -419,7 +521,8 @@ impl AgentRun {
 
     /// Gibt den Plan frei: Ab jetzt arbeitet der Agent. `false`, wenn es nichts freizugeben gibt.
     pub fn approve(&mut self) -> bool {
-        if !self.is_awaiting() {
+        // Ein Plan, der verbotene Pfade berührt, lässt sich nicht freigeben.
+        if !self.is_awaiting() || !self.violations().is_empty() {
             return false;
         }
         self.state = RunState::Running;
@@ -496,6 +599,34 @@ impl AgentRun {
         true
     }
 
+    /// Setzt einen angehaltenen Lauf fort. `extra` erhöht, was ihn angehalten hat: Cent beim
+    /// Budget des Laufs, Minuten beim Zeitlimit. Das Monatsbudget erhöht der Workspace selbst;
+    /// hier ist es nur die Meldung. `false`, wenn der Lauf nicht angehalten ist.
+    pub fn resume_after_stop(&mut self, extra: u64) -> bool {
+        let Some(reason) = self.stop_reason() else {
+            return false;
+        };
+        match reason {
+            StopReason::RunBudget => {
+                self.extra_budget_cents = self.extra_budget_cents.saturating_add(extra)
+            }
+            StopReason::Time => self.extra_minutes = self.extra_minutes.saturating_add(extra),
+            StopReason::MonthBudget => {}
+        }
+        self.state = RunState::Running;
+        let text = if extra == 0 {
+            "Lauf fortgesetzt.".to_string()
+        } else {
+            format!(
+                "Lauf fortgesetzt – {} um {} erhöht.",
+                reason.raises(),
+                reason.raise_label(extra)
+            )
+        };
+        self.say(Speaker::Du, MessageKind::Info, text);
+        true
+    }
+
     /// Der aktuelle Plan. Vor dem Start gibt es keinen.
     pub fn plan(&self) -> Option<Plan> {
         if !self.planned {
@@ -533,7 +664,12 @@ impl AgentRun {
         for note in &self.plan_notes {
             steps.push(format!("Berücksichtigen: {note}"));
         }
-        steps.push(if o.run_tests {
+        steps.push(if !self.rules.required_tests.is_empty() {
+            format!(
+                "Pflicht-Tests ausführen: {}",
+                self.rules.required_tests.join(", ")
+            )
+        } else if o.run_tests {
             "Lint und Tests ausführen".into()
         } else {
             "Tests überspringen".into()
@@ -549,6 +685,8 @@ impl AgentRun {
             summary,
             files: self.files.clone(),
             steps,
+            rules: self.rules.lines(),
+            violations: self.violations(),
         })
     }
 
@@ -578,7 +716,12 @@ impl AgentRun {
         for note in &self.plan_notes {
             steps.push(format!("Berücksichtigen: {note}"));
         }
-        steps.push(if o.run_tests {
+        steps.push(if !self.rules.required_tests.is_empty() {
+            format!(
+                "Pflicht-Tests ausführen: {}",
+                self.rules.required_tests.join(", ")
+            )
+        } else if o.run_tests {
             "Lint und Tests ausführen".into()
         } else {
             "Tests überspringen".into()
@@ -593,6 +736,8 @@ impl AgentRun {
             summary,
             files: self.files.clone(),
             steps,
+            rules: self.rules.lines(),
+            violations: self.violations(),
         }
     }
 
@@ -605,8 +750,29 @@ impl AgentRun {
     /// Ein Takt: Der Agent berücksichtigt wartende Hinweise, stellt vielleicht eine
     /// Frage und schließt sonst den aktuellen Schritt ab.
     pub fn tick(&mut self) -> Tick {
+        self.tick_with(&AgentLimits::unlimited(), 0)
+    }
+
+    /// Wie [`AgentRun::tick`], mit Grenzen. Ist vor dem Schritt eine Grenze erreicht, hält der Lauf
+    /// an (`Stopped`) und tut nichts. `month_spent_cents` ist, was im Monat über alle Läufe
+    /// ausgegeben wurde. Den Verbrauch des Schritts rechnet der Takt nach den Preisen der Grenzen aus.
+    pub fn tick_with(&mut self, limits: &AgentLimits, month_spent_cents: u64) -> Tick {
         if !self.is_running() {
             return Tick::Idle;
+        }
+        if let Some(reason) = limits.reached(self, month_spent_cents) {
+            self.state = RunState::Stopped(reason);
+            let detail = limits.describe(reason, self, month_spent_cents);
+            self.say(
+                Speaker::Agent,
+                MessageKind::Info,
+                format!(
+                    "Angehalten: {}. {detail} Erhöhe {} und setze den Lauf fort – oder brich ihn ab.",
+                    reason.label(),
+                    reason.raises()
+                ),
+            );
+            return Tick::Stopped;
         }
         for hint in std::mem::take(&mut self.pending_hints) {
             self.say(
@@ -633,6 +799,9 @@ impl AgentRun {
             MessageKind::Info,
             format!("{}: {}", done.title, done.text),
         );
+        // Verbrauch des Schritts: in der Demo erfundene, aber feste Werte.
+        let (input, output, millis) = crate::demo::step_tokens(&self.ticket_key, self.completed);
+        self.record_usage(Usage::priced(input, output, millis, &limits.pricing));
         self.completed += 1;
         if self.completed == STEPS {
             self.state = RunState::Done;
@@ -743,10 +912,13 @@ impl AgentRun {
 
     fn implement_texts(&self) -> [(&'static str, String); STEPS] {
         let o = &self.options;
-        let files = match self.files.len() {
+        let mut files = match self.files.len() {
             1 => "1 Datei angepasst".to_string(),
             n => format!("{n} Dateien angepasst"),
         };
+        if self.rules.has_path_rules() && self.violations().is_empty() {
+            files.push_str(" · Pfad-Regeln eingehalten");
+        }
         [
             (
                 "Ticket gelesen",
@@ -760,7 +932,15 @@ impl AgentRun {
                 format!("{} von {}", self.branch(), o.base_branch),
             ),
             ("Änderungen umgesetzt", files),
-            if o.run_tests {
+            if !self.rules.required_tests.is_empty() {
+                (
+                    "Pflicht-Tests ausgeführt",
+                    format!(
+                        "{} im Branch bestanden",
+                        self.rules.required_tests.join(", ")
+                    ),
+                )
+            } else if o.run_tests {
                 (
                     "Tests ausgeführt",
                     "Lint und Tests laufen im Branch".to_string(),
@@ -790,9 +970,14 @@ impl AgentRun {
                 if i == 0 && self.is_awaiting() {
                     return Step {
                         title: "Plan liegt vor".to_string(),
-                        text: "Wartet auf deine Freigabe – bis dahin ändert der Agent nichts"
-                            .to_string(),
+                        text: if self.violations().is_empty() {
+                            "Wartet auf deine Freigabe – bis dahin ändert der Agent nichts"
+                        } else {
+                            "Der Plan verstößt gegen die Regeln des Repos – er lässt sich nicht freigeben"
+                        }
+                        .to_string(),
                         state: StepState::Active,
+                        usage: None,
                     };
                 }
                 if i == self.completed && self.is_diagnosed() {
@@ -801,6 +986,7 @@ impl AgentRun {
                         text: "Wartet auf deine Entscheidung – bis dahin bleibt der Branch unverändert"
                             .to_string(),
                         state: StepState::Active,
+                        usage: None,
                     };
                 }
                 if i == self.completed && self.is_asking() {
@@ -808,6 +994,7 @@ impl AgentRun {
                         title: "Frage an dich".to_string(),
                         text: "Wartet auf deine Antwort".to_string(),
                         state: StepState::Active,
+                        usage: None,
                     };
                 }
                 if i == self.completed && self.is_paused() {
@@ -815,6 +1002,17 @@ impl AgentRun {
                         title: title.to_string(),
                         text: "Pausiert – setze den Lauf fort, damit es weitergeht".to_string(),
                         state: StepState::Active,
+                        usage: None,
+                    };
+                }
+                if i == self.completed
+                    && let Some(reason) = self.stop_reason()
+                {
+                    return Step {
+                        title: title.to_string(),
+                        text: format!("Angehalten: {} – erhöhe das Limit oder brich ab", reason.label()),
+                        state: StepState::Active,
+                        usage: None,
                     };
                 }
                 // Hat der Nutzer an diesem Schritt eine Frage beantwortet, steht es dabei.
@@ -829,6 +1027,11 @@ impl AgentRun {
                 Step {
                     title: title.to_string(),
                     text,
+                    usage: if i < self.completed {
+                        self.step_usage.get(i).copied()
+                    } else {
+                        None
+                    },
                     state: if i < self.completed {
                         StepState::Done
                     } else if i == self.completed && self.is_working() {
@@ -936,12 +1139,18 @@ impl AgentRun {
                     if !hint.is_empty() {
                         lines.push(format!("› Hinweis: {hint}"));
                     }
+                    for rule in self.rules.lines() {
+                        lines.push(format!("› Regel: {rule}"));
+                    }
                     if let Some(plan) = self.plan() {
                         lines.push(format!(
                             "› Plan erstellt: {} Schritte, {} Dateien",
                             plan.steps.len(),
                             plan.files.len()
                         ));
+                        for v in &plan.violations {
+                            lines.push(format!("› Regelverstoß: {}", v.reason()));
+                        }
                         for note in &self.plan_notes {
                             lines.push(format!("› Neuer Plan angefordert: {note}"));
                         }
@@ -955,6 +1164,11 @@ impl AgentRun {
                 (RunKind::Implement, 1) => lines.push(format!("› git switch -c {}", self.branch())),
                 (RunKind::Implement, 2) => {
                     lines.push(format!("› Bearbeite {}", self.files.join(", ")))
+                }
+                (RunKind::Implement, 3) if !self.rules.required_tests.is_empty() => {
+                    for cmd in &self.rules.required_tests {
+                        lines.push(format!("› $ {cmd} … bestanden"));
+                    }
                 }
                 (RunKind::Implement, 3) if o.run_tests => {
                     lines.push("› Starte Lint und Tests … bestanden".into())
@@ -982,6 +1196,8 @@ impl AgentRun {
             lines.push("› Warte auf deine Antwort".into());
         } else if self.is_paused() {
             lines.push("› Pausiert".into());
+        } else if let Some(reason) = self.stop_reason() {
+            lines.push(format!("› Angehalten: {}", reason.label()));
         }
         lines.join("\n")
     }
