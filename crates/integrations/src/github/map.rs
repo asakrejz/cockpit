@@ -6,7 +6,7 @@ use cockpit_core::{
 };
 
 use super::Relation;
-use super::dto::{CheckRun, IssueComment, Pull, PullFile, ReviewComment};
+use super::dto::{CheckRun, IssueComment, Pull, PullFile, PullReview, ReviewComment};
 use super::patch::parse_patch;
 use crate::{text, zeit};
 
@@ -119,6 +119,44 @@ pub fn comments_to_core(
     ich: &str,
     jetzt: i64,
 ) -> Vec<Comment> {
+    comments_mit_reviews(issue, review, &[], ich, jetzt)
+}
+
+/// `@login` des Nutzers → `@Du`, damit die Regeln für Erwähnungen im Cockpit greifen.
+pub fn erwaehnung_fuer(text: &str, ich: &str) -> String {
+    if ich.is_empty() {
+        return text.to_string();
+    }
+    let lower = text.to_lowercase();
+    let nadel = format!("@{}", ich.to_lowercase());
+    let mut out = String::new();
+    let mut ab = 0;
+    for (pos, _) in lower.match_indices(&nadel) {
+        let ende = pos + nadel.len();
+        let danach = lower[ende..].chars().next();
+        // Nur ganze Namen: `@octocat-bot` ist nicht `@octocat`.
+        if pos < ab || danach.is_some_and(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+            continue;
+        }
+        if !text.is_char_boundary(pos) || !text.is_char_boundary(ende) {
+            continue;
+        }
+        out.push_str(&text[ab..pos]);
+        out.push_str("@Du");
+        ab = ende;
+    }
+    out.push_str(&text[ab..]);
+    out
+}
+
+/// Wie [`comments_to_core`], dazu die Texte der Reviews (mit Urteil in der ersten Zeile).
+pub fn comments_mit_reviews(
+    issue: &[IssueComment],
+    review: &[ReviewComment],
+    reviews: &[PullReview],
+    ich: &str,
+    jetzt: i64,
+) -> Vec<Comment> {
     let mut alle: Vec<(i64, Comment)> = Vec::new();
     let mut add = |login: &str, zeit_iso: &str, body: String| {
         let eigener = login.eq_ignore_ascii_case(ich);
@@ -133,7 +171,11 @@ pub fn comments_to_core(
             Comment {
                 author,
                 time: zeit::relativ(zeit_iso, jetzt),
-                text: body,
+                text: if eigener {
+                    body
+                } else {
+                    erwaehnung_fuer(&body, ich)
+                },
                 own: eigener,
             },
         ));
@@ -156,6 +198,57 @@ pub fn comments_to_core(
             format!("{ort}\n{}", c.body.as_deref().unwrap_or_default()),
         );
     }
+    for r in reviews {
+        let text = r.body.as_deref().unwrap_or_default().trim();
+        let urteil = match r.state.as_str() {
+            "APPROVED" => "Review: genehmigt",
+            "CHANGES_REQUESTED" => "Review: Änderungen angefordert",
+            // Reine Kommentare stehen schon bei den Kommentaren; ohne Text gibt es nichts zu zeigen.
+            "COMMENTED" | "DISMISSED" if !text.is_empty() => "Review",
+            _ => continue,
+        };
+        add(&r.user.login, &r.submitted_at, format!("{urteil}\n{text}"));
+    }
     alle.sort_by_key(|(t, _)| *t);
     alle.into_iter().map(|(_, c)| c).collect()
+}
+
+/// Hat jemand anderes als ich Änderungen angefordert und nicht danach genehmigt?
+/// Maßgeblich ist je Person das letzte Urteil (Kommentare und zurückgezogene zählen nicht).
+pub fn aenderungen_angefordert(reviews: &[PullReview], ich: &str) -> bool {
+    let mut letzte: Vec<(&str, bool)> = Vec::new();
+    let mut sortiert: Vec<&PullReview> = reviews.iter().collect();
+    sortiert.sort_by_key(|r| zeit::parse_iso(&r.submitted_at).unwrap_or(0));
+    for r in sortiert {
+        if r.user.login.eq_ignore_ascii_case(ich) {
+            continue;
+        }
+        let urteil = match r.state.as_str() {
+            "CHANGES_REQUESTED" => true,
+            "APPROVED" | "DISMISSED" => false,
+            _ => continue,
+        };
+        match letzte.iter_mut().find(|(l, _)| l.eq_ignore_ascii_case(&r.user.login)) {
+            Some(e) => e.1 = urteil,
+            None => letzte.push((&r.user.login, urteil)),
+        }
+    }
+    letzte.iter().any(|(_, angefordert)| *angefordert)
+}
+
+/// Die einzelnen Check-Läufe als Checks des Reviews (mit Dauer und Ausgabe).
+pub fn check_runs_to_core(runs: &[CheckRun]) -> Vec<cockpit_core::CheckRun> {
+    runs.iter()
+        .map(|r| {
+            let status = aggregate_checks(std::slice::from_ref(r));
+            let dauer = match (
+                r.started_at.as_deref().and_then(zeit::parse_iso),
+                r.completed_at.as_deref().and_then(zeit::parse_iso),
+            ) {
+                (Some(a), Some(b)) if b >= a => (b - a) as u32,
+                _ => 0,
+            };
+            cockpit_core::CheckRun::new(&r.name, status, dauer, &r.log())
+        })
+        .collect()
 }

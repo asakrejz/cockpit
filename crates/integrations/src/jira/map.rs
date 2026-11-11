@@ -2,14 +2,18 @@
 
 use cockpit_core::{Comment, Item, Kind, Person, ReasonKind, Scope, Source, TicketStatus};
 
-use super::adf::adf_to_text;
+use super::adf::{adf_to_text, adf_to_text_fuer};
 use super::dto::{Issue, JiraComment};
 use crate::{text, zeit};
 
 /// Status aus der Statuskategorie von Jira (`new`/`indeterminate`/`done`). Ein Status, dessen
 /// Name „Review“ enthält, zählt als `Review`, da Jira dafür keine eigene Kategorie hat.
 fn status(issue: &Issue) -> TicketStatus {
-    let s = &issue.fields.status;
+    status_von(&issue.fields.status)
+}
+
+/// Wie [`status`], für einen einzelnen Jira-Status (auch das Ziel einer Transition).
+pub fn status_von(s: &super::dto::Status) -> TicketStatus {
     match s.status_category.as_ref().map(|c| c.key.as_str()) {
         Some("done") => TicketStatus::Done,
         Some("indeterminate") if s.name.to_lowercase().contains("review") => TicketStatus::Review,
@@ -54,7 +58,7 @@ pub fn issue_to_item(issue: &Issue, ich: &str, jetzt: i64) -> Item {
         agent_note: None,
         comments: Vec::new(),
         read: false,
-        due: None,
+        due: f.duedate.clone().filter(|d| !d.is_empty()),
     }
 }
 
@@ -71,7 +75,7 @@ pub fn comments_to_core(kommentare: &[JiraComment], ich: &str, jetzt: i64) -> Ve
                     text::person(&c.author.display_name)
                 },
                 time: zeit::relativ(&c.created, jetzt),
-                text: adf_to_text(&c.body),
+                text: adf_to_text_fuer(&c.body, ich),
                 own: eigener,
             }
         })

@@ -15,6 +15,34 @@ pub fn adf_to_text(wert: &Value) -> String {
     out.trim().to_string()
 }
 
+/// Wie [`adf_to_text`]; Erwähnungen von `ich` (Konto-ID) erscheinen als `@Du`, damit die
+/// Regeln für Erwähnungen im Cockpit greifen.
+pub fn adf_to_text_fuer(wert: &Value, ich: &str) -> String {
+    fn ersetze(n: &mut Value, ich: &str) {
+        if n["type"] == "mention" && n["attrs"]["id"] == ich {
+            n["attrs"]["text"] = Value::String("@Du".into());
+        }
+        if let Some(kinder) = n["content"].as_array_mut() {
+            for k in kinder {
+                ersetze(k, ich);
+            }
+        }
+    }
+    let mut kopie = wert.clone();
+    ersetze(&mut kopie, ich);
+    adf_to_text(&kopie)
+}
+
+/// Text → ADF-Dokument für einen Kommentar: ein Absatz je Zeile.
+pub fn text_to_adf(text: &str) -> Value {
+    let absaetze: Vec<Value> = text
+        .lines()
+        .filter(|z| !z.trim().is_empty())
+        .map(|z| serde_json::json!({"type": "paragraph", "content": [{"type": "text", "text": z}]}))
+        .collect();
+    serde_json::json!({"type": "doc", "version": 1, "content": absaetze})
+}
+
 fn kinder(n: &Value, out: &mut String) {
     for k in n["content"].as_array().into_iter().flatten() {
         knoten(k, out);
@@ -61,6 +89,22 @@ fn knoten(n: &Value, out: &mut String) {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn eigene_erwaehnung_wird_zu_du() {
+        let adf = json!({"type":"doc","version":1,"content":[{"type":"paragraph","content":[
+            {"type":"mention","attrs":{"id":"ich","text":"@Anna Schmidt"}},
+            {"type":"text","text":" und "},
+            {"type":"mention","attrs":{"id":"x","text":"@Mira"}}]}]});
+        assert_eq!(adf_to_text_fuer(&adf, "ich"), "@Du und @Mira");
+    }
+
+    #[test]
+    fn text_wird_zu_adf_absaetzen() {
+        let adf = text_to_adf("Eins\n\nZwei");
+        assert_eq!(adf["content"].as_array().unwrap().len(), 2);
+        assert_eq!(adf_to_text(&adf), "Eins\nZwei");
+    }
 
     #[test]
     fn absaetze_listen_und_erwaehnungen() {

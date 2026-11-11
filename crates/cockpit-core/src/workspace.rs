@@ -9,6 +9,7 @@ use crate::demo;
 use crate::model::*;
 use crate::notify::NotifySettings;
 use crate::review::{CHECK_STEPS, Decision, MergeBlocker, MergeMethod, Review, SendError, Verdict};
+use crate::sync::SyncState;
 use crate::text::slug;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -37,6 +38,9 @@ pub struct Workspace {
     /// Zurückgestellte Einträge.
     #[serde(default)]
     pub snoozed: Vec<Snooze>,
+    /// Abgleich mit Jira und GitHub: Zustand je Quelle, woher die Einträge kommen.
+    #[serde(default)]
+    pub sync: SyncState,
 }
 
 impl Workspace {
@@ -348,9 +352,14 @@ impl Workspace {
 
     // ---------- Checks ----------
 
-    /// Checks, die noch laufen (über alle Pull Requests).
+    /// Checks, die noch laufen (über alle Pull Requests). Pull Requests von GitHub zählen
+    /// nicht: Ihre Checks laufen dort, der Abgleich holt das Ergebnis.
     pub fn running_checks(&self) -> usize {
-        self.reviews.iter().map(Review::running_checks).sum()
+        self.reviews
+            .iter()
+            .filter(|r| self.sync.pr(r.number).is_none())
+            .map(Review::running_checks)
+            .sum()
     }
 
     /// Schreibt den Gesamtstand der Checks in die Einträge der Inbox.
@@ -389,7 +398,8 @@ impl Workspace {
     /// `(Pull Request, Check, Ergebnis)` für jeden zurück, der dabei fertig geworden ist.
     pub fn advance_checks(&mut self) -> Vec<(u32, String, Checks)> {
         let mut finished = Vec::new();
-        for review in &mut self.reviews {
+        let linked: Vec<u32> = self.sync.prs.iter().map(|p| p.number).collect();
+        for review in self.reviews.iter_mut().filter(|r| !linked.contains(&r.number)) {
             for name in review.advance_checks() {
                 let status = review
                     .check_runs

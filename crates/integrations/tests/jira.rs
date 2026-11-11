@@ -97,7 +97,7 @@ fn kommentare_mit_adf_und_eigenen() {
     let page: CommentPage = serde_json::from_str(fixture!("jira_comments_142.json")).unwrap();
     let c = comments_to_core(&page.comments, "acc-mira", jetzt());
     assert_eq!(c.len(), 2);
-    assert_eq!(c[0].text, "@Mira Keller kannst du das übernehmen?");
+    assert_eq!(c[0].text, "@Du kannst du das übernehmen?");
     assert_eq!(c[0].author.name, "Tobias Lang");
     assert!(!c[0].own);
     assert_eq!(c[1].text, "Ja, bin dran.");
