@@ -80,14 +80,9 @@ Aufgaben parallel; sie sind so geschnitten, dass je Bereich nur eine Aufgabe lä
 
 Aufmerksamkeits-Regeln und Zurückstellen, Review (Änderungsvorschläge, Mergen nur durch dich, Checks mit Log), Agent-Rückfragen und Nachsteuern, Benachrichtigungen, Server-Modus.
 
-### Welle 3 – läuft
+### Welle 3 – erledigt (#20–#23)
 
-| Bereich | Aufgabe | Branch |
-|---------|---------|--------|
-| Inbox | Tickets bearbeiten (Titel, Beschreibung, Zuweisung, Priorität); Ticket und PR automatisch verknüpfen, Status folgt dem PR | `claude/cockpit-ticket-edit-link` |
-| Review / Agent | Folgeauftrag „Review-Kommentare umsetzen“; Agent untersucht rote Checks und schlägt einen Fix vor | `claude/cockpit-agent-followups` |
-| Agent | Kosten und Grenzen (Verbrauch, Budget, Zeitlimit, parallele Läufe); Regeln pro Repo (Pfade, Pflicht-Tests, Anweisungen) | `claude/cockpit-agent-limits-rules` |
-| Backend | GitHub und Jira lesen und schreiben über die Aktionen; Abgleich per regelmäßiger Abfrage | `claude/cockpit-sync-github-jira` |
+Tickets bearbeiten und mit PRs verknüpfen (Status folgt dem PR), Agent-Folgeaufträge (Review-Kommentare umsetzen, rote Checks untersuchen), Kosten, Grenzen und Regeln pro Repo, GitHub und Jira lesen und schreiben im Server-Modus. Gegen echte Dienste ist noch nichts geprüft – das braucht deine Tokens.
 
 ### Welle 4 – Anbindung vollenden
 
