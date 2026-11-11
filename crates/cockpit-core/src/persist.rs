@@ -266,4 +266,44 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn question_and_pause_survive_and_old_runs_still_load() {
+        let mut ws = demo::workspace();
+        ws.start_agent(
+            "BAU-142",
+            AgentOptions {
+                plan_first: false,
+                ..AgentOptions::default()
+            },
+        )
+        .unwrap();
+        for _ in 0..3 {
+            ws.advance_agents();
+        }
+        let back = load(&save(&ws)).unwrap();
+        assert_eq!(back, ws);
+        let run = back.run("BAU-142").unwrap();
+        assert_eq!(run.state, RunState::AwaitingAnswer);
+        assert!(run.question.is_some() && run.asked);
+        // Nach dem Laden lässt sich antworten und pausieren.
+        let mut back = back;
+        assert!(back.answer_agent("BAU-142", "Entfernen"));
+        assert!(back.pause_agent("BAU-142"));
+        assert_eq!(
+            load(&save(&back)).unwrap().run("BAU-142").unwrap().state,
+            RunState::Paused
+        );
+
+        // Ein älterer Stand kennt Verlauf und Frage noch nicht.
+        let mut value = json(&save(&demo::workspace()));
+        let run = &mut value["workspace"]["runs"][0];
+        for field in ["messages", "question", "asked", "pending_hints"] {
+            run.as_object_mut().unwrap().remove(field);
+        }
+        let old = load(&value.to_string()).unwrap();
+        let run = &old.runs[0];
+        assert!(run.messages.is_empty() && run.question.is_none() && !run.asked);
+        assert!(run.is_done());
+    }
 }

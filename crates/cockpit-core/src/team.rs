@@ -160,6 +160,8 @@ pub fn state_label(item: &Item) -> (String, Tone) {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StuckKind {
     ChecksFailed,
+    /// Der Agent hat eine Rückfrage und wartet auf die Antwort.
+    QuestionWaiting,
     PlanWaiting,
     AgentWaiting,
     ReviewWaiting,
@@ -170,6 +172,7 @@ impl StuckKind {
     pub fn label(self) -> &'static str {
         match self {
             StuckKind::ChecksFailed => "Checks fehlgeschlagen",
+            StuckKind::QuestionWaiting => "Frage wartet",
             StuckKind::PlanWaiting => "Plan wartet",
             StuckKind::AgentWaiting => "Agent wartet",
             StuckKind::ReviewWaiting => "Review wartet",
@@ -193,6 +196,8 @@ pub struct Stuck {
     pub review: Option<u32>,
     /// Ticket, dessen Agenten-Plan auf Freigabe wartet.
     pub plan: Option<String>,
+    /// Ticket, bei dem der Agent eine Frage gestellt hat.
+    pub question: Option<String>,
 }
 
 /// Die erste Regel, die auf den Eintrag passt. Ein Eintrag hängt nur einmal.
@@ -209,6 +214,19 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
                 pr.number,
                 who_name(&item.owner)
             ),
+        ));
+    }
+
+    if let Some(question) = ws
+        .runs
+        .iter()
+        .find(|r| r.ticket_key == item.key && r.is_asking())
+        .and_then(|r| r.question.as_ref())
+    {
+        return Some((
+            StuckKind::QuestionWaiting,
+            me,
+            format!("Der Agent fragt: „{}“", question.text),
         ));
     }
 
@@ -306,6 +324,7 @@ pub fn stuck(ws: &Workspace) -> Vec<Stuck> {
                 reason,
                 review: item.pr.as_ref().map(|p| p.number),
                 plan: (kind == StuckKind::PlanWaiting).then(|| item.key.clone()),
+                question: (kind == StuckKind::QuestionWaiting).then(|| item.key.clone()),
             })
         })
         .collect();
@@ -555,5 +574,29 @@ mod tests {
         let list = stuck(&w);
         let entry = list.iter().find(|s| s.key == "#85").unwrap();
         assert!(entry.reason.contains("du kommt nicht weiter"));
+    }
+
+    #[test]
+    fn a_waiting_question_is_stuck_with_me() {
+        let mut w = demo::workspace();
+        w.start_agent("BAU-142", direct()).unwrap();
+        for _ in 0..3 {
+            w.advance_agents();
+        }
+        let s = stuck(&w);
+        let entry = s.iter().find(|s| s.key == "BAU-142").unwrap();
+        assert_eq!(entry.kind, StuckKind::QuestionWaiting);
+        assert_eq!(entry.kind.label(), "Frage wartet");
+        assert_eq!(entry.who, Person::me());
+        assert_eq!(entry.question.as_deref(), Some("BAU-142"));
+        assert!(entry.plan.is_none());
+        assert!(entry.reason.contains("deprecated"), "{}", entry.reason);
+        assert_eq!(w.waiting_agents(), 1, "zählt in der Sidebar bei Agenten");
+        // Eine Frage ist dringender als ein wartender Plan.
+        assert!(StuckKind::QuestionWaiting < StuckKind::PlanWaiting);
+        // Nach der Antwort hängt nichts mehr.
+        assert!(w.answer_agent("BAU-142", "Entfernen"));
+        assert!(stuck(&w).iter().all(|s| s.key != "BAU-142"));
+        assert_eq!(w.waiting_agents(), 0);
     }
 }
