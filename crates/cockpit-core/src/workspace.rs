@@ -127,6 +127,27 @@ impl Workspace {
             .is_some_and(|r| r.edit(suggestion, text))
     }
 
+    /// Eigener Kommentar an einer Diff-Zeile. Gibt die ID des Kommentars zurück.
+    pub fn add_line_comment(
+        &mut self,
+        number: u32,
+        file: &str,
+        line: usize,
+        text: &str,
+    ) -> Option<String> {
+        self.review_mut(number)?.add_line_comment(file, line, text)
+    }
+
+    pub fn edit_line_comment(&mut self, number: u32, comment: &str, text: &str) -> bool {
+        self.review_mut(number)
+            .is_some_and(|r| r.edit_line_comment(comment, text))
+    }
+
+    pub fn delete_line_comment(&mut self, number: u32, comment: &str) -> bool {
+        self.review_mut(number)
+            .is_some_and(|r| r.delete_line_comment(comment))
+    }
+
     pub fn set_verdict(&mut self, number: u32, verdict: Verdict) {
         if let Some(r) = self.review_mut(number) {
             r.set_verdict(verdict);
@@ -292,6 +313,7 @@ impl Workspace {
             files: demo::agent_changes(&run.ticket_key),
             agent_reviewed: false,
             suggestions: Vec::new(),
+            line_comments: Vec::new(),
             verdict: Verdict::Comment,
             sent: false,
         });
@@ -390,6 +412,28 @@ mod tests {
         assert!(comment.own && item.read);
         assert_eq!(item.agent_note, None);
         assert_eq!(w.open_reviews(), 2);
+    }
+
+    #[test]
+    fn own_line_comments_go_out_with_the_review() {
+        let mut w = ws();
+        let file = w.review(87).unwrap().files[0].name.clone();
+        assert_eq!(w.add_line_comment(1, &file, 0, "x"), None);
+        let id = w.add_line_comment(87, &file, 0, "Warum hier?").unwrap();
+        for s in ["a", "b", "c"] {
+            w.decide(87, s, Some(Decision::Declined));
+        }
+        // Eigene Kommentare allein zählen mit, auch wenn alle Vorschläge abgelehnt sind.
+        assert_eq!(w.send_review(87, ""), Ok(1));
+        assert_eq!(
+            w.item("pr87").unwrap().comments.last().unwrap().text,
+            "Review gesendet: Kommentieren · 1 Kommentar"
+        );
+        assert!(w.review(87).unwrap().sent);
+        assert!(w.edit_line_comment(87, &id, "Anders"));
+        assert!(!w.review(87).unwrap().sent);
+        assert!(w.delete_line_comment(87, &id));
+        assert!(!w.delete_line_comment(1, &id));
     }
 
     #[test]
