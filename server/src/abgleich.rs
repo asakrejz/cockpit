@@ -7,11 +7,11 @@
 
 use std::time::Duration;
 
-use cockpit_core::api::{ActionResponse, SyncResponse};
+use cockpit_core::api::{ActionResponse, JiraProject, JiraProjectsResponse, SyncResponse};
 use cockpit_core::{Action, ActionError, Actor, Source};
 use cockpit_integrations::ausgehend::plane;
 use cockpit_integrations::github::GitHubClient;
-use cockpit_integrations::jira::{JiraClient, jql_fuer};
+use cockpit_integrations::jira::{JiraClient, jql_fuer, jql_fuer_projekt};
 use cockpit_integrations::{Dienste, GitHubDienst, JiraDienst};
 
 use crate::app::{AppState, jetzt_ms};
@@ -74,13 +74,7 @@ impl AppState {
     pub(crate) fn dienste_bauen(&self) -> Dienste {
         let inner = &self.inner;
         let mut dienste = Dienste::default();
-        let token = |name: &str| match inner.secrets.get(name) {
-            Ok(t) => t.filter(|t| !t.is_empty()),
-            Err(e) => {
-                tracing::warn!("Schlüssel „{name}“ nicht lesbar: {e}");
-                None
-            }
-        };
+        let token = |name: &str| self.token(name);
         if let Some(g) = inner
             .quellen
             .github
@@ -102,13 +96,67 @@ impl AppState {
             && let Some(t) = token(secrets::JIRA)
         {
             let client = JiraClient::new(&j.site, &j.email, t);
-            let jql = jql_fuer(&j.projects, j.jql.as_deref());
+            // Ein in der App gewähltes Projekt hat Vorrang vor `projects` und `jql` der Datei.
+            let gewaehlt = inner.live.kopie().jira_project;
+            let im_projekt = gewaehlt.is_some();
+            let jql = match &gewaehlt {
+                Some(p) => jql_fuer_projekt(p),
+                None => jql_fuer(&j.projects, j.jql.as_deref()),
+            };
             match (client, jql) {
-                (Ok(client), Ok(jql)) => dienste.jira = Some(JiraDienst { client, jql }),
+                (Ok(client), Ok(jql)) => {
+                    dienste.jira = Some(JiraDienst {
+                        client,
+                        jql,
+                        im_projekt,
+                    })
+                }
                 (Err(e), _) | (_, Err(e)) => tracing::warn!("Jira: {e}"),
             }
         }
         dienste
+    }
+
+    /// Ein Schlüssel aus dem Schlüsselbund, leer zählt als fehlend. Blockierend.
+    fn token(&self, name: &str) -> Option<cockpit_integrations::Secret> {
+        match self.inner.secrets.get(name) {
+            Ok(t) => t.filter(|t| !t.is_empty()),
+            Err(e) => {
+                tracing::warn!("Schlüssel „{name}“ nicht lesbar: {e}");
+                None
+            }
+        }
+    }
+
+    /// Die Jira-Projekte, die der Schlüssel sehen darf – für die Auswahl in der Inbox.
+    /// Ohne Jira oder Schlüssel: `aktiv: false`.
+    pub async fn jira_projekte(&self) -> Result<JiraProjectsResponse, AktionFehler> {
+        let Some(j) = self.inner.quellen.jira.clone() else {
+            return Ok(JiraProjectsResponse::default());
+        };
+        let s = self.clone();
+        let token = tokio::task::spawn_blocking(move || s.token(secrets::JIRA))
+            .await
+            .map_err(|_| AktionFehler::Intern)?;
+        let Some(token) = token else {
+            return Ok(JiraProjectsResponse::default());
+        };
+        let client = JiraClient::new(&j.site, &j.email, token)
+            .map_err(|e| AktionFehler::Plan(format!("Jira: {e}")))?;
+        let projekte = client.projekte().await.map_err(|e| {
+            tracing::warn!("Jira-Projekte: {e}");
+            AktionFehler::Dienst(format!("Jira liefert keine Projekte: {e}"))
+        })?;
+        Ok(JiraProjectsResponse {
+            aktiv: true,
+            projekte: projekte
+                .into_iter()
+                .map(|p| JiraProject {
+                    key: p.key,
+                    name: p.name,
+                })
+                .collect(),
+        })
     }
 
     async fn dienste(&self) -> Dienste {
@@ -401,6 +449,107 @@ mod tests {
         )
         .await;
         s
+    }
+
+    fn jira_zustand(site: &str) -> AppState {
+        let secrets = Arc::new(MemoryStore::new());
+        secrets
+            .set(secrets::JIRA, &Secret::new("jira-geheim"))
+            .unwrap();
+        let quellen = Quellen {
+            jira: Some(JiraKonfig {
+                site: site.into(),
+                email: "ich@firma.example".into(),
+                projects: vec!["ALT".into()],
+                jql: None,
+            }),
+            ..Quellen::default()
+        };
+        AppState::mit_quellen(db::open_im_speicher().unwrap(), secrets, 8787, quellen)
+    }
+
+    #[tokio::test]
+    async fn jira_projekte_fuer_die_auswahl() {
+        // Ohne Jira: nichts zu wählen, aber kein Fehler.
+        let state = zustand(Quellen::default(), false);
+        let req = anfrage("GET", "/api/jira/projekte")
+            .body(Body::empty())
+            .unwrap();
+        let (status, body) = sende(&state, req).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            serde_json::from_str::<serde_json::Value>(&body).unwrap()["aktiv"],
+            false
+        );
+
+        let j = MockServer::start().await;
+        get(
+            &j,
+            "/rest/api/3/project/search",
+            ok(json!({"isLast": true, "values": [
+                {"key": "BAU", "name": "Baukasten"}, {"key": "WEB", "name": "Webseite"}]})),
+        )
+        .await;
+        let state = jira_zustand(&j.uri());
+        let req = anfrage("GET", "/api/jira/projekte")
+            .body(Body::empty())
+            .unwrap();
+        let (status, body) = sende(&state, req).await;
+        assert_eq!(status, StatusCode::OK);
+        let antwort: JiraProjectsResponse = serde_json::from_str(&body).unwrap();
+        assert!(antwort.aktiv);
+        assert_eq!(
+            antwort.projekte,
+            [
+                JiraProject {
+                    key: "BAU".into(),
+                    name: "Baukasten".into()
+                },
+                JiraProject {
+                    key: "WEB".into(),
+                    name: "Webseite".into()
+                },
+            ]
+        );
+        assert!(!body.contains("jira-geheim"));
+    }
+
+    #[tokio::test]
+    async fn gewaehltes_projekt_bestimmt_die_abfrage() {
+        let j = MockServer::start().await;
+        get(&j, "/rest/api/3/myself", ok(json!({"accountId": "ich"}))).await;
+        let issue = json!({"key": "WEB-7", "fields": {"summary": "Fremdes Ticket",
+            "status": {"name": "To Do", "statusCategory": {"key": "new"}},
+            "assignee": {"accountId": "lena", "displayName": "Lena Koch"},
+            "updated": "2024-05-14T10:00:00Z"}});
+        Mock::given(method("GET"))
+            .and(path("/rest/api/3/search/jql"))
+            .and(query_param(
+                "jql",
+                "project = WEB AND statusCategory != Done ORDER BY updated DESC",
+            ))
+            .respond_with(ok(json!({"issues": [issue]})))
+            .expect(1)
+            .mount(&j)
+            .await;
+        get(
+            &j,
+            "/rest/api/3/issue/WEB-7/comment",
+            ok(json!({"comments": []})),
+        )
+        .await;
+
+        let state = jira_zustand(&j.uri());
+        let (status, _) = aktion(&state, json!({"SelectJiraProject": {"project": "WEB"}})).await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, antwort) = sync(&state).await;
+        assert_eq!((status, &antwort["aktiv"]), (StatusCode::OK, &json!(true)));
+        let (ws, _) = stand(&state).await;
+        let item = ws
+            .item_by_key("WEB-7")
+            .expect("Ticket aus dem gewählten Projekt");
+        assert_eq!(item.reason_text, "Im Projekt");
+        assert_eq!(ws.jira_project.as_deref(), Some("WEB"));
     }
 
     #[tokio::test]

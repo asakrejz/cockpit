@@ -2,7 +2,7 @@
 
 use cockpit_core::{Kind, ReasonKind, Scope, Source, TicketStatus};
 use cockpit_integrations::jira::{
-    ASSIGNED_OR_WATCHED_JQL, JiraClient, comments_to_core, dto::*, issue_to_item,
+    ASSIGNED_OR_WATCHED_JQL, JiraClient, comments_to_core, dto::*, issue_to_item, jql_fuer_projekt,
 };
 use cockpit_integrations::{Fehler, Secret, zeit};
 use wiremock::matchers::{header, method, path, query_param};
@@ -168,6 +168,46 @@ async fn kommentare_und_fehler() {
         Fehler::NichtGefunden
     );
     assert_eq!(c.ich().await.unwrap_err(), Fehler::NichtAngemeldet);
+}
+
+#[tokio::test]
+async fn projekte_seitenweise() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/rest/api/3/project/search"))
+        .and(query_param("startAt", "0"))
+        .and(query_param("orderBy", "name"))
+        .respond_with(antwort(fixture!("jira_projects_1.json")))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/rest/api/3/project/search"))
+        .and(query_param("startAt", "2"))
+        .respond_with(antwort(fixture!("jira_projects_2.json")))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let c = JiraClient::new(&server.uri(), "a@b.de", Secret::new("t")).unwrap();
+    let projekte = c.projekte().await.unwrap();
+    let keys: Vec<_> = projekte.iter().map(|p| p.key.as_str()).collect();
+    assert_eq!(keys, ["BAU", "OPS", "WEB"]);
+    assert_eq!(projekte[0].name, "Baukasten");
+}
+
+#[test]
+fn abfrage_fuer_ein_projekt() {
+    assert_eq!(
+        jql_fuer_projekt("BAU").unwrap(),
+        "project = BAU AND statusCategory != Done ORDER BY updated DESC"
+    );
+    for kaputt in ["", "1AB", "A) OR (B", "BAU-1"] {
+        assert!(
+            matches!(jql_fuer_projekt(kaputt), Err(Fehler::Einstellung(_))),
+            "{kaputt}"
+        );
+    }
 }
 
 #[test]

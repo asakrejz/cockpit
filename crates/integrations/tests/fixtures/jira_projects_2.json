@@ -1,0 +1,9 @@
+{
+  "startAt": 2,
+  "maxResults": 2,
+  "total": 3,
+  "isLast": true,
+  "values": [
+    { "id": "10002", "key": "WEB", "name": "Webseite", "projectTypeKey": "software" }
+  ]
+}

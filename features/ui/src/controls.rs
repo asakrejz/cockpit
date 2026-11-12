@@ -97,6 +97,64 @@ pub fn SegmentedPicker(
     }
 }
 
+/// Auswahlliste (`Picker` mit `.menu`): ein natives `<select>`, damit Tastatur, Screenreader
+/// und Mobilgeräte sie ohne eigenes Menü bedienen.
+///
+/// `options` sind Paare aus Wert und Beschriftung und dürfen sich ändern (z. B. wenn sie
+/// vom Server kommen). Wie [`SegmentedPicker`] schreibt sie nicht selbst, sondern meldet
+/// die Auswahl über `on_change`.
+#[component]
+pub fn Select(
+    #[prop(into)] options: Signal<Vec<(String, String)>>,
+    #[prop(into)] value: Signal<String>,
+    #[prop(into)] on_change: Callback<String>,
+    /// Sichtbare Beschriftung darüber. Ohne sie braucht es `aria_label`.
+    #[prop(optional, into)]
+    label: Option<String>,
+    #[prop(optional, into)] aria_label: Option<String>,
+    /// Kleiner, für Kopfzeilen und Werkzeugleisten.
+    #[prop(optional)]
+    compact: bool,
+    #[prop(into, default = false.into())] disabled: Signal<bool>,
+) -> impl IntoView {
+    let id = format!("ui-select-{}", next_id());
+    let select = view! {
+        <select
+            id=id.clone()
+            class="ui-field__input ui-select"
+            data-size=compact.then_some("small")
+            aria-label=aria_label
+            disabled=move || disabled.get()
+            on:change=move |ev| on_change.run(event_target_value(&ev))
+        >
+            {move || {
+                let current = value.get();
+                options
+                    .get()
+                    .into_iter()
+                    .map(|(v, l)| {
+                        let selected = v == current;
+                        view! { <option value=v selected=selected>{l}</option> }
+                    })
+                    .collect_view()
+            }}
+        </select>
+    };
+    view! {
+        <span class="ui-field ui-select-field">
+            {label.map(|l| view! { <label class="ui-field__label" for=id>{l}</label> })}
+            {select}
+        </span>
+    }
+}
+
+/// Fortlaufende Nummer für eindeutige `id`s (Label ↔ Eingabe).
+fn next_id() -> usize {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    NEXT.fetch_add(1, Ordering::Relaxed)
+}
+
 /// Schieberegler (`Slider`).
 #[component]
 pub fn Slider(

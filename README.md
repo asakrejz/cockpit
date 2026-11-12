@@ -78,6 +78,7 @@ mit den Beispieldaten. Die App lädt den Stand, schickt Aktionen und hört auf �
 | `POST /api/actions` | Body `{"action": <Action>}`; wendet sie als „Du“ an. Antwort `{revision, zusammenfassung, protokolliert}`; eine abgelehnte Aktion ist `422` (unbekannte Form `400`) mit `{"fehler": "…"}` |
 | `POST /api/sync` | „Jetzt abgleichen“ mit Jira und GitHub. Antwort `{aktiv, revision, protokolliert}`; `aktiv: false`, wenn keine Quelle eingerichtet ist |
 | `GET /api/events` | Server-Sent Events: erst die aktuelle Revision, dann je Aktion ein Ereignis mit neuer Revision und den neuen Protokolleinträgen, dazu Keep-Alive |
+| `GET /api/jira/projekte` | Jira-Projekte für die Auswahl in der Inbox: `{aktiv, projekte: [{key, name}]}`; `aktiv: false` ohne Jira oder Token |
 
 Wer nicht erreichbar ist, sieht einen Hinweis mit „Erneut versuchen“ und „Zurück zu Demo“. Der Demo-Stand im
 Browser bleibt dabei unberührt.
@@ -111,6 +112,18 @@ projects = ["BAU", "WEB"]                # optional: mir zugewiesen oder beobach
 
 Ohne `projects` und `jql` holt Jira alle mir zugewiesenen oder von mir beobachteten offenen Tickets. Bei GitHub
 kommen Pull Requests der angegebenen Repos, bei denen ein Review von mir angefragt ist oder die mir gehören.
+
+**Projekt wählen.** Hat die Jira-Site mehrere Projekte (Boards), wählst du in der Inbox oben im Drop-down „Jira-Projekt“
+eines aus. Die Liste kommt von Jira (`GET /api/jira/projekte`, dahinter `GET /rest/api/3/project/search`: alle
+Projekte, die dein Token sehen darf) und enthält dazu die Projekte der Tickets, die schon da sind. Die Wahl ist
+die Aktion `SelectJiraProject` und bleibt gespeichert. Ist ein Projekt gewählt,
+
+- zeigt die Inbox nur dessen Tickets (Pull Requests bleiben sichtbar, sie gehören zu keinem Projekt),
+- holt der Abgleich **alle offenen Tickets des Projekts** (`project = KEY AND statusCategory != Done`), nicht nur
+  deine. Was weder dir zugewiesen noch von dir beobachtet ist, steht mit „Im Projekt“ unter „Team“,
+- hat sie Vorrang vor `projects` und `jql` aus `config.toml`. Mit „Alle Projekte“ gelten wieder diese.
+
+Nach einem Wechsel gleicht der Server sofort ab. Im Demo-Modus filtert das Drop-down nur die Beispieldaten.
 
 **2. Token setzen** (von der Standardeingabe in den Schlüsselbund, nie in Datei, Datenbank, Log oder Browser):
 

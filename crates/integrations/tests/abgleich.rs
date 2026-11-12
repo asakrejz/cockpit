@@ -5,7 +5,7 @@ use cockpit_core::{
     Action, Actor, Decision, Outcome, Problem, Remote, Source, Verdict, Workspace, sync,
 };
 use cockpit_integrations::github::GitHubClient;
-use cockpit_integrations::jira::{JiraClient, jql_fuer};
+use cockpit_integrations::jira::{JiraClient, jql_fuer, jql_fuer_projekt};
 use cockpit_integrations::{Dienste, GitHubDienst, JiraDienst, Secret};
 use serde_json::json;
 use wiremock::matchers::{method, path, query_param};
@@ -155,6 +155,7 @@ fn dienste(g: Option<&MockServer>, j: Option<&MockServer>) -> Dienste {
         jira: j.map(|s| JiraDienst {
             client: JiraClient::new(&s.uri(), "mira@firma.example", Secret::new("jt")).unwrap(),
             jql: jql_fuer(&[], None).unwrap(),
+            im_projekt: false,
         }),
     }
 }
@@ -457,6 +458,25 @@ async fn jira_wird_seitenweise_gelesen() {
     let (ws, _) = abgleichen(&dienste(None, Some(&s)), &Workspace::default(), JETZT_MS).await;
     let keys: Vec<&str> = ws.items.iter().map(|i| i.key.as_str()).collect();
     assert_eq!(keys.len(), 3, "{keys:?}");
+}
+
+#[tokio::test]
+async fn jira_im_projekt_modus() {
+    let j = jira_server().await;
+    let mut d = dienste(None, Some(&j));
+    if let Some(jira) = d.jira.as_mut() {
+        jira.jql = jql_fuer_projekt("BAU").unwrap();
+        jira.im_projekt = true;
+    }
+    let (ws, _) = abgleichen(&d, &Workspace::default(), JETZT_MS).await;
+    let mein = ws.item_by_key("BAU-142").unwrap();
+    assert_eq!(mein.reason_text, "Dir zugewiesen");
+    let fremd: Vec<_> = ws.items.iter().filter(|i| i.key != "BAU-142").collect();
+    assert!(!fremd.is_empty());
+    assert!(
+        fremd.iter().all(|i| i.reason_text == "Im Projekt"),
+        "{fremd:?}"
+    );
 }
 
 #[tokio::test]

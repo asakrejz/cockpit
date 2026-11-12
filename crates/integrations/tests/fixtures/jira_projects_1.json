@@ -1,0 +1,10 @@
+{
+  "startAt": 0,
+  "maxResults": 2,
+  "total": 3,
+  "isLast": false,
+  "values": [
+    { "id": "10000", "key": "BAU", "name": "Baukasten", "projectTypeKey": "software" },
+    { "id": "10001", "key": "OPS", "name": "Betrieb", "projectTypeKey": "software" }
+  ]
+}

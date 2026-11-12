@@ -126,6 +126,10 @@ pub struct Workspace {
     /// Abgleich mit Jira und GitHub: Zustand je Quelle, woher die Einträge kommen.
     #[serde(default)]
     pub sync: SyncState,
+    /// Das gewählte Jira-Projekt (Schlüssel, z. B. `BAU`). Die Inbox zeigt dann nur dessen
+    /// Tickets, und der Abgleich holt alle offenen Tickets des Projekts. `None` = alle.
+    #[serde(default)]
+    pub jira_project: Option<String>,
 }
 
 impl Workspace {
@@ -141,6 +145,40 @@ impl Workspace {
 
     fn item_mut(&mut self, id: &str) -> Option<&mut Item> {
         self.items.iter_mut().find(|i| i.id == id)
+    }
+
+    /// Die Jira-Projekte der Tickets im Workspace, sortiert und ohne Doppelte. Das gewählte
+    /// Projekt ist immer dabei, auch wenn es (noch) keine Tickets hat.
+    pub fn projects(&self) -> Vec<String> {
+        let mut out: Vec<String> = self
+            .items
+            .iter()
+            .filter_map(|i| i.project())
+            .map(str::to_string)
+            .chain(self.jira_project.clone())
+            .collect();
+        out.sort();
+        out.dedup();
+        out
+    }
+
+    /// Passt der Eintrag zum gewählten Projekt? Ohne Wahl passt alles; Pull Requests bleiben
+    /// immer sichtbar, denn sie gehören zu keinem Jira-Projekt.
+    pub fn in_project(&self, item: &Item) -> bool {
+        match (&self.jira_project, item.project()) {
+            (Some(p), Some(own)) => p == own,
+            (Some(_), None) => !item.is_ticket(),
+            (None, _) => true,
+        }
+    }
+
+    /// Wählt das Jira-Projekt. `false`, wenn sich nichts ändert.
+    pub fn set_jira_project(&mut self, project: Option<String>) -> bool {
+        if self.jira_project == project {
+            return false;
+        }
+        self.jira_project = project;
+        true
     }
 
     /// Einträge der Inbox für einen Filter, in Anzeigereihenfolge.
@@ -166,6 +204,7 @@ impl Workspace {
         self.attention(filter, now_ms)
             .into_iter()
             .filter(|i| source.matches(i.source) && crate::search::matches_query(i, query))
+            .filter(|i| self.in_project(i))
             .collect()
     }
 
