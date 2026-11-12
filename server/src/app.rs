@@ -3,7 +3,7 @@
 use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use axum::body::Bytes;
@@ -12,7 +12,7 @@ use axum::http::StatusCode;
 use axum::http::header::CONTENT_TYPE;
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{any, get, post};
+use axum::routing::{any, get, post, put};
 use axum::{Json, Router};
 use cockpit_core::api::{ActionRequest, ErrorBody, ServerEvent};
 use rusqlite::Connection;
@@ -52,6 +52,8 @@ pub struct Einstellungen {
     pub suchpfad: Option<std::ffi::OsString>,
     /// `COCKPIT_DEV_PORT`: der Port von `trunk serve`, dessen Anfragen (Host, Origin) auch gelten.
     pub dev_port: Option<u16>,
+    /// Die `config.toml`, in die der Einrichtungsassistent schreibt.
+    pub konfig_pfad: Option<PathBuf>,
 }
 
 impl Einstellungen {
@@ -63,6 +65,7 @@ impl Einstellungen {
             container_env: config.container_env.clone(),
             suchpfad: None,
             dev_port: config.dev_port,
+            konfig_pfad: config.konfig_pfad.clone(),
         }
     }
 }
@@ -84,7 +87,12 @@ pub(crate) struct Inner {
     /// Nur eine Auffrischung der OAuth-Tokens gleichzeitig (Refresh-Tokens drehen sich).
     pub(crate) auffrischen: tokio::sync::Mutex<()>,
     /// Jira und GitHub, wie konfiguriert (ob sie laufen, hängt noch vom Schlüssel ab).
-    pub(crate) quellen: Quellen,
+    /// Wird beim Speichern im Einrichtungsassistenten ausgetauscht (ohne Neustart).
+    pub(crate) quellen: RwLock<Arc<Quellen>>,
+    /// Der LiteLLM-Proxy, ebenfalls austauschbar.
+    pub(crate) litellm: RwLock<Option<LitellmKonfig>>,
+    /// Lesen, Ändern und Schreiben von `config.toml` gehen nacheinander.
+    pub(crate) konfig_sperre: Mutex<()>,
     /// Schreibzugriffe nach außen und das Übernehmen eines Abgleichs gehen nacheinander.
     pub(crate) sperre: tokio::sync::Mutex<()>,
     /// Zählt erfolgreiche Schreibzugriffe: Ein Abruf, der währenddessen begann, ist veraltet.
@@ -144,13 +152,53 @@ impl AppState {
                 port,
                 anmeldungen: crate::oauth::neue_anmeldungen(),
                 auffrischen: tokio::sync::Mutex::new(()),
-                quellen,
+                quellen: RwLock::new(Arc::new(quellen)),
+                litellm: RwLock::new(einstellungen.litellm.clone()),
+                konfig_sperre: Mutex::new(()),
                 sperre: tokio::sync::Mutex::new(()),
                 geschrieben: AtomicU64::new(0),
                 abgleich: tokio::sync::Mutex::new(()),
                 einstellungen,
                 container: Zwischenspeicher::default(),
             }),
+        }
+    }
+
+    /// Jira und GitHub, wie zuletzt konfiguriert.
+    pub(crate) fn quellen(&self) -> Arc<Quellen> {
+        match self.inner.quellen.read() {
+            Ok(q) => q.clone(),
+            Err(vergiftet) => vergiftet.into_inner().clone(),
+        }
+    }
+
+    /// Der LiteLLM-Proxy, wie zuletzt konfiguriert.
+    pub(crate) fn litellm(&self) -> Option<LitellmKonfig> {
+        match self.inner.litellm.read() {
+            Ok(l) => l.clone(),
+            Err(vergiftet) => vergiftet.into_inner().clone(),
+        }
+    }
+
+    /// Übernimmt eine neu geschriebene Konfiguration ohne Neustart: Quellen, OAuth-Apps und
+    /// LiteLLM. Port, Datenbank, Abgleich-Takt und Container-Wahl bleiben, wie sie sind.
+    pub(crate) fn konfig_anwenden(&self, c: &Config) {
+        let alt = self.quellen();
+        let neu = Quellen {
+            github: c.github.clone(),
+            jira: c.jira.clone(),
+            github_oauth: c.github_oauth.clone(),
+            atlassian: c.atlassian.clone(),
+            endpunkte: alt.endpunkte.clone(),
+            intervall: alt.intervall,
+        };
+        match self.inner.quellen.write() {
+            Ok(mut q) => *q = Arc::new(neu),
+            Err(v) => *v.into_inner() = Arc::new(neu),
+        }
+        match self.inner.litellm.write() {
+            Ok(mut l) => *l = c.litellm.clone(),
+            Err(v) => *v.into_inner() = c.litellm.clone(),
         }
     }
 
@@ -252,12 +300,13 @@ impl AppState {
                 .map_or("wartet", cockpit_core::SourceState::id)
                 .to_string()
         };
-        let q = &self.inner.quellen;
+        let q = self.quellen();
         let e = &self.inner.einstellungen;
+        let proxy = self.litellm();
         let litellm = LitellmStatus {
-            konfiguriert: e.litellm.is_some(),
-            url: e.litellm.as_ref().map(|l| l.url.clone()),
-            modell: e.litellm.as_ref().and_then(|l| l.modell.clone()),
+            konfiguriert: proxy.is_some(),
+            url: proxy.as_ref().map(|l| l.url.clone()),
+            modell: proxy.as_ref().and_then(|l| l.modell.clone()),
             key: hat_schluessel(secrets::LITELLM),
         };
         let suchpfad = e
@@ -306,7 +355,7 @@ async fn health(State(state): State<AppState>) -> Result<Json<Health>, StatusCod
 /// `GET /api/litellm/pruefen`: ruft nur `GET <url>/v1/models` mit dem Key auf und meldet, ob der
 /// Proxy erreichbar ist, den Key annimmt und das Modell anbietet. Nie der Key.
 async fn litellm_pruefen(State(state): State<AppState>) -> Response {
-    let Some(l) = state.inner.einstellungen.litellm.clone() else {
+    let Some(l) = state.litellm() else {
         return Json(cockpit_core::api::LitellmPruefung {
             hinweis: Some(
                 "Der Proxy ist nicht eingerichtet. Trage url (und modell) unter [litellm] in config.toml ein."
@@ -340,7 +389,7 @@ async fn api_unbekannt() -> (StatusCode, Json<serde_json::Value>) {
     )
 }
 
-fn fehler(status: StatusCode, meldung: impl Into<String>) -> Response {
+pub(crate) fn fehler(status: StatusCode, meldung: impl Into<String>) -> Response {
     (
         status,
         Json(ErrorBody {
@@ -459,6 +508,12 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/events", get(ereignisse))
         .route("/api/jira/projekte", get(jira_projekte))
         .route("/api/litellm/pruefen", get(litellm_pruefen))
+        .route("/api/einrichtung", get(crate::einrichtung::lesen))
+        .route("/api/konfiguration", put(crate::einrichtung::konfiguration))
+        .route(
+            "/api/schluessel/{name}",
+            put(crate::einrichtung::schluessel),
+        )
         .route("/api/oauth/{dienst}/start", get(crate::oauth::start))
         .route("/api/oauth/{dienst}/callback", get(crate::oauth::callback))
         .route(

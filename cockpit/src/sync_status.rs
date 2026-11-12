@@ -48,7 +48,7 @@ pub fn SyncStatus() -> impl IntoView {
             busy.set(false);
             match result {
                 Ok(r) if !r.aktiv => store.notify(
-                    "Keine Quelle verbunden – in config.toml einrichten und den Token setzen",
+                    "Keine Quelle verbunden – richte Jira oder GitHub unter „Einrichten“ ein",
                 ),
                 Ok(_) => {} // Der Stand kommt über den Ereignisstrom.
                 Err(CallError::Unreachable) => store.notify("Der Server ist nicht erreichbar"),
@@ -64,7 +64,7 @@ pub fn SyncStatus() -> impl IntoView {
             return view! {
                 <ListRow
                     title="Keine Quelle abgeglichen"
-                    subtitle="Jira und GitHub richtest du in config.toml ein, die Token legst du mit „cockpit-server token setzen“ ab. Bis dahin bleibt der Workspace leer."
+                    subtitle="Jira und GitHub richtest du unter „Einrichten“ ein. Bis dahin bleibt der Workspace leer."
                     wrap=true
                 />
             }

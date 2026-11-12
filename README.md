@@ -18,12 +18,14 @@ Technik:
 
 ## Schnellstart
 
+Wer ohne Programmierkenntnisse einsteigt, liest zuerst „Schnellstart für Einsteiger“ unten.
+
 ```bash
 # einmalig
 rustup target add wasm32-unknown-unknown   # passiert dank rust-toolchain.toml auch automatisch
 cargo install trunk --locked                # oder: brew install trunk
 
-scripts/start.sh --open             # Cockpit: App bauen (falls nötig), Server starten, Browser öffnen
+scripts/start.sh --open             # Cockpit (oder Doppelklick auf „Cockpit starten.command“): App bauen (falls nötig), Server starten, Browser öffnen
 trunk serve --open                  # Playground auf http://localhost:8080
 cargo test                          # Tests laufen nativ, ohne Browser
 trunk build --release               # fertige Playground-Seite nach ./dist
@@ -31,6 +33,60 @@ trunk build --release               # fertige Playground-Seite nach ./dist
 
 Beim Lernen hilft: `trunk serve` laufen lassen, eine Datei ändern, Speichern – der Browser
 lädt neu, und der Compiler sagt dir sofort, was nicht passt.
+
+## Schnellstart für Einsteiger
+
+Für alle, die noch nie ein Terminal benutzt haben. Du brauchst etwa **eine Stunde**, davon das meiste Warten auf
+Downloads. Gebraucht werden ein Mac (Apple Silicon oder Intel) und eine Internetverbindung. Vorgebaute Archive gibt es
+unter „Releases“ im Repo (siehe „Fertiges Archiv statt selbst bauen“ weiter unten); diese Anleitung baut selbst.
+
+**1. Programme installieren** (einmalig; jeweils den Anweisungen auf der Seite folgen):
+
+| Was | Wofür | Wo | Dauer |
+|-----|-------|----|-------|
+| **Rust** (über „rustup“) | übersetzt Cockpit | [rustup.rs](https://rustup.rs) – dort steht ein Befehl, den du ins Terminal einfügst (Programme › Dienstprogramme › Terminal) | 5–10 Min. |
+| **Trunk** | baut die Oberfläche | im Terminal `cargo install trunk --locked` (nach Rust) oder mit [Homebrew](https://brew.sh) `brew install trunk` | 5–10 Min. |
+| **Rancher Desktop** *oder* **Podman** | Container für den Agenten (erst später nötig) | [rancherdesktop.io](https://rancherdesktop.io) – beim ersten Start die Engine „dockerd (moby)“ wählen; oder [podman.io](https://podman.io/docs/installation) | 10 Min. |
+| **Git** | holt den Code | meldet sich beim ersten Aufruf von selbst, sonst im Terminal `xcode-select --install` | 5–10 Min. |
+
+**2. Cockpit holen.** Im Terminal (Befehle einzeln einfügen und mit Enter bestätigen):
+
+```bash
+git clone https://github.com/asakrejz/rust-playground.git ~/Documents/Web/rust-playground
+```
+
+Das Repo ist privat: Du brauchst dafür Zugriff und musst dich bei GitHub anmelden (Git fragt danach, oder du nimmst die
+Adresse von der Seite des Repos unter „Code“).
+
+**3. Starten per Doppelklick.** Öffne im Finder den Ordner `Documents/Web/rust-playground` und doppelklicke auf
+**`Cockpit starten.command`**. Beim ersten Mal fragt macOS, ob du die Datei öffnen willst (Rechtsklick › „Öffnen“ › noch
+einmal „Öffnen“). Ein Terminal-Fenster geht auf, baut die App (beim ersten Mal 5–15 Minuten, danach Sekunden) und
+öffnet den Browser auf `http://127.0.0.1:8787`. Schließe das Fenster, um Cockpit zu beenden.
+
+**4. Dem Assistenten folgen.** Beim ersten Start öffnet sich die Seite **„Einrichten“** von selbst; später erreichst du sie
+über „Einrichten“ in der Seitenleiste. Sie führt dich in fünf Schritten (Container, Jira, GitHub, Modellzugang,
+Zusammenfassung) und erklärt jeden Klick. Jeden Schritt kannst du überspringen und später nachholen.
+
+**Was nur du tun kannst** – das lässt sich nicht automatisieren, der Assistent führt dich aber Schritt für Schritt hindurch:
+
+- **Atlassian-Konto und -App.** Du brauchst Zugriff auf eure Jira-Site. Für die Anmeldung legst du in der
+  [Atlassian-Entwicklerkonsole](https://developer.atlassian.com/console/myapps/) eine eigene OAuth-App an (oder, einfacher,
+  ein API-Token). Jede Person legt ihre **eigene** App an, denn das Client-Secret ist nicht teilbar.
+- **GitHub App.** Du legst in deinem GitHub-Konto (oder eurer Organisation) eine eigene GitHub App an und installierst sie
+  auf den Repos. Auch hier gilt: eigene App, eigenes Secret.
+- **LiteLLM-Zugang.** Adresse des Proxys, Key und Modellname bekommst du von dem Team, das den Proxy betreibt. Ohne ihn
+  läuft Cockpit weiter, der echte Agent aber noch nicht.
+- **Container-Programm** installieren und starten (siehe Tabelle oben).
+
+Schlüssel (Client-Secrets, Tokens, LiteLLM-Key) tippst oder fügst du in die Passwortfelder des Assistenten ein. Sie gehen
+nur an den Server auf deinem Rechner, der sie im **Schlüsselbund** ablegt – nicht in den Browser-Speicher, nicht in eine
+Datei. Wer lieber im Terminal arbeitet, nimmt `cockpit-server token setzen <name>` (siehe „Backend starten“).
+
+**Fertiges Archiv statt selbst bauen.** Bei jedem Versions-Tag (`v…`) baut `.github/workflows/release.yml` ein Archiv für
+macOS (Apple Silicon): `cockpit-server`, `cockpit/dist` und `Cockpit starten.command` in einem Ordner, ohne Rust und Trunk.
+Entpacken, Rechtsklick auf `Cockpit starten.command` › „Öffnen“. Die Programme sind nicht signiert, deshalb die
+Rückfrage von macOS. Intel-Macs, Windows und Linux bauen selbst (Schritte oben). Der Workflow ist noch nie gelaufen
+(es gab noch kein Tag); beim ersten Tag prüfen, ob das Archiv startet.
 
 ## Backend starten
 
@@ -47,7 +103,9 @@ curl localhost:8787/api/health  # {"status":"ok","version":"…","verbindungen":
 
 `scripts/start.sh` (bash, macOS) prüft `cargo` und `trunk`, baut `cockpit` nach `cockpit/dist`, wenn die Ausgabe fehlt
 oder eine Quelle neuer ist, und startet `cockpit-server`. Es installiert nichts. Mit `--release` baut es den Server
-als Release-Build. Ohne das Skript: `(cd cockpit && trunk build) && cargo run -p cockpit-server`.
+als Release-Build. Ohne das Skript: `(cd cockpit && trunk build) && cargo run -p cockpit-server`. **Ohne Terminal** startet ein Doppelklick auf
+`Cockpit starten.command` dasselbe (`--open`) und zeigt Fehler in lesbarem Deutsch.
+
 
 **Beim ersten Start ist alles leer.** Der Server beginnt mit einem leeren Workspace; die Seite „Einrichten“ zeigt je Dienst
 den Stand und den nächsten Schritt. Beispieldaten gibt es nur auf ausdrücklichen Wunsch: `COCKPIT_SEED=demo` (oder
@@ -122,20 +180,31 @@ und hört auf Änderungen:
 | `GET /api/jira/projekte` | Jira-Projekte für die Auswahl in der Inbox: `{aktiv, projekte: [{key, name}]}`; `aktiv: false` ohne Jira oder Token |
 
 | `GET /api/litellm/pruefen` | Verbindungstest zum LiteLLM-Proxy: `{konfiguriert, erreichbar, key_ok, modell_vorhanden, hinweis}` (siehe „Einrichten“) |
+| `GET /api/einrichtung` | Was der Assistent vorbelegt: Jira-Site/E-Mail/Projekte, Client-IDs, Repos, LiteLLM-Adresse und Modell, die beiden Callback-Adressen und je Schlüssel nur `{name, gesetzt}` |
+| `PUT /api/konfiguration` | Schreibt Client-IDs, Jira, Repos und LiteLLM in `config.toml` (siehe „Einrichten in der App“). Antwort `{gespeichert, wirkt_sofort, hinweis}`; ungültige Eingaben sind `422` mit Klartext |
+| `PUT /api/schluessel/{name}` | Legt einen Schlüssel im Schlüsselbund ab. Body `{"wert": "…"}`, nur `github-oauth`, `atlassian-oauth`, `litellm`, `jira`, `github`. Antwort `{name, gesetzt}` – nie der Wert |
 
 Ist der Server nicht erreichbar (nicht gestartet, anderer Port), zeigt die App oben einen Hinweis mit „Erneut versuchen“;
 die Seiten bleiben leer, es geht nichts verloren.
 
 Alle Routen unter `/api` prüfen die Gegenstelle (nur Loopback) und den `Host`-Header (`127.0.0.1:<port>` oder
 `localhost:<port>`, gegen DNS-Rebinding). Schreibende Anfragen brauchen zusätzlich `Content-Type: application/json`
-und einen fehlenden oder eigenen `Origin`.
+und einen fehlenden oder eigenen `Origin`. Das gilt auch für `PUT /api/konfiguration` und `PUT /api/schluessel/{name}`.
 
 ### Mit echten Diensten verbinden
+
+**Der bequeme Weg ist der Assistent:** Die Seite „Einrichten“ führt durch Container, Jira, GitHub und den Modellzugang
+(siehe „Einrichten in der App“ weiter unten). Er schreibt Client-IDs, Jira-Site, Repos und LiteLLM-Adresse selbst in die
+`config.toml` und legt Schlüssel im Schlüsselbund ab – ohne dass du Datei oder Terminal anfasst. **Der Terminal-Weg bleibt
+als Alternative** und ist unten beschrieben: `config.toml` von Hand bearbeiten und `cockpit-server token setzen <name>`.
+Beides führt zum selben Ergebnis und lässt sich mischen.
 
 Ohne Einrichtung bleibt der Workspace leer (oder zeigt die Beispieldaten, wenn du `COCKPIT_SEED=demo` gewählt hast).
 Sobald **eine Quelle eingerichtet ist und ihr Token im Schlüsselbund liegt**, gleicht das Backend ab: Tickets, Pull
 Requests, Kommentare, Checks und Diffs kommen von den Diensten; die (unveränderten) Beispieldaten eines Seeds verschwinden
 beim ersten erfolgreichen Abruf. Eine Quelle ohne Konfiguration oder ohne Token bleibt aus.
+
+**Der Terminal-Weg (Alternative zum Assistenten).**
 
 **1. Konfiguration** (`config.toml`, siehe oben; keine Schlüssel in der Datei):
 
@@ -255,9 +324,40 @@ bei einer Web-App mit Client-Secret akzeptiert (sonst entfällt er dort), ob die
 Installations-Weiterleitung von GitHub (`installation_id`, `setup_action`): Ohne `state` aus unserem Start lehnt das
 Backend sie ab; die App ist schon installiert, die Anmeldung beginnt immer in Cockpit.
 
-**Einrichten in der App.** Die Seite „Einrichten“ (`#/einrichten`) zeigt je Dienst den Stand und den nächsten Schritt –
-ohne Eingabefelder für Schlüssel. Jira und GitHub: „Mit … anmelden“ und „Trennen“ (siehe oben) und die Schritte dazu
-(Client-ID in `config.toml`, Client-Secret im Terminal). Dazu zwei weitere Abschnitte:
+**Einrichten in der App.** Die Seite „Einrichten“ (`#/einrichten`) ist ein geführter Assistent in fünf Schritten mit
+Fortschrittsanzeige (Container, Jira, GitHub, Modell, Fertig). Sie erscheint beim ersten Start von selbst, wenn noch nichts
+eingerichtet ist (einmal je Browser; der Browser merkt sich nur diesen Hinweis), und ist jederzeit über „Einrichten“ in der
+Seitenleiste erreichbar. Jeder Schritt lässt sich überspringen; die Zusammenfassung nennt in Klartext, was läuft (Haken),
+was offen ist und was zu prüfen ist, mit „Ansehen“ zum passenden Schritt. Die Texte setzen kein Vorwissen voraus.
+
+- *Container.* Erkennt Docker oder Podman; fehlt beides, erklärt der Schritt, was ein Container ist, und verweist auf
+  Rancher Desktop (Engine **„dockerd (moby)“**) bzw. Podman. „Erneut prüfen“ fragt neu.
+- *Jira.* Zwei Wege: **Atlassian-App** (empfohlen) mit Anleitung durch die Entwicklerkonsole (App anlegen,
+  Resource-level, Jira API hinzufügen, Classic scopes `read:jira-work`, `write:jira-work`, `read:jira-user`, Callback-URL mit
+  „Kopieren“-Knopf, Client-ID und Secret eintragen, dann „Mit Atlassian anmelden“) oder **API-Token** für Einsteiger
+  (Site, E-Mail, Token). Optional die Jira-Projekte.
+- *GitHub.* Anleitung für eine **GitHub App** mit Abhak-Liste der Berechtigungen (Contents, Pull requests, Issues, Checks
+  Read & write; Commit statuses und Metadata Read-only), Callback-URL zum Kopieren, Client-ID und Secret, Hinweis „Install
+  App“ und die Repos, dann „Mit GitHub anmelden“.
+- *Modellzugang.* Adresse, Modellname, Key und der Verbindungstest (siehe unten).
+
+**Wie Eingaben ankommen.** Nicht geheime Werte (Client-IDs, Jira-Site, E-Mail, Projekte, Repos, LiteLLM-Adresse und
+-Modell) schickt die Seite an `PUT /api/konfiguration`. Der Server ändert die `config.toml` **atomar** (Nachbardatei,
+dann umbenennen; bestehende Kommentare, Reihenfolge und andere Werte bleiben, neue Dateien sind nur für dich lesbar) und
+prüft das Ergebnis **wie beim Start** (`Config::aus`): Ist es ungültig, bleibt die Datei, wie sie war, und die Antwort
+nennt den Grund in Klartext. Eingaben werden vereinheitlicht (`firma` → `https://firma.atlassian.net`, GitHub-Adressen →
+`owner/name`, Projekte in Großbuchstaben, `localhost:4000` → `http://localhost:4000`). Alles gilt **ohne Neustart**
+(Quellen, OAuth-Apps und LiteLLM werden im laufenden Server ausgetauscht); nur der Takt des Abgleichs und der Port
+bleiben bis zum Neustart. Ändert sich die Client-ID einer App, rät die Antwort, sich neu anzumelden.
+
+**Wie Schlüssel ankommen.** Client-Secrets, Tokens und der LiteLLM-Key kommen in Passwortfelder
+(`autocomplete="off"`) und gehen einmal an `PUT /api/schluessel/{name}` auf der Loopback-Verbindung. Der Server legt sie im
+Schlüsselbund ab. Der Wert steht nur im Feld und in dieser einen Anfrage: nicht in `localStorage`, nicht in der Adresse,
+nicht im Log, nicht in Fehlermeldungen und nie in einer Antwort (die sagt nur `gesetzt`); das Feld wird sofort nach dem
+Absenden geleert. Erlaubt sind nur die Namen `github-oauth`, `atlassian-oauth`, `litellm`, `jira` und `github`. Die beiden
+neuen `PUT`-Routen unterliegen derselben Loopback-, Host-, Origin- und Content-Type-Prüfung wie alle Routen unter `/api`.
+
+Die Abschnitte „Modellzugang“ und „Container“ im Einzelnen:
 
 - *Modellzugang (LiteLLM).* Der Agent bekommt sein Modell über einen LiteLLM-Proxy, **nicht** über einen
   Anthropic-API-Key. Adresse und Modellname stehen in `config.toml` (`[litellm] url`, `modell`; der Modellname hängt von

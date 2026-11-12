@@ -1,0 +1,52 @@
+name: Release
+
+# Baut bei einem Tag wie v0.1.0 ein fertiges Archiv für macOS (Apple Silicon): Server und App in
+# einem Ordner, startbar per Doppelklick auf „Cockpit starten.command“ – ohne Rust und Trunk.
+# Die Datei ist nicht signiert; macOS fragt beim ersten Öffnen (Rechtsklick › Öffnen).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  archiv:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Trunk
+        uses: jetli/trunk-action@v0.5.0
+        with:
+          version: latest
+
+      - name: App bauen
+        run: trunk build --release
+        working-directory: cockpit
+      - name: Server bauen
+        run: cargo build --release -p cockpit-server
+
+      - name: Archiv zusammenstellen
+        run: |
+          name="cockpit-${GITHUB_REF_NAME}-macos-arm64"
+          mkdir -p "$name/cockpit"
+          cp target/release/cockpit-server "$name/"
+          cp -R cockpit/dist "$name/cockpit/dist"
+          cp "Cockpit starten.command" "$name/"
+          cp README.md "$name/LIESMICH.md"
+          chmod +x "$name/cockpit-server" "$name/Cockpit starten.command"
+          # `ditto` behält die Rechte (ausführbar) bei.
+          ditto -c -k --keepParent "$name" "$name.zip"
+          echo "ARCHIV=$name.zip" >> "$GITHUB_ENV"
+
+      - name: Release veröffentlichen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "$ARCHIV" \
+            --title "Cockpit $GITHUB_REF_NAME" \
+            --notes "Fertiges Archiv für macOS (Apple Silicon). Entpacken, dann Rechtsklick auf „Cockpit starten.command“ › Öffnen. Anleitung: LIESMICH.md im Archiv, Abschnitt „Schnellstart für Einsteiger“."

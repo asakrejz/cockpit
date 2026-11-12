@@ -7,6 +7,10 @@
 //!   Browsers, leitet nach `/` um); `POST …/widerrufen`: [`WiderrufAntwort`]
 //! * `GET /api/jira/projekte`: die Jira-Projekte für die Auswahl, [`JiraProjectsResponse`]
 //! * `GET /api/litellm/pruefen`: Verbindungstest zum LiteLLM-Proxy, [`LitellmPruefung`]
+//! * `GET /api/einrichtung`: was der Einrichtungsassistent vorbelegt, [`Einrichtung`]
+//! * `PUT /api/konfiguration`: Body [`KonfigAenderung`], schreibt `config.toml`, Antwort [`KonfigAntwort`]
+//! * `PUT /api/schluessel/{name}`: Body [`SchluesselEingabe`], legt den Schlüssel im Schlüsselbund
+//!   ab, Antwort [`SchluesselAntwort`] (nur „gesetzt“, nie der Wert)
 //! * `GET /api/health`: unter `litellm` ein [`LitellmStatus`], unter `container` ein [`ContainerStatus`]
 //!
 //! Beide Seiten benutzen diese Typen, damit die Formen nicht auseinanderlaufen.
@@ -129,6 +133,128 @@ pub struct LitellmPruefung {
     pub hinweis: Option<String>,
 }
 
+/// Body von `PUT /api/schluessel/{name}`. Der Wert ist ein Geheimnis: Er steht nur im Eingabefeld,
+/// geht einmal an den lokalen Server und kommt nie zurück. `Debug` zeigt ihn nicht.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub struct SchluesselEingabe {
+    pub wert: String,
+}
+
+impl std::fmt::Debug for SchluesselEingabe {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("SchluesselEingabe { wert: *** }")
+    }
+}
+
+/// Ob ein Schlüssel im Schlüsselbund liegt – nie sein Wert.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct SchluesselAntwort {
+    pub name: String,
+    #[serde(default)]
+    pub gesetzt: bool,
+}
+
+/// Jira-Angaben für `config.toml`. `None` lässt den Wert unverändert, ein leerer Text entfernt ihn.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct JiraEingabe {
+    #[serde(default)]
+    pub site: Option<String>,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub projects: Option<Vec<String>>,
+}
+
+/// Die Client-ID einer OAuth-App (nicht geheim). Leer entfernt den Abschnitt.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct ClientEingabe {
+    #[serde(default)]
+    pub client_id: String,
+}
+
+/// Die GitHub-Repos für den Abgleich (`owner/name`).
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct GitHubEingabe {
+    #[serde(default)]
+    pub repos: Vec<String>,
+}
+
+/// Adresse und Modell des LiteLLM-Proxys. Eine leere Adresse entfernt den Abschnitt.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct LitellmEingabe {
+    #[serde(default)]
+    pub url: String,
+    #[serde(default)]
+    pub modell: Option<String>,
+}
+
+/// Body von `PUT /api/konfiguration`: nur die Abschnitte, die sich ändern. Schlüssel gehören nicht
+/// hierher, sondern zu `PUT /api/schluessel/{name}`.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct KonfigAenderung {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jira: Option<JiraEingabe>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub atlassian: Option<ClientEingabe>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub github_oauth: Option<ClientEingabe>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub github: Option<GitHubEingabe>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub litellm: Option<LitellmEingabe>,
+}
+
+/// Antwort auf `PUT /api/konfiguration`.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct KonfigAntwort {
+    /// `config.toml` ist geschrieben.
+    #[serde(default)]
+    pub gespeichert: bool,
+    /// Die Änderung gilt schon jetzt; sonst braucht es einen Neustart.
+    #[serde(default)]
+    pub wirkt_sofort: bool,
+    /// Was der Nutzer wissen sollte.
+    #[serde(default)]
+    pub hinweis: Option<String>,
+}
+
+/// Antwort auf `GET /api/einrichtung`: die aktuellen, nicht geheimen Werte für den Assistenten.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Einrichtung {
+    #[serde(default)]
+    pub jira_site: String,
+    #[serde(default)]
+    pub jira_email: String,
+    #[serde(default)]
+    pub jira_projekte: Vec<String>,
+    #[serde(default)]
+    pub atlassian_client_id: Option<String>,
+    #[serde(default)]
+    pub github_client_id: Option<String>,
+    #[serde(default)]
+    pub github_repos: Vec<String>,
+    #[serde(default)]
+    pub litellm_url: Option<String>,
+    #[serde(default)]
+    pub litellm_modell: Option<String>,
+    /// Die Adresse, die in der GitHub App als Callback eingetragen wird.
+    #[serde(default)]
+    pub callback_github: String,
+    /// Die Adresse, die in der Atlassian-App als Callback eingetragen wird.
+    #[serde(default)]
+    pub callback_atlassian: String,
+    /// Welche Schlüssel im Schlüsselbund liegen.
+    #[serde(default)]
+    pub schluessel: Vec<SchluesselAntwort>,
+}
+
+impl Einrichtung {
+    /// Liegt der Schlüssel `name` im Schlüsselbund?
+    pub fn hat_schluessel(&self, name: &str) -> bool {
+        self.schluessel.iter().any(|s| s.name == name && s.gesetzt)
+    }
+}
+
 /// Fehlerantwort (4xx/5xx) mit deutscher Meldung für die Oberfläche.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ErrorBody {
@@ -186,8 +312,36 @@ mod tests {
             serde_json::from_str::<ContainerStatus>("{}").unwrap(),
             ContainerStatus::default()
         );
+        assert_eq!(
+            serde_json::from_str::<Einrichtung>("{}").unwrap(),
+            Einrichtung::default()
+        );
         let p: LitellmPruefung =
             serde_json::from_str(r#"{"konfiguriert":true,"erreichbar":true}"#).unwrap();
         assert!(p.erreichbar && !p.key_ok && !p.modell_vorhanden);
+    }
+
+    #[test]
+    fn key_input_never_shows_its_value() {
+        let e = SchluesselEingabe {
+            wert: "test-wert-123".into(),
+        };
+        assert!(!format!("{e:?}").contains("test-wert-123"));
+    }
+
+    #[test]
+    fn config_change_only_sends_touched_sections() {
+        let a = KonfigAenderung {
+            github: Some(GitHubEingabe {
+                repos: vec!["firma/app".into()],
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            serde_json::to_string(&a).unwrap(),
+            r#"{"github":{"repos":["firma/app"]}}"#
+        );
+        let back: KonfigAenderung = serde_json::from_str("{}").unwrap();
+        assert_eq!(back, KonfigAenderung::default());
     }
 }

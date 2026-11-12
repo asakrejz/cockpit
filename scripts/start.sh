@@ -6,6 +6,7 @@
 #                               (Port 8787 oder COCKPIT_PORT; steht er nur in config.toml, COCKPIT_PORT mitgeben)
 #   scripts/start.sh --release  Server als Release-Build (langsamer zu bauen, schneller im Betrieb)
 #
+# Ohne Terminal: Doppelklick auf „Cockpit starten.command“ im Repo-Ordner (ruft dieses Skript mit --open auf).
 # Es wird nichts installiert und nichts außerhalb des Repos angelegt. Konfiguration und
 # Schlüssel: siehe README („Backend starten“). Umgebungsvariablen wie COCKPIT_PORT,
 # COCKPIT_DB oder COCKPIT_SEED=demo gibt das Skript unverändert an den Server weiter.
@@ -21,7 +22,7 @@ for arg in "$@"; do
     --open) oeffnen=1 ;;
     --release) profil=(--release) ;;
     -h | --help)
-      sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+      sed -n '2,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -38,8 +39,8 @@ fehlt() {
   echo "„$1“ fehlt. $2" >&2
   exit 1
 }
-command -v cargo > /dev/null || fehlt cargo "Installieren: brew install rustup && rustup-init (siehe https://rustup.rs)"
-command -v trunk > /dev/null || fehlt trunk "Installieren: brew install trunk (oder: cargo install trunk --locked)"
+command -v cargo > /dev/null || fehlt cargo "Rust ist noch nicht installiert. Anleitung und Befehl: https://rustup.rs (dauert etwa 5 Minuten). Danach das Terminal-Fenster schließen und das Skript neu starten."
+command -v trunk > /dev/null || fehlt trunk "Trunk ist noch nicht installiert. Mit Homebrew: brew install trunk – oder: cargo install trunk --locked (dauert etwa 5 bis 10 Minuten)."
 
 # Die App ist veraltet, wenn sie fehlt oder irgendeine Quelle neuer ist als das Ergebnis.
 app_veraltet() {
