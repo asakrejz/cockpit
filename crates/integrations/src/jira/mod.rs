@@ -1,4 +1,4 @@
-//! Jira Cloud REST v3: Issues und Kommentare lesen und auf `cockpit-core` abbilden.
+//! Jira Cloud REST v3: read issues and comments and map them onto `cockpit-core`.
 
 mod adf;
 mod client;

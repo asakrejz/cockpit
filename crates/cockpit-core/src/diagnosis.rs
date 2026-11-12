@@ -1,48 +1,48 @@
-//! Diagnose eines roten Checks: Der Agent liest das Log und legt Ursache und Vorschlag vor.
+//! Diagnosis of a red check: the agent reads the log and presents cause and proposal.
 //!
-//! [`diagnose`] ist eine reine Funktion von Review und Check. Die Demo erkennt ein paar
-//! typische Fehler im Log (ungenutzte Variable oder Import, fehlgeschlagener Test,
-//! Zeitüberschreitung) und bleibt dabei deterministisch; ein echter Agent würde hier ein
-//! Sprachmodell fragen, die Form des Ergebnisses bliebe gleich.
+//! [`diagnose`] is a pure function of review and check. The demo recognizes a few
+//! typical errors in the log (unused variable or import, failed test,
+//! timeout) and stays deterministic; a real agent would ask a
+//! language model here, the shape of the result would stay the same.
 //!
-//! Nichts davon ändert den Branch. Erst „Fix übernehmen“ (ein eigener Schritt des Laufs)
-//! wendet das [`Fix`] an.
+//! None of this changes the branch. Only „Fix übernehmen“ (a separate step of the run)
+//! applies the [`Fix`].
 
 use serde::{Deserialize, Serialize};
 
 use crate::review::{CheckRun, DiffLine, FileDiff, LineKind, Review};
 
-/// Eine Änderung an einer einzelnen Zeile des Pull Requests.
+/// A change to a single line of the pull request.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Fix {
-    /// Name der Datei im Diff.
+    /// Name of the file in the diff.
     pub file: String,
-    /// Zeilennummer der Zeile, die sich ändert.
+    /// Line number of the line that changes.
     pub no: u32,
-    /// Inhalt der Zeile vor der Änderung.
+    /// Content of the line before the change.
     pub before: String,
-    /// Neuer Inhalt; `None` = die Zeile entfällt.
+    /// New content; `None` = the line is dropped.
     pub after: Option<String>,
 }
 
-/// Was der Agent zu einem roten Check herausgefunden hat.
+/// What the agent found out about a red check.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Diagnosis {
     /// Name des Checks.
     pub check: String,
-    /// Die Ursache in einem Satz.
+    /// The cause in one sentence.
     pub cause: String,
-    /// Betroffene Datei und Zeile, soweit das Log sie nennt.
+    /// Affected file and line, as far as the log names them.
     #[serde(default)]
     pub file: Option<String>,
     #[serde(default)]
     pub line: Option<u32>,
-    /// Was der Agent vorschlägt, in einem Satz.
+    /// What the agent proposes, in one sentence.
     pub remedy: String,
-    /// Der Vorschlag als Diff (Zeile mit Umgebung). `None`, wenn kein Code zu ändern ist.
+    /// The proposal as a diff (line with surroundings). `None` if there is no code to change.
     #[serde(default)]
     pub patch: Option<FileDiff>,
-    /// Die Änderung, die „Fix übernehmen“ auf den Branch bringt.
+    /// The change that „Fix übernehmen“ brings onto the branch.
     #[serde(default)]
     pub fix: Option<Fix>,
 }
@@ -57,17 +57,17 @@ impl Diagnosis {
         })
     }
 
-    /// Ändert der Vorschlag Code? Sonst genügt es, den Check neu zu starten.
+    /// Does the proposal change code? Otherwise it is enough to restart the check.
     pub fn changes_code(&self) -> bool {
         self.fix.is_some()
     }
 }
 
-/// Die erste echte Fehlermeldung des Logs (ohne die Folgezeile „could not compile“).
+/// The first real error message of the log (without the follow-up line „could not compile“).
 fn first_error(log: &str) -> Option<&str> {
     log.lines().map(str::trim_start).find_map(|l| {
         let rest = l.strip_prefix("error")?;
-        // `error: …` oder `error[E0308]: …`
+        // `error: …` or `error[E0308]: …`
         let msg = rest
             .split_once("]: ")
             .map(|(_, m)| m)
@@ -87,7 +87,7 @@ fn location_of(log: &str) -> Option<(String, u32)> {
     Some((parts.next()?.to_string(), line))
 }
 
-/// Die Quelltextzeile `62 |   code`, die das Log zu einer Zeilennummer zeigt.
+/// The source line `62 |   code` that the log shows for a line number.
 fn excerpt_of(log: &str, line: u32) -> Option<String> {
     log.lines().find_map(|l| {
         let (no, code) = l.split_once('|')?;
@@ -96,13 +96,13 @@ fn excerpt_of(log: &str, line: u32) -> Option<String> {
     })
 }
 
-/// Der Name in Backticks: ``unused variable: `inset` `` → `inset`.
+/// The name in backticks: ``unused variable: `inset` `` → `inset`.
 fn quoted(message: &str) -> Option<&str> {
     let (_, rest) = message.split_once('`')?;
     Some(rest.split_once('`')?.0)
 }
 
-/// Zeile `index` mit je einer Zeile Umgebung, die Zeile selbst als entfernt oder ersetzt.
+/// Line `index` with one line of surroundings each, the line itself as removed or replaced.
 fn patch_around(file: &FileDiff, index: usize, after: Option<&str>) -> FileDiff {
     let from = index.saturating_sub(1);
     let to = (index + 2).min(file.lines.len());
@@ -133,14 +133,14 @@ fn patch_around(file: &FileDiff, index: usize, after: Option<&str>) -> FileDiff 
     }
 }
 
-/// Liest das Log eines roten Checks und legt eine Diagnose vor.
+/// Reads the log of a red check and presents a diagnosis.
 ///
-/// * Ungenutzte Variable oder ungenutzter Import, die der Pull Request selbst hinzufügt:
-///   Vorschlag ist, die Zeile zu entfernen.
-/// * Zeitüberschreitung ohne Fehlermeldung: kein Code-Fehler, der Check wackelt – Vorschlag
-///   ist ein Neustart.
-/// * Fehlgeschlagener Test oder unbekannter Fehler: die Ursache aus dem Log, ohne Vorschlag
-///   für den Code.
+/// * Unused variable or unused import that the pull request adds itself:
+///   the proposal is to remove the line.
+/// * Timeout without an error message: not a code error, the check is flaky – the proposal
+///   is a restart.
+/// * Failed test or unknown error: the cause from the log, without a proposal
+///   for the code.
 pub fn diagnose(review: &Review, check: &CheckRun) -> Diagnosis {
     let log = check.log.as_str();
     let mut d = Diagnosis {
@@ -173,7 +173,7 @@ pub fn diagnose(review: &Review, check: &CheckRun) -> Diagnosis {
                 if kind == "variable" { "e" } else { "er" }
             );
             d.remedy = "Die ungenutzte Zeile entfernen".into();
-            // Der Fix gilt nur, wenn die Zeile im Pull Request steht und zum Log passt.
+            // The fix only applies if the line is in the pull request and matches the log.
             if let (Some(file), Some(line)) = (d.file.as_deref(), d.line)
                 && let Some(code) = excerpt_of(log, line)
                 && let Some(diff) = review.files.iter().find(|f| f.name == file)
@@ -205,7 +205,7 @@ pub fn diagnose(review: &Review, check: &CheckRun) -> Diagnosis {
             .lines()
             .find_map(|l| l.trim().strip_prefix("thread panicked: "))
             .unwrap_or("siehe Log");
-        // Ein Timeout beim Start der Umgebung sagt nichts über den Code.
+        // A timeout when starting the environment says nothing about the code.
         if reason.contains("timeout") {
             d.cause = format!(
                 "Zeitüberschreitung bei `{test}`: Der Headless-Browser ist nicht rechtzeitig gestartet – das sieht nach einem wackligen Check aus, nicht nach einem Fehler im Code."
@@ -255,7 +255,7 @@ mod tests {
         let fix = d.fix.as_ref().unwrap();
         assert_eq!(fix.after, None);
         assert_eq!(fix.before, "        let inset = icon.map(|_| 46);");
-        // Der Diff zeigt die Zeile als entfernt, mit Umgebung.
+        // The diff shows the line as removed, with surroundings.
         let patch = d.patch.unwrap();
         assert_eq!(patch.name, "list.rs");
         let kinds: Vec<LineKind> = patch.lines.iter().map(|l| l.kind).collect();
@@ -289,7 +289,7 @@ mod tests {
         c.log = c.log.replace("62 |", "99 |").replace(":62:13", ":99:13");
         let d = diagnose(&r, &c);
         assert_eq!(d.line, Some(99));
-        assert!(!d.changes_code(), "ohne passende Zeile kein Fix");
+        assert!(!d.changes_code(), "no fix without a matching line");
     }
 
     #[test]
@@ -307,14 +307,14 @@ mod tests {
         let mut r = review(85);
         let d = diagnose(&r, check(&r, "Lint"));
         let fix = d.fix.unwrap();
-        // Kommentar unterhalb der Zeile: rückt nach oben.
+        // Comment below the line: moves up.
         let id = r.add_line_comment("list.rs", 2, "Passt.", None).unwrap();
         assert!(r.apply_fix(&fix));
         let file = r.files.iter().find(|f| f.name == "list.rs").unwrap();
         assert!(file.lines.iter().all(|l| l.text != fix.before));
         assert_eq!(file.lines.len(), 2);
         assert_eq!(r.line_comments.iter().find(|c| c.id == id).unwrap().line, 1);
-        // Ein zweites Mal gibt es die Zeile nicht mehr.
+        // A second time the line no longer exists.
         assert!(!r.apply_fix(&fix));
     }
 }

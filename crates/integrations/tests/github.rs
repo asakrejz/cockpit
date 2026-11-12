@@ -1,5 +1,5 @@
-//! GitHub: Abbildung und Client gegen nachgebaute Antworten (`tests/fixtures`).
-//! Kein Netzwerkzugriff; der Client spricht mit einem lokalen Mock-Server.
+//! GitHub: mapping and client against replayed responses (`tests/fixtures`).
+//! No network access; the client talks to a local mock server.
 
 use cockpit_core::{Checks, LineKind, ReasonKind, Scope, Source, TicketStatus};
 use cockpit_integrations::github::{
@@ -11,7 +11,7 @@ use wiremock::matchers::{header, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn json<T: serde::de::DeserializeOwned>(s: &str) -> T {
-    serde_json::from_str(s).expect("Fixture ist gültiges JSON")
+    serde_json::from_str(s).expect("fixture is valid JSON")
 }
 
 macro_rules! fixture {
@@ -95,7 +95,7 @@ fn own_draft_without_description() {
     );
     assert_eq!(red.reason, ReasonKind::ChecksFailed);
     assert_eq!(red.description, "");
-    assert!(red.labels.is_empty(), "Pull Request ohne Labels");
+    assert!(red.labels.is_empty(), "pull request without labels");
     assert!(red.pr.as_ref().unwrap().draft);
     let green = pull_to_item(
         "acme/baukasten",
@@ -124,14 +124,14 @@ fn review_with_files_and_ticket() {
     let css = &review.files[0];
     assert_eq!(css.name, "features/ui/components.css");
     assert_eq!(css.stat(), "+2 −2");
-    // Entfernte Zeile zählt im alten, neue im neuen Stand.
+    // A removed line counts in the old state, an added one in the new state.
     let del = css.lines.iter().find(|l| l.kind == LineKind::Del).unwrap();
     assert_eq!((del.no, del.text.as_str()), (413, "  width: 28px;"));
     let add = css.lines.iter().find(|l| l.kind == LineKind::Add).unwrap();
     assert_eq!(add.no, 413);
 
     assert_eq!(review.files[1].lines.len(), 1);
-    // Binärdatei ohne Patch: Datei bleibt, Zeilen sind leer.
+    // Binary file without patch: the file stays, lines are empty.
     assert_eq!(file_to_diff(&files[2]).lines.len(), 0);
 }
 
@@ -156,7 +156,7 @@ fn comments_sorted_with_own_and_line_reference() {
     let c = comments_to_core(&issue, &review, "mkeller", now());
 
     assert_eq!(c.len(), 4);
-    // älteste zuerst: der veraltete Zeilenkommentar vom 13.5.
+    // oldest first: the outdated line comment from 13 May.
     assert_eq!(c[0].text, "features/ui/components.css\nVeralteter Hinweis");
     assert_eq!(c[1].text, "Bitte noch das Dark-Theme prüfen.");
     assert!(c[1].own);
@@ -170,7 +170,7 @@ fn comments_sorted_with_own_and_line_reference() {
     assert_eq!(c[3].time, "vor 5 Min.");
 }
 
-// ---------- Client gegen Mock-Server ----------
+// ---------- Client against mock server ----------
 
 async fn client(server: &MockServer) -> GitHubClient {
     GitHubClient::new(&server.uri(), Secret::new("ghp_testtoken")).unwrap()
@@ -183,7 +183,7 @@ fn response(body: &str) -> ResponseTemplate {
 #[tokio::test]
 async fn inbox_load_without_duplicates() {
     let server = MockServer::start().await;
-    // Der Schlüssel muss als Bearer-Header ankommen.
+    // The key must arrive as a Bearer header.
     Mock::given(method("GET"))
         .and(path("/search/issues"))
         .and(query_param(
@@ -222,7 +222,7 @@ async fn inbox_load_without_duplicates() {
         .await;
 
     let items = client(&server).await.load_inbox(now()).await.unwrap();
-    // #87 steht in beiden Suchen, kommt aber nur einmal vor – als Review-Anfrage.
+    // #87 is in both searches, but appears only once – as a review request.
     assert_eq!(items.len(), 2);
     assert_eq!(items[0].key, "#87");
     assert_eq!(items[0].reason, ReasonKind::ReviewRequested);
@@ -260,10 +260,7 @@ async fn files_comments_and_me() {
     assert_eq!(c.files("acme/baukasten", 87).await.unwrap().len(), 3);
     assert_eq!(c.comments("acme/baukasten", 87).await.unwrap().len(), 2);
     assert_eq!(
-        c.line_comments("acme/baukasten", 87)
-            .await
-            .unwrap()
-            .len(),
+        c.line_comments("acme/baukasten", 87).await.unwrap().len(),
         2
     );
 }
@@ -301,10 +298,7 @@ async fn status_codes_become_errors() {
     let c = client(&server).await;
     assert_eq!(c.pull("a/b", 1).await.unwrap_err(), Error::NotSignedIn);
     assert_eq!(c.pull("a/b", 2).await.unwrap_err(), Error::NotFound);
-    assert_eq!(
-        c.pull("a/b", 3).await.unwrap_err(),
-        Error::NoPermission
-    );
+    assert_eq!(c.pull("a/b", 3).await.unwrap_err(), Error::NoPermission);
     assert_eq!(
         c.pull("a/b", 4).await.unwrap_err(),
         Error::RateLimit { wait_s: None }
@@ -318,7 +312,7 @@ async fn status_codes_become_errors() {
 
 #[tokio::test]
 async fn unreachable_is_a_network_error_without_key() {
-    // Port, auf dem niemand lauscht.
+    // Port nobody is listening on.
     let c = GitHubClient::new("http://127.0.0.1:9", Secret::new("ghp_geheim")).unwrap();
     let error = c.me().await.unwrap_err();
     assert!(matches!(error, Error::Network(_)));

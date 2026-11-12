@@ -1,20 +1,20 @@
-//! Ticket und Pull Request verknüpfen: den Ticket-Schlüssel in Branch-Namen und Titeln finden.
+//! Link ticket and pull request: find the ticket key in branch names and titles.
 //!
-//! Alles hier sind reine Funktionen ohne Zustand. Ein Schlüssel besteht aus Buchstaben,
-//! einem Bindestrich und Ziffern (`BAU-142`). Er zählt nur, wenn er als ganzes Wort dasteht:
-//! In `BAU-1420` steckt nicht `BAU-142`, und in `XBAU-142` nicht `BAU-142`. Groß- und
-//! Kleinschreibung ist egal (`bau-142-toggle`), Trenner wie `/`, `_`, `:`, `.` oder Leerzeichen
-//! begrenzen das Wort.
+//! Everything here is pure functions without state. A key consists of letters,
+//! a hyphen and digits (`BAU-142`). It only counts when it stands as a whole word:
+//! `BAU-1420` does not contain `BAU-142`, and `XBAU-142` does not either. Upper and
+//! lower case do not matter (`bau-142-toggle`), separators like `/`, `_`, `:`, `.` or spaces
+//! delimit the word.
 
-/// Alle Schlüssel in einem Text, großgeschrieben und in der Reihenfolge des Auftretens.
+/// All keys in a text, uppercased and in order of appearance.
 ///
 /// ```
 /// use cockpit_core::link::ticket_keys;
 /// assert_eq!(ticket_keys("feature/bau-142-fokus"), ["BAU-142"]);
 /// ```
 pub fn ticket_keys(text: &str) -> Vec<String> {
-    // Der Text zerfällt in Wörter aus Buchstaben und Ziffern und die Trenner dazwischen.
-    let mut words: Vec<(&str, &str)> = Vec::new(); // (Wort, Trenner danach)
+    // The text breaks into words of letters and digits and the separators between them.
+    let mut words: Vec<(&str, &str)> = Vec::new(); // (word, separator after it)
     let mut start = None;
     for (i, c) in text.char_indices() {
         match (c.is_alphanumeric(), start) {
@@ -48,9 +48,9 @@ pub fn ticket_keys(text: &str) -> Vec<String> {
     keys
 }
 
-/// Der erste bekannte Schlüssel, der in einem der Texte steht. Die Texte zählen in ihrer
-/// Reihenfolge (zuerst Branch, dann Titel). Gibt den Schlüssel so zurück, wie ihn der
-/// Aufrufer kennt.
+/// The first known key that appears in one of the texts. The texts count in their
+/// order (first branch, then title). Returns the key the way the
+/// caller knows.
 pub fn find_ticket<'a>(
     texts: &[&str],
     known: impl IntoIterator<Item = &'a str> + Clone,
@@ -88,15 +88,15 @@ mod tests {
 
     #[test]
     fn key_must_sit_on_word_boundaries() {
-        // Kein falscher Treffer: BAU-1420 ist ein anderes Ticket als BAU-142.
+        // No false hit: BAU-1420 is a different ticket than BAU-142.
         assert_eq!(ticket_keys("bau-1420-foo"), ["BAU-1420"]);
         assert_eq!(find_ticket(&["bau-1420-foo"], ["BAU-142"]), None);
         assert_eq!(find_ticket(&["BAU-1420: Titel"], ["BAU-142"]), None);
-        // Auch vorne darf kein Buchstabe oder keine Ziffer kleben.
+        // No letter or digit may stick to the front either.
         assert_eq!(ticket_keys("xbau-142"), ["XBAU-142"]);
         assert_eq!(find_ticket(&["xbau-142"], ["BAU-142"]), None);
         assert_eq!(ticket_keys("v2bau-142"), Vec::<String>::new());
-        // Und hinten nichts Alphanumerisches.
+        // And nothing alphanumeric at the back.
         assert_eq!(find_ticket(&["BAU-142a"], ["BAU-142"]), None);
         assert_eq!(ticket_keys("BAU-142a"), Vec::<String>::new());
     }
@@ -135,7 +135,7 @@ mod tests {
             find_ticket(&["feature/bau-2-x", "BAU-1: Titel"], known),
             Some("BAU-2")
         );
-        // Unbekannte Schlüssel im ersten Text überspringt es.
+        // It skips unknown keys in the first text.
         assert_eq!(
             find_ticket(&["feature/XYZ-9-x", "BAU-1: Titel"], known),
             Some("BAU-1")

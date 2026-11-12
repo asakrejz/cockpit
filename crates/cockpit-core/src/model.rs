@@ -1,4 +1,4 @@
-//! Datenmodell: Einträge der Inbox und was dazugehört.
+//! Data model: inbox entries and what belongs to them.
 
 use serde::{Deserialize, Serialize};
 
@@ -23,26 +23,26 @@ pub enum Kind {
     PullRequest,
 }
 
-/// Gehört der Eintrag mir oder jemandem im Team?
+/// Does the entry belong to me or to someone on the team?
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Scope {
     Mine,
     Team,
 }
 
-/// Filter der Inbox.
+/// Inbox filter.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Filter {
     #[default]
     All,
     Mine,
     Team,
-    /// Zurückgestellte Einträge (siehe [`crate::attention`]).
+    /// Snoozed entries (see [`crate::attention`]).
     Snoozed,
 }
 
 impl Filter {
-    /// ID und Beschriftung, in Anzeigereihenfolge.
+    /// ID and label, in display order.
     pub const OPTIONS: &'static [(&'static str, &'static str)] = &[
         ("alle", "Alle"),
         ("ich", "Ich"),
@@ -74,7 +74,7 @@ impl Filter {
     }
 }
 
-/// Filter der Inbox nach Quelle: alles, nur Jira oder nur GitHub.
+/// Inbox filter by source: all, only Jira or only GitHub.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SourceFilter {
     #[default]
@@ -84,7 +84,7 @@ pub enum SourceFilter {
 }
 
 impl SourceFilter {
-    /// ID und Beschriftung, in Anzeigereihenfolge.
+    /// ID and label, in display order.
     pub const OPTIONS: &'static [(&'static str, &'static str)] =
         &[("alle", "Alle"), ("jira", "Jira"), ("github", "GitHub")];
 
@@ -149,7 +149,7 @@ impl TicketStatus {
     }
 }
 
-/// Wie wichtig ein Ticket ist. Alte Stände ohne Angabe gelten als „Mittel“.
+/// How important a ticket is. Old states without a value count as „Mittel“.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Priority {
     Highest,
@@ -169,7 +169,7 @@ impl Priority {
         Priority::Lowest,
     ];
 
-    /// ID und Beschriftung, in Anzeigereihenfolge (wichtigste zuerst).
+    /// ID and label, in display order (most important first).
     pub const OPTIONS: &'static [(&'static str, &'static str)] = &[
         ("hoechste", "Höchste"),
         ("hoch", "Hoch"),
@@ -200,7 +200,7 @@ impl Priority {
     }
 }
 
-/// Farbton für Status-Punkte und Icons.
+/// Hue for status dots and icons.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Tone {
     #[default]
@@ -212,18 +212,18 @@ pub enum Tone {
     Indigo,
 }
 
-/// Warum ein Eintrag Aufmerksamkeit braucht.
+/// Why an entry needs attention.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReasonKind {
     Comment,
-    /// Jemand hat mich in einem Kommentar mit `@Name` erwähnt.
+    /// Someone mentioned me in a comment with `@Name`.
     Mention,
     ReviewRequested,
     AgentFinished,
     ChecksFailed,
-    /// Für meinen Pull Request wurden Änderungen angefordert.
+    /// Changes were requested for my pull request.
     ChangesRequested,
-    /// Das Fälligkeitsdatum eines Tickets liegt in der Vergangenheit.
+    /// The due date of a ticket lies in the past.
     Overdue,
     Assigned,
 }
@@ -258,7 +258,7 @@ impl Person {
         }
     }
 
-    /// Der angemeldete Nutzer.
+    /// The signed-in user.
     pub fn me() -> Self {
         Self::new("Du", "AS")
     }
@@ -279,7 +279,7 @@ pub struct Comment {
     pub time: String,
     #[serde(default)]
     pub text: String,
-    /// Von mir geschrieben.
+    /// Written by me.
     #[serde(default)]
     pub own: bool,
 }
@@ -320,7 +320,7 @@ impl Checks {
     }
 }
 
-/// Verweis auf einen Pull Request, wie er an einem Eintrag hängt.
+/// Reference to a pull request, as it hangs on an entry.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PrRef {
     #[serde(default)]
@@ -328,20 +328,20 @@ pub struct PrRef {
     #[serde(default)]
     pub draft: bool,
     pub checks: Checks,
-    /// Ein Reviewer hat Änderungen angefordert.
+    /// A reviewer requested changes.
     #[serde(default)]
     pub changes_requested: bool,
-    /// Schon gemergt.
+    /// Already merged.
     #[serde(default)]
     pub merged: bool,
-    /// Ein Review ist angefragt.
+    /// A review is requested.
     #[serde(default)]
     pub review_requested: bool,
 }
 
 impl PrRef {
-    /// Welchen Ticket-Status dieser Pull Request nahelegt: gemergt → Erledigt, Review
-    /// angefragt → Review, sonst (Entwurf oder offen) → In Arbeit.
+    /// Which ticket status this pull request suggests: merged → Done, review
+    /// requested → Review, otherwise (draft or open) → In progress.
     pub fn target_status(&self) -> TicketStatus {
         if self.merged {
             TicketStatus::Done
@@ -362,7 +362,7 @@ impl PrRef {
         format!("#{} · {state}", self.number)
     }
 
-    /// Statuszeile für Pull Requests, bei denen ein Review ansteht.
+    /// Status line for pull requests with a review pending.
     pub fn status(&self) -> (String, Tone) {
         if self.merged {
             return ("Gemergt".into(), Tone::Indigo);
@@ -375,15 +375,15 @@ impl PrRef {
     }
 }
 
-/// Ein Eintrag der Inbox: ein Jira-Ticket oder ein GitHub Pull Request.
+/// An inbox entry: a Jira ticket or a GitHub pull request.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Item {
-    /// Interne ID, z. B. `bau142`.
+    /// Internal ID, e.g. `bau142`.
     #[serde(default)]
     pub id: String,
     pub kind: Kind,
     pub source: Source,
-    /// Sichtbarer Schlüssel: `BAU-142` oder `#87`.
+    /// Visible key: `BAU-142` or `#87`.
     #[serde(default)]
     pub key: String,
     #[serde(default)]
@@ -397,31 +397,31 @@ pub struct Item {
     pub time: String,
     pub scope: Scope,
     pub owner: Person,
-    /// Nur für Tickets von Bedeutung.
+    /// Only relevant for tickets.
     #[serde(default)]
     pub status: TicketStatus,
-    /// Nur für Tickets von Bedeutung.
+    /// Only relevant for tickets.
     #[serde(default)]
     pub priority: Priority,
     #[serde(default)]
     pub branch: Option<String>,
     #[serde(default)]
     pub pr: Option<PrRef>,
-    /// Hinweis des Agenten, z. B. „Vom Agenten umgesetzt · Tests bestanden“.
+    /// Note from the agent, e.g. „Vom Agenten umgesetzt · Tests bestanden“.
     #[serde(default)]
     pub agent_note: Option<String>,
     #[serde(default)]
     pub comments: Vec<Comment>,
-    /// Erledigt – braucht keine Aufmerksamkeit mehr.
+    /// Done – needs no attention any more.
     #[serde(default)]
     pub read: bool,
-    /// Fälligkeitsdatum als Tag (`2026-11-09`), nur für Tickets.
+    /// Due date as a day (`2026-11-09`), for tickets only.
     #[serde(default)]
     pub due: Option<String>,
-    /// Das Repo (`owner/name`) eines Pull Requests; bei Tickets leer.
+    /// The repo (`owner/name`) of a pull request; empty for tickets.
     #[serde(default)]
     pub repo: Option<String>,
-    /// Labels des Dienstes (Jira-Labels, GitHub-Labels).
+    /// Labels of the service (Jira labels, GitHub labels).
     #[serde(default)]
     pub labels: Vec<String>,
 }
@@ -431,8 +431,8 @@ impl Item {
         self.kind == Kind::Ticket
     }
 
-    /// Das Jira-Projekt eines Tickets: der Teil des Schlüssels vor dem Bindestrich
-    /// (`BAU-142` → `BAU`). Pull Requests und andere Einträge haben keines.
+    /// The Jira project of a ticket: the part of the key before the hyphen
+    /// (`BAU-142` → `BAU`). Pull requests and other entries have none.
     ///
     /// ```
     /// use cockpit_core::demo;
@@ -450,8 +450,8 @@ impl Item {
             .filter(|p| is_project_key(p))
     }
 
-    /// Der Status für Filter: bei Tickets der eigene, bei Pull Requests der, den der Pull
-    /// Request nahelegt (gemergt → Fertig, Review angefragt → Review, sonst In Arbeit).
+    /// The status for filters: for tickets their own, for pull requests the one the pull
+    /// request suggests (merged → Done, review requested → Review, otherwise In progress).
     pub fn effective_status(&self) -> TicketStatus {
         match (&self.kind, &self.pr) {
             (Kind::PullRequest, Some(pr)) => pr.target_status(),
@@ -460,8 +460,8 @@ impl Item {
     }
 }
 
-/// Ist das ein gültiger Jira-Projektschlüssel? Ein Buchstabe vorn, dann Buchstaben, Ziffern
-/// oder `_`. So rutscht nichts in eine JQL-Abfrage.
+/// Is this a valid Jira project key? A letter first, then letters, digits
+/// or `_`. This way nothing slips into a JQL query.
 pub fn is_project_key(key: &str) -> bool {
     key.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
         && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')

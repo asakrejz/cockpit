@@ -1,11 +1,11 @@
-//! Zeitstempel (ISO 8601) lesen und als „vor 5 Min.“ anzeigen – ohne Zeit-Crate.
+//! Read timestamps (ISO 8601) and show them as „vor 5 Min.“ – without a time crate.
 
-/// Tage seit 1970-01-01 für ein Datum im gregorianischen Kalender.
+/// Days since 1970-01-01 for a date in the Gregorian calendar.
 fn days_since_1970(year: i64, month: i64, tag: i64) -> i64 {
     let y = if month <= 2 { year - 1 } else { year };
     let era = y.div_euclid(400);
     let yoe = y - era * 400;
-    let mp = (month + 9) % 12; // März = 0
+    let mp = (month + 9) % 12; // March = 0
     let doy = (153 * mp + 2) / 5 + tag - 1;
     let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
     era * 146_097 + doe - 719_468
@@ -15,7 +15,7 @@ fn number(s: &str, from: usize, until: usize) -> Option<i64> {
     s.get(from..until)?.parse().ok()
 }
 
-/// Liest `2024-05-14T09:12:33Z`, `…33.456+0200` oder `…33+02:00` als Sekunden seit 1970 (UTC).
+/// Reads `2024-05-14T09:12:33Z`, `…33.456+0200` or `…33+02:00` as seconds since 1970 (UTC).
 pub fn parse_iso(s: &str) -> Option<i64> {
     let b = s.as_bytes();
     if b.len() < 19 || b[4] != b'-' || b[7] != b'-' || !(b[10] == b'T' || b[10] == b' ') {
@@ -45,8 +45,8 @@ pub fn parse_iso(s: &str) -> Option<i64> {
     Some(days_since_1970(j, mo, t) * 86_400 + h * 3600 + mi * 60 + se - offset)
 }
 
-/// „gerade eben“, „vor 5 Min.“, „vor 3 Std.“, „gestern“, „vor 4 Tagen“, sonst das Datum.
-/// Ist der Zeitstempel nicht lesbar, kommt er unverändert zurück.
+/// „gerade eben“, „vor 5 Min.“, „vor 3 Std.“, „gestern“, „vor 4 Tagen“, otherwise the date.
+/// If the timestamp is not readable, it comes back unchanged.
 pub fn relative(iso: &str, now: i64) -> String {
     let Some(t) = parse_iso(iso) else {
         return iso.to_string();
@@ -73,7 +73,7 @@ mod tests {
         assert_eq!(parse_iso("1970-01-01T00:00:00Z"), Some(0));
         assert_eq!(parse_iso("2024-01-01T00:00:00Z"), Some(NEUJAHR_2024));
         assert_eq!(parse_iso("2000-03-01T00:00:00Z"), Some(951_868_800));
-        // Schaltjahr: 29. Februar
+        // Leap year: 29 February
         assert_eq!(
             parse_iso("2024-03-01T00:00:00Z"),
             Some(NEUJAHR_2024 + 60 * 86_400)
@@ -106,7 +106,7 @@ mod tests {
         assert_eq!(relative(t, n + 4 * 86_400), "vor 4 Tagen");
         assert_eq!(relative(t, n + 30 * 86_400), "2024-05-14");
         assert_eq!(relative("unlesbar", n), "unlesbar");
-        // Uhren, die leicht vorgehen, ergeben nie negative Werte.
+        // Clocks that run slightly ahead never yield negative values.
         assert_eq!(relative(t, n - 10), "gerade eben");
     }
 }

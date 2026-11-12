@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use cockpit_core::api::{ContainerStatus, ImageBau};
+use cockpit_core::api::{ContainerStatus, ImageBuild};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -12,7 +12,7 @@ use crate::server::{self, CallError};
 use crate::store::Store;
 
 /// Fragt den Stand des Image-Baus ab und wiederholt das, solange er läuft.
-fn bau_beobachten(bau: RwSignal<Option<ImageBau>>, store: Store) {
+fn bau_beobachten(bau: RwSignal<Option<ImageBuild>>, store: Store) {
     spawn_local(async move {
         if let Ok(b) = server::fetch_image().await {
             let weiter = b.running;
@@ -61,7 +61,7 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
         }) => format!("{l} ist installiert, läuft aber nicht"),
         Some(_) => "Noch nichts gefunden".to_string(),
     };
-    let bau = RwSignal::new(None::<ImageBau>);
+    let bau = RwSignal::new(None::<ImageBuild>);
     let bau_fehler = RwSignal::new(None::<String>);
     bau_beobachten(bau, ctx.store);
     let bauen = move |_| {

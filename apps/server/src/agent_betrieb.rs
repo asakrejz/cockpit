@@ -13,7 +13,7 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use cockpit_core::api::{AgentStatus, ContainerCheck, ContainerStatus, ImageBau};
+use cockpit_core::api::{AgentStatus, ContainerCheck, ContainerStatus, ImageBuild};
 use cockpit_core::{Action, ActionError, Actor, AgentReport, RunKind, RunState, Workspace};
 use cockpit_integrations::Secret;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -75,7 +75,7 @@ struct Handle {
 pub struct Laeufe {
     laufend: Mutex<HashMap<String, Handle>>,
     gescheitert: Mutex<HashMap<String, Instant>>,
-    bau: Mutex<ImageBau>,
+    bau: Mutex<ImageBuild>,
     image: Mutex<Option<(Instant, bool)>>,
 }
 
@@ -436,7 +436,7 @@ impl AppState {
     // ---------- Image bauen ----------
 
     /// Der Stand von „Image bauen“. Blockierend.
-    pub(crate) fn image_stand(&self) -> ImageBau {
+    pub(crate) fn image_stand(&self) -> ImageBuild {
         let mut b = sperre(&self.inner.agent.bau).clone();
         let status = self.container_status();
         b.present = status.engine_running
@@ -448,7 +448,7 @@ impl AppState {
 
     /// Startet den Bau im Hintergrund. `Err` mit der Erklärung, wenn er nicht starten kann.
     /// Blockierend.
-    pub(crate) fn image_bauen(&self) -> Result<ImageBau, String> {
+    pub(crate) fn image_bauen(&self) -> Result<ImageBuild, String> {
         let status = self.container_status();
         let Some(cli) = self.cli_pfad(&status) else {
             return Err(status.hint.unwrap_or_else(|| {
@@ -472,7 +472,7 @@ impl AppState {
             if b.running {
                 return Ok(b.clone());
             }
-            *b = ImageBau {
+            *b = ImageBuild {
                 running: true,
                 present: false,
                 error: None,
@@ -2450,10 +2450,7 @@ exit 1
 "#,
         );
         let p = state.container_pruefen().await;
-        assert!(
-            p.checked && p.mac_reached && !p.container_reached,
-            "{p:?}"
-        );
+        assert!(p.checked && p.mac_reached && !p.container_reached, "{p:?}");
         let h = p.hint.unwrap();
         assert!(
             h.contains("Dein Mac erreicht den Proxy, der Container aber nicht")

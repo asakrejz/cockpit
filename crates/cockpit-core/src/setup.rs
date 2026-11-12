@@ -1,14 +1,13 @@
-//! Der Einrichtungsassistent: Reihenfolge der Schritte, Eingaben lesen und prüfen, und die
-//! Zusammenfassung in Klartext. Reine Logik ohne Oberfläche und Netzwerk; die Seite „Einrichten“
-//! verdrahtet sie nur.
+//! The setup assistant: order of the steps, reading and checking inputs, and the
+//! summary in plain text. Pure logic without UI and network; the „Einrichten“ page
+//! merely wires it up.
 
 use crate::api::{
-    AgentStatus, Provider, ContainerStatus, Setup, EndpointCheck, EndpointStatus,
-    JiraCause,
+    AgentStatus, ContainerStatus, EndpointCheck, EndpointStatus, JiraCause, Provider, Setup,
 };
 use crate::connections::{AuthKind, ServiceStatus};
 
-/// Die Namen, unter denen das Backend Schlüssel im Schlüsselbund ablegt (`PUT /api/schluessel/{name}`).
+/// The names under which the backend stores keys in the keychain (`PUT /api/schluessel/{name}`).
 pub const KEY_NAMES: &[&str] = &[
     "github-oauth",
     "atlassian-oauth",
@@ -18,13 +17,13 @@ pub const KEY_NAMES: &[&str] = &[
     "github",
 ];
 
-/// Wo man bei Atlassian einen API-Token erzeugt.
+/// Where to create an API token at Atlassian.
 pub const JIRA_TOKEN_PAGE: &str = "https://id.atlassian.com/manage-profile/security/api-tokens";
 
-/// Längster erlaubter Schlüssel (Zeichen). Echte Tokens sind weit kürzer.
+/// Longest allowed key (characters). Real tokens are far shorter.
 pub const MAX_KEYS: usize = 4096;
 
-/// Ein Schritt des Assistenten.
+/// A step of the assistant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Step {
     Container,
@@ -43,7 +42,7 @@ impl Step {
         Step::Done,
     ];
 
-    /// Kurzer Name für die Fortschrittsanzeige.
+    /// Short name for the progress display.
     pub fn name(self) -> &'static str {
         match self {
             Step::Container => "Container",
@@ -66,7 +65,7 @@ impl Step {
         self.index().checked_sub(1).map(|i| Self::ALL[i])
     }
 
-    /// Kennung für die Adresse (`#/einrichten/jira`).
+    /// ID for the address (`#/einrichten/jira`).
     pub fn id(self) -> &'static str {
         match self {
             Step::Container => "container",
@@ -82,7 +81,7 @@ impl Step {
     }
 }
 
-/// `true`, wenn noch gar nichts eingerichtet ist – dann erscheint der Assistent beim ersten Start.
+/// `true` if nothing at all is set up yet – then the assistant appears on first start.
 pub fn nothing_set_up(
     setup: &Setup,
     jira: &ServiceStatus,
@@ -99,8 +98,8 @@ pub fn nothing_set_up(
         || !setup.jira_site.is_empty())
 }
 
-/// Prüft einen Schlüssel vor dem Senden. Gibt den bereinigten Wert zurück (Leerraum am Rand
-/// entfernt, z. B. vom Einfügen). Die Meldungen nennen nie den Wert.
+/// Checks a key before sending. Returns the cleaned value (whitespace at the edges
+/// removed, e.g. from pasting). The messages never name the value.
 pub fn key_verify(value: &str) -> Result<String, String> {
     let value = value.trim();
     if value.is_empty() {
@@ -118,18 +117,18 @@ pub fn key_verify(value: &str) -> Result<String, String> {
     Ok(value.to_string())
 }
 
-/// Ob `name` ein erlaubter Schlüsselname ist.
+/// Whether `name` is an allowed key name.
 pub fn key_name_allowed(name: &str) -> bool {
     KEY_NAMES.contains(&name)
 }
 
-/// Ob `name` ein Token ist, den „Trennen“ aus dem Schlüsselbund löschen darf. Client-Secrets und
-/// der Modell-Key gehören nicht dazu.
+/// Whether `name` is a token that „Trennen“ may delete from the keychain. Client secrets and
+/// the model key do not belong to it.
 pub fn key_deletable(name: &str) -> bool {
     matches!(name, "jira" | "github")
 }
 
-/// Der Klartext zum Ergebnis des Jira-Verbindungstests. Nennt nie den Token.
+/// The plain text for the result of the Jira connection test. Never names the token.
 pub fn jira_check_text(cause: JiraCause, name: Option<&str>) -> String {
     match cause {
         JiraCause::Ok => match name.filter(|n| !n.is_empty()) {
@@ -161,9 +160,9 @@ pub fn jira_check_text(cause: JiraCause, name: Option<&str>) -> String {
     }
 }
 
-/// Die Site einer Jira-Cloud-Instanz als Adresse: `firma` → `https://firma.atlassian.net`,
-/// `firma.atlassian.net` und `https://firma.atlassian.net/jira/…` → `https://firma.atlassian.net`.
-/// Leer bleibt leer.
+/// The site of a Jira Cloud instance as an address: `firma` → `https://firma.atlassian.net`,
+/// `firma.atlassian.net` and `https://firma.atlassian.net/jira/…` → `https://firma.atlassian.net`.
+/// Empty stays empty.
 pub fn jira_site_read(text: &str) -> Result<String, String> {
     let t = text.trim();
     if t.is_empty() {
@@ -172,7 +171,7 @@ pub fn jira_site_read(text: &str) -> Result<String, String> {
     if t.chars().any(char::is_whitespace) {
         return Err("Die Adresse darf keine Leerzeichen enthalten.".into());
     }
-    // Der eigene Rechner (für Tests mit einer Attrappe) darf ohne https angesprochen werden.
+    // The own machine (for tests with a dummy) may be addressed without https.
     if let Some((s, r)) = t.split_once("://")
         && s.eq_ignore_ascii_case("http")
     {
@@ -214,8 +213,8 @@ pub fn jira_site_read(text: &str) -> Result<String, String> {
     Ok(format!("{scheme}://{host}"))
 }
 
-/// Jira-Projektschlüssel aus einem Text („bau, web“ oder eine Zeile je Projekt), groß geschrieben
-/// und ohne Doppelte.
+/// Jira project keys from a text („bau, web“ or one line per project), uppercased
+/// and without duplicates.
 pub fn projects_read(text: &str) -> Vec<String> {
     let mut from: Vec<String> = Vec::new();
     for part in text.split(|c: char| c == ',' || c == ';' || c.is_whitespace()) {
@@ -227,8 +226,8 @@ pub fn projects_read(text: &str) -> Vec<String> {
     from
 }
 
-/// GitHub-Repos aus einem Text. Erlaubt `owner/name`, ganze Adressen (`https://github.com/o/n`,
-/// auch mit `.git`) und Trennung durch Komma, Leerzeichen oder Zeilen.
+/// GitHub repos from a text. Allows `owner/name`, full addresses (`https://github.com/o/n`,
+/// also with `.git`) and separation by comma, space or lines.
 pub fn repos_read(text: &str) -> Result<Vec<String>, String> {
     let mut from: Vec<String> = Vec::new();
     for part in text.split(|c: char| c == ',' || c == ';' || c.is_whitespace()) {
@@ -244,7 +243,7 @@ pub fn repos_read(text: &str) -> Result<Vec<String>, String> {
         }
         let r = r.trim_end_matches('/');
         let r = r.strip_suffix(".git").unwrap_or(r);
-        // Bei einer ganzen Adresse zählen nur die ersten beiden Teile (`…/o/n/pull/3`).
+        // For a full address only the first two parts count (`…/o/n/pull/3`).
         let mut parts = r.split('/');
         let (Some(o), Some(n)) = (parts.next(), parts.next()) else {
             return Err(format!(
@@ -269,7 +268,7 @@ pub fn repos_read(text: &str) -> Result<Vec<String>, String> {
     Ok(from)
 }
 
-/// Eine Client-ID aus dem Eingabefeld: ohne Leerraum am Rand, ohne Leerzeichen darin.
+/// A client ID from the input field: without whitespace at the edges, without spaces inside.
 pub fn client_id_read(text: &str) -> Result<String, String> {
     let t = text.trim();
     if t.chars().any(char::is_whitespace) {
@@ -280,9 +279,9 @@ pub fn client_id_read(text: &str) -> Result<String, String> {
     Ok(t.to_string())
 }
 
-/// Die Adresse des Endpunkts (LiteLLM, ein anderer kompatibler Dienst): ohne `http://` oder
-/// `https://` wird `http://` ergänzt (`localhost:4000` → `http://localhost:4000`), ein
-/// Schrägstrich am Ende fällt weg. Leer bleibt leer (= direkt beim Anbieter).
+/// The address of the endpoint (LiteLLM, another compatible service): without `http://` or
+/// `https://`, `http://` is added (`localhost:4000` → `http://localhost:4000`), a
+/// trailing slash is dropped. Empty stays empty (= directly at the provider).
 pub fn endpoint_url_read(text: &str) -> Result<String, String> {
     let t = text.trim();
     if t.is_empty() {
@@ -306,15 +305,15 @@ pub fn endpoint_url_read(text: &str) -> Result<String, String> {
     Ok(url.trim_end_matches('/').to_string())
 }
 
-/// Wohin der Agent seine Modellanfragen schickt. In `config.toml` unterscheidet sich nur, ob eine
-/// Adresse eingetragen ist; „Proxy“ und „anderer Endpunkt“ unterscheiden nur die Hinweise im Assistenten.
+/// Where the agent sends its model requests. In `config.toml` the only difference is whether an
+/// address is entered; „Proxy“ and „other endpoint“ differ only in the hints in the assistant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EndpointKind {
-    /// Direkt bei Anthropic (keine Adresse, Key von der Anthropic-Konsole).
+    /// Directly at Anthropic (no address, key from the Anthropic console).
     Direct,
-    /// Ein eigener Proxy wie LiteLLM.
+    /// A proxy of your own like LiteLLM.
     Proxy,
-    /// Ein anderer Anthropic-kompatibler Endpunkt.
+    /// Another Anthropic-compatible endpoint.
     Compatible,
 }
 
@@ -345,7 +344,7 @@ impl EndpointKind {
         }
     }
 
-    /// Was in der gespeicherten Konfiguration steht: ohne Adresse direkt, sonst ein Proxy.
+    /// What is in the stored configuration: without an address direct, otherwise a proxy.
     pub fn from_url(url: &str) -> EndpointKind {
         if url.trim().is_empty() {
             EndpointKind::Direct
@@ -354,12 +353,12 @@ impl EndpointKind {
         }
     }
 
-    /// Braucht diese Art eine Adresse?
+    /// Does this kind need an address?
     pub fn needs_address(self) -> bool {
         self != EndpointKind::Direct
     }
 
-    /// Erklärung unter der Auswahl.
+    /// Explanation under the selection.
     pub fn explanation(self) -> &'static str {
         match self {
             EndpointKind::Direct => {
@@ -391,16 +390,16 @@ impl EndpointKind {
     }
 }
 
-/// Eine Zeile des Drop-downs für den Modellnamen.
+/// A row of the drop-down for the model name.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ModelOption {
     pub id: String,
-    /// Das gespeicherte Modell steht nicht in der geladenen Liste.
+    /// The stored model is not in the loaded list.
     pub unknown: bool,
 }
 
-/// Die Auswahl fürs Drop-down: die geladene Liste; ein gespeichertes Modell, das darin fehlt,
-/// bleibt vorne sichtbar (als `unbekannt` markiert), damit es nicht stillschweigend verschwindet.
+/// The selection for the drop-down: the loaded list; a stored model that is missing from it
+/// stays visible at the front (marked `unknown`), so that it does not silently disappear.
 pub fn model_selection(list: &[String], stored: &str) -> Vec<ModelOption> {
     let stored = stored.trim();
     let mut from: Vec<ModelOption> = Vec::with_capacity(list.len() + 1);
@@ -417,7 +416,7 @@ pub fn model_selection(list: &[String], stored: &str) -> Vec<ModelOption> {
     from
 }
 
-/// Prüft einen von Hand getippten Modellnamen: nicht leer, ohne Leerraum und Steuerzeichen, nicht zu lang.
+/// Checks a model name typed by hand: not empty, without whitespace and control characters, not too long.
 pub fn model_name_read(text: &str) -> Result<String, String> {
     let t = text.trim();
     if t.chars().any(|c| c.is_whitespace() || c.is_control()) {
@@ -429,7 +428,7 @@ pub fn model_name_read(text: &str) -> Result<String, String> {
     Ok(t.to_string())
 }
 
-/// Der Hinweis unter dem Drop-down, wenn das gespeicherte Modell nicht in der Liste steht.
+/// The hint under the drop-down when the stored model is not in the list.
 pub fn model_hint(list: &[String], stored: &str) -> Option<String> {
     let g = stored.trim();
     (!g.is_empty() && !list.is_empty() && !list.iter().any(|m| m == g)).then(|| {
@@ -437,29 +436,29 @@ pub fn model_hint(list: &[String], stored: &str) -> Option<String> {
     })
 }
 
-/// Wie gut ein Punkt der Zusammenfassung steht.
+/// How well an item of the summary stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tone {
-    /// Läuft (grüner Haken).
+    /// Works (green checkmark).
     Good,
-    /// Noch nicht eingerichtet oder übersprungen – kein Fehler.
+    /// Not set up yet or skipped – no error.
     Open,
-    /// Etwas ist schiefgegangen oder unvollständig.
+    /// Something went wrong or is incomplete.
     Problem,
 }
 
-/// Eine Zeile der Zusammenfassung.
+/// A row of the summary.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Line {
     pub name: &'static str,
     pub tone: Tone,
-    /// Klartext, was Sache ist.
+    /// Plain text of what is going on.
     pub text: String,
-    /// Der Schritt, in dem sich das beheben lässt.
+    /// The step in which this can be fixed.
     pub step: Step,
 }
 
-/// Was die Zusammenfassung wissen muss.
+/// What the summary needs to know.
 #[derive(Clone, Debug, Default)]
 pub struct Snapshot {
     pub setup: Setup,
@@ -467,9 +466,9 @@ pub struct Snapshot {
     pub github: ServiceStatus,
     pub endpoint: EndpointStatus,
     pub container: ContainerStatus,
-    /// Ob der echte Agent loslaufen kann (Image gebaut, alles eingerichtet).
+    /// Whether the real agent can start (image built, everything set up).
     pub agent: AgentStatus,
-    /// Ergebnis des letzten Verbindungstests zum Endpunkt, falls schon gelaufen.
+    /// Result of the last connection test to the endpoint, if it has run already.
     pub check: Option<EndpointCheck>,
 }
 
@@ -510,7 +509,7 @@ fn service_line(
     }
 }
 
-/// Die Jira-Zeile: Token (Standard) oder OAuth, mit der Art der Anmeldung im Text.
+/// The Jira row: token (default) or OAuth, with the kind of sign-in in the text.
 fn jira_line(s: &Snapshot) -> Line {
     let e = &s.setup;
     let client_id = e.atlassian_client_id.is_some();
@@ -521,7 +520,7 @@ fn jira_line(s: &Snapshot) -> Line {
             "Verbunden – mit OAuth (über deine Atlassian-App angemeldet).".to_string(),
         ),
         (true, _) => (Tone::Good, "Verbunden – mit API-Token.".to_string()),
-        // Der Weg über die Atlassian-App ist angefangen: wie bisher sagen, was fehlt.
+        // The way via the Atlassian app is started: say what is missing, as before.
         (false, _) if client_id || secret => {
             let z = service_line("Atlassian", Step::Jira, &s.jira, client_id, secret, "");
             (z.tone, z.text)
@@ -560,11 +559,11 @@ fn jira_line(s: &Snapshot) -> Line {
     }
 }
 
-/// Die Zusammenfassung am Ende: je Punkt ein Haken oder ein Satz, was fehlt.
+/// The summary at the end: per item a checkmark or a sentence saying what is missing.
 pub fn summary(s: &Snapshot) -> Vec<Line> {
     let e = &s.setup;
     let container = match (&s.container.runtime, s.container.engine_running) {
-        // Läuft der echte Agent, fehlt ohne Image noch ein Schritt.
+        // If the real agent runs, one step is still missing without an image.
         (Some(l), true) if s.agent.mode == "echt" && !s.agent.image => (
             Tone::Open,
             format!(
@@ -644,7 +643,7 @@ pub fn summary(s: &Snapshot) -> Vec<Line> {
     ]
 }
 
-/// Ergebnis des Verbindungstests in einem Satz Klartext.
+/// Result of the connection test in one sentence of plain text.
 pub fn check_plain_text(p: &EndpointCheck) -> (Tone, String) {
     if !p.configured {
         return (Tone::Open, "Noch nichts eingetragen.".into());
@@ -718,10 +717,7 @@ mod tests {
 
     #[test]
     fn keys_are_trimmed_and_checked_without_echo() {
-        assert_eq!(
-            key_verify("  test-wert-123\n").unwrap(),
-            "test-wert-123"
-        );
+        assert_eq!(key_verify("  test-wert-123\n").unwrap(), "test-wert-123");
         for bad in ["", "   ", "a\nb", "a\u{0}b"] {
             let error = key_verify(bad).unwrap_err();
             assert!(!error.contains('\u{0}'));
@@ -765,7 +761,7 @@ mod tests {
             );
         }
         assert_eq!(jira_site_read("").unwrap(), "");
-        // Nur der eigene Rechner geht ohne https.
+        // Only the own machine works without https.
         assert_eq!(
             jira_site_read("http://127.0.0.1:9911/x").unwrap(),
             "http://127.0.0.1:9911"
@@ -852,7 +848,7 @@ mod tests {
         assert_eq!(empty.len(), 4);
         assert!(empty.iter().all(|z| z.tone == Tone::Open), "{empty:?}");
 
-        // Client-ID da, Secret fehlt: ein Problem, das den Schritt nennt.
+        // Client ID there, secret missing: a problem that names the step.
         let mut s = Snapshot::default();
         s.setup.github_client_id = Some("Iv1".into());
         let z = summary(&s);
@@ -860,7 +856,7 @@ mod tests {
         assert_eq!(z[2].step, Step::GitHub);
         assert!(z[2].text.contains("Client-Secret"));
 
-        // Beides da, nur anmelden fehlt: offen mit Handlungsanweisung.
+        // Both there, only signing in missing: open with instructions.
         s.setup.key = vec![KeyResponse {
             name: "github-oauth".into(),
             set: true,
@@ -869,7 +865,7 @@ mod tests {
         assert_eq!(z[2].tone, Tone::Open);
         assert!(z[2].text.contains("Mit GitHub anmelden"));
 
-        // Angemeldet, aber ohne Repos: Problem.
+        // Signed in, but without repos: problem.
         s.github = oauth(true);
         assert_eq!(summary(&s)[2].tone, Tone::Problem);
         s.setup.github_repos = vec!["firma/app".into()];
@@ -914,10 +910,7 @@ mod tests {
         assert!(check_plain_text(&p).1.contains("Modellnamen"));
         p.model_present = true;
         assert_eq!(check_plain_text(&p).0, Tone::Good);
-        assert_eq!(
-            check_plain_text(&EndpointCheck::default()).0,
-            Tone::Open
-        );
+        assert_eq!(check_plain_text(&EndpointCheck::default()).0, Tone::Open);
     }
 
     #[test]
@@ -925,7 +918,7 @@ mod tests {
         let mut s = Snapshot::default();
         s.container.runtime = Some("docker".into());
         s.container.engine_running = true;
-        // Simuliert oder unbekannt: wie bisher grün.
+        // Simulated or unknown: green as before.
         assert_eq!(summary(&s)[0].tone, Tone::Good);
         s.agent.mode = "echt".into();
         let z = &summary(&s)[0];
@@ -964,7 +957,7 @@ mod tests {
                 .contains("alt-modell")
         );
 
-        // Leere Liste oder nichts gespeichert: kein Hinweis, keine Zusatzzeile.
+        // Empty list or nothing stored: no hint, no extra row.
         assert!(model_selection(&list, "").len() == 2);
         assert_eq!(model_hint(&[], "x"), None);
         assert_eq!(model_hint(&list, ""), None);
@@ -1029,7 +1022,7 @@ mod tests {
         s.setup.jira_email = "a@b.de".into();
         let z = &summary(&s)[1];
         assert!(z.text.ends_with("der Token."), "{}", z.text);
-        // Der Weg über die App bleibt erhalten.
+        // The way via the app is kept.
         let mut o = Snapshot::default();
         o.setup.atlassian_client_id = Some("id".into());
         let z = &summary(&o)[1];

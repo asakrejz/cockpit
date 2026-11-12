@@ -1,13 +1,13 @@
-//! Aktionen, die nach außen wirken: Welche [`Action`] geht an welchen Dienst, und wie sieht
-//! der HTTP-Aufruf aus? Alles hier ist rein (kein Netz, keine Uhr) und wird ohne Server getestet.
+//! Actions with an effect on the outside: which [`Action`] goes to which service, and what does
+//! the HTTP call look like? Everything here is pure (no network, no clock) and is tested without a server.
 //!
-//! * [`plane`] sagt zu einer Aktion, was beim Dienst zu tun ist ([`Ausgehend`]) – oder `None`,
-//!   wenn die Aktion lokal bleibt (andere Aktionen, Einträge aus den Beispieldaten, Quelle aus).
-//! * [`Ausgehend::anfrage`] baut daraus Methode, Pfad und Body, soweit ein Aufruf genügt.
-//!   Mehrstufiges (Jira-Transition, Branch, Check neu starten) steht in den Clients; die
-//!   reinen Teile davon (Auswahl, Bodies) stehen hier.
+//! * [`plan`] tells for an action what has to be done at the service ([`Outbound`]) – or `None`
+//!   if the action stays local (other actions, entries from the sample data, source off).
+//! * [`Outbound::request`] builds method, path and body from it, as far as one call suffices.
+//!   Multi-step things (Jira transition, branch, re-run check) live in the clients; the
+//!   pure parts of them (selection, bodies) live here.
 //!
-//! Die Regel „nur Du darfst mergen“ prüft `Workspace::apply` und läuft **vor** dem Aufruf.
+//! The rule „only you may merge“ is checked by `Workspace::apply` and runs **before** the call.
 
 use cockpit_core::{
     Action, Decision, LineKind, MergeMethod, Review, TicketStatus, Verdict, Workspace,
@@ -17,16 +17,16 @@ use serde_json::{Value, json};
 use crate::jira::dto::Transition;
 use crate::jira::{status_from, text_to_adf};
 
-/// Was der Server an Diensten hat.
+/// What the server has in terms of services.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Targets {
     pub github: bool,
     pub jira: bool,
-    /// Konfigurierte GitHub-Repos (`owner/name`); in das erste kommt ein Branch für ein Jira-Ticket.
+    /// Configured GitHub repos (`owner/name`); the first one receives a branch for a Jira ticket.
     pub repos: Vec<String>,
 }
 
-/// Was beim Dienst zu tun ist.
+/// What has to be done at the service.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Outbound {
     JiraComment {
@@ -55,7 +55,7 @@ pub enum Outbound {
         repo: String,
         number: u32,
         method: MergeMethod,
-        /// Der Commit, den wir gesehen haben – ein neuer Push lässt das Mergen scheitern.
+        /// The commit we have seen – a new push makes the merge fail.
         sha: String,
     },
     GitHubRecheck {
@@ -65,14 +65,14 @@ pub enum Outbound {
     },
 }
 
-/// Ein Review, wie es an GitHub geht.
+/// A review as it goes to GitHub.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ReviewData {
-    /// `COMMENT`, `APPROVE` oder `REQUEST_CHANGES`
+    /// `COMMENT`, `APPROVE` or `REQUEST_CHANGES`
     pub verdict: &'static str,
     pub text: String,
     pub comments: Vec<LineComment>,
-    /// Der Commit, den wir geprüft haben.
+    /// The commit we have reviewed.
     pub sha: String,
 }
 
@@ -80,12 +80,12 @@ pub struct ReviewData {
 pub struct LineComment {
     pub path: String,
     pub line: u32,
-    /// `RIGHT` (neue und unveränderte Zeilen) oder `LEFT` (entfernte).
+    /// `RIGHT` (added and unchanged lines) or `LEFT` (removed).
     pub page: &'static str,
     pub text: String,
 }
 
-/// Ein einzelner HTTP-Aufruf.
+/// A single HTTP call.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Request {
     pub method: &'static str,
@@ -93,7 +93,7 @@ pub struct Request {
     pub body: Option<Value>,
 }
 
-/// Warum sich eine Aktion nicht nach außen abbilden lässt (deutsche Meldung).
+/// Why an action cannot be mapped to the outside (German message).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlanError(pub String);
 
@@ -103,9 +103,9 @@ impl std::fmt::Display for PlanError {
     }
 }
 
-/// Bestimmt den Aufruf zu einer Aktion. `vorher` ist der Stand vor, `nachher` der Stand nach
-/// einer Probe-Anwendung (so kennen wir z. B. den Namen des neuen Branches). `Ok(None)`:
-/// bleibt lokal.
+/// Determines the call for an action. `before` is the state before, `after` the state after
+/// a trial application (that is how we know e.g. the name of the new branch). `Ok(None)`:
+/// stays local.
 pub fn plane(
     before: &Workspace,
     after: &Workspace,
@@ -176,8 +176,7 @@ pub fn plane(
             })
         }
         Action::SendReview { review, comment } => {
-            let (Some(r), Some((repo, sha))) = (before.review(*review), repo_of_pr(*review))
-            else {
+            let (Some(r), Some((repo, sha))) = (before.review(*review), repo_of_pr(*review)) else {
                 return Ok(None);
             };
             Some(Outbound::GitHubReview {
@@ -221,9 +220,9 @@ fn location_read(location: &str) -> Option<(&str, u32)> {
     Some((file.trim(), line.trim().parse().ok()?))
 }
 
-/// Baut das Review aus dem Stand: Urteil, eigener Text, freigegebene Vorschläge des Agenten
-/// und alle eigenen Zeilenkommentare (mit `suggestion`-Blöcken). Was sich keiner Zeile
-/// zuordnen lässt, steht im Text des Reviews, damit nichts verloren geht.
+/// Builds the review from the state: verdict, own text, approved suggestions of the agent
+/// and all own line comments (with `suggestion` blocks). Whatever cannot be assigned to a line
+/// ends up in the text of the review, so that nothing gets lost.
 pub fn review_data(review: &Review, comment: &str, sha: &str) -> ReviewData {
     let mut text = comment.trim().to_string();
     let mut lines: Vec<LineComment> = Vec::new();
@@ -278,7 +277,7 @@ pub fn review_data(review: &Review, comment: &str, sha: &str) -> ReviewData {
         }
         text.push_str(&lose.join("\n\n"));
     }
-    // GitHub verlangt Text, wenn es keine Zeilenkommentare gibt (und bei „Änderungen“).
+    // GitHub requires text when there are no line comments (and for „Changes“).
     if text.is_empty()
         && (review.verdict == Verdict::RequestChanges
             || (review.verdict == Verdict::Comment && lines.is_empty()))
@@ -296,7 +295,7 @@ pub fn review_data(review: &Review, comment: &str, sha: &str) -> ReviewData {
     }
 }
 
-// ---------- Aufrufe ----------
+// ---------- Calls ----------
 
 impl ReviewData {
     fn body(&self) -> Value {
@@ -319,7 +318,7 @@ impl ReviewData {
 }
 
 impl Outbound {
-    /// Name des Dienstes für Meldungen.
+    /// Name of the service for messages.
     pub fn service(&self) -> &'static str {
         match self {
             Outbound::JiraComment { .. } | Outbound::JiraStatus { .. } => "Jira",
@@ -327,7 +326,7 @@ impl Outbound {
         }
     }
 
-    /// Der eine Aufruf, soweit einer genügt. Mehrstufige Abläufe geben `None` zurück.
+    /// The one call, as far as one suffices. Multi-step flows return `None`.
     pub fn request(&self) -> Option<Request> {
         Some(match self {
             Outbound::JiraComment { key, text } => Request {
@@ -372,11 +371,14 @@ impl Outbound {
     }
 }
 
-/// Die Transition, die zum Ziel-Status führt: erst eine mit passendem Status, bei mehreren
-/// die, deren Zielname dem deutschen oder englischen Namen des Status am nächsten kommt
-/// (sonst die erste).
+/// The transition that leads to the target status: first one with a matching status, if there are several
+/// the one whose target name comes closest to the German or English name of the status
+/// (otherwise the first).
 pub fn choose_transition(list: &[Transition], target: TicketStatus) -> Option<&Transition> {
-    let matching: Vec<&Transition> = list.iter().filter(|t| status_from(&t.to) == target).collect();
+    let matching: Vec<&Transition> = list
+        .iter()
+        .filter(|t| status_from(&t.to) == target)
+        .collect();
     matching.first().copied()
 }
 
@@ -611,7 +613,7 @@ mod tests {
     fn local_stays_local() {
         let w = ws();
         let demo = cockpit_core::demo::workspace();
-        // Beispieldaten: nie nach außen.
+        // Sample data: never to the outside.
         let a = plan(
             &demo,
             Action::Reply {
@@ -621,7 +623,7 @@ mod tests {
             &all(),
         );
         assert_eq!(a, Ok(None));
-        // Quelle aus.
+        // Source off.
         let from = Targets::default();
         assert_eq!(
             plan(
@@ -634,7 +636,7 @@ mod tests {
             ),
             Ok(None)
         );
-        // Andere Aktionen.
+        // Other actions.
         assert_eq!(
             plan(
                 &w,
@@ -741,7 +743,7 @@ mod tests {
     fn review_contains_verdict_text_suggestions_and_line_comments() {
         let d = review_data(&review(), "  Insgesamt gut  ", "abc123");
         assert_eq!(d.verdict, "REQUEST_CHANGES");
-        // Freigegebener Vorschlag mit Ort als Positionskommentar, abgelehnter fehlt, ortloser im Text.
+        // Approved suggestion with location as a positioned comment, rejected one is missing, locationless one in the text.
         assert_eq!(d.comments.len(), 3);
         assert_eq!(
             d.comments[0],

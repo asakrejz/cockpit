@@ -1,12 +1,12 @@
-//! Der Modell-Endpunkt des Agenten: Verbindungstest und Modellliste mit einem einzigen Aufruf,
+//! The agent's model endpoint: connection test and model list with a single call,
 //! `GET <url>/v1/models`.
 //!
-//! * Ein Proxy oder anderer kompatibler Endpunkt (LiteLLM u. a.): Header `Authorization: Bearer <Key>`.
-//! * Direkt bei Anthropic (`https://api.anthropic.com/v1/models`): `x-api-key` und `anthropic-version`.
+//! * A proxy or other compatible endpoint (LiteLLM and others): header `Authorization: Bearer <key>`.
+//! * Directly at Anthropic (`https://api.anthropic.com/v1/models`): `x-api-key` and `anthropic-version`.
 //!
-//! Gemeldet wird nur, was der Endpunkt antwortet (Modell-IDs) – **nie der Key**. Der Aufruf folgt
-//! keinen Weiterleitungen, damit der Key nicht woanders landet, hat ein Zeitlimit und liest nur
-//! eine begrenzte Menge Antwort.
+//! Only what the endpoint answers is reported (model IDs) – **never the key**. The call follows
+//! no redirects, so the key does not end up elsewhere, has a timeout and reads only
+//! a limited amount of the response.
 
 use std::time::Duration;
 
@@ -15,28 +15,28 @@ use reqwest::{StatusCode, redirect::Policy};
 
 use crate::Secret;
 
-/// Die Adresse der Anthropic-API (ohne Schrägstrich am Ende).
+/// The address of the Anthropic API (without trailing slash).
 pub const ANTHROPIC_API: &str = "https://api.anthropic.com";
-/// Die API-Version, die Anthropic bei jedem Aufruf verlangt.
+/// The API version Anthropic requires on every call.
 const ANTHROPIC_VERSION: &str = "2023-06-01";
-/// So viele angebotene Modelle nennt der Hinweis, wenn das gewünschte fehlt.
+/// The hint names this many offered models when the desired one is missing.
 const MAX_NAMES: usize = 8;
-/// Mehr Antwort wird nicht gelesen (die Liste trägt nur IDs; echte Listen sind weit kleiner).
+/// No more of the response is read (the list carries only IDs; real lists are far smaller).
 const MAX_RESPONSE: usize = 4 * 1024 * 1024;
 const TIMEOUT: Duration = Duration::from_secs(10);
 
-/// Wohin der Aufruf geht und wie er sich ausweist.
+/// Where the call goes and how it identifies itself.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Target {
-    /// Ohne Schrägstrich am Ende.
+    /// Without trailing slash.
     pub base: String,
-    /// Direkt bei Anthropic: `x-api-key` statt `Authorization: Bearer`.
+    /// Directly at Anthropic: `x-api-key` instead of `Authorization: Bearer`.
     pub direct: bool,
 }
 
 impl Target {
-    /// Mit Adresse ein Proxy oder kompatibler Endpunkt, ohne Adresse direkt bei Anthropic.
-    /// `direkt_basis` ersetzt die Anthropic-Adresse (nur für Tests).
+    /// With an address a proxy or compatible endpoint, without an address directly at Anthropic.
+    /// `direct_base` replaces the Anthropic address (for tests only).
     pub fn from(url: Option<&str>, direct_base: Option<&str>) -> Target {
         match url.map(str::trim).filter(|u| !u.is_empty()) {
             Some(u) => Target {
@@ -66,7 +66,7 @@ impl Target {
     }
 }
 
-/// Warum der Abruf keine Liste gebracht hat.
+/// Why the fetch brought no list.
 enum Failed {
     NoKey,
     ClientNotStartable(String),
@@ -89,7 +89,10 @@ impl Failed {
         let who = target.who();
         match self {
             Failed::NoKey => {
-                format!("Es liegt kein Key im Schlüsselbund. {}.", target.key_advice())
+                format!(
+                    "Es liegt kein Key im Schlüsselbund. {}.",
+                    target.key_advice()
+                )
             }
             Failed::ClientNotStartable(e) => format!("HTTP-Client nicht startbar: {e}"),
             Failed::Timeout => format!("{who} antwortet nicht rechtzeitig."),
@@ -116,14 +119,14 @@ impl Failed {
     }
 }
 
-/// Eine brauchbare Modell-ID: nicht leer, nicht zu lang, ohne Leerraum und Steuerzeichen.
+/// A usable model ID: not empty, not too long, without whitespace and control characters.
 fn id_usable(id: &str) -> bool {
     !id.is_empty()
         && id.chars().count() <= 200
         && !id.chars().any(|c| c.is_whitespace() || c.is_control())
 }
 
-/// Sortiert die IDs (Claude-Modelle zuerst, dann alphabetisch), entfernt Doppelte und kappt auf [`MAX_MODELLE`].
+/// Sorts the IDs (Claude models first, then alphabetically), removes duplicates and caps at [`MAX_MODELS`].
 pub fn ids_order(mut ids: Vec<String>) -> Vec<String> {
     ids.sort_by(|a, b| {
         let claude = |s: &str| !s.to_lowercase().contains("claude");
@@ -144,7 +147,7 @@ async fn fetch(target: &Target, key: Option<&Secret>) -> Result<Vec<String>, Fai
         .map_err(|e| Failed::ClientNotStartable(e.without_url().to_string()))?;
     let mut request = client.get(format!("{}/v1/models", target.base));
     request = if target.direct {
-        // Die Liste ist seitenweise; 1000 ist das Höchste, das Anthropic erlaubt.
+        // The list is paged; 1000 is the highest Anthropic allows.
         request
             .query(&[("limit", "1000")])
             .header("x-api-key", key.expose())
@@ -180,12 +183,10 @@ async fn fetch(target: &Target, key: Option<&Secret>) -> Result<Vec<String>, Fai
             Err(_) => return Err(Failed::NoDirectory),
         }
     }
-    let json: serde_json::Value =
-        serde_json::from_slice(&body).map_err(|_| Failed::NoDirectory)?;
+    let json: serde_json::Value = serde_json::from_slice(&body).map_err(|_| Failed::NoDirectory)?;
     let data = json["data"].as_array().ok_or(Failed::NoDirectory)?;
     Ok(ids_order(
-        data
-            .iter()
+        data.iter()
             .filter_map(|m| m["id"].as_str())
             .filter(|id| id_usable(id))
             .map(str::to_string)
@@ -193,7 +194,7 @@ async fn fetch(target: &Target, key: Option<&Secret>) -> Result<Vec<String>, Fai
     ))
 }
 
-/// Die Modell-IDs des Endpunkts für das Drop-down. Ohne Key wird nichts aufgerufen.
+/// The endpoint's model IDs for the drop-down. Without a key nothing is called.
 pub async fn models_load(target: &Target, key: Option<&Secret>) -> ModelList {
     match fetch(target, key).await {
         Ok(models) if models.is_empty() => ModelList {
@@ -220,7 +221,7 @@ pub async fn models_load(target: &Target, key: Option<&Secret>) -> ModelList {
     }
 }
 
-/// Prüft den Endpunkt: erreichbar, Key angenommen, Modell vorhanden. `modell` ist der eingestellte Name.
+/// Checks the endpoint: reachable, key accepted, model present. `model` is the configured name.
 pub async fn verify(target: &Target, key: Option<&Secret>, model: Option<&str>) -> EndpointCheck {
     let mut result = EndpointCheck {
         configured: true,
@@ -238,8 +239,7 @@ pub async fn verify(target: &Target, key: Option<&Secret>, model: Option<&str>) 
     result.key_ok = true;
     match model {
         None => {
-            result.hint =
-                Some("Kein Modell eingestellt. Wähle eines im Schritt „Modell“.".into());
+            result.hint = Some("Kein Modell eingestellt. Wähle eines im Schritt „Modell“.".into());
         }
         Some(m) if names.iter().any(|n| n == m) => result.model_present = true,
         Some(m) => {
@@ -410,7 +410,7 @@ mod tests {
         let z = Target::from(None, Some(&server.uri()));
         let l = models_load(&z, Some(&Secret::new(KEY))).await;
         assert_eq!(l.models, ["claude-opus-5-5"]);
-        // Nie ein Bearer-Header beim direkten Aufruf.
+        // Never a Bearer header on the direct call.
         let request = server.received_requests().await.unwrap();
         assert!(request[0].headers.get("authorization").is_none());
         assert_eq!(request[0].url.query(), Some("limit=1000"));
@@ -485,7 +485,7 @@ mod tests {
 
     #[tokio::test]
     async fn unreachable_endpoint() {
-        // Ein Port, auf dem niemand lauscht.
+        // A port nobody is listening on.
         let free = {
             let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
             l.local_addr().unwrap().port()

@@ -1,9 +1,9 @@
-//! OAuth gegen nachgebaute Antworten: Austausch, Refresh, Widerruf, Sites, Fehler des Dienstes.
-//! Nichts davon ist gegen die echten Dienste geprüft.
+//! OAuth against replayed responses: exchange, refresh, revoke, sites, service errors.
+//! None of this has been checked against the real services.
 
 use cockpit_integrations::jira::JiraClient;
 use cockpit_integrations::oauth::{
-    App, Service, Endpoints, Tokens, refresh, code_exchange, jira_base, sites, revoked,
+    App, Endpoints, Service, Tokens, code_exchange, jira_base, refresh, revoked, sites,
 };
 use cockpit_integrations::{Error, Secret};
 use wiremock::matchers::{basic_auth, body_json, body_string_contains, header, method, path};
@@ -135,7 +135,7 @@ async fn atlassian_code_is_exchanged_as_json() {
 #[tokio::test]
 async fn service_error_response_without_secret() {
     let server = MockServer::start().await;
-    // Der Dienst spielt das Secret in der Meldung zurück.
+    // The service echoes the secret back in the message.
     Mock::given(method("POST"))
         .and(path("/oauth/token"))
         .respond_with(ResponseTemplate::new(403).set_body_json(serde_json::json!({
@@ -157,7 +157,7 @@ async fn service_error_response_without_secret() {
     .unwrap_err();
     assert!(!format!("{f:?} {f}").contains(SECRET));
 
-    // 400 (invalid_grant) kommt mit der Meldung des Dienstes.
+    // 400 (invalid_grant) comes with the service's message.
     server.reset().await;
     Mock::given(method("POST"))
         .and(path("/oauth/token"))
@@ -181,7 +181,7 @@ async fn service_error_response_without_secret() {
         "{f:?}"
     );
 
-    // 401 (falsches Client-Secret).
+    // 401 (wrong client secret).
     server.reset().await;
     Mock::given(method("POST"))
         .respond_with(ResponseTemplate::new(401))
@@ -199,7 +199,7 @@ async fn service_error_response_without_secret() {
     .unwrap_err();
     assert_eq!(f, Error::NotSignedIn);
 
-    // Kein JSON.
+    // Not JSON.
     server.reset().await;
     Mock::given(method("POST"))
         .respond_with(ResponseTemplate::new(200).set_body_string("<html>"))
@@ -277,7 +277,7 @@ async fn atlassian_refresh_rotates_the_refresh_token() {
 #[tokio::test]
 async fn refresh_fails() {
     let secret = Secret::new(SECRET);
-    // Ohne Refresh-Token: nicht angemeldet, ohne Netzwerkaufruf.
+    // Without a refresh token: not signed in, without a network call.
     let f = refresh(
         &Endpoints::default(),
         Service::GitHub,
@@ -289,7 +289,7 @@ async fn refresh_fails() {
     .unwrap_err();
     assert_eq!(f, Error::NotSignedIn);
 
-    // Widerrufenes Refresh-Token.
+    // Revoked refresh token.
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -333,7 +333,7 @@ async fn github_revoke_calls_the_service() {
     .unwrap();
     assert!(ok);
 
-    // Schon widerrufen (404) zählt als erledigt; andere Fehler werden gemeldet.
+    // Already revoked (404) counts as done; other errors are reported.
     server.reset().await;
     Mock::given(method("DELETE"))
         .respond_with(ResponseTemplate::new(404))
@@ -360,7 +360,7 @@ async fn github_revoke_calls_the_service() {
 #[tokio::test]
 async fn atlassian_has_no_revoke_call() {
     let secret = Secret::new(SECRET);
-    // Kein Server nötig: es geht nichts nach außen.
+    // No server needed: nothing goes out.
     let at_service = revoked(
         Service::Atlassian,
         &app(&secret),
@@ -393,7 +393,7 @@ async fn sites_and_jira_via_the_gateway() {
     assert_eq!(list.len(), 1);
     assert_eq!(list[0].id, "1324a887-451a");
 
-    // Jira wird über /ex/jira/<cloudId> mit Bearer angesprochen.
+    // Jira is addressed via /ex/jira/<cloudId> with Bearer.
     Mock::given(method("GET"))
         .and(path("/ex/jira/1324a887-451a/rest/api/3/myself"))
         .and(header("authorization", "Bearer at"))

@@ -15,7 +15,7 @@ im Gespräch stand. Eine neue Session liest zuerst diese Datei, dann `docs/ROADM
   `apps/agent/` mit Containerfile und Läufer, `apps/server/src/agent_lauf.rs` rein, `agent_betrieb.rs` Prozesse, `agent_git.rs`
   Klonen/Prüfen/Pushen; Kern: `AgentReport`/`Action::ReportAgent`). Alles nur gegen Attrappen geprüft (Shell-Skript als
   `docker`, lokales Git-Remote, SDK-Attrappe im Läufer) – **nie** ein echter Lauf, kein echter Proxy.
-- **Agent-Anbieter und Endpunkt (umgesetzt, nur gegen Attrappen geprüft):** `Anbieter`-Enum (Claude Agent SDK läuft, Claude Code
+- **Agent-Anbieter und Endpunkt (umgesetzt, nur gegen Attrappen geprüft):** `Provider`-Enum (früher `Anbieter`) (Claude Agent SDK läuft, Claude Code
   und Codex sind bekannte Werte und melden „noch nicht umgesetzt“), `[agent] anbieter`, `[agent.endpunkt] url/modell`, Schlüssel
   `agent-key`; alte `[litellm]`-Werte und der Schlüssel `litellm` werden weiter gelesen. Der Läufer hat Adapter
   (`apps/agent/runner/src/adapter/`), der Assistent ein Modell-Drop-down aus `GET /api/agent/modelle`. **Offen:** die Adapter für
@@ -28,7 +28,7 @@ im Gespräch stand. Eine neue Session liest zuerst diese Datei, dann `docs/ROADM
   Atlassian; die Wortlaute der Atlassian-Token-Seite („Create API token“, „Copy“) sind nach bestem Wissen geschrieben.
   Sicherheit: Der Token hat die Rechte des Kontos; ein Konto/eine Rolle ohne Schreibrechte ist empfohlen, solange nur
   gelesen werden soll. (2) Nach dem Funktionsumfang ein Refactoring: Ordnerstruktur
-  (**Phase 1 erledigt:** `apps/` = cockpit, server, agent, playground; `crates/` = cockpit-core, integrations, ui; Cockpit ist die Hauptanwendung, der Playground nur die Spielwiese der Komponentenbibliothek), alles auf Englisch (Code,
+  (**Phase 1 erledigt:** `apps/` = cockpit, server, agent, playground; `crates/` = cockpit-core, integrations, ui; Cockpit ist die Hauptanwendung, der Playground nur die Spielwiese der Komponentenbibliothek; **Phase 2 erledigt:** `cockpit-core` und `integrations` sind englisch, Module `einrichten`→`setup`, `abgleich`→`sync`, `ausgehend`→`outbound`, `endpunkt`→`endpoint`, `zeit`→`time`; Draht- und Datenbank-Namen unverändert, abgesichert durch `crates/cockpit-core/tests/wire_compat.rs`), alles auf Englisch (Code,
   Benennung, Docs), Übergabe-Dateien und die Roadmap am Ende entfernen, toten Code löschen.
 
 ## Entscheidungen des Nutzers

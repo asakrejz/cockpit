@@ -1,25 +1,25 @@
-//! Speichern und Laden des [`Workspace`] als Text (JSON) – ohne Browser und ohne UI.
+//! Saving and loading the [`Workspace`] as text (JSON) – without browser and without UI.
 //!
-//! Das Backend legt den Text in SQLite ab; hier steht nur, wie er aussieht und wie
-//! er sicher wieder eingelesen wird:
+//! The backend stores the text in SQLite; this only describes what it looks like and how
+//! it is read back safely:
 //!
-//! * Der Text trägt eine **Versionsnummer** ([`VERSION`]). Wer die Form der Daten
-//!   unverträglich ändert, erhöht sie – alte Stände werden dann verworfen.
-//! * **Neue Felder** in den Typen sind unkritisch: Alte Daten ohne das Feld bekommen
-//!   den Standardwert (`#[serde(default)]`), unbekannte Felder werden ignoriert. Neue
-//!   Felder bekommen deshalb dieses Attribut, sofern ihr Typ `Default` kann.
-//! * **Unlesbare Daten** führen nie zum Absturz: [`restore`] fällt auf die Beispieldaten zurück.
+//! * The text carries a **version number** ([`VERSION`]). Whoever changes the shape of the data
+//!   incompatibly raises it – old states are then discarded.
+//! * **New fields** in the types are uncritical: old data without the field gets
+//!   the default value (`#[serde(default)]`), unknown fields are ignored. New
+//!   fields therefore get this attribute, as long as their type implements `Default`.
+//! * **Unreadable data** never leads to a crash: [`restore`] falls back to the sample data.
 //!
-//! Schlüssel und Tokens sind nicht Teil des Workspace und landen hier nie.
+//! Keys and tokens are not part of the workspace and never end up here.
 
 use serde::{Deserialize, Serialize};
 
 use crate::{Workspace, demo};
 
-/// Version der Speicherform. Bei unverträglichen Änderungen am Datenmodell erhöhen.
+/// Version of the storage shape. Raise on incompatible changes to the data model.
 pub const VERSION: u32 = 1;
 
-/// Nur die Versionsnummer – damit sie auch gelesen werden kann, wenn der Rest nicht passt.
+/// Only the version number – so that it can be read even when the rest does not fit.
 #[derive(Deserialize)]
 struct Header {
     version: u32,
@@ -29,7 +29,7 @@ struct Header {
 struct Out<'a> {
     version: u32,
     workspace: &'a Workspace,
-    /// Nur im Server-Modus: Nummer des Stands (zählt mit jeder angewendeten Aktion).
+    /// Server mode only: number of the state (counts with every applied action).
     #[serde(skip_serializing_if = "Option::is_none")]
     revision: Option<u64>,
 }
@@ -41,22 +41,22 @@ struct In {
     revision: u64,
 }
 
-/// Warum gespeicherte Daten nicht verwendet werden.
+/// Why stored data is not used.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LoadError {
-    /// Kein gültiges JSON oder nicht in der erwarteten Form.
+    /// Not valid JSON or not in the expected shape.
     Unreadable,
-    /// Stammt aus einer anderen Version der App.
+    /// Comes from a different version of the app.
     Version(u32),
 }
 
-/// Wandelt den Workspace in Text um.
+/// Turns the workspace into text.
 pub fn save(workspace: &Workspace) -> String {
     to_text(workspace, None)
 }
 
-/// Wie [`save`], mit der Revisionsnummer des Servers. Dieselbe Form, nur ein Feld mehr;
-/// [`load`] liest den Text weiterhin.
+/// Like [`save`], with the server's revision number. The same shape, just one more field;
+/// [`load`] still reads the text.
 pub fn save_with_revision(workspace: &Workspace, revision: u64) -> String {
     to_text(workspace, Some(revision))
 }
@@ -67,16 +67,16 @@ fn to_text(workspace: &Workspace, revision: Option<u64>) -> String {
         workspace,
         revision,
     })
-    // Der Workspace enthält nur Texte, Zahlen und Aufzählungen – das scheitert nicht.
+    // The workspace contains only texts, numbers and enumerations – this does not fail.
     .unwrap_or_default()
 }
 
-/// Liest gespeicherten Text. Prüft zuerst die Version, dann den Inhalt.
+/// Reads stored text. Checks the version first, then the content.
 pub fn load(text: &str) -> Result<Workspace, LoadError> {
     load_with_revision(text).map(|(workspace, _)| workspace)
 }
 
-/// Wie [`load`], dazu die Revisionsnummer (0, wenn der Text keine enthält).
+/// Like [`load`], plus the revision number (0 if the text contains none).
 pub fn load_with_revision(text: &str) -> Result<(Workspace, u64), LoadError> {
     let header: Header = serde_json::from_str(text).map_err(|_| LoadError::Unreadable)?;
     if header.version != VERSION {
@@ -87,8 +87,8 @@ pub fn load_with_revision(text: &str) -> Result<(Workspace, u64), LoadError> {
         .map_err(|_| LoadError::Unreadable)
 }
 
-/// Der Workspace für den Start: der gespeicherte Stand, sonst die Beispieldaten.
-/// Der zweite Wert sagt, ob der gespeicherte Stand verwendet wurde.
+/// The workspace for the start: the stored state, otherwise the sample data.
+/// The second value says whether the stored state was used.
 pub fn restore(saved: Option<&str>) -> (Workspace, bool) {
     match saved.map(load) {
         Some(Ok(workspace)) => (workspace, true),
@@ -110,9 +110,9 @@ mod tests {
         let ws = demo::workspace();
         let text = save_with_revision(&ws, 42);
         assert_eq!(load_with_revision(&text), Ok((ws.clone(), 42)));
-        // Wer die Revision nicht kennt, liest denselben Text.
+        // Whoever does not know the revision reads the same text.
         assert_eq!(load(&text), Ok(ws.clone()));
-        // Ohne Revision im Text: 0.
+        // Without a revision in the text: 0.
         assert_eq!(load_with_revision(&save(&ws)), Ok((ws, 0)));
     }
 
@@ -152,7 +152,7 @@ mod tests {
         assert_eq!(back.running_agents(), 1);
         let run = back.runs.iter().find(|r| r.is_running()).unwrap();
         assert_eq!((run.completed, run.state), (2, RunState::Running));
-        // … und läuft nach dem Laden zu Ende, mit neuem Pull Request.
+        // … and runs to the end after loading, with a new pull request.
         for _ in 0..STEPS {
             back.advance_agents();
         }
@@ -167,10 +167,10 @@ mod tests {
     #[test]
     fn features_of_other_modules_survive() {
         let mut ws = demo::workspace();
-        // Eigener Zeilenkommentar im Review …
+        // Own line comment in the review …
         ws.add_line_comment(87, "components.css", 2, "Bitte Token verwenden.", None)
             .unwrap();
-        // … und ein Agent, dessen Plan auf Freigabe wartet, mit Anmerkung.
+        // … and an agent whose plan waits for approval, with a note.
         ws.start_agent("BAU-142", AgentOptions::default()).unwrap();
         assert!(ws.revise_plan("BAU-142", "Auch den Slider prüfen"));
         let back = load(&save(&ws)).unwrap();
@@ -208,7 +208,7 @@ mod tests {
             load(&value.to_string()),
             Err(LoadError::Version(VERSION + 1))
         );
-        // Auch wenn der Rest nicht mehr zur heutigen Form passt.
+        // Even if the rest no longer fits today's shape.
         assert_eq!(
             load("{\"version\":0,\"workspace\":\"alt\"}"),
             Err(LoadError::Version(0))
@@ -227,7 +227,7 @@ mod tests {
         let item = &mut value["workspace"]["items"][0];
         item.as_object_mut().unwrap().remove("read");
         item.as_object_mut().unwrap().remove("comments");
-        // Unbekannte Felder aus einer neueren App stören nicht.
+        // Unknown fields from a newer app do not disturb.
         item["etwas_neues"] = "x".into();
 
         let ws = load(&value.to_string()).unwrap();
@@ -269,7 +269,7 @@ mod tests {
         assert_eq!(back, changed);
     }
 
-    /// Sammelt alle Feldnamen eines JSON-Werts.
+    /// Collects all field names of a JSON value.
     fn keys(value: &serde_json::Value, out: &mut Vec<String>) {
         match value {
             serde_json::Value::Object(map) => {
@@ -285,7 +285,7 @@ mod tests {
 
     #[test]
     fn no_secret_fields_in_saved_text() {
-        // Der Workspace kennt keine Felder für Schlüssel, Tokens oder Passwörter.
+        // The workspace has no fields for keys, tokens or passwords.
         let mut ws = demo::workspace();
         let key = ws.items.iter().find(|i| i.is_ticket()).unwrap().key.clone();
         ws.start_agent(&key, AgentOptions::default()).unwrap();
@@ -293,7 +293,7 @@ mod tests {
         keys(&json(&save(&ws)), &mut names);
         assert!(names.len() > 20);
         for name in names {
-            // Zähler des Verbrauchs (Sprachmodell-Tokens) sind keine Zugangsdaten.
+            // Usage counters (language-model tokens) are not credentials.
             if name == "input_tokens" || name == "output_tokens" {
                 continue;
             }
@@ -322,7 +322,7 @@ mod tests {
         let run = back.run("BAU-142").unwrap();
         assert_eq!(run.state, RunState::AwaitingAnswer);
         assert!(run.question.is_some() && run.asked);
-        // Nach dem Laden lässt sich antworten und pausieren.
+        // After loading, one can answer and pause.
         let mut back = back;
         assert!(back.answer_agent("BAU-142", "Entfernen"));
         assert!(back.pause_agent("BAU-142"));
@@ -331,7 +331,7 @@ mod tests {
             RunState::Paused
         );
 
-        // Ein älterer Stand kennt Verlauf und Frage noch nicht.
+        // An older state does not know history and question yet.
         let mut value = json(&save(&demo::workspace()));
         let run = &mut value["workspace"]["runs"][0];
         for field in ["messages", "question", "asked", "pending_hints"] {

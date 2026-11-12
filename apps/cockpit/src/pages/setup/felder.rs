@@ -1,8 +1,8 @@
 //! Gemeinsame Bausteine der Einrichtungsschritte: Zustand, Schlüsselfeld, Kopierfeld,
 //! Meldungen und das Speichern der Konfiguration. Die Regeln (Prüfung, Normalisierung) stehen in
-//! `cockpit_core::einrichten`, das Schreiben im Server; hier ist nur Verdrahtung.
+//! `cockpit_core::setup`, das Schreiben im Server; hier ist nur Verdrahtung.
 
-use cockpit_core::api::{ContainerCheck, Setup, EndpointCheck, ConfigChange};
+use cockpit_core::api::{ConfigChange, ContainerCheck, EndpointCheck, Setup};
 use cockpit_core::setup::key_verify;
 use feature_ui::*;
 use leptos::prelude::*;

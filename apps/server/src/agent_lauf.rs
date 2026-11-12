@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use cockpit_core::api::{AgentStatus, Provider, ContainerStatus};
+use cockpit_core::api::{AgentStatus, ContainerStatus, Provider};
 use cockpit_core::{AgentReport, AgentRun, RunKind, RunState, Workspace};
 use serde::Deserialize;
 use serde_json::{Value, json};

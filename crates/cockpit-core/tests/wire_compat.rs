@@ -54,12 +54,18 @@ fn check(name: &str, actual: String) {
         return;
     }
     let expected = std::fs::read_to_string(&path).unwrap();
-    assert!(actual == expected, "{name} differs from the stored snapshot");
+    assert!(
+        actual == expected,
+        "{name} differs from the stored snapshot"
+    );
 }
 
 #[test]
 fn demo_workspace_serializes_byte_identically() {
-    check("wire_demo_workspace.json", persist::save(&demo::workspace()));
+    check(
+        "wire_demo_workspace.json",
+        persist::save(&demo::workspace()),
+    );
 }
 
 #[test]

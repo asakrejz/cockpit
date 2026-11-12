@@ -1,28 +1,28 @@
-//! Fachlogik des Cockpits – ohne UI und ohne Netzwerk.
+//! Domain logic of the cockpit – without UI and without network.
 //!
-//! * [`model`]: Tickets, Pull Requests und warum sie Aufmerksamkeit brauchen
-//! * [`attention`]: Regeln, warum ein Eintrag Aufmerksamkeit braucht, und Zurückstellen
-//! * [`review`]: Diff, Vorschläge des Agenten, Freigabe und Urteil
-//! * [`agent`]: der Lauf eines Agenten als Zustandsmaschine
-//! * [`diagnosis`]: Ursache und Fix-Vorschlag zu einem roten Check
-//! * [`connections`]: Verbindungen, Berechtigungen und Eingabeprüfung
-//! * [`einrichten`]: Schritte, Eingaben und Zusammenfassung des Einrichtungsassistenten
-//! * [`link`]: Ticket und Pull Request über den Ticket-Schlüssel verknüpfen
-//! * [`search`]: Suche und Filter der Inbox
-//! * [`notify`]: Ereignisse für Benachrichtigungen, Kanäle und Ruhezeiten
-//! * [`usage`]: Verbrauch, Kosten, Grenzen und das Kassenbuch der Agenten
-//! * [`rules`]: Regeln pro Repository (Pfade, Pflicht-Tests, Anweisungen)
-//! * [`sync`]: Abgleich mit Jira und GitHub (reine Zusammenführung)
-//! * [`team`]: Auslastung pro Person und was gerade hängt
-//! * [`workspace`]: alles zusammen, mit den Aktionen der Oberfläche
-//! * [`action`]: [`Action`], `Workspace::apply` und das Protokoll
-//! * [`demo`]: Beispieldaten für Tests, Stories und den Seed `COCKPIT_SEED=demo` des Servers
-//! * [`api`]: die JSON-Formen zwischen App und Backend (Server-Modus)
-//! * [`persist`]: Speichern und Laden des Workspace (JSON mit Versionsnummer)
+//! * [`model`]: tickets, pull requests and why they need attention
+//! * [`attention`]: rules why an entry needs attention, and snoozing
+//! * [`review`]: diff, suggestions of the agent, approval and verdict
+//! * [`agent`]: the run of an agent as a state machine
+//! * [`diagnosis`]: cause and fix proposal for a red check
+//! * [`connections`]: connections, permissions and input validation
+//! * [`setup`]: steps, inputs and summary of the setup assistant
+//! * [`link`]: link ticket and pull request via the ticket key
+//! * [`search`]: search and filter of the inbox
+//! * [`notify`]: events for notifications, channels and quiet hours
+//! * [`usage`]: consumption, costs, limits and the ledger of the agents
+//! * [`rules`]: rules per repository (paths, required tests, instructions)
+//! * [`sync`]: sync with Jira and GitHub (pure merging)
+//! * [`team`]: load per person and what is currently stuck
+//! * [`workspace`]: everything together, with the actions of the UI
+//! * [`action`]: [`Action`], `Workspace::apply` and the log
+//! * [`demo`]: sample data for tests, stories and the server's seed `COCKPIT_SEED=demo`
+//! * [`api`]: the JSON shapes between app and backend (server mode)
+//! * [`persist`]: saving and loading the workspace (JSON with version number)
 //!
-//! Jede Aktion der Oberfläche ist eine [`Action`], die `Workspace::apply` über Methoden
-//! auf [`Workspace`] ausführt und protokolliert – und damit mit `cargo test` prüfbar. Ein echtes Backend würde dieselben Aktionen gegen Jira,
-//! GitHub und den Agenten ausführen und das Ergebnis in den Workspace schreiben.
+//! Every action of the UI is an [`Action`] that `Workspace::apply` executes via methods
+//! on [`Workspace`] and logs – and is thus testable with `cargo test`. A real backend would run the same actions against Jira,
+//! GitHub and the agent and write the result into the workspace.
 
 pub mod action;
 pub mod agent;
@@ -31,7 +31,6 @@ pub mod attention;
 pub mod connections;
 pub mod demo;
 pub mod diagnosis;
-pub mod setup;
 pub mod link;
 pub mod model;
 pub mod notify;
@@ -39,6 +38,7 @@ pub mod persist;
 pub mod review;
 pub mod rules;
 pub mod search;
+pub mod setup;
 pub mod sync;
 pub mod team;
 pub mod text;

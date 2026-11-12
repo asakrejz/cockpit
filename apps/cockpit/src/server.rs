@@ -4,10 +4,10 @@
 
 use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
-    ActionRequest, ActionResponse, AgentStatus, ContainerCheck, ContainerStatus, Setup,
-    EndpointCheck, EndpointStatus, ErrorBody, ImageBau, JiraProjectsResponse, JiraCheck,
-    ConfigChange, ConfigResponse, ModelList, KeyResponse, KeyInput, ServerEvent,
-    SyncResponse, RevokeResponse,
+    ActionRequest, ActionResponse, AgentStatus, ConfigChange, ConfigResponse, ContainerCheck,
+    ContainerStatus, EndpointCheck, EndpointStatus, ErrorBody, ImageBuild, JiraCheck,
+    JiraProjectsResponse, KeyInput, KeyResponse, ModelList, RevokeResponse, ServerEvent, Setup,
+    SyncResponse,
 };
 use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
@@ -214,7 +214,7 @@ pub async fn fetch_modelle() -> Result<ModelList, CallError> {
 }
 
 /// Stand von „Image bauen“ (`GET /api/agent/image`).
-pub async fn fetch_image() -> Result<ImageBau, CallError> {
+pub async fn fetch_image() -> Result<ImageBuild, CallError> {
     let resp = Request::get("/api/agent/image")
         .send()
         .await
@@ -222,13 +222,13 @@ pub async fn fetch_image() -> Result<ImageBau, CallError> {
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<ImageBau>()
+    resp.json::<ImageBuild>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
 /// Startet „Image bauen“ (`POST /api/agent/image`); der Bau läuft im Server weiter.
-pub async fn post_image_bauen() -> Result<ImageBau, CallError> {
+pub async fn post_image_bauen() -> Result<ImageBuild, CallError> {
     let request = Request::post("/api/agent/image")
         .header("Content-Type", "application/json")
         .build()
@@ -237,7 +237,7 @@ pub async fn post_image_bauen() -> Result<ImageBau, CallError> {
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<ImageBau>()
+    resp.json::<ImageBuild>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }

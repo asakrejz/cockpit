@@ -1,4 +1,4 @@
-//! Lesender Client für die GitHub-REST-API.
+//! Reading client for the GitHub REST API.
 
 use cockpit_core::Item;
 
@@ -9,16 +9,16 @@ use super::dto::{
     ReviewComment, SearchItem, SearchResult, User,
 };
 use super::map;
-use crate::outbound::{Request, Outbound, branch_request, check_again_request};
 use crate::http::{base_url, client, send};
+use crate::outbound::{Outbound, Request, branch_request, check_again_request};
 use crate::{Error, Secret};
 
-/// Warum ein Pull Request in der Inbox steht.
+/// Why a pull request is in the inbox.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Relation {
-    /// Ein Review von mir ist angefragt.
+    /// A review from me is requested.
     ReviewRequested,
-    /// Der Pull Request gehört mir.
+    /// The pull request is mine.
     Own,
 }
 
@@ -31,9 +31,9 @@ impl Relation {
     }
 }
 
-/// Höchstens so viele Pull Requests je Relation werden pro Abruf geladen.
+/// At most this many pull requests per relation are loaded per fetch.
 const MAX_PRS: usize = 30;
-/// Seiten à 100 bei Dateien und Kommentaren (GitHub liefert höchstens 3000 Dateien).
+/// Pages of 100 for files and comments (GitHub delivers at most 3000 files).
 const MAX_PAGES: u32 = 3;
 
 pub struct GitHubClient {
@@ -52,7 +52,7 @@ impl std::fmt::Debug for GitHubClient {
 }
 
 impl GitHubClient {
-    /// `api_url` ist üblicherweise `https://api.github.com` (bei GitHub Enterprise
+    /// `api_url` is usually `https://api.github.com` (for GitHub Enterprise
     /// `https://host/api/v3`).
     pub fn new(api_url: &str, token: Secret) -> Result<Self, Error> {
         Ok(Self {
@@ -74,8 +74,8 @@ impl GitHubClient {
         self.request(reqwest::Method::GET, path)
     }
 
-    /// Schickt die Anfrage; ein Schlüssel, den der Dienst in einer Meldung zurückspielt,
-    /// wird unkenntlich gemacht.
+    /// Sends the request; a key that the service echoes back in a message
+    /// is made unrecognizable.
     async fn text(&self, req: reqwest::RequestBuilder) -> Result<String, Error> {
         send(req)
             .await
@@ -100,18 +100,18 @@ impl GitHubClient {
         self.text(req).await
     }
 
-    /// Login des Schlüsselinhabers.
+    /// Login of the key holder.
     pub async fn me(&self) -> Result<String, Error> {
         Ok(self.lies_json::<User>(self.get("/user")).await?.login)
     }
 
-    /// Offene Pull Requests, bei denen ein Review von mir angefragt ist oder die mir gehören.
-    /// Liefert `(owner/name, Nummer)`.
+    /// Open pull requests for which a review from me is requested or which belong to me.
+    /// Returns `(owner/name, number)`.
     pub async fn search(&self, relation: Relation) -> Result<Vec<(String, u32)>, Error> {
         self.search_with(relation.search()).await
     }
 
-    /// Wie [`GitHubClient::suche`], beschränkt auf ein Repo (`owner/name`).
+    /// Like [`GitHubClient::search`], restricted to one repo (`owner/name`).
     pub async fn search_in(
         &self,
         relation: Relation,
@@ -121,8 +121,8 @@ impl GitHubClient {
             .await
     }
 
-    /// Die Suche, seitenweise (je 100), bis es keine volle Seite mehr gibt oder
-    /// [`MAX_PRS`] erreicht sind.
+    /// The search, page by page (100 each), until there is no full page any more or
+    /// [`MAX_PRS`] is reached.
     async fn search_with(&self, q: &str) -> Result<Vec<(String, u32)>, Error> {
         let per_page = MAX_PRS.min(100);
         let mut all = Vec::new();
@@ -154,10 +154,9 @@ impl GitHubClient {
             .await
     }
 
-    /// Geänderte Dateien mit Patch.
+    /// Changed files with patch.
     pub async fn files(&self, repo: &str, nr: u32) -> Result<Vec<PullFile>, Error> {
-        self.pages(&format!("/repos/{repo}/pulls/{nr}/files"))
-            .await
+        self.pages(&format!("/repos/{repo}/pulls/{nr}/files")).await
     }
 
     pub async fn comments(&self, repo: &str, nr: u32) -> Result<Vec<IssueComment>, Error> {
@@ -165,21 +164,17 @@ impl GitHubClient {
             .await
     }
 
-    pub async fn line_comments(
-        &self,
-        repo: &str,
-        nr: u32,
-    ) -> Result<Vec<ReviewComment>, Error> {
+    pub async fn line_comments(&self, repo: &str, nr: u32) -> Result<Vec<ReviewComment>, Error> {
         self.pages(&format!("/repos/{repo}/pulls/{nr}/comments"))
             .await
     }
 
-    /// Status der Checks für einen Commit.
+    /// Status of the checks for a commit.
     pub async fn checks(&self, repo: &str, sha: &str) -> Result<cockpit_core::Checks, Error> {
         Ok(map::aggregate_checks(&self.check_runs(repo, sha).await?))
     }
 
-    /// Die einzelnen Check-Läufe eines Commits.
+    /// The individual check runs of a commit.
     pub async fn check_runs(&self, repo: &str, sha: &str) -> Result<Vec<CheckRun>, Error> {
         let runs: CheckRuns = self
             .lies_json(
@@ -190,7 +185,7 @@ impl GitHubClient {
         Ok(runs.check_runs)
     }
 
-    /// Urteile der Reviewer.
+    /// Verdicts of the reviewers.
     pub async fn reviews(&self, repo: &str, nr: u32) -> Result<Vec<PullReview>, Error> {
         self.pages(&format!("/repos/{repo}/pulls/{nr}/reviews"))
             .await
@@ -214,8 +209,8 @@ impl GitHubClient {
         Ok(all)
     }
 
-    /// Inbox-Einträge: erst Review-Anfragen, dann eigene Pull Requests (ohne Doppelte).
-    /// Zu jedem Pull Request wird er selbst und der Check-Status nachgeladen.
+    /// Inbox entries: first review requests, then own pull requests (without duplicates).
+    /// For each pull request itself and the check status are loaded afterwards.
     pub async fn load_inbox(&self, now: i64) -> Result<Vec<Item>, Error> {
         let mut items: Vec<Item> = Vec::new();
         let mut seen: Vec<(String, u32)> = Vec::new();
@@ -234,10 +229,10 @@ impl GitHubClient {
     }
 }
 
-// ---------- Schreiben ----------
+// ---------- Writing ----------
 
 impl GitHubClient {
-    /// Führt einen Aufruf nach außen aus. Nur GitHub-Varianten; Jira ist Sache des Jira-Clients.
+    /// Executes an outbound call. GitHub variants only; Jira is the Jira client's business.
     pub async fn execute(&self, a: &Outbound) -> Result<(), Error> {
         match a {
             Outbound::GitHubBranch { repo, name } => self.branch_create(repo, name).await,
@@ -253,7 +248,7 @@ impl GitHubClient {
         }
     }
 
-    /// Legt `name` als Ref vom Standard-Branch des Repos an.
+    /// Creates `name` as a ref from the default branch of the repo.
     pub async fn branch_create(&self, repo: &str, name: &str) -> Result<(), Error> {
         let r: Repo = self.lies_json(self.get(&format!("/repos/{repo}"))).await?;
         let r#ref: GitRefResponse = self
@@ -264,7 +259,7 @@ impl GitHubClient {
             .map(|_| ())
     }
 
-    /// Fordert den Check mit diesem Namen am aktuellen Commit des Pull Requests neu an.
+    /// Re-requests the check with this name on the current commit of the pull request.
     pub async fn check_again_start(&self, repo: &str, nr: u32, check: &str) -> Result<(), Error> {
         let pull = self.pull(repo, nr).await?;
         let runs = self.check_runs(repo, &pull.head.sha).await?;

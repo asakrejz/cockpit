@@ -1,12 +1,12 @@
-//! Anmeldung per OAuth: GitHub (GitHub App, Nutzer-Token mit Refresh) und Atlassian (OAuth 2.0
+//! Sign-in via OAuth: GitHub (GitHub App, user token with refresh) and Atlassian (OAuth 2.0
 //! 3LO, Resource-level).
 //!
-//! Das Backend leitet den Browser zur Anmeldung (`state` + PKCE), tauscht im Callback den `code`
-//! gegen Tokens und frischt sie vor Ablauf auf. Das Client-Secret und die Tokens verlassen das
-//! Backend nie. Alles hier ist rein oder nimmt die Adressen als [`Endpunkte`] entgegen, damit
-//! sich jeder Fall gegen einen nachgebauten Dienst testen lässt.
+//! The backend redirects the browser to sign in (`state` + PKCE), exchanges the `code` in the callback
+//! for tokens and refreshes them before expiry. The client secret and the tokens never leave the
+//! backend. Everything here is pure or takes the addresses as [`Endpoints`], so that
+//! every case can be tested against a replayed service.
 //!
-//! Gegen die echten Dienste ist das noch nicht geprüft.
+//! This has not been checked against the real services yet.
 
 use std::collections::HashMap;
 
@@ -18,7 +18,7 @@ use sha2::{Digest, Sha256};
 use crate::http::{client, send};
 use crate::{Error, Secret};
 
-/// Die Dienste mit OAuth.
+/// The services with OAuth.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Service {
     GitHub,
@@ -26,7 +26,7 @@ pub enum Service {
 }
 
 impl Service {
-    /// So heißt der Dienst in Adressen: `/api/oauth/<kennung>/…`.
+    /// This is the service's name in addresses: `/api/oauth/<id>/…`.
     pub fn id(self) -> &'static str {
         match self {
             Service::GitHub => "github",
@@ -50,17 +50,17 @@ impl Service {
     }
 }
 
-/// Berechtigungen bei Atlassian; `offline_access` liefert das Refresh-Token.
+/// Permissions at Atlassian; `offline_access` delivers the refresh token.
 pub const ATLASSIAN_SCOPES: &str = "read:jira-work write:jira-work read:jira-user offline_access";
 
-/// Die Adressen der Dienste. Standard sind die echten; Tests setzen den nachgebauten Dienst ein.
+/// The addresses of the services. Default are the real ones; tests insert the replayed service.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Endpoints {
     pub github_sign_in: String,
     pub github_token: String,
     pub atlassian_sign_in: String,
     pub atlassian_token: String,
-    /// Basis von `accessible-resources` und `ex/jira/<cloudId>`.
+    /// Base of `accessible-resources` and `ex/jira/<cloudId>`.
     pub atlassian_api: String,
 }
 
@@ -76,7 +76,7 @@ impl Default for Endpoints {
     }
 }
 
-/// Die Zugangsdaten der App eines Dienstes. Das Secret steht nur hier und wird nie ausgegeben.
+/// The credentials of a service's app. The secret is only here and is never printed.
 pub struct App<'a> {
     pub client_id: &'a str,
     pub client_secret: &'a Secret,
@@ -85,25 +85,25 @@ pub struct App<'a> {
 
 // ───────────────────────── Tokens ─────────────────────────
 
-/// Access- und Refresh-Token eines Dienstes. Liegt als ein Eintrag im Schlüsselbund.
+/// Access and refresh token of a service. Stored as a single entry in the keychain.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tokens {
     pub access: Secret,
     pub refresh: Option<Secret>,
-    /// Zeitpunkt (Sekunden seit 1970), ab dem `access` nicht mehr gilt. `None`: läuft nicht ab.
+    /// Time (seconds since 1970) from which `access` no longer applies. `None`: does not expire.
     pub expires_in_s: Option<u64>,
 }
 
-/// So früh vor dem Ablauf wird aufgefrischt.
+/// Refresh this early before expiry.
 const LEAD_S: u64 = 120;
 
 impl Tokens {
-    /// Muss vor dem Gebrauch aufgefrischt werden?
+    /// Must it be refreshed before use?
     pub fn needs_refresh(&self, now_s: u64) -> bool {
         self.expires_in_s.is_some_and(|ab| now_s + LEAD_S >= ab)
     }
 
-    /// Text für den Schlüsselbund.
+    /// Text for the keychain.
     pub fn as_text(&self) -> String {
         serde_json::json!({
             "access": self.access.expose(),
@@ -113,7 +113,7 @@ impl Tokens {
         .to_string()
     }
 
-    /// Gegenstück zu [`als_text`](Self::als_text); `None` bei Unlesbarem oder leerem Token.
+    /// Counterpart to [`as_text`](Self::as_text); `None` for unreadable or empty token.
     pub fn from_text(text: &str) -> Option<Self> {
         #[derive(Deserialize)]
         struct Raw {
@@ -133,7 +133,7 @@ impl Tokens {
     }
 }
 
-/// Antwort des Token-Endpunkts. GitHub antwortet auch bei Fehlern mit 200 und `error`.
+/// Response of the token endpoint. GitHub answers with 200 and `error` even on failures.
 #[derive(Deserialize)]
 struct TokenResponse {
     access_token: Option<String>,
@@ -143,15 +143,15 @@ struct TokenResponse {
     error_description: Option<String>,
 }
 
-/// Liest die Antwort des Token-Endpunkts. `alt`: das bisherige Refresh-Token, falls der Dienst
-/// kein neues schickt.
+/// Reads the response of the token endpoint. `old`: the previous refresh token, in case the service
+/// sends no new one.
 fn tokens_from(
     body: &str,
     now_s: u64,
-    alt: Option<&Secret>,
+    old: Option<&Secret>,
     secret: &[&str],
 ) -> Result<Tokens, Error> {
-    // Kurze Werte würden beliebige Wörter treffen; echte Codes und Secrets sind länger.
+    // Short values would match arbitrary words; real codes and secrets are longer.
     let pure = |m: String| {
         secret
             .iter()
@@ -174,27 +174,26 @@ fn tokens_from(
             .refresh_token
             .filter(|t| !t.is_empty())
             .map(Secret::new)
-            .or_else(|| alt.cloned()),
+            .or_else(|| old.cloned()),
         expires_in_s: a.expires_in.map(|s| now_s + s),
     })
 }
 
-// ───────────────────────── Anmeldung ─────────────────────────
+// ───────────────────────── Sign-in ──────────────────────
 
-/// `n` Zufallsbytes als URL-sicherer Text.
+/// `n` random bytes as URL-safe text.
 fn random(n: usize) -> Result<String, Error> {
     let mut buf = vec![0u8; n];
-    getrandom::fill(&mut buf)
-        .map_err(|e| Error::Config(format!("Kein Zufall verfügbar: {e}")))?;
+    getrandom::fill(&mut buf).map_err(|e| Error::Config(format!("Kein Zufall verfügbar: {e}")))?;
     Ok(URL_SAFE_NO_PAD.encode(buf))
 }
 
-/// Die PKCE-Prüfsumme zum `verifier` (Methode `S256`).
+/// The PKCE checksum for the `verifier` (method `S256`).
 pub fn pkce_challenge(verifier: &str) -> String {
     URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
 }
 
-/// Die Adresse, zu der der Browser für die Anmeldung geleitet wird.
+/// The address the browser is redirected to for sign-in.
 pub fn sign_in_url(
     e: &Endpoints,
     service: Service,
@@ -226,7 +225,7 @@ pub fn sign_in_url(
         .map_err(|e| Error::Config(format!("Anmelde-Adresse ungültig: {e}")))
 }
 
-/// Tauscht den `code` aus dem Callback gegen Tokens. Läuft nur im Backend (mit dem Secret).
+/// Exchanges the `code` from the callback for tokens. Runs only in the backend (with the secret).
 pub async fn code_exchange(
     e: &Endpoints,
     service: Service,
@@ -264,15 +263,15 @@ pub async fn code_exchange(
     tokens_from(&body, now_s, None, &secret)
 }
 
-/// Holt mit dem Refresh-Token neue Tokens. Fehlt es, ist das ein Fall von „nicht angemeldet“.
+/// Fetches new tokens with the refresh token. If it is missing, that is a case of „not signed in“.
 pub async fn refresh(
     e: &Endpoints,
     service: Service,
     app: &App<'_>,
-    alt: &Tokens,
+    old: &Tokens,
     now_s: u64,
 ) -> Result<Tokens, Error> {
-    let Some(refresh) = alt.refresh.as_ref() else {
+    let Some(refresh) = old.refresh.as_ref() else {
         return Err(Error::NotSignedIn);
     };
     let secret = [app.client_secret.expose(), refresh.expose()];
@@ -298,13 +297,13 @@ pub async fn refresh(
             })),
     };
     let body = send(req).await.map_err(|f| f.without_key(secret[0]))?;
-    // Atlassian dreht das Refresh-Token bei jeder Auffrischung: das neue ersetzt das alte.
+    // Atlassian rotates the refresh token on every refresh: the new one replaces the old.
     tokens_from(&body, now_s, Some(refresh), &secret)
 }
 
-/// Widerruft das Token beim Dienst. Nur GitHub bietet das als Aufruf an (`DELETE
-/// /applications/<client_id>/token`); bei Atlassian bleibt der Entzug in den Kontoeinstellungen
-/// (`Ok(false)`: beim Dienst nichts widerrufen).
+/// Revokes the token at the service. Only GitHub offers this as a call (`DELETE
+/// /applications/<client_id>/token`); at Atlassian the revocation stays in the account settings
+/// (`Ok(false)`: nothing revoked at the service).
 pub async fn revoked(
     service: Service,
     app: &App<'_>,
@@ -323,7 +322,7 @@ pub async fn revoked(
                 .json(&serde_json::json!({ "access_token": tokens.access.expose() }));
             match send(req).await {
                 Ok(_) => Ok(true),
-                // Schon widerrufen oder abgelaufen: Ziel erreicht.
+                // Already revoked or expired: goal reached.
                 Err(Error::NotFound) => Ok(true),
                 Err(f) => Err(f
                     .without_key(app.client_secret.expose())
@@ -335,7 +334,7 @@ pub async fn revoked(
 
 // ───────────────────────── Atlassian: Site ─────────────────────────
 
-/// Eine Jira-Site, auf die die Zustimmung gilt.
+/// A Jira site the consent applies to.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Site {
     pub id: String,
@@ -343,7 +342,7 @@ pub struct Site {
     pub url: String,
 }
 
-/// `GET /oauth/token/accessible-resources`: die Sites, die der Nutzer freigegeben hat.
+/// `GET /oauth/token/accessible-resources`: the sites the user has allowed.
 pub async fn sites(e: &Endpoints, access: &Secret) -> Result<Vec<Site>, Error> {
     let base = crate::http::base_url(&e.atlassian_api)?;
     let req = client()?
@@ -356,8 +355,8 @@ pub async fn sites(e: &Endpoints, access: &Secret) -> Result<Vec<Site>, Error> {
     serde_json::from_str(&body).map_err(|e| Error::Response(e.to_string()))
 }
 
-/// Wählt die Site: genau eine automatisch, sonst nach `gewuenscht` (Name, Adresse oder Id aus
-/// der Konfiguration). Bei mehreren ohne Wunsch nennt der Fehler die Möglichkeiten.
+/// Chooses the site: exactly one automatically, otherwise by `requested` (name, address or ID from
+/// the configuration). With several and no request the error names the options.
 pub fn site_choose(sites: &[Site], requested: Option<&str>) -> Result<Site, Error> {
     let names = || {
         sites
@@ -373,8 +372,7 @@ pub fn site_choose(sites: &[Site], requested: Option<&str>) -> Result<Site, Erro
         )),
         (list, Some(requested)) => {
             let w = requested.trim_end_matches('/').to_ascii_lowercase();
-            list
-                .iter()
+            list.iter()
                 .find(|s| {
                     s.id.eq_ignore_ascii_case(&w)
                         || s.name.to_ascii_lowercase() == w
@@ -396,7 +394,7 @@ pub fn site_choose(sites: &[Site], requested: Option<&str>) -> Result<Site, Erro
     }
 }
 
-/// Die Basis für Jira über das Atlassian-Gateway: `<api>/ex/jira/<cloudId>`.
+/// The base for Jira via the Atlassian gateway: `<api>/ex/jira/<cloudId>`.
 pub fn jira_base(e: &Endpoints, cloud_id: &str) -> Result<String, Error> {
     let ok = !cloud_id.is_empty()
         && cloud_id
@@ -411,11 +409,11 @@ pub fn jira_base(e: &Endpoints, cloud_id: &str) -> Result<String, Error> {
     ))
 }
 
-// ───────────────────────── laufende Anmeldungen ─────────────────────────
+// ───────────────────────── Open sign-ins ──────────────────────
 
-/// So lange gilt ein `state`.
+/// This long a `state` is valid.
 pub const STATE_VALID_MS: u64 = 10 * 60 * 1000;
-/// Mehr offene Anmeldungen gleichzeitig gibt es nicht (lokal, eine Person).
+/// No more open sign-ins at the same time (local, one person).
 const MAX_OPEN: usize = 16;
 
 struct Open {
@@ -424,13 +422,13 @@ struct Open {
     ab_ms: u64,
 }
 
-/// Warum ein Callback nicht zu einer Anmeldung passt.
+/// Why a callback does not match a sign-in.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StateError {
-    /// Kein `state` oder unbekannt – auch ein zweiter Aufruf desselben Callbacks.
+    /// No `state` or unknown – also a second call of the same callback.
     Unknown,
     Expired,
-    /// Der `state` gehört zu einer Anmeldung bei einem anderen Dienst.
+    /// The `state` belongs to a sign-in at another service.
     WrongService,
 }
 
@@ -446,20 +444,20 @@ impl StateError {
     }
 }
 
-/// Offene Anmeldungen: `state` → PKCE-Verifier. Einmalig (wird beim Entnehmen gelöscht) und
-/// kurzlebig. Nur im Speicher, nie auf der Platte.
+/// Open sign-ins: `state` → PKCE verifier. Single use (deleted when taken) and
+/// short-lived. In memory only, never on disk.
 #[derive(Default)]
 pub struct SignIns {
     open: HashMap<String, Open>,
 }
 
 impl SignIns {
-    /// Beginnt eine Anmeldung: liefert `state` und die PKCE-Prüfsumme.
+    /// Starts a sign-in: returns `state` and the PKCE checksum.
     pub fn begin(&mut self, service: Service, now_ms: u64) -> Result<(String, String), Error> {
         self.open
             .retain(|_, o| now_ms.saturating_sub(o.ab_ms) <= STATE_VALID_MS);
         while self.open.len() >= MAX_OPEN {
-            // Die älteste verwerfen.
+            // Drop the oldest.
             let oldest = self
                 .open
                 .iter()
@@ -484,7 +482,7 @@ impl SignIns {
         Ok((state, challenge))
     }
 
-    /// Entnimmt den Verifier zum `state`. Danach ist er verbraucht – auch bei einem Fehler.
+    /// Takes the verifier for the `state`. After that it is used up – also on an error.
     pub fn extract(
         &mut self,
         state: &str,
@@ -508,7 +506,7 @@ mod tests {
 
     #[test]
     fn pkce_per_rfc_7636() {
-        // Beispiel aus RFC 7636, Anhang B.
+        // Example from RFC 7636, Appendix B.
         assert_eq!(
             pkce_challenge("dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"),
             "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
@@ -535,7 +533,7 @@ mod tests {
         assert!(u.contains("code_challenge_method=S256"));
         assert!(u.contains("redirect_uri=http%3A%2F%2F127.0.0.1%3A8787"));
         assert!(!u.contains("geheim"));
-        assert!(!u.contains("scope"), "GitHub Apps haben keine Scopes");
+        assert!(!u.contains("scope"), "GitHub Apps have no scopes");
 
         let u = sign_in_url(&e, Service::Atlassian, &app(&s), "st", "ch").unwrap();
         assert!(u.starts_with("https://auth.atlassian.com/authorize?"));
@@ -582,13 +580,13 @@ mod tests {
         assert_eq!(ok.refresh.unwrap().expose(), "R");
         assert_eq!(ok.expires_in_s, Some(3700));
 
-        // Ohne neues Refresh-Token bleibt das alte.
-        let alt = Secret::new("alt");
-        let t = tokens_from(r#"{"access_token":"A"}"#, 0, Some(&alt), &[]).unwrap();
+        // Without a new refresh token the old one stays.
+        let old = Secret::new("alt");
+        let t = tokens_from(r#"{"access_token":"A"}"#, 0, Some(&old), &[]).unwrap();
         assert_eq!(t.refresh.unwrap().expose(), "alt");
         assert_eq!(t.expires_in_s, None);
 
-        // GitHub: 200 mit Fehler.
+        // GitHub: 200 with error.
         let f = tokens_from(
             r#"{"error":"bad_verification_code","error_description":"Der Code ist abgelaufen GEHEIMNIS123"}"#,
             0,
@@ -637,7 +635,7 @@ mod tests {
                 .to_string()
                 .contains("keine Jira-Site")
         );
-        // Leerer Wunsch zählt als keiner.
+        // An empty request counts as none.
         assert!(site_choose(&eine, Some(" ")).is_ok());
     }
 
@@ -660,18 +658,18 @@ mod tests {
         assert!(state.len() >= 40, "genug Zufall");
         let verifier = a.extract(&state, Service::GitHub, 2000).unwrap();
         assert_eq!(pkce_challenge(&verifier), challenge);
-        // Zweiter Callback mit demselben state.
+        // Second callback with the same state.
         assert_eq!(
             a.extract(&state, Service::GitHub, 2000),
             Err(StateError::Unknown)
         );
-        // Abgelaufen.
+        // Expired.
         let (s2, _) = a.begin(Service::GitHub, 0).unwrap();
         assert_eq!(
             a.extract(&s2, Service::GitHub, STATE_VALID_MS + 1),
             Err(StateError::Expired)
         );
-        // Anderer Dienst – und der state ist trotzdem verbraucht.
+        // Another service – and the state is used up anyway.
         let (s3, _) = a.begin(Service::Atlassian, 0).unwrap();
         assert_eq!(
             a.extract(&s3, Service::GitHub, 1),
@@ -681,10 +679,7 @@ mod tests {
             a.extract(&s3, Service::Atlassian, 1),
             Err(StateError::Unknown)
         );
-        assert_eq!(
-            a.extract("", Service::GitHub, 1),
-            Err(StateError::Unknown)
-        );
+        assert_eq!(a.extract("", Service::GitHub, 1), Err(StateError::Unknown));
     }
 
     #[test]

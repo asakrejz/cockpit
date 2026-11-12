@@ -1,18 +1,18 @@
-//! Benachrichtigungen: Welche Ereignisse sind der Rede wert, und wohin gehen sie?
+//! Notifications: which events are worth mentioning, and where do they go?
 //!
-//! Alles hier ist rein (ohne Browser, ohne Uhr, ohne Netzwerk):
+//! Everything here is pure (no browser, no clock, no network):
 //!
-//! * [`events`] vergleicht den Workspace vor und nach einer Aktion und leitet die
-//!   [`Event`]s ab: Review-Anfrage, Erwähnung, Agent wartet, Agent fertig, Checks rot,
-//!   Ticket zugewiesen.
-//! * [`NotifySettings`] hält pro Grund die Kanäle ([`Channel`]) und die Ruhezeiten.
-//!   Die Einstellungen liegen im [`Workspace`](crate::Workspace) und ändern sich nur über
-//!   Aktionen.
-//! * [`deliveries`] sagt, welches Ereignis über welchen Kanal gemeldet wird.
+//! * [`events`] compares the workspace before and after an action and derives the
+//!   [`Event`]s: review request, mention, agent waiting, agent done, checks red,
+//!   ticket assigned.
+//! * [`NotifySettings`] holds the channels ([`Channel`]) per reason and the quiet hours.
+//!   The settings live in the [`Workspace`](crate::Workspace) and change only through
+//!   actions.
+//! * [`deliveries`] says which event is reported over which channel.
 //!
-//! **Browser** versendet die App selbst. **E-Mail** und **Slack** sind nur vorbereitet: Die Typen
-//! sind `serde`-fähig, damit das Backend sie später verwenden kann; Versandcode gibt es nicht.
-//! Adressen und Webhook-URLs stehen nie in diesen Typen – sie gehören ins Backend.
+//! **Browser** is sent by the app itself. **Email** and **Slack** are only prepared: the types
+//! are `serde`-capable so that the backend can use them later; there is no sending code.
+//! Addresses and webhook URLs never appear in these types – they belong in the backend.
 
 use serde::{Deserialize, Serialize};
 
@@ -20,10 +20,10 @@ use crate::agent::AgentRun;
 use crate::model::{Checks, Item, Person, ReasonKind, Scope};
 use crate::workspace::Workspace;
 
-/// Minuten eines Tages.
+/// Minutes of a day.
 const DAY: u16 = 24 * 60;
 
-/// Worüber man benachrichtigt werden kann.
+/// What one can be notified about.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum NotifyReason {
     ReviewRequested,
@@ -32,7 +32,7 @@ pub enum NotifyReason {
     AgentFinished,
     ChecksFailed,
     Assigned,
-    /// Eine Grenze (Budget, Zeitlimit) hat einen Lauf angehalten.
+    /// A limit (budget, time limit) has stopped a run.
     AgentStopped,
 }
 
@@ -75,7 +75,7 @@ impl NotifyReason {
         }
     }
 
-    /// Ein Satz dazu, wann es meldet.
+    /// A sentence on when it reports.
     pub fn hint(self) -> &'static str {
         match self {
             NotifyReason::ReviewRequested => "Jemand bittet dich um ein Review",
@@ -95,14 +95,14 @@ impl NotifyReason {
     }
 }
 
-/// Wohin eine Benachrichtigung gehen kann.
+/// Where a notification can go.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Channel {
-    /// Systemmeldung des Browsers (Notification-API) und Hinweis in der App.
+    /// System notification of the browser (Notification API) and hint in the app.
     Browser,
-    /// Wird später vom Backend versendet.
+    /// Will be sent by the backend later.
     Email,
-    /// Wird später vom Backend versendet.
+    /// Will be sent by the backend later.
     Slack,
 }
 
@@ -129,13 +129,13 @@ impl Channel {
         }
     }
 
-    /// Versendet das Backend (noch nicht gebaut), nicht der Browser?
+    /// Is it sent by the backend (not built yet), not by the browser?
     pub fn via_backend(self) -> bool {
         self != Channel::Browser
     }
 }
 
-/// Welche Kanäle für einen Grund an sind.
+/// Which channels are on for a reason.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Channels {
     #[serde(default)]
@@ -164,8 +164,8 @@ impl Channels {
     }
 }
 
-/// Ruhezeiten: in dieser Zeit meldet der Browser nichts. Angaben in Minuten seit Mitternacht
-/// (Ortszeit). Liegt `to` vor `from`, reichen die Ruhezeiten über Mitternacht.
+/// Quiet hours: during this time the browser reports nothing. Values in minutes since midnight
+/// (local time). If `to` is before `from`, the quiet hours span midnight.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(default)]
 pub struct QuietHours {
@@ -185,7 +185,7 @@ impl Default for QuietHours {
 }
 
 impl QuietHours {
-    /// Ist um diese Uhrzeit (Minuten seit Mitternacht) Ruhe?
+    /// Is it quiet at this time of day (minutes since midnight)?
     pub fn contains(&self, minute: u16) -> bool {
         if !self.enabled || self.from == self.to {
             return false;
@@ -198,7 +198,7 @@ impl QuietHours {
         }
     }
 
-    /// Beide Zeiten liegen innerhalb eines Tages.
+    /// Both times lie within one day.
     pub fn is_valid(&self) -> bool {
         self.from < DAY && self.to < DAY
     }
@@ -208,7 +208,7 @@ impl QuietHours {
         format!("{:02}:{:02}", (minute % DAY) / 60, minute % 60)
     }
 
-    /// Liest `HH:MM`. Ungültiges gibt `None`.
+    /// Reads `HH:MM`. Invalid input gives `None`.
     pub fn parse(text: &str) -> Option<u16> {
         let (h, m) = text.trim().split_once(':')?;
         let (h, m): (u16, u16) = (h.parse().ok()?, m.parse().ok()?);
@@ -223,10 +223,10 @@ struct Rule {
     channels: Channels,
 }
 
-/// Einstellungen je Grund und Kanal, dazu die Ruhezeiten.
+/// Settings per reason and channel, plus the quiet hours.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct NotifySettings {
-    /// Nur abweichende Gründe; fehlt einer, gilt [`NotifySettings::default_channels`].
+    /// Only deviating reasons; if one is missing, [`NotifySettings::default_channels`] applies.
     #[serde(default)]
     rules: Vec<Rule>,
     #[serde(default)]
@@ -234,7 +234,7 @@ pub struct NotifySettings {
 }
 
 impl NotifySettings {
-    /// Standard: alles im Browser an, E-Mail und Slack aus.
+    /// Default: everything on in the browser, email and Slack off.
     pub fn default_channels() -> Channels {
         Channels {
             browser: true,
@@ -254,7 +254,7 @@ impl NotifySettings {
         self.channels(reason).get(channel)
     }
 
-    /// Schaltet einen Kanal für einen Grund. `false`, wenn sich nichts ändert.
+    /// Switches a channel for a reason. `false` if nothing changes.
     pub fn set(&mut self, reason: NotifyReason, channel: Channel, on: bool) -> bool {
         let mut channels = self.channels(reason);
         if channels.get(channel) == on {
@@ -268,7 +268,7 @@ impl NotifySettings {
         true
     }
 
-    /// Setzt die Ruhezeiten. `false`, wenn sie ungültig sind (ab 24:00) oder sich nichts ändert.
+    /// Sets the quiet hours. `false` if they are invalid (from 24:00) or nothing changes.
     pub fn set_quiet(&mut self, quiet: QuietHours) -> bool {
         if !quiet.is_valid() || self.quiet == quiet {
             return false;
@@ -278,25 +278,25 @@ impl NotifySettings {
     }
 }
 
-/// Ein Ereignis, über das man benachrichtigt werden kann.
+/// An event one can be notified about.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Event {
     pub reason: NotifyReason,
     pub title: String,
     pub text: String,
-    /// Ziel als Adresse der App, z. B. `#/review/87`.
+    /// Target as an address of the app, e.g. `#/review/87`.
     pub route: String,
 }
 
-/// Ein Ereignis auf einem Kanal.
+/// An event on a channel.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Delivery {
     pub channel: Channel,
     pub event: Event,
 }
 
-/// Welche Ereignisse über welche Kanäle gehen. `minute` ist die Ortszeit in Minuten seit
-/// Mitternacht; in den Ruhezeiten geht nichts raus.
+/// Which events go over which channels. `minute` is the local time in minutes since
+/// midnight; during quiet hours nothing goes out.
 pub fn deliveries(events: &[Event], settings: &NotifySettings, minute: u16) -> Vec<Delivery> {
     if settings.quiet.contains(minute) {
         return Vec::new();
@@ -316,7 +316,7 @@ pub fn deliveries(events: &[Event], settings: &NotifySettings, minute: u16) -> V
         .collect()
 }
 
-/// Steht `@Name` oder `@Kürzel` der Person im Text? Groß- und Kleinschreibung egal.
+/// Is `@Name` or `@Kürzel` of the person in the text? Case does not matter.
 pub fn mentions(text: &str, who: &Person) -> bool {
     text.split('@').skip(1).any(|rest| {
         let word: String = rest
@@ -335,7 +335,7 @@ fn route_of(item: &Item) -> String {
     }
 }
 
-/// Der Eintrag hat diesen Grund neu bekommen (war vorher nicht da, anders oder erledigt).
+/// The entry newly got this reason (it was not there before, different or done).
 fn fresh(before: Option<&Item>, after: &Item, reason: ReasonKind) -> bool {
     after.reason == reason && !after.read && !before.is_some_and(|b| b.reason == reason && !b.read)
 }
@@ -344,9 +344,9 @@ fn run_of<'a>(ws: &'a Workspace, key: &str) -> Option<&'a AgentRun> {
     ws.runs.iter().find(|r| r.key() == key)
 }
 
-/// Die Ereignisse, die zwischen zwei Ständen des Workspace entstanden sind.
+/// The events that arose between two states of the workspace.
 ///
-/// Ohne Vorher gibt es keinen Vergleich – der erste Stand beim Laden meldet also nichts.
+/// Without a "before" there is no comparison – the first state on loading therefore reports nothing.
 pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
     let me = Person::me();
     let mut out = Vec::new();
@@ -506,7 +506,7 @@ mod tests {
         assert_eq!(e.reason, NotifyReason::ReviewRequested);
         assert_eq!(e.route, "#/review/99");
         assert!(e.title.contains("Neuer Button"));
-        // Danach nicht noch einmal.
+        // Not again afterwards.
         assert!(events(&after, &after).is_empty());
     }
 
@@ -558,7 +558,7 @@ mod tests {
         let e = only(events(&before, &after));
         assert_eq!(e.reason, NotifyReason::Mention);
         assert!(e.title.contains("Lena"));
-        // Eigene Kommentare und alte Kommentare melden nichts.
+        // Own comments and old comments report nothing.
         let mut own = before.clone();
         own.reply("bau142", "@Du bin das selbst");
         assert!(events(&before, &own).is_empty());
@@ -584,7 +584,7 @@ mod tests {
                 .items
                 .iter_mut()
                 .find(|i| i.pr.is_some() && i.scope == Scope::Mine)
-                .expect("ein eigener Pull Request in den Beispieldaten");
+                .expect("an own pull request in the sample data");
             i.pr.as_mut().unwrap().checks = Checks::Running;
             (i.id.clone(), i.pr.as_ref().unwrap().number)
         };
@@ -601,7 +601,7 @@ mod tests {
         let e = only(events(&before, &after));
         assert_eq!(e.reason, NotifyReason::ChecksFailed);
         assert_eq!(e.route, format!("#/review/{number}"));
-        // Schon rot gewesen: keine zweite Meldung.
+        // Already been red: no second notification.
         assert!(events(&after, &after).is_empty());
     }
 
@@ -642,11 +642,11 @@ mod tests {
                 break;
             }
         }
-        let e = found.expect("Rückfrage wird gemeldet");
+        let e = found.expect("follow-up question is reported");
         assert_eq!(e.reason, NotifyReason::AgentWaiting);
         assert_eq!(e.route, "#/agent/BAU-142");
         assert!(e.text.contains("deprecated"), "{e:?}");
-        // Solange sie offen ist, kommt sie nicht noch einmal.
+        // As long as it is open, it does not come again.
         assert!(events(&after, &after.clone()).is_empty());
     }
 
@@ -656,7 +656,7 @@ mod tests {
         let key = before
             .items
             .iter()
-            // Ohne Rückfrage in der Demo, damit der Lauf durchläuft.
+            // Without a follow-up question in the demo, so that the run goes through.
             .find(|i| i.is_ticket() && i.pr.is_none() && demo::agent_question(&i.key).is_none())
             .unwrap()
             .key
@@ -678,7 +678,7 @@ mod tests {
         let mut after = running.clone();
         for _ in 0..crate::agent::STEPS - 1 {
             after.advance_agents();
-            assert!(events(&running, &after).is_empty(), "unterwegs ist Ruhe");
+            assert!(events(&running, &after).is_empty(), "quiet on the way");
         }
         let prev = after.clone();
         after.advance_agents();

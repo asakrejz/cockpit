@@ -15,7 +15,7 @@ use cockpit_core::api::{ErrorBody, RevokeResponse};
 use cockpit_core::{AuthKind, ServiceStatus};
 use cockpit_integrations::jira::JiraClient;
 use cockpit_integrations::oauth::{
-    self, SignIns, App, Service, Site, Tokens, jira_base, site_choose,
+    self, App, Service, SignIns, Site, Tokens, jira_base, site_choose,
 };
 use cockpit_integrations::{Error, Secret};
 
@@ -414,10 +414,7 @@ impl AppState {
             return;
         }
         let (Some(secret), Some(client_id)) = (secret, self.oauth_konfig_id(d)) else {
-            tracing::warn!(
-                "{}: Client-Secret fehlt, Tokens nicht aufgefrischt",
-                d.id()
-            );
+            tracing::warn!("{}: Client-Secret fehlt, Tokens nicht aufgefrischt", d.id());
             return;
         };
         let uri = redirect_uri(d, self.inner.port);
@@ -426,8 +423,7 @@ impl AppState {
             client_secret: &secret,
             redirect_uri: &uri,
         };
-        let ergebnis =
-            oauth::refresh(&self.quellen().endpunkte, d, &app, &tokens, jetzt_s()).await;
+        let ergebnis = oauth::refresh(&self.quellen().endpunkte, d, &app, &tokens, jetzt_s()).await;
         let s = self.clone();
         match ergebnis {
             Ok(neu) => {

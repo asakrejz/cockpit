@@ -1,13 +1,11 @@
 //! Schritt 2: Jira verbinden – Standard ist der API-Token (drei einfache Schritte, danach ein
 //! Verbindungstest und die Wahl des Projekts); die Atlassian-App (OAuth) steckt eingeklappt unter
-//! „Erweitert“. Die Regeln (Adresse lesen, Texte) stehen in `cockpit_core::einrichten`.
+//! „Erweitert“. Die Regeln (Adresse lesen, Texte) stehen in `cockpit_core::setup`.
 
 use cockpit_core::Action;
-use cockpit_core::api::{ClientInput, JiraInput, JiraProject, JiraCheck, ConfigChange};
+use cockpit_core::api::{ClientInput, ConfigChange, JiraCheck, JiraInput, JiraProject};
 use cockpit_core::connections::AuthKind;
-use cockpit_core::setup::{
-    JIRA_TOKEN_PAGE, client_id_read, jira_site_read, projects_read,
-};
+use cockpit_core::setup::{JIRA_TOKEN_PAGE, client_id_read, jira_site_read, projects_read};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;

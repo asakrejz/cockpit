@@ -1,18 +1,18 @@
-//! Der Abruf für den Abgleich: holt Tickets, Pull Requests, Kommentare, Checks und Diffs über
-//! die Clients und packt sie als [`Remote`] für `cockpit_core::sync::merge`.
+//! Fetching for the sync: gets tickets, pull requests, comments, checks and diffs via
+//! the clients and packs them as [`Remote`] for `cockpit_core::sync::merge`.
 //!
-//! Scheitert eine Quelle, bleibt ihr Stand im Workspace unverändert; der Fehler wird zum
-//! [`Problem`] der Quelle. Der Abruf selbst schreibt nichts.
+//! If a source fails, its state in the workspace stays unchanged; the error becomes the
+//! [`Problem`] of the source. The fetch itself writes nothing.
 
 use cockpit_core::{Loaded, Outcome, PrLink, Remote, Review, Source, SourceData, Workspace};
 
 use crate::Error;
-use crate::outbound::{Outbound, Targets};
 use crate::github::{
     GitHubClient, Relation, changes_requested, check_runs_to_core, comments_with_reviews,
     pull_to_item, pull_to_review,
 };
 use crate::jira::{self, JiraClient};
+use crate::outbound::{Outbound, Targets};
 
 pub struct GitHubService {
     pub client: GitHubClient,
@@ -23,12 +23,12 @@ pub struct GitHubService {
 pub struct JiraService {
     pub client: JiraClient,
     pub jql: String,
-    /// Die Abfrage holt alle Tickets eines Projekts ([`jira::jql_fuer_projekt`]): Was weder
-    /// zugewiesen noch beobachtet ist, steht dann mit dem Grund „Im Projekt“ da.
+    /// The query fetches all tickets of a project ([`jira::jql_for_project`]): whatever is neither
+    /// assigned nor watched then shows up with the reason „Im Projekt“.
     pub in_project: bool,
 }
 
-/// Die eingerichteten Dienste. Eine Quelle, die fehlt, ist aus.
+/// The configured services. A source that is missing is off.
 #[derive(Default)]
 pub struct Services {
     pub github: Option<GitHubService>,
@@ -52,7 +52,7 @@ impl Services {
         }
     }
 
-    /// Führt den Aufruf beim zuständigen Dienst aus.
+    /// Runs the call at the responsible service.
     pub async fn execute(&self, a: &Outbound) -> Result<(), Error> {
         let jira = matches!(
             a,
@@ -71,8 +71,8 @@ impl Services {
         }
     }
 
-    /// Fragt alle Quellen ab, die nicht in `pausiert` stehen. `bekannt` ist der Stand des
-    /// Workspace (für Diffs, die sich nicht geändert haben), `jetzt_ms` die Uhrzeit.
+    /// Queries all sources that are not in `paused`. `known` is the state of the
+    /// workspace (for diffs that have not changed), `now_ms` the time of day.
     pub async fn fetch(&self, known: &Workspace, now_ms: u64, paused: &[Source]) -> Remote {
         let now_s = (now_ms / 1000) as i64;
         let mut sources = Vec::new();
@@ -106,7 +106,7 @@ fn as_source(source: Source, res: Result<Loaded, Error>, now_ms: u64) -> SourceD
     }
 }
 
-/// Ein fehlendes oder verbotenes Repo ist ein Hinweis, kein Ausfall der ganzen Quelle.
+/// A missing or forbidden repo is a hint, not an outage of the whole source.
 fn only_hint(e: &Error) -> bool {
     matches!(
         e,
@@ -141,8 +141,8 @@ pub async fn github_load(
             if seen.iter().any(|(r, n)| r == repo && *n == nr) {
                 continue;
             }
-            // Das Modell kennt Reviews nur über die Nummer: Gleiche Nummern aus anderen Repos
-            // lassen sich nicht auseinanderhalten.
+            // The model knows reviews only by number: equal numbers from other repos
+            // cannot be told apart.
             if let Some((other, _)) = seen.iter().find(|(_, n)| *n == nr) {
                 out.warnings.push(format!(
                     "#{nr} aus {repo} ausgelassen: die Nummer gehört schon zu {other}"
@@ -156,7 +156,7 @@ pub async fn github_load(
                     out.reviews.push(review);
                     out.prs.push(link);
                 }
-                // Zwischen Suche und Abruf geschlossen oder gelöscht.
+                // Closed or deleted between search and fetch.
                 Err(Error::NotFound) => {}
                 Err(e) => return Err(e),
             }
@@ -181,7 +181,7 @@ async fn pull_load(
     let comments = client.comments(repo, nr).await?;
     let lines = client.line_comments(repo, nr).await?;
 
-    // Der Diff ändert sich nur mit einem neuen Commit.
+    // The diff only changes with a new commit.
     let unchanged = known
         .sync
         .pr(nr)
@@ -200,8 +200,8 @@ async fn pull_load(
         pr.changes_requested = changes_requested(&verdicts, me);
     }
     let mut review = pull_to_review(&pull, &files, checks);
-    if let Some(alt) = unchanged {
-        review.files = alt.files.clone();
+    if let Some(old) = unchanged {
+        review.files = old.files.clone();
     }
     review.check_runs = check_runs_to_core(&runs);
     let link = PrLink {

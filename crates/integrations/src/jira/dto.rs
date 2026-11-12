@@ -1,4 +1,4 @@
-//! Antworten der Jira-Cloud-REST-API v3 – nur die Felder, die das Cockpit braucht.
+//! Responses of the Jira Cloud REST API v3 – only the fields the cockpit needs.
 
 use serde::Deserialize;
 use serde_json::Value;
@@ -24,7 +24,7 @@ pub struct Transition {
     pub id: String,
     #[serde(default)]
     pub name: String,
-    /// Der Status, in den die Transition führt.
+    /// The status the transition leads to.
     pub to: Status,
 }
 
@@ -42,7 +42,7 @@ pub struct JiraUser {
 pub struct SearchResult {
     #[serde(default)]
     pub issues: Vec<Issue>,
-    /// Token für die nächste Seite; fehlt auf der letzten.
+    /// Token for the next page; missing on the last one.
     #[serde(default)]
     pub next_page_token: Option<String>,
 }
@@ -57,7 +57,7 @@ pub struct Issue {
 pub struct Fields {
     #[serde(default)]
     pub summary: String,
-    /// ADF-Baum oder `null`.
+    /// ADF tree or `null`.
     #[serde(default)]
     pub description: Value,
     pub status: Status,
@@ -67,7 +67,7 @@ pub struct Fields {
     pub reporter: Option<JiraUser>,
     #[serde(default)]
     pub updated: String,
-    /// Fälligkeitsdatum als Tag (`2026-11-09`).
+    /// Due date as a day (`2026-11-09`).
     #[serde(default)]
     pub duedate: Option<String>,
     #[serde(default)]
@@ -85,18 +85,18 @@ pub struct Status {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct StatusCategory {
-    /// `new`, `indeterminate` oder `done`
+    /// `new`, `indeterminate` or `done`
     #[serde(default)]
     pub key: String,
 }
 
-/// `GET /rest/api/3/project/search` – eine Seite der Projekte.
+/// `GET /rest/api/3/project/search` – one page of projects.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectPage {
     #[serde(default)]
     pub values: Vec<Project>,
-    /// Fehlt das Feld, gilt die Seite als letzte.
+    /// If the field is missing, the page counts as the last one.
     #[serde(default = "ja")]
     pub is_last: bool,
 }

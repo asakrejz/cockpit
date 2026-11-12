@@ -1,75 +1,75 @@
-//! Die JSON-Formen zwischen App und Backend (Server-Modus).
+//! The JSON shapes between app and backend (server mode).
 //!
-//! * `GET /api/workspace`: der Stand in der Form von [`persist`](crate::persist), dazu `revision`
-//! * `POST /api/actions`: Body [`ActionRequest`], Antwort [`ActionResponse`] oder [`ErrorBody`]
-//! * `GET /api/events`: Server-Sent Events, jedes Ereignis trägt ein [`ServerEvent`]
-//! * `GET /api/oauth/{github|atlassian}/start` und `…/callback`: Anmeldung per OAuth (Navigation des
-//!   Browsers, leitet nach `/` um); `POST …/widerrufen`: [`WiderrufAntwort`]
-//! * `GET /api/jira/projekte`: die Jira-Projekte für die Auswahl, [`JiraProjectsResponse`]
-//! * `GET /api/agent/modelle`: die Modell-IDs des Endpunkts für das Drop-down, [`Modellliste`]
-//! * `GET /api/agent/pruefen` (Alias `GET /api/litellm/pruefen`): Verbindungstest zum Endpunkt, [`EndpunktPruefung`]
-//! * `POST /api/jira/pruefen`: Verbindungstest für Jira per API-Token (nur Lesen), [`JiraPruefung`]
-//! * `DELETE /api/schluessel/{name}`: löscht einen Token (`jira`, `github`) aus dem Schlüsselbund
-//! * `GET /api/einrichtung`: was der Einrichtungsassistent vorbelegt, [`Einrichtung`]
-//! * `PUT /api/konfiguration`: Body [`KonfigAenderung`], schreibt `config.toml`, Antwort [`KonfigAntwort`]
-//! * `PUT /api/schluessel/{name}`: Body [`SchluesselEingabe`], legt den Schlüssel im Schlüsselbund
-//!   ab, Antwort [`SchluesselAntwort`] (nur „gesetzt“, nie der Wert)
-//! * `GET /api/agent/image` / `POST /api/agent/image`: Stand bzw. Start von „Image bauen“, [`ImageBau`]
-//! * `GET /api/agent/pruefen/container` (Alias `GET /api/litellm/pruefen/container`): dieselbe Prüfung aus einem Container, [`ContainerPruefung`]
-//! * `GET /api/health`: unter `agent` ein [`AgentStatus`], unter `endpunkt` ein [`EndpunktStatus`], unter `container` ein [`ContainerStatus`]
+//! * `GET /api/workspace`: the state in the shape of [`persist`](crate::persist), plus `revision`
+//! * `POST /api/actions`: body [`ActionRequest`], response [`ActionResponse`] or [`ErrorBody`]
+//! * `GET /api/events`: server-sent events, each event carries a [`ServerEvent`]
+//! * `GET /api/oauth/{github|atlassian}/start` and `…/callback`: sign-in via OAuth (navigation of the
+//!   browser, redirects to `/`); `POST …/widerrufen`: [`RevokeResponse`]
+//! * `GET /api/jira/projekte`: the Jira projects for the selection, [`JiraProjectsResponse`]
+//! * `GET /api/agent/modelle`: the model IDs of the endpoint for the drop-down, [`ModelList`]
+//! * `GET /api/agent/pruefen` (alias `GET /api/litellm/pruefen`): connection test to the endpoint, [`EndpointCheck`]
+//! * `POST /api/jira/pruefen`: connection test for Jira via API token (read only), [`JiraCheck`]
+//! * `DELETE /api/schluessel/{name}`: deletes a token (`jira`, `github`) from the keychain
+//! * `GET /api/einrichtung`: what the setup assistant prefills, [`Setup`]
+//! * `PUT /api/konfiguration`: body [`ConfigChange`], writes `config.toml`, response [`ConfigResponse`]
+//! * `PUT /api/schluessel/{name}`: body [`KeyInput`], stores the key in the keychain,
+//!   response [`KeyResponse`] (only „set“, never the value)
+//! * `GET /api/agent/image` / `POST /api/agent/image`: state or start of „build image“, [`ImageBuild`]
+//! * `GET /api/agent/pruefen/container` (alias `GET /api/litellm/pruefen/container`): the same check from a container, [`ContainerCheck`]
+//! * `GET /api/health`: under `agent` an [`AgentStatus`], under `endpunkt` an [`EndpointStatus`], under `container` a [`ContainerStatus`]
 //!
-//! Beide Seiten benutzen diese Typen, damit die Formen nicht auseinanderlaufen.
+//! Both sides use these types so that the shapes do not drift apart.
 
 use serde::{Deserialize, Serialize};
 
 use crate::{Action, LogEntry};
 
-/// Body von `POST /api/actions`.
+/// Body of `POST /api/actions`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ActionRequest {
     pub action: Action,
 }
 
-/// Antwort auf eine angewendete Aktion.
+/// Response to an applied action.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ActionResponse {
-    /// Revision des Stands nach der Aktion.
+    /// Revision of the state after the action.
     pub revision: u64,
-    /// Der Satz aus dem Protokoll (siehe `Applied::summary`).
+    /// The sentence from the log (see `Applied::summary`).
     #[serde(rename = "zusammenfassung")]
     pub summary: String,
-    /// Zahl der neuen Protokolleinträge.
+    /// Number of new log entries.
     #[serde(rename = "protokolliert")]
     pub logged: usize,
 }
 
-/// Antwort auf `POST /api/sync` („jetzt abgleichen“).
+/// Response to `POST /api/sync` („sync now“).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct SyncResponse {
-    /// `false`, wenn keine Quelle eingerichtet ist (Jira oder GitHub mit Schlüssel).
+    /// `false` if no source is set up (Jira or GitHub with key).
     #[serde(rename = "aktiv")]
     pub active: bool,
-    /// Revision des Stands nach dem Abgleich.
+    /// Revision of the state after the sync.
     pub revision: u64,
-    /// Zahl der neuen Protokolleinträge.
+    /// Number of new log entries.
     #[serde(rename = "protokolliert")]
     pub logged: usize,
 }
 
-/// Ein Jira-Projekt für die Auswahl in der Inbox.
+/// A Jira project for the selection in the inbox.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct JiraProject {
-    /// Schlüssel, z. B. `BAU`.
+    /// Key, e.g. `BAU`.
     pub key: String,
     /// Name, z. B. „Baukasten“.
     #[serde(default)]
     pub name: String,
 }
 
-/// Antwort auf `GET /api/jira/projekte`.
+/// Response to `GET /api/jira/projekte`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct JiraProjectsResponse {
-    /// `false`, wenn Jira nicht eingerichtet ist oder der Schlüssel fehlt.
+    /// `false` if Jira is not set up or the key is missing.
     #[serde(rename = "aktiv")]
     pub active: bool,
     #[serde(default)]
@@ -77,33 +77,33 @@ pub struct JiraProjectsResponse {
     pub projects: Vec<JiraProject>,
 }
 
-/// Woran der Verbindungstest zu Jira gescheitert ist (oder `Ok`).
+/// What the connection test to Jira failed on (or `Ok`).
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum JiraCause {
-    /// Jira antwortet und kennt den Token.
+    /// Jira responds and knows the token.
     Ok,
-    /// Adresse, E-Mail oder Token fehlen noch.
+    /// Address, email or token are still missing.
     #[default]
     #[serde(rename = "angaben")]
     Details,
-    /// Unter der Adresse antwortet kein Jira (404 oder eine andere Seite).
+    /// No Jira responds at the address (404 or another page).
     #[serde(rename = "adresse")]
     Address,
-    /// Jira lehnt E-Mail oder Token ab (401).
+    /// Jira rejects email or token (401).
     Token,
-    /// Der Token ist gültig, hat aber nicht die nötigen Rechte (403).
+    /// The token is valid but does not have the necessary rights (403).
     #[serde(rename = "berechtigung")]
     Permission,
-    /// Keine Verbindung (Netz, VPN, Adresse nicht auffindbar).
+    /// No connection (network, VPN, address not found).
     #[serde(rename = "erreichbar")]
     Reachable,
-    /// Etwas anderes (Kontingent, Störung bei Jira).
+    /// Something else (quota, Jira outage).
     #[serde(rename = "sonst")]
     Other,
 }
 
-/// Antwort auf `POST /api/jira/pruefen`: nur Lesen (`GET /rest/api/3/myself`), nie der Token.
+/// Response to `POST /api/jira/pruefen`: read only (`GET /rest/api/3/myself`), never the token.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct JiraCheck {
     #[serde(default)]
@@ -111,33 +111,33 @@ pub struct JiraCheck {
     #[serde(default)]
     #[serde(rename = "ursache")]
     pub cause: JiraCause,
-    /// Klartext für die Oberfläche.
+    /// Plain text for the UI.
     #[serde(default)]
     #[serde(rename = "meldung")]
     pub message: String,
-    /// Bei Erfolg: der Anzeigename, unter dem Jira dich kennt.
+    /// On success: the display name under which Jira knows you.
     #[serde(default)]
     pub name: Option<String>,
 }
 
-/// Antwort auf `POST /api/oauth/{dienst}/widerrufen`.
+/// Response to `POST /api/oauth/{service}/widerrufen`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct RevokeResponse {
-    /// Die Tokens im Schlüsselbund sind gelöscht.
+    /// The tokens in the keychain are deleted.
     #[serde(rename = "getrennt")]
     pub disconnected: bool,
-    /// Der Dienst selbst hat das Token widerrufen (nicht alle bieten das an).
+    /// The service itself revoked the token (not all offer that).
     #[serde(default)]
     #[serde(rename = "beim_dienst")]
     pub at_service: bool,
-    /// Was der Nutzer sonst noch tun kann oder warum der Dienst nicht widerrufen hat.
+    /// What the user can do otherwise or why the service did not revoke.
     #[serde(default)]
     #[serde(rename = "hinweis")]
     pub hint: Option<String>,
 }
 
-/// Womit der Agent arbeitet: das Werkzeug, das im Container läuft. Umgesetzt ist bisher nur das
-/// Claude Agent SDK; die anderen sind bekannte Werte, die in Klartext „noch nicht umgesetzt“ melden.
+/// What the agent works with: the tool that runs in the container. So far only the
+/// Claude Agent SDK is implemented; the others are known values that report „not implemented yet“ in plain text.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum Provider {
@@ -154,7 +154,7 @@ impl Provider {
         Provider::Codex,
     ];
 
-    /// Der Name in `config.toml` (`[agent] anbieter`) und im JSON.
+    /// The name in `config.toml` (`[agent] anbieter`) and in the JSON.
     pub fn id(self) -> &'static str {
         match self {
             Provider::ClaudeAgentSdk => "claude-agent-sdk",
@@ -168,7 +168,7 @@ impl Provider {
         Self::ALL.into_iter().find(|a| a.id() == t)
     }
 
-    /// Der Name für die Oberfläche.
+    /// The name for the UI.
     pub fn label(self) -> &'static str {
         match self {
             Provider::ClaudeAgentSdk => "Claude Agent SDK",
@@ -177,12 +177,12 @@ impl Provider {
         }
     }
 
-    /// Ob der Läufer dieses Werkzeug schon ausführen kann.
+    /// Whether the runner can already execute this tool.
     pub fn implemented(self) -> bool {
         self == Provider::ClaudeAgentSdk
     }
 
-    /// Klartext für den Fall, dass ein Lauf dieses Werkzeug bräuchte, es aber fehlt.
+    /// Plain text for the case that a run would need this tool but it is missing.
     pub fn not_implemented(self) -> Option<String> {
         (!self.implemented()).then(|| {
             format!(
@@ -193,150 +193,150 @@ impl Provider {
     }
 }
 
-/// Die Anbindung des Agenten an sein Modell, wie `GET /api/health` sie meldet. Nie der Key selbst,
-/// nur ob einer im Schlüsselbund liegt.
+/// The agent's connection to its model, as `GET /api/health` reports it. Never the key itself,
+/// only whether one is in the keychain.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct EndpointStatus {
-    /// `[agent.endpunkt]` (oder das ältere `[litellm]`) steht in `config.toml`.
+    /// `[agent.endpunkt]` (or the older `[litellm]`) is in `config.toml`.
     #[serde(default)]
     #[serde(rename = "konfiguriert")]
     pub configured: bool,
     #[serde(default)]
     #[serde(rename = "anbieter")]
     pub provider: Provider,
-    /// Adresse des Endpunkts; leer = direkt beim Anbieter.
+    /// Address of the endpoint; empty = directly at the provider.
     #[serde(default)]
     pub url: Option<String>,
-    /// Der Modellname.
+    /// The model name.
     #[serde(default)]
     #[serde(rename = "modell")]
     pub model: Option<String>,
-    /// Ein Key liegt im Schlüsselbund (`agent-key`, ersatzweise das ältere `litellm`).
+    /// A key is in the keychain (`agent-key`, alternatively the older `litellm`).
     #[serde(default)]
     pub key: bool,
 }
 
-/// Die Container-Laufzeit, wie `GET /api/health` sie meldet.
+/// The container runtime, as `GET /api/health` reports it.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ContainerStatus {
-    /// `docker` oder `podman`; `None`, wenn keine gefunden oder gewählt ist.
+    /// `docker` or `podman`; `None` if none was found or chosen.
     #[serde(default)]
     #[serde(rename = "laufzeit")]
     pub runtime: Option<String>,
-    /// `<cli> info` war erfolgreich: Die Engine läuft.
+    /// `<cli> info` succeeded: the engine is running.
     #[serde(default)]
     #[serde(rename = "engine_laeuft")]
     pub engine_running: bool,
-    /// Woher die Wahl kommt: `konfiguration`, `umgebung`, `erkannt` oder `keine`.
+    /// Where the choice comes from: `konfiguration`, `umgebung`, `erkannt` or `keine`.
     #[serde(default)]
     #[serde(rename = "quelle")]
     pub source: String,
-    /// Was zu tun ist, wenn es nicht geht.
+    /// What to do if it does not work.
     #[serde(default)]
     #[serde(rename = "hinweis")]
     pub hint: Option<String>,
 }
 
-/// Ob der echte Agent loslaufen kann, wie `GET /api/health` es meldet.
+/// Whether the real agent can start, as `GET /api/health` reports it.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct AgentStatus {
-    /// `echt` (Container) oder `simuliert` (Seed `demo`, nur zum Ausprobieren).
+    /// `echt` (container) or `simuliert` (seed `demo`, only for trying out).
     #[serde(default)]
     #[serde(rename = "modus")]
     pub mode: String,
-    /// Läufe können starten: Alles Nötige ist eingerichtet (immer wahr im Modus `simuliert`).
+    /// Runs can start: everything necessary is set up (always true in mode `simuliert`).
     #[serde(default)]
     #[serde(rename = "bereit")]
     pub ready: bool,
-    /// Das Agent-Image ist gebaut (`image inspect`).
+    /// The agent image is built (`image inspect`).
     #[serde(default)]
     pub image: bool,
     /// Name des Images, z. B. `localhost/cockpit-agent:1`.
     #[serde(default)]
     pub image_name: String,
-    /// Das Repo, in dem der Agent arbeitet (`owner/name`), falls eindeutig.
+    /// The repo the agent works in (`owner/name`), if unambiguous.
     #[serde(default)]
     pub repo: Option<String>,
-    /// Was noch fehlt, je Eintrag ein Satz in Klartext mit dem Ort im Assistenten.
+    /// What is still missing, one sentence per entry in plain text with the place in the assistant.
     #[serde(default)]
     #[serde(rename = "fehlt")]
     pub missing: Vec<String>,
 }
 
-/// Stand von „Image bauen“ (`GET`/`POST /api/agent/image`).
+/// State of „build image“ (`GET`/`POST /api/agent/image`).
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
-pub struct ImageBau {
-    /// Der Bau läuft gerade.
+pub struct ImageBuild {
+    /// The build is running right now.
     #[serde(default)]
     #[serde(rename = "laeuft")]
     pub running: bool,
-    /// Das Image gibt es (nach dem letzten Bau oder schon vorher).
+    /// The image exists (after the last build or already before).
     #[serde(default)]
     #[serde(rename = "vorhanden")]
     pub present: bool,
-    /// Warum der letzte Bau scheiterte, in Klartext.
+    /// Why the last build failed, in plain text.
     #[serde(default)]
     #[serde(rename = "fehler")]
     pub error: Option<String>,
-    /// Die letzten Zeilen der Ausgabe des Baus.
+    /// The last lines of the build output.
     #[serde(default)]
     #[serde(rename = "zeilen")]
     pub lines: Vec<String>,
 }
 
-/// Antwort auf `GET /api/agent/pruefen/container`: Erreicht ein Container den Endpunkt?
+/// Response to `GET /api/agent/pruefen/container`: does a container reach the endpoint?
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ContainerCheck {
-    /// Es konnte geprüft werden (Image, Laufzeit und Endpunkt sind da).
+    /// It could be checked (image, runtime and endpoint are there).
     #[serde(default)]
     #[serde(rename = "geprueft")]
     pub checked: bool,
-    /// Der Mac (das Backend) erreicht den Endpunkt.
+    /// The Mac (the backend) reaches the endpoint.
     #[serde(default)]
     #[serde(rename = "mac_erreicht")]
     pub mac_reached: bool,
-    /// Der Container erreicht ihn.
+    /// The container reaches it.
     #[serde(default)]
     #[serde(rename = "container_erreicht")]
     pub container_reached: bool,
-    /// Der Endpunkt nimmt den Key im Container an.
+    /// The endpoint accepts the key in the container.
     #[serde(default)]
     pub key_ok: bool,
-    /// Was als Nächstes zu tun ist oder woran es lag.
+    /// What to do next or what the cause was.
     #[serde(default)]
     #[serde(rename = "hinweis")]
     pub hint: Option<String>,
 }
 
-/// Antwort auf `GET /api/agent/pruefen`: was der Verbindungstest gefunden hat. Enthält nie den Key.
+/// Response to `GET /api/agent/pruefen`: what the connection test found. Never contains the key.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct EndpointCheck {
-    /// Es gibt etwas zu prüfen (Adresse oder Modell eingetragen); sonst wurde nichts aufgerufen.
+    /// There is something to check (address or model entered); otherwise nothing was called.
     #[serde(default)]
     #[serde(rename = "konfiguriert")]
     pub configured: bool,
-    /// Der Endpunkt hat auf `GET <url>/v1/models` geantwortet.
+    /// The endpoint answered `GET <url>/v1/models`.
     #[serde(default)]
     #[serde(rename = "erreichbar")]
     pub reachable: bool,
-    /// Der Endpunkt hat den Key angenommen.
+    /// The endpoint accepted the key.
     #[serde(default)]
     pub key_ok: bool,
-    /// Der eingestellte Modellname steht in der Liste des Endpunkts.
+    /// The configured model name is in the endpoint's list.
     #[serde(default)]
     #[serde(rename = "modell_vorhanden")]
     pub model_present: bool,
-    /// Was als Nächstes zu tun ist oder woran es lag.
+    /// What to do next or what the cause was.
     #[serde(default)]
     #[serde(rename = "hinweis")]
     pub hint: Option<String>,
 }
 
-/// Antwort auf `GET /api/agent/modelle`: die Modell-IDs des Endpunkts (nur IDs, Claude-Modelle
-/// zuerst, höchstens [`MAX_MODELLE`]). Enthält nie den Key.
+/// Response to `GET /api/agent/modelle`: the model IDs of the endpoint (IDs only, Claude models
+/// first, at most [`MAX_MODELS`]). Never contains the key.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ModelList {
-    /// Die Liste konnte geladen werden.
+    /// The list could be loaded.
     #[serde(default)]
     #[serde(rename = "geladen")]
     pub loaded: bool,
@@ -348,17 +348,17 @@ pub struct ModelList {
     #[serde(default)]
     #[serde(rename = "modelle")]
     pub models: Vec<String>,
-    /// Klartext, wenn etwas nicht ging.
+    /// Plain text if something did not work.
     #[serde(default)]
     #[serde(rename = "hinweis")]
     pub hint: Option<String>,
 }
 
-/// So viele Modell-IDs liefert die Liste höchstens.
+/// The list delivers at most this many model IDs.
 pub const MAX_MODELS: usize = 200;
 
-/// Body von `PUT /api/schluessel/{name}`. Der Wert ist ein Geheimnis: Er steht nur im Eingabefeld,
-/// geht einmal an den lokalen Server und kommt nie zurück. `Debug` zeigt ihn nicht.
+/// Body of `PUT /api/schluessel/{name}`. The value is a secret: it only stands in the input field,
+/// goes once to the local server and never comes back. `Debug` does not show it.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct KeyInput {
     #[serde(rename = "wert")]
@@ -371,7 +371,7 @@ impl std::fmt::Debug for KeyInput {
     }
 }
 
-/// Ob ein Schlüssel im Schlüsselbund liegt – nie sein Wert.
+/// Whether a key is in the keychain – never its value.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct KeyResponse {
     pub name: String,
@@ -380,7 +380,7 @@ pub struct KeyResponse {
     pub set: bool,
 }
 
-/// Jira-Angaben für `config.toml`. `None` lässt den Wert unverändert, ein leerer Text entfernt ihn.
+/// Jira details for `config.toml`. `None` leaves the value unchanged, an empty text removes it.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct JiraInput {
     #[serde(default)]
@@ -391,22 +391,22 @@ pub struct JiraInput {
     pub projects: Option<Vec<String>>,
 }
 
-/// Die Client-ID einer OAuth-App (nicht geheim). Leer entfernt den Abschnitt.
+/// The client ID of an OAuth app (not secret). Empty removes the section.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ClientInput {
     #[serde(default)]
     pub client_id: String,
 }
 
-/// Die GitHub-Repos für den Abgleich (`owner/name`).
+/// The GitHub repos for the sync (`owner/name`).
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct GitHubInput {
     #[serde(default)]
     pub repos: Vec<String>,
 }
 
-/// Anbieter, Adresse und Modell des Agenten. `None` lässt einen Wert unverändert; eine leere
-/// Adresse heißt „direkt beim Anbieter“, ein leeres Modell entfernt den Namen.
+/// Provider, address and model of the agent. `None` leaves a value unchanged; an empty
+/// address means „directly at the provider“, an empty model removes the name.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct EndpointInput {
     #[serde(default)]
@@ -419,8 +419,8 @@ pub struct EndpointInput {
     pub model: Option<String>,
 }
 
-/// Body von `PUT /api/konfiguration`: nur die Abschnitte, die sich ändern. Schlüssel gehören nicht
-/// hierher, sondern zu `PUT /api/schluessel/{name}`.
+/// Body of `PUT /api/konfiguration`: only the sections that change. Keys do not belong
+/// here but to `PUT /api/schluessel/{name}`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ConfigChange {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -436,24 +436,24 @@ pub struct ConfigChange {
     pub endpoint: Option<EndpointInput>,
 }
 
-/// Antwort auf `PUT /api/konfiguration`.
+/// Response to `PUT /api/konfiguration`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ConfigResponse {
-    /// `config.toml` ist geschrieben.
+    /// `config.toml` is written.
     #[serde(default)]
     #[serde(rename = "gespeichert")]
     pub stored: bool,
-    /// Die Änderung gilt schon jetzt; sonst braucht es einen Neustart.
+    /// The change already applies now; otherwise a restart is needed.
     #[serde(default)]
     #[serde(rename = "wirkt_sofort")]
     pub takes_effect_immediately: bool,
-    /// Was der Nutzer wissen sollte.
+    /// What the user should know.
     #[serde(default)]
     #[serde(rename = "hinweis")]
     pub hint: Option<String>,
 }
 
-/// Antwort auf `GET /api/einrichtung`: die aktuellen, nicht geheimen Werte für den Assistenten.
+/// Response to `GET /api/einrichtung`: the current, non-secret values for the assistant.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Setup {
     #[serde(default)]
@@ -472,47 +472,47 @@ pub struct Setup {
     #[serde(default)]
     #[serde(rename = "anbieter")]
     pub provider: Provider,
-    /// Adresse des Endpunkts; `None` = direkt beim Anbieter.
+    /// Address of the endpoint; `None` = directly at the provider.
     #[serde(default, alias = "litellm_url")]
     #[serde(rename = "endpunkt_url")]
     pub endpoint_url: Option<String>,
     #[serde(default, alias = "litellm_modell")]
     #[serde(rename = "endpunkt_modell")]
     pub endpoint_model: Option<String>,
-    /// Die Adresse, die in der GitHub App als Callback eingetragen wird.
+    /// The address entered as callback in the GitHub App.
     #[serde(default)]
     pub callback_github: String,
-    /// Die Adresse, die in der Atlassian-App als Callback eingetragen wird.
+    /// The address entered as callback in the Atlassian app.
     #[serde(default)]
     pub callback_atlassian: String,
-    /// Welche Schlüssel im Schlüsselbund liegen.
+    /// Which keys are in the keychain.
     #[serde(default)]
     #[serde(rename = "schluessel")]
     pub key: Vec<KeyResponse>,
 }
 
 impl Setup {
-    /// Liegt der Schlüssel `name` im Schlüsselbund?
+    /// Is the key `name` in the keychain?
     pub fn has_key(&self, name: &str) -> bool {
         let da = |n: &str| self.key.iter().any(|s| s.name == n && s.set);
-        // Der Key des Endpunkts hieß bis #31 `litellm` und gilt weiter.
+        // The endpoint's key was called `litellm` until #31 and still applies.
         da(name) || (name == "agent-key" && da("litellm"))
     }
 }
 
-/// Fehlerantwort (4xx/5xx) mit deutscher Meldung für die Oberfläche.
+/// Error response (4xx/5xx) with German message for the UI.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ErrorBody {
     #[serde(rename = "fehler")]
     pub error: String,
 }
 
-/// Ein Ereignis auf `GET /api/events`.
+/// An event on `GET /api/events`.
 ///
-/// Nach jeder angewendeten Aktion kommt eines mit den neuen Protokolleinträgen. Direkt
-/// nach dem Verbinden kommt eines mit leerer Liste und der aktuellen Revision. Wer eine
-/// Lücke in den Revisionen sieht (oder verbunden war und die Verbindung verlor), lädt
-/// den Stand neu.
+/// After every applied action one arrives with the new log entries. Right
+/// after connecting one arrives with an empty list and the current revision. Whoever sees a
+/// gap in the revisions (or was connected and lost the connection) reloads
+/// the state.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ServerEvent {
     pub revision: u64,
@@ -634,8 +634,7 @@ mod tests {
             serde_json::from_str(r#"{"litellm_url":"http://x:1","litellm_modell":"m"}"#).unwrap();
         assert_eq!(e.endpoint_url.as_deref(), Some("http://x:1"));
         assert_eq!(e.endpoint_model.as_deref(), Some("m"));
-        let k: ConfigChange =
-            serde_json::from_str(r#"{"litellm":{"url":"http://x:1"}}"#).unwrap();
+        let k: ConfigChange = serde_json::from_str(r#"{"litellm":{"url":"http://x:1"}}"#).unwrap();
         assert_eq!(k.endpoint.unwrap().url.as_deref(), Some("http://x:1"));
     }
 }

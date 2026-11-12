@@ -1,21 +1,21 @@
-//! Abgleich mit Jira und GitHub: Was die Dienste melden, fließt in den Workspace.
+//! Sync with Jira and GitHub: what the services report flows into the workspace.
 //!
-//! Alles hier ist rein – ohne Netz, ohne Uhr. Das Backend holt die Daten
-//! (`cockpit-integrations`), packt sie in ein [`Remote`] und wendet sie als Aktion
-//! [`Action::SyncRemote`](crate::Action::SyncRemote) an. [`merge`] führt beides zusammen:
+//! Everything here is pure – no network, no clock. The backend fetches the data
+//! (`cockpit-integrations`), packs it into a [`Remote`] and applies it as the action
+//! [`Action::SyncRemote`](crate::Action::SyncRemote). [`merge`] combines both:
 //!
-//! * **Neue** Einträge kommen dazu (vorn), **entfernte** verschwinden.
-//! * **Lokaler Zustand bleibt**: gelesen/erledigt, Zurückstellungen, Agent-Läufe und
-//!   Hinweise des Agenten, Vorschläge und Entscheidungen im Review, eigene noch nicht
-//!   gesendete Zeilenkommentare, Urteil und „gesendet“.
-//! * **Von außen Geänderte** (neue Kommentare, Status, Checks, angeforderte Änderungen)
-//!   erscheinen als [`Change`] – das Protokoll bekommt dafür Einträge mit Urheber `System`,
-//!   und `notify::events` sieht sie im Vorher/Nachher wie jede andere Änderung.
-//! * Scheitert eine Quelle (Token abgelaufen, Netz weg, Kontingent), bleiben ihre Daten
-//!   unverändert; der Zustand je Quelle ([`SourceState`]) hält fest, woran es liegt.
+//! * **New** entries are added (at the front), **removed** ones disappear.
+//! * **Local state stays**: read/done, snoozes, agent runs and
+//!   hints of the agent, suggestions and decisions in the review, own not yet
+//!   sent line comments, verdict and „sent“.
+//! * **Changed from outside** (new comments, status, checks, requested changes)
+//!   appear as [`Change`] – the log gets entries for them with author `System`,
+//!   and `notify::events` sees them in the before/after like any other change.
+//! * If a source fails (token expired, network gone, quota), its data stays
+//!   unchanged; the state per source ([`SourceState`]) records what the cause is.
 //!
-//! Beim ersten erfolgreichen Abgleich verschwinden die Beispieldaten (nur die
-//! unveränderten Teile der Demo), damit echte Daten nicht mit ihnen vermischt werden.
+//! On the first successful sync the sample data disappear (only the
+//! unchanged parts of the demo), so that real data is not mixed with them.
 
 use serde::{Deserialize, Serialize};
 
@@ -26,15 +26,15 @@ use crate::model::{Checks, Item, Source, TicketStatus};
 use crate::review::{FileDiff, LineComment, Review};
 use crate::workspace::Workspace;
 
-/// So viele neue oder entfernte Einträge stehen einzeln im Protokoll; darüber eine Sammelzeile.
+/// This many new or removed entries appear individually in the log; above that a collective line.
 const MAX_SINGLE: usize = 5;
-/// So viele Hinweise je Quelle behält der Zustand.
+/// The state keeps this many hints per source.
 const MAX_WARNINGS: usize = 5;
 
-// ---------- Was die Dienste liefern ----------
+// ---------- What the services deliver ----------
 
-/// Der Stand beider Dienste nach einem Abruf. Eine Quelle, die fehlt, wurde nicht abgefragt
-/// (nicht konfiguriert, kein Schlüssel, Pause wegen Kontingent) – ihre Daten bleiben.
+/// The state of both services after a fetch. A source that is missing was not queried
+/// (not configured, no key, pause because of quota) – its data stays.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Remote {
     #[serde(default)]
@@ -49,54 +49,54 @@ pub struct SourceData {
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum Outcome {
-    /// Der vollständige Stand der Quelle. Was hier fehlt, ist dort verschwunden.
+    /// The complete state of the source. What is missing here has disappeared there.
     Loaded(Loaded),
-    /// Der Abruf ist gescheitert.
+    /// The fetch failed.
     Failed(Problem),
 }
 
-/// Der vollständige Stand einer Quelle.
+/// The complete state of a source.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Loaded {
     #[serde(default)]
     pub items: Vec<Item>,
-    /// Nur GitHub: die Pull Requests als Review (Diff, Checks).
+    /// GitHub only: the pull requests as a review (diff, checks).
     #[serde(default)]
     pub reviews: Vec<Review>,
-    /// Nur GitHub: zu welchem Repo welche Nummer gehört.
+    /// GitHub only: which number belongs to which repo.
     #[serde(default)]
     pub prs: Vec<PrLink>,
-    /// Hinweise für den Zustand der Quelle (z. B. ausgelassene Pull Requests).
+    /// Hints for the state of the source (e.g. skipped pull requests).
     #[serde(default)]
     pub warnings: Vec<String>,
 }
 
-/// Zu welchem Repo ein Pull Request gehört. Das Modell kennt Reviews nur über die Nummer;
-/// für Schreibzugriffe braucht das Backend das Repo.
+/// Which repo a pull request belongs to. The model knows reviews only by number;
+/// for write access the backend needs the repo.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PrLink {
     pub number: u32,
     /// `owner/name`
     pub repo: String,
-    /// Letzter bekannter Commit des Branches (spart beim nächsten Abruf den Diff).
+    /// Last known commit of the branch (saves the diff on the next fetch).
     #[serde(default)]
     pub head_sha: String,
 }
 
-// ---------- Zustand je Quelle ----------
+// ---------- State per source ----------
 
-/// Woran ein Abruf gescheitert ist.
+/// What a fetch failed on.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum Problem {
-    /// 401: Token fehlt, ist abgelaufen oder widerrufen.
+    /// 401: token missing, expired or revoked.
     Unauthorized,
-    /// 403: Token gültig, aber ohne Berechtigung.
+    /// 403: token valid, but without permission.
     NoPermission,
-    /// Kontingent aufgebraucht; bis dann (Millisekunden seit 1970) wird nicht abgefragt.
+    /// Quota used up; until then (milliseconds since 1970) nothing is queried.
     RateLimited { until_ms: Option<u64> },
-    /// Keine Verbindung zum Dienst.
+    /// No connection to the service.
     Offline,
-    /// Alles andere, mit deutscher Meldung (ohne Schlüssel).
+    /// Everything else, with a German message (without key).
     Other(String),
 }
 
@@ -118,20 +118,20 @@ impl Problem {
     }
 }
 
-/// Wie es um den Abgleich einer Quelle steht. Fehlt die Quelle in der Liste, ist sie aus.
+/// How the sync of a source stands. If the source is missing from the list, it is off.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct SourceState {
     pub source: Source,
-    /// `None` = der letzte Abruf war erfolgreich.
+    /// `None` = the last fetch was successful.
     #[serde(default)]
     pub problem: Option<Problem>,
-    /// Letzter erfolgreicher Abgleich (Millisekunden seit 1970).
+    /// Last successful sync (milliseconds since 1970).
     #[serde(default)]
     pub last_ok_ms: Option<u64>,
-    /// Letzter Versuch.
+    /// Last attempt.
     #[serde(default)]
     pub last_try_ms: u64,
-    /// Hinweise vom letzten erfolgreichen Abruf.
+    /// Hints from the last successful fetch.
     #[serde(default)]
     pub warnings: Vec<String>,
 }
@@ -141,7 +141,7 @@ impl SourceState {
         self.problem.is_none()
     }
 
-    /// Kurze Zustandsangabe für die Oberfläche und `/api/health`.
+    /// Short state statement for the UI and `/api/health`.
     pub fn id(&self) -> &'static str {
         match &self.problem {
             None => "ok",
@@ -154,19 +154,19 @@ impl SourceState {
     }
 }
 
-/// Alles, was der Abgleich im Workspace festhält.
+/// Everything the sync records in the workspace.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct SyncState {
-    /// Zustand je abgefragter Quelle.
+    /// State per queried source.
     #[serde(default)]
     pub sources: Vec<SourceState>,
-    /// IDs der Einträge, die von einem Dienst kommen. Nur für sie gehen Aktionen nach außen.
+    /// IDs of the entries that come from a service. Only for them do actions go to the outside.
     #[serde(default)]
     pub items: Vec<String>,
-    /// Pull Requests, die von GitHub kommen.
+    /// Pull requests that come from GitHub.
     #[serde(default)]
     pub prs: Vec<PrLink>,
-    /// Die Beispieldaten sind schon entfernt.
+    /// The sample data are already removed.
     #[serde(default)]
     pub demo_dropped: bool,
 }
@@ -176,7 +176,7 @@ impl SyncState {
         self.sources.iter().find(|s| s.source == source)
     }
 
-    /// Kommt dieser Eintrag von einem Dienst (und nicht aus den Beispieldaten)?
+    /// Does this entry come from a service (and not from the sample data)?
     pub fn is_synced(&self, item_id: &str) -> bool {
         self.items.iter().any(|i| i == item_id)
     }
@@ -185,7 +185,7 @@ impl SyncState {
         self.prs.iter().find(|p| p.number == number)
     }
 
-    /// Bis wann pausiert der Abgleich dieser Quelle wegen des Kontingents?
+    /// Until when does the sync of this source pause because of the quota?
     pub fn paused_until(&self, source: Source, now_ms: u64) -> Option<u64> {
         match self.state_of(source)?.problem {
             Some(Problem::RateLimited { until_ms: Some(t) }) if t > now_ms => Some(t),
@@ -210,7 +210,7 @@ impl SyncState {
                     last_try_ms: now_ms,
                     warnings: Vec::new(),
                 });
-                self.sources.last_mut().expect("gerade eingefügt")
+                self.sources.last_mut().expect("just inserted")
             }
         };
         entry.last_try_ms = now_ms;
@@ -222,9 +222,9 @@ impl SyncState {
     }
 }
 
-// ---------- Änderungen ----------
+// ---------- Changes ----------
 
-/// Was sich beim Abgleich von außen geändert hat. Daraus entstehen die Protokolleinträge.
+/// What changed from outside during the sync. The log entries arise from it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Change {
     ItemAdded {
@@ -255,7 +255,7 @@ pub enum Change {
         id: String,
         number: u32,
     },
-    /// Ein eigener, noch nicht gesendeter Kommentar passt nach neuen Commits nicht mehr zum Diff.
+    /// An own, not yet sent comment no longer fits the diff after new commits.
     DraftDropped {
         number: u32,
         place: String,
@@ -268,12 +268,12 @@ pub enum Change {
     SourceRecovered {
         source: Source,
     },
-    /// Sammelzeile, wenn viele Einträge auf einmal kommen oder gehen.
+    /// Collective line when many entries come or go at once.
     Summary(String),
 }
 
 impl Change {
-    /// Kurzer deutscher Satz fürs Protokoll.
+    /// Short German sentence for the log.
     pub fn text(&self) -> String {
         match self {
             Change::ItemAdded { key, title, .. } => format!("{key} neu: {title}"),
@@ -331,10 +331,10 @@ fn label(status: TicketStatus) -> &'static str {
         .map_or("", |(_, l)| l)
 }
 
-// ---------- Zusammenführen ----------
+// ---------- Merging ----------
 
-/// Führt den Stand der Dienste mit dem lokalen Workspace zusammen. Rein: `local` bleibt
-/// unverändert, `now_ms` kommt von außen.
+/// Merges the state of the services with the local workspace. Pure: `local` stays
+/// unchanged, `now_ms` comes from outside.
 pub fn merge(local: &Workspace, remote: &Remote, now_ms: u64) -> (Workspace, Vec<Change>) {
     let mut ws = local.clone();
     let mut changes = Vec::new();
@@ -366,13 +366,13 @@ pub fn merge(local: &Workspace, remote: &Remote, now_ms: u64) -> (Workspace, Vec
             }
         }
     }
-    // Zurückstellungen von Einträgen, die es nicht mehr gibt, räumen wir weg.
+    // Snoozes of entries that no longer exist are cleaned up.
     let items = &ws.items;
     ws.snoozed.retain(|s| items.iter().any(|i| i.id == s.item));
     (ws, changes)
 }
 
-/// Entfernt, was noch genau so aus den Beispieldaten stammt.
+/// Removes what still comes exactly like this from the sample data.
 fn drop_demo(ws: &mut Workspace) {
     let demo = demo::workspace();
     ws.items
@@ -395,7 +395,7 @@ fn merge_items(ws: &mut Workspace, source: Source, remote: &[Item], changes: &mu
     let mut added = Vec::new();
     let mut removed = Vec::new();
 
-    // Bestehende Einträge dieser Quelle: aktualisieren oder entfernen.
+    // Existing entries of this source: update or remove.
     let old = std::mem::take(&mut ws.items);
     let mut kept = Vec::with_capacity(old.len());
     for item in old {
@@ -411,7 +411,7 @@ fn merge_items(ws: &mut Workspace, source: Source, remote: &[Item], changes: &mu
             }),
         }
     }
-    // Neue Einträge kommen nach vorn, in der Reihenfolge des Dienstes.
+    // New entries come to the front, in the order of the service.
     let mut fresh = Vec::new();
     for r in remote {
         if !kept.iter().any(|i| i.id == r.id) && !fresh.iter().any(|i: &Item| i.id == r.id) {
@@ -426,7 +426,7 @@ fn merge_items(ws: &mut Workspace, source: Source, remote: &[Item], changes: &mu
     fresh.append(&mut kept);
     ws.items = fresh;
 
-    // Die Liste der Einträge, die von Diensten kommen.
+    // The list of entries that come from services.
     ws.sync
         .items
         .retain(|id| ws.items.iter().any(|i| &i.id == id));
@@ -439,7 +439,7 @@ fn merge_items(ws: &mut Workspace, source: Source, remote: &[Item], changes: &mu
     collapse(removed, changes, "Einträge nicht mehr dabei");
 }
 
-/// Bis [`MAX_EINZELN`] einzeln, darüber eine Sammelzeile (die erste Änderung als Träger).
+/// Up to [`MAX_SINGLE`] individually, above that a collective line (the first change as carrier).
 fn collapse(list: Vec<Change>, out: &mut Vec<Change>, noun: &str) {
     if list.len() <= MAX_SINGLE {
         out.extend(list);
@@ -448,12 +448,12 @@ fn collapse(list: Vec<Change>, out: &mut Vec<Change>, noun: &str) {
     out.push(Change::Summary(format!("{} {noun}", list.len())));
 }
 
-/// Der lokale Eintrag `old` bekommt die Werte des Dienstes; lokaler Zustand bleibt.
+/// The local entry `old` gets the values of the service; local state stays.
 fn merge_item(old: Item, remote: &Item, changes: &mut Vec<Change>) -> Item {
     let mut item = remote.clone();
 
-    // Lokal bleibt: gelesen, Hinweis des Agenten, Fälligkeit ohne Gegenstück im Dienst,
-    // Branch bei Tickets (Jira kennt ihn nicht).
+    // Local stays: read, hint of the agent, due date without counterpart in the service,
+    // branch for tickets (Jira does not know it).
     item.read = old.read;
     item.agent_note = old.agent_note.clone();
     if item.due.is_none() && remote.source == Source::GitHub {
@@ -462,15 +462,15 @@ fn merge_item(old: Item, remote: &Item, changes: &mut Vec<Change>) -> Item {
     if item.branch.is_none() {
         item.branch = old.branch.clone();
     }
-    // Priorität und Verknüpfung mit dem Pull Request pflegt Cockpit (Jira liefert beides heute
-    // nicht mit): Was du gesetzt hast, bleibt, bis der Dienst selbst einen Wert meldet.
+    // Priority and link to the pull request are maintained by Cockpit (Jira delivers neither
+    // today): what you set stays until the service itself reports a value.
     if item.priority == crate::model::Priority::default() {
         item.priority = old.priority;
     }
     if item.is_ticket() && item.pr.is_none() {
         item.pr = old.pr.clone();
     }
-    // Das Ergebnis des Agenten ist ein lokaler Grund; er bleibt, bis der Dienst etwas Neues sagt.
+    // The agent's result is a local reason; it stays until the service says something new.
     if old.reason == crate::model::ReasonKind::AgentFinished && old.is_ticket() {
         item.reason = old.reason;
         item.reason_text = old.reason_text.clone();
@@ -478,7 +478,7 @@ fn merge_item(old: Item, remote: &Item, changes: &mut Vec<Change>) -> Item {
 
     let mut bump = false;
 
-    // Neue Kommentare von anderen.
+    // New comments from others.
     let foreign = |list: &[crate::model::Comment]| list.iter().filter(|c| !c.own).count();
     let seen = foreign(&old.comments);
     let now_foreign: Vec<_> = remote.comments.iter().filter(|c| !c.own).collect();
@@ -539,28 +539,28 @@ fn merge_reviews(ws: &mut Workspace, loaded: &Loaded, changes: &mut Vec<Change>)
             kept.push(review);
         }
     }
-    // Reviews, die es auf GitHub nicht mehr gibt, verschwinden (nur verknüpfte).
+    // Reviews that no longer exist on GitHub disappear (only linked ones).
     let mut merged: Vec<Review> = Vec::new();
     for r in &loaded.reviews {
         let previous = by_number.iter().position(|o| o.number == r.number);
         let review = match previous {
             Some(i) => merge_review(by_number.remove(i), r, changes),
             None => {
-                // Nummer schon lokal belegt (Beispiel oder Simulation): der Dienst gewinnt.
+                // Number already taken locally (example or simulation): the service wins.
                 kept.retain(|k| k.number != r.number);
                 r.clone()
             }
         };
         merged.push(review);
     }
-    // Neue Reviews nach vorn, vorhandene an ihrem Platz wie bisher: einfach vor die übrigen.
+    // New reviews to the front, existing ones in their place as before: simply before the rest.
     merged.append(&mut kept);
     ws.reviews = merged;
 
     ws.sync.prs = loaded.prs.clone();
 }
 
-/// Das lokale Review `old` bekommt Diff, Titel und Checks des Dienstes.
+/// The local review `old` gets diff, title and checks of the service.
 fn merge_review(old: Review, remote: &Review, changes: &mut Vec<Change>) -> Review {
     let mut review = remote.clone();
     review.agent_reviewed = old.agent_reviewed;
@@ -575,8 +575,8 @@ fn merge_review(old: Review, remote: &Review, changes: &mut Vec<Change>) -> Revi
     review
 }
 
-/// Eigene Entwürfe in den neuen Diff übertragen. Die Position ist ein Index in den Zeilen
-/// der Datei; ändert sich der Diff, suchen wir dieselbe Zeile (Art, Nummer, Text) neu.
+/// Transfer own drafts into the new diff. The position is an index into the lines
+/// of the file; if the diff changes, we look for the same line again (kind, number, text).
 fn carry_drafts(
     old: &Review,
     new_files: &[FileDiff],
@@ -594,8 +594,8 @@ fn carry_drafts(
             .find(|f| f.name == draft.file)
             .map(|f| f.lines.as_slice());
         let line = old_lines.and_then(|l| l.get(draft.line));
-        // Dieselbe Zeile (Art und Text; die Nummer verschiebt sich) – bei mehreren gleichen
-        // die gleich vielte.
+        // The same line (kind and text; the number shifts) – with several equal ones
+        // the equally-numbered one.
         let moved = line.and_then(|l| {
             let same = |x: &&crate::review::DiffLine| x.kind == l.kind && x.text == l.text;
             let nth = old_lines?[..draft.line].iter().filter(same).count();
@@ -767,7 +767,7 @@ mod tests {
                 .count(),
             2
         );
-        // Später neu Dazugekommenes steht vorn, Vorhandenes behält seinen Platz.
+        // Newly added later stands in front, existing keeps its place.
         let (ws, _) = merge(
             &ws,
             &jira(vec![
@@ -796,7 +796,7 @@ mod tests {
             id: "abc-1".into(),
             key: "ABC-1".into()
         }));
-        assert!(ws.review(5).is_some(), "GitHub ist nicht betroffen");
+        assert!(ws.review(5).is_some(), "GitHub is not affected");
     }
 
     #[test]
@@ -807,7 +807,7 @@ mod tests {
         ];
         let mut ws = synced(&github(vec![pr_item(5)], vec![review(5, files(&lines))]));
         ws = merge(&ws, &jira(vec![ticket("ABC-1", "Eins")]), T).0;
-        // Lokale Zustände …
+        // Local states …
         ws.mark_done("abc-1");
         ws.snooze("abc-1", Some(T + 10_000_000));
         ws.items[1].agent_note = Some("Agent wartet".into());
@@ -824,7 +824,7 @@ mod tests {
         r.add_line_comment("a.rs", 1, "Bitte prüfen", Some("    bar();"))
             .unwrap();
 
-        // … bleiben bei jedem Abgleich.
+        // … stay on every sync.
         let remote = Remote {
             sources: [
                 jira(vec![ticket("ABC-1", "Eins neu betitelt")]).sources,
@@ -893,8 +893,8 @@ mod tests {
         assert_eq!(entry.actor, Actor::System);
         assert_eq!(entry.text, "Lena hat ABC-1 kommentiert");
         assert_eq!(entry.target, Some(Target::Item("abc-1".into())));
-        assert!(!ws.item("abc-1").unwrap().read, "neu zu lesen");
-        // notify arbeitet auf vorher/nachher und sieht die Erwähnung.
+        assert!(!ws.item("abc-1").unwrap().read, "new to read");
+        // notify works on before/after and sees the mention.
         let events = notify::events(&before, &ws);
         assert!(
             events
@@ -946,7 +946,7 @@ mod tests {
             !after.item("abc-1").unwrap().read,
             "Änderung von außen holt zurück"
         );
-        // Gleicher Stand noch einmal: keine Änderungen.
+        // Same state once more: no changes.
         let (_, again) = merge(&after, &remote, T + 2);
         assert!(again.is_empty(), "{again:?}");
     }
@@ -982,9 +982,9 @@ mod tests {
         let mut remote = ticket("X-1", "Titel");
         remote.labels = vec!["neu".into(), "bug".into()];
         let merged = merge_item(local, &remote, &mut Vec::new());
-        assert_eq!(merged.labels, ["neu", "bug"], "der Dienst gewinnt");
+        assert_eq!(merged.labels, ["neu", "bug"], "the service wins");
 
-        // Entfernt der Dienst alle Labels, verschwinden sie auch hier.
+        // If the service removes all labels, they disappear here too.
         let mut local = ticket("X-1", "Titel");
         local.labels = vec!["alt".into()];
         let merged = merge_item(local, &ticket("X-1", "Titel"), &mut Vec::new());
@@ -1006,7 +1006,7 @@ mod tests {
         b.repo = Some("a/y".into());
         let ws = synced(&github(vec![a.clone(), b.clone()], Vec::new()));
         assert_eq!(ws.items.len(), 2);
-        // Ein zweiter Abgleich ändert daran nichts, und jedes Repo behält das seine.
+        // A second sync changes nothing about it, and each repo keeps its own.
         let (ws, _) = merge(&ws, &github(vec![b, a], Vec::new()), T + 1);
         assert_eq!(ws.items.len(), 2);
         let repos: Vec<_> = ws.items.iter().filter_map(|i| i.repo.as_deref()).collect();
@@ -1040,10 +1040,10 @@ mod tests {
         assert_eq!(state.last_ok_ms, Some(T));
         assert_eq!(state.last_try_ms, T + 5);
         assert_eq!(changes.len(), 1);
-        // Dasselbe Problem noch einmal ist nicht noch eine Meldung.
+        // The same problem again is not another notification.
         let (ws, changes) = merge(&ws, &failed(Problem::Unauthorized), T + 6);
         assert!(changes.is_empty());
-        // Kontingent: Pause bis zum Zeitpunkt.
+        // Quota: pause until the point in time.
         let (ws, _) = merge(
             &ws,
             &failed(Problem::RateLimited {
@@ -1054,7 +1054,7 @@ mod tests {
         assert_eq!(ws.sync.paused_until(Source::Jira, T + 8), Some(T + 60_000));
         assert_eq!(ws.sync.paused_until(Source::Jira, T + 60_001), None);
         assert_eq!(ws.sync.paused_until(Source::GitHub, T), None);
-        // Erholt.
+        // Recovered.
         let (ws, changes) = merge(&ws, &jira(vec![ticket("ABC-1", "Eins")]), T + 70_000);
         assert!(ws.sync.state_of(Source::Jira).unwrap().is_ok());
         assert_eq!(
@@ -1074,7 +1074,7 @@ mod tests {
         ];
         let mut ws = synced(&github(vec![pr_item(5)], vec![review(5, files(&old))]));
         let id = ws.add_line_comment(5, "a.rs", 1, "Warum?", None).unwrap();
-        // Neuer Commit fügt vorn eine Zeile ein.
+        // A new commit inserts a line at the front.
         let new = [
             (1, LineKind::Add, "use x;"),
             (2, LineKind::Context, "fn a() {"),
@@ -1090,7 +1090,7 @@ mod tests {
         assert_eq!((c.id.as_str(), c.line), (id.as_str(), 2));
         assert!(changes.is_empty());
 
-        // Die Zeile gibt es nicht mehr: Entwurf entfällt, der Text steht im Protokoll.
+        // The line no longer exists: draft dropped, the text is in the log.
         let gone = [(1, LineKind::Context, "fn b() {")];
         let (after, changes) = merge(
             &after,
@@ -1139,7 +1139,7 @@ mod tests {
         r.check_runs = vec![crate::CheckRun::new("Tests", Checks::Failed, 10, "")];
         let mut ws = synced(&github(vec![pr_item(5)], vec![r]));
         assert!(ws.restart_check(5, "Tests"));
-        assert_eq!(ws.running_checks(), 0, "GitHub führt den Check aus");
+        assert_eq!(ws.running_checks(), 0, "GitHub runs the check");
         assert!(ws.advance_checks().is_empty());
         assert_eq!(ws.review(5).unwrap().check_runs[0].status, Checks::Running);
     }

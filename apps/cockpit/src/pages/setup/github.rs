@@ -1,6 +1,6 @@
 //! Schritt 3: GitHub verbinden – über eine eigene GitHub App.
 
-use cockpit_core::api::{ClientInput, GitHubInput, ConfigChange};
+use cockpit_core::api::{ClientInput, ConfigChange, GitHubInput};
 use cockpit_core::setup::{client_id_read, repos_read};
 use feature_ui::*;
 use leptos::prelude::*;

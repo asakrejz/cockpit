@@ -1,12 +1,12 @@
-//! Suche und Filter der Inbox – reine Funktionen, ohne Zustand.
+//! Search and filter of the inbox – pure functions, without state.
 
 use crate::model::{Filter, Item, SourceFilter, TicketStatus};
 
-/// Passt der Eintrag zum Suchtext?
+/// Does the entry match the search text?
 ///
-/// Durchsucht Titel, Schlüssel (`BAU-142`, `#87`), Grund und Besitzer, ohne auf
-/// Groß-/Kleinschreibung zu achten. Der Text wird an Leerzeichen in Wörter geteilt;
-/// jedes Wort muss irgendwo vorkommen. Ein leerer Suchtext passt auf alles.
+/// Searches title, key (`BAU-142`, `#87`), reason and owner, without regard to
+/// case. The text is split into words at spaces;
+/// every word must occur somewhere. An empty search text matches everything.
 ///
 /// ```
 /// use cockpit_core::{demo, search::matches_query};
@@ -31,28 +31,28 @@ pub fn matches_query(item: &Item, query: &str) -> bool {
     query.split_whitespace().all(|word| haystack.contains(word))
 }
 
-/// Die Filter der Inbox nach Repo, Person, Status und Label. Jedes Feld ist `None` = „alle“.
-/// Das Jira-Projekt gehört nicht dazu: Es ist eine Einstellung des Workspaces
-/// ([`crate::Workspace::in_project`]). Der Wert ist reiner Oberflächenzustand.
+/// The inbox filters by repo, person, status and label. Each field `None` = „all“.
+/// The Jira project is not part of it: it is a setting of the workspace
+/// ([`crate::Workspace::in_project`]). The value is pure UI state.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct InboxFilter {
-    /// `owner/name`; Einträge ohne Repo (Tickets) fallen heraus, sobald ein Repo gewählt ist.
+    /// `owner/name`; entries without a repo (tickets) drop out as soon as a repo is chosen.
     pub repo: Option<String>,
-    /// Name des Besitzers.
+    /// Name of the owner.
     pub person: Option<String>,
-    /// Siehe [`Item::effective_status`].
+    /// See [`Item::effective_status`].
     pub status: Option<TicketStatus>,
-    /// Ohne Rücksicht auf Groß-/Kleinschreibung.
+    /// Without regard to case.
     pub label: Option<String>,
 }
 
 impl InboxFilter {
-    /// Ist nichts eingeschränkt?
+    /// Is nothing restricted?
     pub fn is_default(&self) -> bool {
         *self == Self::default()
     }
 
-    /// Passt der Eintrag zu allen gewählten Werten?
+    /// Does the entry match all chosen values?
     ///
     /// ```
     /// use cockpit_core::{InboxFilter, demo};
@@ -74,13 +74,13 @@ impl InboxFilter {
             })
     }
 
-    /// Behält die Einträge, die passen; die Reihenfolge bleibt erhalten.
+    /// Keeps the entries that match; the order is preserved.
     pub fn apply<'a>(&self, items: Vec<&'a Item>) -> Vec<&'a Item> {
         items.into_iter().filter(|i| self.matches(i)).collect()
     }
 }
 
-/// Filtert Einträge nach Besitzer, Quelle und Suchtext; die Reihenfolge bleibt erhalten.
+/// Filters entries by owner, source and search text; the order is preserved.
 pub fn search<'a>(
     items: &'a [Item],
     filter: Filter,
@@ -168,7 +168,7 @@ mod tests {
             .map(|i| i.key.clone())
             .collect();
         assert_eq!(keys(&github), expected);
-        // Quelle und Text zusammen: ein Jira-Schlüssel findet in GitHub nichts.
+        // Source and text together: a Jira key finds nothing in GitHub.
         assert!(search(&ws.items, Filter::All, SourceFilter::GitHub, "BAU-142").is_empty());
     }
 
@@ -213,7 +213,7 @@ mod tests {
             repo: Some(crate::DEMO_REPO.into()),
             ..Default::default()
         };
-        assert_eq!(keys_of(&f), ["#87", "#85"], "Tickets haben kein Repo");
+        assert_eq!(keys_of(&f), ["#87", "#85"], "tickets have no repo");
     }
 
     #[test]
@@ -223,7 +223,7 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(keys_of(&f), ["#87"]);
-        // Tickets: eigener Status; Pull Requests: der, den sie nahelegen (#87: Review angefragt).
+        // Tickets: own status; pull requests: the one they suggest (#87: review requested).
         let f = InboxFilter {
             status: Some(TicketStatus::Review),
             ..Default::default()

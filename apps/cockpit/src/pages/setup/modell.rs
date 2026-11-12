@@ -1,10 +1,10 @@
 //! Schritt 4: Modell – Werkzeug des Agenten, Endpunkt (direkt bei Anthropic, eigener Proxy wie
 //! LiteLLM oder ein anderer kompatibler Endpunkt), Key, Modellname als Drop-down aus der Liste des
-//! Endpunkts und die Verbindungstests. Die Regeln stehen in `cockpit_core::einrichten`.
+//! Endpunkts und die Verbindungstests. Die Regeln stehen in `cockpit_core::setup`.
 
-use cockpit_core::api::{Provider, EndpointInput, ConfigChange};
+use cockpit_core::api::{ConfigChange, EndpointInput, Provider};
 use cockpit_core::setup::{
-    EndpointKind, Tone, model_selection, model_hint, model_name_read, check_plain_text,
+    EndpointKind, Tone, check_plain_text, model_hint, model_name_read, model_selection,
 };
 use feature_ui::*;
 use leptos::prelude::*;

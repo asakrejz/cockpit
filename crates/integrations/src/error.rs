@@ -2,35 +2,35 @@ use std::fmt;
 
 use cockpit_core::Problem;
 
-/// Was bei einem Aufruf schiefgehen kann. Die Meldungen enthalten nie einen Schlüssel.
+/// What can go wrong in a call. The messages never contain a key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
-    /// Keine Verbindung, Zeitüberschreitung o. Ä.
+    /// No connection, timeout or similar.
     Network(String),
-    /// 401: Schlüssel fehlt, ist abgelaufen oder widerrufen.
+    /// 401: key missing, expired or revoked.
     NotSignedIn,
-    /// 403: Schlüssel gültig, aber ohne Berechtigung.
+    /// 403: key valid, but without permission.
     NoPermission,
-    /// 403/429 mit aufgebrauchtem Kontingent. `warten_s`: so lange sollen wir pausieren
-    /// (aus `Retry-After` bzw. dem Zeitpunkt, an dem das Kontingent zurückkommt).
+    /// 403/429 with exhausted quota. `wait_s`: how long we should pause
+    /// (from `Retry-After` or the time at which the quota comes back).
     RateLimit {
         wait_s: Option<u64>,
     },
     NotFound,
-    /// Der Dienst lehnt die Anfrage ab (400, 405, 409, 422) – mit seiner Meldung, falls er eine gibt.
+    /// The service rejects the request (400, 405, 409, 422) – with its message, if it gives one.
     Rejected(String),
-    /// Anderer HTTP-Status.
+    /// Other HTTP status.
     Status(u16),
-    /// Antwort nicht lesbar oder anders aufgebaut als erwartet.
+    /// Response not readable or structured differently than expected.
     Response(String),
-    /// Ungültige Einstellung (z. B. Adresse).
+    /// Invalid setting (e.g. address).
     Config(String),
-    /// Der Dienst kennt keine passende Möglichkeit (z. B. keine Jira-Transition zum Ziel-Status).
+    /// The service has no matching option (e.g. no Jira transition to the target status).
     NotPossible(String),
 }
 
 impl Error {
-    /// Ersetzt den Schlüssel in allen Texten durch `***`, falls ein Dienst ihn zurückspielt.
+    /// Replaces the key in all texts with `***`, in case a service echoes it back.
     pub fn without_key(self, key: &str) -> Self {
         if key.is_empty() {
             return self;
@@ -46,7 +46,7 @@ impl Error {
         }
     }
 
-    /// Der Zustand für die Anzeige je Quelle. `jetzt_ms`: Uhrzeit des Aufrufers (Millisekunden).
+    /// The state for the display per source. `now_ms`: time of day of the caller (milliseconds).
     pub fn problem(&self, now_ms: u64) -> Problem {
         match self {
             Error::NotSignedIn => Problem::Unauthorized,
@@ -94,8 +94,7 @@ mod tests {
 
     #[test]
     fn key_is_removed_from_messages() {
-        let f =
-            Error::Rejected("Bad credentials ghp_geheim".into()).without_key("ghp_geheim");
+        let f = Error::Rejected("Bad credentials ghp_geheim".into()).without_key("ghp_geheim");
         assert!(!f.to_string().contains("ghp_geheim"));
         assert!(f.to_string().contains("***"));
     }

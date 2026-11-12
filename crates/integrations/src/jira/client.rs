@@ -1,4 +1,4 @@
-//! Lesender Client für Jira Cloud (REST v3).
+//! Reading client for Jira Cloud (REST v3).
 
 use cockpit_core::Item;
 
@@ -8,18 +8,18 @@ use super::dto::{
     CommentPage, JiraComment, Myself, Project, ProjectPage, SearchResult, TransitionList,
 };
 use super::map;
-use crate::outbound::{Request, Outbound, transition_request, choose_transition};
 use crate::http::{base_url, client, send};
+use crate::outbound::{Outbound, Request, choose_transition, transition_request};
 use crate::{Error, Secret};
 use cockpit_core::TicketStatus;
 
-/// Mir zugewiesene oder von mir beobachtete Issues, die noch nicht erledigt sind.
+/// Issues assigned to me or watched by me that are not done yet.
 pub const ASSIGNED_OR_WATCHED_JQL: &str = "(assignee = currentUser() OR watcher = currentUser()) \
      AND statusCategory != Done ORDER BY updated DESC";
 
-/// Die Abfrage für den Abgleich: eine eigene JQL, sonst mir zugewiesene oder von mir
-/// beobachtete offene Issues – auf `projekte` beschränkt, falls angegeben. Projektschlüssel
-/// werden geprüft (Buchstaben, Ziffern, `_`), damit nichts in die Abfrage rutscht.
+/// The query for the sync: a custom JQL, otherwise open issues assigned to me or
+/// watched by me – restricted to `projects` if given. Project keys
+/// are checked (letters, digits, `_`), so that nothing slips into the query.
 pub fn jql_for(projects: &[String], own: Option<&str>) -> Result<String, Error> {
     if let Some(j) = own.map(str::trim).filter(|j| !j.is_empty()) {
         return Ok(j.to_string());
@@ -29,9 +29,7 @@ pub fn jql_for(projects: &[String], own: Option<&str>) -> Result<String, Error> 
     }
     for p in projects {
         if !cockpit_core::is_project_key(p) {
-            return Err(Error::Config(format!(
-                "Ungültiger Projektschlüssel: {p}"
-            )));
+            return Err(Error::Config(format!("Ungültiger Projektschlüssel: {p}")));
         }
     }
     Ok(format!(
@@ -41,8 +39,8 @@ pub fn jql_for(projects: &[String], own: Option<&str>) -> Result<String, Error> 
     ))
 }
 
-/// Alle offenen Tickets eines Projekts – egal, wem sie gehören. Gilt, wenn in der App ein
-/// Projekt gewählt ist.
+/// All open tickets of a project – regardless of who owns them. Applies when a
+/// project is chosen in the app.
 pub fn jql_for_project(project: &str) -> Result<String, Error> {
     if !cockpit_core::is_project_key(project) {
         return Err(Error::Config(format!(
@@ -54,12 +52,12 @@ pub fn jql_for_project(project: &str) -> Result<String, Error> {
     ))
 }
 
-/// So viele Projekte je Seite und höchstens in Summe.
+/// This many projects per page and at most in total.
 const PROJECTS_PAGE: usize = 50;
 const MAX_PROJECTS: usize = 500;
 
 const FIELDS: &str = "summary,description,status,assignee,reporter,updated,duedate,labels";
-/// So viele Issues je Seite und höchstens in Summe.
+/// This many issues per page and at most in total.
 const PAGE: usize = 50;
 const MAX_ISSUES: usize = 150;
 
@@ -68,7 +66,7 @@ pub struct JiraClient {
     base: String,
     email: String,
     token: Secret,
-    /// Mit OAuth: `Authorization: Bearer`, sonst Basic mit E-Mail und API-Token.
+    /// With OAuth: `Authorization: Bearer`, otherwise Basic with email and API token.
     oauth: bool,
 }
 
@@ -83,7 +81,7 @@ impl std::fmt::Debug for JiraClient {
 }
 
 impl JiraClient {
-    /// `site_url` ist z. B. `https://firma.atlassian.net`; Anmeldung mit E-Mail und API-Token.
+    /// `site_url` is e.g. `https://firma.atlassian.net`; sign-in with email and API token.
     pub fn new(site_url: &str, email: &str, token: Secret) -> Result<Self, Error> {
         Ok(Self {
             http: client()?,
@@ -94,8 +92,8 @@ impl JiraClient {
         })
     }
 
-    /// Anmeldung per OAuth: `basis` ist `https://api.atlassian.com/ex/jira/<cloudId>`
-    /// ([`crate::oauth::jira_basis`]), `access` das Access-Token.
+    /// Sign-in via OAuth: `base` is `https://api.atlassian.com/ex/jira/<cloudId>`
+    /// ([`crate::oauth::jira_base`]), `access` the access token.
     pub fn oauth(base: &str, access: Secret) -> Result<Self, Error> {
         Ok(Self {
             http: client()?,
@@ -120,8 +118,8 @@ impl JiraClient {
         self.request(reqwest::Method::GET, path)
     }
 
-    /// Schickt die Anfrage; ein Schlüssel, den der Dienst in einer Meldung zurückspielt,
-    /// wird unkenntlich gemacht.
+    /// Sends the request; a key that the service echoes back in a message
+    /// is made unrecognizable.
     async fn text(&self, req: reqwest::RequestBuilder) -> Result<String, Error> {
         send(req)
             .await
@@ -146,7 +144,7 @@ impl JiraClient {
         self.text(req).await
     }
 
-    /// `accountId` des Schlüsselinhabers.
+    /// `accountId` of the key holder.
     pub async fn me(&self) -> Result<String, Error> {
         Ok(self
             .lies_json::<Myself>(self.get("/rest/api/3/myself"))
@@ -154,8 +152,8 @@ impl JiraClient {
             .account_id)
     }
 
-    /// Der Anzeigename des Schlüsselinhabers (leer, wenn Jira keinen nennt). Nur Lesen; dient dem
-    /// Verbindungstest im Einrichtungsassistenten.
+    /// The display name of the key holder (empty if Jira names none). Read only; serves the
+    /// connection test in the setup assistant.
     pub async fn my_name(&self) -> Result<String, Error> {
         Ok(self
             .lies_json::<Myself>(self.get("/rest/api/3/myself"))
@@ -164,7 +162,7 @@ impl JiraClient {
             .unwrap_or_default())
     }
 
-    /// Issues zu einer JQL-Abfrage, seitenweise (`nextPageToken`), höchstens [`MAX_ISSUES`].
+    /// Issues for a JQL query, page by page (`nextPageToken`), at most [`MAX_ISSUES`].
     pub async fn search(&self, jql: &str) -> Result<Vec<super::dto::Issue>, Error> {
         let mut all = Vec::new();
         let mut token: Option<String> = None;
@@ -190,7 +188,7 @@ impl JiraClient {
         Ok(all)
     }
 
-    /// Die Projekte, die der Schlüssel sehen darf, nach Namen sortiert (seitenweise, höchstens
+    /// The projects the key may see, sorted by name (page by page, at most
     /// [`MAX_PROJEKTE`]).
     pub async fn projects(&self) -> Result<Vec<Project>, Error> {
         let mut all = Vec::new();
@@ -223,7 +221,7 @@ impl JiraClient {
         Ok(page.comments)
     }
 
-    /// Inbox-Einträge: mir zugewiesene oder beobachtete, offene Issues.
+    /// Inbox entries: open issues assigned to me or watched.
     pub async fn load_inbox(&self, now: i64) -> Result<Vec<Item>, Error> {
         let me = self.me().await?;
         let issues = self.search(ASSIGNED_OR_WATCHED_JQL).await?;
@@ -234,10 +232,10 @@ impl JiraClient {
     }
 }
 
-// ---------- Schreiben ----------
+// ---------- Writing ----------
 
 impl JiraClient {
-    /// Führt einen Aufruf nach außen aus. Nur Jira-Varianten.
+    /// Executes an outbound call. Jira variants only.
     pub async fn execute(&self, a: &Outbound) -> Result<(), Error> {
         match a {
             Outbound::JiraStatus { key, status } => self.status_set(key, *status).await,
@@ -248,7 +246,7 @@ impl JiraClient {
         }
     }
 
-    /// Sucht die Transition, die zum Ziel-Status führt, und führt sie aus.
+    /// Finds the transition that leads to the target status and executes it.
     pub async fn status_set(&self, key: &str, target: TicketStatus) -> Result<(), Error> {
         let list: TransitionList = self
             .lies_json(self.get(&format!("/rest/api/3/issue/{key}/transitions")))

@@ -1,4 +1,4 @@
-//! Jira: Abbildung und Client gegen nachgebaute Antworten (`tests/fixtures`).
+//! Jira: mapping and client against replayed responses (`tests/fixtures`).
 
 use cockpit_core::{Kind, ReasonKind, Scope, Source, TicketStatus};
 use cockpit_integrations::jira::{
@@ -41,12 +41,12 @@ fn assigned_issue() {
         (ReasonKind::Assigned, Scope::Mine)
     );
     assert_eq!(item.owner, cockpit_core::Person::me());
-    // 09:12 +02:00 = 07:12 UTC → 4 h 48 min vor 12:00 UTC
+    // 09:12 +02:00 = 07:12 UTC → 4 h 48 min before 12:00 UTC
     assert_eq!(item.time, "vor 4 Std.");
     assert!(item.pr.is_none() && item.branch.is_none() && item.comments.is_empty());
     assert_eq!(item.labels, ["a11y", "tokens"]);
-    assert_eq!(item.repo, None, "Tickets haben kein Repo");
-    // Ohne Feld `labels` (Issue ohne Labels) bleibt die Liste leer.
+    assert_eq!(item.repo, None, "tickets have no repo");
+    // Without the field `labels` (issue without labels) the list stays empty.
     assert!(
         issue_to_item(&s.issues[1], "acc-mira", now())
             .labels
@@ -74,7 +74,7 @@ fn issue_without_assignee_and_open() {
     let s = search();
     let item = issue_to_item(&s.issues[2], "acc-mira", now());
     assert_eq!(item.status, TicketStatus::Open);
-    // Ohne Bearbeiter gilt der Melder als Besitzer.
+    // Without an assignee the reporter counts as the owner.
     assert_eq!(item.owner.name, "Tobias Lang");
 
     let mut without_all = s.issues[2].clone();
@@ -89,15 +89,9 @@ fn issue_without_assignee_and_open() {
 fn done_is_detected() {
     let mut issue = search().issues.remove(0);
     issue.fields.status.status_category = Some(StatusCategory { key: "done".into() });
-    assert_eq!(
-        issue_to_item(&issue, "x", now()).status,
-        TicketStatus::Done
-    );
+    assert_eq!(issue_to_item(&issue, "x", now()).status, TicketStatus::Done);
     issue.fields.status.status_category = None;
-    assert_eq!(
-        issue_to_item(&issue, "x", now()).status,
-        TicketStatus::Open
-    );
+    assert_eq!(issue_to_item(&issue, "x", now()).status, TicketStatus::Open);
 }
 
 #[test]
@@ -113,7 +107,7 @@ fn comments_with_adf_and_own() {
     assert_eq!(c[1].time, "vor 4 Std.");
 }
 
-// ---------- Client gegen Mock-Server ----------
+// ---------- Client against mock server ----------
 
 fn response(body: &str) -> ResponseTemplate {
     ResponseTemplate::new(200).set_body_raw(body.to_string(), "application/json")
@@ -171,10 +165,7 @@ async fn comments_and_error() {
 
     let c = JiraClient::new(&server.uri(), "a@b.de", Secret::new("t")).unwrap();
     assert_eq!(c.comments("BAU-142").await.unwrap().len(), 2);
-    assert_eq!(
-        c.comments("BAU-1").await.unwrap_err(),
-        Error::NotFound
-    );
+    assert_eq!(c.comments("BAU-1").await.unwrap_err(), Error::NotFound);
     assert_eq!(c.me().await.unwrap_err(), Error::NotSignedIn);
 }
 

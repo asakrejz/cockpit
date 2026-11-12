@@ -4,7 +4,7 @@
 //! Schlüssel (Client-Secrets, Tokens, der Key des Modell-Endpunkts) kommen in Passwortfelder und gehen einmal
 //! an den lokalen Server, der sie im Schlüsselbund ablegt. Der Browser speichert sie nirgends
 //! (kein `localStorage`, keine Adresse), der Server schickt sie nie zurück. Die Regeln dazu
-//! stehen in `cockpit_core::einrichten`, das Schreiben von `config.toml` im Server.
+//! stehen in `cockpit_core::setup`, das Schreiben von `config.toml` im Server.
 
 mod container;
 mod felder;

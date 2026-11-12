@@ -1,12 +1,12 @@
-//! Aktionen und Protokoll.
+//! Actions and log.
 //!
-//! Jede Änderung, die die Oberfläche auslösen kann, ist eine [`Action`]. Wer sie
-//! anwendet – im Demo-Modus der Browser, später das Backend –, ruft
-//! [`Workspace::apply`](crate::Workspace::apply) auf und bekommt entweder ein
-//! [`Applied`] oder einen [`ActionError`]. Jede erfolgreiche Aktion hinterlässt
-//! einen [`LogEntry`] im Protokoll des Workspace; Fehlschläge hinterlassen nichts.
+//! Every change the UI can trigger is an [`Action`]. Whoever
+//! applies it – the browser in demo mode, later the backend – calls
+//! [`Workspace::apply`](crate::Workspace::apply) and gets either an
+//! [`Applied`] or an [`ActionError`]. Every successful action leaves
+//! a [`LogEntry`] in the workspace's log; failures leave nothing.
 //!
-//! Aktionen sind `serde`-fähig, damit das Backend sie als JSON empfangen kann.
+//! Actions are `serde`-capable so that the backend can receive them as JSON.
 
 use serde::{Deserialize, Serialize};
 
@@ -21,14 +21,14 @@ use crate::sync::{self, Remote};
 use crate::usage::{AgentLimits, StopReason, format_euro};
 use crate::workspace::{AgentError, LinkError, ResumeError, StatusChange, Workspace};
 
-/// So viele Einträge behält das Protokoll. Ältere fallen heraus.
+/// This many entries the log keeps. Older ones drop out.
 pub const MAX_LOG: usize = 500;
 
-/// Eine Änderung am Workspace. Eine Variante pro Handgriff der Oberfläche.
+/// A change to the workspace. One variant per gesture of the UI.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum Action {
     // Inbox
-    /// Eintrag als erledigt markieren (`item` ist die interne ID, z. B. `bau142`).
+    /// Mark the entry as done (`item` is the internal ID, e.g. `bau142`).
     MarkDone {
         item: String,
     },
@@ -43,33 +43,33 @@ pub enum Action {
         item: String,
         text: String,
     },
-    /// Eintrag zurückstellen. `until_ms` ist der Zeitpunkt (Millisekunden seit 1970), zu
-    /// dem er zurückkommt; ohne (`None`) bleibt er weg, bis sich etwas ändert: ein neuer
-    /// Kommentar, ein anderer Status oder neue Check-Ergebnisse.
+    /// Snooze the entry. `until_ms` is the point in time (milliseconds since 1970) at
+    /// which it comes back; without (`None`) it stays away until something changes: a new
+    /// comment, a different status or new check results.
     Snooze {
         item: String,
         until_ms: Option<u64>,
     },
-    /// Zurückgestellten Eintrag sofort zurückholen.
+    /// Bring a snoozed entry back immediately.
     Unsnooze {
         item: String,
     },
-    /// Der Takt: Einträge zurückholen, deren Zurückstellung abgelaufen oder durch eine
-    /// Änderung aufgehoben ist.
+    /// The tick: bring back entries whose snooze has expired or been lifted by a
+    /// change.
     WakeSnoozed,
-    /// Aufmerksamkeits-Regel ein- oder ausschalten.
+    /// Switch an attention rule on or off.
     SetRule {
         rule: Rule,
         enabled: bool,
     },
-    // Tickets bearbeiten
-    /// Titel und Beschreibung eines Tickets ändern. Der Titel darf nicht leer sein.
+    // Edit tickets
+    /// Change title and description of a ticket. The title must not be empty.
     EditTicket {
         item: String,
         title: String,
         description: String,
     },
-    /// Ticket jemandem zuweisen (`person` muss im Team vorkommen, siehe [`Workspace::people`]).
+    /// Assign the ticket to someone (`person` must appear in the team, see [`Workspace::people`]).
     AssignTicket {
         item: String,
         person: Person,
@@ -78,30 +78,30 @@ pub enum Action {
         item: String,
         priority: Priority,
     },
-    // Ticket und Pull Request
-    /// Ticket (`item`) mit einem Pull Request (`pr`) verknüpfen.
+    // Ticket and pull request
+    /// Link the ticket (`item`) with a pull request (`pr`).
     LinkPr {
         item: String,
         pr: u32,
     },
-    /// Verknüpfung eines Tickets lösen. Die Automatik setzt sie nicht wieder.
+    /// Remove the link of a ticket. The automation does not set it again.
     UnlinkPr {
         item: String,
     },
-    /// Der Takt: Pull Requests verknüpfen, deren Branch oder Titel einen Ticket-Schlüssel nennt.
+    /// The tick: link pull requests whose branch or title names a ticket key.
     AutoLinkPrs,
-    /// Für den Pull Request ein Review anfragen.
+    /// Request a review for the pull request.
     RequestReview {
         review: u32,
     },
-    /// Der Takt: den Status verknüpfter Tickets dem Pull Request nachführen.
+    /// The tick: bring the status of linked tickets in line with the pull request.
     SyncTicketStatus,
-    /// „Status folgt dem Pull Request“ ein- oder ausschalten.
+    /// Switch „status follows the pull request“ on or off.
     SetStatusFollowsPr {
         enabled: bool,
     },
-    /// Jira-Projekt wählen (Schlüssel wie `BAU`), `None` = alle Projekte. Im Server-Modus holt
-    /// der nächste Abgleich dann alle offenen Tickets dieses Projekts.
+    /// Choose the Jira project (key like `BAU`), `None` = all projects. In server mode the
+    /// next sync then fetches all open tickets of this project.
     SelectJiraProject {
         project: Option<String>,
     },
@@ -116,7 +116,7 @@ pub enum Action {
         suggestion: String,
         text: String,
     },
-    /// Eigener Kommentar an einer Diff-Zeile, optional mit Ersatz-Code für die Zeile.
+    /// Own comment on a diff line, optionally with replacement code for the line.
     AddLineComment {
         review: u32,
         file: String,
@@ -125,7 +125,7 @@ pub enum Action {
         #[serde(default)]
         suggestion: Option<String>,
     },
-    /// Ersetzt Text und Vorschlag; ohne `suggestion` entfällt der Vorschlag.
+    /// Replaces text and suggestion; without `suggestion` the suggestion is dropped.
     EditLineComment {
         review: u32,
         comment: String,
@@ -148,19 +148,19 @@ pub enum Action {
         review: u32,
         comment: String,
     },
-    /// Startet einen fehlgeschlagenen Check neu (`check` ist sein Name).
+    /// Restarts a failed check (`check` is its name).
     RestartCheck {
         review: u32,
         check: String,
     },
-    /// Der Takt der Checks: jeder laufende kommt einen Schritt weiter.
+    /// The tick of the checks: every running one advances one step.
     AdvanceChecks,
-    /// Mergt den Pull Request. Das darf nur `Actor::Du`.
+    /// Merges the pull request. Only `Actor::User` may do that.
     MergePr {
         review: u32,
         method: MergeMethod,
     },
-    // Agent (`ticket` ist der Schlüssel, z. B. `BAU-142`)
+    // Agent (`ticket` is the key, e.g. `BAU-142`)
     StartAgent {
         ticket: String,
         options: AgentOptions,
@@ -178,12 +178,12 @@ pub enum Action {
         ticket: String,
         note: String,
     },
-    /// Antwort auf eine Rückfrage des Agenten (`run` ist der Ticket-Schlüssel).
+    /// Answer to a follow-up question of the agent (`run` is the ticket key).
     AnswerAgent {
         run: String,
         text: String,
     },
-    /// Hinweis an den laufenden Agenten, den er beim nächsten Schritt berücksichtigt.
+    /// Hint to the running agent that it takes into account in the next step.
     SteerAgent {
         run: String,
         text: String,
@@ -194,86 +194,86 @@ pub enum Action {
     ResumeAgent {
         run: String,
     },
-    /// Der Takt: jeder laufende Agent schließt einen Schritt ab.
+    /// The tick: every running agent completes a step.
     AdvanceAgents,
-    /// Meldung des echten Agenten aus dem Container (`run` ist der Schlüssel des Laufs). Nur das
-    /// Backend löst sie aus, als `Actor::Agent`; andere werden abgewiesen.
+    /// Report of the real agent from the container (`run` is the key of the run). Only the
+    /// backend triggers it, as `Actor::Agent`; others are rejected.
     ReportAgent {
         run: String,
         report: AgentReport,
     },
-    /// Folgeauftrag: Der Agent setzt Kommentare eines Reviews um (IDs der Zeilenkommentare)
-    /// und pusht auf den Branch des Pull Requests. Der Lauf heißt dann `review-<Nummer>`.
+    /// Follow-up job: the agent implements comments of a review (IDs of the line comments)
+    /// and pushes to the pull request's branch. The run is then called `review-<number>`.
     AddressReview {
         review: u32,
         comments: Vec<String>,
         options: AgentOptions,
     },
-    /// Folgeauftrag: Der Agent untersucht einen roten Check und legt eine Diagnose vor.
-    /// Der Lauf heißt dann `check-<Nummer>-<Check>`.
+    /// Follow-up job: the agent investigates a red check and presents a diagnosis.
+    /// The run is then called `check-<number>-<check>`.
     InvestigateCheck {
         review: u32,
         check: String,
     },
-    /// Übernimmt den Fix der Diagnose (`run` ist der Schlüssel des Laufs): Der Agent pusht ihn
-    /// auf den Branch und startet den Check neu.
+    /// Adopts the fix of the diagnosis (`run` is the key of the run): the agent pushes it
+    /// to the branch and restarts the check.
     ApplyFix {
         run: String,
     },
-    /// Verwirft die Diagnose. Der Lauf endet, der Branch bleibt unberührt.
+    /// Discards the diagnosis. The run ends, the branch stays untouched.
     DiscardFix {
         run: String,
     },
-    /// Setzt einen angehaltenen Lauf fort, nachdem die Grenze, die ihn angehalten hat, um `extra`
-    /// erhöht wurde: Cent bei Budgets, Minuten beim Zeitlimit. Mit `0` geht es weiter, wenn die
-    /// Grenze inzwischen gar nicht mehr erreicht ist (z. B. nach Änderung der Einstellung).
+    /// Resumes a stopped run after the limit that stopped it has been raised by `extra`:
+    /// cents for budgets, minutes for the time limit. With `0` it continues if the
+    /// limit is no longer reached at all by now (e.g. after changing the setting).
     ResumeStopped {
         run: String,
         extra: u64,
     },
-    /// Preise und Grenzen der Agenten festlegen.
+    /// Set prices and limits of the agents.
     SetAgentLimits {
         limits: AgentLimits,
     },
-    /// Regeln eines Repos festlegen (`repo` ist sein Name, z. B. `owner/name`).
+    /// Set the rules of a repo (`repo` is its name, e.g. `owner/name`).
     SetRepoRules {
         repo: String,
         rules: RepoRules,
     },
-    // Benachrichtigungen
-    /// Kanal für einen Grund an- oder ausschalten.
+    // Notifications
+    /// Switch a channel for a reason on or off.
     SetNotifyChannel {
         reason: NotifyReason,
         channel: Channel,
         on: bool,
     },
-    /// Ruhezeiten setzen (Minuten seit Mitternacht, siehe [`QuietHours`]).
+    /// Set quiet hours (minutes since midnight, see [`QuietHours`]).
     SetQuietHours {
         quiet: QuietHours,
     },
-    // Sonstiges
-    /// Zurück zu den Beispieldaten. Das Protokoll beginnt neu.
+    // Miscellaneous
+    /// Back to the sample data. The log starts anew.
     ResetDemo,
-    /// Der Abgleich: führt den Stand von Jira und GitHub mit dem Workspace zusammen
-    /// (siehe [`crate::sync`]). Nur das System löst sie aus – das Backend nach jedem Abruf.
+    /// The sync: merges the state of Jira and GitHub with the workspace
+    /// (see [`crate::sync`]). Only the system triggers it – the backend after every fetch.
     SyncRemote {
         remote: Remote,
     },
 }
 
 impl Action {
-    /// Aktionen, die nur das Backend selbst auslösen darf (nie die Oberfläche).
+    /// Actions that only the backend itself may trigger (never the UI).
     pub fn system_only(&self) -> bool {
         matches!(self, Action::SyncRemote { .. })
     }
 
-    /// Aktionen, die nur der Agent (Container, über das Backend) auslösen darf.
+    /// Actions that only the agent (container, via the backend) may trigger.
     pub fn agent_only(&self) -> bool {
         matches!(self, Action::ReportAgent { .. })
     }
 }
 
-/// Wer die Aktion ausgelöst hat.
+/// Who triggered the action.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Actor {
     #[serde(rename = "Du")]
@@ -306,89 +306,89 @@ impl Actor {
     }
 }
 
-/// Worauf sich ein Protokolleintrag bezieht.
+/// What a log entry refers to.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum Target {
-    /// Ein Eintrag der Inbox (interne ID).
+    /// An inbox entry (internal ID).
     Item(String),
-    /// Ein Review (Nummer des Pull Requests).
+    /// A review (number of the pull request).
     Review(u32),
-    /// Der Lauf eines Agenten (Ticket-Schlüssel).
+    /// The run of an agent (ticket key).
     Run(String),
-    /// Die Einstellungen (Benachrichtigungen).
+    /// The settings (notifications).
     Settings,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct LogEntry {
-    /// Laufende Nummer, steigt mit jedem Eintrag.
+    /// Running number, rises with every entry.
     pub id: u64,
-    /// Zeitpunkt in Millisekunden seit 1970.
+    /// Point in time in milliseconds since 1970.
     pub at_ms: u64,
     pub actor: Actor,
     #[serde(default)]
     pub target: Option<Target>,
-    /// Kurzer deutscher Satz.
+    /// Short German sentence.
     pub text: String,
 }
 
-/// Ergebnis einer erfolgreichen Aktion.
+/// Result of a successful action.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Applied {
-    /// Der Satz, der im Protokoll steht (bei mehreren Einträgen: der erste).
+    /// The sentence that stands in the log (with several entries: the first).
     pub summary: String,
-    /// Zahl der neuen Protokolleinträge.
+    /// Number of new log entries.
     pub logged: usize,
 }
 
-/// Warum eine Aktion nicht angewendet wurde. Der Workspace bleibt dann unverändert.
+/// Why an action was not applied. The workspace then stays unchanged.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ActionError {
     UnknownItem(String),
     UnknownReview(u32),
     UnknownSuggestion(String),
     UnknownComment(String),
-    /// Kein Ticket mit diesem Schlüssel.
+    /// No ticket with this key.
     UnknownTicket(String),
-    /// Text darf nicht leer sein, oder Datei und Zeile gibt es nicht.
+    /// Text must not be empty, or the file and line do not exist.
     InvalidInput,
-    /// Pull Requests haben keinen Status.
+    /// Pull requests have no status.
     NotATicket,
     BranchExists,
-    /// Es ändert sich nichts (schon erledigt, gleicher Status …).
+    /// Nothing changes (already done, same status …).
     Unchanged,
-    /// Es läuft nichts, was das zuließe (kein wartender Plan, kein aktiver Lauf, kein Agent).
+    /// Nothing is running that would allow it (no waiting plan, no active run, no agent).
     NothingToDo,
     Send(SendError),
     Agent(AgentError),
-    /// Kein Check mit diesem Namen.
+    /// No check with this name.
     UnknownCheck(String),
-    /// Der Pull Request ist gemergt und lässt sich nicht mehr ändern.
+    /// The pull request is merged and can no longer be changed.
     Merged(u32),
-    /// Verknüpfen von Ticket und Pull Request geht nicht.
+    /// Linking ticket and pull request is not possible.
     Link(LinkError),
-    /// Diese Person gibt es im Team nicht.
+    /// This person does not exist in the team.
     UnknownPerson(String),
-    /// Gemergt wird nur von Hand: weder der Agent noch das System dürfen es.
+    /// Merging happens only by hand: neither the agent nor the system may do it.
     MergeNotAllowed(Actor),
-    /// So viele Läufe arbeiten schon, wie die Grenze erlaubt (die Zahl).
+    /// As many runs are already working as the limit allows (the number).
     ParallelLimit(u32),
-    /// Der Plan berührt Dateien, die die Regeln des Repos nicht zulassen.
+    /// The plan touches files that the rules of the repo do not allow.
     PlanViolatesRules(Vec<PathViolation>),
-    /// Auch mit der Erhöhung ist die Grenze noch erreicht.
+    /// Even with the raise the limit is still reached.
     LimitStillReached(StopReason),
-    /// Dieses Repo gibt es nicht.
+    /// This repo does not exist.
     UnknownRepo(String),
-    /// Diese Aktion löst nur das System aus (der Abgleich).
+    /// Only the system triggers this action (the sync).
     SystemOnly,
-    /// Es gibt noch Gründe, die gegen das Mergen sprechen.
+    /// There are still reasons against merging.
     MergeBlocked(Vec<MergeBlocker>),
-    /// Diese Aktion kommt nur vom Agenten im Container.
+    /// This action comes only from the agent in the container.
     AgentOnly,
 }
 
 impl ActionError {
-    /// Erklärung für die Oberfläche.
+    /// Explanation for the UI.
     pub fn message(&self) -> String {
         match self {
             ActionError::UnknownItem(id) => format!("Eintrag „{id}“ gibt es nicht"),
@@ -478,7 +478,7 @@ impl std::fmt::Display for ActionError {
 
 impl std::error::Error for ActionError {}
 
-/// Ein Eintrag, den eine Aktion ins Protokoll schreiben will.
+/// An entry that an action wants to write into the log.
 struct Note {
     actor: Option<Actor>,
     target: Option<Target>,
@@ -494,7 +494,7 @@ impl Note {
         }
     }
 
-    /// Ein Eintrag ohne bestimmtes Ziel (Einstellungen).
+    /// An entry without a specific target (settings).
     fn general(text: impl Into<String>) -> Self {
         Self {
             actor: None,
@@ -509,7 +509,7 @@ impl Note {
     }
 }
 
-/// Fehler beim Beauftragen: Die Grenze paralleler Läufe hat eine eigene Meldung.
+/// Error when commissioning: the limit of parallel runs has its own message.
 fn agent_error(e: AgentError) -> ActionError {
     match e {
         AgentError::ParallelLimit(n) => ActionError::ParallelLimit(n),
@@ -532,7 +532,7 @@ fn status_label(status: TicketStatus) -> &'static str {
         .map_or("", |(_, label)| label)
 }
 
-/// Protokolleinträge des Systems für Statuswechsel, die der Pull Request ausgelöst hat.
+/// Log entries of the system for status changes that the pull request triggered.
 fn status_notes(changes: Vec<StatusChange>) -> Vec<Note> {
     changes
         .into_iter()
@@ -556,18 +556,18 @@ fn status_notes(changes: Vec<StatusChange>) -> Vec<Note> {
 }
 
 impl Workspace {
-    /// Wendet eine Aktion an und schreibt sie ins Protokoll.
+    /// Applies an action and writes it into the log.
     ///
-    /// `actor` ist, wer sie ausgelöst hat, `at_ms` der Zeitpunkt (Millisekunden seit 1970;
-    /// die Zeit kommt von außen, damit die Logik testbar bleibt). Bei einem Fehler bleiben
-    /// Workspace und Protokoll unverändert.
+    /// `actor` is who triggered it, `at_ms` the point in time (milliseconds since 1970;
+    /// the time comes from outside so that the logic stays testable). On an error
+    /// workspace and log stay unchanged.
     pub fn apply(
         &mut self,
         action: Action,
         actor: Actor,
         at_ms: u64,
     ) -> Result<Applied, ActionError> {
-        // Mergen ist Sache des Nutzers: Das prüft schon die Schicht, nicht erst die Oberfläche.
+        // Merging is the user's business: the layer already checks this, not only the UI.
         if matches!(action, Action::MergePr { .. }) && actor != Actor::User {
             return Err(ActionError::MergeNotAllowed(actor));
         }
@@ -604,7 +604,7 @@ impl Workspace {
         }
     }
 
-    /// Das Protokoll, neueste Einträge zuerst. Mit `actor` nur dessen Einträge.
+    /// The log, newest entries first. With `actor` only that actor's entries.
     pub fn log_entries(&self, actor: Option<Actor>) -> Vec<&LogEntry> {
         self.log
             .iter()
@@ -625,7 +625,7 @@ impl Workspace {
             .ok_or(ActionError::UnknownReview(number))
     }
 
-    /// Wie `need_review`, aber ein gemergter Pull Request lässt sich nicht mehr ändern.
+    /// Like `need_review`, but a merged pull request can no longer be changed.
     fn need_open_review(&self, number: u32) -> Result<(), ActionError> {
         match self.review(number) {
             None => Err(ActionError::UnknownReview(number)),
@@ -634,7 +634,7 @@ impl Workspace {
         }
     }
 
-    /// Führt die Aktion aus und liefert die Protokolleinträge dazu.
+    /// Executes the action and returns the log entries for it.
     fn perform(&mut self, action: Action, at_ms: u64) -> Result<Vec<Note>, ActionError> {
         match action {
             Action::MarkDone { item } => {
@@ -850,11 +850,11 @@ impl Workspace {
                 Ok(notes)
             }
             Action::SyncTicketStatus => {
-                // Ein Fehler ändert nichts: Erst prüfen, ob sich ein Pull Request bewegt hat.
+                // An error changes nothing: first check whether a pull request has moved.
                 if !self.status_pending() {
                     return Err(ActionError::NothingToDo);
                 }
-                // Passt der Status schon, wird der Stand nur vermerkt – ohne Eintrag.
+                // If the status already fits, the state is only noted – without an entry.
                 Ok(status_notes(self.follow_status()))
             }
             Action::SetStatusFollowsPr { enabled } => {
@@ -872,7 +872,7 @@ impl Workspace {
                         }
                     ),
                 )];
-                // Wieder eingeschaltet: Was sich inzwischen bewegt hat, wird nachgeführt.
+                // Switched on again: whatever has moved in the meantime is brought in line.
                 notes.extend(status_notes(self.follow_status()));
                 Ok(notes)
             }
@@ -1089,7 +1089,7 @@ impl Workspace {
             }
             Action::StartAgent { ticket, options } => {
                 self.start_agent(&ticket, options).map_err(agent_error)?;
-                // Die Regeln des Repos können einen Plan erzwingen, auch wenn keiner gewünscht war.
+                // The rules of the repo can force a plan, even if none was requested.
                 let plan_first = self
                     .runs
                     .iter()
@@ -1290,7 +1290,7 @@ impl Workspace {
                         .by(Actor::Agent),
                     );
                 }
-                // Meldungen ohne Satz (Dateiliste, Hinweise zugestellt) sind kein Protokolleintrag.
+                // Messages without a sentence (file list, hints delivered) are not a log entry.
                 Ok(notes)
             }
             Action::AddressReview {
@@ -1299,7 +1299,7 @@ impl Workspace {
                 options,
             } => {
                 self.need_open_review(review)?;
-                // Unbekannte Kommentare melden sich beim Namen, erledigte zählen wie fehlende.
+                // Unknown comments report by name, done ones count like missing ones.
                 if let Some(id) = comments.iter().find(|id| {
                     self.review(review)
                         .is_some_and(|r| !r.line_comments.iter().any(|c| &c.id == *id))
@@ -1441,12 +1441,12 @@ impl Workspace {
                         text: c.text(),
                     })
                     .collect();
-                // Den Satz im Ergebnis liefert die erste Änderung; ohne Änderung bleibt er leer.
+                // The sentence in the result comes from the first change; without a change it stays empty.
                 notes.truncate(MAX_LOG);
                 Ok(notes)
             }
             Action::ResetDemo => {
-                // Die Einstellungen gehören nicht zu den Beispieldaten und bleiben.
+                // The settings do not belong to the sample data and stay.
                 let notifications = std::mem::take(&mut self.notifications);
                 let sources = std::mem::take(&mut self.sync.sources);
                 let pr_status_off = self.pr_status_off;
@@ -1471,8 +1471,8 @@ impl Workspace {
         }
     }
 
-    /// Der Name des Laufs für Protokollsätze: der Ticket-Schlüssel, bei Folgeaufträgen mit
-    /// Klartext. Ein unbekannter Schlüssel bleibt, wie er ist.
+    /// The name of the run for log sentences: the ticket key, for follow-up jobs with
+    /// plain text. An unknown key stays as it is.
     fn label_of(&self, key: &str) -> String {
         self.runs
             .iter()
@@ -1480,9 +1480,9 @@ impl Workspace {
             .map_or_else(|| key.to_string(), AgentRun::label)
     }
 
-    /// Der Takt der Agenten, mit einem Eintrag pro abgeschlossenem Schritt oder gestellter Frage.
+    /// The tick of the agents, with one entry per completed step or asked question.
     fn advance_logged(&mut self, at_ms: u64) -> Result<Vec<Note>, ActionError> {
-        // Vorher festhalten, welcher Schritt gleich fertig wird und welche Hinweise warten.
+        // Note beforehand which step is about to finish and which hints are waiting.
         let stepping: Vec<(String, usize, String, Option<u32>, bool, usize)> = self
             .runs
             .iter()
@@ -1523,7 +1523,7 @@ impl Workspace {
                     .by(Actor::Agent),
                 );
             }
-            // Eine Grenze hat den Lauf angehalten, bevor er den Schritt gemacht hat.
+            // A limit stopped the run before it did the step.
             if let Some(reason) = run.stop_reason() {
                 notes.push(Note::new(
                     Target::Run(key.clone()),
@@ -1587,7 +1587,7 @@ mod tests {
         }
     }
 
-    /// Wendet an und erwartet genau `n` neue Einträge.
+    /// Applies and expects exactly `n` new entries.
     fn ok(w: &mut Workspace, action: Action, n: usize) -> Applied {
         let before = w.log.len();
         let applied = w.apply(action.clone(), Actor::User, T).unwrap();
@@ -2011,11 +2011,15 @@ mod tests {
         let last = w.log.last().unwrap();
         assert_eq!(last.target, Some(Target::Review(92)));
         assert_eq!(w.log[1].target, Some(Target::Run("BAU-142".into())));
-        assert_eq!(w.log_entries(Some(Actor::User)).len(), 2, "Start und Antwort");
+        assert_eq!(
+            w.log_entries(Some(Actor::User)).len(),
+            2,
+            "start and answer"
+        );
         assert_eq!(w.log_entries(None).len(), 8);
         assert_eq!(w.log_entries(Some(Actor::System)).len(), 0);
         assert_eq!(w.log_entries(None)[0].id, 8, "neueste zuerst");
-        // Danach läuft nichts mehr.
+        // After that nothing runs any more.
         assert_eq!(
             w.apply(Action::AdvanceAgents, Actor::Agent, T),
             Err(ActionError::NothingToDo)
@@ -2025,7 +2029,7 @@ mod tests {
     #[test]
     fn the_two_rules_still_hold() {
         let mut w = ws();
-        // Freigabe vor dem Senden.
+        // Approval before sending.
         assert_eq!(
             w.apply(
                 Action::SendReview {
@@ -2039,7 +2043,7 @@ mod tests {
                 w.review(87).unwrap().undecided()
             )))
         );
-        // Der Agent merged nie: kein Merge in den Aktionen, der Pull Request wartet als Review.
+        // The agent never merges: no merge in the actions, the pull request waits as a review.
         w.apply(
             Action::StartAgent {
                 ticket: "BAU-150".into(),
@@ -2162,7 +2166,7 @@ mod tests {
             back.notifications
                 .enabled(NotifyReason::AgentFinished, Channel::Email)
         );
-        // Ältere Stände ohne das Feld laden weiter, mit den Standardwerten.
+        // Older states without the field still load, with the default values.
         let mut json: serde_json::Value = serde_json::from_str(&persist::save(&w)).unwrap();
         json["workspace"]
             .as_object_mut()
@@ -2204,8 +2208,12 @@ mod tests {
             T,
         )
         .unwrap();
-        w.apply(Action::RequestAgentReview { review: 85 }, Actor::User, T + 1)
-            .unwrap();
+        w.apply(
+            Action::RequestAgentReview { review: 85 },
+            Actor::User,
+            T + 1,
+        )
+        .unwrap();
         let back = persist::load(&persist::save(&w)).unwrap();
         assert_eq!(back.log, w.log);
         assert_eq!(back, w);
@@ -2218,7 +2226,7 @@ mod tests {
         let back = persist::load(&value.to_string()).unwrap();
         assert!(back.log.is_empty());
         assert_eq!(back.items.len(), 7);
-        // Und es geht weiter.
+        // And it continues.
         let mut back = back;
         back.apply(
             Action::MarkDone {
@@ -2245,9 +2253,9 @@ mod tests {
         );
         assert_eq!(applied.summary, "#87 zurückgestellt");
         assert!(w.is_snoozed("pr87", T));
-        // Nichts zu wecken, solange die Zeit nicht um ist.
+        // Nothing to wake as long as the time is not up.
         fails(&mut w, Action::WakeSnoozed, ActionError::NothingToDo);
-        // Der Takt holt ihn zurück und protokolliert es als System.
+        // The tick brings it back and logs it as System.
         let woke = w
             .apply(Action::WakeSnoozed, Actor::System, T + hour)
             .unwrap();
@@ -2289,7 +2297,7 @@ mod tests {
             },
             ActionError::UnknownItem("gibt-es-nicht".into()),
         );
-        // Ein Zeitpunkt in der Vergangenheit ist keine Zurückstellung.
+        // A point in time in the past is not a snooze.
         fails(
             &mut w,
             Action::Snooze {
@@ -2418,7 +2426,7 @@ mod tests {
         assert_eq!(Actor::from_id("x"), None);
     }
 
-    /// Bringt BAU-142 bis zur Rückfrage des Agenten.
+    /// Brings BAU-142 up to the agent's follow-up question.
     fn asking_ws() -> Workspace {
         let mut w = ws();
         ok(
@@ -2497,7 +2505,7 @@ mod tests {
         ] {
             fails(&mut idle, action, ActionError::NothingToDo);
         }
-        // Wer fragt, läuft nicht: pausieren geht erst nach der Antwort.
+        // Whoever asks is not running: pausing is possible only after the answer.
         fails(
             &mut w,
             Action::PauseAgent {
@@ -2541,7 +2549,7 @@ mod tests {
             },
             1,
         );
-        // Der Takt protokolliert den berücksichtigten Hinweis und den Schritt.
+        // The tick logs the acknowledged hint and the step.
         let tick = w.apply(Action::AdvanceAgents, Actor::Agent, T).unwrap();
         assert_eq!(tick.logged, 2);
         assert_eq!(tick.summary, "BAU-150: 1 Hinweis berücksichtigt");
@@ -2553,9 +2561,9 @@ mod tests {
         );
     }
 
-    // ---------- Mergen, Checks, Änderungsvorschläge ----------
+    // ---------- Merging, checks, change suggestions ----------
 
-    /// #87 ist bereit zum Mergen: alle Vorschläge entschieden, Review gesendet.
+    /// #87 is ready to merge: all suggestions decided, review sent.
     fn ready_87(w: &mut Workspace) {
         for id in ["a", "b", "c"] {
             ok(
@@ -2590,7 +2598,7 @@ mod tests {
             merge(87, MergeMethod::Squash),
             ActionError::MergeBlocked(vec![MergeBlocker::ReviewNotSent]),
         );
-        // Ein Urteil „Änderungen“ blockiert auch nach dem Senden.
+        // A verdict „Changes“ blocks even after sending.
         ok(
             &mut w,
             Action::SetVerdict {
@@ -2605,12 +2613,12 @@ mod tests {
             merge(87, MergeMethod::Merge),
             ActionError::MergeBlocked(vec![MergeBlocker::ChangesRequested]),
         );
-        // Rote Checks (#85) blockieren, die Begründung steht in der Fehlermeldung.
+        // Red checks (#85) block, the justification is in the error message.
         let err = w
             .apply(merge(85, MergeMethod::Merge), Actor::User, T)
             .unwrap_err();
         assert!(err.message().contains("Check ist fehlgeschlagen"));
-        // Unbekannt.
+        // Unknown.
         fails(
             &mut w,
             merge(1, MergeMethod::Merge),
@@ -2648,7 +2656,7 @@ mod tests {
             },
             ActionError::NothingToDo,
         );
-        // Abbrechen geht auch pausiert.
+        // Cancelling works while paused too.
         ok(
             &mut w,
             Action::ResumeAgent {
@@ -2688,7 +2696,7 @@ mod tests {
         for _ in 0..STEPS {
             let _ = w.apply(Action::AdvanceAgents, Actor::Agent, T);
         }
-        // Am Ende wartet ein Pull Request auf das Review, gemergt ist nichts.
+        // In the end a pull request waits for the review, nothing is merged.
         let review = w.review(92).unwrap();
         assert!(!review.sent);
         assert!(
@@ -2733,7 +2741,7 @@ mod tests {
             assert_eq!(err, ActionError::MergeNotAllowed(actor));
             assert!(err.message().starts_with("Nur du darfst mergen"));
         }
-        assert_eq!(w, before, "kein Merge, kein Protokolleintrag");
+        assert_eq!(w, before, "no merge, no log entry");
         w.apply(merge(87, MergeMethod::Merge), Actor::User, T)
             .unwrap();
         assert!(w.review(87).unwrap().merged.is_some());
@@ -2742,7 +2750,7 @@ mod tests {
     #[test]
     fn merging_marks_the_pull_request_and_finishes_the_ticket() {
         let mut w = ws();
-        // #91 gehört zu BAU-138; der Entwurf wird vorher freigegeben.
+        // #91 belongs to BAU-138; the draft is approved beforehand.
         w.items
             .iter_mut()
             .find(|i| i.id == "bau138")
@@ -2774,7 +2782,7 @@ mod tests {
         );
         let applied = ok(&mut w, merge(91, MergeMethod::Rebase), 2);
         assert_eq!(applied.summary, "#91 gemergt (Rebase)");
-        // Das Ticket zieht die Automatik nach, mit dem System als Urheber.
+        // The automation updates the ticket, with the system as author.
         let entry = w.log.last().unwrap();
         assert_eq!(entry.actor, Actor::System);
         assert_eq!(entry.target, Some(Target::Item("bau138".into())));
@@ -2790,7 +2798,7 @@ mod tests {
         assert!(pr.merged);
         assert_eq!(crate::team::state_label(ticket).0, "Fertig");
         assert_eq!(pr.status().0, "Gemergt");
-        // Zweimal mergen geht nicht, ändern auch nicht.
+        // Merging twice is not possible, changing neither.
         fails(
             &mut w,
             merge(91, MergeMethod::Merge),
@@ -2863,10 +2871,10 @@ mod tests {
         assert_eq!(applied.summary, "Check „Tests (Browser)“ in #85 bestanden");
         assert_eq!(w.log.last().unwrap().actor, Actor::System);
         assert_eq!(w.running_checks(), 0);
-        // Der Lint-Fehler ist echt: Der Gesamtstand bleibt rot.
+        // The lint error is real: the overall state stays red.
         assert_eq!(w.review(85).unwrap().checks, Checks::Failed);
 
-        // Nach dem Neustart bleibt Lint rot …
+        // After the restart lint stays red …
         ok(
             &mut w,
             Action::RestartCheck {
@@ -2885,7 +2893,7 @@ mod tests {
     #[test]
     fn green_checks_flow_into_the_inbox_entry() {
         let mut w = ws();
-        // Lint „repariert“: Neustart geht grün aus.
+        // Lint „repaired“: the restart ends green.
         w.reviews
             .iter_mut()
             .find(|r| r.number == 85)
@@ -2913,7 +2921,7 @@ mod tests {
         let item = w.item("pr85").unwrap();
         assert_eq!(item.pr.as_ref().unwrap().checks, Checks::Passed);
         assert_eq!(item.reason, ReasonKind::ReviewRequested);
-        // Jetzt fehlt nur noch das gesendete Review.
+        // Now only the sent review is missing.
         assert_eq!(w.merge_blockers(85), vec![MergeBlocker::ReviewNotSent]);
     }
 
@@ -2921,7 +2929,7 @@ mod tests {
     fn line_comment_suggestions_go_through_the_actions() {
         let mut w = ws();
         let file = w.review(87).unwrap().files[0].name.clone();
-        // Position 8: `  background: #ffffff;` (neue Zeile).
+        // Position 8: `  background: #ffffff;` (new line).
         ok(
             &mut w,
             Action::AddLineComment {
@@ -2997,7 +3005,7 @@ mod tests {
         assert_eq!(back, w);
     }
 
-    // ---------- Tickets bearbeiten ----------
+    // ---------- Edit tickets ----------
 
     fn edit(item: &str, title: &str, description: &str) -> Action {
         Action::EditTicket {
@@ -3035,7 +3043,7 @@ mod tests {
         assert_eq!(applied.summary, "Beschreibung von BAU-150 geändert");
         let applied = ok(&mut w, edit("bau150", "Sheet", "Anderer Text"), 1);
         assert_eq!(applied.summary, "Titel von BAU-150 geändert");
-        // Eine leere Beschreibung ist erlaubt.
+        // An empty description is allowed.
         ok(&mut w, edit("bau150", "Sheet", ""), 1);
         assert_eq!(w.item("bau150").unwrap().description, "");
     }
@@ -3087,17 +3095,17 @@ mod tests {
                 .iter()
                 .any(|h| h.rule == Rule::Assigned)
         };
-        assert!(assigned(&w), "BAU-150 ist mir zugewiesen");
+        assert!(assigned(&w), "BAU-150 is assigned to me");
         assert!(w.visible(Filter::Mine).iter().any(|i| i.id == "bau150"));
 
         let applied = ok(&mut w, assign("bau150", lena()), 1);
         assert_eq!(applied.summary, "BAU-150 an Lena zugewiesen");
         let item = w.item("bau150").unwrap();
         assert_eq!((item.owner.clone(), item.scope), (lena(), Scope::Team));
-        assert!(!assigned(&w), "die Regel endet");
+        assert!(!assigned(&w), "the rule ends");
         assert!(!w.visible(Filter::Mine).iter().any(|i| i.id == "bau150"));
         assert!(w.visible(Filter::Team).iter().any(|i| i.id == "bau150"));
-        // Auch die Auslastung wandert mit.
+        // The load moves along too.
         let load = |w: &Workspace, name: &str| {
             crate::team::members(w)
                 .into_iter()
@@ -3112,7 +3120,7 @@ mod tests {
         use crate::attention::Rule;
         let mut w = ws();
         ok(&mut w, assign("bau150", lena()), 1);
-        // Das Fälligkeitsdatum ist vorbei: ohne die Überfälligkeit bleibt nur die Zuweisung.
+        // The due date has passed: without the overdue rule only the assignment remains.
         w.items.iter_mut().find(|i| i.id == "bau150").unwrap().due = None;
         w.mark_done("bau150");
         assert!(!w.needs_attention(w.item("bau150").unwrap(), T));
@@ -3124,7 +3132,7 @@ mod tests {
             (item.owner.clone(), item.scope),
             (Person::me(), Scope::Mine)
         );
-        assert!(!item.read, "neu zugewiesen heißt wieder ungelesen");
+        assert!(!item.read, "newly assigned means unread again");
         let hits = w.hits(item, T);
         assert_eq!(
             hits.first().map(|h| (h.rule, h.text.as_str())),
@@ -3135,7 +3143,7 @@ mod tests {
                 .iter()
                 .any(|i| i.id == "bau150")
         );
-        // Ist die Regel ausgeschaltet, zählt die Zuweisung nicht.
+        // If the rule is switched off, the assignment does not count.
         w.set_rule(Rule::Assigned, false);
         assert!(!w.needs_attention(w.item("bau150").unwrap(), T));
     }
@@ -3148,7 +3156,7 @@ mod tests {
             assign("bau150", Person::new("Fremde", "FR")),
             ActionError::UnknownPerson("Fremde".into()),
         );
-        // Der Agent bekommt Tickets über seinen Lauf, nicht über die Zuweisung.
+        // The agent gets tickets through its run, not through the assignment.
         fails(
             &mut w,
             assign("bau150", Person::agent()),
@@ -3217,7 +3225,7 @@ mod tests {
         let mut value: serde_json::Value = serde_json::from_str(&persist::save(&w)).unwrap();
         let ws_json = value.get_mut("workspace").unwrap().as_object_mut().unwrap();
         for key in ["unlinked", "pr_status_off", "status_seen"] {
-            assert!(ws_json.remove(key).is_some(), "{key} wird gespeichert");
+            assert!(ws_json.remove(key).is_some(), "{key} is stored");
         }
         for item in ws_json["items"].as_array_mut().unwrap() {
             let item = item.as_object_mut().unwrap();
@@ -3227,7 +3235,7 @@ mod tests {
             }
         }
         let (back, restored) = persist::restore(Some(&value.to_string()));
-        assert!(restored, "alter Stand lädt");
+        assert!(restored, "old state loads");
         assert_eq!(back.item("bau150").unwrap().priority, Priority::Medium);
         assert!(!back.pr_status_off && back.unlinked.is_empty());
         assert!(
@@ -3241,7 +3249,7 @@ mod tests {
         );
     }
 
-    // ---------- Ticket und Pull Request ----------
+    // ---------- Ticket and pull request ----------
 
     fn link(item: &str, pr: u32) -> Action {
         Action::LinkPr {
@@ -3261,7 +3269,7 @@ mod tests {
     #[test]
     fn linking_by_hand_connects_both_sides() {
         let mut w = ws();
-        // Status nicht mitziehen, hier geht es nur um die Verknüpfung.
+        // Do not follow the status, this is only about the link.
         w.pr_status_off = true;
         let applied = ok(&mut w, link("bau150", 85), 1);
         assert_eq!(applied.summary, "BAU-150 mit #85 verknüpft");
@@ -3273,7 +3281,7 @@ mod tests {
         );
         assert_eq!(w.review(85).unwrap().ticket_key.as_deref(), Some("BAU-150"));
         assert_eq!(w.ticket_of_pr(85).map(|t| t.id.as_str()), Some("bau150"));
-        // Die Kopie am Ticket entspricht dem Eintrag des Pull Requests (Checks rot).
+        // The copy on the ticket corresponds to the pull request's entry (checks red).
         assert_eq!(ticket.pr.as_ref().unwrap().checks, Checks::Failed);
 
         fails(&mut w, link("bau150", 85), ActionError::Unchanged);
@@ -3313,7 +3321,7 @@ mod tests {
         assert!(w.ticket_of_pr(85).is_none());
         fails(&mut w, unlink("bau150"), ActionError::NothingToDo);
         fails(&mut w, unlink("pr87"), ActionError::NotATicket);
-        // Ein eigener Branch des Tickets bleibt.
+        // A branch of the ticket's own stays.
         w.items
             .iter_mut()
             .find(|i| i.id == "bau150")
@@ -3353,10 +3361,10 @@ mod tests {
             Some(85)
         );
         assert_eq!(w.review(85).unwrap().ticket_key.as_deref(), Some("BAU-150"));
-        // Ein zweiter Lauf findet nichts mehr.
+        // A second run finds nothing any more.
         fails(&mut w, Action::AutoLinkPrs, ActionError::NothingToDo);
 
-        // Den Titel zählt es ebenso.
+        // It counts the title just the same.
         let mut w = ws();
         w.pr_status_off = true;
         name_pr85(&mut w, "mira/lint-fix", "BAU-150: Sheet");
@@ -3371,7 +3379,7 @@ mod tests {
         fails(&mut w, Action::AutoLinkPrs, ActionError::NothingToDo);
         name_pr85(&mut w, "feature/xbau-150", "Sheet 150");
         fails(&mut w, Action::AutoLinkPrs, ActionError::NothingToDo);
-        // Ein Pull Request, der schon zu einem vorhandenen Ticket gehört, bleibt dort.
+        // A pull request that already belongs to an existing ticket stays there.
         name_pr85(&mut w, "feature/bau-150-sheet", "Sheet");
         w.reviews
             .iter_mut()
@@ -3379,7 +3387,7 @@ mod tests {
             .unwrap()
             .ticket_key = Some("BAU-142".into());
         fails(&mut w, Action::AutoLinkPrs, ActionError::NothingToDo);
-        // Und ein Ticket mit eigenem Pull Request nimmt keinen zweiten.
+        // And a ticket with its own pull request takes no second one.
         w.reviews
             .iter_mut()
             .find(|r| r.number == 85)
@@ -3399,21 +3407,21 @@ mod tests {
         ok(&mut w, unlink("bau150"), 1);
         assert_eq!(w.unlinked, [(85, "BAU-150".to_string())]);
         fails(&mut w, Action::AutoLinkPrs, ActionError::NothingToDo);
-        // Von Hand verknüpfen geht weiter und hebt die Sperre auf.
+        // Linking by hand still works and lifts the lock.
         ok(&mut w, link("bau150", 85), 1);
         assert!(w.unlinked.is_empty());
-        // Die Sperre überlebt das Speichern.
+        // The lock survives saving.
         ok(&mut w, unlink("bau150"), 1);
         let (back, _) = persist::restore(Some(&persist::save(&w)));
         assert_eq!(back.unlinked, w.unlinked);
     }
 
-    // ---------- Status folgt dem Pull Request ----------
+    // ---------- Status follows the pull request ----------
 
     #[test]
     fn the_status_follows_the_pull_request() {
         let mut w = ws();
-        // Entwurf, kein Review angefragt → In Arbeit.
+        // Draft, no review requested → In progress.
         assert_eq!(status(&w, "bau150"), TicketStatus::Open);
         let applied = ok(&mut w, link("bau150", 85), 2);
         assert_eq!(applied.summary, "BAU-150 mit #85 verknüpft");
@@ -3425,7 +3433,7 @@ mod tests {
             "Status von BAU-150 automatisch auf „In Arbeit“ gesetzt – #85 ist noch in Arbeit"
         );
 
-        // Review angefragt → Review.
+        // Review requested → Review.
         let applied = ok(&mut w, Action::RequestReview { review: 85 }, 2);
         assert_eq!(applied.summary, "Review für #85 angefragt");
         assert_eq!(status(&w, "bau150"), TicketStatus::Review);
@@ -3448,14 +3456,14 @@ mod tests {
             ActionError::UnknownReview(999),
         );
 
-        // Nichts Neues: der Takt tut nichts.
+        // Nothing new: the tick does nothing.
         fails(&mut w, Action::SyncTicketStatus, ActionError::NothingToDo);
     }
 
     #[test]
     fn merging_finishes_the_linked_ticket_through_the_same_path() {
         let mut w = ws();
-        // #91 gehört zu BAU-138.
+        // #91 belongs to BAU-138.
         w.items
             .iter_mut()
             .find(|i| i.id == "bau138")
@@ -3486,7 +3494,7 @@ mod tests {
     fn a_status_set_by_hand_stays_until_the_pull_request_moves() {
         let mut w = ws();
         ok(&mut w, link("bau150", 85), 2);
-        // Von Hand zurück auf „Offen“: Die Automatik überstimmt das nicht.
+        // Back to „Offen“ by hand: the automation does not overrule that.
         ok(
             &mut w,
             Action::SetStatus {
@@ -3497,7 +3505,7 @@ mod tests {
         );
         fails(&mut w, Action::SyncTicketStatus, ActionError::NothingToDo);
         assert_eq!(status(&w, "bau150"), TicketStatus::Open);
-        // Bewegt sich der Pull Request, zieht das Ticket wieder nach.
+        // When the pull request moves, the ticket follows again.
         ok(&mut w, Action::RequestReview { review: 85 }, 2);
         assert_eq!(status(&w, "bau150"), TicketStatus::Review);
     }
@@ -3525,7 +3533,7 @@ mod tests {
         let hits = w.search(Filter::All, SourceFilter::All, "", 0);
         assert!(hits.iter().any(|i| i.key == "WEB-7"));
         assert!(hits.iter().all(|i| i.project() != Some("BAU")));
-        // Pull Requests gehören zu keinem Projekt und bleiben sichtbar.
+        // Pull requests belong to no project and stay visible.
         assert!(hits.iter().any(|i| !i.is_ticket()));
         fails(
             &mut w,
@@ -3542,7 +3550,7 @@ mod tests {
             ActionError::InvalidInput,
         );
 
-        // Die Wahl ist eine Einstellung: Sie übersteht das Zurücksetzen der Demo.
+        // The choice is a setting: it survives the demo reset.
         w.apply(Action::ResetDemo, Actor::User, T).unwrap();
         assert_eq!(w.jira_project.as_deref(), Some("WEB"));
         assert_eq!(w.projects(), ["BAU", "DOC", "WEB"]);
@@ -3564,7 +3572,7 @@ mod tests {
         );
         fails(&mut w, off, ActionError::Unchanged);
 
-        // Aus: Verknüpfen, Review anfragen und Mergen lassen den Status in Ruhe.
+        // Off: linking, requesting a review and merging leave the status alone.
         ok(&mut w, link("bau150", 85), 1);
         ok(&mut w, Action::RequestReview { review: 85 }, 1);
         assert_eq!(status(&w, "bau150"), TicketStatus::Open);
@@ -3593,13 +3601,13 @@ mod tests {
         );
         assert!(w.item("bau138").unwrap().pr.as_ref().unwrap().merged);
 
-        // Die Einstellung übersteht Zurücksetzen und Speichern.
+        // The setting survives reset and saving.
         let (back, _) = persist::restore(Some(&persist::save(&w)));
         assert!(back.pr_status_off);
         w.apply(Action::ResetDemo, Actor::User, T).unwrap();
         assert!(w.pr_status_off);
 
-        // Wieder an: Was sich bewegt hat, wird nachgeführt, mit dem System als Urheber.
+        // On again: whatever has moved is brought in line, with the system as author.
         let mut w = back;
         let applied = ok(&mut w, on, 3);
         assert_eq!(
@@ -3629,7 +3637,7 @@ mod tests {
         let ticket = w.item("bau150").unwrap();
         assert_eq!(ticket.status, TicketStatus::Review);
         assert!(ticket.pr.as_ref().unwrap().review_requested);
-        // Der Agent hat das Ticket verknüpft; der Takt findet nichts mehr zu tun.
+        // The agent linked the ticket; the tick finds nothing left to do.
         assert!(w.ticket_of_pr(92).is_some());
         fails(&mut w, Action::SyncTicketStatus, ActionError::NothingToDo);
         fails(&mut w, Action::AutoLinkPrs, ActionError::NothingToDo);
@@ -3646,7 +3654,7 @@ mod tests {
             );
             assert_eq!(w, before);
         }
-        // Die neuen Aktionen mergen nie.
+        // The new actions never merge.
         ok(&mut w, link("bau150", 85), 2);
         let _ = w.apply(Action::SyncTicketStatus, Actor::System, T);
         assert!(w.reviews.iter().all(|r| r.merged.is_none()));
@@ -3673,11 +3681,11 @@ mod tests {
         }
     }
 
-    // ---------- Folgeaufträge ----------
+    // ---------- Follow-up jobs ----------
 
     fn run_to_end(w: &mut Workspace) {
         for _ in 0..STEPS * 2 {
-            // Rückfragen beantwortet der Test mit dem ersten Vorschlag.
+            // The test answers follow-up questions with the first suggestion.
             let asking = w
                 .runs
                 .iter()
@@ -3716,8 +3724,8 @@ mod tests {
         assert!(run.is_running() && run.is_followup());
         assert_eq!(run.branch(), "claude/BAU-138-segmented-picker");
         assert_eq!(run.files, ["controls.rs", "components.css"]);
-        assert_eq!(w.next_pr_number(), prs, "kein neuer Pull Request");
-        // Das Ticket mit seinem Lauf „Ticket umsetzen“ bleibt unberührt.
+        assert_eq!(w.next_pr_number(), prs, "no new pull request");
+        // The ticket with its „implement ticket“ run stays untouched.
         assert!(w.run("BAU-138").unwrap().is_done());
 
         run_to_end(&mut w);
@@ -3731,7 +3739,7 @@ mod tests {
                 .iter()
                 .all(|c| c.resolved.as_deref() == Some("review-91"))
         );
-        // Der Änderungsvorschlag aus c1 steht jetzt im Diff.
+        // The change suggestion from c1 is now in the diff.
         let file = review
             .files
             .iter()
@@ -3744,7 +3752,7 @@ mod tests {
         );
         assert!(!review.sent && review.verdict == Verdict::Comment);
         assert_eq!(w.reviews.len(), 3);
-        // Der Eintrag zeigt den neuen Commit und steht wieder auf „Review angefragt“.
+        // The entry shows the new commit and is back at „Review angefragt“.
         let item = w.item_by_key("BAU-138").unwrap();
         assert_eq!(item.reason, crate::model::ReasonKind::ReviewRequested);
         assert!(
@@ -3756,7 +3764,7 @@ mod tests {
         assert!(!item.pr.as_ref().unwrap().changes_requested);
         assert!(!item.read);
         assert!(item.comments.last().unwrap().author.is_agent());
-        // Protokoll: Auftrag, Schritte, Ergebnis am Review.
+        // Log: job, steps, result on the review.
         let texts: Vec<&str> = w.log.iter().map(|e| e.text.as_str()).collect();
         assert!(
             texts
@@ -3791,7 +3799,7 @@ mod tests {
             ActionError::Agent(AgentError::AlreadyRunning),
         );
         run_to_end(&mut w);
-        // Nur c2 ist erledigt; c1 bleibt offen, und c2 lässt sich nicht noch einmal umsetzen.
+        // Only c2 is done; c1 stays open, and c2 cannot be implemented again.
         let r = w.review(91).unwrap().clone();
         assert_eq!(r.open_comments().len(), 1);
         assert!(r.open_comments()[0].id == "c1");
@@ -3800,7 +3808,7 @@ mod tests {
             address(91, &["c2"], direct()),
             ActionError::Agent(AgentError::NoComments),
         );
-        // Das Ergebnis der ersten Runde blieb, ohne dass c1 verändert wurde.
+        // The result of the first round stayed without c1 being changed.
         assert!(
             r.files
                 .iter()
@@ -3822,7 +3830,7 @@ mod tests {
                 .any(|s| s.contains("kein neuer Pull Request"))
         );
         assert_eq!(w.waiting_agents(), 1);
-        // Nichts geschieht vor der Freigabe.
+        // Nothing happens before approval.
         fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
         assert!(w.review(91).unwrap().open_comments().len() == 2);
         ok(
@@ -3855,8 +3863,8 @@ mod tests {
             },
             1,
         );
-        // Rückfrage nach dem zweiten Schritt, mit Antwort geht es weiter.
-        // Der erste Takt bestätigt zusätzlich den Hinweis.
+        // Follow-up question after the second step, with the answer it continues.
+        // The first tick additionally acknowledges the hint.
         ok(&mut w, Action::AdvanceAgents, 2);
         ok(&mut w, Action::AdvanceAgents, 1);
         let step = w.apply(Action::AdvanceAgents, Actor::Agent, T).unwrap();
@@ -3872,7 +3880,7 @@ mod tests {
         );
         run_to_end(&mut w);
         assert!(w.run("review-91").unwrap().is_done());
-        // Ablehnen räumt den Folgeauftrag ganz weg.
+        // Rejecting removes the follow-up job completely.
         let mut w = ws();
         ok(&mut w, address(91, &["c1"], AgentOptions::default()), 2);
         ok(
@@ -3913,7 +3921,7 @@ mod tests {
             },
             ActionError::UnknownComment("c1".into()),
         );
-        // Eigene, umgesetzte Kommentare gehen nicht noch einmal hinaus.
+        // Own, implemented comments do not go out again.
         let mut r = w.review(87).unwrap().clone();
         let id = r
             .add_line_comment("tokens.css", 1, "Eigener", None)
@@ -3943,7 +3951,7 @@ mod tests {
         let branch_before = w.review(85).unwrap().files.clone();
         run_to_end(&mut w);
         let run = w.run(key).unwrap();
-        assert!(run.is_diagnosed(), "wartet auf die Entscheidung");
+        assert!(run.is_diagnosed(), "waits for the decision");
         let d = run.diagnosis.clone().unwrap();
         assert_eq!(d.location().as_deref(), Some("list.rs · Zeile 62"));
         assert!(d.patch.is_some());
@@ -3954,9 +3962,9 @@ mod tests {
         );
         assert_eq!(w.review(85).unwrap().checks, Checks::Failed);
         assert_eq!(w.waiting_agents(), 1);
-        // Weiter geht es nicht von allein.
+        // It does not continue on its own.
         fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
-        // Aufmerksamkeit: Die Diagnose steht oben bei „hängt“.
+        // Attention: the diagnosis is at the top under „hängt“.
         let stuck = crate::team::stuck(&w);
         let entry = stuck.iter().find(|s| s.key == "#85").unwrap();
         assert_eq!(entry.kind, crate::team::StuckKind::DiagnosisWaiting);
@@ -3970,7 +3978,7 @@ mod tests {
         assert!(list.lines.iter().all(|l| !l.text.contains("let inset")));
         let lint = review.check_runs.iter().find(|c| c.name == "Lint").unwrap();
         assert_eq!(lint.status, Checks::Running, "Check neu gestartet");
-        // Der Takt der Checks macht ihn grün; der Browser-Test bleibt rot.
+        // The tick of the checks turns it green; the browser test stays red.
         while w.running_checks() > 0 {
             w.apply(Action::AdvanceChecks, Actor::System, T).unwrap();
         }
@@ -4022,7 +4030,7 @@ mod tests {
             },
             ActionError::NothingToDo,
         );
-        // Danach lässt sich neu untersuchen.
+        // After that one can investigate again.
         investigate_85(&mut w, "Lint");
     }
 
@@ -4178,26 +4186,26 @@ mod tests {
             let json = serde_json::to_string(&a).unwrap();
             assert_eq!(serde_json::from_str::<Action>(&json).unwrap(), a);
         }
-        // Mitten in der Diagnose speichern und laden.
+        // Save and load in the middle of the diagnosis.
         let mut w = ws();
         investigate_85(&mut w, "Lint");
         run_to_end(&mut w);
         let (back, _) = persist::restore(Some(&persist::save(&w)));
         assert_eq!(back, w);
         assert!(back.run("check-85-lint").unwrap().is_diagnosed());
-        // Alte Läufe ohne `kind` sind „Ticket umsetzen“.
+        // Old runs without `kind` are „implement ticket“.
         let old: crate::agent::AgentRun =
             serde_json::from_str(r#"{"ticket_key":"BAU-1","state":"Done"}"#).unwrap();
         assert_eq!(old.kind, crate::agent::RunKind::Implement);
         assert_eq!(old.key(), "BAU-1");
-        // Alte Kommentare ohne Autor gehören mir und sind offen.
+        // Old comments without an author belong to me and are open.
         let c: crate::review::LineComment =
             serde_json::from_str(r#"{"id":"c1","file":"a","line":0,"text":"x"}"#).unwrap();
         assert!(c.is_own() && c.is_open());
     }
     use crate::agent::RunState;
 
-    // ---------- Kosten, Grenzen, Regeln ----------
+    // ---------- Costs, limits, rules ----------
 
     fn advance(w: &mut Workspace, n: u64) {
         for i in 0..n {
@@ -4235,9 +4243,9 @@ mod tests {
         assert!(total.cost_cents > 0 && total.millis > 0);
         assert_eq!(w.spent_today(T), total);
         assert_eq!(w.spent_month(T), total);
-        // Jeder Schritt zeigt seinen Verbrauch.
+        // Every step shows its consumption.
         assert!(run.steps().iter().all(|s| s.usage.is_some()));
-        // Dieselben Eingaben, dieselben Werte.
+        // The same inputs, the same values.
         let mut w2 = ws();
         start(&mut w2, "BAU-150");
         advance(&mut w2, STEPS as u64);
@@ -4279,11 +4287,11 @@ mod tests {
                 .iter()
                 .any(|e| e.text == "BAU-150: Angehalten – Budget pro Lauf erreicht")
         );
-        // Ein angehaltener Lauf macht keinen Fortschritt.
+        // A stopped run makes no progress.
         let done = run.completed;
         fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
         assert_eq!(w.run("BAU-150").unwrap().completed, done);
-        // Ohne Erhöhung bleibt die Grenze erreicht, und nichts ändert sich.
+        // Without a raise the limit stays reached, and nothing changes.
         fails(
             &mut w,
             Action::ResumeStopped {
@@ -4304,7 +4312,7 @@ mod tests {
             applied.summary,
             "Agent für BAU-150 fortgesetzt – das Budget dieses Laufs um 5,00 € erhöht"
         );
-        // Nur dieser Lauf bekommt mehr, die Einstellung bleibt.
+        // Only this run gets more, the setting stays.
         assert_eq!(w.limits.run_budget_cents, Some(20));
         advance(&mut w, 10);
         assert!(w.run("BAU-150").unwrap().is_done());
@@ -4340,7 +4348,7 @@ mod tests {
             w.run("BAU-150").unwrap().state,
             RunState::Stopped(StopReason::MonthBudget)
         );
-        // Ein zweiter Lauf hält sofort an: Das Monatsbudget ist schon aufgebraucht.
+        // A second run stops immediately: the monthly budget is already used up.
         start(&mut w, "BAU-142");
         advance(&mut w, 1);
         assert_eq!(
@@ -4356,7 +4364,7 @@ mod tests {
             1,
         );
         assert_eq!(w.limits.month_budget_cents, Some(10_030));
-        // Der andere Lauf geht danach ohne weitere Erhöhung weiter.
+        // The other run continues afterwards without a further raise.
         ok(
             &mut w,
             Action::ResumeStopped {
@@ -4383,7 +4391,7 @@ mod tests {
             1,
         );
         assert!(w.run("BAU-150").unwrap().is_idle());
-        assert_eq!(w.spent_month(T), spent, "Kosten gehen nicht verloren");
+        assert_eq!(w.spent_month(T), spent, "costs are not lost");
         assert!(w.run("BAU-150").unwrap().step_usage.is_empty());
     }
 
@@ -4408,7 +4416,7 @@ mod tests {
         let stuck = crate::team::stuck(&w);
         let entry = stuck.iter().find(|s| s.key == "BAU-150").unwrap();
         assert_eq!(entry.kind, crate::StuckKind::AgentStopped);
-        // Nur einmal melden.
+        // Report only once.
         assert!(crate::notify::events(&w, &w).is_empty());
     }
 
@@ -4430,7 +4438,7 @@ mod tests {
                 .message()
                 .starts_with("Es arbeiten schon 1 Agenten")
         );
-        // Ein Lauf mit Plan wartet nur und belegt keinen Platz – erst die Freigabe zählt.
+        // A run with a plan only waits and occupies no slot – only the approval counts.
         ok(
             &mut w,
             Action::StartAgent {
@@ -4446,7 +4454,7 @@ mod tests {
             },
             ActionError::ParallelLimit(1),
         );
-        // Pausieren gibt den Platz frei; Fortsetzen braucht ihn wieder.
+        // Pausing frees the slot; resuming needs it again.
         ok(
             &mut w,
             Action::PauseAgent {
@@ -4506,7 +4514,7 @@ mod tests {
             rules(|r| r.forbidden_paths = vec!["tokens.css".into()]),
             1,
         );
-        // Auch ohne gewünschten Plan wartet der Lauf auf die Freigabe.
+        // Even without a requested plan the run waits for approval.
         ok(
             &mut w,
             Action::StartAgent {
@@ -4533,9 +4541,9 @@ mod tests {
         assert!(matches!(err, ActionError::PlanViolatesRules(_)));
         assert!(err.message().contains("tokens.css ist verboten"));
         assert!(w.run("BAU-142").unwrap().is_awaiting());
-        // Auch das Zustandsmodell selbst gibt ihn nicht frei.
+        // The state model itself does not release it either.
         assert!(!w.approve_plan("BAU-142"));
-        // Nimmt man die Regel zurück, gilt das für den wartenden Plan sofort.
+        // If the rule is taken back, that applies to the waiting plan immediately.
         ok(&mut w, rules(|_| {}), 1);
         ok(
             &mut w,
@@ -4674,7 +4682,7 @@ mod tests {
             let json = serde_json::to_string(&a).unwrap();
             assert_eq!(serde_json::from_str::<Action>(&json).unwrap(), a);
         }
-        // Ein Stand ohne die neuen Felder lädt mit Standardwerten.
+        // A state without the new fields loads with default values.
         let mut w = ws();
         start(&mut w, "BAU-150");
         let mut v: serde_json::Value = serde_json::from_str(&persist::save(&w)).unwrap();
@@ -4699,7 +4707,7 @@ mod tests {
         assert_eq!(back.limits, AgentLimits::default());
         assert!(back.spend.is_empty());
         assert!(back.run("BAU-150").unwrap().is_running());
-        // Der angehaltene Zustand übersteht das Speichern.
+        // The stopped state survives saving.
         let mut s = ws();
         ok(&mut s, limits(|l| l.run_budget_cents = Some(20)), 1);
         start(&mut s, "BAU-150");
@@ -4723,7 +4731,7 @@ mod tests {
         }
     }
 
-    // ---------- Meldungen des echten Agenten ----------
+    // ---------- Reports of the real agent ----------
 
     fn report(w: &mut Workspace, run: &str, report: AgentReport) -> Result<Applied, ActionError> {
         w.apply(
@@ -4794,10 +4802,10 @@ mod tests {
         assert_eq!(last.actor, Actor::Agent);
         assert_eq!(last.target, Some(Target::Run("BAU-142".into())));
         assert_eq!(w.spent_month(T).input_tokens, 10_000);
-        // Der simulierte Takt fasst den echten Lauf nicht an.
+        // The simulated tick does not touch the real run.
         assert_eq!(w.running_agents(), 0);
         fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
-        // Fertig: Branch am Ticket, kein erfundener Pull Request.
+        // Done: branch on the ticket, no invented pull request.
         let reviews = w.reviews.len();
         report(
             &mut w,
@@ -4842,7 +4850,7 @@ mod tests {
             Some("Zeitlimit des Containers überschritten")
         );
         assert_eq!(w.item_by_key("BAU-142").unwrap().agent_note, None);
-        // Nichts mehr aktiv: weitere Meldungen sind abgewiesen und ändern nichts.
+        // Nothing active any more: further reports are rejected and change nothing.
         let before = w.clone();
         assert_eq!(
             report(&mut w, "BAU-142", AgentReport::HintsDelivered { count: 1 }),

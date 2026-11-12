@@ -20,12 +20,11 @@ use axum::extract::{Path as UrlPfad, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use cockpit_core::api::{
-    Setup, JiraCheck, JiraCause, ConfigChange, ConfigResponse, KeyResponse,
-    KeyInput,
+    ConfigChange, ConfigResponse, JiraCause, JiraCheck, KeyInput, KeyResponse, Setup,
 };
 use cockpit_core::setup::{
-    KEY_NAMES, client_id_read, endpoint_url_read, jira_check_text, jira_site_read,
-    projects_read, repos_read, key_deletable, key_name_allowed, key_verify,
+    KEY_NAMES, client_id_read, endpoint_url_read, jira_check_text, jira_site_read, key_deletable,
+    key_name_allowed, key_verify, projects_read, repos_read,
 };
 use cockpit_integrations::jira::JiraClient;
 use cockpit_integrations::oauth::Service;
@@ -433,11 +432,7 @@ pub async fn schluessel(
     match ergebnis {
         Ok(Ok(())) => {
             tracing::info!("Schlüssel für {name} abgelegt");
-            Json(KeyResponse {
-                name,
-                set: true,
-            })
-            .into_response()
+            Json(KeyResponse { name, set: true }).into_response()
         }
         Ok(Err(e)) => {
             tracing::warn!("Schlüssel für {name} nicht abgelegt: {e}");
@@ -467,11 +462,7 @@ pub async fn schluessel_loeschen(
     match tokio::task::spawn_blocking(move || secrets.delete(&n)).await {
         Ok(Ok(())) => {
             tracing::info!("Schlüssel für {name} gelöscht");
-            Json(KeyResponse {
-                name,
-                set: false,
-            })
-            .into_response()
+            Json(KeyResponse { name, set: false }).into_response()
         }
         Ok(Err(e)) => {
             tracing::warn!("Schlüssel für {name} nicht gelöscht: {e}");
@@ -549,7 +540,7 @@ mod tests {
     use axum::body::Body;
     use axum::extract::ConnectInfo;
     use axum::http::Request;
-    use cockpit_core::api::{Provider, ClientInput, EndpointInput, GitHubInput, JiraInput};
+    use cockpit_core::api::{ClientInput, EndpointInput, GitHubInput, JiraInput, Provider};
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 

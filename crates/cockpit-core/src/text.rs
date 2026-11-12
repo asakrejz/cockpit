@@ -1,7 +1,7 @@
-//! Textfunktionen.
+//! Text functions.
 
-/// Macht aus einem Titel einen Namensteil für Branches: Kleinbuchstaben, Ziffern
-/// und einzelne Bindestriche, höchstens `max` Zeichen, nie mitten im Wort gekappt.
+/// Turns a title into a name part for branches: lowercase letters, digits
+/// and single hyphens, at most `max` characters, never cut in the middle of a word.
 ///
 /// ```
 /// use cockpit_core::text::slug;
@@ -16,12 +16,12 @@ pub fn slug(title: &str, max: usize) -> String {
             'ü' => out.push_str("ue"),
             'ß' => out.push_str("ss"),
             c if c.is_ascii_alphanumeric() => out.push(c),
-            // Alles andere trennt Wörter – aber nie doppelt und nie am Anfang.
+            // Everything else separates words – but never twice and never at the start.
             _ if !out.is_empty() && !out.ends_with('-') => out.push('-'),
             _ => {}
         }
     }
-    // `out` ist reines ASCII, Byte-Positionen sind also Zeichen-Positionen.
+    // `out` is pure ASCII, so byte positions are character positions.
     if out.len() > max {
         let cut_inside_word = out.as_bytes()[max] != b'-';
         out.truncate(max);

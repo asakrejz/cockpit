@@ -1,23 +1,23 @@
-//! Team-Sicht: wer woran arbeitet und wo etwas hängt.
+//! Team view: who works on what and where something is stuck.
 //!
-//! Alles hier sind reine Funktionen über den [`Workspace`]. Sie ändern nichts und
-//! kennen keine Oberfläche; die Seite „Übersicht“ zeigt nur ihr Ergebnis.
+//! Everything here is pure functions over the [`Workspace`]. They change nothing and
+//! know no UI; the „Übersicht“ page only shows their result.
 
 use crate::model::{Item, Person, TicketStatus, Tone};
 use crate::workspace::Workspace;
 use crate::{Checks, Kind};
 
-/// So viele offene Einträge gelten als volle Auslastung.
+/// This many open entries count as full load.
 pub const CAPACITY: usize = 4;
 
-/// Wie voll eine Person ist. Immer auch als Text lesbar, nie nur als Farbe.
+/// How full a person is. Always readable as text too, never just as a color.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LoadLevel {
-    /// Nichts oder wenig offen.
+    /// Nothing or little open.
     Free,
-    /// Gut ausgelastet.
+    /// Well utilized.
     Busy,
-    /// An der Grenze oder darüber.
+    /// At the limit or above.
     Full,
 }
 
@@ -31,19 +31,19 @@ impl LoadLevel {
     }
 }
 
-/// Eine Person mit ihren offenen Einträgen.
+/// A person with their open entries.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Member {
     pub person: Person,
-    /// Tickets im Status „Offen“.
+    /// Tickets in status „Offen“.
     pub open: usize,
-    /// Tickets im Status „In Arbeit“.
+    /// Tickets in status „In Arbeit“.
     pub in_progress: usize,
-    /// Tickets im Status „Review“.
+    /// Tickets in status „Review“.
     pub review: usize,
-    /// Offene Pull Requests.
+    /// Open pull requests.
     pub pull_requests: usize,
-    /// IDs der Einträge, in der Reihenfolge der Inbox.
+    /// IDs of the entries, in inbox order.
     pub item_ids: Vec<String>,
 }
 
@@ -71,27 +71,27 @@ impl Member {
         }
     }
 
-    /// Anteil an der Kapazität in Prozent, bei 100 gedeckelt.
+    /// Share of the capacity in percent, capped at 100.
     pub fn load_percent(&self) -> usize {
         (self.total() * 100 / CAPACITY).min(100)
     }
 }
 
-/// Ein Eintrag zählt, solange er nicht erledigt ist.
+/// An entry counts as long as it is not done.
 fn is_open(item: &Item) -> bool {
     !item.read && item.status != TicketStatus::Done
 }
 
-/// Ein Review wartet, wenn es existiert und noch nicht gesendet ist.
+/// A review is waiting if it exists and has not been sent yet.
 fn review_pending(ws: &Workspace, number: u32) -> bool {
     ws.review(number).is_some_and(|r| !r.sent)
 }
 
-/// Alle Personen mit ihren offenen Einträgen: erst „Du“ und der Agent, dann die
-/// anderen in der Reihenfolge, in der sie in der Inbox auftauchen.
+/// All people with their open entries: first „Du“ and the agent, then the
+/// others in the order in which they appear in the inbox.
 ///
-/// Der Agent zählt, was er gerade umsetzt (In Arbeit) und was von ihm fertig ist und
-/// auf ein Review wartet (Review). Diese Tickets gehören weiter auch ihrem Besitzer.
+/// The agent counts what it is currently implementing (In progress) and what it has finished and
+/// is waiting for a review (Review). These tickets still belong to their owner too.
 pub fn members(ws: &Workspace) -> Vec<Member> {
     let mut list = vec![Member::new(Person::me()), Member::new(Person::agent())];
     let slot = |list: &mut Vec<Member>, person: &Person| match list
@@ -118,8 +118,8 @@ pub fn members(ws: &Workspace) -> Vec<Member> {
     }
 
     let agent = &mut list[1];
-    // Pro Eintrag zählt der Agent einmal: ein aktiver Lauf (auch ein Folgeauftrag) geht vor
-    // einem fertigen, der auf Review wartet.
+    // Per entry the agent counts once: an active run (also a follow-up job) takes precedence over
+    // a finished one waiting for review.
     let mut active_ids: Vec<String> = Vec::new();
     for run in &ws.runs {
         let Some(item) = ws.item_by_key(&run.ticket_key).filter(|i| is_open(i)) else {
@@ -131,7 +131,7 @@ pub fn members(ws: &Workspace) -> Vec<Member> {
                 continue;
             }
             if seen {
-                // Der Eintrag war als „Review“ gezählt und ist jetzt wieder in Arbeit.
+                // The entry had been counted as „Review“ and is now back in progress.
                 agent.review = agent.review.saturating_sub(1);
             } else {
                 agent.item_ids.push(item.id.clone());
@@ -146,8 +146,8 @@ pub fn members(ws: &Workspace) -> Vec<Member> {
     list
 }
 
-/// Kurzer Stand eines Eintrags für Listen: bei Tickets der Status, bei Pull Requests
-/// der Stand von Checks und Review.
+/// Short state of an entry for lists: for tickets the status, for pull requests
+/// the state of checks and review.
 pub fn state_label(item: &Item) -> (String, Tone) {
     match (item.kind, &item.pr) {
         (Kind::PullRequest, Some(pr)) => pr.status(),
@@ -168,15 +168,15 @@ pub fn state_label(item: &Item) -> (String, Tone) {
     }
 }
 
-/// Warum ein Eintrag hängt. Die Reihenfolge ist zugleich die Dringlichkeit.
+/// Why an entry is stuck. The order is also the urgency.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum StuckKind {
     ChecksFailed,
-    /// Eine Grenze (Budget, Zeitlimit) hat den Agenten angehalten.
+    /// A limit (budget, time limit) has stopped the agent.
     AgentStopped,
-    /// Der Agent hat eine Rückfrage und wartet auf die Antwort.
+    /// The agent has a follow-up question and waits for the answer.
     QuestionWaiting,
-    /// Der Agent hat einen roten Check untersucht und wartet, ob er den Fix übernehmen soll.
+    /// The agent has examined a red check and waits whether it should adopt the fix.
     DiagnosisWaiting,
     PlanWaiting,
     AgentWaiting,
@@ -199,33 +199,33 @@ impl StuckKind {
     }
 }
 
-/// Ein Eintrag, der jemanden blockiert.
+/// An entry that blocks someone.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stuck {
     pub item_id: String,
     pub key: String,
     pub title: String,
     pub kind: StuckKind,
-    /// Wer etwas tun muss, damit es weitergeht.
+    /// Who has to do something for things to move on.
     pub who: Person,
-    /// Der Grund als ganzer Satz.
+    /// The reason as a full sentence.
     pub reason: String,
-    /// Nummer des Pull Requests, falls es zum Review geht.
+    /// Number of the pull request, if it is about the review.
     pub review: Option<u32>,
-    /// Ticket, dessen Agenten-Plan auf Freigabe wartet.
+    /// Ticket whose agent plan waits for approval.
     pub plan: Option<String>,
-    /// Ticket, bei dem der Agent eine Frage gestellt hat.
+    /// Ticket where the agent asked a question.
     pub question: Option<String>,
-    /// Lauf, dessen Diagnose auf deine Entscheidung wartet.
+    /// Run whose diagnosis waits for your decision.
     pub diagnosis: Option<String>,
 }
 
-/// Die erste Regel, die auf den Eintrag passt. Ein Eintrag hängt nur einmal.
+/// The first rule that matches the entry. An entry is stuck only once.
 fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> {
     let me = Person::me();
     let pr = item.pr.as_ref();
 
-    // Die Diagnose geht vor: Der Check ist rot, der Agent hat aber schon einen Vorschlag.
+    // The diagnosis comes first: the check is red, but the agent already has a proposal.
     if let Some(run) = ws
         .runs
         .iter()
@@ -325,7 +325,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
         ));
     }
 
-    // Arbeitet der Agent gerade daran, legt er den Branch selbst an.
+    // If the agent is working on it, it creates the branch itself.
     let agent_working = ws
         .runs
         .iter()
@@ -351,7 +351,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
     None
 }
 
-/// „Du“ im Satz klingt falsch („Du kommt nicht weiter“), also wird angepasst.
+/// „Du“ in the sentence sounds wrong („Du kommt nicht weiter“), so it is adjusted.
 fn who_name(person: &Person) -> String {
     if *person == Person::me() {
         "du".into()
@@ -360,7 +360,7 @@ fn who_name(person: &Person) -> String {
     }
 }
 
-/// Einträge, die hängen, die dringendsten zuerst. Erledigte Einträge zählen nicht.
+/// Entries that are stuck, most urgent first. Done entries do not count.
 pub fn stuck(ws: &Workspace) -> Vec<Stuck> {
     let mut list: Vec<Stuck> = ws
         .items
@@ -368,7 +368,7 @@ pub fn stuck(ws: &Workspace) -> Vec<Stuck> {
         .filter(|i| is_open(i))
         .filter_map(|item| {
             let (kind, who, reason) = classify(ws, item)?;
-            // Der Schlüssel des Laufs, der wartet (bei Folgeaufträgen nicht der des Eintrags).
+            // The key of the run that waits (for follow-up jobs not the one of the entry).
             let waiting = |ok: fn(&crate::AgentRun) -> bool| {
                 ws.runs
                     .iter()
@@ -392,7 +392,7 @@ pub fn stuck(ws: &Workspace) -> Vec<Stuck> {
             })
         })
         .collect();
-    // Stabil: gleich dringende bleiben in der Reihenfolge der Inbox.
+    // Stable: equally urgent ones stay in inbox order.
     list.sort_by_key(|s| s.kind);
     list
 }
@@ -402,7 +402,7 @@ mod tests {
     use super::*;
     use crate::{AgentOptions, demo};
 
-    /// Ohne Plan-Schritt: Der Agent legt sofort los.
+    /// Without a plan step: the agent gets going right away.
     fn direct() -> AgentOptions {
         AgentOptions {
             plan_first: false,
@@ -420,9 +420,9 @@ mod tests {
         assert_eq!(entry.kind, StuckKind::PlanWaiting);
         assert_eq!(entry.who, Person::me());
         assert_eq!(entry.plan.as_deref(), Some("BAU-150"));
-        // Der wartende Agent belegt das Ticket.
+        // The waiting agent occupies the ticket.
         assert_eq!(member(&members(&w), "Agent").in_progress, 1);
-        // Nach der Freigabe läuft er – dann hängt nichts mehr.
+        // After approval it runs – then nothing is stuck any more.
         assert!(w.approve_plan("BAU-150"));
         assert!(stuck(&w).iter().all(|s| s.key != "BAU-150"));
     }
@@ -443,7 +443,7 @@ mod tests {
             (2, 1, 1, 1)
         );
         assert_eq!(me.item_ids, ["bau142", "bau138", "bau150", "doc7", "pr12"]);
-        // Der Agent hat BAU-138 fertig, das Review wartet.
+        // The agent has finished BAU-138, the review is waiting.
         let agent = member(&list, "Agent");
         assert_eq!((agent.in_progress, agent.review), (0, 1));
         assert_eq!(agent.item_ids, ["bau138"]);
@@ -473,7 +473,7 @@ mod tests {
         assert_eq!(levels[2], (LoadLevel::Busy, 50));
         assert_eq!(levels[3], (LoadLevel::Busy, 75));
         assert_eq!(levels[CAPACITY], (LoadLevel::Full, 100));
-        // Über die Kapazität hinaus bleibt der Balken bei 100.
+        // Beyond the capacity the bar stays at 100.
         assert_eq!(levels[CAPACITY + 1], (LoadLevel::Full, 100));
     }
 
@@ -494,7 +494,7 @@ mod tests {
         let agent = member(&list, "Agent");
         assert_eq!((agent.in_progress, agent.review), (1, 1));
         assert_eq!(agent.item_ids, ["bau138", "bau150"]);
-        // Abgebrochen zählt er nicht mehr.
+        // When cancelled it no longer counts.
         w.cancel_agent("BAU-150");
         assert_eq!(member(&members(&w), "Agent").item_ids, ["bau138"]);
     }
@@ -513,7 +513,7 @@ mod tests {
                 ("BAU-142", StuckKind::NoBranch),
             ]
         );
-        // BAU-150 ist nur offen und hängt nicht.
+        // BAU-150 is only open and not stuck.
         assert!(list.iter().all(|s| s.key != "BAU-150"));
     }
 
@@ -555,7 +555,7 @@ mod tests {
         }
         w.send_review(87, "").unwrap();
         assert!(stuck(&w).iter().all(|s| s.key != "#87"));
-        // Bei Jonas ist dann nichts mehr offen; wer nichts hat, steht nicht mehr da.
+        // For Jonas nothing is open any more; whoever has nothing does not appear any more.
         assert!(
             members(&w)
                 .iter()
@@ -567,7 +567,7 @@ mod tests {
     fn finished_agent_run_waits_for_review_until_sent() {
         let mut w = demo::workspace();
         w.start_agent("BAU-150", direct()).unwrap();
-        // Läuft er noch, hängt nichts – auch wenn der Branch erst am Ende entsteht.
+        // While it is still running, nothing is stuck – even if the branch only comes into being at the end.
         assert!(stuck(&w).iter().all(|s| s.key != "BAU-150"));
         for _ in 0..crate::agent::STEPS {
             w.advance_agents();
@@ -581,7 +581,7 @@ mod tests {
     #[test]
     fn failed_checks_win_over_other_reasons() {
         let mut w = demo::workspace();
-        // PR 87 wartet auf Review – schlagen die Checks fehl, ist das der Grund.
+        // PR 87 is waiting for review – if the checks fail, that is the reason.
         w.items
             .iter_mut()
             .find(|i| i.id == "pr87")
@@ -656,10 +656,10 @@ mod tests {
         assert_eq!(entry.question.as_deref(), Some("BAU-142"));
         assert!(entry.plan.is_none());
         assert!(entry.reason.contains("deprecated"), "{}", entry.reason);
-        assert_eq!(w.waiting_agents(), 1, "zählt in der Sidebar bei Agenten");
-        // Eine Frage ist dringender als ein wartender Plan.
+        assert_eq!(w.waiting_agents(), 1, "counts in the sidebar under agents");
+        // A question is more urgent than a waiting plan.
         assert!(StuckKind::QuestionWaiting < StuckKind::PlanWaiting);
-        // Nach der Antwort hängt nichts mehr.
+        // After the answer nothing is stuck any more.
         assert!(w.answer_agent("BAU-142", "Entfernen"));
         assert!(stuck(&w).iter().all(|s| s.key != "BAU-142"));
         assert_eq!(w.waiting_agents(), 0);

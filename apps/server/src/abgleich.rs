@@ -9,11 +9,11 @@ use std::time::Duration;
 
 use cockpit_core::api::{ActionResponse, JiraProject, JiraProjectsResponse, SyncResponse};
 use cockpit_core::{Action, ActionError, Actor, Source};
-use cockpit_integrations::outbound::plane;
 use cockpit_integrations::github::GitHubClient;
 use cockpit_integrations::jira::{JiraClient, jql_for, jql_for_project};
-use cockpit_integrations::oauth::{Service, Endpoints};
-use cockpit_integrations::{Services, GitHubService, JiraService};
+use cockpit_integrations::oauth::{Endpoints, Service};
+use cockpit_integrations::outbound::plane;
+use cockpit_integrations::{GitHubService, JiraService, Services};
 
 use crate::app::{AppState, jetzt_ms};
 use crate::config::{

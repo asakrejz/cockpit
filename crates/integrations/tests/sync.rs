@@ -1,12 +1,12 @@
-//! Abgleich gegen nachgebaute Antworten (Fixtures): Abruf über die Clients, Zusammenführen
-//! in den Workspace, lokaler Zustand bleibt, Fehler werden zum Zustand der Quelle.
+//! Sync against replayed responses (fixtures): fetching via the clients, merging
+//! into the workspace, local state stays, errors become the state of the source.
 
 use cockpit_core::{
     Action, Actor, Decision, Outcome, Problem, Remote, Source, Verdict, Workspace, sync,
 };
 use cockpit_integrations::github::GitHubClient;
 use cockpit_integrations::jira::{JiraClient, jql_for, jql_for_project};
-use cockpit_integrations::{Services, GitHubService, JiraService, Secret};
+use cockpit_integrations::{GitHubService, JiraService, Secret, Services};
 use serde_json::json;
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -18,7 +18,7 @@ macro_rules! fixture {
 }
 
 const REPO: &str = "acme/baukasten";
-/// 2024-05-14T12:00:00Z in Millisekunden
+/// 2024-05-14T12:00:00Z in milliseconds
 const NOW_MS: u64 = 1_715_688_000_000;
 
 fn ok(text: &str) -> ResponseTemplate {
@@ -33,7 +33,7 @@ async fn get(s: &MockServer, p: &str, response: ResponseTemplate) {
         .await;
 }
 
-/// GitHub mit Fixtures: #87 (Review angefragt) und #91 (eigener PR, Checks rot).
+/// GitHub with fixtures: #87 (review requested) and #91 (own PR, checks red).
 async fn github_server() -> MockServer {
     let s = MockServer::start().await;
     get(&s, "/user", ok(fixture!("github_user.json"))).await;
@@ -163,14 +163,15 @@ fn services(g: Option<&MockServer>, j: Option<&MockServer>) -> Services {
 async fn sync(d: &Services, ws: &Workspace, ms: u64) -> (Workspace, Remote) {
     let remote = d.fetch(ws, ms, &[]).await;
     let mut again = ws.clone();
-    again.apply(
-        Action::SyncRemote {
-            remote: remote.clone(),
-        },
-        Actor::System,
-        ms,
-    )
-    .unwrap();
+    again
+        .apply(
+            Action::SyncRemote {
+                remote: remote.clone(),
+            },
+            Actor::System,
+            ms,
+        )
+        .unwrap();
     (again, remote)
 }
 
@@ -181,11 +182,11 @@ async fn fetches_pull_requests_tickets_comments_checks_and_diffs() {
     let d = services(Some(&g), Some(&j));
     let (ws, _) = sync(&d, &cockpit_core::demo::workspace(), NOW_MS).await;
 
-    // Beispieldaten sind weg, echte Einträge da.
+    // Sample data is gone, real entries are there.
     assert!(ws.item("bau142").is_none() && ws.item("pr87").is_none());
     let pr87 = ws.item("gh-acme-baukasten-87").expect("PR 87");
     assert_eq!(pr87.pr.as_ref().unwrap().number, 87);
-    assert_eq!(pr87.comments.len(), 4, "Gespräch und Zeilenkommentare");
+    assert_eq!(pr87.comments.len(), 4, "conversation and line comments");
     let pr91 = ws.item("gh-acme-baukasten-91").expect("PR 91");
     assert!(
         pr91.pr.as_ref().unwrap().changes_requested,
@@ -204,7 +205,7 @@ async fn fetches_pull_requests_tickets_comments_checks_and_diffs() {
     assert_eq!(jira.source, Source::Jira);
     assert!(!jira.comments.is_empty());
 
-    // Diff und einzelne Checks im Review, Zuordnung Nummer → Repo.
+    // Diff and single checks in the review, mapping number → repo.
     let review = ws.review(87).unwrap();
     assert!(!review.files.is_empty());
     assert!(!review.check_runs.is_empty());
@@ -213,7 +214,7 @@ async fn fetches_pull_requests_tickets_comments_checks_and_diffs() {
     assert_eq!(ws.sync.pr(87).unwrap().head_sha, "aaa111");
     assert!(ws.sync.state_of(Source::GitHub).unwrap().is_ok());
     assert!(ws.sync.state_of(Source::Jira).unwrap().is_ok());
-    // Das Protokoll hält das Neue mit Urheber System fest.
+    // The log records the new entry with author System.
     assert!(ws.log.iter().all(|e| e.actor == Actor::System));
     assert!(!ws.log.is_empty());
 }
@@ -225,7 +226,7 @@ async fn local_state_stays_on_the_next_sync() {
     let d = services(Some(&g), Some(&j));
     let (mut ws, _) = sync(&d, &Workspace::default(), NOW_MS).await;
 
-    // Lokal: erledigt, zurückgestellt, Review-Entwurf, Urteil, Agent-Lauf.
+    // Local: done, snoozed, review draft, verdict, agent run.
     ws.mark_done("bau-142");
     ws.snooze("gh-acme-baukasten-91", None);
     let line = ws.review(87).unwrap().files[0]
@@ -283,12 +284,8 @@ async fn unchanged_pr_does_not_reload_the_diff() {
         .iter()
         .filter(|r| r.url.path().ends_with("/pulls/87/files"))
         .count();
-    assert_eq!(
-        (before, after),
-        (1, 1),
-        "gleicher Commit: kein neuer Abruf"
-    );
-    // Und der Diff steht trotzdem im Remote.
+    assert_eq!((before, after), (1, 1), "gleicher Commit: kein neuer Abruf");
+    // And the diff is still in the remote.
     let Outcome::Loaded(l) = &remote.sources[0].outcome else {
         panic!("geladen erwartet")
     };
@@ -308,7 +305,7 @@ async fn remote_disappears() {
     let d = services(Some(&g), None);
     let (ws, _) = sync(&d, &Workspace::default(), NOW_MS).await;
     assert!(ws.item("gh-acme-baukasten-91").is_some());
-    // Beim Dienst ist nur noch #87 übrig.
+    // At the service only #87 is left.
     g.reset().await;
     let g2 = github_server().await;
     Mock::given(method("GET"))
@@ -342,7 +339,7 @@ async fn errors_become_the_source_state_and_nothing_is_lost() {
             .await;
         s
     };
-    // 401: Token abgelaufen.
+    // 401: token expired.
     let s = broken(ResponseTemplate::new(401)).await;
     let (after, _) = sync(&services(Some(&s), None), &ws, NOW_MS + 1).await;
     assert_eq!(
@@ -351,7 +348,7 @@ async fn errors_become_the_source_state_and_nothing_is_lost() {
     );
     assert!(after.item("gh-acme-baukasten-87").is_some(), "Stand bleibt");
 
-    // Kontingent: Pause bis Reset.
+    // Quota: pause until reset.
     let s = broken(
         ResponseTemplate::new(403)
             .insert_header("x-ratelimit-remaining", "0")
@@ -369,13 +366,13 @@ async fn errors_become_the_source_state_and_nothing_is_lost() {
         after.sync.paused_until(Source::GitHub, NOW_MS + 3),
         Some(NOW_MS + 2 + 90_000)
     );
-    // Pausiert: die Quelle wird gar nicht erst abgefragt.
+    // Paused: the source is not even queried.
     let empty = services(Some(&s), None)
         .fetch(&after, NOW_MS + 3, &[Source::GitHub])
         .await;
     assert!(empty.sources.is_empty());
 
-    // Netz weg.
+    // Network gone.
     let gone = Services {
         github: Some(GitHubService {
             client: GitHubClient::new("http://127.0.0.1:9", Secret::new("x")).unwrap(),
@@ -481,7 +478,7 @@ async fn jira_in_project_mode() {
 
 #[tokio::test]
 async fn github_comments_page_by_page() {
-    // 100 Kommentare auf Seite 1, einer auf Seite 2.
+    // 100 comments on page 1, one on page 2.
     let g = github_server().await;
     let entry = |i: u32| json!({"user": {"login": "mkeller"}, "body": format!("k{i}"), "created_at": "2024-05-14T09:00:00Z"});
     let page1: Vec<_> = (0..100).map(entry).collect();

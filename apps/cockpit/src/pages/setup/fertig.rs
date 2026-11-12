@@ -1,7 +1,7 @@
 //! Schritt 5: Zusammenfassung mit Haken und Klartext.
 
 use cockpit_core::AuthKind;
-use cockpit_core::setup::{Step, Snapshot, Tone, summary};
+use cockpit_core::setup::{Snapshot, Step, Tone, summary};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;

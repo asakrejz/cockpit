@@ -1,25 +1,25 @@
-//! Verbindungen zu Jira, GitHub und dem Agenten, wie das Backend sie meldet.
+//! Connections to Jira, GitHub and the agent, as the backend reports them.
 //!
-//! [`Connections`] hält nur Haken – **nie Schlüssel**. Ob ein Schlüssel wirklich gilt, kann nur
-//! der Dienst sagen; das Backend prüft es, der Browser speichert nichts davon.
+//! [`Connections`] holds only checkmarks – **never keys**. Whether a key really works, only
+//! the service can say; the backend checks it, the browser stores nothing of it.
 
 use serde::{Deserialize, Serialize};
 
-/// Womit sich das Backend bei einem Dienst anmeldet.
+/// How the backend signs in at a service.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AuthKind {
-    /// Nicht verbunden.
+    /// Not connected.
     #[default]
     None,
-    /// API-Token oder Personal Access Token (`cockpit-server token setzen`).
+    /// API token or personal access token (`cockpit-server token setzen`).
     Token,
-    /// Anmeldung im Browser per OAuth.
+    /// Sign-in in the browser via OAuth.
     OAuth,
 }
 
 impl AuthKind {
-    /// Kurzer Text für die Oberfläche.
+    /// Short text for the UI.
     pub fn label(self) -> &'static str {
         match self {
             AuthKind::None => "Getrennt",
@@ -29,32 +29,32 @@ impl AuthKind {
     }
 }
 
-/// Verbindungsstatus eines Dienstes, wie ihn das Backend in `/api/health` meldet.
+/// Connection status of a service, as the backend reports it in `/api/health`.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServiceStatus {
     #[serde(default)]
     #[serde(rename = "verbunden")]
     pub connected: bool,
-    /// Art der Anmeldung; `none`, solange getrennt.
+    /// Kind of sign-in; `none` while disconnected.
     #[serde(default)]
     #[serde(rename = "art")]
     pub kind: AuthKind,
-    /// Die OAuth-App ist in `config.toml` eingerichtet und ihr Secret liegt im Schlüsselbund:
-    /// „Mit … anmelden“ ist möglich.
+    /// The OAuth app is set up in `config.toml` and its secret is in the keychain:
+    /// „Mit … anmelden“ is possible.
     #[serde(default)]
     #[serde(rename = "oauth_moeglich")]
     pub oauth_possible: bool,
-    /// Bei Atlassian: die gewählte Site.
+    /// For Atlassian: the chosen site.
     #[serde(default)]
     pub site: Option<String>,
 }
 
-/// Welche Verbindungen stehen und was der Agent selbstständig darf.
+/// Which connections stand and what the agent may do on its own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Connections {
     pub jira: bool,
     pub github: bool,
-    /// Art der Anmeldung (nur vom Server gemeldet, wird nicht gespeichert).
+    /// Kind of sign-in (only reported by the server, not stored).
     pub jira_auth: AuthKind,
     pub github_auth: AuthKind,
     pub agent: bool,
@@ -79,7 +79,7 @@ impl Default for Connections {
 }
 
 impl Connections {
-    /// Übernimmt den Stand, den das Backend meldet (Haken und Art der Anmeldung).
+    /// Takes over the state the backend reports (checkmarks and kind of sign-in).
     pub fn apply_services(&mut self, github: &ServiceStatus, jira: &ServiceStatus) {
         self.github = github.connected;
         self.github_auth = github.kind;
@@ -87,7 +87,7 @@ impl Connections {
         self.jira_auth = jira.kind;
     }
 
-    /// Warum der Agent kein Ticket umsetzen darf – oder `None`, wenn er darf.
+    /// Why the agent may not implement a ticket – or `None` if it may.
     pub fn agent_blocked(&self) -> Option<&'static str> {
         if !self.agent {
             Some("Der Agent ist nicht verbunden.")

@@ -1,4 +1,4 @@
-//! Gemeinsamer Abruf: Status in [`Fehler`] übersetzen, JSON lesen.
+//! Shared fetch: translate status into [`Error`], read JSON.
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -25,25 +25,22 @@ fn header<'a>(h: &'a HeaderMap, name: &str) -> Option<&'a str> {
     h.get(name).and_then(|v| v.to_str().ok())
 }
 
-/// Wie lange sollen wir pausieren? `Retry-After` (Sekunden) gewinnt; sonst der Zeitpunkt,
-/// an dem das Kontingent zurückkommt (`X-RateLimit-Reset`, Sekunden seit 1970).
+/// How long should we pause? `Retry-After` (seconds) wins; otherwise the time
+/// at which the quota comes back (`X-RateLimit-Reset`, seconds since 1970).
 pub(crate) fn wait(h: &HeaderMap, now_s: u64) -> Option<u64> {
     if let Some(s) = header(h, "retry-after").and_then(|v| v.trim().parse::<u64>().ok()) {
         return Some(s);
     }
-    let reset = header(h, "x-ratelimit-reset")?
-        .trim()
-        .parse::<u64>()
-        .ok()?;
+    let reset = header(h, "x-ratelimit-reset")?.trim().parse::<u64>().ok()?;
     Some(reset.saturating_sub(now_s))
 }
 
-/// Die Meldung des Dienstes aus einem Fehler-Body: GitHub (`message`), Jira
-/// (`errorMessages`, `errors`). Gekürzt, damit nichts Riesiges in der Oberfläche landet.
+/// The service's message from an error body: GitHub (`message`), Jira
+/// (`errorMessages`, `errors`). Shortened so nothing huge ends up in the UI.
 pub(crate) fn service_message(body: &str) -> Option<String> {
     let json: serde_json::Value = serde_json::from_str(body).ok()?;
     let mut parts: Vec<String> = Vec::new();
-    // OAuth-Endpunkte (`error_description`, sonst `error`).
+    // OAuth endpoints (`error_description`, otherwise `error`).
     if let Some(m) = json["error_description"]
         .as_str()
         .or_else(|| json["error"].as_str())
@@ -65,7 +62,7 @@ pub(crate) fn service_message(body: &str) -> Option<String> {
             }
         }
     }
-    // GitHub: Einzelheiten stehen bei 422 in `errors` als Liste von Objekten/Texten.
+    // GitHub: details are in `errors` for 422, as a list of objects/texts.
     for e in json["errors"].as_array().into_iter().flatten() {
         match e {
             serde_json::Value::String(s) => parts.push(s.clone()),
@@ -81,7 +78,7 @@ pub(crate) fn service_message(body: &str) -> Option<String> {
     (!text.trim().is_empty()).then_some(text)
 }
 
-/// Übersetzt eine Fehlerantwort. Rein, damit sich jeder Fall testen lässt.
+/// Translates an error response. Pure, so every case can be tested.
 pub(crate) fn error_from(status: StatusCode, h: &HeaderMap, body: &str, now_s: u64) -> Error {
     let limit_empty = header(h, "x-ratelimit-remaining") == Some("0");
     let pause = header(h, "retry-after").is_some();
@@ -105,7 +102,7 @@ pub(crate) fn error_from(status: StatusCode, h: &HeaderMap, body: &str, now_s: u
     }
 }
 
-/// Schickt die Anfrage und liefert den Body der erfolgreichen Antwort (auch leer, z. B. 204).
+/// Sends the request and returns the body of the successful response (also empty, e.g. 204).
 pub(crate) async fn send(req: RequestBuilder) -> Result<String, Error> {
     let resp = req
         .send()
@@ -123,7 +120,7 @@ pub(crate) async fn send(req: RequestBuilder) -> Result<String, Error> {
     Ok(text)
 }
 
-/// Entfernt Schrägstriche am Ende einer Basisadresse und prüft das Schema.
+/// Removes trailing slashes from a base address and checks the scheme.
 pub(crate) fn base_url(url: &str) -> Result<String, Error> {
     let url = url.trim().trim_end_matches('/');
     if url.starts_with("https://")
@@ -171,12 +168,12 @@ mod tests {
             wait(&header(&[("x-ratelimit-reset", "1090")]), 1000),
             Some(90)
         );
-        // Reset in der Vergangenheit: nicht warten.
+        // Reset in the past: do not wait.
         assert_eq!(
             wait(&header(&[("x-ratelimit-reset", "900")]), 1000),
             Some(0)
         );
-        // Retry-After geht vor.
+        // Retry-After comes first.
         assert_eq!(
             wait(
                 &header(&[("retry-after", "5"), ("x-ratelimit-reset", "2000")]),
@@ -208,7 +205,7 @@ mod tests {
             ),
             Error::RateLimit { wait_s: Some(30) }
         );
-        // Sekundäres Limit von GitHub: 403 mit Retry-After.
+        // GitHub secondary limit: 403 with Retry-After.
         assert_eq!(
             f(403, &header(&[("retry-after", "60")]), ""),
             Error::RateLimit { wait_s: Some(60) }
@@ -226,7 +223,11 @@ mod tests {
             Error::Rejected("Validation Failed; Zeile fehlt".into())
         );
         assert_eq!(
-            f(405, &empty, r#"{"message":"Pull Request is not mergeable"}"#),
+            f(
+                405,
+                &empty,
+                r#"{"message":"Pull Request is not mergeable"}"#
+            ),
             Error::Rejected("Pull Request is not mergeable".into())
         );
         assert_eq!(

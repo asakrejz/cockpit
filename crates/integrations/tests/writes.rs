@@ -1,12 +1,12 @@
-//! Schreibaufrufe gegen einen Mock-Server: richtige Methode, Pfad, Body und Auth-Header;
-//! Fehlerfälle; der Schlüssel taucht nie in Meldungen auf. Nichts davon ist gegen die echten
-//! Dienste geprüft.
+//! Write calls against a mock server: right method, path, body and auth header;
+//! error cases; the key never shows up in messages. None of this has been checked against
+//! the real services.
 
 use cockpit_core::{MergeMethod, TicketStatus};
-use cockpit_integrations::outbound::{Outbound, ReviewData, LineComment};
 use cockpit_integrations::github::GitHubClient;
 use cockpit_integrations::jira::JiraClient;
-use cockpit_integrations::{Services, Error, GitHubService, JiraService, Secret};
+use cockpit_integrations::outbound::{LineComment, Outbound, ReviewData};
+use cockpit_integrations::{Error, GitHubService, JiraService, Secret, Services};
 use serde_json::json;
 use wiremock::matchers::{body_json, header, header_exists, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -202,7 +202,7 @@ async fn github_rerequest_check() {
     })
     .await
     .unwrap();
-    // Einen Check, den es nicht gibt, meldet der Client verständlich.
+    // A check that does not exist is reported by the client in an understandable way.
     let error = c
         .check_again_start("a/x", 7, "Gibt es nicht")
         .await
@@ -236,7 +236,7 @@ async fn jira_comment_as_adf() {
         })
         .await
         .unwrap();
-    // Basic-Auth mit E-Mail und Token.
+    // Basic auth with email and token.
     let request = s.received_requests().await.unwrap();
     let auth = request[0]
         .headers
@@ -304,7 +304,7 @@ async fn jira_without_matching_transition_calls_nothing() {
     );
 }
 
-// ---------- Fehlerfälle ----------
+// ---------- Error cases ----------
 
 async fn comment_with(response: ResponseTemplate) -> Error {
     let s = MockServer::start().await;
@@ -382,11 +382,11 @@ async fn merge_is_rejected_with_the_service_message() {
     );
 }
 
-// ---------- Schlüssel ----------
+// ---------- Key ----------
 
 #[tokio::test]
 async fn key_never_appears_in_errors_or_debug() {
-    // Ein Dienst, der den Schlüssel in der Meldung zurückspielt.
+    // A service that echoes the key back in the message.
     let s = MockServer::start().await;
     Mock::given(method("POST"))
         .respond_with(
@@ -408,7 +408,7 @@ async fn key_never_appears_in_errors_or_debug() {
         assert!(!text.contains(TOKEN), "{text}");
     }
 
-    // Netz weg.
+    // Network gone.
     let c = GitHubClient::new("http://127.0.0.1:9", Secret::new(TOKEN)).unwrap();
     let error = c
         .execute(&Outbound::GitHubComment {
@@ -421,7 +421,7 @@ async fn key_never_appears_in_errors_or_debug() {
     assert!(matches!(error, Error::Network(_)));
     assert!(!error.to_string().contains(TOKEN));
 
-    // Jira: Token steckt im Basic-Header, nie in Meldungen.
+    // Jira: token sits in the Basic header, never in messages.
     let j = JiraClient::new("http://127.0.0.1:9", "a@b.de", Secret::new(TOKEN)).unwrap();
     assert!(!format!("{j:?}").contains(TOKEN));
 }
@@ -469,7 +469,7 @@ async fn services_route_to_the_right_client() {
         })
         .await
         .unwrap();
-    // Ohne Jira: verständlicher Fehler statt Absturz.
+    // Without Jira: an understandable error instead of a crash.
     let github_only = Services {
         jira: None,
         github: None,

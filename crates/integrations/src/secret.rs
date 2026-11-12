@@ -1,7 +1,7 @@
 use std::fmt;
 
-/// Ein Zugangsschlüssel. `Debug` zeigt ihn nie, es gibt kein `Display` und kein `Serialize`.
-/// Lesen geht nur über [`Secret::expose`] – dort, wo er in einen Header geschrieben wird.
+/// An access key. `Debug` never shows it; there is no `Display` and no `Serialize`.
+/// Reading is only possible through [`Secret::expose`] – where it is written into a header.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Secret(String);
 
@@ -10,7 +10,7 @@ impl Secret {
         Self(value.into())
     }
 
-    /// Der Klartext. Nur für den Aufruf beim Dienst verwenden, nie loggen.
+    /// The plain text. Use only for the call to the service, never log it.
     pub fn expose(&self) -> &str {
         &self.0
     }

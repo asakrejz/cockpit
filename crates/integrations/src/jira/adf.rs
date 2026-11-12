@@ -1,11 +1,11 @@
-//! Atlassian Document Format (ADF) → Klartext. Jira v3 liefert Beschreibungen und
-//! Kommentare in diesem JSON-Baum.
+//! Atlassian Document Format (ADF) → plain text. Jira v3 delivers descriptions and
+//! comments in this JSON tree.
 
 use serde_json::Value;
 
-/// Wandelt einen ADF-Baum in Text. Unbekannte Knoten werden durchlaufen, ihr Text bleibt
-/// erhalten. `null` oder ein anderer Typ ergibt einen leeren Text; ein einfacher String
-/// (ältere API) wird unverändert übernommen.
+/// Turns an ADF tree into text. Unknown nodes are traversed, their text is
+/// kept. `null` or another type yields an empty text; a plain string
+/// (older API) is taken over unchanged.
 pub fn adf_to_text(value: &Value) -> String {
     if let Some(s) = value.as_str() {
         return s.to_string();
@@ -15,8 +15,8 @@ pub fn adf_to_text(value: &Value) -> String {
     out.trim().to_string()
 }
 
-/// Wie [`adf_to_text`]; Erwähnungen von `ich` (Konto-ID) erscheinen als `@Du`, damit die
-/// Regeln für Erwähnungen im Cockpit greifen.
+/// Like [`adf_to_text`]; mentions of `me` (account ID) appear as `@Du`, so that the
+/// mention rules in the cockpit apply.
 pub fn adf_to_text_for(value: &Value, me: &str) -> String {
     fn replace(n: &mut Value, me: &str) {
         if n["type"] == "mention" && n["attrs"]["id"] == me {
@@ -33,7 +33,7 @@ pub fn adf_to_text_for(value: &Value, me: &str) -> String {
     adf_to_text(&copy)
 }
 
-/// Text → ADF-Dokument für einen Kommentar: ein Absatz je Zeile.
+/// Text → ADF document for a comment: one paragraph per line.
 pub fn text_to_adf(text: &str) -> Value {
     let paragraphs: Vec<Value> = text
         .lines()

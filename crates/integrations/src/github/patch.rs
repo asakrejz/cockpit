@@ -1,11 +1,11 @@
-//! Parser für Unified-Diff-Patches, wie GitHub sie im Feld `patch` liefert.
+//! Parser for unified-diff patches, as GitHub delivers them in the `patch` field.
 
 use cockpit_core::{DiffLine, LineKind};
 
-/// `@@ -a,b +c,d @@ …` → `(a, b, c, d)`; fehlende Längen bedeuten 1.
+/// `@@ -a,b +c,d @@ …` → `(a, b, c, d)`; missing lengths mean 1.
 fn hunk_header(line: &str) -> Option<(u32, u32, u32, u32)> {
     let rest = line.strip_prefix("@@ -")?;
-    let (alt, rest) = rest.split_once(" +")?;
+    let (old, rest) = rest.split_once(" +")?;
     let again = rest.split(" @@").next()?;
     let part = |s: &str| -> Option<(u32, u32)> {
         match s.split_once(',') {
@@ -13,36 +13,36 @@ fn hunk_header(line: &str) -> Option<(u32, u32, u32, u32)> {
             None => Some((s.parse().ok()?, 1)),
         }
     };
-    let (a, b) = part(alt)?;
+    let (a, b) = part(old)?;
     let (c, d) = part(again)?;
     Some((a, b, c, d))
 }
 
-/// Wandelt einen Patch in Diff-Zeilen. Zeilennummern wie in `cockpit-core`: neue und
-/// unveränderte Zeilen zählen im neuen Stand, entfernte im alten.
+/// Turns a patch into diff lines. Line numbers as in `cockpit-core`: added and
+/// unchanged lines count in the new state, removed ones in the old.
 ///
-/// Die `@@`-Köpfe selbst werden nicht als Zeilen übernommen; zwischen zwei Abschnitten
-/// springt die Nummer entsprechend. Zeilen außerhalb eines Abschnitts (Dateikopf,
-/// „\ No newline at end of file“) werden ignoriert.
+/// The `@@` headers themselves are not taken over as lines; between two sections
+/// the number jumps accordingly. Lines outside a section (file header,
+/// „\ No newline at end of file“) are ignored.
 pub fn parse_patch(patch: &str) -> Vec<DiffLine> {
     let mut out = Vec::new();
-    let (mut alt, mut again) = (0u32, 0u32);
-    let (mut alt_rest, mut again_rest) = (0u32, 0u32);
+    let (mut old, mut again) = (0u32, 0u32);
+    let (mut old_rest, mut again_rest) = (0u32, 0u32);
 
     for line in patch.lines() {
         if line.starts_with("@@") {
             if let Some((a, b, c, d)) = hunk_header(line) {
-                (alt, alt_rest, again, again_rest) = (a, b, c, d);
+                (old, old_rest, again, again_rest) = (a, b, c, d);
             } else {
-                // Kaputter Kopf: lieber nichts anzeigen als falsche Nummern.
-                (alt_rest, again_rest) = (0, 0);
+                // Broken header: better to show nothing than wrong numbers.
+                (old_rest, again_rest) = (0, 0);
             }
             continue;
         }
-        if line.starts_with('\\') || (alt_rest == 0 && again_rest == 0) {
+        if line.starts_with('\\') || (old_rest == 0 && again_rest == 0) {
             continue;
         }
-        // Eine leere Zeile ist eine Kontextzeile, deren Leerzeichen verloren ging.
+        // An empty line is a context line whose space got lost.
         let (chars, text) = line.split_at(line.chars().next().map_or(0, char::len_utf8));
         match chars {
             "+" if again_rest > 0 => {
@@ -54,24 +54,24 @@ pub fn parse_patch(patch: &str) -> Vec<DiffLine> {
                 again += 1;
                 again_rest -= 1;
             }
-            "-" if alt_rest > 0 => {
+            "-" if old_rest > 0 => {
                 out.push(DiffLine {
-                    no: alt,
+                    no: old,
                     kind: LineKind::Del,
                     text: text.into(),
                 });
-                alt += 1;
-                alt_rest -= 1;
+                old += 1;
+                old_rest -= 1;
             }
-            " " | "" if alt_rest > 0 && again_rest > 0 => {
+            " " | "" if old_rest > 0 && again_rest > 0 => {
                 out.push(DiffLine {
                     no: again,
                     kind: LineKind::Context,
                     text: text.into(),
                 });
-                alt += 1;
+                old += 1;
                 again += 1;
-                alt_rest -= 1;
+                old_rest -= 1;
                 again_rest -= 1;
             }
             _ => {}
@@ -127,7 +127,7 @@ mod tests {
 
     #[test]
     fn content_that_looks_like_a_header_stays_content() {
-        // Entfernte Zeile "-- kommentar" beginnt mit "--"; das ist keine Kopfzeile.
+        // Removed line "-- kommentar" starts with "--"; that is not a header line.
         let patch = "@@ -1,2 +1,1 @@\n--- kommentar\n ende";
         let z = parse_patch(patch);
         assert_eq!(z[0], line(1, LineKind::Del, "-- kommentar"));
@@ -166,7 +166,7 @@ mod tests {
     fn empty_and_broken() {
         assert!(parse_patch("").is_empty());
         assert!(parse_patch("@@ kaputt @@\n+x").is_empty());
-        // Mehr Zeilen als angekündigt: der Rest wird ignoriert.
+        // More lines than announced: the rest is ignored.
         assert_eq!(parse_patch("@@ -1 +1 @@\n+a\n+b").len(), 1);
     }
 }
