@@ -1,0 +1,29 @@
+# Image des Cockpit-Agenten. Baut mit Docker und Podman gleich:
+#   docker build -f agent/Containerfile -t localhost/cockpit-agent:1 agent
+#   podman build -f agent/Containerfile -t localhost/cockpit-agent:1 agent
+# (das Backend macht das per „Image bauen“ im Einrichtungsassistenten).
+# Bewusst ohne BuildKit-Sonderfunktionen (kein „# syntax=“, kein „RUN --mount“) und mit voll
+# benanntem Basis-Image, weil Podman Kurznamen nicht ohne Weiteres auflöst.
+FROM docker.io/library/node:24-bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates ripgrep \
+    && rm -rf /var/lib/apt/lists/* \
+    # Das eingebundene Repo gehört auf dem Host einer anderen Kennung als dem Läufer.
+    && git config --system --add safe.directory /work \
+    && mkdir -p /work /auftrag && chown node:node /work
+
+WORKDIR /opt/runner
+COPY runner/package.json runner/package-lock.json ./
+RUN npm ci --omit=dev
+COPY runner/src ./src
+
+# Der Läufer arbeitet nie als root.
+USER node
+WORKDIR /work
+ENV HOME=/home/node \
+    COCKPIT_AUFTRAG=/auftrag/auftrag.json \
+    COCKPIT_WURZEL=/work \
+    NODE_ENV=production
+
+ENTRYPOINT ["node", "--disable-warning=ExperimentalWarning", "/opt/runner/src/main.ts"]

@@ -3,3 +3,6 @@
 /cockpit/dist
 .env
 .env.*
+
+# Läufer des Agenten (npm install im Image)
+/agent/runner/node_modules
