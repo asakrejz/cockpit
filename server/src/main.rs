@@ -17,6 +17,7 @@
 //! ```
 
 mod abgleich;
+mod agent_git;
 mod app;
 mod config;
 mod container;

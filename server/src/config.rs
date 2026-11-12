@@ -47,6 +47,8 @@
 //!
 //! [agent]
 //! container = "podman"                 # oder "docker"; ohne Angabe erkennt das Backend die Laufzeit
+//! repo = "firma/app"                   # Repo, in dem der Agent arbeitet (sonst das einzige aus [github] repos)
+//! dir = "/pfad/zu/agent"               # Ordner mit Containerfile und Läufer (sonst ./agent bzw. neben cockpit/dist)
 //! ```
 //!
 //! Eine Quelle gleicht nur ab, wenn sie hier eingerichtet ist **und** ihr Schlüssel im
@@ -55,7 +57,8 @@
 //!
 //! Umgebungsvariablen: `COCKPIT_PORT`, `COCKPIT_DIST`, `COCKPIT_DB`, `COCKPIT_CONFIG`
 //! (Pfad der Konfigurationsdatei), `COCKPIT_SEED` (`leer` oder `demo`), `COCKPIT_CONTAINER`
-//! (`docker` oder `podman`), `COCKPIT_DEV_PORT` (Port von `trunk serve`, nur für die Entwicklung).
+//! (`docker` oder `podman`), `COCKPIT_AGENT_DIR` (Ordner `agent`), `COCKPIT_GIT_BASIS` (Basisadresse zum Klonen, nur für Tests),
+//! `COCKPIT_DEV_PORT` (Port von `trunk serve`, nur für die Entwicklung).
 
 use std::path::{Path, PathBuf};
 
@@ -88,6 +91,12 @@ pub struct Config {
     pub container: Option<String>,
     /// Wert von `COCKPIT_CONTAINER`, geht der Datei vor.
     pub container_env: Option<String>,
+    /// `[agent] repo`: das Repo, in dem der Agent arbeitet (`owner/name`).
+    pub agent_repo: Option<String>,
+    /// `[agent] dir` bzw. `COCKPIT_AGENT_DIR`: der Ordner mit Containerfile und Läufer.
+    pub agent_dir: Option<PathBuf>,
+    /// `COCKPIT_GIT_BASIS`: Basisadresse zum Klonen statt `https://github.com` (für Tests).
+    pub git_basis: Option<String>,
     /// `COCKPIT_DEV_PORT`: Port von `trunk serve` für die Entwicklung (nur Umgebung, nie Datei).
     pub dev_port: Option<u16>,
     /// Die Datei, aus der gelesen wurde (und in die der Einrichtungsassistent schreibt); `None`,
@@ -203,6 +212,8 @@ struct DateiLitellm {
 #[serde(deny_unknown_fields)]
 struct DateiAgent {
     container: Option<String>,
+    repo: Option<String>,
+    dir: Option<PathBuf>,
 }
 
 #[derive(Deserialize)]
@@ -287,6 +298,9 @@ impl Config {
             litellm: None,
             container: None,
             container_env: None,
+            agent_repo: None,
+            agent_dir: None,
+            git_basis: None,
             dev_port: None,
             konfig_pfad: None,
         }
@@ -415,6 +429,24 @@ impl Config {
         }
         if let Some(a) = d.agent {
             c.container = a.container.map(|t| laufzeit(&t)).transpose()?;
+            c.agent_repo = a
+                .repo
+                .map(|r| r.trim().to_string())
+                .filter(|r| !r.is_empty());
+            if let Some(r) = &c.agent_repo
+                && !crate::agent_git::repo_name_ok(r)
+            {
+                return Err(KonfigFehler::Wert(format!(
+                    "[agent] repo „{r}“ muss die Form owner/name haben"
+                )));
+            }
+            c.agent_dir = a.dir;
+        }
+        if let Some(p) = umgebung("COCKPIT_AGENT_DIR").filter(|s| !s.trim().is_empty()) {
+            c.agent_dir = Some(PathBuf::from(p.trim()));
+        }
+        if let Some(p) = umgebung("COCKPIT_GIT_BASIS").filter(|s| !s.trim().is_empty()) {
+            c.git_basis = Some(p.trim().trim_end_matches('/').to_string());
         }
 
         if let Some(p) = umgebung("COCKPIT_SEED").filter(|s| !s.trim().is_empty()) {
