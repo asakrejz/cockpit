@@ -279,7 +279,11 @@ pub fn run_args(b: &LaufBefehl) -> Vec<String> {
         s("-v"),
         format!("{}:/auftrag:ro", b.auftrag.display()),
     ]);
-    for name in ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_MODEL"] {
+    for name in [
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_AUTH_TOKEN",
+        "ANTHROPIC_MODEL",
+    ] {
         a.extend([s("-e"), s(name)]);
     }
     a.push(s(IMAGE));
@@ -623,7 +627,7 @@ pub fn plane(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cockpit_core::{Action, AgentOptions, Actor, demo};
+    use cockpit_core::{Action, Actor, AgentOptions, demo};
 
     const T: u64 = 1_700_000_000_000;
 
@@ -649,7 +653,10 @@ mod tests {
         assert_eq!(zeile_lesen(&gross), Err(Verworfen::ZuGross));
         // Übergroße Werte werden begrenzt, nicht übernommen.
         let Ok(Ereignis::Schritt {
-            token_ein, ms, titel, ..
+            token_ein,
+            ms,
+            titel,
+            ..
         }) = zeile_lesen(&format!(
             r#"{{"t":"schritt","titel":"{}","token_ein":99999999999999,"ms":99999999999}}"#,
             "y".repeat(5_000)
@@ -713,7 +720,11 @@ mod tests {
         assert_eq!(a.last().unwrap(), IMAGE);
         // Voll benanntes Image, kein SELinux-Zusatz, kein --user (steht im Containerfile).
         assert!(IMAGE.starts_with("localhost/"));
-        assert!(!text.contains(":Z") && !text.contains("--user") && !text.contains("host.docker.internal"));
+        assert!(
+            !text.contains(":Z")
+                && !text.contains("--user")
+                && !text.contains("host.docker.internal")
+        );
         // Nach `-e` steht nur der Name, nie ein `=` mit Wert.
         for (i, x) in a.iter().enumerate() {
             if x == "-e" {
@@ -722,7 +733,10 @@ mod tests {
         }
         // Die Werte gehören in die Umgebung des Kindprozesses.
         let env = umgebung_fuer_kind("http://localhost:4000/", "sk-geheim", "claude-sonnet-5-5");
-        assert!(env.contains(&("ANTHROPIC_BASE_URL".into(), "http://cockpit-host:4000".into())));
+        assert!(env.contains(&(
+            "ANTHROPIC_BASE_URL".into(),
+            "http://cockpit-host:4000".into()
+        )));
         assert!(!text.contains("sk-geheim"));
         let ro = run_args(&LaufBefehl {
             klon_nur_lesen: true,
@@ -741,7 +755,10 @@ mod tests {
             ("https://localhost/v1", "https://cockpit-host/v1"),
             ("http://[::1]:4000", "http://cockpit-host:4000"),
             ("https://litellm.example", "https://litellm.example"),
-            ("https://litellm.example:8443/x/", "https://litellm.example:8443/x"),
+            (
+                "https://litellm.example:8443/x/",
+                "https://litellm.example:8443/x",
+            ),
             ("https://localhost.example", "https://localhost.example"),
         ] {
             assert_eq!(fuer_container(ein), aus, "{ein}");
@@ -824,9 +841,18 @@ mod tests {
             [Anweisung::Stoppen("BAU-142".into())],
             "ein fertiger Plan-Container wird nicht weiter gebraucht"
         );
-        assert!(plane(&ws, &HashMap::new(), &[]).is_empty(), "wartet auf die Freigabe");
-        ws.apply(Action::ApprovePlan { ticket: "BAU-142".into() }, Actor::Du, T)
-            .unwrap();
+        assert!(
+            plane(&ws, &HashMap::new(), &[]).is_empty(),
+            "wartet auf die Freigabe"
+        );
+        ws.apply(
+            Action::ApprovePlan {
+                ticket: "BAU-142".into(),
+            },
+            Actor::Du,
+            T,
+        )
+        .unwrap();
         assert_eq!(
             plane(&ws, &HashMap::new(), &[]),
             [Anweisung::Starten("BAU-142".into(), Modus::Umsetzen)]
@@ -842,7 +868,13 @@ mod tests {
         assert!(plane(&ws, &laufend(Modus::Umsetzen), &[]).is_empty());
         let mut stopp = ws.clone();
         stopp
-            .apply(Action::CancelAgent { ticket: "BAU-142".into() }, Actor::Du, T)
+            .apply(
+                Action::CancelAgent {
+                    ticket: "BAU-142".into(),
+                },
+                Actor::Du,
+                T,
+            )
             .unwrap();
         assert_eq!(
             plane(&stopp, &laufend(Modus::Umsetzen), &[]),
@@ -882,21 +914,41 @@ mod tests {
     fn aufpasser_reicht_pause_antwort_und_hinweise_weiter() {
         let mut ws = demo::workspace();
         start(&mut ws, false);
-        ws.apply(Action::PauseAgent { run: "BAU-142".into() }, Actor::Du, T).unwrap();
+        ws.apply(
+            Action::PauseAgent {
+                run: "BAU-142".into(),
+            },
+            Actor::Du,
+            T,
+        )
+        .unwrap();
         assert_eq!(
             plane(&ws, &laufend(Modus::Umsetzen), &[]),
             [Anweisung::Pausieren("BAU-142".into())]
         );
-        ws.apply(Action::ResumeAgent { run: "BAU-142".into() }, Actor::Du, T).unwrap();
+        ws.apply(
+            Action::ResumeAgent {
+                run: "BAU-142".into(),
+            },
+            Actor::Du,
+            T,
+        )
+        .unwrap();
         let mut i = info(Modus::Umsetzen);
         i.pausiert = true;
         let mut m = HashMap::from([("BAU-142".to_string(), i)]);
-        assert_eq!(plane(&ws, &m, &[]), [Anweisung::Fortsetzen("BAU-142".into())]);
+        assert_eq!(
+            plane(&ws, &m, &[]),
+            [Anweisung::Fortsetzen("BAU-142".into())]
+        );
 
         // Frage und Antwort.
         ws.report_agent(
             "BAU-142",
-            AgentReport::Question { text: "Welcher?".into(), suggestions: vec![] },
+            AgentReport::Question {
+                text: "Welcher?".into(),
+                suggestions: vec![],
+            },
             T,
         )
         .unwrap();
@@ -904,7 +956,10 @@ mod tests {
         m.get_mut("BAU-142").unwrap().frage_offen = true;
         assert!(plane(&ws, &m, &[]).is_empty(), "solange nicht beantwortet");
         ws.apply(
-            Action::AnswerAgent { run: "BAU-142".into(), text: "der blaue".into() },
+            Action::AnswerAgent {
+                run: "BAU-142".into(),
+                text: "der blaue".into(),
+            },
             Actor::Du,
             T,
         )
@@ -917,14 +972,20 @@ mod tests {
 
         // Hinweise gehen genau einmal raus.
         ws.apply(
-            Action::SteerAgent { run: "BAU-142".into(), text: "Kleine Commits".into() },
+            Action::SteerAgent {
+                run: "BAU-142".into(),
+                text: "Kleine Commits".into(),
+            },
             Actor::Du,
             T,
         )
         .unwrap();
         assert_eq!(
             plane(&ws, &m, &[]),
-            [Anweisung::Hinweise("BAU-142".into(), vec!["Kleine Commits".into()])]
+            [Anweisung::Hinweise(
+                "BAU-142".into(),
+                vec!["Kleine Commits".into()]
+            )]
         );
         m.get_mut("BAU-142").unwrap().hinweise_gesendet = 1;
         assert!(plane(&ws, &m, &[]).is_empty());
@@ -964,7 +1025,13 @@ mod tests {
         let f = fehlende(&fast);
         assert_eq!(f.len(), 1);
         assert!(f[0].contains("Image bauen"));
-        let s = status(true, &Voraussetzungen { image: true, ..fast });
+        let s = status(
+            true,
+            &Voraussetzungen {
+                image: true,
+                ..fast
+            },
+        );
         assert!(s.bereit && s.modus == "echt" && s.repo.as_deref() == Some("firma/app"));
         let nicht_laeuft = ContainerStatus {
             laufzeit: Some("podman".into()),

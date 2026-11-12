@@ -201,7 +201,9 @@ impl AppState {
             return Err(st.fehlt);
         }
         let container = self.container_status();
-        let proxy = self.litellm().ok_or_else(|| vec!["Der Modellzugang fehlt.".to_string()])?;
+        let proxy = self
+            .litellm()
+            .ok_or_else(|| vec!["Der Modellzugang fehlt.".to_string()])?;
         let q = self.quellen();
         let api = q
             .github
@@ -209,9 +211,9 @@ impl AppState {
             .map_or(crate::config::STANDARD_GITHUB_API, |g| g.api_url.as_str())
             .to_string();
         Ok(Zugang {
-            cli: self
-                .cli_pfad(&container)
-                .ok_or_else(|| vec!["Das Container-Programm ist nicht mehr zu finden.".to_string()])?,
+            cli: self.cli_pfad(&container).ok_or_else(|| {
+                vec!["Das Container-Programm ist nicht mehr zu finden.".to_string()]
+            })?,
             proxy_url: proxy.url,
             key: self
                 .secret(secrets::LITELLM)
@@ -500,14 +502,14 @@ impl AppState {
             return nicht("Der Proxy ist nicht eingerichtet. Trage zuerst Adresse und Modell ein.");
         };
         let Some(key) = key else {
-            return nicht("Es fehlt der Key. Lege ihn zuerst ab, dann lässt sich der Proxy prüfen.");
+            return nicht(
+                "Es fehlt der Key. Lege ihn zuerst ab, dann lässt sich der Proxy prüfen.",
+            );
         };
         let Some(cli) = cli else {
-            return nicht(
-                &status
-                    .hinweis
-                    .unwrap_or_else(|| "Die Container-Laufzeit läuft nicht (Schritt „Container“).".into()),
-            );
+            return nicht(&status.hinweis.unwrap_or_else(|| {
+                "Die Container-Laufzeit läuft nicht (Schritt „Container“).".into()
+            }));
         };
         if !image {
             return nicht(
@@ -517,7 +519,14 @@ impl AppState {
         let mac =
             cockpit_integrations::litellm::pruefen(&proxy.url, Some(&key), proxy.modell.as_deref())
                 .await;
-        let im_container = pruef_container(self, &cli, &proxy.url, &key, proxy.modell.as_deref().unwrap_or("-")).await;
+        let im_container = pruef_container(
+            self,
+            &cli,
+            &proxy.url,
+            &key,
+            proxy.modell.as_deref().unwrap_or("-"),
+        )
+        .await;
         let (erreicht, key_ok, text) = match &im_container {
             Ok(Ereignis::Pruefung {
                 erreichbar,
@@ -702,13 +711,27 @@ pub fn bau_hinweis(zeilen: &[String]) -> Option<&'static str> {
     let alles = zeilen.join("\n").to_lowercase();
     let enthaelt = |s: &str| alles.contains(s);
     if enthaelt("no space left") {
-        Some("Auf der Container-Maschine ist kein Platz mehr. Gib in Rancher Desktop bzw. mit „podman system prune“ Platz frei.")
-    } else if enthaelt("lookup ") || enthaelt("no such host") || enthaelt("temporary failure in name resolution") || enthaelt("connection refused") || enthaelt("timeout") || enthaelt("tls handshake") {
-        Some("Der Bau kommt nicht ins Netz (Pakete laden). Prüfe die Internetverbindung, ein VPN oder einen Proxy in Rancher Desktop.")
+        Some(
+            "Auf der Container-Maschine ist kein Platz mehr. Gib in Rancher Desktop bzw. mit „podman system prune“ Platz frei.",
+        )
+    } else if enthaelt("lookup ")
+        || enthaelt("no such host")
+        || enthaelt("temporary failure in name resolution")
+        || enthaelt("connection refused")
+        || enthaelt("timeout")
+        || enthaelt("tls handshake")
+    {
+        Some(
+            "Der Bau kommt nicht ins Netz (Pakete laden). Prüfe die Internetverbindung, ein VPN oder einen Proxy in Rancher Desktop.",
+        )
     } else if enthaelt("permission denied") && enthaelt("docker.sock") {
-        Some("Der Zugriff auf Docker ist nicht erlaubt. Starte Rancher Desktop (Engine „dockerd (moby)“) neu.")
+        Some(
+            "Der Zugriff auf Docker ist nicht erlaubt. Starte Rancher Desktop (Engine „dockerd (moby)“) neu.",
+        )
     } else if enthaelt("unauthorized") || enthaelt("toomanyrequests") {
-        Some("Das Basis-Image lässt sich nicht laden (Anmeldung oder Abruflimit bei docker.io). Versuche es später erneut.")
+        Some(
+            "Das Basis-Image lässt sich nicht laden (Anmeldung oder Abruflimit bei docker.io). Versuche es später erneut.",
+        )
     } else {
         None
     }
@@ -742,8 +765,14 @@ async fn bau_aufgabe(state: AppState, cli: PathBuf, quelle: PathBuf) {
     };
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
     for (strom, tx) in [
-        (kind.stdout.take().map(BufReader::new).map(Strom::Aus), tx.clone()),
-        (kind.stderr.take().map(BufReader::new).map(Strom::Fehler), tx.clone()),
+        (
+            kind.stdout.take().map(BufReader::new).map(Strom::Aus),
+            tx.clone(),
+        ),
+        (
+            kind.stderr.take().map(BufReader::new).map(Strom::Fehler),
+            tx.clone(),
+        ),
     ] {
         if let Some(strom) = strom {
             tokio::spawn(async move { strom.zeilen(tx).await });
@@ -889,7 +918,10 @@ async fn lauf_aufgabe(
         Ende::Fehler(grund) => {
             tracing::warn!("Lauf {key} endet mit Fehler: {grund}");
             sperre(&state.inner.agent.gescheitert).insert(key.clone(), Instant::now());
-            if let Err(e) = state.melden(&key, AgentReport::Failed { reason: grund }).await {
+            if let Err(e) = state
+                .melden(&key, AgentReport::Failed { reason: grund })
+                .await
+            {
                 tracing::debug!("Fehler des Laufs {key} nicht mehr zu melden: {e:?}");
             }
         }
@@ -907,7 +939,10 @@ async fn lauf_aufgabe(
         .runs
         .iter()
         .any(|r| r.key() == key && r.is_stopped());
-    let ordner = state.agent_ordner().join("laeufe").join(lauf::lauf_ordner(&key));
+    let ordner = state
+        .agent_ordner()
+        .join("laeufe")
+        .join(lauf::lauf_ordner(&key));
     if modus == Modus::Plan {
         let _ = tokio::fs::remove_dir_all(ordner.join("plan")).await;
     } else if !angehalten {
@@ -960,11 +995,17 @@ async fn lauf_ausfuehren(
         }
         Err(_) => return Ende::Fehler("Interner Fehler beim Vorbereiten des Laufs.".into()),
     };
-    let geheim = [zugang.key.expose().to_string(), zugang.github.expose().to_string()];
+    let geheim = [
+        zugang.key.expose().to_string(),
+        zugang.github.expose().to_string(),
+    ];
     let geheim_refs: Vec<&str> = geheim.iter().map(String::as_str).collect();
 
     let branch = run.branch();
-    let basis_ordner = state.agent_ordner().join("laeufe").join(lauf::lauf_ordner(key));
+    let basis_ordner = state
+        .agent_ordner()
+        .join("laeufe")
+        .join(lauf::lauf_ordner(key));
     let klon = basis_ordner.join(if modus == Modus::Plan { "plan" } else { "lauf" });
     let basis_datei = basis_ordner.join("basis");
     let url = agent_git::klon_url(&zugang.git_basis, &zugang.repo);
@@ -972,7 +1013,10 @@ async fn lauf_ausfuehren(
     // Klon: frisch, außer ein angehaltener Lauf wird fortgesetzt.
     let vorhanden = modus == Modus::Umsetzen && klon.join(".git").is_dir() && basis_datei.is_file();
     let basis_sha = if vorhanden {
-        std::fs::read_to_string(&basis_datei).unwrap_or_default().trim().to_string()
+        std::fs::read_to_string(&basis_datei)
+            .unwrap_or_default()
+            .trim()
+            .to_string()
     } else {
         let (k, u, t, b, br) = (
             klon.clone(),
@@ -1006,7 +1050,10 @@ async fn lauf_ausfuehren(
     };
 
     let auftrag_ordner = basis_ordner.join(format!("auftrag-{}", modus.kennung()));
-    if let Err(e) = auftrag_schreiben(&auftrag_ordner, &lauf::auftrag_json(&ws, &run, modus, &branch)) {
+    if let Err(e) = auftrag_schreiben(
+        &auftrag_ordner,
+        &lauf::auftrag_json(&ws, &run, modus, &branch),
+    ) {
         return Ende::Fehler(format!("Der Auftrag lässt sich nicht schreiben: {e}"));
     }
 
@@ -1056,7 +1103,10 @@ async fn lauf_ausfuehren(
         });
     }
 
-    let laufzeit = zugang.cli.file_name().map_or_else(|| "container".into(), |n| n.to_string_lossy().into_owned());
+    let laufzeit = zugang
+        .cli
+        .file_name()
+        .map_or_else(|| "container".into(), |n| n.to_string_lossy().into_owned());
     let _ = anwenden(
         state,
         key,
@@ -1074,9 +1124,11 @@ async fn lauf_ausfuehren(
     .await;
 
     // Zeitlimit des Laufs (Laufzeit des Agenten, ohne Pausen und Wartezeit auf dich).
-    let erlaubt_s = state.inner.einstellungen.lauf_sekunden.unwrap_or_else(|| {
-        erlaubte_sekunden(ws.limits.run_minutes, run.extra_minutes)
-    });
+    let erlaubt_s = state
+        .inner
+        .einstellungen
+        .lauf_sekunden
+        .unwrap_or_else(|| erlaubte_sekunden(ws.limits.run_minutes, run.extra_minutes));
     let (mut aktiv_s, mut still_s) = (0u64, 0u64);
     let mut takt = tokio::time::interval(Duration::from_secs(1));
     let mut puffer = Vec::new();
@@ -1217,7 +1269,13 @@ async fn lauf_ausfuehren(
     // Prüfen und pushen – das Backend, nicht der Container.
     let export = basis_ordner.join("export.git");
     let (k, e, b, sha, u, t, regeln) = (
-        klon.clone(), export.clone(), branch.clone(), basis_sha, url, zugang.github.clone(), run.rules.clone(),
+        klon.clone(),
+        export.clone(),
+        branch.clone(),
+        basis_sha,
+        url,
+        zugang.github.clone(),
+        run.rules.clone(),
     );
     let veroeffentlicht = tokio::task::spawn_blocking(move || {
         let _ = std::fs::remove_dir_all(&e);
@@ -1294,24 +1352,45 @@ mod tests {
     fn zeitlimit_des_containers() {
         assert_eq!(erlaubte_sekunden(Some(30), 0), 30 * 60 + NACHSPIELZEIT_S);
         assert_eq!(erlaubte_sekunden(Some(30), 10), 40 * 60 + NACHSPIELZEIT_S);
-        assert_eq!(erlaubte_sekunden(None, 0), STANDARD_MAXIMAL_S + NACHSPIELZEIT_S);
+        assert_eq!(
+            erlaubte_sekunden(None, 0),
+            STANDARD_MAXIMAL_S + NACHSPIELZEIT_S
+        );
     }
 
     #[test]
     fn hinweis_zur_erreichbarkeit_aus_dem_container() {
-        let h = pruefung_hinweis(true, false, false, "Der Container erreicht den Proxy nicht (ENOTFOUND).");
+        let h = pruefung_hinweis(
+            true,
+            false,
+            false,
+            "Der Container erreicht den Proxy nicht (ENOTFOUND).",
+        );
         assert!(h.contains("Dein Mac erreicht den Proxy, der Container aber nicht"));
         assert!(h.contains("VPN") && h.contains("ENOTFOUND") && h.contains("podman machine"));
-        assert!(pruefung_hinweis(false, false, false, "x").contains("Weder dein Mac noch der Container"));
+        assert!(
+            pruefung_hinweis(false, false, false, "x")
+                .contains("Weder dein Mac noch der Container")
+        );
         assert!(pruefung_hinweis(true, true, false, "Status 401").contains("Key wird abgelehnt"));
-        assert!(pruefung_hinweis(true, true, true, "").contains("auch aus dem Container erreichbar"));
+        assert!(
+            pruefung_hinweis(true, true, true, "").contains("auch aus dem Container erreichbar")
+        );
     }
 
     #[test]
     fn ratschlaege_beim_bauen() {
         let z = |s: &str| vec![s.to_string()];
-        assert!(bau_hinweis(&z("write: no space left on device")).unwrap().contains("Platz"));
-        assert!(bau_hinweis(&z("dial tcp: lookup registry-1.docker.io: no such host")).unwrap().contains("Netz"));
+        assert!(
+            bau_hinweis(&z("write: no space left on device"))
+                .unwrap()
+                .contains("Platz")
+        );
+        assert!(
+            bau_hinweis(&z("dial tcp: lookup registry-1.docker.io: no such host"))
+                .unwrap()
+                .contains("Netz")
+        );
         assert!(bau_hinweis(&z("etwas ganz anderes")).is_none());
     }
 
@@ -1323,11 +1402,21 @@ mod tests {
         daten.extend_from_slice(b"\nletzte ohne Zeilenende");
         let mut r = BufReader::new(&daten[..]);
         let mut puffer = Vec::new();
-        assert!(matches!(lies_zeile(&mut r, &mut puffer).await.unwrap(), Some(Gelesen::Zeile(z)) if z.contains("hinweise")));
-        assert!(matches!(lies_zeile(&mut r, &mut puffer).await.unwrap(), Some(Gelesen::ZuGross)));
-        assert!(matches!(lies_zeile(&mut r, &mut puffer).await.unwrap(), Some(Gelesen::Zeile(z)) if z == "letzte ohne Zeilenende"));
+        assert!(
+            matches!(lies_zeile(&mut r, &mut puffer).await.unwrap(), Some(Gelesen::Zeile(z)) if z.contains("hinweise"))
+        );
+        assert!(matches!(
+            lies_zeile(&mut r, &mut puffer).await.unwrap(),
+            Some(Gelesen::ZuGross)
+        ));
+        assert!(
+            matches!(lies_zeile(&mut r, &mut puffer).await.unwrap(), Some(Gelesen::Zeile(z)) if z == "letzte ohne Zeilenende")
+        );
         assert!(lies_zeile(&mut r, &mut puffer).await.unwrap().is_none());
-        assert!(puffer.capacity() < MAX_ZEILE * 2, "es wird nie mehr als eine Zeile Maximum gepuffert");
+        assert!(
+            puffer.capacity() < MAX_ZEILE * 2,
+            "es wird nie mehr als eine Zeile Maximum gepuffert"
+        );
     }
 
     // ---------- mit Attrappe als docker und lokalem Git-Remote ----------
@@ -1379,7 +1468,11 @@ exit 0
             .env("GIT_COMMITTER_EMAIL", "t@t.invalid")
             .output()
             .unwrap();
-        assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+        assert!(
+            out.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
     }
 
     impl Welt {
@@ -1401,7 +1494,10 @@ exit 0
                 .args(["for-each-ref", "--format=%(refname:short)", "refs/heads"])
                 .output()
                 .unwrap();
-            let mut v: Vec<String> = String::from_utf8_lossy(&out.stdout).lines().map(str::to_string).collect();
+            let mut v: Vec<String> = String::from_utf8_lossy(&out.stdout)
+                .lines()
+                .map(str::to_string)
+                .collect();
             v.sort();
             v
         }
@@ -1425,7 +1521,10 @@ exit 0
         async fn start(&self, plan_first: bool) {
             self.aktion(Action::StartAgent {
                 ticket: "BAU-142".into(),
-                options: AgentOptions { plan_first, ..AgentOptions::default() },
+                options: AgentOptions {
+                    plan_first,
+                    ..AgentOptions::default()
+                },
             })
             .await
             .unwrap();
@@ -1438,7 +1537,11 @@ exit 0
                 if bedingung(&self.ws()) {
                     return;
                 }
-                assert!(Instant::now() < ende, "Zeitüberschreitung beim Warten auf: {was}\n{:#?}", self.lauf());
+                assert!(
+                    Instant::now() < ende,
+                    "Zeitüberschreitung beim Warten auf: {was}\n{:#?}",
+                    self.lauf()
+                );
                 tokio::time::sleep(Duration::from_millis(40)).await;
             }
         }
@@ -1470,7 +1573,10 @@ exit 0
         sh(&quelle, &["add", "-A"]);
         sh(&quelle, &["commit", "--quiet", "-m", "Anfang"]);
         std::fs::create_dir_all(tmp.path().join("git/firma")).unwrap();
-        sh(tmp.path(), &["clone", "--quiet", "--bare", "quelle", "git/firma/app.git"]);
+        sh(
+            tmp.path(),
+            &["clone", "--quiet", "--bare", "quelle", "git/firma/app.git"],
+        );
 
         let agent_dir = tmp.path().join("agent");
         std::fs::create_dir_all(&agent_dir).unwrap();
@@ -1496,9 +1602,19 @@ exit 0
             ..Einstellungen::default()
         };
         let conn = crate::db::open(&tmp.path().join("t.db")).unwrap();
-        let state = AppState::neu(conn, secrets.clone(), 8787, crate::abgleich::Quellen::default(), einst);
+        let state = AppState::neu(
+            conn,
+            secrets.clone(),
+            8787,
+            crate::abgleich::Quellen::default(),
+            einst,
+        );
         state.inner.live.setze_stand_fuer_test(demo::workspace());
-        Welt { tmp, state, secrets }
+        Welt {
+            tmp,
+            state,
+            secrets,
+        }
     }
 
     const BRANCH: &str = "claude/BAU-142-toggle-fokus-ring-fehlt";
@@ -1523,19 +1639,39 @@ exit 0
         let w = welt(false);
         std::fs::remove_file(w.bin().join("docker")).unwrap();
         let st = w.state.clone();
-        let status = tokio::task::spawn_blocking(move || st.agent_status()).await.unwrap();
+        let status = tokio::task::spawn_blocking(move || st.agent_status())
+            .await
+            .unwrap();
         assert_eq!(status.modus, "echt");
         assert!(!status.bereit);
         let text = status.fehlt.join(" ");
-        assert!(text.contains("Einrichten") && text.contains("Container") && text.contains("Modell") && text.contains("GitHub"), "{text}");
+        assert!(
+            text.contains("Einrichten")
+                && text.contains("Container")
+                && text.contains("Modell")
+                && text.contains("GitHub"),
+            "{text}"
+        );
         let fehler = w
-            .aktion(Action::StartAgent { ticket: "BAU-142".into(), options: AgentOptions::default() })
+            .aktion(Action::StartAgent {
+                ticket: "BAU-142".into(),
+                options: AgentOptions::default(),
+            })
             .await
             .unwrap_err();
-        assert!(fehler.contains("Der Agent kann noch nicht starten") && fehler.contains("Einrichten"), "{fehler}");
+        assert!(
+            fehler.contains("Der Agent kann noch nicht starten") && fehler.contains("Einrichten"),
+            "{fehler}"
+        );
         assert!(w.lauf().is_idle(), "es wurde nichts gestartet");
         // Folgeaufträge gibt es noch nicht mit dem echten Agenten.
-        let f = w.aktion(Action::InvestigateCheck { review: 85, check: "Lint".into() }).await.unwrap_err();
+        let f = w
+            .aktion(Action::InvestigateCheck {
+                review: 85,
+                check: "Lint".into(),
+            })
+            .await
+            .unwrap_err();
         assert!(f.contains("noch nicht mit dem echten Agenten"), "{f}");
     }
 
@@ -1544,9 +1680,15 @@ exit 0
         let w = welt(true);
         std::fs::write(w.bin().join("kein-image"), "").unwrap();
         let st = w.state.clone();
-        let status = tokio::task::spawn_blocking(move || st.agent_status()).await.unwrap();
+        let status = tokio::task::spawn_blocking(move || st.agent_status())
+            .await
+            .unwrap();
         assert!(!status.bereit && !status.image);
-        assert!(status.fehlt[0].contains("Image bauen"), "{:?}", status.fehlt);
+        assert!(
+            status.fehlt[0].contains("Image bauen"),
+            "{:?}",
+            status.fehlt
+        );
     }
 
     #[tokio::test]
@@ -1554,15 +1696,25 @@ exit 0
         let w = welt(true);
         w.schreibe("szenario-lauf.sh", &szenario_ok());
         w.start(false).await;
-        w.warte("Lauf fertig", |ws| ws.run("BAU-142").is_some_and(|r| r.is_done())).await;
+        w.warte("Lauf fertig", |ws| {
+            ws.run("BAU-142").is_some_and(|r| r.is_done())
+        })
+        .await;
         w.warte_auf_ende().await;
 
         let run = w.lauf();
-        assert!(run.summary.contains("Branch claude/BAU-142") && run.summary.contains("gepusht"), "{}", run.summary);
+        assert!(
+            run.summary.contains("Branch claude/BAU-142") && run.summary.contains("gepusht"),
+            "{}",
+            run.summary
+        );
         assert_eq!(run.files, ["neu.txt"]);
         // Verbrauch aus dem Lauf, mit den Preisen aus den Einstellungen.
         let u = run.usage();
-        assert_eq!((u.input_tokens, u.output_tokens, u.millis), (1000, 200, 1500));
+        assert_eq!(
+            (u.input_tokens, u.output_tokens, u.millis),
+            (1000, 200, 1500)
+        );
         assert!(u.cost_cents >= 1);
         assert_eq!(w.ws().spent_month(jetzt_ms()).input_tokens, 1000);
         // Protokoll: vom Agenten, in Klartext.
@@ -1572,25 +1724,64 @@ exit 0
             .iter()
             .map(|e| e.text.clone())
             .collect();
-        assert!(agent_eintraege.iter().any(|t| t.contains("Container gestartet")), "{agent_eintraege:?}");
-        assert!(agent_eintraege.iter().any(|t| t.contains("Datei ändern")), "{agent_eintraege:?}");
+        assert!(
+            agent_eintraege
+                .iter()
+                .any(|t| t.contains("Container gestartet")),
+            "{agent_eintraege:?}"
+        );
+        assert!(
+            agent_eintraege.iter().any(|t| t.contains("Datei ändern")),
+            "{agent_eintraege:?}"
+        );
         // Der Branch liegt im Remote, main ist unberührt.
         assert_eq!(w.zweige(), [BRANCH, "main"]);
         // Nur CLI-Aufrufe, gemeinsame Schalter, Label je Lauf, Zeitlimit-Name, kein Geheimnis.
         let aufrufe = w.log("aufrufe.log");
-        let lauf_zeile = aufrufe.lines().find(|z| z.starts_with("run ")).expect("run aufgerufen");
-        for muss in ["--rm", "--label cockpit.lauf=BAU-142", "--add-host cockpit-host:host-gateway", ":/work ", ":/auftrag:ro", "-e ANTHROPIC_AUTH_TOKEN", "localhost/cockpit-agent:1"] {
+        let lauf_zeile = aufrufe
+            .lines()
+            .find(|z| z.starts_with("run "))
+            .expect("run aufgerufen");
+        for muss in [
+            "--rm",
+            "--label cockpit.lauf=BAU-142",
+            "--add-host cockpit-host:host-gateway",
+            ":/work ",
+            ":/auftrag:ro",
+            "-e ANTHROPIC_AUTH_TOKEN",
+            "localhost/cockpit-agent:1",
+        ] {
             assert!(lauf_zeile.contains(muss), "{muss} fehlt: {lauf_zeile}");
         }
-        assert!(!aufrufe.contains(TOKEN) && !aufrufe.contains(GITHUB), "Geheimnis in der Argumentliste: {aufrufe}");
-        assert!(!aufrufe.contains("https://litellm.example"), "auch die Adresse steht nur in der Umgebung");
+        assert!(
+            !aufrufe.contains(TOKEN) && !aufrufe.contains(GITHUB),
+            "Geheimnis in der Argumentliste: {aufrufe}"
+        );
+        assert!(
+            !aufrufe.contains("https://litellm.example"),
+            "auch die Adresse steht nur in der Umgebung"
+        );
         // Der Wert kommt über die Umgebung des Kindprozesses an.
         let env = w.log("umgebung.log");
-        assert!(env.contains(&format!("TOKEN={TOKEN}")) && env.contains("BASE=https://litellm.example") && env.contains("MODEL=claude-sonnet-5-5"), "{env}");
+        assert!(
+            env.contains(&format!("TOKEN={TOKEN}"))
+                && env.contains("BASE=https://litellm.example")
+                && env.contains("MODEL=claude-sonnet-5-5"),
+            "{env}"
+        );
         // Nichts bleibt liegen.
-        assert!(!w.state.agent_ordner().join("laeufe").join("BAU-142").exists());
+        assert!(
+            !w.state
+                .agent_ordner()
+                .join("laeufe")
+                .join("BAU-142")
+                .exists()
+        );
         // Das Ticket zeigt den Branch, aber es gibt keinen erfundenen Pull Request.
-        assert_eq!(w.ws().item_by_key("BAU-142").unwrap().branch.as_deref(), Some(BRANCH));
+        assert_eq!(
+            w.ws().item_by_key("BAU-142").unwrap().branch.as_deref(),
+            Some(BRANCH)
+        );
     }
 
     #[tokio::test]
@@ -1605,23 +1796,51 @@ exit 0
         w.schreibe("szenario-lauf.sh", &szenario_ok());
         w.start(true).await;
         // Solange der Plan erarbeitet wird, lässt er sich nicht freigeben.
-        let f = w.aktion(Action::ApprovePlan { ticket: "BAU-142".into() }).await.unwrap_err();
+        let f = w
+            .aktion(Action::ApprovePlan {
+                ticket: "BAU-142".into(),
+            })
+            .await
+            .unwrap_err();
         assert!(f.contains("erarbeitet den Plan noch"), "{f}");
-        w.warte("Plan liegt vor", |ws| ws.run("BAU-142").is_some_and(|r| r.agent_plan.is_some())).await;
+        w.warte("Plan liegt vor", |ws| {
+            ws.run("BAU-142").is_some_and(|r| r.agent_plan.is_some())
+        })
+        .await;
         w.warte_auf_ende().await;
         let run = w.lauf();
         assert!(run.is_awaiting());
         assert_eq!(run.plan().unwrap().summary, "Fokus-Ring ergänzen");
         assert_eq!(run.usage().input_tokens, 500, "auch das Planen kostet");
-        assert!(w.zweige() == ["main"], "vor der Freigabe entsteht nichts im Remote");
+        assert!(
+            w.zweige() == ["main"],
+            "vor der Freigabe entsteht nichts im Remote"
+        );
         // Der Plan-Container bekommt den Klon nur zum Lesen.
-        assert!(w.log("aufrufe.log").lines().any(|z| z.starts_with("run ") && z.contains(":/work:ro")));
+        assert!(
+            w.log("aufrufe.log")
+                .lines()
+                .any(|z| z.starts_with("run ") && z.contains(":/work:ro"))
+        );
         // Freigabe: jetzt läuft der Container zum Umsetzen.
-        w.aktion(Action::ApprovePlan { ticket: "BAU-142".into() }).await.unwrap();
-        w.warte("fertig", |ws| ws.run("BAU-142").is_some_and(|r| r.is_done())).await;
+        w.aktion(Action::ApprovePlan {
+            ticket: "BAU-142".into(),
+        })
+        .await
+        .unwrap();
+        w.warte("fertig", |ws| {
+            ws.run("BAU-142").is_some_and(|r| r.is_done())
+        })
+        .await;
         w.warte_auf_ende().await;
         assert_eq!(w.zweige(), [BRANCH, "main"]);
-        assert_eq!(w.log("aufrufe.log").lines().filter(|z| z.starts_with("run ")).count(), 2);
+        assert_eq!(
+            w.log("aufrufe.log")
+                .lines()
+                .filter(|z| z.starts_with("run "))
+                .count(),
+            2
+        );
     }
 
     #[tokio::test]
@@ -1636,16 +1855,35 @@ exit 137
         );
         let mut grenzen = w.ws().limits.clone();
         grenzen.run_budget_cents = Some(50);
-        w.aktion(Action::SetAgentLimits { limits: grenzen }).await.unwrap();
+        w.aktion(Action::SetAgentLimits { limits: grenzen })
+            .await
+            .unwrap();
         w.start(false).await;
-        w.warte("angehalten", |ws| ws.run("BAU-142").is_some_and(|r| r.is_stopped())).await;
+        w.warte("angehalten", |ws| {
+            ws.run("BAU-142").is_some_and(|r| r.is_stopped())
+        })
+        .await;
         w.warte_auf_ende().await;
-        assert!(w.log("aufrufe.log").lines().any(|z| z.starts_with("rm -f cockpit-lauf-BAU-142-")), "der Container wurde entfernt");
+        assert!(
+            w.log("aufrufe.log")
+                .lines()
+                .any(|z| z.starts_with("rm -f cockpit-lauf-BAU-142-")),
+            "der Container wurde entfernt"
+        );
         let run = w.lauf();
-        assert!(run.messages.iter().any(|m| m.text.starts_with("Angehalten: Budget pro Lauf erreicht")));
+        assert!(
+            run.messages
+                .iter()
+                .any(|m| m.text.starts_with("Angehalten: Budget pro Lauf erreicht"))
+        );
         assert_eq!(w.zweige(), ["main"]);
         // Der Klon bleibt für das Fortsetzen.
-        assert!(w.state.agent_ordner().join("laeufe/BAU-142/lauf/.git").exists());
+        assert!(
+            w.state
+                .agent_ordner()
+                .join("laeufe/BAU-142/lauf/.git")
+                .exists()
+        );
         // Sie wird nicht erneut gestartet, solange sie angehalten ist.
         w.state.aufpassen().await;
         assert!(sperre(&w.state.inner.agent.laufend).is_empty());
@@ -1661,10 +1899,22 @@ exit 137
 "#,
         );
         w.start(false).await;
-        w.warte("Container läuft", |_| !sperre(&w.state.inner.agent.laufend).is_empty() && w.log("aufrufe.log").contains("run ")).await;
-        w.aktion(Action::CancelAgent { ticket: "BAU-142".into() }).await.unwrap();
+        w.warte("Container läuft", |_| {
+            !sperre(&w.state.inner.agent.laufend).is_empty()
+                && w.log("aufrufe.log").contains("run ")
+        })
+        .await;
+        w.aktion(Action::CancelAgent {
+            ticket: "BAU-142".into(),
+        })
+        .await
+        .unwrap();
         w.warte_auf_ende().await;
-        assert!(w.log("aufrufe.log").lines().any(|z| z.starts_with("rm -f cockpit-lauf-BAU-142-")));
+        assert!(
+            w.log("aufrufe.log")
+                .lines()
+                .any(|z| z.starts_with("rm -f cockpit-lauf-BAU-142-"))
+        );
         let run = w.lauf();
         assert!(run.is_idle());
         assert_eq!(run.ended, None, "ein Abbruch durch dich ist kein Fehler");
@@ -1683,11 +1933,17 @@ exit 1
 "#,
         );
         w.start(false).await;
-        w.warte("beendet", |ws| ws.run("BAU-142").is_some_and(|r| r.ended.is_some())).await;
+        w.warte("beendet", |ws| {
+            ws.run("BAU-142").is_some_and(|r| r.ended.is_some())
+        })
+        .await;
         w.warte_auf_ende().await;
         let run = w.lauf();
         assert!(run.is_idle());
-        assert_eq!(run.ended.as_deref(), Some("Das SDK meldet: Verbindung abgewiesen"));
+        assert_eq!(
+            run.ended.as_deref(),
+            Some("Das SDK meldet: Verbindung abgewiesen")
+        );
         assert!(run.log().contains("Verbindung abgewiesen"));
         assert!(!w.state.agent_ordner().join("laeufe/BAU-142").exists());
 
@@ -1698,21 +1954,42 @@ exit 1
         );
         sperre(&w.state.inner.agent.gescheitert).clear();
         w.start(false).await;
-        w.warte("beendet", |ws| ws.run("BAU-142").is_some_and(|r| r.ended.as_deref().is_some_and(|e| e.contains("Fehlercode 3")))).await;
+        w.warte("beendet", |ws| {
+            ws.run("BAU-142").is_some_and(|r| {
+                r.ended
+                    .as_deref()
+                    .is_some_and(|e| e.contains("Fehlercode 3"))
+            })
+        })
+        .await;
         let ended = w.lauf().ended.unwrap();
         assert!(ended.contains("boom mit"), "{ended}");
         assert!(!ended.contains(TOKEN) && !ended.contains(GITHUB), "{ended}");
-        assert!(!w.ws().log.iter().any(|e| e.text.contains(TOKEN) || e.text.contains(GITHUB)));
+        assert!(
+            !w.ws()
+                .log
+                .iter()
+                .any(|e| e.text.contains(TOKEN) || e.text.contains(GITHUB))
+        );
     }
 
     #[tokio::test]
     async fn docker_startet_nicht_in_klartext() {
         let w = welt(true);
-        w.schreibe("szenario-lauf.sh", "echo 'Cannot connect to the Docker daemon' >&2\nexit 125\n");
+        w.schreibe(
+            "szenario-lauf.sh",
+            "echo 'Cannot connect to the Docker daemon' >&2\nexit 125\n",
+        );
         w.start(false).await;
-        w.warte("beendet", |ws| ws.run("BAU-142").is_some_and(|r| r.ended.is_some())).await;
+        w.warte("beendet", |ws| {
+            ws.run("BAU-142").is_some_and(|r| r.ended.is_some())
+        })
+        .await;
         let e = w.lauf().ended.unwrap();
-        assert!(e.contains("ließ sich nicht starten") && e.contains("Docker daemon"), "{e}");
+        assert!(
+            e.contains("ließ sich nicht starten") && e.contains("Docker daemon"),
+            "{e}"
+        );
     }
 
     #[tokio::test]
@@ -1727,7 +2004,10 @@ exit 1
         ));
         w.schreibe("szenario-lauf.sh", &s);
         w.start(false).await;
-        w.warte("fertig", |ws| ws.run("BAU-142").is_some_and(|r| r.is_done())).await;
+        w.warte("fertig", |ws| {
+            ws.run("BAU-142").is_some_and(|r| r.is_done())
+        })
+        .await;
         assert_eq!(w.lauf().usage().input_tokens, 1000);
     }
 
@@ -1748,84 +2028,188 @@ printf '%s\n' '{{"t":"hinweise_angekommen"}}'
             ),
         );
         w.start(false).await;
-        w.warte("Frage", |ws| ws.run("BAU-142").is_some_and(|r| r.is_asking())).await;
+        w.warte("Frage", |ws| {
+            ws.run("BAU-142").is_some_and(|r| r.is_asking())
+        })
+        .await;
         assert_eq!(w.lauf().question.unwrap().suggestions, ["blau", "rot"]);
-        w.aktion(Action::AnswerAgent { run: "BAU-142".into(), text: "blau".into() }).await.unwrap();
-        w.warte("Antwort angekommen", |_| w.log("stdin.log").contains("antwort")).await;
-        assert!(w.log("stdin.log").contains(r#"{"t":"antwort","text":"blau"}"#), "{}", w.log("stdin.log"));
-        w.aktion(Action::SteerAgent { run: "BAU-142".into(), text: "Kleine Commits".into() }).await.unwrap();
-        w.warte("fertig", |ws| ws.run("BAU-142").is_some_and(|r| r.is_done())).await;
-        assert!(w.log("stdin.log").contains(r#"{"t":"hinweis","text":"Kleine Commits"}"#));
+        w.aktion(Action::AnswerAgent {
+            run: "BAU-142".into(),
+            text: "blau".into(),
+        })
+        .await
+        .unwrap();
+        w.warte("Antwort angekommen", |_| {
+            w.log("stdin.log").contains("antwort")
+        })
+        .await;
+        assert!(
+            w.log("stdin.log")
+                .contains(r#"{"t":"antwort","text":"blau"}"#),
+            "{}",
+            w.log("stdin.log")
+        );
+        w.aktion(Action::SteerAgent {
+            run: "BAU-142".into(),
+            text: "Kleine Commits".into(),
+        })
+        .await
+        .unwrap();
+        w.warte("fertig", |ws| {
+            ws.run("BAU-142").is_some_and(|r| r.is_done())
+        })
+        .await;
+        assert!(
+            w.log("stdin.log")
+                .contains(r#"{"t":"hinweis","text":"Kleine Commits"}"#)
+        );
         let run = w.lauf();
         assert!(run.pending_hints.is_empty());
-        assert!(run.messages.iter().any(|m| m.kind == MessageKind::Ack && m.text.contains("Kleine Commits")));
+        assert!(
+            run.messages
+                .iter()
+                .any(|m| m.kind == MessageKind::Ack && m.text.contains("Kleine Commits"))
+        );
     }
 
     #[tokio::test]
     async fn pause_und_fortsetzen_gehen_an_den_container() {
         let w = welt(true);
-        w.schreibe("szenario-lauf.sh", &format!("while [ ! -e \"$d/weiter\" ]; do sleep 0.05; done\n{}", szenario_ok()));
+        w.schreibe(
+            "szenario-lauf.sh",
+            &format!(
+                "while [ ! -e \"$d/weiter\" ]; do sleep 0.05; done\n{}",
+                szenario_ok()
+            ),
+        );
         w.start(false).await;
-        w.warte("Container", |_| w.log("aufrufe.log").contains("run ")).await;
-        w.aktion(Action::PauseAgent { run: "BAU-142".into() }).await.unwrap();
-        w.warte("pausiert", |_| w.log("pause.log").contains("pause")).await;
-        w.aktion(Action::ResumeAgent { run: "BAU-142".into() }).await.unwrap();
-        w.warte("fortgesetzt", |_| w.log("pause.log").contains("unpause")).await;
+        w.warte("Container", |_| w.log("aufrufe.log").contains("run "))
+            .await;
+        w.aktion(Action::PauseAgent {
+            run: "BAU-142".into(),
+        })
+        .await
+        .unwrap();
+        w.warte("pausiert", |_| w.log("pause.log").contains("pause"))
+            .await;
+        w.aktion(Action::ResumeAgent {
+            run: "BAU-142".into(),
+        })
+        .await
+        .unwrap();
+        w.warte("fortgesetzt", |_| w.log("pause.log").contains("unpause"))
+            .await;
         w.schreibe("weiter", "");
-        w.warte("fertig", |ws| ws.run("BAU-142").is_some_and(|r| r.is_done())).await;
+        w.warte("fertig", |ws| {
+            ws.run("BAU-142").is_some_and(|r| r.is_done())
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn zeitlimit_beendet_den_container_mit_klartext() {
         let mut w = welt(true);
         // Eigene Einstellungen mit 1 Sekunde Obergrenze.
-        let e = Einstellungen { lauf_sekunden: Some(1), ..w.state.inner.einstellungen.clone() };
+        let e = Einstellungen {
+            lauf_sekunden: Some(1),
+            ..w.state.inner.einstellungen.clone()
+        };
         let conn = crate::db::open(&w.tmp.path().join("z.db")).unwrap();
-        w.state = AppState::neu(conn, w.secrets.clone(), 8787, crate::abgleich::Quellen::default(), e);
+        w.state = AppState::neu(
+            conn,
+            w.secrets.clone(),
+            8787,
+            crate::abgleich::Quellen::default(),
+            e,
+        );
         w.state.inner.live.setze_stand_fuer_test(demo::workspace());
-        w.schreibe("szenario-lauf.sh", "while [ ! -e \"$d/gestoppt-$name\" ]; do sleep 0.05; done\nexit 137\n");
+        w.schreibe(
+            "szenario-lauf.sh",
+            "while [ ! -e \"$d/gestoppt-$name\" ]; do sleep 0.05; done\nexit 137\n",
+        );
         w.start(false).await;
-        w.warte("Zeitlimit", |ws| ws.run("BAU-142").is_some_and(|r| r.ended.is_some())).await;
+        w.warte("Zeitlimit", |ws| {
+            ws.run("BAU-142").is_some_and(|r| r.ended.is_some())
+        })
+        .await;
         let e = w.lauf().ended.unwrap();
         assert!(e.contains("Zeitlimit") && e.contains("beendet"), "{e}");
-        assert!(w.log("aufrufe.log").lines().any(|z| z.starts_with("rm -f cockpit-lauf-BAU-142-")));
+        assert!(
+            w.log("aufrufe.log")
+                .lines()
+                .any(|z| z.starts_with("rm -f cockpit-lauf-BAU-142-"))
+        );
     }
 
     #[tokio::test]
     async fn verbotene_pfade_verhindern_den_push() {
         let w = welt(true);
-        let mut r = cockpit_core::RepoRules::default();
-        r.forbidden_paths = vec!["*.txt".into()];
-        w.aktion(Action::SetRepoRules { repo: cockpit_core::DEMO_REPO.into(), rules: r }).await.unwrap();
+        let r = cockpit_core::RepoRules {
+            forbidden_paths: vec!["*.txt".into()],
+            ..Default::default()
+        };
+        w.aktion(Action::SetRepoRules {
+            repo: cockpit_core::DEMO_REPO.into(),
+            rules: r,
+        })
+        .await
+        .unwrap();
         w.schreibe("szenario-lauf.sh", &szenario_ok());
         w.start(false).await;
-        w.warte("beendet", |ws| ws.run("BAU-142").is_some_and(|r| r.ended.is_some())).await;
-        assert!(w.lauf().ended.unwrap().contains("verstoßen gegen die Regeln"));
+        w.warte("beendet", |ws| {
+            ws.run("BAU-142").is_some_and(|r| r.ended.is_some())
+        })
+        .await;
+        assert!(
+            w.lauf()
+                .ended
+                .unwrap()
+                .contains("verstoßen gegen die Regeln")
+        );
         assert_eq!(w.zweige(), ["main"]);
     }
 
     #[tokio::test]
     async fn neustart_raeumt_verwaiste_container_auf_und_markiert_laeufe() {
         let w = welt(true);
-        w.schreibe("szenario-lauf.sh", "while [ ! -e \"$d/gestoppt-$name\" ]; do sleep 0.05; done\nexit 137\n");
+        w.schreibe(
+            "szenario-lauf.sh",
+            "while [ ! -e \"$d/gestoppt-$name\" ]; do sleep 0.05; done\nexit 137\n",
+        );
         w.start(false).await;
-        w.warte("Container", |_| w.log("aufrufe.log").contains("run ")).await;
+        w.warte("Container", |_| w.log("aufrufe.log").contains("run "))
+            .await;
         // „Neustart“: neuer Server-Zustand mit demselben gespeicherten Stand, Container sind weg.
         let ws = w.ws();
         let conn = crate::db::open(&w.tmp.path().join("neu.db")).unwrap();
-        let neu = AppState::neu(conn, w.secrets.clone(), 8787, crate::abgleich::Quellen::default(), w.state.inner.einstellungen.clone());
+        let neu = AppState::neu(
+            conn,
+            w.secrets.clone(),
+            8787,
+            crate::abgleich::Quellen::default(),
+            w.state.inner.einstellungen.clone(),
+        );
         neu.inner.live.setze_stand_fuer_test(ws);
         w.schreibe("ps.out", "abc123\ndef456\n");
         let n = neu.clone();
-        tokio::task::spawn_blocking(move || n.agent_aufraeumen()).await.unwrap();
+        tokio::task::spawn_blocking(move || n.agent_aufraeumen())
+            .await
+            .unwrap();
         let aufrufe = w.log("aufrufe.log");
-        assert!(aufrufe.contains("ps -a -q --filter label=cockpit.lauf"), "{aufrufe}");
+        assert!(
+            aufrufe.contains("ps -a -q --filter label=cockpit.lauf"),
+            "{aufrufe}"
+        );
         assert!(aufrufe.contains("rm -f abc123 def456"), "{aufrufe}");
         let run = neu.inner.live.kopie().run("BAU-142").unwrap();
         assert!(run.is_idle());
         assert!(run.ended.unwrap().contains("Server wurde neu gestartet"));
         // Den alten Lauf im ersten Zustand beenden.
-        w.aktion(Action::CancelAgent { ticket: "BAU-142".into() }).await.unwrap();
+        w.aktion(Action::CancelAgent {
+            ticket: "BAU-142".into(),
+        })
+        .await
+        .unwrap();
         w.warte_auf_ende().await;
     }
 
@@ -1834,16 +2218,25 @@ printf '%s\n' '{{"t":"hinweise_angekommen"}}'
         let w = welt(true);
         w.schreibe("build.out", "Step 1/5 : FROM docker.io/library/node:24-bookworm-slim\nStep 2/5 : RUN apt-get update\n");
         let st = w.state.clone();
-        let b = tokio::task::spawn_blocking(move || st.image_bauen()).await.unwrap().unwrap();
+        let b = tokio::task::spawn_blocking(move || st.image_bauen())
+            .await
+            .unwrap()
+            .unwrap();
         assert!(b.laeuft);
         let ende = Instant::now() + Duration::from_secs(10);
         loop {
             let st = w.state.clone();
-            let b = tokio::task::spawn_blocking(move || st.image_stand()).await.unwrap();
+            let b = tokio::task::spawn_blocking(move || st.image_stand())
+                .await
+                .unwrap();
             if !b.laeuft {
                 assert!(b.fehler.is_none(), "{b:?}");
                 assert!(b.vorhanden);
-                assert!(b.zeilen.iter().any(|z| z.starts_with("Step 2/5")), "{:?}", b.zeilen);
+                assert!(
+                    b.zeilen.iter().any(|z| z.starts_with("Step 2/5")),
+                    "{:?}",
+                    b.zeilen
+                );
                 break;
             }
             assert!(Instant::now() < ende);
@@ -1851,16 +2244,26 @@ printf '%s\n' '{{"t":"hinweise_angekommen"}}'
         }
         let aufrufe = w.log("aufrufe.log");
         let bau = aufrufe.lines().find(|z| z.starts_with("build ")).unwrap();
-        assert!(bau.contains("-f ") && bau.contains("Containerfile") && bau.contains("-t localhost/cockpit-agent:1"), "{bau}");
+        assert!(
+            bau.contains("-f ")
+                && bau.contains("Containerfile")
+                && bau.contains("-t localhost/cockpit-agent:1"),
+            "{bau}"
+        );
 
         // Fehlschlag mit Rat.
         w.schreibe("build.fehler", "");
         let st = w.state.clone();
-        tokio::task::spawn_blocking(move || st.image_bauen()).await.unwrap().unwrap();
+        tokio::task::spawn_blocking(move || st.image_bauen())
+            .await
+            .unwrap()
+            .unwrap();
         let ende = Instant::now() + Duration::from_secs(10);
         loop {
             let st = w.state.clone();
-            let b = tokio::task::spawn_blocking(move || st.image_stand()).await.unwrap();
+            let b = tokio::task::spawn_blocking(move || st.image_stand())
+                .await
+                .unwrap();
             if !b.laeuft {
                 let f = b.fehler.expect("Fehler");
                 assert!(f.contains("gescheitert") && f.contains("Platz"), "{f}");
@@ -1874,15 +2277,30 @@ printf '%s\n' '{{"t":"hinweise_angekommen"}}'
     #[tokio::test]
     async fn bau_ohne_containerfile_und_ohne_laufzeit_sagt_warum() {
         let w = welt(true);
-        std::fs::remove_file(w.state.inner.einstellungen.agent_dir.clone().unwrap().join("Containerfile")).unwrap();
+        std::fs::remove_file(
+            w.state
+                .inner
+                .einstellungen
+                .agent_dir
+                .clone()
+                .unwrap()
+                .join("Containerfile"),
+        )
+        .unwrap();
         let st = w.state.clone();
-        let e = tokio::task::spawn_blocking(move || st.image_bauen()).await.unwrap().unwrap_err();
+        let e = tokio::task::spawn_blocking(move || st.image_bauen())
+            .await
+            .unwrap()
+            .unwrap_err();
         assert!(e.contains("Containerfile fehlt"), "{e}");
         // Ohne Container-Programm: neuer Zustand (der Zwischenspeicher gilt 10 Sekunden).
         let w = welt(true);
         std::fs::remove_file(w.bin().join("docker")).unwrap();
         let st = w.state.clone();
-        let e = tokio::task::spawn_blocking(move || st.image_bauen()).await.unwrap().unwrap_err();
+        let e = tokio::task::spawn_blocking(move || st.image_bauen())
+            .await
+            .unwrap()
+            .unwrap_err();
         assert!(e.contains("docker") && e.contains("PATH"), "{e}");
     }
 
@@ -1893,17 +2311,29 @@ printf '%s\n' '{{"t":"hinweise_angekommen"}}'
         let proxy = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/v1/models"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({"data":[{"id":"claude-sonnet-5-5"}]})))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"data":[{"id":"claude-sonnet-5-5"}]})),
+            )
             .mount(&proxy)
             .await;
         let w = welt(true);
         // Der Proxy des Tests liegt auf dem Mac; der „Container“ erreicht ihn nicht.
         let e = Einstellungen {
-            litellm: Some(LitellmKonfig { url: proxy.uri(), modell: Some("claude-sonnet-5-5".into()) }),
+            litellm: Some(LitellmKonfig {
+                url: proxy.uri(),
+                modell: Some("claude-sonnet-5-5".into()),
+            }),
             ..w.state.inner.einstellungen.clone()
         };
         let conn = crate::db::open(&w.tmp.path().join("p.db")).unwrap();
-        let state = AppState::neu(conn, w.secrets.clone(), 8787, crate::abgleich::Quellen::default(), e);
+        let state = AppState::neu(
+            conn,
+            w.secrets.clone(),
+            8787,
+            crate::abgleich::Quellen::default(),
+            e,
+        );
         w.schreibe(
             "szenario-plan.sh",
             r#"printf '%s\n' '{"t":"pruefung","erreichbar":false,"key_ok":false,"hinweis":"Der Container erreicht den Proxy nicht (ENOTFOUND)."}'
@@ -1911,9 +2341,17 @@ exit 1
 "#,
         );
         let p = state.container_pruefen().await;
-        assert!(p.geprueft && p.mac_erreicht && !p.container_erreicht, "{p:?}");
+        assert!(
+            p.geprueft && p.mac_erreicht && !p.container_erreicht,
+            "{p:?}"
+        );
         let h = p.hinweis.unwrap();
-        assert!(h.contains("Dein Mac erreicht den Proxy, der Container aber nicht") && h.contains("VPN") && h.contains("ENOTFOUND"), "{h}");
+        assert!(
+            h.contains("Dein Mac erreicht den Proxy, der Container aber nicht")
+                && h.contains("VPN")
+                && h.contains("ENOTFOUND"),
+            "{h}"
+        );
         let aufrufe = w.log("aufrufe.log");
         let z = aufrufe.lines().find(|z| z.starts_with("run ")).unwrap();
         assert!(z.contains("--rm") && z.contains(":ro"), "{z}");
@@ -1925,7 +2363,11 @@ exit 1
         );
         let p = state.container_pruefen().await;
         assert!(p.container_erreicht && p.key_ok);
-        assert!(p.hinweis.unwrap().contains("auch aus dem Container erreichbar"));
+        assert!(
+            p.hinweis
+                .unwrap()
+                .contains("auch aus dem Container erreichbar")
+        );
     }
 
     #[tokio::test]

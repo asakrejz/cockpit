@@ -211,8 +211,17 @@ pub fn klonen(
     let z = ziel.to_string_lossy().into_owned();
     git(
         &[
-            "clone", "--quiet", "--no-tags", "--depth", "50", "--single-branch", "--branch",
-            basis_branch, "--", url, &z,
+            "clone",
+            "--quiet",
+            "--no-tags",
+            "--depth",
+            "50",
+            "--single-branch",
+            "--branch",
+            basis_branch,
+            "--",
+            url,
+            &z,
         ],
         None,
         url,
@@ -276,7 +285,8 @@ pub fn veroeffentlichen(
         None,
     )
     .map_err(|_| {
-        "Der Branch des Agenten baut nicht auf dem Stand auf, von dem aus geklont wurde.".to_string()
+        "Der Branch des Agenten baut nicht auf dem Stand auf, von dem aus geklont wurde."
+            .to_string()
     })?;
     let anzahl = git(
         &["rev-list", "--count", &format!("{basis_sha}..{commit}")],
@@ -288,7 +298,14 @@ pub fn veroeffentlichen(
         return Err("Der Agent hat nichts committet, es gibt nichts zu pushen.".into());
     }
     let namen = git(
-        &["diff", "--name-only", "--no-renames", "-z", basis_sha, &commit],
+        &[
+            "diff",
+            "--name-only",
+            "--no-renames",
+            "-z",
+            basis_sha,
+            &commit,
+        ],
         Some(export),
         "",
         None,
@@ -339,8 +356,17 @@ mod tests {
         assert!(branch_ok("claude/BAU-142-fokus-ring"));
         assert!(branch_ok("claude/a/b"));
         for schlecht in [
-            "main", "master", "claude", "claude/", "claude/../main", "claude/a b",
-            "claude/a//b", "claude/x.lock", "agent/BAU-1", "refs/heads/main", "claude/a;b",
+            "main",
+            "master",
+            "claude",
+            "claude/",
+            "claude/../main",
+            "claude/a b",
+            "claude/a//b",
+            "claude/x.lock",
+            "agent/BAU-1",
+            "refs/heads/main",
+            "claude/a;b",
             "claude/-f",
         ] {
             // `-f` beginnt nicht mit `-`, weil „claude/“ davor steht; erlaubt, aber harmlos.
@@ -353,8 +379,14 @@ mod tests {
 
     #[test]
     fn adressen() {
-        assert_eq!(basis_aus_api("https://api.github.com/"), "https://github.com");
-        assert_eq!(basis_aus_api("https://ghe.example/api/v3"), "https://ghe.example");
+        assert_eq!(
+            basis_aus_api("https://api.github.com/"),
+            "https://github.com"
+        );
+        assert_eq!(
+            basis_aus_api("https://ghe.example/api/v3"),
+            "https://ghe.example"
+        );
         assert_eq!(
             klon_url("https://github.com/", "firma/app"),
             "https://github.com/firma/app.git"
@@ -428,7 +460,10 @@ mod tests {
         std::fs::write(quelle.join("README.md"), "hallo\n").unwrap();
         g(&quelle, &["add", "-A"]);
         g(&quelle, &["commit", "--quiet", "-m", "Anfang"]);
-        g(tmp.path(), &["clone", "--quiet", "--bare", "quelle", "remote.git"]);
+        g(
+            tmp.path(),
+            &["clone", "--quiet", "--bare", "quelle", "remote.git"],
+        );
         Aufbau {
             url: format!("file://{}", remote.display()),
             klon: tmp.path().join("klon"),
@@ -439,10 +474,13 @@ mod tests {
     }
 
     fn heads(remote: &Path) -> Vec<String> {
-        g(remote, &["for-each-ref", "--format=%(refname:short)", "refs/heads"])
-            .lines()
-            .map(str::to_string)
-            .collect()
+        g(
+            remote,
+            &["for-each-ref", "--format=%(refname:short)", "refs/heads"],
+        )
+        .lines()
+        .map(str::to_string)
+        .collect()
     }
 
     /// Spielt den Container nach: ändert Dateien im Klon und committet.
@@ -459,18 +497,32 @@ mod tests {
         let a = aufbau();
         let basis = klonen(&a.url, &a.klon, None, "main", "claude/BAU-1-x").unwrap();
         assert_eq!(basis.len(), 40);
-        assert_eq!(g(&a.klon, &["rev-parse", "--abbrev-ref", "HEAD"]).trim(), "claude/BAU-1-x");
+        assert_eq!(
+            g(&a.klon, &["rev-parse", "--abbrev-ref", "HEAD"]).trim(),
+            "claude/BAU-1-x"
+        );
         assert_eq!(g(&a.klon, &["remote"]).trim(), "", "kein Remote im Klon");
         agent_arbeitet(&a.klon, "src/neu.rs");
-        let v = veroeffentlichen(&a.klon, &a.export, "claude/BAU-1-x", &basis, &a.url, None, &RepoRules::default())
-            .unwrap();
+        let v = veroeffentlichen(
+            &a.klon,
+            &a.export,
+            "claude/BAU-1-x",
+            &basis,
+            &a.url,
+            None,
+            &RepoRules::default(),
+        )
+        .unwrap();
         assert_eq!(v.dateien, ["src/neu.rs"]);
         let mut h = heads(&a.remote);
         h.sort();
         assert_eq!(h, ["claude/BAU-1-x", "main"]);
         // main im Remote ist unberührt.
         assert_eq!(g(&a.remote, &["rev-parse", "main"]).trim(), basis);
-        assert_eq!(g(&a.remote, &["rev-parse", "claude/BAU-1-x"]).trim(), v.commit);
+        assert_eq!(
+            g(&a.remote, &["rev-parse", "claude/BAU-1-x"]).trim(),
+            v.commit
+        );
     }
 
     #[test]
@@ -480,7 +532,15 @@ mod tests {
         let basis = klonen(&a.url, &a.klon, None, "main", "claude/x").unwrap();
         agent_arbeitet(&a.klon, "a.txt");
         for b in ["main", "master", "agent/x", "refs/heads/main"] {
-            let e = veroeffentlichen(&a.klon, &a.export, b, &basis, &a.url, None, &RepoRules::default());
+            let e = veroeffentlichen(
+                &a.klon,
+                &a.export,
+                b,
+                &basis,
+                &a.url,
+                None,
+                &RepoRules::default(),
+            );
             assert!(e.unwrap_err().contains("nicht erlaubt"), "{b}");
         }
         assert_eq!(heads(&a.remote), ["main"]);
@@ -495,8 +555,10 @@ mod tests {
             forbidden_paths: vec!["*.lock".into()],
             ..RepoRules::default()
         };
-        let e = veroeffentlichen(&a.klon, &a.export, "claude/r", &basis, &a.url, None, &regeln)
-            .unwrap_err();
+        let e = veroeffentlichen(
+            &a.klon, &a.export, "claude/r", &basis, &a.url, None, &regeln,
+        )
+        .unwrap_err();
         assert!(e.contains("verstoßen gegen die Regeln"), "{e}");
         assert_eq!(heads(&a.remote), ["main"]);
     }
@@ -505,17 +567,36 @@ mod tests {
     fn ohne_commit_und_mit_fremdem_verlauf_wird_nicht_gepusht() {
         let a = aufbau();
         let basis = klonen(&a.url, &a.klon, None, "main", "claude/leer").unwrap();
-        let e = veroeffentlichen(&a.klon, &a.export, "claude/leer", &basis, &a.url, None, &RepoRules::default())
-            .unwrap_err();
+        let e = veroeffentlichen(
+            &a.klon,
+            &a.export,
+            "claude/leer",
+            &basis,
+            &a.url,
+            None,
+            &RepoRules::default(),
+        )
+        .unwrap_err();
         assert!(e.contains("nichts committet"), "{e}");
 
         // Umgeschriebener Verlauf: ein Branch ohne den Ausgangsstand.
         let b = aufbau();
         let basis = klonen(&b.url, &b.klon, None, "main", "claude/fremd").unwrap();
-        g(&b.klon, &["checkout", "--quiet", "--orphan", "claude/fremd2"]);
+        g(
+            &b.klon,
+            &["checkout", "--quiet", "--orphan", "claude/fremd2"],
+        );
         agent_arbeitet(&b.klon, "x.txt");
-        let e = veroeffentlichen(&b.klon, &b.export, "claude/fremd2", &basis, &b.url, None, &RepoRules::default())
-            .unwrap_err();
+        let e = veroeffentlichen(
+            &b.klon,
+            &b.export,
+            "claude/fremd2",
+            &basis,
+            &b.url,
+            None,
+            &RepoRules::default(),
+        )
+        .unwrap_err();
         assert!(e.contains("baut nicht auf"), "{e}");
         assert_eq!(heads(&b.remote), ["main"]);
     }
@@ -528,7 +609,12 @@ mod tests {
         let basis = klonen(&a.url, &a.klon, None, "main", "claude/boese").unwrap();
         let marke = a.klon.parent().unwrap().join("ausgefuehrt");
         // Hooks und Befehle in der Konfiguration, wie sie ein Agent in .git ablegen könnte.
-        for hook in ["pre-push", "post-commit", "reference-transaction", "pre-commit"] {
+        for hook in [
+            "pre-push",
+            "post-commit",
+            "reference-transaction",
+            "pre-commit",
+        ] {
             let p = a.klon.join(".git/hooks").join(hook);
             std::fs::write(&p, format!("#!/bin/sh\ntouch {}\n", marke.display())).unwrap();
             std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -542,10 +628,31 @@ mod tests {
         std::fs::write(a.klon.join("x.txt"), "x").unwrap();
         // Der „Agent“ committet an den Hooks vorbei (sonst liefe der Hook im Test selbst).
         g(&a.klon, &["add", "-A"]);
-        g(&a.klon, &["-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false", "commit", "--quiet", "--no-verify", "-m", "x"]);
+        g(
+            &a.klon,
+            &[
+                "-c",
+                "core.hooksPath=/dev/null",
+                "-c",
+                "core.fsmonitor=false",
+                "commit",
+                "--quiet",
+                "--no-verify",
+                "-m",
+                "x",
+            ],
+        );
         let _ = std::fs::remove_file(&marke);
-        veroeffentlichen(&a.klon, &a.export, "claude/boese", &basis, &a.url, None, &RepoRules::default())
-            .unwrap();
+        veroeffentlichen(
+            &a.klon,
+            &a.export,
+            "claude/boese",
+            &basis,
+            &a.url,
+            None,
+            &RepoRules::default(),
+        )
+        .unwrap();
         assert!(!marke.exists(), "im Klon darf nichts ausgeführt werden");
         assert_eq!(heads(&a.remote).len(), 2);
     }
@@ -553,7 +660,14 @@ mod tests {
     #[test]
     fn klonen_scheitert_in_klartext() {
         let a = aufbau();
-        let e = klonen("file:///gibt/es/nicht.git", &a.klon, None, "main", "claude/x").unwrap_err();
+        let e = klonen(
+            "file:///gibt/es/nicht.git",
+            &a.klon,
+            None,
+            "main",
+            "claude/x",
+        )
+        .unwrap_err();
         assert!(!e.is_empty());
         assert!(klonen(&a.url, &a.klon, None, "--evil", "claude/x").is_err());
     }

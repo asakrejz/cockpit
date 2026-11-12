@@ -693,6 +693,34 @@ mod tests {
     }
 
     #[test]
+    fn repo_und_ordner_des_agenten() {
+        let toml = "[agent]\nrepo = \" firma/app \"\ndir = \"/opt/cockpit/agent\"";
+        let c = Config::aus(Some(toml), keine_env).unwrap();
+        assert_eq!(c.agent_repo.as_deref(), Some("firma/app"));
+        assert_eq!(c.agent_dir, Some(PathBuf::from("/opt/cockpit/agent")));
+        let env = |k: &str| match k {
+            "COCKPIT_AGENT_DIR" => Some("/andere/agent".to_string()),
+            "COCKPIT_GIT_BASIS" => Some("file:///tmp/git/".to_string()),
+            _ => None,
+        };
+        let c = Config::aus(Some(toml), env).unwrap();
+        assert_eq!(c.agent_dir, Some(PathBuf::from("/andere/agent")));
+        assert_eq!(c.git_basis.as_deref(), Some("file:///tmp/git"));
+        for kaputt in ["repo = \"firma\"", "repo = \"../x\"", "repo = \"a/b/c\""] {
+            assert!(
+                matches!(
+                    Config::aus(Some(&format!("[agent]\n{kaputt}")), keine_env),
+                    Err(KonfigFehler::Wert(_))
+                ),
+                "{kaputt}"
+            );
+        }
+        // Ohne Angabe nichts.
+        let c = Config::aus(None, keine_env).unwrap();
+        assert_eq!((c.agent_repo, c.agent_dir, c.git_basis), (None, None, None));
+    }
+
+    #[test]
     fn litellm_und_container() {
         let toml = r#"
             [litellm]

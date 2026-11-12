@@ -1,10 +1,35 @@
 //! Schritt 1: Läuft Docker oder Podman? Der Agent arbeitet später in einem Container.
 
-use cockpit_core::api::ContainerStatus;
+use std::time::Duration;
+
+use cockpit_core::api::{ContainerStatus, ImageBau};
 use feature_ui::*;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 
 use super::felder::{Abschnitt, Einleitung, Extern, Kontext};
+use crate::server::{self, CallError};
+use crate::store::Store;
+
+/// Fragt den Stand des Image-Baus ab und wiederholt das, solange er läuft.
+fn bau_beobachten(bau: RwSignal<Option<ImageBau>>, store: Store) {
+    spawn_local(async move {
+        if let Ok(b) = server::fetch_image().await {
+            let weiter = b.laeuft;
+            if bau.try_set(Some(b)).is_none() {
+                return;
+            }
+            if weiter {
+                set_timeout(
+                    move || bau_beobachten(bau, store),
+                    Duration::from_millis(1500),
+                );
+            } else {
+                store.refresh_health();
+            }
+        }
+    });
+}
 
 #[component]
 pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
@@ -36,6 +61,31 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
         }) => format!("{l} ist installiert, läuft aber nicht"),
         Some(_) => "Noch nichts gefunden".to_string(),
     };
+    let bau = RwSignal::new(None::<ImageBau>);
+    let bau_fehler = RwSignal::new(None::<String>);
+    bau_beobachten(bau, ctx.store);
+    let bauen = move |_| {
+        bau_fehler.set(None);
+        spawn_local(async move {
+            match server::post_image_bauen().await {
+                Ok(b) => {
+                    bau.set(Some(b));
+                    bau_beobachten(bau, ctx.store);
+                }
+                Err(CallError::Unreachable) => bau_fehler.set(Some(
+                    "Cockpit antwortet gerade nicht. Läuft das Startfenster noch?".into(),
+                )),
+                Err(e) => bau_fehler.set(Some(e.message())),
+            }
+        });
+    };
+    let bau_laeuft = move || bau.with(|b| b.as_ref().is_some_and(|b| b.laeuft));
+    let image_da = move || {
+        ctx.store
+            .health
+            .with(|h| h.as_ref().is_some_and(|h| h.agent.image))
+    };
+    let engine_laeuft = move || status().is_some_and(|s| s.laufzeit.is_some() && s.engine_laeuft);
     let fehlt = move || status().is_some_and(|s| s.laufzeit.is_none());
     let steht_nicht = move || status().is_some_and(|s| s.laufzeit.is_some() && !s.engine_laeuft);
 
@@ -65,6 +115,58 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
                     </HStack>
                 </CardBody>
             </Card>
+            {move || {
+                engine_laeuft()
+                    .then(|| {
+                        view! {
+                            <Abschnitt title="Agent-Image">
+                                <p class="t-subheadline t-secondary">
+                                    "Der Agent arbeitet in einem Container aus einem eigenen „Image“. Das baust du einmal hier – es lädt dabei Programme aus dem Internet und dauert einige Minuten. Bei einer neuen Cockpit-Version baust du es erneut."
+                                </p>
+                                <HStack spacing="12px">
+                                    <Status tone=Signal::derive(move || {
+                                        if image_da() { StatusTone::Green } else { StatusTone::Orange }
+                                    })>
+                                        {move || {
+                                            if bau_laeuft() {
+                                                "Wird gebaut …"
+                                            } else if image_da() {
+                                                "Image ist gebaut"
+                                            } else {
+                                                "Image fehlt noch"
+                                            }
+                                        }}
+                                    </Status>
+                                    <Button
+                                        variant=ButtonStyle::GlassProminent
+                                        disabled=Signal::derive(bau_laeuft)
+                                        on_click=bauen
+                                    >
+                                        {move || if image_da() { "Neu bauen" } else { "Image bauen" }}
+                                    </Button>
+                                </HStack>
+                                {move || {
+                                    bau_fehler
+                                        .get()
+                                        .map(|m| view! { <p class="ui-hinweis" role="alert">{m}</p> })
+                                }}
+                                {move || {
+                                    bau.get()
+                                        .and_then(|b| b.fehler)
+                                        .map(|m| view! { <p class="ui-hinweis" role="alert">{m}</p> })
+                                }}
+                                {move || {
+                                    bau.get()
+                                        .filter(|b| !b.zeilen.is_empty())
+                                        .map(|b| {
+                                            let text = b.zeilen.join("\n");
+                                            view! { <Log text=Signal::derive(move || text.clone()) /> }
+                                        })
+                                }}
+                            </Abschnitt>
+                        }
+                    })
+            }}
             {move || {
                 steht_nicht()
                     .then(|| {

@@ -17,6 +17,7 @@ pub fn FertigSchritt(ctx: Kontext, zu_schritt: Callback<Schritt>) -> impl IntoVi
             github: health.anmeldung.github.clone(),
             litellm: health.litellm.clone(),
             container: health.container.clone(),
+            agent: health.agent.clone(),
             pruefung: ctx.pruefung.get(),
         })
     };

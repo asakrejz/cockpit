@@ -1427,8 +1427,14 @@ mod tests {
         assert_eq!(j["agent"]["bereit"], true);
         // Echt, aber nichts eingerichtet: sagt in Klartext, was fehlt.
         let conn = db::open_im_speicher().unwrap();
-        let e = Einstellungen { seed: Seed::Leer, ..leer() };
-        let app = router(zustand_mit(conn, e, Arc::new(MemoryStore::new())), PathBuf::from("/x"));
+        let e = Einstellungen {
+            seed: Seed::Leer,
+            ..leer()
+        };
+        let app = router(
+            zustand_mit(conn, e, Arc::new(MemoryStore::new())),
+            PathBuf::from("/x"),
+        );
         let (_, body) = hole(app, "/api/health").await;
         let j = json(&body);
         assert_eq!(j["agent"]["modus"], "echt");
@@ -1436,14 +1442,24 @@ mod tests {
         assert_eq!(j["agent"]["image_name"], "localhost/cockpit-agent:1");
         let fehlt = j["agent"]["fehlt"].as_array().unwrap();
         assert!(fehlt.len() >= 3);
-        assert!(fehlt.iter().all(|f| f.as_str().unwrap().contains("Einrichten")));
+        assert!(
+            fehlt
+                .iter()
+                .all(|f| f.as_str().unwrap().contains("Einrichten"))
+        );
     }
 
     #[tokio::test]
     async fn image_bauen_ohne_laufzeit_ist_422_mit_klartext() {
         let conn = db::open_im_speicher().unwrap();
-        let e = Einstellungen { seed: Seed::Leer, ..leer() };
-        let app = router(zustand_mit(conn, e, Arc::new(MemoryStore::new())), PathBuf::from("/x"));
+        let e = Einstellungen {
+            seed: Seed::Leer,
+            ..leer()
+        };
+        let app = router(
+            zustand_mit(conn, e, Arc::new(MemoryStore::new())),
+            PathBuf::from("/x"),
+        );
         let (status, body) = hole(app.clone(), "/api/agent/image").await;
         assert_eq!(status, StatusCode::OK);
         let j = json(&body);
@@ -1455,6 +1471,12 @@ mod tests {
             .unwrap();
         let (status, body) = sende(app, req).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-        assert!(json(&body)["fehler"].as_str().unwrap().contains("Rancher Desktop"), "{body}");
+        assert!(
+            json(&body)["fehler"]
+                .as_str()
+                .unwrap()
+                .contains("Rancher Desktop"),
+            "{body}"
+        );
     }
 }

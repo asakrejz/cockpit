@@ -4,9 +4,10 @@
 
 use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
-    ActionRequest, ActionResponse, ContainerStatus, Einrichtung, ErrorBody, JiraProjectsResponse,
-    KonfigAenderung, KonfigAntwort, LitellmPruefung, LitellmStatus, SchluesselAntwort,
-    SchluesselEingabe, ServerEvent, SyncResponse, WiderrufAntwort,
+    ActionRequest, ActionResponse, AgentStatus, ContainerPruefung, ContainerStatus, Einrichtung,
+    ErrorBody, ImageBau, JiraProjectsResponse, KonfigAenderung, KonfigAntwort, LitellmPruefung,
+    LitellmStatus, SchluesselAntwort, SchluesselEingabe, ServerEvent, SyncResponse,
+    WiderrufAntwort,
 };
 use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
@@ -161,6 +162,8 @@ pub struct Health {
     pub litellm: LitellmStatus,
     #[serde(default)]
     pub container: ContainerStatus,
+    #[serde(default)]
+    pub agent: AgentStatus,
 }
 
 /// Stand der Anmeldung, des LiteLLM-Proxys und der Container-Laufzeit (`GET /api/health`).
@@ -192,6 +195,49 @@ pub async fn fetch_litellm_check() -> Result<LitellmPruefung, CallError> {
         return Err(rejection(resp).await);
     }
     resp.json::<LitellmPruefung>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Stand von „Image bauen“ (`GET /api/agent/image`).
+pub async fn fetch_image() -> Result<ImageBau, CallError> {
+    let resp = Request::get("/api/agent/image")
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<ImageBau>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Startet „Image bauen“ (`POST /api/agent/image`); der Bau läuft im Server weiter.
+pub async fn post_image_bauen() -> Result<ImageBau, CallError> {
+    let request = Request::post("/api/agent/image")
+        .header("Content-Type", "application/json")
+        .build()
+        .map_err(|_| CallError::Rejected("Der Bau lässt sich nicht starten".into()))?;
+    let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<ImageBau>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Prüft, ob ein Container den LiteLLM-Proxy erreicht (`GET /api/litellm/pruefen/container`).
+pub async fn fetch_container_check() -> Result<ContainerPruefung, CallError> {
+    let resp = Request::get("/api/litellm/pruefen/container")
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<ContainerPruefung>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
