@@ -49,7 +49,7 @@ pub use agent::{
     Step, StepState, Tick,
 };
 pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
-pub use connections::Connections;
+pub use connections::{AuthKind, Connections, ServiceStatus};
 pub use diagnosis::{Diagnosis, Fix};
 pub use model::*;
 pub use notify::{

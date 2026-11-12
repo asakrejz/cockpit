@@ -26,6 +26,8 @@ use crate::db;
 use crate::live::Live;
 use crate::secrets::{self, SecretStore};
 use crate::zugang;
+use cockpit_core::{AuthKind, ServiceStatus};
+use cockpit_integrations::oauth::Dienst;
 
 /// So oft macht der simulierte Agent einen Schritt (wie im Demo-Modus der App).
 pub const AGENT_TAKT: Duration = Duration::from_millis(2200);
@@ -45,7 +47,11 @@ pub(crate) struct Inner {
     pub(crate) secrets: Arc<dyn SecretStore>,
     pub(crate) live: Live,
     /// Der Port, auf dem der Server lauscht – für die Prüfung von `Host` und `Origin`.
-    port: u16,
+    pub(crate) port: u16,
+    /// Offene OAuth-Anmeldungen (`state` → PKCE-Verifier), nur im Speicher.
+    pub(crate) anmeldungen: Mutex<cockpit_integrations::oauth::Anmeldungen>,
+    /// Nur eine Auffrischung der OAuth-Tokens gleichzeitig (Refresh-Tokens drehen sich).
+    pub(crate) auffrischen: tokio::sync::Mutex<()>,
     /// Jira und GitHub, wie konfiguriert (ob sie laufen, hängt noch vom Schlüssel ab).
     pub(crate) quellen: Quellen,
     /// Schreibzugriffe nach außen und das Übernehmen eines Abgleichs gehen nacheinander.
@@ -83,6 +89,8 @@ impl AppState {
                 secrets,
                 live,
                 port,
+                anmeldungen: crate::oauth::neue_anmeldungen(),
+                auffrischen: tokio::sync::Mutex::new(()),
                 quellen,
                 sperre: tokio::sync::Mutex::new(()),
                 geschrieben: AtomicU64::new(0),
@@ -124,6 +132,13 @@ pub struct Verbindungen {
     pub jira: bool,
 }
 
+/// Art und Stand der Anmeldung je Dienst – für „Mit … anmelden“ und „Trennen“.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct Anmeldung {
+    pub github: ServiceStatus,
+    pub jira: ServiceStatus,
+}
+
 /// Zustand des Abgleichs je Quelle: `aus` (nicht eingerichtet oder ohne Schlüssel), `wartet`
 /// (noch kein Abruf), `ok`, `nicht-angemeldet`, `keine-berechtigung`, `kontingent`,
 /// `offline` oder `fehler`.
@@ -139,6 +154,7 @@ pub struct Health {
     pub status: &'static str,
     pub version: &'static str,
     pub verbindungen: Verbindungen,
+    pub anmeldung: Anmeldung,
     pub abgleich: AbgleichZustand,
 }
 
@@ -152,6 +168,7 @@ impl AppState {
             }),
             Err(_) => Vec::new(),
         };
+        // Ein Token (Datenbank-Eintrag **und** Schlüssel) oder die Anmeldung per OAuth.
         let eingerichtet = |name: &str| {
             namen.iter().any(|n| n == name)
                 && self.inner.secrets.has(name).unwrap_or_else(|e| {
@@ -159,9 +176,12 @@ impl AppState {
                     false
                 })
         };
+        let github = self.dienst_status(Dienst::GitHub, eingerichtet(secrets::GITHUB));
+        // Jira per Token braucht Adresse und E-Mail aus der Konfiguration (Eintrag in der Datenbank).
+        let jira = self.dienst_status(Dienst::Atlassian, eingerichtet(secrets::JIRA));
         let verbindungen = Verbindungen {
-            github: eingerichtet(secrets::GITHUB),
-            jira: eingerichtet(secrets::JIRA),
+            github: github.verbunden,
+            jira: jira.verbunden,
         };
         let hat_schluessel = |name: &str| self.inner.secrets.has(name).unwrap_or(false);
         let ws = self.inner.live.kopie();
@@ -181,16 +201,18 @@ impl AppState {
             abgleich: AbgleichZustand {
                 github: zustand(
                     q.github.as_ref().is_some_and(|g| !g.repos.is_empty())
-                        && hat_schluessel(secrets::GITHUB),
+                        && (github.art == AuthKind::OAuth || hat_schluessel(secrets::GITHUB)),
                     cockpit_core::Source::GitHub,
                 ),
                 jira: zustand(
-                    q.jira.is_some() && hat_schluessel(secrets::JIRA),
+                    q.jira.is_some()
+                        && (jira.art == AuthKind::OAuth || hat_schluessel(secrets::JIRA)),
                     cockpit_core::Source::Jira,
                 ),
                 intervall_s: q.intervall.as_secs(),
             },
             verbindungen,
+            anmeldung: Anmeldung { github, jira },
         }
     }
 }
@@ -322,6 +344,12 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/sync", post(abgleichen))
         .route("/api/events", get(ereignisse))
         .route("/api/jira/projekte", get(jira_projekte))
+        .route("/api/oauth/{dienst}/start", get(crate::oauth::start))
+        .route("/api/oauth/{dienst}/callback", get(crate::oauth::callback))
+        .route(
+            "/api/oauth/{dienst}/widerrufen",
+            post(crate::oauth::widerrufen),
+        )
         .route("/api/{*rest}", any(api_unbekannt))
         // Gilt nur für `/api`, nicht für die Dateien der App.
         .layer(axum::middleware::from_fn_with_state(

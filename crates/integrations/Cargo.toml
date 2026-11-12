@@ -12,6 +12,10 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 # rustls statt OpenSSL: keine System-Bibliothek nötig.
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+# PKCE und Zufallswerte für `state` (nur im Backend)
+sha2 = "0.10"
+base64 = "0.22"
+getrandom = "0.4"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }

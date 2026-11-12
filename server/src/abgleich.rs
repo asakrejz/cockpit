@@ -12,10 +12,13 @@ use cockpit_core::{Action, ActionError, Actor, Source};
 use cockpit_integrations::ausgehend::plane;
 use cockpit_integrations::github::GitHubClient;
 use cockpit_integrations::jira::{JiraClient, jql_fuer, jql_fuer_projekt};
+use cockpit_integrations::oauth::{Dienst, Endpunkte};
 use cockpit_integrations::{Dienste, GitHubDienst, JiraDienst};
 
 use crate::app::{AppState, jetzt_ms};
-use crate::config::{Config, GitHubKonfig, JiraKonfig, STANDARD_INTERVALL_S};
+use crate::config::{
+    AtlassianKonfig, Config, GitHubKonfig, JiraKonfig, OAuthKonfig, STANDARD_INTERVALL_S,
+};
 use crate::live::Fehler as LiveFehler;
 use crate::secrets;
 
@@ -27,6 +30,11 @@ const WIEDERHOLUNGEN: usize = 2;
 pub struct Quellen {
     pub github: Option<GitHubKonfig>,
     pub jira: Option<JiraKonfig>,
+    /// Anmeldung per OAuth (nur Client-IDs; die Secrets liegen im Schlüsselbund).
+    pub github_oauth: Option<OAuthKonfig>,
+    pub atlassian: Option<AtlassianKonfig>,
+    /// Adressen der OAuth-Dienste (Tests setzen nachgebaute ein).
+    pub endpunkte: Endpunkte,
     pub intervall: Duration,
 }
 
@@ -35,6 +43,9 @@ impl Default for Quellen {
         Self {
             github: None,
             jira: None,
+            github_oauth: None,
+            atlassian: None,
+            endpunkte: Endpunkte::default(),
             intervall: Duration::from_secs(STANDARD_INTERVALL_S),
         }
     }
@@ -45,6 +56,9 @@ impl Quellen {
         Self {
             github: config.github.clone(),
             jira: config.jira.clone(),
+            github_oauth: config.github_oauth.clone(),
+            atlassian: config.atlassian.clone(),
+            endpunkte: Endpunkte::default(),
             intervall: Duration::from_secs(config.intervall_s),
         }
     }
@@ -74,28 +88,32 @@ impl AppState {
     pub(crate) fn dienste_bauen(&self) -> Dienste {
         let inner = &self.inner;
         let mut dienste = Dienste::default();
-        let token = |name: &str| self.token(name);
         if let Some(g) = inner
             .quellen
             .github
             .as_ref()
             .filter(|g| !g.repos.is_empty())
-            && let Some(t) = token(secrets::GITHUB)
         {
-            match GitHubClient::new(&g.api_url, t) {
-                Ok(client) => {
-                    dienste.github = Some(GitHubDienst {
-                        client,
-                        repos: g.repos.clone(),
-                    })
+            // Die Anmeldung per OAuth geht vor dem Token.
+            let zugang = match self.oauth_tokens(Dienst::GitHub) {
+                Some(t) => Some(t.access),
+                None => self.token(secrets::GITHUB),
+            };
+            if let Some(t) = zugang {
+                match GitHubClient::new(&g.api_url, t) {
+                    Ok(client) => {
+                        dienste.github = Some(GitHubDienst {
+                            client,
+                            repos: g.repos.clone(),
+                        })
+                    }
+                    Err(e) => tracing::warn!("GitHub: {e}"),
                 }
-                Err(e) => tracing::warn!("GitHub: {e}"),
             }
         }
         if let Some(j) = &inner.quellen.jira
-            && let Some(t) = token(secrets::JIRA)
+            && let Some(client) = self.jira_client()
         {
-            let client = JiraClient::new(&j.site, &j.email, t);
             // Ein in der App gewähltes Projekt hat Vorrang vor `projects` und `jql` der Datei.
             let gewaehlt = inner.live.kopie().jira_project;
             let im_projekt = gewaehlt.is_some();
@@ -117,6 +135,22 @@ impl AppState {
         dienste
     }
 
+    /// Der Jira-Client: per OAuth (über das Atlassian-Gateway), sonst mit E-Mail und API-Token.
+    /// `None`, wenn Jira nicht eingerichtet ist oder der Zugang fehlt. Blockierend.
+    pub(crate) fn jira_client(&self) -> Option<Result<JiraClient, cockpit_integrations::Fehler>> {
+        if let Some(c) = self.jira_oauth_client() {
+            return Some(c);
+        }
+        let j = self
+            .inner
+            .quellen
+            .jira
+            .as_ref()
+            .filter(|j| !j.site.is_empty())?;
+        let t = self.token(secrets::JIRA)?;
+        Some(JiraClient::new(&j.site, &j.email, t))
+    }
+
     /// Ein Schlüssel aus dem Schlüsselbund, leer zählt als fehlend. Blockierend.
     fn token(&self, name: &str) -> Option<cockpit_integrations::Secret> {
         match self.inner.secrets.get(name) {
@@ -131,18 +165,18 @@ impl AppState {
     /// Die Jira-Projekte, die der Schlüssel sehen darf – für die Auswahl in der Inbox.
     /// Ohne Jira oder Schlüssel: `aktiv: false`.
     pub async fn jira_projekte(&self) -> Result<JiraProjectsResponse, AktionFehler> {
-        let Some(j) = self.inner.quellen.jira.clone() else {
+        if self.inner.quellen.jira.is_none() {
             return Ok(JiraProjectsResponse::default());
-        };
+        }
+        self.oauth_auffrischen().await;
         let s = self.clone();
-        let token = tokio::task::spawn_blocking(move || s.token(secrets::JIRA))
+        let client = tokio::task::spawn_blocking(move || s.jira_client())
             .await
             .map_err(|_| AktionFehler::Intern)?;
-        let Some(token) = token else {
+        let Some(client) = client else {
             return Ok(JiraProjectsResponse::default());
         };
-        let client = JiraClient::new(&j.site, &j.email, token)
-            .map_err(|e| AktionFehler::Plan(format!("Jira: {e}")))?;
+        let client = client.map_err(|e| AktionFehler::Plan(format!("Jira: {e}")))?;
         let projekte = client.projekte().await.map_err(|e| {
             tracing::warn!("Jira-Projekte: {e}");
             AktionFehler::Dienst(format!("Jira liefert keine Projekte: {e}"))
@@ -163,6 +197,8 @@ impl AppState {
         if !self.inner.quellen.moeglich() {
             return Dienste::default();
         }
+        // Zuerst auffrischen (Netzwerk), dann bauen (Schlüsselbund).
+        self.oauth_auffrischen().await;
         let s = self.clone();
         tokio::task::spawn_blocking(move || s.dienste_bauen())
             .await
@@ -334,6 +370,7 @@ mod tests {
             }),
             jira: None,
             intervall: Duration::from_secs(120),
+            ..Quellen::default()
         }
     }
 

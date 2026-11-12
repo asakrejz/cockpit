@@ -141,6 +141,66 @@ Das Backend liest den Token bei jedem Gebrauch neu; ein neu gesetzter Token wirk
 | GitHub | *fine-grained personal access token*, auf die konfigurierten Repos beschränkt | Repository-Rechte **Contents** (Read and write: Branch anlegen), **Pull requests** (Read and write: lesen, Review senden, mergen), **Checks** (Read and write: Check-Status lesen, Check neu anfordern), **Issues** (Read and write: Kommentare), **Metadata** (Read, automatisch) |
 | Jira | *API-Token* des Atlassian-Kontos (id.atlassian.com › Sicherheit › API-Token) | Das Konto braucht in den Projekten „Projekte durchsuchen“, „Kommentare hinzufügen“ und „Vorgänge bearbeiten/Transitionen ausführen“. Anmeldung mit der E-Mail aus der Konfiguration |
 
+**Anmeldung per OAuth (Alternative zum Token).** Statt eines Tokens meldest du dich im Browser an; Tokens und
+Client-Secret liegen nur im Schlüsselbund des Backends, nie im Browser, Repo, in der Datenbank oder im Log.
+
+1. *Apps registrieren.* GitHub: eine **GitHub App** (Callback `http://127.0.0.1:8787/api/oauth/github/callback`,
+   „Expire user authorization tokens“ an, Repository-Rechte wie in der Tabelle unten, App auf den Repos installieren).
+   Atlassian: eine **OAuth-2.0-(3LO)-App** (Callback `http://localhost:8787/api/oauth/atlassian/callback`, Jira-Rechte
+   `read:jira-work`, `write:jira-work`, `read:jira-user`). Atlassian-Apps sind *resource-level*: Der Zugriff gilt nur für
+   die Site, die du bei der Zustimmung wählst.
+2. *Client-ID in die `config.toml`* (ist nicht geheim; mit `[atlassian]` braucht `[jira]` weder `site` noch `email`):
+
+   ```toml
+   [github]
+   repos = ["firma/app"]            # die Repos braucht der Abgleich weiterhin
+
+   [github_oauth]
+   client_id = "Iv23…"
+
+   [atlassian]
+   client_id = "7dNimh…"
+   # site = "firma"                 # nur nötig, wenn du mehrere Sites freigibst (Name, Adresse oder Id)
+   ```
+
+3. *Client-Secret in den Schlüsselbund* (Standardeingabe, wie bei den Token):
+
+   ```bash
+   echo "$GITHUB_CLIENT_SECRET"    | cargo run -p cockpit-server -- token setzen github-oauth
+   echo "$ATLASSIAN_CLIENT_SECRET" | cargo run -p cockpit-server -- token setzen atlassian-oauth
+   ```
+
+4. *Anmelden.* In der App unter „Einrichten“ (Server-Modus) erscheint beim Jira- und beim GitHub-Schritt „Mit Atlassian
+   anmelden“ bzw. „Mit GitHub anmelden“. Der Knopf öffnet `GET /api/oauth/{atlassian|github}/start` und leitet zum
+   Dienst weiter (mit `state`, einmalig und 10 Minuten gültig, und PKCE). Nach der Zustimmung ruft der Dienst
+   `GET /api/oauth/{dienst}/callback` auf; das Backend prüft `state`, tauscht den `code` gegen die Tokens und leitet nach
+   `/` um, wo ein Hinweis Erfolg oder den Fehler nennt. Der Callback ist eine Navigation des Browsers: Loopback- und
+   Host-Prüfung gelten weiter, einen JSON-Content-Type verlangt er nicht.
+   - *Atlassian:* danach fragt das Backend `accessible-resources` ab. Genau eine Site wird automatisch gewählt, bei
+     mehreren muss `site` in der Konfiguration stehen (sonst nennt die Fehlermeldung die Möglichkeiten). Jira läuft dann über
+     `https://api.atlassian.com/ex/jira/<cloudId>`; die gewählte Site (Id und Name, nicht geheim) steht in der Datenbank.
+   - *GitHub:* das Nutzer-Token läuft ab (GitHub App); das Backend frischt es vor dem Ablauf mit dem Refresh-Token auf.
+     Atlassian dreht das Refresh-Token bei jeder Auffrischung; auch das speichert das Backend.
+   - Ist ein OAuth-Zugang da, geht er vor einem API-Token (`token setzen github|jira`); die Token-Wege bleiben
+     unverändert. Nach dem Trennen gilt wieder das Token.
+5. *Trennen.* „Trennen“ in der App oder `POST /api/oauth/{dienst}/widerrufen` löscht die Tokens im Schlüsselbund. Bei
+   GitHub widerruft das Backend das Token zusätzlich beim Dienst (`DELETE /applications/{client_id}/token`). Atlassian
+   bietet dafür keinen Aufruf; den Zugriff entziehst du unter id.atlassian.com/manage-profile/apps (die App weist
+   darauf hin). Gelöscht wird immer, auch wenn der Dienst nicht antwortet. Das Client-Secret bleibt.
+6. *Wenn es nicht mehr geht.* Ein abgelaufener oder widerrufener Zugriff zeigt „nicht angemeldet“ (`Problem::Unauthorized`)
+   in der Quelle. Lehnt der Dienst das Auffrischen ab, löscht das Backend die Tokens: Der Dienst gilt als getrennt und
+   du meldest dich neu an. Netzwerkfehler oder Störungen des Dienstes lassen die Tokens stehen.
+
+`GET /api/health` meldet unter `anmeldung.github` und `anmeldung.jira` je `verbunden`, `art` (`oauth`, `token` oder
+`none`), `oauth_moeglich` (App eingerichtet und Secret da) und bei Atlassian die `site`. `cockpit-core::Connections`
+trägt dieselbe Art (`github_auth`, `jira_auth`); sie wird nicht im Browser gespeichert.
+
+**Nicht gegen die echten Dienste geprüft.** Austausch, Auffrischen, Widerruf und die Site-Wahl sind nur gegen
+nachgebaute Antworten getestet (`cargo test`). Offen bis zum ersten echten Durchlauf: ob Atlassian `code_verifier`
+bei einer Web-App mit Client-Secret akzeptiert (sonst entfällt er dort), ob die GitHub App PKCE annimmt, und die
+Installations-Weiterleitung von GitHub (`installation_id`, `setup_action`): Ohne `state` aus unserem Start lehnt das
+Backend sie ab; die App ist schon installiert, die Anmeldung beginnt immer in Cockpit.
+
 **Was abgeglichen wird.** Das Backend fragt im Takt (und bei `POST /api/sync`, in der App unter „Einrichten“ ›
 Übersicht › Abgleich › „Jetzt abgleichen“) beide Dienste ab und führt das Ergebnis über die Aktion `SyncRemote`
 (Urheber „System“) mit dem Workspace zusammen – als reine Funktion in `cockpit_core::sync::merge`:

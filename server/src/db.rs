@@ -150,8 +150,6 @@ pub fn verbindungen(conn: &Connection) -> Result<Vec<String>, DbFehler> {
     Ok(namen)
 }
 
-// Noch ohne Aufrufer im Server; die Einstellungen kommen mit den nächsten Funktionen.
-#[allow(dead_code)]
 pub fn einstellung_setzen(conn: &Connection, key: &str, value: &str) -> Result<(), DbFehler> {
     conn.execute(
         "INSERT INTO settings (key, value) VALUES (?1, ?2)
@@ -161,7 +159,11 @@ pub fn einstellung_setzen(conn: &Connection, key: &str, value: &str) -> Result<(
     Ok(())
 }
 
-#[allow(dead_code)]
+pub fn einstellung_loeschen(conn: &Connection, key: &str) -> Result<(), DbFehler> {
+    conn.execute("DELETE FROM settings WHERE key = ?1", params![key])?;
+    Ok(())
+}
+
 pub fn einstellung(conn: &Connection, key: &str) -> Result<Option<String>, DbFehler> {
     match conn.query_row(
         "SELECT value FROM settings WHERE key = ?1",

@@ -118,7 +118,7 @@ Tickets bearbeiten und mit PRs verknüpfen (Status folgt dem PR), Agent-Folgeauf
 
 | Bereich | Aufgabe |
 |---------|---------|
-| Backend | Anmeldung per OAuth für GitHub und Atlassian, mit Widerruf |
+| Backend | Anmeldung per OAuth für GitHub und Atlassian, mit Widerruf – **erledigt** (nur gegen nachgebaute Antworten geprüft; siehe README „Mit echten Diensten verbinden“) |
 | Backend | Webhooks und Live-Aktualisierung in der App |
 | Backend | Echter Agent: Claude Agent SDK im Container (Docker oder Podman, siehe „Container“); Modell über den LiteLLM-Proxy; Plan, Rückfragen, Kosten und Protokoll kommen aus dem Lauf |
 | Inbox | Mehrere Projekte und Repos; Filter nach Projekt, Repo, Person, Status, Label |

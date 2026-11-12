@@ -2,8 +2,10 @@
 //! (`cockpit-server`) und der Ereignisstrom. Die Formen der Daten stehen in
 //! `cockpit_core::api`. Hier steht kein Schlüssel und es wird keiner gespeichert.
 
+use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
     ActionRequest, ActionResponse, ErrorBody, JiraProjectsResponse, ServerEvent, SyncResponse,
+    WiderrufAntwort,
 };
 use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
@@ -148,4 +150,49 @@ impl Events {
         message.forget();
         Some(Self { source })
     }
+}
+
+/// Wie `GET /api/health` die Anmeldung je Dienst meldet.
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+pub struct Services {
+    #[serde(default)]
+    pub github: ServiceStatus,
+    #[serde(default)]
+    pub jira: ServiceStatus,
+}
+
+/// Art und Stand der Anmeldung bei GitHub und Jira (`GET /api/health`).
+pub async fn fetch_services() -> Result<Services, CallError> {
+    #[derive(serde::Deserialize)]
+    struct Health {
+        #[serde(default)]
+        anmeldung: Services,
+    }
+    let resp = Request::get("/api/health")
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<Health>()
+        .await
+        .map(|h| h.anmeldung)
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// „Trennen“: widerruft die Anmeldung (`POST /api/oauth/{dienst}/widerrufen`). `service`:
+/// `github` oder `atlassian`.
+pub async fn post_revoke(service: &str) -> Result<WiderrufAntwort, CallError> {
+    let request = Request::post(&format!("/api/oauth/{service}/widerrufen"))
+        .header("Content-Type", "application/json")
+        .build()
+        .map_err(|_| CallError::Rejected("Das Trennen lässt sich nicht starten".into()))?;
+    let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<WiderrufAntwort>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }

@@ -43,6 +43,13 @@ pub(crate) fn wartezeit(h: &HeaderMap, jetzt_s: u64) -> Option<u64> {
 pub(crate) fn dienst_meldung(body: &str) -> Option<String> {
     let json: serde_json::Value = serde_json::from_str(body).ok()?;
     let mut teile: Vec<String> = Vec::new();
+    // OAuth-Endpunkte (`error_description`, sonst `error`).
+    if let Some(m) = json["error_description"]
+        .as_str()
+        .or_else(|| json["error"].as_str())
+    {
+        teile.push(m.to_string());
+    }
     if let Some(m) = json["message"].as_str() {
         teile.push(m.to_string());
     }

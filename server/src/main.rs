@@ -6,8 +6,14 @@
 //!
 //! ```text
 //! cockpit-server                                 starten
-//! cockpit-server token setzen <github|jira>      Schlüssel von der Standardeingabe ablegen
-//! cockpit-server token loeschen <github|jira>    Schlüssel entfernen
+//! cockpit-server token setzen <name>             Schlüssel von der Standardeingabe ablegen
+//! cockpit-server token loeschen <name>           Schlüssel entfernen
+//! ```
+//!
+//! `<name>`: `github`, `jira` (API-Token) sowie `github-oauth` und `atlassian-oauth` (Client-Secret
+//! der OAuth-Apps). Die Tokens der Anmeldung legt das Backend selbst ab.
+//!
+//! ```text
 //! ```
 
 mod abgleich;
@@ -15,6 +21,7 @@ mod app;
 mod config;
 mod db;
 mod live;
+mod oauth;
 mod secrets;
 mod zugang;
 
@@ -45,7 +52,7 @@ async fn main() -> ExitCode {
     {
         [] => starten().await,
         ["token", aktion, name] => token(aktion, name),
-        _ => Err("Aufruf: cockpit-server [token setzen|loeschen <github|jira>]".into()),
+        _ => Err("Aufruf: cockpit-server [token setzen|loeschen <github|jira|github-oauth|atlassian-oauth>]".into()),
     };
     match ergebnis {
         Ok(()) => ExitCode::SUCCESS,
@@ -56,12 +63,21 @@ async fn main() -> ExitCode {
     }
 }
 
+/// Namen, die sich per `token` setzen lassen.
+const NAMEN: &[&str] = &[
+    secrets::GITHUB,
+    secrets::JIRA,
+    secrets::GITHUB_OAUTH,
+    secrets::ATLASSIAN_OAUTH,
+];
+
 /// Legt einen Schlüssel ab oder löscht ihn. Der Wert kommt von der Standardeingabe, damit er
 /// weder in der Prozessliste noch in der Shell-Historie landet.
 fn token(aktion: &str, name: &str) -> Result<(), String> {
-    if ![secrets::GITHUB, secrets::JIRA].contains(&name) {
+    if !NAMEN.contains(&name) {
         return Err(format!(
-            "Unbekannter Name „{name}“, erlaubt sind github und jira"
+            "Unbekannter Name „{name}“, erlaubt sind {}",
+            NAMEN.join(", ")
         ));
     }
     let store = KeyringStore;
@@ -106,7 +122,8 @@ async fn starten() -> Result<(), String> {
         db::verbindung_setzen(&conn, secrets::GITHUB, &g.api_url, None)
             .map_err(|e| e.to_string())?;
     }
-    if let Some(j) = &config.jira {
+    // Mit OAuth hat Jira keine eigene Adresse; die Site wählt die Anmeldung.
+    if let Some(j) = config.jira.as_ref().filter(|j| !j.site.is_empty()) {
         db::verbindung_setzen(&conn, secrets::JIRA, &j.site, Some(&j.email))
             .map_err(|e| e.to_string())?;
     }
