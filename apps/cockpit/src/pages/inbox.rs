@@ -302,7 +302,7 @@ fn project_picker(store: Store) -> impl IntoView {
     let remote = RwSignal::new(Vec::<cockpit_core::api::JiraProject>::new());
     leptos::task::spawn_local(async move {
         match server::fetch_jira_projects().await {
-            Ok(r) => remote.set(r.projekte),
+            Ok(r) => remote.set(r.projects),
             // Ist der Server nicht erreichbar, sagt das schon der Hinweis oben.
             Err(CallError::Unreachable) => {}
             Err(e) => store.notify(format!("Jira-Projekte nicht geladen: {}", e.message())),

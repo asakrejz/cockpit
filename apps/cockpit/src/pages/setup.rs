@@ -4,7 +4,7 @@
 //! Schlüssel (Client-Secrets, Tokens, der Key des Modell-Endpunkts) kommen in Passwortfelder und gehen einmal
 //! an den lokalen Server, der sie im Schlüsselbund ablegt. Der Browser speichert sie nirgends
 //! (kein `localStorage`, keine Adresse), der Server schickt sie nie zurück. Die Regeln dazu
-//! stehen in `cockpit_core::einrichten`, das Schreiben von `config.toml` im Server.
+//! stehen in `cockpit_core::setup`, das Schreiben von `config.toml` im Server.
 
 mod container;
 mod felder;
@@ -13,7 +13,7 @@ mod github;
 mod jira;
 mod modell;
 
-use cockpit_core::einrichten::Schritt;
+use cockpit_core::setup::Step;
 use feature_ui::*;
 use leptos::prelude::*;
 
@@ -33,20 +33,20 @@ pub fn SetupPage() -> impl IntoView {
     let store = use_store();
     // Jeder Besuch fragt neu: Zwischen zwei Besuchen kann sich viel getan haben.
     let ctx = Kontext::neu(store);
-    let schritt = RwSignal::new(Schritt::Container);
+    let schritt = RwSignal::new(Step::Container);
     let index = Signal::derive(move || schritt.get().index());
 
     let weiter = move |_| {
-        if let Some(n) = schritt.get_untracked().naechster() {
+        if let Some(n) = schritt.get_untracked().next() {
             schritt.set(n);
         }
     };
     let zurueck = move |_| {
-        if let Some(v) = schritt.get_untracked().vorheriger() {
+        if let Some(v) = schritt.get_untracked().previous() {
             schritt.set(v);
         }
     };
-    let springen = Callback::new(move |s: Schritt| schritt.set(s));
+    let springen = Callback::new(move |s: Step| schritt.set(s));
 
     view! {
         <div class="ck-setup">
@@ -69,18 +69,18 @@ pub fn SetupPage() -> impl IntoView {
                     <Steps labels=NAMEN current=index />
 
                     {move || match schritt.get() {
-                        Schritt::Container => view! { <ContainerSchritt ctx=ctx /> }.into_any(),
-                        Schritt::Jira => view! { <JiraSchritt ctx=ctx /> }.into_any(),
-                        Schritt::GitHub => view! { <GitHubSchritt ctx=ctx /> }.into_any(),
-                        Schritt::Modell => view! { <ModellSchritt ctx=ctx /> }.into_any(),
-                        Schritt::Fertig => {
+                        Step::Container => view! { <ContainerSchritt ctx=ctx /> }.into_any(),
+                        Step::Jira => view! { <JiraSchritt ctx=ctx /> }.into_any(),
+                        Step::GitHub => view! { <GitHubSchritt ctx=ctx /> }.into_any(),
+                        Step::Model => view! { <ModellSchritt ctx=ctx /> }.into_any(),
+                        Step::Done => {
                             view! { <FertigSchritt ctx=ctx zu_schritt=springen /> }.into_any()
                         }
                     }}
 
                     <HStack css="justify-content: space-between; flex-wrap: wrap">
                         <Button
-                            disabled=Signal::derive(move || schritt.get().vorheriger().is_none())
+                            disabled=Signal::derive(move || schritt.get().previous().is_none())
                             on_click=zurueck
                         >
                             "Zurück"
@@ -88,7 +88,7 @@ pub fn SetupPage() -> impl IntoView {
                         {move || {
                             schritt
                                 .get()
-                                .naechster()
+                                .next()
                                 .map(|_| {
                                     view! {
                                         <HStack spacing="12px">

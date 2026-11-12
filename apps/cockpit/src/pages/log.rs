@@ -28,7 +28,7 @@ fn when(at_ms: u64) -> String {
 
 fn badge(actor: Actor) -> BadgeVariant {
     match actor {
-        Actor::Du => BadgeVariant::Neutral,
+        Actor::User => BadgeVariant::Neutral,
         Actor::Agent => BadgeVariant::Tint,
         Actor::System => BadgeVariant::Neutral,
     }

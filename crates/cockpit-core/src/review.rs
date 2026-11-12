@@ -1,6 +1,6 @@
-//! Pull-Request-Review: Diff, Vorschläge des Agenten, Freigabe und Urteil.
+//! Pull request review: diff, suggestions of the agent, approval and verdict.
 //!
-//! Die Kernregel: **Nichts wird gesendet, bevor über jeden Vorschlag entschieden ist.**
+//! The core rule: **Nothing is sent before every suggestion has been decided.**
 
 use serde::{Deserialize, Serialize};
 
@@ -32,7 +32,7 @@ pub struct FileDiff {
 }
 
 impl FileDiff {
-    /// Baut einen Diff aus `(Zeilennummer, Art, Text)`.
+    /// Builds a diff from `(line number, kind, text)`.
     pub fn new(name: &str, lines: &[(u32, LineKind, &str)]) -> Self {
         Self {
             name: name.into(),
@@ -51,7 +51,7 @@ impl FileDiff {
         self.lines.iter().filter(|l| l.kind == kind).count()
     }
 
-    /// Kurzstatistik: `+5 −2`.
+    /// Short statistics: `+5 −2`.
     pub fn stat(&self) -> String {
         format!(
             "+{} −{}",
@@ -61,7 +61,7 @@ impl FileDiff {
     }
 }
 
-/// Gewicht eines Vorschlags.
+/// Weight of a suggestion.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Level {
     Note,
@@ -83,18 +83,18 @@ pub enum Decision {
     Declined,
 }
 
-/// Kommentar, den der Agent vorbereitet hat.
+/// Comment the agent has prepared.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Suggestion {
     #[serde(default)]
     pub id: String,
-    /// Datei und Zeile, z. B. `components.css · Zeile 417`.
+    /// File and line, e.g. `components.css · Zeile 417`.
     #[serde(default)]
     pub location: String,
     pub level: Level,
     #[serde(default)]
     pub text: String,
-    /// `None` = noch nicht entschieden.
+    /// `None` = not decided yet.
     #[serde(default)]
     pub decision: Option<Decision>,
 }
@@ -111,41 +111,41 @@ impl Suggestion {
     }
 }
 
-/// Eigener Kommentar an einer Zeile des Diffs. Braucht keine Freigabe.
+/// Own comment on a line of the diff. Needs no approval.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct LineComment {
     pub id: String,
-    /// Name der Datei im Diff.
+    /// Name of the file in the diff.
     pub file: String,
-    /// Position der Zeile in `FileDiff::lines`. Die Zeilennummer allein genügt nicht,
-    /// sie kommt für entfernte und neue Zeilen doppelt vor.
+    /// Position of the line in `FileDiff::lines`. The line number alone is not enough,
+    /// it occurs twice for removed and new lines.
     pub line: usize,
     pub text: String,
-    /// Ersatz-Code für die Zeile (wie GitHubs „suggestion“-Block). Kann mehrere Zeilen
-    /// haben. `None` = nur Text.
+    /// Replacement code for the line (like GitHub's „suggestion“ block). May have several
+    /// lines. `None` = text only.
     #[serde(default)]
     pub suggestion: Option<String>,
-    /// Wer den Kommentar geschrieben hat. `None` = ich. Fremde Kommentare stehen schon bei
-    /// GitHub, sie gehen nicht mit dem eigenen Review hinaus und lassen sich nicht ändern.
+    /// Who wrote the comment. `None` = me. Others' comments are already on
+    /// GitHub, they do not go out with the own review and cannot be changed.
     #[serde(default)]
     pub author: Option<Person>,
-    /// Schlüssel des Agenten-Laufs, der den Kommentar umgesetzt hat. `None` = noch offen.
+    /// Key of the agent run that implemented the comment. `None` = still open.
     #[serde(default)]
     pub resolved: Option<String>,
 }
 
 impl LineComment {
-    /// Von mir geschrieben.
+    /// Written by me.
     pub fn is_own(&self) -> bool {
         self.author.is_none()
     }
 
-    /// Noch nicht umgesetzt.
+    /// Not implemented yet.
     pub fn is_open(&self) -> bool {
         self.resolved.is_none()
     }
 
-    /// Der Kommentar, wie er an GitHub geht: Text, danach der Vorschlag als
+    /// The comment as it goes to GitHub: text, then the suggestion as a
     /// ```` ```suggestion ````-Block.
     pub fn body(&self) -> String {
         match &self.suggestion {
@@ -156,22 +156,22 @@ impl LineComment {
     }
 }
 
-/// Vorher/Nachher eines Änderungsvorschlags.
+/// Before/after of a change suggestion.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SuggestionDiff {
-    /// Zeilennummer der Zeile, die ersetzt wird.
+    /// Line number of the line that is replaced.
     pub no: u32,
     pub before: String,
     pub after: Vec<String>,
 }
 
-/// Normalisiert einen Vorschlag: ohne Zeilenumbruch am Ende. Leer = kein Vorschlag.
+/// Normalizes a suggestion: without a line break at the end. Empty = no suggestion.
 fn clean_suggestion(code: Option<&str>) -> Option<String> {
     let code = code?.trim_end_matches(['\n', '\r']);
     (!code.trim().is_empty()).then(|| code.replace("\r\n", "\n"))
 }
 
-/// Ergebnis des Reviews.
+/// Result of the review.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Verdict {
     #[default]
@@ -209,25 +209,25 @@ impl Verdict {
     }
 }
 
-/// So viele Takte läuft ein neu gestarteter Check in der Demo.
+/// This many ticks a restarted check runs in the demo.
 pub const CHECK_STEPS: u8 = 3;
 
-/// Ein einzelner Check eines Pull Requests (Build, Lint, Tests …).
+/// A single check of a pull request (build, lint, tests …).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct CheckRun {
     pub name: String,
     pub status: Checks,
-    /// Dauer des letzten Laufs in Sekunden.
+    /// Duration of the last run in seconds.
     #[serde(default)]
     pub duration_s: u32,
-    /// Ausgabe des letzten Laufs.
+    /// Output of the last run.
     #[serde(default)]
     pub log: String,
-    /// Wie ein Neustart in der Demo ausgeht. Fest hinterlegt, damit es nachvollziehbar
-    /// bleibt: ein echter Fehler bleibt rot, ein wackliger Test wird grün.
+    /// How a restart ends in the demo. Fixed so that it stays traceable:
+    /// a real error stays red, a flaky test turns green.
     #[serde(default = "passed")]
     pub rerun: Checks,
-    /// Takte, die ein laufender Check noch braucht.
+    /// Ticks a running check still needs.
     #[serde(default)]
     pub remaining: u8,
 }
@@ -248,13 +248,13 @@ impl CheckRun {
         }
     }
 
-    /// Legt fest, wie ein Neustart ausgeht.
+    /// Determines how a restart ends.
     pub fn rerun_as(mut self, rerun: Checks) -> Self {
         self.rerun = rerun;
         self
     }
 
-    /// `2:05 Min.` bzw. `42 Sek.`; während des Laufs `läuft`.
+    /// `2:05 Min.` or `42 Sek.`; while running `läuft`.
     pub fn duration_label(&self) -> String {
         if self.status == Checks::Running {
             return "läuft".into();
@@ -265,7 +265,7 @@ impl CheckRun {
         }
     }
 
-    /// Nur ein roter Check lässt sich neu starten.
+    /// Only a red check can be restarted.
     fn restart(&mut self) -> bool {
         if self.status != Checks::Failed {
             return false;
@@ -276,7 +276,7 @@ impl CheckRun {
         true
     }
 
-    /// Ein Takt. `true`, wenn der Check dabei fertig geworden ist.
+    /// One tick. `true` if the check finished in the process.
     fn advance(&mut self) -> bool {
         if self.status != Checks::Running {
             return false;
@@ -297,7 +297,7 @@ impl CheckRun {
     }
 }
 
-/// Wie ein Pull Request in den Zielbranch kommt.
+/// How a pull request gets into the target branch.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum MergeMethod {
     #[default]
@@ -335,7 +335,7 @@ impl MergeMethod {
     }
 }
 
-/// Ein Grund, warum noch nicht gemergt werden darf.
+/// A reason why merging is not allowed yet.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MergeBlocker {
     AlreadyMerged,
@@ -347,7 +347,7 @@ pub enum MergeBlocker {
 }
 
 impl MergeBlocker {
-    /// Begründung für die Oberfläche.
+    /// Justification for the UI.
     pub fn reason(self) -> &'static str {
         match self {
             MergeBlocker::AlreadyMerged => "Der Pull Request ist schon gemergt.",
@@ -362,8 +362,8 @@ impl MergeBlocker {
     }
 }
 
-/// Die Bedingungen fürs Mergen als reine Funktion: Checks grün, Review gesendet und
-/// nicht „Änderungen“. Leer = erlaubt. Ist der Pull Request gemergt, ist das der einzige
+/// The conditions for merging as a pure function: checks green, review sent and
+/// not „Changes“. Empty = allowed. If the pull request is merged, that is the only
 /// Grund.
 pub fn merge_blockers(
     checks: Checks,
@@ -391,7 +391,7 @@ pub fn merge_blockers(
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SendError {
-    /// So viele Vorschläge sind noch nicht entschieden.
+    /// This many suggestions are not decided yet.
     Undecided(usize),
     AlreadySent,
     UnknownReview,
@@ -415,22 +415,22 @@ pub struct Review {
     pub checks: Checks,
     #[serde(default)]
     pub files: Vec<FileDiff>,
-    /// Hat der Agent diesen Pull Request schon durchgesehen?
+    /// Has the agent already looked through this pull request?
     #[serde(default)]
     pub agent_reviewed: bool,
     #[serde(default)]
     pub suggestions: Vec<Suggestion>,
-    /// Eigene Kommentare an Diff-Zeilen.
+    /// Own comments on diff lines.
     #[serde(default)]
     pub line_comments: Vec<LineComment>,
     #[serde(default)]
     pub verdict: Verdict,
     #[serde(default)]
     pub sent: bool,
-    /// Die einzelnen Checks. Leer, solange es keine Details gibt; dann gilt nur `checks`.
+    /// The individual checks. Empty as long as there are no details; then only `checks` applies.
     #[serde(default)]
     pub check_runs: Vec<CheckRun>,
-    /// `Some`, sobald der Pull Request gemergt ist – mit der gewählten Methode.
+    /// `Some` as soon as the pull request is merged – with the chosen method.
     #[serde(default)]
     pub merged: Option<MergeMethod>,
 }
@@ -469,8 +469,8 @@ impl Review {
         self.suggestions.iter_mut().find(|s| s.id == id)
     }
 
-    /// Entscheidet über einen Vorschlag; `None` nimmt die Entscheidung zurück.
-    /// Jede Änderung macht ein gesendetes Review wieder offen.
+    /// Decides on a suggestion; `None` takes the decision back.
+    /// Every change makes a sent review open again.
     pub fn decide(&mut self, id: &str, decision: Option<Decision>) -> bool {
         let Some(s) = self.suggestion_mut(id) else {
             return false;
@@ -480,7 +480,7 @@ impl Review {
         true
     }
 
-    /// Ändert den Text eines Vorschlags. Leerer Text wird abgelehnt.
+    /// Changes the text of a suggestion. Empty text is rejected.
     pub fn edit(&mut self, id: &str, text: &str) -> bool {
         let text = text.trim();
         let Some(s) = self.suggestion_mut(id).filter(|_| !text.is_empty()) else {
@@ -496,15 +496,15 @@ impl Review {
         self.sent = false;
     }
 
-    // ---------- Eigene Zeilenkommentare ----------
+    // ---------- Own line comments ----------
 
-    /// Legt einen Kommentar an der Zeile `line` (Position im Diff) der Datei `file` an.
-    /// Optional mit Ersatz-Code für diese Zeile. Gibt die ID zurück.
+    /// Creates a comment on the line `line` (position in the diff) of the file `file`.
+    /// Optionally with replacement code for this line. Returns the ID.
     ///
-    /// Abgelehnt werden: weder Text noch Vorschlag, unbekannte Datei oder Zeile, ein
-    /// Vorschlag an einer entfernten Zeile (die gibt es nach dem Merge nicht mehr) und ein
-    /// Vorschlag, der die Zeile nicht ändert. Wie jede Änderung macht das ein gesendetes
-    /// Review wieder offen.
+    /// Rejected are: neither text nor suggestion, unknown file or line, a
+    /// suggestion on a removed line (it no longer exists after the merge) and a
+    /// suggestion that does not change the line. Like every change this makes a sent
+    /// review open again.
     pub fn add_line_comment(
         &mut self,
         file: &str,
@@ -552,8 +552,8 @@ impl Review {
         }
     }
 
-    /// Ändert Text und Vorschlag eines eigenen Kommentars (`None` entfernt den Vorschlag).
-    /// Es gelten dieselben Regeln wie beim Anlegen.
+    /// Changes text and suggestion of an own comment (`None` removes the suggestion).
+    /// The same rules apply as when creating.
     pub fn edit_line_comment(&mut self, id: &str, text: &str, suggestion: Option<&str>) -> bool {
         let text = text.trim();
         let suggestion = clean_suggestion(suggestion);
@@ -591,16 +591,16 @@ impl Review {
         removed
     }
 
-    // ---------- Kommentare umsetzen (Folgeauftrag an den Agenten) ----------
+    // ---------- Implementing comments (follow-up job for the agent) ----------
 
-    /// Kommentare, die noch nicht umgesetzt sind – eigene wie fremde.
+    /// Comments that are not implemented yet – own as well as others'.
     pub fn open_comments(&self) -> Vec<&LineComment> {
         self.line_comments.iter().filter(|c| c.is_open()).collect()
     }
 
-    /// Setzt die Kommentare auf „erledigt“, mit Verweis auf den Lauf. Gibt zurück, wie
-    /// viele es waren; schon erledigte und unbekannte zählen nicht. Dem Urteil ändert das
-    /// nichts, das Review gilt danach aber als neu zu senden.
+    /// Sets the comments to „done“, with a reference to the run. Returns how
+    /// many there were; already done and unknown ones do not count. This changes nothing about
+    /// the verdict, but the review then counts as to be sent anew.
     pub fn resolve_comments(&mut self, ids: &[String], run: &str) -> usize {
         let mut n = 0;
         for c in self
@@ -614,9 +614,9 @@ impl Review {
         n
     }
 
-    /// Übernimmt den Änderungsvorschlag eines Kommentars in den Diff: Die Zeile wird durch
-    /// den Ersatz ersetzt. Eine unveränderte Zeile bleibt als entfernte stehen. Kommentare
-    /// weiter unten in der Datei rücken mit. `false`, wenn es nichts zu übernehmen gibt.
+    /// Takes over the change suggestion of a comment into the diff: the line is replaced by
+    /// the replacement. An unchanged line stays as a removed one. Comments
+    /// further down in the file move along. `false` if there is nothing to take over.
     pub fn apply_comment_suggestion(&mut self, id: &str) -> bool {
         let Some((file, index, code)) = self
             .line_comments
@@ -653,7 +653,7 @@ impl Review {
         true
     }
 
-    /// Verschiebt die Kommentare unterhalb von `index` um `by` Zeilen.
+    /// Moves the comments below `index` by `by` lines.
     fn shift_comments(&mut self, file: &str, index: usize, by: isize) {
         for c in self
             .line_comments
@@ -664,8 +664,8 @@ impl Review {
         }
     }
 
-    /// Wendet die Änderung einer Diagnose an: Die Zeile wird ersetzt oder entfernt.
-    /// `false`, wenn Datei oder Zeile (nicht mehr) passen.
+    /// Applies the change of a diagnosis: the line is replaced or removed.
+    /// `false` if file or line (no longer) fit.
     pub fn apply_fix(&mut self, fix: &Fix) -> bool {
         let Some(diff) = self.files.iter_mut().find(|f| f.name == fix.file) else {
             return false;
@@ -686,14 +686,14 @@ impl Review {
         true
     }
 
-    /// Legt fest, wie der nächste Neustart eines Checks ausgeht (nach einem Fix: grün).
+    /// Determines how the next restart of a check ends (after a fix: green).
     pub fn set_rerun(&mut self, check: &str, rerun: Checks) {
         if let Some(c) = self.check_runs.iter_mut().find(|c| c.name == check) {
             c.rerun = rerun;
         }
     }
 
-    /// Eigene Kommentare an einer Zeile, in der Reihenfolge des Anlegens.
+    /// Own comments on a line, in the order of creation.
     pub fn line_comments_at(&self, file: &str, line: usize) -> Vec<&LineComment> {
         self.line_comments
             .iter()
@@ -701,14 +701,14 @@ impl Review {
             .collect()
     }
 
-    /// Datei und Zeilennummer eines Kommentars, z. B. `a.css · Zeile 3`.
+    /// File and line number of a comment, e.g. `a.css · Zeile 3`.
     pub fn line_location(&self, comment: &LineComment) -> Option<String> {
         let file = self.files.iter().find(|f| f.name == comment.file)?;
         let line = file.lines.get(comment.line)?;
         Some(format!("{} · Zeile {}", file.name, line.no))
     }
 
-    /// Vorher/Nachher eines Änderungsvorschlags; `None`, wenn der Kommentar keinen hat.
+    /// Before/after of a change suggestion; `None` if the comment has none.
     pub fn suggestion_diff(&self, comment: &LineComment) -> Option<SuggestionDiff> {
         let code = comment.suggestion.as_ref()?;
         let line = self
@@ -724,16 +724,16 @@ impl Review {
         })
     }
 
-    /// Eigene Zeilenkommentare, die beim Senden rausgehen: Fremde stehen schon bei GitHub,
-    /// umgesetzte sind erledigt.
+    /// Own line comments that go out on sending: others' are already on GitHub,
+    /// implemented ones are done.
     fn outgoing(&self) -> impl Iterator<Item = &LineComment> {
         self.line_comments
             .iter()
             .filter(|c| c.is_own() && c.is_open())
     }
 
-    /// So viele Kommentare gehen beim Senden raus: freigegebene Vorschläge des Agenten
-    /// und die offenen eigenen Zeilenkommentare.
+    /// This many comments go out on sending: approved suggestions of the agent
+    /// and the open own line comments.
     pub fn comment_count(&self) -> usize {
         self.approved() + self.outgoing().count()
     }
@@ -753,8 +753,8 @@ impl Review {
         )
     }
 
-    /// Sendet das Review und gibt die Kommentare zurück: erst die freigegebenen des
-    /// Agenten, dann die eigenen Zeilenkommentare.
+    /// Sends the review and returns the comments: first the approved ones of the
+    /// agent, then the own line comments.
     pub fn send(&mut self) -> Result<Vec<String>, SendError> {
         if self.sent {
             return Err(SendError::AlreadySent);
@@ -774,8 +774,8 @@ impl Review {
 
     // ---------- Checks ----------
 
-    /// Gesamtstand aus den einzelnen Checks: ein roter genügt für „fehlgeschlagen“,
-    /// sonst gilt „laufen“, solange einer läuft. Ohne Details bleibt `checks` wie es ist.
+    /// Overall state from the individual checks: one red is enough for „failed“,
+    /// otherwise „running“ applies as long as one is running. Without details `checks` stays as it is.
     pub fn sync_checks(&mut self) {
         if self.check_runs.is_empty() {
             return;
@@ -790,8 +790,8 @@ impl Review {
         };
     }
 
-    /// Startet einen fehlgeschlagenen Check neu. `false`, wenn es ihn nicht gibt oder er
-    /// nicht rot ist.
+    /// Restarts a failed check. `false` if it does not exist or is
+    /// not red.
     pub fn restart_check(&mut self, name: &str) -> bool {
         let restarted = self
             .check_runs
@@ -804,8 +804,8 @@ impl Review {
         restarted
     }
 
-    /// Lässt jeden laufenden Check einen Schritt weiterkommen. Gibt die Namen der Checks
-    /// zurück, die dabei fertig geworden sind.
+    /// Lets every running check advance one step. Returns the names of the checks
+    /// that finished in the process.
     pub fn advance_checks(&mut self) -> Vec<String> {
         let done: Vec<String> = self
             .check_runs
@@ -825,15 +825,15 @@ impl Review {
             .count()
     }
 
-    // ---------- Mergen ----------
+    // ---------- Merging ----------
 
-    /// Alles, was das Mergen gerade verhindert. Leer = erlaubt.
+    /// Everything that currently prevents merging. Empty = allowed.
     pub fn merge_blockers(&self) -> Vec<MergeBlocker> {
         merge_blockers(self.checks, self.sent, self.verdict, self.merged.is_some())
     }
 
-    /// Der Agent sieht den Diff durch und bereitet Vorschläge vor.
-    /// Gibt zurück, wie viele es geworden sind.
+    /// The agent looks through the diff and prepares suggestions.
+    /// Returns how many there turned out to be.
     pub fn run_agent_review(&mut self) -> usize {
         self.suggestions = suggest(&self.files);
         self.agent_reviewed = true;
@@ -842,8 +842,8 @@ impl Review {
     }
 }
 
-/// Einfache Regeln, mit denen der Demo-Agent neue Zeilen prüft. Ein echter Agent
-/// würde hier ein Sprachmodell fragen; die Schnittstelle bliebe gleich.
+/// Simple rules with which the demo agent checks new lines. A real agent
+/// would ask a language model here; the interface would stay the same.
 pub fn suggest(files: &[FileDiff]) -> Vec<Suggestion> {
     let mut out = Vec::new();
     for file in files {
@@ -886,7 +886,7 @@ pub fn suggest(files: &[FileDiff]) -> Vec<Suggestion> {
     out
 }
 
-/// Erkennt Pixelwerte wie `46px` – außer in Token-Definitionen (`--name: 46px`).
+/// Detects pixel values like `46px` – except in token definitions (`--name: 46px`).
 fn has_fixed_px(text: &str) -> bool {
     let is_token_definition = text.trim_start().starts_with("--");
     let has_px = text
@@ -895,7 +895,7 @@ fn has_fixed_px(text: &str) -> bool {
     has_px && !is_token_definition && !text.contains("var(")
 }
 
-/// Erkennt Farbwerte wie `#fff` oder `#ffffff`.
+/// Detects color values like `#fff` or `#ffffff`.
 fn has_hex_color(text: &str) -> bool {
     text.match_indices('#').any(|(i, _)| {
         text[i + 1..]
@@ -1079,7 +1079,7 @@ mod tests {
         assert!(!r.delete_line_comment("nope"));
         assert!(r.delete_line_comment(&id));
         assert!(r.line_comments.is_empty());
-        // Die ID einer gelöschten Zeile wird nicht doppelt vergeben.
+        // The ID of a deleted line is not assigned twice.
         let a = r.add_line_comment("a.css", 1, "A", None).unwrap();
         let b = r.add_line_comment("a.css", 1, "B", None).unwrap();
         r.delete_line_comment(&a);
@@ -1092,7 +1092,7 @@ mod tests {
         r.add_line_comment("a.css", 2, "Eigener", None);
         assert_eq!(r.comment_count(), 1);
         assert_eq!(r.send_label(), "Review senden · 1 Kommentar");
-        // Die Regel bleibt: erst über alle Vorschläge entscheiden.
+        // The rule stays: first decide on all suggestions.
         assert_eq!(r.send(), Err(SendError::Undecided(2)));
         r.decide("a", Some(Decision::Approved));
         r.decide("b", Some(Decision::Declined));
@@ -1127,18 +1127,18 @@ mod tests {
         r.send().unwrap();
         assert!(r.delete_line_comment(&id));
         assert!(!r.sent);
-        // Misslungene Änderungen öffnen nichts.
+        // Failed changes open nothing.
         r.send().unwrap();
         assert!(!r.edit_line_comment("nope", "x", None) && !r.delete_line_comment("nope"));
         assert!(r.sent);
     }
 
-    // ---------- Änderungsvorschläge ----------
+    // ---------- Change suggestions ----------
 
     #[test]
     fn a_comment_can_carry_a_suggestion() {
         let mut r = review();
-        // Zeile 2 (Position 2) ist neu: `  color: #ffffff;`
+        // Line 2 (position 2) is new: `  color: #ffffff;`
         let id = r
             .add_line_comment("a.css", 2, "Token nehmen", Some("  color: var(--x);\n"))
             .unwrap();
@@ -1168,17 +1168,17 @@ mod tests {
     #[test]
     fn invalid_suggestions_are_rejected() {
         let mut r = review();
-        // Nichts zu sagen.
+        // Nothing to say.
         assert_eq!(r.add_line_comment("a.css", 2, "  ", Some("  \n")), None);
-        // Entfernte Zeile (Position 1): dort lässt sich nichts ersetzen.
+        // Removed line (position 1): nothing can be replaced there.
         assert_eq!(r.add_line_comment("a.css", 1, "x", Some("neu")), None);
-        // Gleicher Inhalt: kein Vorschlag.
+        // Same content: no suggestion.
         assert_eq!(
             r.add_line_comment("a.css", 3, "x", Some("  outline: none;")),
             None
         );
         assert!(r.line_comments.is_empty());
-        // Nur Vorschlag, ohne Text, genügt.
+        // Only a suggestion, without text, is enough.
         assert!(r.add_line_comment("a.css", 3, "", Some("x")).is_some());
     }
 
@@ -1190,7 +1190,7 @@ mod tests {
         assert_eq!(r.line_comments[0].suggestion.as_deref(), Some("b"));
         assert!(r.edit_line_comment(&id, "T", None));
         assert_eq!(r.line_comments[0].suggestion, None);
-        // Ohne Text und ohne Vorschlag bleibt nichts übrig.
+        // Without text and without suggestion nothing is left.
         assert!(!r.edit_line_comment(&id, "", None));
         assert!(!r.edit_line_comment(&id, "T", Some("  color: #ffffff;")));
         assert_eq!(r.line_comments[0].text, "T");
@@ -1237,13 +1237,13 @@ mod tests {
     fn only_a_failed_check_can_be_restarted() {
         let mut r = review();
         with_checks(&mut r);
-        assert!(!r.restart_check("Build"), "grün");
+        assert!(!r.restart_check("Build"), "green");
         assert!(!r.restart_check("gibt es nicht"));
         assert!(r.restart_check("Tests"));
-        assert!(!r.restart_check("Tests"), "läuft schon");
+        assert!(!r.restart_check("Tests"), "already running");
         assert_eq!(r.check_runs[2].status, Checks::Running);
         assert_eq!(r.check_runs[2].duration_label(), "läuft");
-        // Lint ist noch rot, also bleibt der Gesamtstand rot.
+        // Lint is still red, so the overall state stays red.
         assert_eq!(r.checks, Checks::Failed);
     }
 
@@ -1255,7 +1255,11 @@ mod tests {
         r.restart_check("Lint");
         for _ in 0..CHECK_STEPS - 1 {
             assert!(r.advance_checks().is_empty());
-            assert_eq!(r.checks, Checks::Running, "rot ist nur, wer fertig ist");
+            assert_eq!(
+                r.checks,
+                Checks::Running,
+                "only a finished check counts as red"
+            );
         }
         assert_eq!(r.advance_checks(), vec!["Lint", "Tests"]);
         assert_eq!(r.check_runs[2].status, Checks::Passed);
@@ -1264,7 +1268,7 @@ mod tests {
         assert_eq!(r.checks, Checks::Failed);
         assert_eq!(r.running_checks(), 0);
         assert!(r.advance_checks().is_empty());
-        // Der echte Fehler lässt sich erneut versuchen, bleibt aber rot.
+        // The real error can be retried, but stays red.
         assert!(r.restart_check("Lint"));
     }
 
@@ -1282,7 +1286,7 @@ mod tests {
         assert_eq!(r.checks, Checks::Passed);
     }
 
-    // ---------- Mergen ----------
+    // ---------- Merging ----------
 
     #[test]
     fn merging_needs_green_checks_a_sent_review_and_no_requested_changes() {

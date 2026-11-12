@@ -1,10 +1,10 @@
-//! Jira: Abbildung und Client gegen nachgebaute Antworten (`tests/fixtures`).
+//! Jira: mapping and client against replayed responses (`tests/fixtures`).
 
 use cockpit_core::{Kind, ReasonKind, Scope, Source, TicketStatus};
 use cockpit_integrations::jira::{
-    ASSIGNED_OR_WATCHED_JQL, JiraClient, comments_to_core, dto::*, issue_to_item, jql_fuer_projekt,
+    ASSIGNED_OR_WATCHED_JQL, JiraClient, comments_to_core, dto::*, issue_to_item, jql_for_project,
 };
-use cockpit_integrations::{Fehler, Secret, zeit};
+use cockpit_integrations::{Error, Secret, time};
 use wiremock::matchers::{header, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -15,18 +15,18 @@ macro_rules! fixture {
 }
 
 /// 2024-05-14T12:00:00Z
-fn jetzt() -> i64 {
-    zeit::parse_iso("2024-05-14T12:00:00Z").unwrap()
+fn now() -> i64 {
+    time::parse_iso("2024-05-14T12:00:00Z").unwrap()
 }
 
-fn suche() -> SearchResult {
+fn search() -> SearchResult {
     serde_json::from_str(fixture!("jira_search.json")).unwrap()
 }
 
 #[test]
-fn zugewiesenes_issue() {
-    let s = suche();
-    let item = issue_to_item(&s.issues[0], "acc-mira", jetzt());
+fn assigned_issue() {
+    let s = search();
+    let item = issue_to_item(&s.issues[0], "acc-mira", now());
     assert_eq!(item.id, "bau-142");
     assert_eq!(item.key, "BAU-142");
     assert_eq!((item.kind, item.source), (Kind::Ticket, Source::Jira));
@@ -41,23 +41,23 @@ fn zugewiesenes_issue() {
         (ReasonKind::Assigned, Scope::Mine)
     );
     assert_eq!(item.owner, cockpit_core::Person::me());
-    // 09:12 +02:00 = 07:12 UTC → 4 h 48 min vor 12:00 UTC
+    // 09:12 +02:00 = 07:12 UTC → 4 h 48 min before 12:00 UTC
     assert_eq!(item.time, "vor 4 Std.");
     assert!(item.pr.is_none() && item.branch.is_none() && item.comments.is_empty());
     assert_eq!(item.labels, ["a11y", "tokens"]);
-    assert_eq!(item.repo, None, "Tickets haben kein Repo");
-    // Ohne Feld `labels` (Issue ohne Labels) bleibt die Liste leer.
+    assert_eq!(item.repo, None, "tickets have no repo");
+    // Without the field `labels` (issue without labels) the list stays empty.
     assert!(
-        issue_to_item(&s.issues[1], "acc-mira", jetzt())
+        issue_to_item(&s.issues[1], "acc-mira", now())
             .labels
             .is_empty()
     );
 }
 
 #[test]
-fn beobachtetes_issue_im_review() {
-    let s = suche();
-    let item = issue_to_item(&s.issues[1], "acc-mira", jetzt());
+fn watched_issue_in_review() {
+    let s = search();
+    let item = issue_to_item(&s.issues[1], "acc-mira", now());
     assert_eq!(item.status, TicketStatus::Review);
     assert_eq!(
         (item.reason, item.scope),
@@ -70,40 +70,34 @@ fn beobachtetes_issue_im_review() {
 }
 
 #[test]
-fn issue_ohne_bearbeiter_und_offen() {
-    let s = suche();
-    let item = issue_to_item(&s.issues[2], "acc-mira", jetzt());
+fn issue_without_assignee_and_open() {
+    let s = search();
+    let item = issue_to_item(&s.issues[2], "acc-mira", now());
     assert_eq!(item.status, TicketStatus::Open);
-    // Ohne Bearbeiter gilt der Melder als Besitzer.
+    // Without an assignee the reporter counts as the owner.
     assert_eq!(item.owner.name, "Tobias Lang");
 
-    let mut ohne_alles = s.issues[2].clone();
-    ohne_alles.fields.reporter = None;
+    let mut without_all = s.issues[2].clone();
+    without_all.fields.reporter = None;
     assert_eq!(
-        issue_to_item(&ohne_alles, "acc-mira", jetzt()).owner.name,
+        issue_to_item(&without_all, "acc-mira", now()).owner.name,
         "Nicht zugewiesen"
     );
 }
 
 #[test]
-fn erledigt_wird_erkannt() {
-    let mut issue = suche().issues.remove(0);
+fn done_is_detected() {
+    let mut issue = search().issues.remove(0);
     issue.fields.status.status_category = Some(StatusCategory { key: "done".into() });
-    assert_eq!(
-        issue_to_item(&issue, "x", jetzt()).status,
-        TicketStatus::Done
-    );
+    assert_eq!(issue_to_item(&issue, "x", now()).status, TicketStatus::Done);
     issue.fields.status.status_category = None;
-    assert_eq!(
-        issue_to_item(&issue, "x", jetzt()).status,
-        TicketStatus::Open
-    );
+    assert_eq!(issue_to_item(&issue, "x", now()).status, TicketStatus::Open);
 }
 
 #[test]
-fn kommentare_mit_adf_und_eigenen() {
+fn comments_with_adf_and_own() {
     let page: CommentPage = serde_json::from_str(fixture!("jira_comments_142.json")).unwrap();
-    let c = comments_to_core(&page.comments, "acc-mira", jetzt());
+    let c = comments_to_core(&page.comments, "acc-mira", now());
     assert_eq!(c.len(), 2);
     assert_eq!(c[0].text, "@Du kannst du das übernehmen?");
     assert_eq!(c[0].author.name, "Tobias Lang");
@@ -113,28 +107,28 @@ fn kommentare_mit_adf_und_eigenen() {
     assert_eq!(c[1].time, "vor 4 Std.");
 }
 
-// ---------- Client gegen Mock-Server ----------
+// ---------- Client against mock server ----------
 
-fn antwort(body: &str) -> ResponseTemplate {
+fn response(body: &str) -> ResponseTemplate {
     ResponseTemplate::new(200).set_body_raw(body.to_string(), "application/json")
 }
 
 #[tokio::test]
-async fn inbox_laden_mit_jql_und_anmeldung() {
+async fn inbox_load_with_jql_and_sign_in() {
     let server = MockServer::start().await;
     // base64("mira@firma.example:jira-token")
     let basic = "Basic bWlyYUBmaXJtYS5leGFtcGxlOmppcmEtdG9rZW4=";
     Mock::given(method("GET"))
         .and(path("/rest/api/3/myself"))
         .and(header("authorization", basic))
-        .respond_with(antwort(fixture!("jira_myself.json")))
+        .respond_with(response(fixture!("jira_myself.json")))
         .mount(&server)
         .await;
     Mock::given(method("GET"))
         .and(path("/rest/api/3/search/jql"))
         .and(query_param("jql", ASSIGNED_OR_WATCHED_JQL))
         .and(header("authorization", basic))
-        .respond_with(antwort(fixture!("jira_search.json")))
+        .respond_with(response(fixture!("jira_search.json")))
         .mount(&server)
         .await;
 
@@ -144,18 +138,18 @@ async fn inbox_laden_mit_jql_und_anmeldung() {
         Secret::new("jira-token"),
     )
     .unwrap();
-    let items = c.lade_inbox(jetzt()).await.unwrap();
+    let items = c.load_inbox(now()).await.unwrap();
     assert_eq!(items.len(), 3);
     assert_eq!(items[0].scope, Scope::Mine);
     assert_eq!(items[1].scope, Scope::Team);
 }
 
 #[tokio::test]
-async fn kommentare_und_fehler() {
+async fn comments_and_error() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/rest/api/3/issue/BAU-142/comment"))
-        .respond_with(antwort(fixture!("jira_comments_142.json")))
+        .respond_with(response(fixture!("jira_comments_142.json")))
         .mount(&server)
         .await;
     Mock::given(method("GET"))
@@ -170,56 +164,53 @@ async fn kommentare_und_fehler() {
         .await;
 
     let c = JiraClient::new(&server.uri(), "a@b.de", Secret::new("t")).unwrap();
-    assert_eq!(c.kommentare("BAU-142").await.unwrap().len(), 2);
-    assert_eq!(
-        c.kommentare("BAU-1").await.unwrap_err(),
-        Fehler::NichtGefunden
-    );
-    assert_eq!(c.ich().await.unwrap_err(), Fehler::NichtAngemeldet);
+    assert_eq!(c.comments("BAU-142").await.unwrap().len(), 2);
+    assert_eq!(c.comments("BAU-1").await.unwrap_err(), Error::NotFound);
+    assert_eq!(c.me().await.unwrap_err(), Error::NotSignedIn);
 }
 
 #[tokio::test]
-async fn projekte_seitenweise() {
+async fn projects_page_by_page() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/rest/api/3/project/search"))
         .and(query_param("startAt", "0"))
         .and(query_param("orderBy", "name"))
-        .respond_with(antwort(fixture!("jira_projects_1.json")))
+        .respond_with(response(fixture!("jira_projects_1.json")))
         .expect(1)
         .mount(&server)
         .await;
     Mock::given(method("GET"))
         .and(path("/rest/api/3/project/search"))
         .and(query_param("startAt", "2"))
-        .respond_with(antwort(fixture!("jira_projects_2.json")))
+        .respond_with(response(fixture!("jira_projects_2.json")))
         .expect(1)
         .mount(&server)
         .await;
 
     let c = JiraClient::new(&server.uri(), "a@b.de", Secret::new("t")).unwrap();
-    let projekte = c.projekte().await.unwrap();
-    let keys: Vec<_> = projekte.iter().map(|p| p.key.as_str()).collect();
+    let projects = c.projects().await.unwrap();
+    let keys: Vec<_> = projects.iter().map(|p| p.key.as_str()).collect();
     assert_eq!(keys, ["BAU", "OPS", "WEB"]);
-    assert_eq!(projekte[0].name, "Baukasten");
+    assert_eq!(projects[0].name, "Baukasten");
 }
 
 #[test]
-fn abfrage_fuer_ein_projekt() {
+fn query_for_a_project() {
     assert_eq!(
-        jql_fuer_projekt("BAU").unwrap(),
+        jql_for_project("BAU").unwrap(),
         "project = BAU AND statusCategory != Done ORDER BY updated DESC"
     );
-    for kaputt in ["", "1AB", "A) OR (B", "BAU-1"] {
+    for broken in ["", "1AB", "A) OR (B", "BAU-1"] {
         assert!(
-            matches!(jql_fuer_projekt(kaputt), Err(Fehler::Einstellung(_))),
-            "{kaputt}"
+            matches!(jql_for_project(broken), Err(Error::Config(_))),
+            "{broken}"
         );
     }
 }
 
 #[test]
-fn debug_zeigt_den_schluessel_nicht() {
+fn debug_does_not_show_the_key() {
     let c = JiraClient::new(
         "https://firma.atlassian.net",
         "a@b.de",

@@ -1,4 +1,4 @@
-//! Der Workspace: alle Daten des Cockpits und die Aktionen der Oberfläche.
+//! The workspace: all data of the cockpit and the actions of the UI.
 
 use std::collections::BTreeMap;
 
@@ -24,19 +24,19 @@ use crate::usage::{
 pub enum AgentError {
     UnknownTicket,
     AlreadyRunning,
-    /// Den Pull Request gibt es nicht.
+    /// The pull request does not exist.
     UnknownReview,
-    /// Der Pull Request ist gemergt und bleibt, wie er ist.
+    /// The pull request is merged and stays as it is.
     Merged,
-    /// Es sind keine offenen Kommentare ausgewählt (oder einer ist unbekannt oder erledigt).
+    /// No open comments are selected (or one is unknown or done).
     NoComments,
-    /// Untersuchen lässt sich nur ein roter Check.
+    /// Only a red check can be investigated.
     CheckNotFailed,
-    /// So viele Läufe arbeiten schon, wie die Grenze erlaubt (die Zahl).
+    /// As many runs are already working as the limit allows (the number).
     ParallelLimit(u32),
 }
 
-/// Kurze Kennung für einen Commit der Demo: stabil, aber nicht echt.
+/// Short ID for a commit of the demo: stable, but not real.
 fn short_sha(seed: &str) -> String {
     let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
     for byte in seed.bytes() {
@@ -46,23 +46,23 @@ fn short_sha(seed: &str) -> String {
     format!("{:07x}", hash & 0x0fff_ffff)
 }
 
-/// Warum sich Ticket und Pull Request nicht verknüpfen lassen.
+/// Why ticket and pull request cannot be linked.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LinkError {
-    /// Es gibt kein Review (keinen Pull Request) mit dieser Nummer.
+    /// There is no review (no pull request) with this number.
     UnknownPr(u32),
-    /// Das Ticket hängt schon an diesem Pull Request.
+    /// The ticket is already attached to this pull request.
     Same,
-    /// Das Ticket hat schon einen anderen Pull Request (Nummer).
+    /// The ticket already has a different pull request (number).
     TicketHasPr(u32),
-    /// Der Pull Request gehört schon zu einem anderen Ticket (Schlüssel).
+    /// The pull request already belongs to a different ticket (key).
     PrHasTicket(String),
 }
 
-/// Ein Statuswechsel, den der Pull Request ausgelöst hat.
+/// A status change that the pull request triggered.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct StatusChange {
-    /// Interne ID des Tickets.
+    /// Internal ID of the ticket.
     pub item: String,
     pub key: String,
     pub pr: u32,
@@ -70,13 +70,13 @@ pub struct StatusChange {
     pub to: TicketStatus,
 }
 
-/// Warum ein angehaltener Lauf sich nicht fortsetzen lässt.
+/// Why a stopped run cannot be resumed.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ResumeError {
-    /// Der Lauf ist nicht angehalten.
+    /// The run is not stopped.
     NotStopped,
     ParallelLimit(u32),
-    /// Auch mit der Erhöhung ist die Grenze noch erreicht.
+    /// Even with the raise the limit is still reached.
     StillReached(StopReason),
 }
 
@@ -88,52 +88,52 @@ pub struct Workspace {
     pub reviews: Vec<Review>,
     #[serde(default)]
     pub runs: Vec<AgentRun>,
-    /// Protokoll aller Aktionen, älteste zuerst. Siehe [`crate::action`].
+    /// Log of all actions, oldest first. See [`crate::action`].
     #[serde(default)]
     pub log: Vec<LogEntry>,
-    /// Benachrichtigungen je Grund und Kanal, dazu die Ruhezeiten.
+    /// Notifications per reason and channel, plus the quiet hours.
     #[serde(default)]
     pub notifications: NotifySettings,
-    /// Welche Aufmerksamkeits-Regeln gelten. Siehe [`crate::attention`].
+    /// Which attention rules apply. See [`crate::attention`].
     #[serde(default)]
     pub rules: Rules,
-    /// Zurückgestellte Einträge.
+    /// Snoozed entries.
     #[serde(default)]
     pub snoozed: Vec<Snooze>,
-    /// Von Hand gelöste Verknüpfungen `(Pull Request, Ticket-Schlüssel)`: Die Automatik
-    /// setzt sie nicht wieder.
+    /// Links resolved by hand `(pull request, ticket key)`: the automation
+    /// does not set them again.
     #[serde(default)]
     pub unlinked: Vec<(u32, String)>,
-    /// Ist der Haken „Status folgt dem Pull Request“ aus? Gespeichert wird die Abschaltung:
-    /// So gilt die Automatik in alten Ständen sofort.
+    /// Is the checkmark „status follows the pull request“ off? The switch-off is stored:
+    /// that way the automation applies immediately in old states.
     #[serde(default)]
     pub pr_status_off: bool,
-    /// Zu welchem Stand des Pull Requests der Status zuletzt nachgeführt wurde
-    /// `(Ticket-Schlüssel, Status)`. Eine Änderung von Hand bleibt so lange stehen, bis sich
-    /// der Pull Request wieder bewegt.
+    /// To which state of the pull request the status was last brought in line
+    /// `(ticket key, status)`. A change by hand stays until
+    /// the pull request moves again.
     #[serde(default)]
     pub status_seen: Vec<(String, TicketStatus)>,
-    /// Preise und Grenzen der Agenten. Siehe [`crate::usage`].
+    /// Prices and limits of the agents. See [`crate::usage`].
     #[serde(default)]
     pub limits: AgentLimits,
-    /// Kassenbuch: was die Schritte der Agenten gekostet haben. Es bleibt, auch wenn ein Lauf
-    /// abgebrochen wird. Daraus entstehen „heute“ und „diesen Monat“.
+    /// Ledger: what the agents' steps cost. It stays even if a run
+    /// is cancelled. „Today“ and „this month“ are derived from it.
     #[serde(default)]
     pub spend: Vec<Charge>,
-    /// Regeln pro Repository (Schlüssel: Name des Repos). Siehe [`crate::rules`].
+    /// Rules per repository (key: name of the repo). See [`crate::rules`].
     #[serde(default)]
     pub repo_rules: BTreeMap<String, RepoRules>,
-    /// Abgleich mit Jira und GitHub: Zustand je Quelle, woher die Einträge kommen.
+    /// Sync with Jira and GitHub: state per source, where the entries come from.
     #[serde(default)]
     pub sync: SyncState,
-    /// Das gewählte Jira-Projekt (Schlüssel, z. B. `BAU`). Die Inbox zeigt dann nur dessen
-    /// Tickets, und der Abgleich holt alle offenen Tickets des Projekts. `None` = alle.
+    /// The chosen Jira project (key, e.g. `BAU`). The inbox then shows only its
+    /// tickets, and the sync fetches all open tickets of the project. `None` = all.
     #[serde(default)]
     pub jira_project: Option<String>,
 }
 
 impl Workspace {
-    // ---------- Lesen ----------
+    // ---------- Reading ----------
 
     pub fn item(&self, id: &str) -> Option<&Item> {
         self.items.iter().find(|i| i.id == id)
@@ -147,8 +147,8 @@ impl Workspace {
         self.items.iter_mut().find(|i| i.id == id)
     }
 
-    /// Die Jira-Projekte der Tickets im Workspace, sortiert und ohne Doppelte. Das gewählte
-    /// Projekt ist immer dabei, auch wenn es (noch) keine Tickets hat.
+    /// The Jira projects of the tickets in the workspace, sorted and without duplicates. The chosen
+    /// project is always included, even if it has no tickets (yet).
     pub fn projects(&self) -> Vec<String> {
         let mut out: Vec<String> = self
             .items
@@ -162,8 +162,8 @@ impl Workspace {
         out
     }
 
-    /// Die Repos der Pull Requests in der Inbox, sortiert und ohne Doppelte. Nicht zu
-    /// verwechseln mit [`Workspace::repos`], den Repos mit Regeln für den Agenten.
+    /// The repos of the pull requests in the inbox, sorted and without duplicates. Not to be
+    /// confused with [`Workspace::repos`], the repos with rules for the agent.
     pub fn item_repos(&self) -> Vec<String> {
         let mut out: Vec<String> = self.items.iter().filter_map(|i| i.repo.clone()).collect();
         out.sort();
@@ -171,8 +171,8 @@ impl Workspace {
         out
     }
 
-    /// Alle Labels der Einträge, alphabetisch (ohne Rücksicht auf Groß-/Kleinschreibung)
-    /// und ohne Doppelte.
+    /// All labels of the entries, alphabetical (case-insensitive)
+    /// and without duplicates.
     pub fn labels(&self) -> Vec<String> {
         let mut out: Vec<String> = Vec::new();
         for label in self.items.iter().flat_map(|i| i.labels.iter()) {
@@ -184,8 +184,8 @@ impl Workspace {
         out
     }
 
-    /// Die Besitzer der Einträge als Auswahl für den Filter: du zuerst, dann die anderen in
-    /// der Reihenfolge der Inbox. Der Agent und leere Namen fehlen.
+    /// The owners of the entries as a choice for the filter: you first, then the others in
+    /// inbox order. The agent and empty names are missing.
     pub fn owners(&self) -> Vec<Person> {
         let mut out: Vec<Person> = Vec::new();
         for owner in self.items.iter().map(|i| &i.owner) {
@@ -200,8 +200,8 @@ impl Workspace {
         out
     }
 
-    /// Passt der Eintrag zum gewählten Projekt? Ohne Wahl passt alles; Pull Requests bleiben
-    /// immer sichtbar, denn sie gehören zu keinem Jira-Projekt.
+    /// Does the entry match the chosen project? Without a choice everything matches; pull requests are
+    /// always visible, since they belong to no Jira project.
     pub fn in_project(&self, item: &Item) -> bool {
         match (&self.jira_project, item.project()) {
             (Some(p), Some(own)) => p == own,
@@ -210,7 +210,7 @@ impl Workspace {
         }
     }
 
-    /// Wählt das Jira-Projekt. `false`, wenn sich nichts ändert.
+    /// Chooses the Jira project. `false` if nothing changes.
     pub fn set_jira_project(&mut self, project: Option<String>) -> bool {
         if self.jira_project == project {
             return false;
@@ -219,7 +219,7 @@ impl Workspace {
         true
     }
 
-    /// Einträge der Inbox für einen Filter, in Anzeigereihenfolge.
+    /// Inbox entries for a filter, in display order.
     pub fn visible(&self, filter: Filter) -> Vec<&Item> {
         self.items
             .iter()
@@ -227,11 +227,11 @@ impl Workspace {
             .collect()
     }
 
-    /// Einträge der Inbox nach Besitzer, Quelle und Suchtext.
+    /// Inbox entries by owner, source and search text.
     ///
-    /// Es zählen die Regeln: Ein Eintrag steht nur drin, wenn mindestens eine
-    /// eingeschaltete Regel zutrifft und er nicht zurückgestellt ist. Der Filter
-    /// „Zurückgestellt“ zeigt stattdessen die zurückgestellten Einträge.
+    /// The rules count: an entry is only in if at least one
+    /// switched-on rule applies and it is not snoozed. The filter
+    /// „Zurückgestellt“ shows the snoozed entries instead.
     pub fn search(
         &self,
         filter: Filter,
@@ -246,8 +246,8 @@ impl Workspace {
             .collect()
     }
 
-    /// Einträge, die für diesen Filter Aufmerksamkeit brauchen (oder, bei
-    /// [`Filter::Snoozed`], gerade zurückgestellt sind), in Anzeigereihenfolge.
+    /// Entries that need attention for this filter (or, for
+    /// [`Filter::Snoozed`], are currently snoozed), in display order.
     pub fn attention(&self, filter: Filter, now_ms: u64) -> Vec<&Item> {
         self.visible(filter)
             .into_iter()
@@ -258,7 +258,7 @@ impl Workspace {
             .collect()
     }
 
-    /// Treffer der eingeschalteten Regeln für einen Eintrag, wichtigster zuerst.
+    /// Hits of the switched-on rules for an entry, most important first.
     pub fn hits(&self, item: &Item, now_ms: u64) -> Vec<Hit> {
         attention::hits(item, &self.rules, now_ms)
     }
@@ -267,7 +267,7 @@ impl Workspace {
         !self.hits(item, now_ms).is_empty()
     }
 
-    /// Einträge, die noch Aufmerksamkeit brauchen. Bei [`Filter::Snoozed`]: wie viele zurückgestellt sind.
+    /// Entries that still need attention. For [`Filter::Snoozed`]: how many are snoozed.
     pub fn unread(&self, filter: Filter, now_ms: u64) -> usize {
         self.attention(filter, now_ms)
             .iter()
@@ -279,7 +279,7 @@ impl Workspace {
         self.snoozed.iter().find(|s| s.item == id)
     }
 
-    /// Ist der Eintrag gerade zurückgestellt?
+    /// Is the entry currently snoozed?
     pub fn is_snoozed(&self, id: &str, now_ms: u64) -> bool {
         match (self.snooze_of(id), self.item(id)) {
             (Some(snooze), Some(item)) => snooze.holds(item, now_ms),
@@ -287,8 +287,8 @@ impl Workspace {
         }
     }
 
-    /// IDs der Einträge, deren Zurückstellung abgelaufen oder durch eine Änderung
-    /// aufgehoben ist (und die `wake` deshalb noch entfernen muss).
+    /// IDs of the entries whose snooze has expired or been lifted by a change
+    /// (and which `wake` therefore still has to remove).
     pub fn expired_snoozes(&self, now_ms: u64) -> Vec<String> {
         self.snoozed
             .iter()
@@ -297,8 +297,8 @@ impl Workspace {
             .collect()
     }
 
-    /// Stellt einen Eintrag zurück (`until_ms`: bis dann; `None`: bis sich etwas ändert).
-    /// Eine frühere Zurückstellung wird ersetzt.
+    /// Snoozes an entry (`until_ms`: until then; `None`: until something changes).
+    /// An earlier snooze is replaced.
     pub fn snooze(&mut self, id: &str, until_ms: Option<u64>) -> bool {
         let Some(item) = self.item(id) else {
             return false;
@@ -309,21 +309,21 @@ impl Workspace {
         true
     }
 
-    /// Holt einen Eintrag zurück. `false`, wenn er nicht zurückgestellt war.
+    /// Brings an entry back. `false` if it was not snoozed.
     pub fn unsnooze(&mut self, id: &str) -> bool {
         let before = self.snoozed.len();
         self.snoozed.retain(|s| s.item != id);
         self.snoozed.len() != before
     }
 
-    /// Entfernt abgelaufene Zurückstellungen. Gibt die IDs der zurückgekehrten Einträge zurück.
+    /// Removes expired snoozes. Returns the IDs of the entries that came back.
     pub fn wake(&mut self, now_ms: u64) -> Vec<String> {
         let back = self.expired_snoozes(now_ms);
         self.snoozed.retain(|s| !back.contains(&s.item));
         back
     }
 
-    /// Schaltet eine Regel ein oder aus. `false`, wenn sich nichts ändert.
+    /// Switches a rule on or off. `false` if nothing changes.
     pub fn set_rule(&mut self, rule: Rule, enabled: bool) -> bool {
         self.rules.set(rule, enabled)
     }
@@ -336,7 +336,7 @@ impl Workspace {
         self.reviews.iter_mut().find(|r| r.number == number)
     }
 
-    /// Reviews, die noch nicht gesendet sind.
+    /// Reviews that are not sent yet.
     pub fn open_reviews(&self) -> usize {
         self.reviews.iter().filter(|r| !r.sent).count()
     }
@@ -348,8 +348,8 @@ impl Workspace {
             .count()
     }
 
-    /// Agenten, die auf den Nutzer warten: auf die Freigabe eines Plans, eine Antwort, die
-    /// Entscheidung über einen Fix oder weil eine Grenze sie angehalten hat.
+    /// Agents waiting for the user: for the approval of a plan, an answer, the
+    /// decision about a fix or because a limit has stopped them.
     pub fn waiting_agents(&self) -> usize {
         self.runs
             .iter()
@@ -357,36 +357,36 @@ impl Workspace {
             .count()
     }
 
-    /// Agenten, die eine Grenze angehalten hat.
+    /// Agents that a limit has stopped.
     pub fn stopped_agents(&self) -> usize {
         self.runs.iter().filter(|r| r.is_stopped()).count()
     }
 
-    // ---------- Verbrauch und Grenzen ----------
+    // ---------- Consumption and limits ----------
 
-    /// Verbrauch am UTC-Tag von `now_ms`, über alle Läufe.
+    /// Consumption on the UTC day of `now_ms`, across all runs.
     pub fn spent_today(&self, now_ms: u64) -> Usage {
         let from = day_start(now_ms);
         sum_between(&self.spend, from, from + 86_400_000)
     }
 
-    /// Verbrauch im UTC-Monat von `now_ms`, über alle Läufe.
+    /// Consumption in the UTC month of `now_ms`, across all runs.
     pub fn spent_month(&self, now_ms: u64) -> Usage {
         sum_between(&self.spend, month_start(now_ms), next_month_start(now_ms))
     }
 
-    /// Läufe, die gerade arbeiten oder mitten im Schritt auf eine Antwort warten.
+    /// Runs that are currently working or waiting for an answer in the middle of a step.
     pub fn consuming_agents(&self) -> usize {
         self.runs.iter().filter(|r| r.is_consuming()).count()
     }
 
-    /// Ist die Grenze paralleler Läufe erreicht? Dann die Zahl, sonst `None`.
+    /// Is the limit of parallel runs reached? Then the number, otherwise `None`.
     pub fn parallel_full(&self) -> Option<u32> {
         let max = self.limits.max_parallel;
         (self.consuming_agents() >= max as usize).then_some(max)
     }
 
-    /// Setzt Preise und Grenzen. `false`, wenn sie ungültig sind oder sich nichts ändert.
+    /// Sets prices and limits. `false` if they are invalid or nothing changes.
     pub fn set_limits(&mut self, limits: AgentLimits) -> bool {
         if !limits.is_valid() || limits == self.limits {
             return false;
@@ -409,11 +409,11 @@ impl Workspace {
         }
     }
 
-    /// Setzt einen angehaltenen Lauf fort, nachdem die Grenze um `extra` erhöht wurde (Cent bei
-    /// Budgets, Minuten beim Zeitlimit). Das Monatsbudget gilt für alle Läufe und steigt in den
-    /// Einstellungen; Budget und Zeitlimit des Laufs steigen nur für diesen Lauf. Ist die Grenze
-    /// danach noch erreicht oder arbeiten schon zu viele Läufe, bleibt alles, wie es war.
-    /// Gibt zurück, welche Grenze angehoben wurde.
+    /// Resumes a stopped run after the limit was raised by `extra` (cents for
+    /// budgets, minutes for the time limit). The monthly budget applies to all runs and rises in the
+    /// settings; budget and time limit of the run rise only for this run. If the limit is
+    /// still reached afterwards or too many runs are already working, everything stays as it was.
+    /// Returns which limit was raised.
     pub fn resume_stopped(
         &mut self,
         ticket_key: &str,
@@ -444,28 +444,28 @@ impl Workspace {
         Ok(reason)
     }
 
-    // ---------- Regeln pro Repo ----------
+    // ---------- Rules per repo ----------
 
-    /// Das Repo, in dem ein Ticket umgesetzt wird. Heute gibt es nur das Demo-Repo.
+    /// The repo in which a ticket is implemented. Today there is only the demo repo.
     pub fn repo_of(&self, _ticket_key: &str) -> &'static str {
         DEMO_REPO
     }
 
-    /// Die Repos, für die sich Regeln festlegen lassen.
+    /// The repos for which rules can be set.
     pub fn repos(&self) -> Vec<String> {
         let mut repos = vec![DEMO_REPO.to_string()];
         repos.extend(self.repo_rules.keys().filter(|k| *k != DEMO_REPO).cloned());
         repos
     }
 
-    /// Die Regeln eines Repos. Ohne Eintrag gibt es keine.
+    /// The rules of a repo. Without an entry there are none.
     pub fn rules_for(&self, repo: &str) -> RepoRules {
         self.repo_rules.get(repo).cloned().unwrap_or_default()
     }
 
-    /// Legt die Regeln eines Repos fest (bereinigt). `false`, wenn das Repo unbekannt ist oder
-    /// sich nichts ändert. Wartende Pläne bekommen die neuen Regeln sofort, laufende Läufe
-    /// behalten die, mit denen sie gestartet sind.
+    /// Sets the rules of a repo (cleaned up). `false` if the repo is unknown or
+    /// nothing changes. Waiting plans get the new rules immediately, running runs
+    /// keep those they started with.
     pub fn set_repo_rules(&mut self, repo: &str, rules: RepoRules) -> bool {
         if !self.repos().iter().any(|r| r == repo) {
             return false;
@@ -485,12 +485,12 @@ impl Workspace {
         true
     }
 
-    /// Pausierte Agenten.
+    /// Paused agents.
     pub fn paused_agents(&self) -> usize {
         self.runs.iter().filter(|r| r.is_paused()).count()
     }
 
-    /// Nummer, die der nächste Pull Request bekommt.
+    /// Number the next pull request gets.
     pub fn next_pr_number(&self) -> u32 {
         let reviews = self.reviews.iter().map(|r| r.number);
         let items = self
@@ -501,7 +501,7 @@ impl Workspace {
         reviews.chain(items).chain(runs).max().unwrap_or(0) + 1
     }
 
-    // ---------- Tickets und Pull Requests ----------
+    // ---------- Tickets and pull requests ----------
 
     pub fn mark_done(&mut self, id: &str) {
         if let Some(item) = self.item_mut(id) {
@@ -509,7 +509,7 @@ impl Workspace {
         }
     }
 
-    /// Ändert den Status eines Tickets. Pull Requests haben keinen.
+    /// Changes the status of a ticket. Pull requests have none.
     pub fn set_status(&mut self, id: &str, status: TicketStatus) -> bool {
         match self.item_mut(id) {
             Some(item) if item.is_ticket() => {
@@ -520,7 +520,7 @@ impl Workspace {
         }
     }
 
-    /// Legt für einen Eintrag ohne Branch einen an und gibt den Namen zurück.
+    /// Creates a branch for an entry without one and returns the name.
     pub fn create_branch(&mut self, id: &str) -> Option<String> {
         let item = self.item_mut(id).filter(|i| i.branch.is_none())?;
         let name = format!("feature/{}-{}", item.key, slug(&item.title, 24));
@@ -528,7 +528,7 @@ impl Workspace {
         Some(name)
     }
 
-    /// Antwortet im Ticket oder Pull Request. Leerer Text wird ignoriert.
+    /// Replies in the ticket or pull request. Empty text is ignored.
     pub fn reply(&mut self, id: &str, text: &str) -> bool {
         let text = text.trim();
         let Some(item) = self.item_mut(id).filter(|_| !text.is_empty()) else {
@@ -541,9 +541,9 @@ impl Workspace {
         true
     }
 
-    // ---------- Tickets bearbeiten ----------
+    // ---------- Edit tickets ----------
 
-    /// Ändert Titel und Beschreibung eines Tickets. Der Titel darf nicht leer sein.
+    /// Changes title and description of a ticket. The title must not be empty.
     pub fn edit_ticket(&mut self, id: &str, title: &str, description: &str) -> bool {
         let title = title.trim();
         match self.item_mut(id) {
@@ -556,9 +556,9 @@ impl Workspace {
         }
     }
 
-    /// Personen, denen sich ein Ticket zuweisen lässt: erst du, dann alle anderen, die in der
-    /// Inbox, als Autor eines Pull Requests oder in den Kommentaren auftauchen. Der Agent bekommt Tickets über
-    /// seinen Lauf, nicht über die Zuweisung.
+    /// People a ticket can be assigned to: first you, then all others who appear in the
+    /// inbox, as the author of a pull request or in the comments. The agent gets tickets through
+    /// its run, not through the assignment.
     pub fn people(&self) -> Vec<Person> {
         let mut list = vec![Person::me()];
         let owners = self.items.iter().map(|i| &i.owner);
@@ -575,9 +575,9 @@ impl Workspace {
         list
     }
 
-    /// Weist ein Ticket jemandem zu. Wem es gehört, entscheidet auch, unter „Ich“ oder „Team“ es
-    /// steht. Ein Ticket, das neu bei dir landet, gilt wieder als ungelesen und löst die Regel
-    /// „Zugewiesen“ aus; geht es an jemand anderen, endet sie.
+    /// Assigns a ticket to someone. Who owns it also decides whether it appears under „Ich“ or „Team“. A ticket
+    /// that newly lands with you counts as unread again and triggers the rule
+    /// „Zugewiesen“; if it goes to someone else, it ends.
     pub fn assign(&mut self, id: &str, person: &Person) -> bool {
         let me = Person::me();
         let Some(item) = self.item_mut(id).filter(|i| i.is_ticket()) else {
@@ -608,15 +608,15 @@ impl Workspace {
         }
     }
 
-    // ---------- Ticket und Pull Request verknüpfen ----------
+    // ---------- Link ticket and pull request ----------
 
-    /// Das Ticket, das zu diesem Pull Request gehört (über das Review).
+    /// The ticket that belongs to this pull request (via the review).
     pub fn ticket_of_pr(&self, number: u32) -> Option<&Item> {
         let key = self.review(number)?.ticket_key.as_deref()?;
         self.item_by_key(key).filter(|i| i.is_ticket())
     }
 
-    /// Die Kopie des Pull Requests für ein Ticket: der Eintrag aus der Inbox, sonst aus dem Review.
+    /// The copy of the pull request for a ticket: the entry from the inbox, otherwise from the review.
     fn pr_ref_of(&self, number: u32) -> Option<PrRef> {
         let from_item = self
             .items
@@ -635,8 +635,8 @@ impl Workspace {
         })
     }
 
-    /// Verknüpft ein Ticket mit einem Pull Request. Das Ticket bekommt den Pull Request (und,
-    /// wenn es noch keinen hat, den Branch), das Review das Ticket.
+    /// Links a ticket with a pull request. The ticket gets the pull request (and,
+    /// if it has none yet, the branch), the review gets the ticket.
     pub fn link_pr(&mut self, ticket_id: &str, number: u32) -> Result<(), LinkError> {
         let key = self
             .item(ticket_id)
@@ -655,7 +655,7 @@ impl Workspace {
             .item(ticket_id)
             .and_then(|i| i.pr.as_ref().map(|p| p.number));
         if let Some(n) = current {
-            // Zeigt das Ticket schon auf diesen Pull Request, fehlt nur die Gegenseite.
+            // If the ticket already points to this pull request, only the other side is missing.
             if n != number
                 && self
                     .review(n)
@@ -678,8 +678,8 @@ impl Workspace {
         Ok(())
     }
 
-    /// Löst die Verknüpfung eines Tickets. Gibt die Nummer des Pull Requests zurück.
-    /// Die Automatik verknüpft dasselbe Paar nicht wieder.
+    /// Removes the link of a ticket. Returns the number of the pull request.
+    /// The automation does not link the same pair again.
     pub fn unlink_pr(&mut self, ticket_id: &str) -> Option<u32> {
         let item = self.item(ticket_id).filter(|i| i.is_ticket())?;
         let (key, number) = (item.key.clone(), item.pr.as_ref()?.number);
@@ -703,10 +703,10 @@ impl Workspace {
         Some(number)
     }
 
-    /// Welche Pull Requests die Automatik jetzt verknüpfen würde: `(Ticket-ID, Pull Request)`.
-    /// Ein Pull Request kommt in Frage, solange kein vorhandenes Ticket zu ihm gehört und
-    /// Branch oder Titel den Schlüssel eines Tickets ohne Pull Request nennen. Von Hand
-    /// gelöste Paare bleiben gelöst.
+    /// Which pull requests the automation would link now: `(ticket ID, pull request)`.
+    /// A pull request qualifies as long as no existing ticket belongs to it and
+    /// branch or title name the key of a ticket without a pull request. Pairs
+    /// resolved by hand stay resolved.
     pub fn auto_links(&self) -> Vec<(String, u32)> {
         let mut taken: Vec<&str> = Vec::new();
         let mut links = Vec::new();
@@ -732,7 +732,7 @@ impl Workspace {
         links
     }
 
-    /// Verknüpft, was `auto_links` findet. Gibt `(Ticket-ID, Schlüssel, Pull Request)` zurück.
+    /// Links what `auto_links` finds. Returns `(ticket ID, key, pull request)`.
     pub fn auto_link(&mut self) -> Vec<(String, String, u32)> {
         let mut done = Vec::new();
         for (id, number) in self.auto_links() {
@@ -744,9 +744,9 @@ impl Workspace {
         done
     }
 
-    // ---------- Status folgt dem Pull Request ----------
+    // ---------- Status follows the pull request ----------
 
-    /// Verknüpfte Tickets mit dem Status, den ihr Pull Request nahelegt: `(Index, Pull Request, Ziel)`.
+    /// Linked tickets with the status their pull request suggests: `(index, pull request, target)`.
     fn linked_targets(&self) -> Vec<(usize, u32, TicketStatus)> {
         self.items
             .iter()
@@ -762,7 +762,7 @@ impl Workspace {
             .collect()
     }
 
-    /// Hat sich ein Pull Request seit dem letzten Nachführen bewegt? (Ohne etwas zu ändern.)
+    /// Has a pull request moved since the last bring-in-line? (Without changing anything.)
     pub fn status_pending(&self) -> bool {
         !self.pr_status_off
             && self.linked_targets().into_iter().any(|(at, _, target)| {
@@ -775,7 +775,7 @@ impl Workspace {
             })
     }
 
-    /// Merkt sich, dass der Status zum aktuellen Stand des Pull Requests passt, ohne ihn zu ändern.
+    /// Notes that the status matches the current state of the pull request, without changing it.
     fn mark_status_seen(&mut self, key: &str, target: TicketStatus) {
         match self.status_seen.iter_mut().find(|(k, _)| k == key) {
             Some((_, seen)) => *seen = target,
@@ -783,10 +783,10 @@ impl Workspace {
         }
     }
 
-    /// Führt den Status verknüpfter Tickets nach: Pull Request gemergt → Fertig, Review
-    /// angefragt → Review, sonst → In Arbeit. Nur, wenn sich der Stand des Pull Requests seit
-    /// dem letzten Mal geändert hat; ein Status, den du danach von Hand setzt, bleibt so lange
-    /// stehen, bis sich der Pull Request wieder bewegt. Bei ausgeschalteter Automatik tut es nichts.
+    /// Brings the status of linked tickets in line: pull request merged → Done, review
+    /// requested → Review, otherwise → In progress. Only if the pull request's state has changed since
+    /// the last time; a status you set by hand afterwards stays
+    /// until the pull request moves again. With the automation switched off it does nothing.
     pub fn follow_status(&mut self) -> Vec<StatusChange> {
         if self.pr_status_off {
             return Vec::new();
@@ -819,7 +819,7 @@ impl Workspace {
         changes
     }
 
-    /// Schaltet „Status folgt dem Pull Request“ ein oder aus. `false`, wenn sich nichts ändert.
+    /// Switches „status follows the pull request“ on or off. `false` if nothing changes.
     pub fn set_status_follows_pr(&mut self, enabled: bool) -> bool {
         if self.pr_status_off != enabled {
             return false;
@@ -840,7 +840,7 @@ impl Workspace {
             .is_some_and(|r| r.edit(suggestion, text))
     }
 
-    /// Eigener Kommentar an einer Diff-Zeile. Gibt die ID des Kommentars zurück.
+    /// Own comment on a diff line. Returns the ID of the comment.
     pub fn add_line_comment(
         &mut self,
         number: u32,
@@ -875,7 +875,7 @@ impl Workspace {
         }
     }
 
-    /// Lässt den Agenten einen Pull Request durchsehen. Gibt die Zahl der Vorschläge zurück.
+    /// Lets the agent look through a pull request. Returns the number of suggestions.
     pub fn request_agent_review(&mut self, number: u32) -> usize {
         let count = self.review_mut(number).map_or(0, Review::run_agent_review);
         if let Some(item) = self.pr_item_mut(number) {
@@ -888,15 +888,15 @@ impl Workspace {
         count
     }
 
-    /// Der Eintrag, der für diesen Pull Request in der Inbox steht.
+    /// The entry that stands for this pull request in the inbox.
     fn pr_item_mut(&mut self, number: u32) -> Option<&mut Item> {
         self.items
             .iter_mut()
             .find(|i| i.pr.as_ref().is_some_and(|p| p.number == number))
     }
 
-    /// Sendet das Review. Der Eintrag in der Inbox bekommt eine Zusammenfassung als
-    /// eigenen Kommentar und gilt als erledigt. Gibt die Zahl der Kommentare zurück.
+    /// Sends the review. The inbox entry gets a summary as
+    /// an own comment and counts as done. Returns the number of comments.
     pub fn send_review(&mut self, number: u32, own_comment: &str) -> Result<usize, SendError> {
         let review = self.review_mut(number).ok_or(SendError::UnknownReview)?;
         let verdict = review.verdict;
@@ -918,7 +918,7 @@ impl Workspace {
             });
             item.agent_note = None;
             item.read = true;
-            // Das Review ist abgegeben; die Anfrage ist beantwortet.
+            // The review is submitted; the request is answered.
             if item.reason == ReasonKind::ReviewRequested {
                 item.reason = ReasonKind::Comment;
             }
@@ -928,8 +928,8 @@ impl Workspace {
 
     // ---------- Checks ----------
 
-    /// Checks, die noch laufen (über alle Pull Requests). Pull Requests von GitHub zählen
-    /// nicht: Ihre Checks laufen dort, der Abgleich holt das Ergebnis.
+    /// Checks that are still running (across all pull requests). Pull requests from GitHub do not
+    /// count: their checks run there, the sync fetches the result.
     pub fn running_checks(&self) -> usize {
         self.reviews
             .iter()
@@ -938,7 +938,7 @@ impl Workspace {
             .sum()
     }
 
-    /// Schreibt den Gesamtstand der Checks in die Einträge der Inbox.
+    /// Writes the overall state of the checks into the inbox entries.
     fn sync_pr_checks(&mut self, number: u32) {
         let Some(checks) = self.review(number).map(|r| r.checks) else {
             return;
@@ -951,7 +951,7 @@ impl Workspace {
             if let Some(pr) = item.pr.as_mut() {
                 pr.checks = checks;
             }
-            // Wieder grün: Der Eintrag hängt nicht mehr an den Checks.
+            // Green again: the entry no longer hangs on the checks.
             if checks == Checks::Passed && item.reason == ReasonKind::ChecksFailed {
                 item.reason = ReasonKind::ReviewRequested;
                 item.reason_text = "Checks wieder bestanden".into();
@@ -959,7 +959,7 @@ impl Workspace {
         }
     }
 
-    /// Startet einen fehlgeschlagenen Check neu.
+    /// Restarts a failed check.
     pub fn restart_check(&mut self, number: u32, check: &str) -> bool {
         let restarted = self
             .review_mut(number)
@@ -970,8 +970,8 @@ impl Workspace {
         restarted
     }
 
-    /// Der Takt der Checks: jeder laufende kommt einen Schritt weiter. Gibt
-    /// `(Pull Request, Check, Ergebnis)` für jeden zurück, der dabei fertig geworden ist.
+    /// The tick of the checks: every running one advances one step. Returns
+    /// `(pull request, check, result)` for each one that finished in the process.
     pub fn advance_checks(&mut self) -> Vec<(u32, String, Checks)> {
         let mut finished = Vec::new();
         let linked: Vec<u32> = self.sync.prs.iter().map(|p| p.number).collect();
@@ -996,9 +996,9 @@ impl Workspace {
         finished
     }
 
-    // ---------- Mergen ----------
+    // ---------- Merging ----------
 
-    /// Was das Mergen von Pull Request `number` verhindert. Unbekannt = leer.
+    /// What prevents merging pull request `number`. Unknown = empty.
     pub fn merge_blockers(&self, number: u32) -> Vec<MergeBlocker> {
         let Some(review) = self.review(number) else {
             return Vec::new();
@@ -1014,9 +1014,9 @@ impl Workspace {
         blockers
     }
 
-    /// Mergt den Pull Request. Der Eintrag in der Inbox zeigt „Gemergt“. Das verknüpfte Ticket
-    /// folgt über [`Workspace::follow_status`] (sofern das eingeschaltet ist); gibt dessen
-    /// Statuswechsel zurück.
+    /// Merges the pull request. The inbox entry shows „Gemergt“. The linked ticket
+    /// follows via [`Workspace::follow_status`] (if that is switched on); returns its
+    /// status change.
     pub fn merge_pr(
         &mut self,
         number: u32,
@@ -1047,7 +1047,7 @@ impl Workspace {
                 item.reason_text = format!("Gemergt ({})", method.label());
             }
         }
-        // Ein verknüpftes Ticket ohne eigene Kopie des Pull Requests bekommt sie jetzt.
+        // A linked ticket without its own copy of the pull request gets it now.
         if let Some(id) = ticket
             .and_then(|key| self.item_by_key(&key))
             .filter(|i| i.is_ticket() && i.pr.is_none())
@@ -1061,7 +1061,7 @@ impl Workspace {
         Ok(self.follow_status())
     }
 
-    /// Fragt ein Review an: Der Pull Request gilt als „Review angefragt“. `false`, wenn er es schon ist.
+    /// Requests a review: the pull request counts as „Review angefragt“. `false` if it already is.
     pub fn request_review(&mut self, number: u32) -> bool {
         let mut changed = false;
         for pr in self
@@ -1076,13 +1076,13 @@ impl Workspace {
         changed
     }
 
-    // ---------- Agenten ----------
+    // ---------- Agents ----------
 
-    /// Der Lauf zu einem Ticket. Gibt es noch keinen, kommt ein startbereiter zurück.
+    /// The run for a ticket. If there is none yet, a ready-to-start one is returned.
     pub fn run(&self, ticket_key: &str) -> Option<AgentRun> {
         if let Some(run) = self.runs.iter().find(|r| r.key() == ticket_key) {
             let mut run = run.clone();
-            // Ein startbereiter Lauf zeigt immer die aktuellen Regeln.
+            // A ready-to-start run always shows the current rules.
             if run.is_idle() {
                 self.apply_rules(&mut run);
             }
@@ -1104,14 +1104,14 @@ impl Workspace {
         run.rules = self.rules_for(&run.repo);
     }
 
-    /// Beauftragt den Agenten mit einem Ticket.
+    /// Commissions the agent with a ticket.
     pub fn start_agent(
         &mut self,
         ticket_key: &str,
         options: AgentOptions,
     ) -> Result<(), AgentError> {
         let mut run = self.run(ticket_key).ok_or(AgentError::UnknownTicket)?;
-        // Folgeaufträge starten über das Review, nicht über ein Ticket.
+        // Follow-up jobs start via the review, not via a ticket.
         if run.is_followup() {
             return Err(AgentError::UnknownTicket);
         }
@@ -1119,7 +1119,7 @@ impl Workspace {
             return Err(AgentError::AlreadyRunning);
         }
         run.start(options, self.next_pr_number());
-        // Ein Lauf, der sofort arbeitet, braucht einen freien Platz.
+        // A run that works immediately needs a free slot.
         if run.is_consuming()
             && let Some(max) = self.parallel_full()
         {
@@ -1131,7 +1131,7 @@ impl Workspace {
             None => self.runs.push(run),
         }
         if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket_key) {
-            // Wartet der Agent noch auf die Freigabe, bleibt das Ticket unverändert.
+            // If the agent is still waiting for approval, the ticket stays unchanged.
             if waiting {
                 item.agent_note = Some("Der Agent wartet auf die Freigabe seines Plans".into());
             } else {
@@ -1148,7 +1148,7 @@ impl Workspace {
             .find(|r| r.key() == key && r.is_active())
     }
 
-    /// Der Eintrag, an dem der Lauf hängt: bei Folgeaufträgen der mit dem Pull Request.
+    /// The entry the run hangs on: for follow-up jobs the one with the pull request.
     fn run_item_mut(&mut self, key: &str) -> Option<&mut Item> {
         let item_key = self
             .runs
@@ -1164,13 +1164,13 @@ impl Workspace {
         }
     }
 
-    /// Ein Folgeauftrag, der nicht mehr läuft, hinterlässt keinen Lauf. (Beim Ticket
-    /// bleibt der bereite Lauf stehen, wie bisher.)
+    /// A follow-up job that no longer runs leaves no run behind. (For the ticket
+    /// the ready run stays, as before.)
     fn drop_idle_followups(&mut self) {
         self.runs.retain(|r| !(r.is_followup() && r.is_idle()));
     }
 
-    /// Bricht einen wartenden oder laufenden Agenten ab.
+    /// Cancels a waiting or running agent.
     pub fn cancel_agent(&mut self, ticket_key: &str) {
         let Some(run) = self.active_run_mut(ticket_key) else {
             return;
@@ -1180,7 +1180,7 @@ impl Workspace {
         self.drop_idle_followups();
     }
 
-    /// Gibt den Plan frei: Der Agent legt los, das Ticket geht auf „In Arbeit“.
+    /// Approves the plan: the agent gets going, the ticket goes to „In Arbeit“.
     pub fn approve_plan(&mut self, ticket_key: &str) -> bool {
         let followup = self
             .runs
@@ -1193,7 +1193,7 @@ impl Workspace {
             return false;
         }
         if let Some(item) = self.run_item_mut(ticket_key) {
-            // Ein Folgeauftrag ändert den Status des Tickets nicht.
+            // A follow-up job does not change the ticket's status.
             if !followup {
                 item.status = TicketStatus::InProgress;
             }
@@ -1202,7 +1202,7 @@ impl Workspace {
         true
     }
 
-    /// Lehnt den Plan ab. Der Lauf endet ohne Spuren.
+    /// Rejects the plan. The run ends without traces.
     pub fn reject_plan(&mut self, ticket_key: &str) -> bool {
         if !self
             .active_run_mut(ticket_key)
@@ -1215,7 +1215,7 @@ impl Workspace {
         true
     }
 
-    /// Fordert mit einer Anmerkung einen neuen Plan an.
+    /// Requests a new plan with a note.
     pub fn revise_plan(&mut self, ticket_key: &str, note: &str) -> bool {
         self.active_run_mut(ticket_key)
             .is_some_and(|r| r.revise(note))
@@ -1227,7 +1227,7 @@ impl Workspace {
         }
     }
 
-    /// Beantwortet die Frage des Agenten; er arbeitet danach weiter.
+    /// Answers the agent's question; it keeps working afterwards.
     pub fn answer_agent(&mut self, ticket_key: &str, text: &str) -> bool {
         if !self
             .active_run_mut(ticket_key)
@@ -1239,13 +1239,13 @@ impl Workspace {
         true
     }
 
-    /// Schickt dem laufenden Agenten einen Hinweis für den nächsten Schritt.
+    /// Sends the running agent a hint for the next step.
     pub fn steer_agent(&mut self, ticket_key: &str, text: &str) -> bool {
         self.active_run_mut(ticket_key)
             .is_some_and(|r| r.steer(text))
     }
 
-    /// Hält einen laufenden Agenten an.
+    /// Stops a running agent.
     pub fn pause_agent(&mut self, ticket_key: &str) -> bool {
         if !self.active_run_mut(ticket_key).is_some_and(AgentRun::pause) {
             return false;
@@ -1254,7 +1254,7 @@ impl Workspace {
         true
     }
 
-    /// Setzt einen pausierten Agenten fort.
+    /// Resumes a paused agent.
     pub fn resume_agent(&mut self, ticket_key: &str) -> bool {
         if !self
             .active_run_mut(ticket_key)
@@ -1266,15 +1266,15 @@ impl Workspace {
         true
     }
 
-    /// Lässt jeden laufenden Agenten einen Schritt abschließen oder eine Frage stellen.
-    /// Gibt die Schlüssel der Läufe zurück, die dabei fertig geworden sind. Ohne Uhr: Buchungen
-    /// tragen die Zeit 0. Wer die Zeit kennt, nimmt [`Workspace::advance_agents_at`].
+    /// Lets every running agent complete a step or ask a question.
+    /// Returns the keys of the runs that finished in the process. Without a clock: bookings
+    /// carry the time 0. Whoever knows the time takes [`Workspace::advance_agents_at`].
     pub fn advance_agents(&mut self) -> Vec<String> {
         self.advance_agents_at(0)
     }
 
-    /// Wie [`Workspace::advance_agents`], mit der Zeit des Takts (Millisekunden seit 1970).
-    /// Der Verbrauch jedes Schritts kommt ins Kassenbuch; ist eine Grenze erreicht, hält der Lauf an.
+    /// Like [`Workspace::advance_agents`], with the time of the tick (milliseconds since 1970).
+    /// The consumption of each step goes into the ledger; if a limit is reached, the run stops.
     pub fn advance_agents_at(&mut self, now_ms: u64) -> Vec<String> {
         let mut finished = Vec::new();
         let mut asking = Vec::new();
@@ -1286,7 +1286,7 @@ impl Workspace {
         for run in &mut self.runs {
             let before = run.step_usage.len();
             let tick = run.tick_with(&limits, month_spent);
-            // Neu gemeldeter Verbrauch gehört ins Kassenbuch.
+            // Newly reported consumption belongs in the ledger.
             if run.step_usage.len() > before
                 && let Some(usage) = run.step_usage.last().copied()
             {
@@ -1328,9 +1328,9 @@ impl Workspace {
         finished.into_iter().map(|r| r.key()).collect()
     }
 
-    /// Verbucht eine Meldung des echten Agenten (aus dem Container) beim Lauf `key`: Zustand,
-    /// Verbrauch im Kassenbuch, Notiz am Ticket. `None`, wenn die Meldung nicht passt – dann
-    /// bleibt alles, wie es war.
+    /// Books a report of the real agent (from the container) on run `key`: state,
+    /// consumption in the ledger, note on the ticket. `None` if the report does not fit – then
+    /// everything stays as it was.
     pub fn report_agent(
         &mut self,
         key: &str,
@@ -1376,8 +1376,8 @@ impl Workspace {
         Some(effect)
     }
 
-    /// Der echte Agent ist fertig: Der Branch steht auf GitHub. Einen Pull Request legt der Agent
-    /// nicht an – das tust du; es gibt daher noch kein Review.
+    /// The real agent is done: the branch is on GitHub. The agent does not create a
+    /// pull request – you do that; so there is no review yet.
     fn finish_real(&mut self, run: &AgentRun) {
         let branch = run.branch();
         if let Some(item) = self.items.iter_mut().find(|i| i.key == run.ticket_key) {
@@ -1392,9 +1392,9 @@ impl Workspace {
         }
     }
 
-    // ---------- Folgeaufträge: Review-Kommentare umsetzen, rote Checks untersuchen ----------
+    // ---------- Follow-up jobs: implement review comments, investigate red checks ----------
 
-    /// Der Schlüssel des Eintrags, an dem der Pull Request hängt (Ticket oder PR-Eintrag).
+    /// The key of the entry the pull request hangs on (ticket or PR entry).
     fn item_key_of_pr(&self, number: u32) -> String {
         self.items
             .iter()
@@ -1402,14 +1402,14 @@ impl Workspace {
             .map_or_else(|| format!("#{number}"), |i| i.key.clone())
     }
 
-    /// Läuft oder wartet schon ein Folgeauftrag auf diesem Pull Request?
+    /// Is a follow-up job already running or waiting on this pull request?
     pub fn active_followup(&self, review: u32) -> Option<&AgentRun> {
         self.runs
             .iter()
             .find(|r| r.is_followup() && r.kind.review() == Some(review) && r.is_active())
     }
 
-    /// Alle Folgeaufträge zu einem Pull Request, auch die fertigen.
+    /// All follow-up jobs of a pull request, also the finished ones.
     pub fn followups(&self, review: u32) -> Vec<&AgentRun> {
         self.runs
             .iter()
@@ -1417,7 +1417,7 @@ impl Workspace {
             .collect()
     }
 
-    /// Prüft, dass auf dem Pull Request ein Folgeauftrag starten darf.
+    /// Checks that a follow-up job may start on the pull request.
     fn check_followup(&self, review: u32) -> Result<&Review, AgentError> {
         let r = self.review(review).ok_or(AgentError::UnknownReview)?;
         if r.merged.is_some() {
@@ -1449,10 +1449,10 @@ impl Workspace {
         key
     }
 
-    /// Beauftragt den Agenten, Kommentare eines Reviews umzusetzen. Es zählen nur offene
-    /// Zeilenkommentare dieses Reviews. Gibt den Schlüssel des Laufs zurück (`review-91`).
+    /// Commissions the agent to implement comments of a review. Only open
+    /// line comments of this review count. Returns the key of the run (`review-91`).
     ///
-    /// Der Lauf pusht auf den Branch des Pull Requests; einen neuen Pull Request gibt es nicht.
+    /// The run pushes to the pull request's branch; there is no new pull request.
     pub fn address_review(
         &mut self,
         review: u32,
@@ -1494,8 +1494,8 @@ impl Workspace {
         Ok(self.start_followup(run, options))
     }
 
-    /// Beauftragt den Agenten, einen roten Check zu untersuchen. Er legt eine Diagnose vor und
-    /// ändert nichts, bevor du den Fix übernimmst. Gibt den Schlüssel des Laufs zurück.
+    /// Commissions the agent to investigate a red check. It presents a diagnosis and
+    /// changes nothing before you adopt the fix. Returns the key of the run.
     pub fn investigate_check(&mut self, review: u32, check: &str) -> Result<String, AgentError> {
         let r = self.check_followup(review)?;
         let failed = r
@@ -1515,7 +1515,7 @@ impl Workspace {
             &title,
             &branch,
         );
-        // Eine Untersuchung ändert nichts, bevor du den Fix übernimmst – einen Plan braucht sie nicht.
+        // An investigation changes nothing before you adopt the fix – it needs no plan.
         let options = AgentOptions {
             plan_first: false,
             ..AgentOptions::default()
@@ -1523,7 +1523,7 @@ impl Workspace {
         Ok(self.start_followup(run, options))
     }
 
-    /// Die Untersuchung hat das Log gelesen: Die Diagnose wird erstellt und liegt am Lauf.
+    /// The investigation has read the log: the diagnosis is created and attached to the run.
     fn diagnose_run(&mut self, key: &str) {
         let Some((review, check)) =
             self.runs
@@ -1550,7 +1550,7 @@ impl Workspace {
         self.set_agent_note(key, &note);
     }
 
-    /// Übernimmt den Fix der Diagnose: Der Agent wendet ihn an, pusht und startet den Check neu.
+    /// Adopts the fix of the diagnosis: the agent applies it, pushes and restarts the check.
     pub fn accept_fix(&mut self, key: &str) -> bool {
         if !self.active_run_mut(key).is_some_and(AgentRun::accept_fix) {
             return false;
@@ -1559,7 +1559,7 @@ impl Workspace {
         true
     }
 
-    /// Verwirft die Diagnose: Der Lauf endet, der Branch bleibt unberührt.
+    /// Discards the diagnosis: the run ends, the branch stays untouched.
     pub fn discard_fix(&mut self, key: &str) -> bool {
         if !self.runs.iter().any(|r| r.key() == key && r.is_diagnosed()) {
             return false;
@@ -1572,7 +1572,7 @@ impl Workspace {
         true
     }
 
-    /// Ein Folgeauftrag ist fertig: Der neue Commit steht auf dem Branch des Pull Requests.
+    /// A follow-up job is done: the new commit is on the pull request's branch.
     fn finish_followup(&mut self, run: &AgentRun) {
         let Some(number) = run.kind.review() else {
             return;
@@ -1582,12 +1582,12 @@ impl Workspace {
                 let key = run.key();
                 let sha = short_sha(&format!("{key}:{}", comments.join(",")));
                 let done = self.review_mut(number).map_or(0, |r| {
-                    // Änderungsvorschläge landen im Diff, dann sind die Kommentare erledigt.
+                    // Change suggestions land in the diff, then the comments are done.
                     for id in comments {
                         r.apply_comment_suggestion(id);
                     }
                     let done = r.resolve_comments(comments, &key);
-                    // Das Review ist eine neue Runde: das alte Urteil gilt nicht mehr.
+                    // The review is a new round: the old verdict no longer applies.
                     r.verdict = Verdict::Comment;
                     r.sent = false;
                     done
@@ -1623,7 +1623,7 @@ impl Workspace {
                     .is_some_and(|(r, fix)| {
                         let applied = r.apply_fix(fix);
                         if applied {
-                            // Der Fix behebt den Fehler; ein wackliger Check braucht nur den Neustart.
+                            // The fix removes the error; a flaky check only needs the restart.
                             r.set_rerun(check, Checks::Passed);
                         }
                         applied
@@ -1650,8 +1650,8 @@ impl Workspace {
         }
     }
 
-    /// Ein Lauf ist fertig: Branch und Pull Request erscheinen am Ticket, und der
-    /// Pull Request wartet als Review.
+    /// A run is done: branch and pull request appear on the ticket, and the
+    /// pull request waits as a review.
     fn publish(&mut self, run: &AgentRun) {
         let Some(number) = run.pr_number else { return };
         let checks = if run.options.run_tests {
@@ -1676,7 +1676,7 @@ impl Workspace {
                 merged: false,
                 review_requested: true,
             });
-            // Der Pull Request wartet als Review – derselbe Weg wie bei jedem verknüpften Ticket.
+            // The pull request waits as a review – the same way as for any linked ticket.
             item.status = item
                 .pr
                 .as_ref()
@@ -1711,7 +1711,7 @@ impl Workspace {
             sent: false,
             check_runs: {
                 let mut runs = demo::passing_checks();
-                // Ohne Tests läuft der Test-Check noch; der Takt der Checks schließt ihn ab.
+                // Without tests the test check is still running; the tick of the checks completes it.
                 if checks == Checks::Running
                     && let Some(tests) = runs.last_mut()
                 {
@@ -1736,7 +1736,7 @@ mod tests {
         demo::workspace()
     }
 
-    /// Optionen ohne Plan-Freigabe: der Agent läuft sofort.
+    /// Options without plan approval: the agent runs immediately.
     fn direct() -> AgentOptions {
         AgentOptions {
             plan_first: false,
@@ -1744,7 +1744,7 @@ mod tests {
         }
     }
 
-    /// Lässt alle Agenten zu Ende laufen und beantwortet dabei jede Rückfrage.
+    /// Lets all agents run to the end and answers every follow-up question.
     fn finish_agents(w: &mut Workspace) -> Vec<String> {
         let mut finished = Vec::new();
         for _ in 0..=STEPS {
@@ -1766,7 +1766,7 @@ mod tests {
     fn demo_data_matches_the_design() {
         let w = ws();
         assert_eq!(w.items.len(), 7);
-        assert_eq!(w.unread(Filter::All, NOW), 6, "pr85 gehört nicht mir");
+        assert_eq!(w.unread(Filter::All, NOW), 6, "pr85 is not mine");
         assert_eq!(
             (w.visible(Filter::Mine).len(), w.visible(Filter::Team).len()),
             (5, 2)
@@ -1774,8 +1774,8 @@ mod tests {
         assert_eq!(w.review(87).unwrap().suggestions.len(), 3);
         assert_eq!(w.open_reviews(), 3);
         assert_eq!(w.running_agents(), 0);
-        // Jeder Pull Request an einem Eintrag hat ein Review.
-        // (Ausnahme: #12 im zweiten Repo, das nur die Filter der Inbox zeigt.)
+        // Every pull request on an entry has a review.
+        // (Exception: #12 in the second repo, which only shows the inbox filters.)
         for pr in w
             .items
             .iter()
@@ -1807,24 +1807,24 @@ mod tests {
     #[test]
     fn the_inbox_follows_the_rules() {
         let mut w = ws();
-        // pr85 (Checks rot, aber von Mira) trifft keine Regel und fehlt.
+        // pr85 (checks red, but from Mira) matches no rule and is missing.
         assert_eq!(
             ids(w.attention(Filter::All, NOW)),
             ["bau142", "pr87", "bau138", "bau150", "doc7", "pr12"]
         );
         assert_eq!(ids(w.attention(Filter::Team, NOW)), ["pr87"]);
-        // Regel aus: die Treffer dahinter verschwinden – bau150 bleibt wegen „Zugewiesen“.
+        // Rule off: the hits behind it disappear – bau150 stays because of „Zugewiesen“.
         w.set_rule(Rule::ReviewRequested, false);
         assert_eq!(ids(w.attention(Filter::Team, NOW)), Vec::<&str>::new());
         w.set_rule(Rule::Overdue, false);
         w.set_rule(Rule::Assigned, false);
         assert!(!ids(w.attention(Filter::All, NOW)).contains(&"bau150"));
-        // Der Grund des Eintrags ist der erste Treffer.
+        // The reason of the entry is the first hit.
         assert_eq!(
             w.hits(w.item("bau142").unwrap(), NOW)[0].rule,
             Rule::Mention
         );
-        // Antworten erledigt die Erwähnung.
+        // Answering resolves the mention.
         w.reply("bau142", "Mache ich.");
         w.set_rule(Rule::Assigned, true);
         assert_eq!(
@@ -1839,13 +1839,13 @@ mod tests {
         assert_eq!(w.unread(Filter::Mine, NOW), 5);
         w.set_rule(Rule::Mention, false);
         w.set_rule(Rule::Assigned, false);
-        // bau142 und doc7 haben nun keinen Grund mehr; bau138 (blockiert), bau150 (überfällig)
-        // und pr12 (blockiert) bleiben.
+        // bau142 and doc7 now have no reason left; bau138 (blocked), bau150 (overdue)
+        // and pr12 (blocked) stay.
         assert_eq!(w.unread(Filter::Mine, NOW), 3);
         assert!(w.snooze("bau138", Some(NOW + HOUR)));
         assert_eq!(w.unread(Filter::Mine, NOW), 2);
         assert_eq!(w.unread(Filter::Snoozed, NOW), 1);
-        // Nach Ablauf zählt er wieder – auch ohne dass jemand `wake` aufruft.
+        // After expiry it counts again – even if nobody calls `wake`.
         assert_eq!(w.unread(Filter::Mine, NOW + HOUR), 3);
         assert_eq!(w.unread(Filter::Snoozed, NOW + HOUR), 0);
     }
@@ -1865,12 +1865,12 @@ mod tests {
             w.search(Filter::Snoozed, SourceFilter::Jira, "", NOW)
                 .is_empty()
         );
-        // Suche und Quelle arbeiten auf den Regeln, nicht auf allen Einträgen.
+        // Search and source work on the rules, not on all entries.
         assert!(
             w.search(Filter::All, SourceFilter::All, "pr85", NOW)
                 .is_empty()
         );
-        // Erneut zurückstellen ersetzt die alte Zurückstellung.
+        // Snoozing again replaces the old snooze.
         w.snooze("pr87", None);
         assert_eq!(w.snoozed.len(), 1);
         assert!(w.unsnooze("pr87"));
@@ -1887,7 +1887,7 @@ mod tests {
         assert!(w.wake(NOW).is_empty());
         assert_eq!(w.wake(NOW + 2 * HOUR), ["pr87"]);
         assert_eq!(w.snoozed.len(), 2);
-        // „Bis sich etwas ändert“: ein Kommentar holt den Eintrag zurück.
+        // „Until something changes“: a comment brings the entry back.
         w.reply("bau138", "Hallo");
         assert!(ids(w.attention(Filter::All, NOW)).contains(&"bau138"));
         assert_eq!(w.expired_snoozes(NOW), ["bau138"]);
@@ -1983,7 +1983,7 @@ mod tests {
         for s in ["a", "b", "c"] {
             w.decide(87, s, Some(Decision::Declined));
         }
-        // Eigene Kommentare allein zählen mit, auch wenn alle Vorschläge abgelehnt sind.
+        // Own comments alone count too, even if all suggestions are declined.
         assert_eq!(w.send_review(87, ""), Ok(1));
         assert_eq!(
             w.item("pr87").unwrap().comments.last().unwrap().text,
@@ -2037,7 +2037,7 @@ mod tests {
         assert_eq!(item.pr.as_ref().unwrap().label(), "#92 · Entwurf");
         assert_eq!(item.status, TicketStatus::Review);
         assert_eq!(item.reason, ReasonKind::AgentFinished);
-        assert!(!item.read, "ein fertiger Lauf braucht Aufmerksamkeit");
+        assert!(!item.read, "a finished run needs attention");
 
         let review = w.review(92).unwrap();
         assert!(review.author.is_agent());
@@ -2105,7 +2105,7 @@ mod tests {
             (None, None, None)
         );
         assert!(w.review(92).is_none());
-        // Ein fertiger Lauf lässt sich nicht mehr abbrechen.
+        // A finished run can no longer be cancelled.
         w.cancel_agent("BAU-138");
         assert!(w.run("BAU-138").unwrap().is_done());
     }
@@ -2119,12 +2119,12 @@ mod tests {
             w.start_agent("BAU-142", AgentOptions::default()),
             Err(AgentError::AlreadyRunning)
         );
-        // Der Takt bringt keinen Fortschritt ohne Freigabe.
+        // The tick makes no progress without approval.
         assert!(finish_agents(&mut w).is_empty());
         let run = w.run("BAU-142").unwrap();
         assert!(run.is_awaiting());
         assert_eq!(run.completed, 0);
-        // Weder Branch noch Pull Request noch neuer Status.
+        // Neither branch nor pull request nor new status.
         let item = w.item("bau142").unwrap();
         assert_eq!((item.branch.clone(), item.pr.clone()), (None, None));
         assert_eq!(item.status, ws().item("bau142").unwrap().status);
@@ -2140,7 +2140,7 @@ mod tests {
         let mut w = ws();
         w.start_agent("BAU-142", AgentOptions::default()).unwrap();
         assert!(w.approve_plan("BAU-142"));
-        assert!(!w.approve_plan("BAU-142"), "nur einmal freigeben");
+        assert!(!w.approve_plan("BAU-142"), "approve only once");
         assert_eq!((w.running_agents(), w.waiting_agents()), (1, 0));
         assert_eq!(finish_agents(&mut w), vec!["BAU-142".to_string()]);
         assert_eq!(w.item("bau142").unwrap().pr.as_ref().unwrap().number, 92);
@@ -2159,7 +2159,7 @@ mod tests {
         assert_eq!(w.item("bau142"), before.item("bau142"));
         assert!(w.review(92).is_none());
         assert!(w.run("BAU-142").unwrap().is_idle());
-        // Danach lässt sich neu starten.
+        // After that it can be restarted.
         assert!(w.start_agent("BAU-142", AgentOptions::default()).is_ok());
     }
 
@@ -2167,7 +2167,7 @@ mod tests {
     fn a_waiting_plan_can_be_cancelled_and_revised() {
         let mut w = ws();
         w.start_agent("BAU-150", AgentOptions::default()).unwrap();
-        assert!(!w.revise_plan("BAU-150", "  "), "leer zählt nicht");
+        assert!(!w.revise_plan("BAU-150", "  "), "empty does not count");
         assert!(w.revise_plan("BAU-150", "Auch die Doku anpassen"));
         assert!(w.run("BAU-150").unwrap().is_awaiting());
         w.cancel_agent("BAU-150");

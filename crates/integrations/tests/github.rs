@@ -1,17 +1,17 @@
-//! GitHub: Abbildung und Client gegen nachgebaute Antworten (`tests/fixtures`).
-//! Kein Netzwerkzugriff; der Client spricht mit einem lokalen Mock-Server.
+//! GitHub: mapping and client against replayed responses (`tests/fixtures`).
+//! No network access; the client talks to a local mock server.
 
 use cockpit_core::{Checks, LineKind, ReasonKind, Scope, Source, TicketStatus};
 use cockpit_integrations::github::{
     GitHubClient, Relation, aggregate_checks, comments_to_core, dto::*, file_to_diff, pull_to_item,
     pull_to_review,
 };
-use cockpit_integrations::{Fehler, Secret, zeit};
+use cockpit_integrations::{Error, Secret, time};
 use wiremock::matchers::{header, method, path, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 fn json<T: serde::de::DeserializeOwned>(s: &str) -> T {
-    serde_json::from_str(s).expect("Fixture ist gültiges JSON")
+    serde_json::from_str(s).expect("fixture is valid JSON")
 }
 
 macro_rules! fixture {
@@ -21,19 +21,19 @@ macro_rules! fixture {
 }
 
 /// 2024-05-14T12:00:00Z
-fn jetzt() -> i64 {
-    zeit::parse_iso("2024-05-14T12:00:00Z").unwrap()
+fn now() -> i64 {
+    time::parse_iso("2024-05-14T12:00:00Z").unwrap()
 }
 
 #[test]
-fn checks_werden_verdichtet() {
+fn checks_become_condensed() {
     let failed: CheckRuns = json(fixture!("github_check_runs_failed.json"));
     let ok: CheckRuns = json(fixture!("github_check_runs_ok.json"));
     assert_eq!(aggregate_checks(&failed.check_runs), Checks::Failed);
     assert_eq!(aggregate_checks(&ok.check_runs), Checks::Passed);
     assert_eq!(aggregate_checks(&[]), Checks::Passed);
 
-    let laeuft = vec![
+    let running = vec![
         CheckRun {
             name: "a".into(),
             status: "completed".into(),
@@ -47,18 +47,18 @@ fn checks_werden_verdichtet() {
             ..CheckRun::default()
         },
     ];
-    assert_eq!(aggregate_checks(&laeuft), Checks::Running);
+    assert_eq!(aggregate_checks(&running), Checks::Running);
 }
 
 #[test]
-fn pull_wird_zum_item_mit_review_anfrage() {
+fn pull_becomes_an_item_with_review_request() {
     let pull: Pull = json(fixture!("github_pull_87.json"));
     let item = pull_to_item(
         "acme/baukasten",
         &pull,
         Checks::Passed,
-        Relation::ReviewAngefragt,
-        jetzt(),
+        Relation::ReviewRequested,
+        now(),
     );
     assert_eq!(item.id, "gh-acme-baukasten-87");
     assert_eq!(item.key, "#87");
@@ -84,31 +84,31 @@ fn pull_wird_zum_item_mit_review_anfrage() {
 }
 
 #[test]
-fn eigener_entwurf_ohne_beschreibung() {
+fn own_draft_without_description() {
     let pull: Pull = json(fixture!("github_pull_91.json"));
-    let rot = pull_to_item(
+    let red = pull_to_item(
         "acme/baukasten",
         &pull,
         Checks::Failed,
-        Relation::Eigener,
-        jetzt(),
+        Relation::Own,
+        now(),
     );
-    assert_eq!(rot.reason, ReasonKind::ChecksFailed);
-    assert_eq!(rot.description, "");
-    assert!(rot.labels.is_empty(), "Pull Request ohne Labels");
-    assert!(rot.pr.as_ref().unwrap().draft);
-    let gruen = pull_to_item(
+    assert_eq!(red.reason, ReasonKind::ChecksFailed);
+    assert_eq!(red.description, "");
+    assert!(red.labels.is_empty(), "pull request without labels");
+    assert!(red.pr.as_ref().unwrap().draft);
+    let green = pull_to_item(
         "acme/baukasten",
         &pull,
         Checks::Passed,
-        Relation::Eigener,
-        jetzt(),
+        Relation::Own,
+        now(),
     );
-    assert_eq!(gruen.reason, ReasonKind::Comment);
+    assert_eq!(green.reason, ReasonKind::Comment);
 }
 
 #[test]
-fn review_mit_dateien_und_ticket() {
+fn review_with_files_and_ticket() {
     let pull: Pull = json(fixture!("github_pull_87.json"));
     let files: Vec<PullFile> = json(fixture!("github_files_87.json"));
     let review = pull_to_review(&pull, &files, Checks::Failed);
@@ -124,19 +124,19 @@ fn review_mit_dateien_und_ticket() {
     let css = &review.files[0];
     assert_eq!(css.name, "features/ui/components.css");
     assert_eq!(css.stat(), "+2 −2");
-    // Entfernte Zeile zählt im alten, neue im neuen Stand.
+    // A removed line counts in the old state, an added one in the new state.
     let del = css.lines.iter().find(|l| l.kind == LineKind::Del).unwrap();
     assert_eq!((del.no, del.text.as_str()), (413, "  width: 28px;"));
     let add = css.lines.iter().find(|l| l.kind == LineKind::Add).unwrap();
     assert_eq!(add.no, 413);
 
     assert_eq!(review.files[1].lines.len(), 1);
-    // Binärdatei ohne Patch: Datei bleibt, Zeilen sind leer.
+    // Binary file without patch: the file stays, lines are empty.
     assert_eq!(file_to_diff(&files[2]).lines.len(), 0);
 }
 
 #[test]
-fn ticket_kommt_notfalls_aus_dem_titel() {
+fn ticket_falls_back_to_the_title() {
     let mut pull: Pull = json(fixture!("github_pull_87.json"));
     pull.head.name = "feature/avatar".into();
     assert_eq!(
@@ -150,13 +150,13 @@ fn ticket_kommt_notfalls_aus_dem_titel() {
 }
 
 #[test]
-fn kommentare_sortiert_mit_eigenen_und_zeilenbezug() {
+fn comments_sorted_with_own_and_line_reference() {
     let issue: Vec<IssueComment> = json(fixture!("github_issue_comments_87.json"));
     let review: Vec<ReviewComment> = json(fixture!("github_review_comments_87.json"));
-    let c = comments_to_core(&issue, &review, "mkeller", jetzt());
+    let c = comments_to_core(&issue, &review, "mkeller", now());
 
     assert_eq!(c.len(), 4);
-    // älteste zuerst: der veraltete Zeilenkommentar vom 13.5.
+    // oldest first: the outdated line comment from 13 May.
     assert_eq!(c[0].text, "features/ui/components.css\nVeralteter Hinweis");
     assert_eq!(c[1].text, "Bitte noch das Dark-Theme prüfen.");
     assert!(c[1].own);
@@ -170,20 +170,20 @@ fn kommentare_sortiert_mit_eigenen_und_zeilenbezug() {
     assert_eq!(c[3].time, "vor 5 Min.");
 }
 
-// ---------- Client gegen Mock-Server ----------
+// ---------- Client against mock server ----------
 
 async fn client(server: &MockServer) -> GitHubClient {
     GitHubClient::new(&server.uri(), Secret::new("ghp_testtoken")).unwrap()
 }
 
-fn antwort(body: &str) -> ResponseTemplate {
+fn response(body: &str) -> ResponseTemplate {
     ResponseTemplate::new(200).set_body_raw(body.to_string(), "application/json")
 }
 
 #[tokio::test]
-async fn inbox_laden_ohne_doppelte() {
+async fn inbox_load_without_duplicates() {
     let server = MockServer::start().await;
-    // Der Schlüssel muss als Bearer-Header ankommen.
+    // The key must arrive as a Bearer header.
     Mock::given(method("GET"))
         .and(path("/search/issues"))
         .and(query_param(
@@ -191,38 +191,38 @@ async fn inbox_laden_ohne_doppelte() {
             "is:pr is:open archived:false review-requested:@me",
         ))
         .and(header("authorization", "Bearer ghp_testtoken"))
-        .respond_with(antwort(fixture!("github_search_review.json")))
+        .respond_with(response(fixture!("github_search_review.json")))
         .mount(&server)
         .await;
     Mock::given(method("GET"))
         .and(path("/search/issues"))
         .and(query_param("q", "is:pr is:open archived:false author:@me"))
-        .respond_with(antwort(fixture!("github_search_own.json")))
+        .respond_with(response(fixture!("github_search_own.json")))
         .mount(&server)
         .await;
     Mock::given(method("GET"))
         .and(path("/repos/acme/baukasten/pulls/87"))
-        .respond_with(antwort(fixture!("github_pull_87.json")))
+        .respond_with(response(fixture!("github_pull_87.json")))
         .mount(&server)
         .await;
     Mock::given(method("GET"))
         .and(path("/repos/acme/baukasten/pulls/91"))
-        .respond_with(antwort(fixture!("github_pull_91.json")))
+        .respond_with(response(fixture!("github_pull_91.json")))
         .mount(&server)
         .await;
     Mock::given(method("GET"))
         .and(path("/repos/acme/baukasten/commits/aaa111/check-runs"))
-        .respond_with(antwort(fixture!("github_check_runs_ok.json")))
+        .respond_with(response(fixture!("github_check_runs_ok.json")))
         .mount(&server)
         .await;
     Mock::given(method("GET"))
         .and(path("/repos/acme/baukasten/commits/ccc333/check-runs"))
-        .respond_with(antwort(fixture!("github_check_runs_failed.json")))
+        .respond_with(response(fixture!("github_check_runs_failed.json")))
         .mount(&server)
         .await;
 
-    let items = client(&server).await.lade_inbox(jetzt()).await.unwrap();
-    // #87 steht in beiden Suchen, kommt aber nur einmal vor – als Review-Anfrage.
+    let items = client(&server).await.load_inbox(now()).await.unwrap();
+    // #87 is in both searches, but appears only once – as a review request.
     assert_eq!(items.len(), 2);
     assert_eq!(items[0].key, "#87");
     assert_eq!(items[0].reason, ReasonKind::ReviewRequested);
@@ -231,105 +231,99 @@ async fn inbox_laden_ohne_doppelte() {
 }
 
 #[tokio::test]
-async fn dateien_kommentare_und_ich() {
+async fn files_comments_and_me() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/user"))
-        .respond_with(antwort(fixture!("github_user.json")))
+        .respond_with(response(fixture!("github_user.json")))
         .mount(&server)
         .await;
     Mock::given(method("GET"))
         .and(path("/repos/acme/baukasten/pulls/87/files"))
         .and(query_param("page", "1"))
-        .respond_with(antwort(fixture!("github_files_87.json")))
+        .respond_with(response(fixture!("github_files_87.json")))
         .mount(&server)
         .await;
     Mock::given(method("GET"))
         .and(path("/repos/acme/baukasten/issues/87/comments"))
-        .respond_with(antwort(fixture!("github_issue_comments_87.json")))
+        .respond_with(response(fixture!("github_issue_comments_87.json")))
         .mount(&server)
         .await;
     Mock::given(method("GET"))
         .and(path("/repos/acme/baukasten/pulls/87/comments"))
-        .respond_with(antwort(fixture!("github_review_comments_87.json")))
+        .respond_with(response(fixture!("github_review_comments_87.json")))
         .mount(&server)
         .await;
 
     let c = client(&server).await;
-    assert_eq!(c.ich().await.unwrap(), "mkeller");
-    assert_eq!(c.dateien("acme/baukasten", 87).await.unwrap().len(), 3);
-    assert_eq!(c.kommentare("acme/baukasten", 87).await.unwrap().len(), 2);
+    assert_eq!(c.me().await.unwrap(), "mkeller");
+    assert_eq!(c.files("acme/baukasten", 87).await.unwrap().len(), 3);
+    assert_eq!(c.comments("acme/baukasten", 87).await.unwrap().len(), 2);
     assert_eq!(
-        c.zeilen_kommentare("acme/baukasten", 87)
-            .await
-            .unwrap()
-            .len(),
+        c.line_comments("acme/baukasten", 87).await.unwrap().len(),
         2
     );
 }
 
 #[tokio::test]
-async fn statuscodes_werden_zu_fehlern() {
+async fn status_codes_become_errors() {
     let server = MockServer::start().await;
-    let fall = |pfad: &'static str, antwort: ResponseTemplate| {
+    let mock_get = |route: &'static str, response: ResponseTemplate| {
         Mock::given(method("GET"))
-            .and(path(pfad))
-            .respond_with(antwort)
+            .and(path(route))
+            .respond_with(response)
     };
-    fall("/repos/a/b/pulls/1", ResponseTemplate::new(401))
+    mock_get("/repos/a/b/pulls/1", ResponseTemplate::new(401))
         .mount(&server)
         .await;
-    fall("/repos/a/b/pulls/2", ResponseTemplate::new(404))
+    mock_get("/repos/a/b/pulls/2", ResponseTemplate::new(404))
         .mount(&server)
         .await;
-    fall("/repos/a/b/pulls/3", ResponseTemplate::new(403))
+    mock_get("/repos/a/b/pulls/3", ResponseTemplate::new(403))
         .mount(&server)
         .await;
-    fall(
+    mock_get(
         "/repos/a/b/pulls/4",
         ResponseTemplate::new(403).insert_header("x-ratelimit-remaining", "0"),
     )
     .mount(&server)
     .await;
-    fall("/repos/a/b/pulls/5", ResponseTemplate::new(500))
+    mock_get("/repos/a/b/pulls/5", ResponseTemplate::new(500))
         .mount(&server)
         .await;
-    fall("/repos/a/b/pulls/6", antwort("{ kaputt"))
+    mock_get("/repos/a/b/pulls/6", response("{ kaputt"))
         .mount(&server)
         .await;
 
     let c = client(&server).await;
-    assert_eq!(c.pull("a/b", 1).await.unwrap_err(), Fehler::NichtAngemeldet);
-    assert_eq!(c.pull("a/b", 2).await.unwrap_err(), Fehler::NichtGefunden);
-    assert_eq!(
-        c.pull("a/b", 3).await.unwrap_err(),
-        Fehler::KeineBerechtigung
-    );
+    assert_eq!(c.pull("a/b", 1).await.unwrap_err(), Error::NotSignedIn);
+    assert_eq!(c.pull("a/b", 2).await.unwrap_err(), Error::NotFound);
+    assert_eq!(c.pull("a/b", 3).await.unwrap_err(), Error::NoPermission);
     assert_eq!(
         c.pull("a/b", 4).await.unwrap_err(),
-        Fehler::RateLimit { warten_s: None }
+        Error::RateLimit { wait_s: None }
     );
-    assert_eq!(c.pull("a/b", 5).await.unwrap_err(), Fehler::Status(500));
+    assert_eq!(c.pull("a/b", 5).await.unwrap_err(), Error::Status(500));
     assert!(matches!(
         c.pull("a/b", 6).await.unwrap_err(),
-        Fehler::Antwort(_)
+        Error::Response(_)
     ));
 }
 
 #[tokio::test]
-async fn nicht_erreichbar_ist_netzwerkfehler_ohne_schluessel() {
-    // Port, auf dem niemand lauscht.
+async fn unreachable_is_a_network_error_without_key() {
+    // Port nobody is listening on.
     let c = GitHubClient::new("http://127.0.0.1:9", Secret::new("ghp_geheim")).unwrap();
-    let fehler = c.ich().await.unwrap_err();
-    assert!(matches!(fehler, Fehler::Netzwerk(_)));
-    assert!(!fehler.to_string().contains("ghp_geheim"));
+    let error = c.me().await.unwrap_err();
+    assert!(matches!(error, Error::Network(_)));
+    assert!(!error.to_string().contains("ghp_geheim"));
     assert!(!format!("{c:?}").contains("ghp_geheim"));
 }
 
 #[test]
-fn unsichere_adresse_wird_abgelehnt() {
+fn insecure_address_is_rejected() {
     assert!(matches!(
         GitHubClient::new("http://api.github.com", Secret::new("x")),
-        Err(Fehler::Einstellung(_))
+        Err(Error::Config(_))
     ));
 }

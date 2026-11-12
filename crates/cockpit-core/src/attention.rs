@@ -1,16 +1,16 @@
-//! Aufmerksamkeit: *warum* braucht ein Eintrag mich – und wann nicht?
+//! Attention: *why* does an entry need me – and when not?
 //!
-//! Alles hier sind reine Funktionen. Die Zeit kommt von außen (`now_ms`, Millisekunden
-//! seit 1970, UTC); `cockpit-core` kennt keine Uhr.
+//! Everything here is pure functions. The time comes from outside (`now_ms`, milliseconds
+//! since 1970, UTC); `cockpit-core` knows no clock.
 //!
-//! * [`Rule`]: die Regeln, einzeln abschaltbar ([`Rules`])
-//! * [`hits`]: welche Regeln auf einen Eintrag zutreffen, jeweils mit Grund und einem
-//!   kurzen deutschen Satz; der erste Treffer (nach Rangfolge) ist der Hauptgrund
-//! * [`Snooze`]: Eintrag zurückstellen – für eine Zeit oder „bis sich etwas ändert“
-//! * [`SnoozeChoice`]: die vier Auswahlmöglichkeiten der Oberfläche
+//! * [`Rule`]: the rules, individually switchable ([`Rules`])
+//! * [`hits`]: which rules apply to an entry, each with reason and a
+//!   short German sentence; the first hit (by ranking) is the main reason
+//! * [`Snooze`]: snooze an entry – for a time or „until something changes“
+//! * [`SnoozeChoice`]: the four choices of the UI
 //!
-//! Fälligkeitsdaten (`Item::due`) sind Tage ohne Uhrzeit. „Heute“ ist der UTC-Tag von
-//! `now_ms`; rund um Mitternacht kann das um die Zeitzone abweichen.
+//! Due dates (`Item::due`) are days without time of day. „Today“ is the UTC day of
+//! `now_ms`; around midnight this can deviate by the time zone.
 
 use serde::{Deserialize, Serialize};
 
@@ -20,23 +20,23 @@ const MINUTE_MS: u64 = 60_000;
 const HOUR_MS: u64 = 60 * MINUTE_MS;
 const DAY_MS: u64 = 24 * HOUR_MS;
 
-// ---------- Regeln ----------
+// ---------- Rules ----------
 
-/// Eine Regel, nach der ein Eintrag Aufmerksamkeit braucht. Die Reihenfolge ist die
-/// Rangfolge: Bei mehreren Treffern gilt der erste als Hauptgrund.
+/// A rule by which an entry needs attention. The order is the
+/// ranking: with several hits the first counts as the main reason.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Rule {
-    /// Jemand hat mich in einem Kommentar mit `@Name` erwähnt, und ich habe nicht geantwortet.
+    /// Someone mentioned me in a comment with `@Name`, and I did not answer.
     Mention,
-    /// Jemand bittet mich um ein Review.
+    /// Someone asks me for a review.
     ReviewRequested,
-    /// Mein Pull Request ist blockiert: Checks rot oder Änderungen angefordert.
+    /// My pull request is blocked: checks red or changes requested.
     Blocked,
-    /// Das Fälligkeitsdatum eines Tickets liegt in der Vergangenheit.
+    /// The due date of a ticket lies in the past.
     Overdue,
-    /// Der Agent hat ein Ticket umgesetzt; der Pull Request wartet auf mich.
+    /// The agent has implemented a ticket; the pull request waits for me.
     AgentFinished,
-    /// Ein Ticket ist mir zugewiesen.
+    /// A ticket is assigned to me.
     Assigned,
 }
 
@@ -76,7 +76,7 @@ impl Rule {
         }
     }
 
-    /// Erklärung in einem Satz, für die Einstellungen.
+    /// Explanation in one sentence, for the settings.
     pub fn describe(self) -> &'static str {
         match self {
             Rule::Mention => "Jemand erwähnt dich mit @Name und du hast noch nicht geantwortet",
@@ -89,10 +89,10 @@ impl Rule {
     }
 }
 
-/// Welche Regeln eingeschaltet sind. Neu ist alles an.
+/// Which rules are switched on. By default everything is on.
 ///
-/// Gespeichert werden nur die abgeschalteten: So gilt eine später hinzukommende Regel
-/// in alten Daten sofort als eingeschaltet.
+/// Only the switched-off ones are stored: that way a rule added later
+/// counts as switched on immediately in old data.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Rules {
     #[serde(default)]
@@ -104,7 +104,7 @@ impl Rules {
         !self.off.contains(&rule)
     }
 
-    /// Schaltet eine Regel ein oder aus. Gibt `false` zurück, wenn sich nichts ändert.
+    /// Switches a rule on or off. Returns `false` if nothing changes.
     pub fn set(&mut self, rule: Rule, enabled: bool) -> bool {
         if self.enabled(rule) == enabled {
             return false;
@@ -118,16 +118,16 @@ impl Rules {
     }
 }
 
-/// Ein Treffer: welche Regel, welcher Grund, was in der Inbox steht.
+/// A hit: which rule, which reason, what is in the inbox.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Hit {
     pub rule: Rule,
     pub reason: ReasonKind,
-    /// Kurzer deutscher Satz, z. B. „Lena hat dich erwähnt“.
+    /// Short German sentence, e.g. „Lena hat dich erwähnt“.
     pub text: String,
 }
 
-/// Alle Treffer der eingeschalteten Regeln, in der Rangfolge der Regeln.
+/// All hits of the switched-on rules, in the ranking of the rules.
 pub fn hits(item: &Item, rules: &Rules, now_ms: u64) -> Vec<Hit> {
     Rule::ALL
         .into_iter()
@@ -136,7 +136,7 @@ pub fn hits(item: &Item, rules: &Rules, now_ms: u64) -> Vec<Hit> {
         .collect()
 }
 
-/// Wendet eine einzelne Regel an, unabhängig davon, ob sie eingeschaltet ist.
+/// Applies a single rule, regardless of whether it is switched on.
 pub fn check(rule: Rule, item: &Item, now_ms: u64) -> Option<Hit> {
     let hit = |reason, text: String| Hit { rule, reason, text };
     let open_ticket = item.kind == Kind::Ticket && item.status != TicketStatus::Done;
@@ -193,7 +193,7 @@ pub fn check(rule: Rule, item: &Item, now_ms: u64) -> Option<Hit> {
     }
 }
 
-/// Von wem stammt die letzte Erwähnung von mir, auf die ich noch nicht geantwortet habe?
+/// Who wrote the last mention of me that I have not answered yet?
 fn mentioned_by(item: &Item) -> Option<&str> {
     let after_own = item
         .comments
@@ -207,8 +207,8 @@ fn mentioned_by(item: &Item) -> Option<&str> {
         .map(|c| c.author.name.as_str())
 }
 
-/// Steht `@Name` (oder `@Kürzel`) von mir im Text? Groß-/Kleinschreibung egal; nach dem
-/// Namen darf kein Buchstabe oder keine Ziffer folgen (`@Dutzend` zählt nicht).
+/// Is `@Name` (or `@Kürzel`) of me in the text? Case does not matter; after the
+/// name no letter or digit may follow (`@Dutzend` does not count).
 pub fn mentions_me(text: &str) -> bool {
     let me = crate::model::Person::me();
     let lower = text.to_lowercase();
@@ -223,17 +223,17 @@ pub fn mentions_me(text: &str) -> bool {
     })
 }
 
-/// Wie viele Tage ist das Ticket überfällig? `None`, wenn nichts fällig ist oder das
-/// Datum nicht in der Vergangenheit liegt.
+/// How many days is the ticket overdue? `None` if nothing is due or the
+/// date is not in the past.
 fn overdue_days(item: &Item, now_ms: u64) -> Option<u64> {
     let due = parse_day(item.due.as_deref()?)?;
     let today = (now_ms / DAY_MS) as i64;
     (today > due).then(|| (today - due) as u64)
 }
 
-// ---------- Tage ----------
+// ---------- Days ----------
 
-/// `2026-11-09` → Tage seit 1970-01-01. `None` bei ungültigem Datum.
+/// `2026-11-09` → days since 1970-01-01. `None` for an invalid date.
 pub fn parse_day(text: &str) -> Option<i64> {
     let mut parts = text.trim().split('-');
     let (y, m, d) = (parts.next()?, parts.next()?, parts.next()?);
@@ -252,7 +252,7 @@ pub fn parse_day(text: &str) -> Option<i64> {
     if !(1..=last).contains(&d) {
         return None;
     }
-    // Tage seit 1970 nach H. Hinnant („days_from_civil“).
+    // Days since 1970 after H. Hinnant („days_from_civil“).
     let y = if m <= 2 { y - 1 } else { y };
     let era = y.div_euclid(400);
     let yoe = y - era * 400;
@@ -261,27 +261,27 @@ pub fn parse_day(text: &str) -> Option<i64> {
     Some(era * 146_097 + doe - 719_468)
 }
 
-/// Millisekunden (UTC) für den Beginn eines Tages. Für Tests und Demos.
+/// Milliseconds (UTC) for the start of a day. For tests and demos.
 pub fn day_start_ms(text: &str) -> Option<u64> {
     parse_day(text)
         .and_then(|d| u64::try_from(d).ok())
         .map(|d| d * DAY_MS)
 }
 
-// ---------- Zurückstellen ----------
+// ---------- Snoozing ----------
 
-/// Ein zurückgestellter Eintrag.
+/// A snoozed entry.
 ///
-/// Mit `until_ms` kommt er zu diesem Zeitpunkt zurück. Ohne (`None`) wartet er, bis sich
-/// etwas ändert: ein neuer Kommentar, ein anderer Status oder neue Check-Ergebnisse. Dafür
-/// merkt sich die Zurückstellung den Stand von damals.
+/// With `until_ms` it comes back at that time. Without (`None`) it waits until
+/// something changes: a new comment, a different status or new check results. For that
+/// the snooze remembers the state of back then.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Snooze {
-    /// Interne ID des Eintrags.
+    /// Internal ID of the entry.
     pub item: String,
     #[serde(default)]
     pub until_ms: Option<u64>,
-    /// Stand beim Zurückstellen: Zahl der Kommentare, Status, Checks.
+    /// State at snoozing: number of comments, status, checks.
     #[serde(default)]
     pub comments: usize,
     #[serde(default)]
@@ -301,14 +301,14 @@ impl Snooze {
         }
     }
 
-    /// Hat sich seit dem Zurückstellen etwas geändert?
+    /// Has anything changed since snoozing?
     pub fn changed(&self, item: &Item) -> bool {
         item.comments.len() != self.comments
             || item.status != self.status
             || item.pr.as_ref().map(|p| p.checks) != self.checks
     }
 
-    /// Hält die Zurückstellung den Eintrag jetzt noch zurück?
+    /// Does the snooze still hold the entry back now?
     pub fn holds(&self, item: &Item, now_ms: u64) -> bool {
         match self.until_ms {
             Some(until) => now_ms < until,
@@ -317,7 +317,7 @@ impl Snooze {
     }
 }
 
-/// Die vier Möglichkeiten in der Oberfläche.
+/// The four choices in the UI.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SnoozeChoice {
     Hour,
@@ -327,7 +327,7 @@ pub enum SnoozeChoice {
 }
 
 impl SnoozeChoice {
-    /// ID und Beschriftung, in Anzeigereihenfolge.
+    /// ID and label, in display order.
     pub const OPTIONS: &'static [(&'static str, &'static str)] = &[
         ("stunde", "1 Stunde"),
         ("morgen", "Morgen früh"),
@@ -355,11 +355,11 @@ impl SnoozeChoice {
         SnoozeChoice::ALL.into_iter().find(|c| c.id() == id)
     }
 
-    /// Ab wann kommt der Eintrag zurück? `None`: erst bei einer Änderung.
+    /// From when does the entry come back? `None`: only on a change.
     ///
-    /// „Morgen früh“ und „Nächste Woche“ (der nächste Montag) meinen 8 Uhr Ortszeit.
-    /// `utc_offset_min` ist der Abstand UTC − Ortszeit in Minuten, wie ihn
-    /// `Date.getTimezoneOffset()` im Browser liefert (Berlin im Winter: −60).
+    /// „Morgen früh“ and „Nächste Woche“ (the next Monday) mean 8 o'clock local time.
+    /// `utc_offset_min` is the difference UTC − local time in minutes, as
+    /// `Date.getTimezoneOffset()` returns it in the browser (Berlin in winter: −60).
     pub fn until_ms(self, now_ms: u64, utc_offset_min: i32) -> Option<u64> {
         let offset = i64::from(utc_offset_min) * MINUTE_MS as i64;
         let local = now_ms as i64 - offset;
@@ -372,7 +372,7 @@ impl SnoozeChoice {
             SnoozeChoice::Hour => Some(now_ms + HOUR_MS),
             SnoozeChoice::Tomorrow => Some(morning(1)),
             SnoozeChoice::NextWeek => {
-                // 1970-01-01 war ein Donnerstag; 0 = Montag.
+                // 1970-01-01 was a Thursday; 0 = Monday.
                 let weekday = (today + 3).rem_euclid(7);
                 Some(morning(7 - weekday))
             }
@@ -386,7 +386,7 @@ mod tests {
     use super::*;
     use crate::{Comment, Person, demo};
 
-    /// 11.11.2026, 12:00 UTC (ein Mittwoch).
+    /// 11.11.2026, 12:00 UTC (a Wednesday).
     fn now() -> u64 {
         day_start_ms("2026-11-11").unwrap() + 12 * HOUR_MS
     }
@@ -459,7 +459,7 @@ mod tests {
             (found[0].rule, found[0].reason, found[0].text.as_str()),
             (Rule::Mention, ReasonKind::Mention, "Lena hat dich erwähnt")
         );
-        // Eigene Erwähnungen und fremde ohne mich zählen nicht.
+        // Own mentions and others' without me do not count.
         let mut own = Comment::new(Person::me(), "gerade", "@AS Notiz an mich");
         own.own = true;
         let mut item2 = quiet(ticket());
@@ -470,12 +470,12 @@ mod tests {
             "@Jonas bitte",
         ));
         assert!(rules_of(&item2).is_empty());
-        // Nach meiner Antwort ist es erledigt.
+        // After my answer it is done.
         let mut reply = Comment::new(Person::me(), "gerade", "Mache ich.");
         reply.own = true;
         item.comments.push(reply);
         assert!(rules_of(&item).is_empty());
-        // Eine neue Erwähnung danach zählt wieder.
+        // A new mention afterwards counts again.
         item.comments.push(Comment::new(
             Person::new("Jonas", "JB"),
             "gerade",
@@ -496,7 +496,7 @@ mod tests {
         assert_eq!(found[0].rule, Rule::ReviewRequested);
         assert_eq!(found[0].reason, ReasonKind::ReviewRequested);
         assert_eq!(found[0].text, "Review angefragt von Jonas");
-        // Ein Ticket mit diesem Grund zählt nicht.
+        // A ticket with this reason does not count.
         let mut ticket = quiet(ticket());
         ticket.reason = ReasonKind::ReviewRequested;
         assert!(rules_of(&ticket).is_empty());
@@ -505,7 +505,7 @@ mod tests {
     #[test]
     fn my_pull_request_is_blocked_by_red_checks_or_requested_changes() {
         let w = demo::workspace();
-        // Änderungen angefordert (BAU-138 mit #91).
+        // Changes requested (BAU-138 with #91).
         let a = hits(w.item("bau138").unwrap(), &Rules::default(), now());
         assert_eq!(a[0].rule, Rule::Blocked);
         assert_eq!(
@@ -515,7 +515,7 @@ mod tests {
                 "Änderungen angefordert in #91"
             )
         );
-        // Rote Checks an meinem Pull Request.
+        // Red checks on my pull request.
         let mut item = w.item("bau138").unwrap().clone();
         let pr = item.pr.as_mut().unwrap();
         pr.changes_requested = false;
@@ -525,12 +525,12 @@ mod tests {
             (b.reason, b.text.as_str()),
             (ReasonKind::ChecksFailed, "Checks fehlgeschlagen in #91")
         );
-        // Grüne oder laufende Checks blockieren nicht.
+        // Green or running checks do not block.
         for ok in [Checks::Passed, Checks::Running] {
             item.pr.as_mut().unwrap().checks = ok;
             assert_eq!(check(Rule::Blocked, &item, now()), None);
         }
-        // Der rote Pull Request von Mira ist nicht meiner.
+        // Mira's red pull request is not mine.
         assert_eq!(check(Rule::Blocked, w.item("pr85").unwrap(), now()), None);
     }
 
@@ -548,13 +548,13 @@ mod tests {
             (hit.reason, hit.text.as_str()),
             (ReasonKind::Overdue, "Seit gestern überfällig")
         );
-        // Heute fällig ist noch nicht überfällig – bis zum letzten Moment des Tages.
+        // Due today is not yet overdue – until the last moment of the day.
         item.due = Some("2026-11-11".into());
         assert_eq!(check(Rule::Overdue, &item, now()), None);
         let end = day_start_ms("2026-11-12").unwrap() - 1;
         assert_eq!(check(Rule::Overdue, &item, end), None);
         assert!(check(Rule::Overdue, &item, end + 1).is_some());
-        // Kaputtes Datum, kein Datum, erledigt, kein Ticket.
+        // Broken date, no date, done, no ticket.
         item.due = Some("gestern".into());
         assert_eq!(check(Rule::Overdue, &item, now()), None);
         item.due = None;
@@ -640,7 +640,7 @@ mod tests {
         assert!(snooze.holds(&item, now()));
         assert!(snooze.holds(&item, now() + HOUR_MS - 1));
         assert!(!snooze.holds(&item, now() + HOUR_MS));
-        // Eine Änderung weckt eine Zurückstellung auf Zeit nicht.
+        // A change does not wake a timed snooze.
         let mut changed = item.clone();
         changed.status = TicketStatus::Done;
         assert!(snooze.holds(&changed, now()));
@@ -672,7 +672,7 @@ mod tests {
 
     #[test]
     fn snooze_choices() {
-        // Mittwoch, 11.11.2026, 12:00 UTC; Berlin im Winter ist UTC+1, Offset −60.
+        // Wednesday, 11.11.2026, 12:00 UTC; Berlin in winter is UTC+1, offset −60.
         let at = |s: &str, h: u64| day_start_ms(s).unwrap() + h * HOUR_MS;
         assert_eq!(
             SnoozeChoice::Hour.until_ms(now(), -60),
@@ -687,30 +687,30 @@ mod tests {
             Some(at("2026-11-16", 7))
         );
         assert_eq!(SnoozeChoice::UntilChange.until_ms(now(), -60), None);
-        // Ohne Zeitverschiebung: 8 Uhr UTC.
+        // Without time shift: 8 o'clock UTC.
         assert_eq!(
             SnoozeChoice::Tomorrow.until_ms(now(), 0),
             Some(at("2026-11-12", 8))
         );
-        // Kurz nach Mitternacht Ortszeit (23:30 UTC = 00:30 in Berlin am 12.): „morgen“ ist der 13.
+        // Shortly after midnight local time (23:30 UTC = 00:30 in Berlin on the 12th): „tomorrow“ is the 13th.
         let late = at("2026-11-11", 23) + 30 * MINUTE_MS;
         assert_eq!(
             SnoozeChoice::Tomorrow.until_ms(late, -60),
             Some(at("2026-11-13", 7))
         );
-        // Am Montag ist „nächste Woche“ der Montag darauf, nie heute.
+        // On Monday „next week“ is the Monday after, never today.
         let monday = at("2026-11-16", 6);
         assert_eq!(
             SnoozeChoice::NextWeek.until_ms(monday, 0),
             Some(at("2026-11-23", 8))
         );
-        // Am Sonntag schon der Tag danach.
+        // On Sunday already the day after.
         let sunday = at("2026-11-15", 20);
         assert_eq!(
             SnoozeChoice::NextWeek.until_ms(sunday, 0),
             Some(at("2026-11-16", 8))
         );
-        // Immer in der Zukunft.
+        // Always in the future.
         for choice in SnoozeChoice::ALL {
             for offset in [-780, -60, 0, 300, 720] {
                 if let Some(t) = choice.until_ms(now(), offset) {

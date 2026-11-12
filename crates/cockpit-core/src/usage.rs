@@ -1,41 +1,41 @@
-//! Verbrauch und Grenzen der Agenten: Tokens, Kosten, Laufzeit, Budgets.
+//! Consumption and limits of the agents: tokens, costs, runtime, budgets.
 //!
-//! * [`Usage`] ist der Verbrauch eines Schritts (und, summiert, eines Laufs). Geld ist immer eine
-//!   ganze Zahl in **Euro-Cent**, nie eine Gleitkommazahl.
-//! * [`Pricing`] sind die Preise pro Million Tokens – eine Einstellung. In der Demo erzeugt jeder
-//!   Schritt deterministische Werte (siehe [`crate::demo::step_tokens`]); der echte Agent trägt
-//!   später die gemeldeten Werte über [`crate::AgentRun::record_usage`] ein.
-//! * [`AgentLimits`] sind die einstellbaren Grenzen; [`StopReason`] sagt, welche einen Lauf angehalten hat.
-//! * [`Charge`] ist eine Buchung im Kassenbuch des Workspace. Daraus entstehen „heute“ und „diesen
-//!   Monat“. Tag und Monat zählen nach UTC – die Logik kennt keine Zeitzone.
+//! * [`Usage`] is the consumption of a step (and, summed, of a run). Money is always a
+//!   whole number in **euro cents**, never a floating-point number.
+//! * [`Pricing`] are the prices per million tokens – a setting. In the demo every
+//!   step produces deterministic values (see [`crate::demo::step_tokens`]); the real agent later
+//!   enters the reported values via [`crate::AgentRun::record_usage`].
+//! * [`AgentLimits`] are the adjustable limits; [`StopReason`] says which one stopped a run.
+//! * [`Charge`] is a booking in the workspace's ledger. „Today“ and „this
+//!   month“ are derived from it. Day and month count in UTC – the logic knows no time zone.
 //!
-//! Alles hier ist rein: Die Zeit kommt von außen.
+//! Everything here is pure: the time comes from outside.
 
 use serde::{Deserialize, Serialize};
 
 use crate::agent::AgentRun;
 
-/// Millisekunden pro Tag.
+/// Milliseconds per day.
 const DAY_MS: u64 = 86_400_000;
-/// So lange bleiben Buchungen im Kassenbuch (länger als jeder Monat).
+/// Bookings stay in the ledger this long (longer than any month).
 pub const KEEP_DAYS: u64 = 62;
-/// So viele Buchungen behält das Kassenbuch höchstens.
+/// The ledger keeps at most this many bookings.
 pub const MAX_CHARGES: usize = 2_000;
 
-/// Verbrauch eines Schritts oder eines ganzen Laufs.
+/// Consumption of a step or of a whole run.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[serde(default)]
 pub struct Usage {
     pub input_tokens: u64,
     pub output_tokens: u64,
-    /// Kosten in Euro-Cent.
+    /// Costs in euro cents.
     pub cost_cents: u64,
-    /// Laufzeit in Millisekunden.
+    /// Runtime in milliseconds.
     pub millis: u64,
 }
 
 impl Usage {
-    /// Verbrauch mit Kosten nach den Preisen aus der Einstellung.
+    /// Consumption with costs according to the prices from the setting.
     pub fn priced(input_tokens: u64, output_tokens: u64, millis: u64, pricing: &Pricing) -> Self {
         Self {
             input_tokens,
@@ -72,7 +72,7 @@ impl Usage {
     }
 }
 
-/// Preise in Euro-Cent pro Million Tokens.
+/// Prices in euro cents per million tokens.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(default)]
 pub struct Pricing {
@@ -90,7 +90,7 @@ impl Default for Pricing {
 }
 
 impl Pricing {
-    /// Kosten in ganzen Cent, aufgerundet: Verbrauch ist nie gratis, wenn der Preis über 0 liegt.
+    /// Costs in whole cents, rounded up: consumption is never free if the price is above 0.
     pub fn cost_cents(&self, input_tokens: u64, output_tokens: u64) -> u64 {
         let micro = (u128::from(input_tokens) * u128::from(self.input_cents_per_mtok))
             .saturating_add(u128::from(output_tokens) * u128::from(self.output_cents_per_mtok));
@@ -98,14 +98,14 @@ impl Pricing {
     }
 }
 
-/// Welche Grenze einen Lauf angehalten hat.
+/// Which limit stopped a run.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StopReason {
-    /// Das Budget pro Lauf ist erreicht.
+    /// The budget per run is reached.
     RunBudget,
-    /// Das Budget für den Monat ist erreicht.
+    /// The budget for the month is reached.
     MonthBudget,
-    /// Das Zeitlimit pro Lauf ist erreicht.
+    /// The time limit per run is reached.
     Time,
 }
 
@@ -118,7 +118,7 @@ impl StopReason {
         }
     }
 
-    /// Was beim Fortsetzen erhöht wird.
+    /// What is raised on resume.
     pub fn raises(self) -> &'static str {
         match self {
             StopReason::RunBudget => "das Budget dieses Laufs",
@@ -127,7 +127,7 @@ impl StopReason {
         }
     }
 
-    /// Erhöhungen, die die Oberfläche anbietet: Cent bei Budgets, Minuten beim Zeitlimit.
+    /// Increases the UI offers: cents for budgets, minutes for the time limit.
     pub fn raise_options(self) -> [u64; 2] {
         match self {
             StopReason::RunBudget | StopReason::MonthBudget => [100, 500],
@@ -144,18 +144,18 @@ impl StopReason {
     }
 }
 
-/// Die einstellbaren Grenzen. `None` heißt: keine Grenze.
+/// The adjustable limits. `None` means: no limit.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default)]
 pub struct AgentLimits {
     pub pricing: Pricing,
-    /// Budget pro Lauf in Cent.
+    /// Budget per run in cents.
     pub run_budget_cents: Option<u64>,
-    /// Budget pro Monat in Cent, über alle Läufe.
+    /// Budget per month in cents, across all runs.
     pub month_budget_cents: Option<u64>,
-    /// Zeitlimit pro Lauf in Minuten (Laufzeit des Agenten, nicht Wartezeit auf dich).
+    /// Time limit per run in minutes (runtime of the agent, not waiting time for you).
     pub run_minutes: Option<u32>,
-    /// So viele Läufe dürfen gleichzeitig arbeiten (mindestens 1).
+    /// This many runs may work at the same time (at least 1).
     pub max_parallel: u32,
 }
 
@@ -172,7 +172,7 @@ impl Default for AgentLimits {
 }
 
 impl AgentLimits {
-    /// Ohne jede Grenze (für Läufe, die ohne Workspace getaktet werden).
+    /// Without any limit (for runs that are clocked without a workspace).
     pub fn unlimited() -> Self {
         Self {
             pricing: Pricing::default(),
@@ -183,7 +183,7 @@ impl AgentLimits {
         }
     }
 
-    /// Eine Grenze von 0 würde jeden Lauf sofort anhalten, ohne Parallelität liefe nichts.
+    /// A limit of 0 would stop every run immediately, without parallelism nothing would run.
     pub fn is_valid(&self) -> bool {
         self.max_parallel >= 1
             && self.run_budget_cents != Some(0)
@@ -191,8 +191,8 @@ impl AgentLimits {
             && self.run_minutes != Some(0)
     }
 
-    /// Welche Grenze ist für diesen Lauf erreicht? `month_spent_cents` ist, was im laufenden
-    /// Monat über alle Läufe ausgegeben wurde. Die Erhöhungen des Laufs zählen mit.
+    /// Which limit is reached for this run? `month_spent_cents` is what was spent in the current
+    /// month across all runs. The run's increases count too.
     pub fn reached(&self, run: &AgentRun, month_spent_cents: u64) -> Option<StopReason> {
         let usage = run.usage();
         if let Some(budget) = self.run_budget_cents
@@ -214,8 +214,8 @@ impl AgentLimits {
         None
     }
 
-    /// Ein Satz, der sagt, wie weit der Verbrauch und die Grenze sind. Für den Hinweis am
-    /// angehaltenen Lauf.
+    /// A sentence that says how far consumption and limit are. For the hint at the
+    /// stopped run.
     pub fn describe(&self, reason: StopReason, run: &AgentRun, month_spent_cents: u64) -> String {
         let usage = run.usage();
         match reason {
@@ -241,7 +241,7 @@ impl AgentLimits {
         }
     }
 
-    /// Kurzer Satz für das Protokoll.
+    /// Short sentence for the log.
     pub fn summary(&self) -> String {
         let money = |v: Option<u64>| v.map_or("unbegrenzt".to_string(), format_euro);
         format!(
@@ -255,7 +255,7 @@ impl AgentLimits {
     }
 }
 
-/// Eine Buchung im Kassenbuch: was ein Schritt gekostet hat.
+/// A booking in the ledger: what a step cost.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 #[serde(default)]
 pub struct Charge {
@@ -264,7 +264,7 @@ pub struct Charge {
     pub usage: Usage,
 }
 
-/// Summe der Buchungen im Zeitraum `[from_ms, to_ms)`.
+/// Sum of the bookings in the period `[from_ms, to_ms)`.
 pub fn sum_between(charges: &[Charge], from_ms: u64, to_ms: u64) -> Usage {
     let mut sum = Usage::default();
     for c in charges
@@ -276,18 +276,18 @@ pub fn sum_between(charges: &[Charge], from_ms: u64, to_ms: u64) -> Usage {
     sum
 }
 
-/// Beginn des UTC-Tags, in dem `ms` liegt.
+/// Start of the UTC day in which `ms` lies.
 pub fn day_start(ms: u64) -> u64 {
     ms - ms % DAY_MS
 }
 
-/// Beginn des UTC-Monats, in dem `ms` liegt.
+/// Start of the UTC month in which `ms` lies.
 pub fn month_start(ms: u64) -> u64 {
     let (year, month, _) = civil_from_days((ms / DAY_MS) as i64);
     days_from_civil(year, month, 1) as u64 * DAY_MS
 }
 
-/// Beginn des Monats nach dem, in dem `ms` liegt.
+/// Start of the month after the one in which `ms` lies.
 pub fn next_month_start(ms: u64) -> u64 {
     let (year, month, _) = civil_from_days((ms / DAY_MS) as i64);
     let (year, month) = if month == 12 {
@@ -298,7 +298,7 @@ pub fn next_month_start(ms: u64) -> u64 {
     days_from_civil(year, month, 1) as u64 * DAY_MS
 }
 
-/// Tage seit 1970 → (Jahr, Monat, Tag). Algorithmus von Howard Hinnant.
+/// Days since 1970 → (year, month, day). Algorithm by Howard Hinnant.
 fn civil_from_days(days: i64) -> (i64, u32, u32) {
     let z = days + 719_468;
     let era = z.div_euclid(146_097);
@@ -312,7 +312,7 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
     (year, month, day)
 }
 
-/// (Jahr, Monat, Tag) → Tage seit 1970.
+/// (year, month, day) → days since 1970.
 fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
     let y = year - i64::from(month <= 2);
     let era = y.div_euclid(400);
@@ -323,7 +323,7 @@ fn days_from_civil(year: i64, month: u32, day: u32) -> i64 {
     era * 146_097 + doe - 719_468
 }
 
-// ---------- Darstellung ----------
+// ---------- Presentation ----------
 
 /// `12400` → `12.400`
 pub fn format_number(n: u64) -> String {
@@ -343,7 +343,7 @@ pub fn format_euro(cents: u64) -> String {
     format!("{},{:02} €", format_number(cents / 100), cents % 100)
 }
 
-/// `5,50`, `5.5`, `5 €` → Cent. Negative Beträge, mehr als zwei Nachkommastellen und Unsinn → `None`.
+/// `5,50`, `5.5`, `5 €` → cents. Negative amounts, more than two decimal places and nonsense → `None`.
 pub fn parse_euro(text: &str) -> Option<u64> {
     let text = text.trim().trim_end_matches('€').trim();
     let (whole, frac) = match text.split_once([',', '.']) {
@@ -378,15 +378,15 @@ mod tests {
 
     #[test]
     fn costs_are_whole_cents_rounded_up() {
-        let p = Pricing::default(); // 3 € ein, 15 € aus pro Million
+        let p = Pricing::default(); // 3 € in, 15 € out per million
         assert_eq!(p.cost_cents(0, 0), 0);
         assert_eq!(p.cost_cents(1_000_000, 0), 300);
         assert_eq!(p.cost_cents(0, 1_000_000), 1_500);
-        // 12.400 × 300 / 1.000.000 = 3,72 ct und 1.200 × 1.500 / 1.000.000 = 1,8 ct: zusammen 5,52 → 6 ct.
+        // 12.400 × 300 / 1.000.000 = 3,72 ct and 1.200 × 1.500 / 1.000.000 = 1,8 ct: together 5,52 → 6 ct.
         assert_eq!(p.cost_cents(12_400, 1_200), 6);
-        // Ein einziges Token kostet mindestens einen Cent, solange es einen Preis gibt.
+        // A single token costs at least one cent, as long as there is a price.
         assert_eq!(p.cost_cents(1, 0), 1);
-        // Riesige Werte laufen nicht über, sondern bleiben am Anschlag.
+        // Huge values do not overflow but stay at the cap.
         let huge = Pricing {
             input_cents_per_mtok: u64::MAX,
             output_cents_per_mtok: u64::MAX,
@@ -448,7 +448,7 @@ mod tests {
         ] {
             assert_eq!(parse_euro(text), Some(cents), "{text}");
         }
-        // Tausenderpunkte werden nicht erraten: „1.234,56“ ist keine gültige Eingabe.
+        // Thousands separators are not guessed: „1.234,56“ is not a valid input.
         for bad in [
             "", " ", "abc", "-1", "1,234", "1,2,3", ",5", "€", "1.234,56",
         ] {
@@ -475,11 +475,11 @@ mod tests {
         assert_eq!(day_start(t), 1_699_920_000_000); // 2023-11-14 00:00
         assert_eq!(month_start(t), 1_698_796_800_000); // 2023-11-01 00:00
         assert_eq!(next_month_start(t), 1_701_388_800_000); // 2023-12-01 00:00
-        // Jahreswechsel und Schaltjahr
+        // Year change and leap year
         let dec = 1_702_000_000_000; // 2023-12-08
         assert_eq!(next_month_start(dec), 1_704_067_200_000); // 2024-01-01
         let feb = 1_709_000_000_000; // 2024-02-27
-        assert_eq!(next_month_start(feb), 1_709_251_200_000); // 2024-03-01 (Schaltjahr: 29 Tage)
+        assert_eq!(next_month_start(feb), 1_709_251_200_000); // 2024-03-01 (leap year: 29 days)
         assert_eq!(month_start(0), 0);
     }
 
@@ -495,9 +495,9 @@ mod tests {
             },
         };
         let charges = vec![
-            charge(month_start(t) - 1, 100), // Vormonat
+            charge(month_start(t) - 1, 100), // Previous month
             charge(month_start(t), 10),
-            charge(day_start(t) - 1, 20), // gestern
+            charge(day_start(t) - 1, 20), // yesterday
             charge(day_start(t), 30),
             charge(t, 40),
         ];
@@ -523,7 +523,7 @@ mod tests {
             l.run_budget_cents = None;
             l.run_minutes = None;
         });
-        assert!(none.is_valid(), "„keine Grenze“ ist erlaubt");
+        assert!(none.is_valid(), "„no limit“ is allowed");
     }
 
     #[test]

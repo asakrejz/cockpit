@@ -1,9 +1,9 @@
 //! Gemeinsame Bausteine der Einrichtungsschritte: Zustand, Schlüsselfeld, Kopierfeld,
 //! Meldungen und das Speichern der Konfiguration. Die Regeln (Prüfung, Normalisierung) stehen in
-//! `cockpit_core::einrichten`, das Schreiben im Server; hier ist nur Verdrahtung.
+//! `cockpit_core::setup`, das Schreiben im Server; hier ist nur Verdrahtung.
 
-use cockpit_core::api::{ContainerPruefung, Einrichtung, EndpunktPruefung, KonfigAenderung};
-use cockpit_core::einrichten::schluessel_pruefen;
+use cockpit_core::api::{ConfigChange, ContainerCheck, EndpointCheck, Setup};
+use cockpit_core::setup::key_verify;
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -17,18 +17,18 @@ use crate::store::Store;
 pub struct Kontext {
     pub store: Store,
     /// Die nicht geheimen Werte aus `GET /api/einrichtung`.
-    pub einr: RwSignal<Einrichtung>,
+    pub einr: RwSignal<Setup>,
     /// Ergebnis des letzten Verbindungstests zum Endpunkt.
-    pub pruefung: RwSignal<Option<EndpunktPruefung>>,
+    pub pruefung: RwSignal<Option<EndpointCheck>>,
     /// Ergebnis der Prüfung „aus dem Container erreichbar“.
-    pub container_pruefung: RwSignal<Option<ContainerPruefung>>,
+    pub container_pruefung: RwSignal<Option<ContainerCheck>>,
 }
 
 impl Kontext {
     pub fn neu(store: Store) -> Self {
         let k = Self {
             store,
-            einr: RwSignal::new(Einrichtung::default()),
+            einr: RwSignal::new(Setup::default()),
             pruefung: RwSignal::new(None),
             container_pruefung: RwSignal::new(None),
         };
@@ -86,7 +86,7 @@ fn fehlertext(e: &CallError) -> String {
 /// Schreibt die Änderung in `config.toml` und meldet das Ergebnis. `danach` läuft nur bei Erfolg.
 pub fn konfig_speichern(
     ctx: Kontext,
-    aenderung: KonfigAenderung,
+    aenderung: ConfigChange,
     rueckmeldung: Rueckmeldung,
     erfolg: &'static str,
     danach: impl Fn() + 'static,
@@ -96,10 +96,10 @@ pub fn konfig_speichern(
         match server::put_konfiguration(&aenderung).await {
             Ok(antwort) => {
                 let mut text = erfolg.to_string();
-                if !antwort.wirkt_sofort {
+                if !antwort.takes_effect_immediately {
                     text.push_str(" Starte Cockpit neu, damit die Änderung gilt.");
                 }
-                if let Some(h) = antwort.hinweis {
+                if let Some(h) = antwort.hint {
                     text.push(' ');
                     text.push_str(&h);
                 }
@@ -125,10 +125,10 @@ pub fn SchluesselFeld(
     let wert = RwSignal::new(String::new());
     let rueck: Rueckmeldung = RwSignal::new(None);
     let laeuft = RwSignal::new(false);
-    let gesetzt = move || ctx.einr.with(|e| e.hat_schluessel(name));
+    let gesetzt = move || ctx.einr.with(|e| e.has_key(name));
 
     let senden = move |_| {
-        let geprueft = match schluessel_pruefen(&wert.get_untracked()) {
+        let geprueft = match key_verify(&wert.get_untracked()) {
             Ok(w) => w,
             Err(m) => {
                 rueck.set(Some((false, m)));

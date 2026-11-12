@@ -9,11 +9,11 @@ use std::time::Duration;
 
 use cockpit_core::api::{ActionResponse, JiraProject, JiraProjectsResponse, SyncResponse};
 use cockpit_core::{Action, ActionError, Actor, Source};
-use cockpit_integrations::ausgehend::plane;
 use cockpit_integrations::github::GitHubClient;
-use cockpit_integrations::jira::{JiraClient, jql_fuer, jql_fuer_projekt};
-use cockpit_integrations::oauth::{Dienst, Endpunkte};
-use cockpit_integrations::{Dienste, GitHubDienst, JiraDienst};
+use cockpit_integrations::jira::{JiraClient, jql_for, jql_for_project};
+use cockpit_integrations::oauth::{Endpoints, Service};
+use cockpit_integrations::outbound::plane;
+use cockpit_integrations::{GitHubService, JiraService, Services};
 
 use crate::app::{AppState, jetzt_ms};
 use crate::config::{
@@ -34,7 +34,7 @@ pub struct Quellen {
     pub github_oauth: Option<OAuthKonfig>,
     pub atlassian: Option<AtlassianKonfig>,
     /// Adressen der OAuth-Dienste (Tests setzen nachgebaute ein).
-    pub endpunkte: Endpunkte,
+    pub endpunkte: Endpoints,
     pub intervall: Duration,
 }
 
@@ -45,7 +45,7 @@ impl Default for Quellen {
             jira: None,
             github_oauth: None,
             atlassian: None,
-            endpunkte: Endpunkte::default(),
+            endpunkte: Endpoints::default(),
             intervall: Duration::from_secs(STANDARD_INTERVALL_S),
         }
     }
@@ -58,7 +58,7 @@ impl Quellen {
             jira: config.jira.clone(),
             github_oauth: config.github_oauth.clone(),
             atlassian: config.atlassian.clone(),
-            endpunkte: Endpunkte::default(),
+            endpunkte: Endpoints::default(),
             intervall: Duration::from_secs(config.intervall_s),
         }
     }
@@ -85,20 +85,20 @@ pub enum AktionFehler {
 impl AppState {
     /// Baut die Dienste, die eingerichtet sind **und** einen Schlüssel haben. Blockierend
     /// (Schlüsselbund).
-    pub(crate) fn dienste_bauen(&self) -> Dienste {
+    pub(crate) fn dienste_bauen(&self) -> Services {
         let inner = &self.inner;
         let quellen = self.quellen();
-        let mut dienste = Dienste::default();
+        let mut dienste = Services::default();
         if let Some(g) = quellen.github.as_ref().filter(|g| !g.repos.is_empty()) {
             // Die Anmeldung per OAuth geht vor dem Token.
-            let zugang = match self.oauth_tokens(Dienst::GitHub) {
+            let zugang = match self.oauth_tokens(Service::GitHub) {
                 Some(t) => Some(t.access),
                 None => self.token(secrets::GITHUB),
             };
             if let Some(t) = zugang {
                 match GitHubClient::new(&g.api_url, t) {
                     Ok(client) => {
-                        dienste.github = Some(GitHubDienst {
+                        dienste.github = Some(GitHubService {
                             client,
                             repos: g.repos.clone(),
                         })
@@ -114,15 +114,15 @@ impl AppState {
             let gewaehlt = inner.live.kopie().jira_project;
             let im_projekt = gewaehlt.is_some();
             let jql = match &gewaehlt {
-                Some(p) => jql_fuer_projekt(p),
-                None => jql_fuer(&j.projects, j.jql.as_deref()),
+                Some(p) => jql_for_project(p),
+                None => jql_for(&j.projects, j.jql.as_deref()),
             };
             match (client, jql) {
                 (Ok(client), Ok(jql)) => {
-                    dienste.jira = Some(JiraDienst {
+                    dienste.jira = Some(JiraService {
                         client,
                         jql,
-                        im_projekt,
+                        in_project: im_projekt,
                     })
                 }
                 (Err(e), _) | (_, Err(e)) => tracing::warn!("Jira: {e}"),
@@ -133,7 +133,7 @@ impl AppState {
 
     /// Der Jira-Client: per OAuth (über das Atlassian-Gateway), sonst mit E-Mail und API-Token.
     /// `None`, wenn Jira nicht eingerichtet ist oder der Zugang fehlt. Blockierend.
-    pub(crate) fn jira_client(&self) -> Option<Result<JiraClient, cockpit_integrations::Fehler>> {
+    pub(crate) fn jira_client(&self) -> Option<Result<JiraClient, cockpit_integrations::Error>> {
         if let Some(c) = self.jira_oauth_client() {
             return Some(c);
         }
@@ -145,7 +145,7 @@ impl AppState {
 
     /// Der Zugang zu GitHub: die Anmeldung per OAuth geht vor dem Token. Blockierend.
     pub(crate) fn github_zugang(&self) -> Option<cockpit_integrations::Secret> {
-        match self.oauth_tokens(Dienst::GitHub) {
+        match self.oauth_tokens(Service::GitHub) {
             Some(t) => Some(t.access),
             None => self.token(secrets::GITHUB),
         }
@@ -177,13 +177,13 @@ impl AppState {
             return Ok(JiraProjectsResponse::default());
         };
         let client = client.map_err(|e| AktionFehler::Plan(format!("Jira: {e}")))?;
-        let projekte = client.projekte().await.map_err(|e| {
+        let projekte = client.projects().await.map_err(|e| {
             tracing::warn!("Jira-Projekte: {e}");
             AktionFehler::Dienst(format!("Jira liefert keine Projekte: {e}"))
         })?;
         Ok(JiraProjectsResponse {
-            aktiv: true,
-            projekte: projekte
+            active: true,
+            projects: projekte
                 .into_iter()
                 .map(|p| JiraProject {
                     key: p.key,
@@ -193,9 +193,9 @@ impl AppState {
         })
     }
 
-    async fn dienste(&self) -> Dienste {
+    async fn dienste(&self) -> Services {
         if !self.quellen().moeglich() {
-            return Dienste::default();
+            return Services::default();
         }
         // Zuerst auffrischen (Netzwerk), dann bauen (Schlüsselbund).
         self.oauth_auffrischen().await;
@@ -242,21 +242,21 @@ impl AppState {
         let vorher = inner.live.kopie();
         let mut nachher = vorher.clone();
         nachher
-            .apply(action.clone(), Actor::Du, jetzt_ms())
+            .apply(action.clone(), Actor::User, jetzt_ms())
             .map_err(AktionFehler::Regel)?;
 
         let mut ausserhalb = false;
         let dienste = self.dienste().await;
-        if !dienste.ist_leer() {
-            match plane(&vorher, &nachher, &action, &dienste.ziele()) {
+        if !dienste.is_empty() {
+            match plane(&vorher, &nachher, &action, &dienste.targets()) {
                 Err(e) => return Err(AktionFehler::Plan(e.0)),
                 Ok(None) => {}
                 Ok(Some(aufruf)) => {
-                    dienste.ausfuehren(&aufruf).await.map_err(|e| {
-                        tracing::warn!("{}: Aufruf gescheitert: {e}", aufruf.dienst());
+                    dienste.execute(&aufruf).await.map_err(|e| {
+                        tracing::warn!("{}: Aufruf gescheitert: {e}", aufruf.service());
                         AktionFehler::Dienst(format!(
                             "{} hat die Aktion nicht ausgeführt: {e}. Es wurde nichts geändert.",
-                            aufruf.dienst()
+                            aufruf.service()
                         ))
                     })?;
                     inner
@@ -266,7 +266,7 @@ impl AppState {
                 }
             }
         }
-        match self.lokal_anwenden(action, Actor::Du).await {
+        match self.lokal_anwenden(action, Actor::User).await {
             Ok(antwort) => Ok(antwort),
             Err(LiveFehler::Aktion(e)) if ausserhalb => Err(AktionFehler::Dienst(format!(
                 "Beim Dienst ausgeführt, lokal aber nicht übernommen ({e}). Der nächste Abgleich holt es nach."
@@ -283,11 +283,11 @@ impl AppState {
         let inner = &self.inner;
         let _nur_einer = inner.abgleich.lock().await;
         let dienste = self.dienste().await;
-        if dienste.ist_leer() {
+        if dienste.is_empty() {
             return Ok(SyncResponse {
-                aktiv: false,
+                active: false,
                 revision: inner.live.revision(),
-                protokolliert: 0,
+                logged: 0,
             });
         }
         for versuch in 0..=WIEDERHOLUNGEN {
@@ -298,12 +298,12 @@ impl AppState {
                 .into_iter()
                 .filter(|s| bekannt.sync.paused_until(*s, jetzt).is_some())
                 .collect();
-            let remote = dienste.holen(&bekannt, jetzt, &pausiert).await;
+            let remote = dienste.fetch(&bekannt, jetzt, &pausiert).await;
             if remote.sources.is_empty() {
                 return Ok(SyncResponse {
-                    aktiv: true,
+                    active: true,
                     revision: inner.live.revision(),
-                    protokolliert: 0,
+                    logged: 0,
                 });
             }
             let _sperre = inner.sperre.lock().await;
@@ -317,9 +317,9 @@ impl AppState {
                 .await
             {
                 Ok(a) => Ok(SyncResponse {
-                    aktiv: true,
+                    active: true,
                     revision: a.revision,
-                    protokolliert: a.protokolliert,
+                    logged: a.logged,
                 }),
                 Err(LiveFehler::Aktion(e)) => Err(AktionFehler::Regel(e)),
                 Err(LiveFehler::Speichern(m)) => Err(AktionFehler::Speichern(m)),
@@ -338,8 +338,8 @@ pub fn abgleich_starten(state: AppState) {
         loop {
             takt.tick().await;
             match state.abgleichen().await {
-                Ok(a) if a.protokolliert > 0 => {
-                    tracing::info!("Abgleich: {} neue Einträge im Protokoll", a.protokolliert)
+                Ok(a) if a.logged > 0 => {
+                    tracing::info!("Abgleich: {} neue Einträge im Protokoll", a.logged)
                 }
                 Ok(_) => {}
                 Err(e) => tracing::warn!("Abgleich nicht übernommen: {e:?}"),
@@ -545,9 +545,9 @@ mod tests {
         let (status, body) = sende(&state, req).await;
         assert_eq!(status, StatusCode::OK);
         let antwort: JiraProjectsResponse = serde_json::from_str(&body).unwrap();
-        assert!(antwort.aktiv);
+        assert!(antwort.active);
         assert_eq!(
-            antwort.projekte,
+            antwort.projects,
             [
                 JiraProject {
                     key: "BAU".into(),
@@ -725,7 +725,7 @@ mod tests {
             .unwrap()
             .clone();
         assert!(c.own && c.text == "Danke!");
-        assert_eq!(ws.log.last().unwrap().actor, Actor::Du);
+        assert_eq!(ws.log.last().unwrap().actor, Actor::User);
     }
 
     #[tokio::test]

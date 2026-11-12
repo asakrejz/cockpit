@@ -1,32 +1,32 @@
-//! Clients für GitHub und Jira Cloud – und die Abbildung ihrer Antworten auf die
-//! Typen aus `cockpit-core`.
+//! Clients for GitHub and Jira Cloud – and the mapping of their responses onto the
+//! types from `cockpit-core`.
 //!
-//! * [`github`]: Pull Requests, Dateien mit Patch, Kommentare, Check-Status
-//! * [`jira`]: Issues per JQL, Kommentare (Atlassian Document Format → Text)
-//! * [`endpunkt`]: Verbindungstest und Modellliste des Modell-Endpunkts (Proxy wie LiteLLM oder direkt bei Anthropic)
-//! * [`oauth`]: Anmeldung per OAuth (GitHub App, Atlassian 3LO), Refresh und Widerruf
-//! * [`Secret`]: ein Schlüssel, der nie in `Debug`-Ausgaben oder Logs auftaucht
+//! * [`github`]: pull requests, files with patch, comments, check status
+//! * [`jira`]: issues via JQL, comments (Atlassian Document Format → text)
+//! * [`endpoint`]: connection test and model list of the model endpoint (proxy like LiteLLM or directly at Anthropic)
+//! * [`oauth`]: sign-in via OAuth (GitHub App, Atlassian 3LO), refresh and revoke
+//! * [`Secret`]: a key that never shows up in `Debug` output or logs
 //!
-//! * [`ausgehend`]: welche Aktion geht als welcher Aufruf an welchen Dienst (rein, getestet)
-//! * [`abgleich`]: Abruf aller Quellen für den Abgleich im Backend
+//! * [`outbound`]: which action becomes which call to which service (pure, tested)
+//! * [`sync`]: fetching all sources for the sync in the backend
 //!
-//! Geschrieben wird nur über die Aktionen aus [`ausgehend`]. Die Abbildungsfunktionen sind reine
-//! Funktionen und werden mit gespeicherten Beispiel-Antworten getestet; die Clients mit
-//! einem Mock-Server. Gegen die echten Dienste ist noch nichts geprüft.
+//! Writing happens only through the actions from [`outbound`]. The mapping functions are pure
+//! functions and are tested with stored sample responses; the clients with
+//! a mock server. Nothing has been checked against the real services yet.
 
-pub mod abgleich;
-pub mod ausgehend;
 mod error;
 mod http;
 pub mod oauth;
+pub mod outbound;
 mod secret;
+pub mod sync;
 pub mod text;
-pub mod zeit;
+pub mod time;
 
-pub mod endpunkt;
+pub mod endpoint;
 pub mod github;
 pub mod jira;
 
-pub use abgleich::{Dienste, GitHubDienst, JiraDienst};
-pub use error::Fehler;
+pub use error::Error;
 pub use secret::Secret;
+pub use sync::{GitHubService, JiraService, Services};

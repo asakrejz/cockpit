@@ -1,4 +1,4 @@
-//! GitHub-Antworten → Typen aus `cockpit-core`. Reine Funktionen, ohne Netzwerk.
+//! GitHub responses → types from `cockpit-core`. Pure functions, without network.
 
 use cockpit_core::{
     Checks, Comment, FileDiff, Item, Kind, Person, PrRef, ReasonKind, Review, Scope, Source,
@@ -8,14 +8,14 @@ use cockpit_core::{
 use super::Relation;
 use super::dto::{CheckRun, IssueComment, Pull, PullFile, PullReview, ReviewComment};
 use super::patch::parse_patch;
-use crate::{text, zeit};
+use crate::{text, time};
 
-/// Verdichtet die Check-Läufe eines Commits zu einem Status.
+/// Condenses the check runs of a commit into one status.
 ///
-/// * ein Lauf fehlgeschlagen (`failure`, `timed_out`, `cancelled`, `action_required`,
-///   `startup_failure`) → `Failed`, auch wenn andere noch laufen
-/// * sonst ein Lauf nicht abgeschlossen → `Running`
-/// * sonst (auch ohne jeden Lauf) → `Passed`
+/// * a run failed (`failure`, `timed_out`, `cancelled`, `action_required`,
+///   `startup_failure`) → `Failed`, even if others are still running
+/// * otherwise a run not completed → `Running`
+/// * otherwise (also without any run) → `Passed`
 pub fn aggregate_checks(runs: &[CheckRun]) -> Checks {
     let failed = |r: &CheckRun| {
         matches!(
@@ -32,26 +32,20 @@ pub fn aggregate_checks(runs: &[CheckRun]) -> Checks {
     }
 }
 
-/// Ein Pull Request als Eintrag der Inbox.
+/// A pull request as an inbox entry.
 ///
-/// `repo` ist `owner/name` und geht in die ID ein, damit gleiche Nummern aus verschiedenen
-/// Repos sich nicht überschneiden. Die Gründe sind vorläufig: Bei „Review angefragt“ gilt
-/// `ReviewRequested`; bei eigenen Pull Requests `ChecksFailed`, sonst `Comment`.
-/// Kommentare sind leer – sie kommen über [`comments_to_core`].
-pub fn pull_to_item(
-    repo: &str,
-    pull: &Pull,
-    checks: Checks,
-    relation: Relation,
-    jetzt: i64,
-) -> Item {
+/// `repo` is `owner/name` and goes into the ID, so that equal numbers from different
+/// repos do not overlap. The reasons are provisional: for „Review requested“
+/// `ReviewRequested` applies; for own pull requests `ChecksFailed`, otherwise `Comment`.
+/// Comments are empty – they come through [`comments_to_core`].
+pub fn pull_to_item(repo: &str, pull: &Pull, checks: Checks, relation: Relation, now: i64) -> Item {
     let (reason, reason_text) = match (relation, checks) {
-        (Relation::ReviewAngefragt, _) => (ReasonKind::ReviewRequested, "Review angefragt"),
-        (Relation::Eigener, Checks::Failed) => (ReasonKind::ChecksFailed, "Checks fehlgeschlagen"),
-        (Relation::Eigener, _) => (ReasonKind::Comment, "Eigener Pull Request"),
+        (Relation::ReviewRequested, _) => (ReasonKind::ReviewRequested, "Review angefragt"),
+        (Relation::Own, Checks::Failed) => (ReasonKind::ChecksFailed, "Checks fehlgeschlagen"),
+        (Relation::Own, _) => (ReasonKind::Comment, "Eigener Pull Request"),
     };
     Item {
-        id: text::id_aus(&["gh", repo, &pull.number.to_string()]),
+        id: text::id_from(&["gh", repo, &pull.number.to_string()]),
         kind: Kind::PullRequest,
         source: Source::GitHub,
         key: format!("#{}", pull.number),
@@ -59,7 +53,7 @@ pub fn pull_to_item(
         description: pull.body.clone().unwrap_or_default(),
         reason,
         reason_text: reason_text.into(),
-        time: zeit::relativ(&pull.updated_at, jetzt),
+        time: time::relative(&pull.updated_at, now),
         scope: Scope::Mine,
         owner: text::person(&pull.user.login),
         status: TicketStatus::Review,
@@ -71,7 +65,7 @@ pub fn pull_to_item(
             checks,
             changes_requested: false,
             merged: false,
-            review_requested: matches!(relation, Relation::ReviewAngefragt),
+            review_requested: matches!(relation, Relation::ReviewRequested),
         }),
         agent_note: None,
         comments: Vec::new(),
@@ -82,7 +76,7 @@ pub fn pull_to_item(
     }
 }
 
-/// Patch einer Datei → `FileDiff`. Ohne Patch (Binärdatei, zu groß) bleiben die Zeilen leer.
+/// Patch of a file → `FileDiff`. Without a patch (binary file, too large) the lines stay empty.
 pub fn file_to_diff(file: &PullFile) -> FileDiff {
     FileDiff {
         name: file.filename.clone(),
@@ -90,11 +84,10 @@ pub fn file_to_diff(file: &PullFile) -> FileDiff {
     }
 }
 
-/// Ein Pull Request mit Dateien als Review. Das Urteil beginnt als „Kommentieren“, es gibt
-/// noch keine Vorschläge. Das Ticket kommt aus Branch-Name oder Titel (`BAU-142`).
+/// A pull request with files as a review. The verdict starts as „Comment“, there are
+/// no suggestions yet. The ticket comes from branch name or title (`BAU-142`).
 pub fn pull_to_review(pull: &Pull, files: &[PullFile], checks: Checks) -> Review {
-    let ticket_key =
-        text::ticket_schluessel(&pull.head.name).or_else(|| text::ticket_schluessel(&pull.title));
+    let ticket_key = text::ticket_key(&pull.head.name).or_else(|| text::ticket_key(&pull.title));
     Review {
         number: pull.number,
         title: pull.title.clone(),
@@ -115,72 +108,68 @@ pub fn pull_to_review(pull: &Pull, files: &[PullFile], checks: Checks) -> Review
     }
 }
 
-/// Kommentare des Gesprächs und an Diff-Zeilen, nach Zeit sortiert. Kommentare an Zeilen
-/// beginnen mit `datei · Zeile n`. `ich` ist der GitHub-Login des Nutzers.
+/// Comments of the conversation and on diff lines, sorted by time. Comments on lines
+/// start with `file · Zeile n`. `me` is the GitHub login of the user.
 pub fn comments_to_core(
     issue: &[IssueComment],
     review: &[ReviewComment],
-    ich: &str,
-    jetzt: i64,
+    me: &str,
+    now: i64,
 ) -> Vec<Comment> {
-    comments_mit_reviews(issue, review, &[], ich, jetzt)
+    comments_with_reviews(issue, review, &[], me, now)
 }
 
-/// `@login` des Nutzers → `@Du`, damit die Regeln für Erwähnungen im Cockpit greifen.
-pub fn erwaehnung_fuer(text: &str, ich: &str) -> String {
-    if ich.is_empty() {
+/// `@login` of the user → `@Du`, so that the mention rules in the cockpit apply.
+pub fn mention_for(text: &str, me: &str) -> String {
+    if me.is_empty() {
         return text.to_string();
     }
     let lower = text.to_lowercase();
-    let nadel = format!("@{}", ich.to_lowercase());
+    let needle = format!("@{}", me.to_lowercase());
     let mut out = String::new();
     let mut ab = 0;
-    for (pos, _) in lower.match_indices(&nadel) {
-        let ende = pos + nadel.len();
-        let danach = lower[ende..].chars().next();
-        // Nur ganze Namen: `@octocat-bot` ist nicht `@octocat`.
-        if pos < ab || danach.is_some_and(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+    for (pos, _) in lower.match_indices(&needle) {
+        let end = pos + needle.len();
+        let after = lower[end..].chars().next();
+        // Whole names only: `@octocat-bot` is not `@octocat`.
+        if pos < ab || after.is_some_and(|c| c.is_alphanumeric() || c == '-' || c == '_') {
             continue;
         }
-        if !text.is_char_boundary(pos) || !text.is_char_boundary(ende) {
+        if !text.is_char_boundary(pos) || !text.is_char_boundary(end) {
             continue;
         }
         out.push_str(&text[ab..pos]);
         out.push_str("@Du");
-        ab = ende;
+        ab = end;
     }
     out.push_str(&text[ab..]);
     out
 }
 
-/// Wie [`comments_to_core`], dazu die Texte der Reviews (mit Urteil in der ersten Zeile).
-pub fn comments_mit_reviews(
+/// Like [`comments_to_core`], plus the texts of the reviews (with the verdict in the first line).
+pub fn comments_with_reviews(
     issue: &[IssueComment],
     review: &[ReviewComment],
     reviews: &[PullReview],
-    ich: &str,
-    jetzt: i64,
+    me: &str,
+    now: i64,
 ) -> Vec<Comment> {
-    let mut alle: Vec<(i64, Comment)> = Vec::new();
-    let mut add = |login: &str, zeit_iso: &str, body: String| {
-        let eigener = login.eq_ignore_ascii_case(ich);
-        let author = if eigener {
+    let mut all: Vec<(i64, Comment)> = Vec::new();
+    let mut add = |login: &str, time_iso: &str, body: String| {
+        let own = login.eq_ignore_ascii_case(me);
+        let author = if own {
             Person::me()
         } else {
             text::person(login)
         };
-        let sortierung = zeit::parse_iso(zeit_iso).unwrap_or(0);
-        alle.push((
-            sortierung,
+        let sorting = time::parse_iso(time_iso).unwrap_or(0);
+        all.push((
+            sorting,
             Comment {
                 author,
-                time: zeit::relativ(zeit_iso, jetzt),
-                text: if eigener {
-                    body
-                } else {
-                    erwaehnung_fuer(&body, ich)
-                },
-                own: eigener,
+                time: time::relative(time_iso, now),
+                text: if own { body } else { mention_for(&body, me) },
+                own,
             },
         ));
     };
@@ -192,70 +181,70 @@ pub fn comments_mit_reviews(
         );
     }
     for c in review {
-        let ort = match c.line {
+        let location = match c.line {
             Some(n) => format!("{} · Zeile {n}", c.path),
             None => c.path.clone(),
         };
         add(
             &c.user.login,
             &c.created_at,
-            format!("{ort}\n{}", c.body.as_deref().unwrap_or_default()),
+            format!("{location}\n{}", c.body.as_deref().unwrap_or_default()),
         );
     }
     for r in reviews {
         let text = r.body.as_deref().unwrap_or_default().trim();
-        let urteil = match r.state.as_str() {
+        let verdict = match r.state.as_str() {
             "APPROVED" => "Review: genehmigt",
             "CHANGES_REQUESTED" => "Review: Änderungen angefordert",
-            // Reine Kommentare stehen schon bei den Kommentaren; ohne Text gibt es nichts zu zeigen.
+            // Pure comments are already among the comments; without text there is nothing to show.
             "COMMENTED" | "DISMISSED" if !text.is_empty() => "Review",
             _ => continue,
         };
-        add(&r.user.login, &r.submitted_at, format!("{urteil}\n{text}"));
+        add(&r.user.login, &r.submitted_at, format!("{verdict}\n{text}"));
     }
-    alle.sort_by_key(|(t, _)| *t);
-    alle.into_iter().map(|(_, c)| c).collect()
+    all.sort_by_key(|(t, _)| *t);
+    all.into_iter().map(|(_, c)| c).collect()
 }
 
-/// Hat jemand anderes als ich Änderungen angefordert und nicht danach genehmigt?
-/// Maßgeblich ist je Person das letzte Urteil (Kommentare und zurückgezogene zählen nicht).
-pub fn aenderungen_angefordert(reviews: &[PullReview], ich: &str) -> bool {
-    let mut letzte: Vec<(&str, bool)> = Vec::new();
-    let mut sortiert: Vec<&PullReview> = reviews.iter().collect();
-    sortiert.sort_by_key(|r| zeit::parse_iso(&r.submitted_at).unwrap_or(0));
-    for r in sortiert {
-        if r.user.login.eq_ignore_ascii_case(ich) {
+/// Has someone other than me requested changes and not approved afterwards?
+/// Decisive is each person's latest verdict (comments and dismissed ones do not count).
+pub fn changes_requested(reviews: &[PullReview], me: &str) -> bool {
+    let mut last: Vec<(&str, bool)> = Vec::new();
+    let mut sorted: Vec<&PullReview> = reviews.iter().collect();
+    sorted.sort_by_key(|r| time::parse_iso(&r.submitted_at).unwrap_or(0));
+    for r in sorted {
+        if r.user.login.eq_ignore_ascii_case(me) {
             continue;
         }
-        let urteil = match r.state.as_str() {
+        let verdict = match r.state.as_str() {
             "CHANGES_REQUESTED" => true,
             "APPROVED" | "DISMISSED" => false,
             _ => continue,
         };
-        match letzte
+        match last
             .iter_mut()
             .find(|(l, _)| l.eq_ignore_ascii_case(&r.user.login))
         {
-            Some(e) => e.1 = urteil,
-            None => letzte.push((&r.user.login, urteil)),
+            Some(e) => e.1 = verdict,
+            None => last.push((&r.user.login, verdict)),
         }
     }
-    letzte.iter().any(|(_, angefordert)| *angefordert)
+    last.iter().any(|(_, requested)| *requested)
 }
 
-/// Die einzelnen Check-Läufe als Checks des Reviews (mit Dauer und Ausgabe).
+/// The individual check runs as the review's checks (with duration and output).
 pub fn check_runs_to_core(runs: &[CheckRun]) -> Vec<cockpit_core::CheckRun> {
     runs.iter()
         .map(|r| {
             let status = aggregate_checks(std::slice::from_ref(r));
-            let dauer = match (
-                r.started_at.as_deref().and_then(zeit::parse_iso),
-                r.completed_at.as_deref().and_then(zeit::parse_iso),
+            let duration = match (
+                r.started_at.as_deref().and_then(time::parse_iso),
+                r.completed_at.as_deref().and_then(time::parse_iso),
             ) {
                 (Some(a), Some(b)) if b >= a => (b - a) as u32,
                 _ => 0,
             };
-            cockpit_core::CheckRun::new(&r.name, status, dauer, &r.log())
+            cockpit_core::CheckRun::new(&r.name, status, duration, &r.log())
         })
         .collect()
 }

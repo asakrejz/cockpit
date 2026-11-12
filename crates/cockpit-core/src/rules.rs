@@ -1,20 +1,20 @@
-//! Regeln pro Repository: erlaubte und verbotene Pfade, Pflicht-Tests, Anweisungen an den
-//! Agenten und ob der Plan freigegeben werden muss.
+//! Rules per repository: allowed and forbidden paths, required tests, instructions to the
+//! agent and whether the plan has to be approved.
 //!
-//! Alles hier ist rein und ohne Dateisystem: [`glob_match`] vergleicht ein Muster mit einem Pfad,
-//! [`RepoRules::violations`] prüft eine Liste von Dateien gegen die Regeln.
+//! Everything here is pure and without a file system: [`glob_match`] compares a pattern with a path,
+//! [`RepoRules::violations`] checks a list of files against the rules.
 //!
-//! **Muster:** `*` steht für beliebige Zeichen innerhalb eines Ordnernamens, `?` für genau eines,
-//! `**` für beliebig viele Ordner (auch keinen). Ein Muster ohne `/` gilt in jedem Ordner
-//! (`*.lock` trifft `Cargo.lock` und `a/b/yarn.lock`), ein Muster mit `/` ab der Wurzel
-//! (`styles/*.css`). Ein `/` am Ende meint den ganzen Ordner (`docs/` = `docs/**`).
+//! **Patterns:** `*` stands for any characters within a folder name, `?` for exactly one,
+//! `**` for any number of folders (also none). A pattern without `/` applies in every folder
+//! (`*.lock` matches `Cargo.lock` and `a/b/yarn.lock`), a pattern with `/` from the root
+//! (`styles/*.css`). A trailing `/` means the whole folder (`docs/` = `docs/**`).
 
 use serde::{Deserialize, Serialize};
 
-/// Der Name des einzigen Repos, das es heute gibt (Demo). Später kommen mehrere dazu.
+/// The name of the only repo there is today (demo). More will follow later.
 pub const DEMO_REPO: &str = "asakrejz/rust-playground";
 
-/// Passt `path` auf `pattern`? Siehe die Regeln im Modul.
+/// Does `path` match `pattern`? See the rules in the module.
 pub fn glob_match(pattern: &str, path: &str) -> bool {
     let pattern = normalize_pattern(pattern);
     if pattern.is_empty() {
@@ -55,12 +55,12 @@ fn match_segments(pat: &[&str], segs: &[&str]) -> bool {
     }
 }
 
-/// Ein Ordner- oder Dateiname gegen ein Muster mit `*` und `?`.
+/// A folder or file name against a pattern with `*` and `?`.
 fn match_name(pattern: &str, name: &str) -> bool {
     let p: Vec<char> = pattern.chars().collect();
     let n: Vec<char> = name.chars().collect();
     let (mut pi, mut ni) = (0, 0);
-    // Letzter Stern und die Stelle im Namen, an der er gerade endet.
+    // Last star and the place in the name where it currently ends.
     let mut star: Option<(usize, usize)> = None;
     while ni < n.len() {
         if pi < p.len() && (p[pi] == '?' || p[pi] == n[ni]) && p[pi] != '*' {
@@ -80,27 +80,27 @@ fn match_name(pattern: &str, name: &str) -> bool {
     p[pi..].iter().all(|&c| c == '*')
 }
 
-/// Warum eine Datei gegen die Regeln verstößt.
+/// Why a file violates the rules.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ViolationKind {
-    /// Ein Verbots-Muster trifft die Datei.
+    /// A forbidden pattern matches the file.
     Forbidden,
-    /// Es gibt erlaubte Pfade, und die Datei liegt in keinem davon.
+    /// There are allowed paths, and the file is in none of them.
     NotAllowed,
 }
 
-/// Eine Datei, die der Plan berührt, obwohl die Regeln es nicht zulassen.
+/// A file the plan touches although the rules do not allow it.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PathViolation {
     pub file: String,
     pub kind: ViolationKind,
-    /// Das Verbots-Muster, das getroffen hat (bei `NotAllowed` leer).
+    /// The forbidden pattern that matched (empty for `NotAllowed`).
     #[serde(default)]
     pub pattern: String,
 }
 
 impl PathViolation {
-    /// Erklärung für die Oberfläche.
+    /// Explanation for the UI.
     pub fn reason(&self) -> String {
         match self.kind {
             ViolationKind::Forbidden => {
@@ -113,19 +113,19 @@ impl PathViolation {
     }
 }
 
-/// Die Regeln eines Repos.
+/// The rules of a repo.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 #[serde(default)]
 pub struct RepoRules {
-    /// Wenn nicht leer, darf der Agent nur diese Pfade ändern (Glob-Muster).
+    /// If not empty, the agent may change only these paths (glob patterns).
     pub allowed_paths: Vec<String>,
-    /// Diese Pfade darf der Agent nie ändern. Verbot schlägt Erlaubnis.
+    /// The agent may never change these paths. Prohibition beats permission.
     pub forbidden_paths: Vec<String>,
-    /// Befehle, die vor dem Pull Request laufen müssen und grün sein müssen.
+    /// Commands that must run before the pull request and must be green.
     pub required_tests: Vec<String>,
-    /// Zusätzliche Anweisungen an den Agenten (Freitext).
+    /// Additional instructions to the agent (free text).
     pub instructions: String,
-    /// Der Agent legt immer einen Plan vor und wartet auf die Freigabe.
+    /// The agent always presents a plan and waits for approval.
     pub plan_required: bool,
 }
 
@@ -141,7 +141,7 @@ fn clean_list(list: &[String]) -> Vec<String> {
 }
 
 impl RepoRules {
-    /// Dieselben Regeln ohne Leerzeichen, leere Zeilen und doppelte Einträge.
+    /// The same rules without spaces, empty lines and duplicate entries.
     pub fn cleaned(&self) -> Self {
         Self {
             allowed_paths: clean_list(&self.allowed_paths),
@@ -152,17 +152,17 @@ impl RepoRules {
         }
     }
 
-    /// Gibt es überhaupt Regeln, die den Agenten einschränken oder leiten?
+    /// Are there any rules at all that restrict or guide the agent?
     pub fn is_empty(&self) -> bool {
         *self == RepoRules::default()
     }
 
-    /// Hat die Regel Pfad-Muster?
+    /// Does the rule have path patterns?
     pub fn has_path_rules(&self) -> bool {
         !self.allowed_paths.is_empty() || !self.forbidden_paths.is_empty()
     }
 
-    /// Dateien, die gegen die Pfad-Regeln verstoßen. Leer heißt: alles in Ordnung.
+    /// Files that violate the path rules. Empty means: all fine.
     pub fn violations(&self, files: &[String]) -> Vec<PathViolation> {
         files
             .iter()
@@ -185,7 +185,7 @@ impl RepoRules {
             .collect()
     }
 
-    /// Die geltenden Regeln als Zeilen für Plan und Protokoll. Leer, wenn es keine gibt.
+    /// The applicable rules as lines for plan and log. Empty if there are none.
     pub fn lines(&self) -> Vec<String> {
         let mut lines = Vec::new();
         if !self.allowed_paths.is_empty() {

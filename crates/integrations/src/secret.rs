@@ -1,16 +1,16 @@
 use std::fmt;
 
-/// Ein Zugangsschlüssel. `Debug` zeigt ihn nie, es gibt kein `Display` und kein `Serialize`.
-/// Lesen geht nur über [`Secret::expose`] – dort, wo er in einen Header geschrieben wird.
+/// An access key. `Debug` never shows it; there is no `Display` and no `Serialize`.
+/// Reading is only possible through [`Secret::expose`] – where it is written into a header.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Secret(String);
 
 impl Secret {
-    pub fn new(wert: impl Into<String>) -> Self {
-        Self(wert.into())
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
     }
 
-    /// Der Klartext. Nur für den Aufruf beim Dienst verwenden, nie loggen.
+    /// The plain text. Use only for the call to the service, never log it.
     pub fn expose(&self) -> &str {
         &self.0
     }
@@ -31,7 +31,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn debug_zeigt_den_schluessel_nie() {
+    fn debug_never_shows_the_key() {
         let s = Secret::new("ghp_geheim");
         assert_eq!(format!("{s:?}"), "Secret(***)");
         assert_eq!(format!("{:#?}", Some(&s)), "Some(\n    Secret(***),\n)");

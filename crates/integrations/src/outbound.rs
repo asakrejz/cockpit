@@ -1,13 +1,13 @@
-//! Aktionen, die nach außen wirken: Welche [`Action`] geht an welchen Dienst, und wie sieht
-//! der HTTP-Aufruf aus? Alles hier ist rein (kein Netz, keine Uhr) und wird ohne Server getestet.
+//! Actions with an effect on the outside: which [`Action`] goes to which service, and what does
+//! the HTTP call look like? Everything here is pure (no network, no clock) and is tested without a server.
 //!
-//! * [`plane`] sagt zu einer Aktion, was beim Dienst zu tun ist ([`Ausgehend`]) – oder `None`,
-//!   wenn die Aktion lokal bleibt (andere Aktionen, Einträge aus den Beispieldaten, Quelle aus).
-//! * [`Ausgehend::anfrage`] baut daraus Methode, Pfad und Body, soweit ein Aufruf genügt.
-//!   Mehrstufiges (Jira-Transition, Branch, Check neu starten) steht in den Clients; die
-//!   reinen Teile davon (Auswahl, Bodies) stehen hier.
+//! * [`plan`] tells for an action what has to be done at the service ([`Outbound`]) – or `None`
+//!   if the action stays local (other actions, entries from the sample data, source off).
+//! * [`Outbound::request`] builds method, path and body from it, as far as one call suffices.
+//!   Multi-step things (Jira transition, branch, re-run check) live in the clients; the
+//!   pure parts of them (selection, bodies) live here.
 //!
-//! Die Regel „nur Du darfst mergen“ prüft `Workspace::apply` und läuft **vor** dem Aufruf.
+//! The rule „only you may merge“ is checked by `Workspace::apply` and runs **before** the call.
 
 use cockpit_core::{
     Action, Decision, LineKind, MergeMethod, Review, TicketStatus, Verdict, Workspace,
@@ -15,21 +15,21 @@ use cockpit_core::{
 use serde_json::{Value, json};
 
 use crate::jira::dto::Transition;
-use crate::jira::{status_von, text_to_adf};
+use crate::jira::{status_from, text_to_adf};
 
-/// Was der Server an Diensten hat.
+/// What the server has in terms of services.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Ziele {
+pub struct Targets {
     pub github: bool,
     pub jira: bool,
-    /// Konfigurierte GitHub-Repos (`owner/name`); in das erste kommt ein Branch für ein Jira-Ticket.
+    /// Configured GitHub repos (`owner/name`); the first one receives a branch for a Jira ticket.
     pub repos: Vec<String>,
 }
 
-/// Was beim Dienst zu tun ist.
+/// What has to be done at the service.
 #[derive(Clone, Debug, PartialEq)]
-pub enum Ausgehend {
-    JiraKommentar {
+pub enum Outbound {
+    JiraComment {
         key: String,
         text: String,
     },
@@ -37,9 +37,9 @@ pub enum Ausgehend {
         key: String,
         status: TicketStatus,
     },
-    GitHubKommentar {
+    GitHubComment {
         repo: String,
-        nummer: u32,
+        number: u32,
         text: String,
     },
     GitHubBranch {
@@ -48,80 +48,80 @@ pub enum Ausgehend {
     },
     GitHubReview {
         repo: String,
-        nummer: u32,
-        review: ReviewDaten,
+        number: u32,
+        review: ReviewData,
     },
     GitHubMerge {
         repo: String,
-        nummer: u32,
-        methode: MergeMethod,
-        /// Der Commit, den wir gesehen haben – ein neuer Push lässt das Mergen scheitern.
+        number: u32,
+        method: MergeMethod,
+        /// The commit we have seen – a new push makes the merge fail.
         sha: String,
     },
-    GitHubCheckNeu {
+    GitHubRecheck {
         repo: String,
-        nummer: u32,
+        number: u32,
         check: String,
     },
 }
 
-/// Ein Review, wie es an GitHub geht.
+/// A review as it goes to GitHub.
 #[derive(Clone, Debug, PartialEq)]
-pub struct ReviewDaten {
-    /// `COMMENT`, `APPROVE` oder `REQUEST_CHANGES`
-    pub urteil: &'static str,
+pub struct ReviewData {
+    /// `COMMENT`, `APPROVE` or `REQUEST_CHANGES`
+    pub verdict: &'static str,
     pub text: String,
-    pub kommentare: Vec<ZeilenKommentar>,
-    /// Der Commit, den wir geprüft haben.
+    pub comments: Vec<LineComment>,
+    /// The commit we have reviewed.
     pub sha: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ZeilenKommentar {
-    pub pfad: String,
-    pub zeile: u32,
-    /// `RIGHT` (neue und unveränderte Zeilen) oder `LEFT` (entfernte).
-    pub seite: &'static str,
+pub struct LineComment {
+    pub path: String,
+    pub line: u32,
+    /// `RIGHT` (added and unchanged lines) or `LEFT` (removed).
+    pub page: &'static str,
     pub text: String,
 }
 
-/// Ein einzelner HTTP-Aufruf.
+/// A single HTTP call.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Anfrage {
-    pub methode: &'static str,
-    pub pfad: String,
+pub struct Request {
+    pub method: &'static str,
+    pub path: String,
     pub body: Option<Value>,
 }
 
-/// Warum sich eine Aktion nicht nach außen abbilden lässt (deutsche Meldung).
+/// Why an action cannot be mapped to the outside (German message).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PlanFehler(pub String);
+pub struct PlanError(pub String);
 
-impl std::fmt::Display for PlanFehler {
+impl std::fmt::Display for PlanError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.0)
     }
 }
 
-/// Bestimmt den Aufruf zu einer Aktion. `vorher` ist der Stand vor, `nachher` der Stand nach
-/// einer Probe-Anwendung (so kennen wir z. B. den Namen des neuen Branches). `Ok(None)`:
-/// bleibt lokal.
+/// Determines the call for an action. `before` is the state before, `after` the state after
+/// a trial application (that is how we know e.g. the name of the new branch). `Ok(None)`:
+/// stays local.
 pub fn plane(
-    vorher: &Workspace,
-    nachher: &Workspace,
+    before: &Workspace,
+    after: &Workspace,
     action: &Action,
-    ziele: &Ziele,
-) -> Result<Option<Ausgehend>, PlanFehler> {
-    let repo_von_pr = |nummer: u32| -> Option<(String, String)> {
-        vorher
+    targets: &Targets,
+) -> Result<Option<Outbound>, PlanError> {
+    let repo_of_pr = |number: u32| -> Option<(String, String)> {
+        before
             .sync
-            .pr(nummer)
-            .filter(|_| ziele.github)
+            .pr(number)
+            .filter(|_| targets.github)
             .map(|l| (l.repo.clone(), l.head_sha.clone()))
     };
     Ok(match action {
         Action::Reply { item, text } => {
-            let Some(i) = vorher.item(item).filter(|i| vorher.sync.is_synced(&i.id)) else {
+            let Some(i) = before.item(item).filter(|i| before.sync.is_synced(&i.id)) else {
                 return Ok(None);
             };
             let text = text.trim().to_string();
@@ -129,14 +129,14 @@ pub fn plane(
                 return Ok(None);
             }
             match (i.source, i.pr.as_ref()) {
-                (cockpit_core::Source::Jira, _) if ziele.jira => Some(Ausgehend::JiraKommentar {
+                (cockpit_core::Source::Jira, _) if targets.jira => Some(Outbound::JiraComment {
                     key: i.key.clone(),
                     text,
                 }),
                 (cockpit_core::Source::GitHub, Some(pr)) => {
-                    repo_von_pr(pr.number).map(|(repo, _)| Ausgehend::GitHubKommentar {
+                    repo_of_pr(pr.number).map(|(repo, _)| Outbound::GitHubComment {
                         repo,
-                        nummer: pr.number,
+                        number: pr.number,
                         text,
                     })
                 }
@@ -144,60 +144,59 @@ pub fn plane(
             }
         }
         Action::SetStatus { item, status } => {
-            let Some(i) = vorher.item(item).filter(|i| vorher.sync.is_synced(&i.id)) else {
+            let Some(i) = before.item(item).filter(|i| before.sync.is_synced(&i.id)) else {
                 return Ok(None);
             };
-            (i.source == cockpit_core::Source::Jira && i.is_ticket() && ziele.jira).then(|| {
-                Ausgehend::JiraStatus {
+            (i.source == cockpit_core::Source::Jira && i.is_ticket() && targets.jira).then(|| {
+                Outbound::JiraStatus {
                     key: i.key.clone(),
                     status: *status,
                 }
             })
         }
         Action::CreateBranch { item } => {
-            let Some(i) = vorher.item(item).filter(|i| vorher.sync.is_synced(&i.id)) else {
+            let Some(i) = before.item(item).filter(|i| before.sync.is_synced(&i.id)) else {
                 return Ok(None);
             };
-            if !(i.source == cockpit_core::Source::Jira && ziele.github) {
+            if !(i.source == cockpit_core::Source::Jira && targets.github) {
                 return Ok(None);
             }
-            let Some(repo) = ziele.repos.first() else {
-                return Err(PlanFehler(
+            let Some(repo) = targets.repos.first() else {
+                return Err(PlanError(
                     "Für Branches ist kein GitHub-Repo konfiguriert".into(),
                 ));
             };
-            let name = nachher
+            let name = after
                 .item(item)
                 .and_then(|n| n.branch.clone())
-                .ok_or_else(|| PlanFehler("Der Branch-Name steht nicht fest".into()))?;
-            Some(Ausgehend::GitHubBranch {
+                .ok_or_else(|| PlanError("Der Branch-Name steht nicht fest".into()))?;
+            Some(Outbound::GitHubBranch {
                 repo: repo.clone(),
                 name,
             })
         }
         Action::SendReview { review, comment } => {
-            let (Some(r), Some((repo, sha))) = (vorher.review(*review), repo_von_pr(*review))
-            else {
+            let (Some(r), Some((repo, sha))) = (before.review(*review), repo_of_pr(*review)) else {
                 return Ok(None);
             };
-            Some(Ausgehend::GitHubReview {
+            Some(Outbound::GitHubReview {
                 repo,
-                nummer: *review,
-                review: review_daten(r, comment, &sha),
+                number: *review,
+                review: review_data(r, comment, &sha),
             })
         }
         Action::MergePr { review, method } => {
-            repo_von_pr(*review).map(|(repo, sha)| Ausgehend::GitHubMerge {
+            repo_of_pr(*review).map(|(repo, sha)| Outbound::GitHubMerge {
                 repo,
-                nummer: *review,
-                methode: *method,
+                number: *review,
+                method: *method,
                 sha,
             })
         }
         Action::RestartCheck { review, check } => {
-            repo_von_pr(*review).map(|(repo, _)| Ausgehend::GitHubCheckNeu {
+            repo_of_pr(*review).map(|(repo, _)| Outbound::GitHubRecheck {
                 repo,
-                nummer: *review,
+                number: *review,
                 check: check.clone(),
             })
         }
@@ -207,7 +206,7 @@ pub fn plane(
 
 // ---------- Review ----------
 
-fn urteil(v: Verdict) -> &'static str {
+fn verdict(v: Verdict) -> &'static str {
     match v {
         Verdict::Comment => "COMMENT",
         Verdict::Approve => "APPROVE",
@@ -216,17 +215,17 @@ fn urteil(v: Verdict) -> &'static str {
 }
 
 /// `datei · Zeile 12` → `("datei", 12)`.
-fn ort_lesen(ort: &str) -> Option<(&str, u32)> {
-    let (datei, zeile) = ort.rsplit_once(" · Zeile ")?;
-    Some((datei.trim(), zeile.trim().parse().ok()?))
+fn location_read(location: &str) -> Option<(&str, u32)> {
+    let (file, line) = location.rsplit_once(" · Zeile ")?;
+    Some((file.trim(), line.trim().parse().ok()?))
 }
 
-/// Baut das Review aus dem Stand: Urteil, eigener Text, freigegebene Vorschläge des Agenten
-/// und alle eigenen Zeilenkommentare (mit `suggestion`-Blöcken). Was sich keiner Zeile
-/// zuordnen lässt, steht im Text des Reviews, damit nichts verloren geht.
-pub fn review_daten(review: &Review, kommentar: &str, sha: &str) -> ReviewDaten {
-    let mut text = kommentar.trim().to_string();
-    let mut zeilen: Vec<ZeilenKommentar> = Vec::new();
+/// Builds the review from the state: verdict, own text, approved suggestions of the agent
+/// and all own line comments (with `suggestion` blocks). Whatever cannot be assigned to a line
+/// ends up in the text of the review, so that nothing gets lost.
+pub fn review_data(review: &Review, comment: &str, sha: &str) -> ReviewData {
+    let mut text = comment.trim().to_string();
+    let mut lines: Vec<LineComment> = Vec::new();
     let mut lose: Vec<String> = Vec::new();
 
     for s in review
@@ -234,35 +233,35 @@ pub fn review_daten(review: &Review, kommentar: &str, sha: &str) -> ReviewDaten 
         .iter()
         .filter(|s| s.decision == Some(Decision::Approved))
     {
-        let zeile = ort_lesen(&s.location).filter(|(datei, nr)| {
+        let line = location_read(&s.location).filter(|(file, nr)| {
             review.files.iter().any(|f| {
-                f.name == *datei
+                f.name == *file
                     && f.lines
                         .iter()
                         .any(|l| l.no == *nr && l.kind != LineKind::Del)
             })
         });
-        match zeile {
-            Some((datei, nr)) => zeilen.push(ZeilenKommentar {
-                pfad: datei.into(),
-                zeile: nr,
-                seite: "RIGHT",
+        match line {
+            Some((file, nr)) => lines.push(LineComment {
+                path: file.into(),
+                line: nr,
+                page: "RIGHT",
                 text: s.text.clone(),
             }),
             None => lose.push(format!("{}: {}", s.location, s.text)),
         }
     }
     for c in &review.line_comments {
-        let zeile = review
+        let line = review
             .files
             .iter()
             .find(|f| f.name == c.file)
             .and_then(|f| f.lines.get(c.line));
-        match zeile {
-            Some(l) => zeilen.push(ZeilenKommentar {
-                pfad: c.file.clone(),
-                zeile: l.no,
-                seite: if l.kind == LineKind::Del {
+        match line {
+            Some(l) => lines.push(LineComment {
+                path: c.file.clone(),
+                line: l.no,
+                page: if l.kind == LineKind::Del {
                     "LEFT"
                 } else {
                     "RIGHT"
@@ -278,128 +277,131 @@ pub fn review_daten(review: &Review, kommentar: &str, sha: &str) -> ReviewDaten 
         }
         text.push_str(&lose.join("\n\n"));
     }
-    // GitHub verlangt Text, wenn es keine Zeilenkommentare gibt (und bei „Änderungen“).
+    // GitHub requires text when there are no line comments (and for „Changes“).
     if text.is_empty()
         && (review.verdict == Verdict::RequestChanges
-            || (review.verdict == Verdict::Comment && zeilen.is_empty()))
+            || (review.verdict == Verdict::Comment && lines.is_empty()))
     {
         text = match review.verdict {
             Verdict::RequestChanges => "Änderungen angefordert.".into(),
             _ => "Review aus dem Cockpit.".into(),
         };
     }
-    ReviewDaten {
-        urteil: urteil(review.verdict),
+    ReviewData {
+        verdict: verdict(review.verdict),
         text,
-        kommentare: zeilen,
+        comments: lines,
         sha: sha.into(),
     }
 }
 
-// ---------- Aufrufe ----------
+// ---------- Calls ----------
 
-impl ReviewDaten {
+impl ReviewData {
     fn body(&self) -> Value {
-        let mut b = json!({ "event": self.urteil });
+        let mut b = json!({ "event": self.verdict });
         if !self.text.is_empty() {
             b["body"] = json!(self.text);
         }
         if !self.sha.is_empty() {
             b["commit_id"] = json!(self.sha);
         }
-        if !self.kommentare.is_empty() {
+        if !self.comments.is_empty() {
             b["comments"] = self
-                .kommentare
+                .comments
                 .iter()
-                .map(|k| json!({"path": k.pfad, "line": k.zeile, "side": k.seite, "body": k.text}))
+                .map(|k| json!({"path": k.path, "line": k.line, "side": k.page, "body": k.text}))
                 .collect();
         }
         b
     }
 }
 
-impl Ausgehend {
-    /// Name des Dienstes für Meldungen.
-    pub fn dienst(&self) -> &'static str {
+impl Outbound {
+    /// Name of the service for messages.
+    pub fn service(&self) -> &'static str {
         match self {
-            Ausgehend::JiraKommentar { .. } | Ausgehend::JiraStatus { .. } => "Jira",
+            Outbound::JiraComment { .. } | Outbound::JiraStatus { .. } => "Jira",
             _ => "GitHub",
         }
     }
 
-    /// Der eine Aufruf, soweit einer genügt. Mehrstufige Abläufe geben `None` zurück.
-    pub fn anfrage(&self) -> Option<Anfrage> {
+    /// The one call, as far as one suffices. Multi-step flows return `None`.
+    pub fn request(&self) -> Option<Request> {
         Some(match self {
-            Ausgehend::JiraKommentar { key, text } => Anfrage {
-                methode: "POST",
-                pfad: format!("/rest/api/3/issue/{key}/comment"),
+            Outbound::JiraComment { key, text } => Request {
+                method: "POST",
+                path: format!("/rest/api/3/issue/{key}/comment"),
                 body: Some(json!({ "body": text_to_adf(text) })),
             },
-            Ausgehend::GitHubKommentar { repo, nummer, text } => Anfrage {
-                methode: "POST",
-                pfad: format!("/repos/{repo}/issues/{nummer}/comments"),
+            Outbound::GitHubComment { repo, number, text } => Request {
+                method: "POST",
+                path: format!("/repos/{repo}/issues/{number}/comments"),
                 body: Some(json!({ "body": text })),
             },
-            Ausgehend::GitHubReview {
+            Outbound::GitHubReview {
                 repo,
-                nummer,
+                number,
                 review,
-            } => Anfrage {
-                methode: "POST",
-                pfad: format!("/repos/{repo}/pulls/{nummer}/reviews"),
+            } => Request {
+                method: "POST",
+                path: format!("/repos/{repo}/pulls/{number}/reviews"),
                 body: Some(review.body()),
             },
-            Ausgehend::GitHubMerge {
+            Outbound::GitHubMerge {
                 repo,
-                nummer,
-                methode,
+                number,
+                method,
                 sha,
             } => {
-                let mut b = json!({ "merge_method": methode.id() });
+                let mut b = json!({ "merge_method": method.id() });
                 if !sha.is_empty() {
                     b["sha"] = json!(sha);
                 }
-                Anfrage {
-                    methode: "PUT",
-                    pfad: format!("/repos/{repo}/pulls/{nummer}/merge"),
+                Request {
+                    method: "PUT",
+                    path: format!("/repos/{repo}/pulls/{number}/merge"),
                     body: Some(b),
                 }
             }
-            Ausgehend::JiraStatus { .. }
-            | Ausgehend::GitHubBranch { .. }
-            | Ausgehend::GitHubCheckNeu { .. } => return None,
+            Outbound::JiraStatus { .. }
+            | Outbound::GitHubBranch { .. }
+            | Outbound::GitHubRecheck { .. } => return None,
         })
     }
 }
 
-/// Die Transition, die zum Ziel-Status führt: erst eine mit passendem Status, bei mehreren
-/// die, deren Zielname dem deutschen oder englischen Namen des Status am nächsten kommt
-/// (sonst die erste).
-pub fn waehle_transition(liste: &[Transition], ziel: TicketStatus) -> Option<&Transition> {
-    let passend: Vec<&Transition> = liste.iter().filter(|t| status_von(&t.to) == ziel).collect();
-    passend.first().copied()
+/// The transition that leads to the target status: first one with a matching status, if there are several
+/// the one whose target name comes closest to the German or English name of the status
+/// (otherwise the first).
+pub fn choose_transition(list: &[Transition], target: TicketStatus) -> Option<&Transition> {
+    let matching: Vec<&Transition> = list
+        .iter()
+        .filter(|t| status_from(&t.to) == target)
+        .collect();
+    matching.first().copied()
 }
 
-pub fn transition_anfrage(key: &str, id: &str) -> Anfrage {
-    Anfrage {
-        methode: "POST",
-        pfad: format!("/rest/api/3/issue/{key}/transitions"),
+pub fn transition_request(key: &str, id: &str) -> Request {
+    Request {
+        method: "POST",
+        path: format!("/rest/api/3/issue/{key}/transitions"),
         body: Some(json!({ "transition": { "id": id } })),
     }
 }
 
-pub fn branch_anfrage(repo: &str, name: &str, sha: &str) -> Anfrage {
-    Anfrage {
-        methode: "POST",
-        pfad: format!("/repos/{repo}/git/refs"),
+pub fn branch_request(repo: &str, name: &str, sha: &str) -> Request {
+    Request {
+        method: "POST",
+        path: format!("/repos/{repo}/git/refs"),
         body: Some(json!({ "ref": format!("refs/heads/{name}"), "sha": sha })),
     }
 }
 
-pub fn check_neu_anfrage(repo: &str, check_id: u64) -> Anfrage {
-    Anfrage {
-        methode: "POST",
-        pfad: format!("/repos/{repo}/check-runs/{check_id}/rerequest"),
+pub fn check_again_request(repo: &str, check_id: u64) -> Request {
+    Request {
+        method: "POST",
+        path: format!("/repos/{repo}/check-runs/{check_id}/rerequest"),
         body: None,
     }
 }
@@ -528,22 +530,22 @@ mod tests {
         cockpit_core::sync::merge(&Workspace::default(), &remote, T).0
     }
 
-    fn alles() -> Ziele {
-        Ziele {
+    fn all() -> Targets {
+        Targets {
             github: true,
             jira: true,
             repos: vec!["a/x".into()],
         }
     }
 
-    fn plan(ws: &Workspace, a: Action, z: &Ziele) -> Result<Option<Ausgehend>, PlanFehler> {
-        let mut nachher = ws.clone();
-        let _ = nachher.apply(a.clone(), Actor::Du, T);
-        plane(ws, &nachher, &a, z)
+    fn plan(ws: &Workspace, a: Action, z: &Targets) -> Result<Option<Outbound>, PlanError> {
+        let mut after = ws.clone();
+        let _ = after.apply(a.clone(), Actor::User, T);
+        plane(ws, &after, &a, z)
     }
 
     #[test]
-    fn reply_geht_je_quelle_an_den_richtigen_dienst() {
+    fn reply_goes_to_the_right_service_per_source() {
         let w = ws();
         let a = plan(
             &w,
@@ -551,11 +553,11 @@ mod tests {
                 item: "abc-1".into(),
                 text: " Hallo ".into(),
             },
-            &alles(),
+            &all(),
         );
         assert_eq!(
             a,
-            Ok(Some(Ausgehend::JiraKommentar {
+            Ok(Some(Outbound::JiraComment {
                 key: "ABC-1".into(),
                 text: "Hallo".into()
             }))
@@ -566,19 +568,19 @@ mod tests {
                 item: "gh-a-x-7".into(),
                 text: "Hi".into(),
             },
-            &alles(),
+            &all(),
         );
         assert_eq!(
             a,
-            Ok(Some(Ausgehend::GitHubKommentar {
+            Ok(Some(Outbound::GitHubComment {
                 repo: "a/x".into(),
-                nummer: 7,
+                number: 7,
                 text: "Hi".into()
             }))
         );
-        let anfrage = a.unwrap().unwrap().anfrage().unwrap();
+        let request = a.unwrap().unwrap().request().unwrap();
         assert_eq!(
-            (anfrage.methode, anfrage.pfad.as_str(), anfrage.body),
+            (request.method, request.path.as_str(), request.body),
             (
                 "POST",
                 "/repos/a/x/issues/7/comments",
@@ -591,13 +593,13 @@ mod tests {
                 item: "abc-1".into(),
                 text: "a\nb".into(),
             },
-            &alles(),
+            &all(),
         )
         .unwrap()
         .unwrap()
-        .anfrage()
+        .request()
         .unwrap();
-        assert_eq!(jira.pfad, "/rest/api/3/issue/ABC-1/comment");
+        assert_eq!(jira.path, "/rest/api/3/issue/ABC-1/comment");
         assert_eq!(
             jira.body.unwrap()["body"]["content"]
                 .as_array()
@@ -608,21 +610,21 @@ mod tests {
     }
 
     #[test]
-    fn lokales_bleibt_lokal() {
+    fn local_stays_local() {
         let w = ws();
         let demo = cockpit_core::demo::workspace();
-        // Beispieldaten: nie nach außen.
+        // Sample data: never to the outside.
         let a = plan(
             &demo,
             Action::Reply {
                 item: "bau142".into(),
                 text: "x".into(),
             },
-            &alles(),
+            &all(),
         );
         assert_eq!(a, Ok(None));
-        // Quelle aus.
-        let aus = Ziele::default();
+        // Source off.
+        let from = Targets::default();
         assert_eq!(
             plan(
                 &w,
@@ -630,22 +632,22 @@ mod tests {
                     item: "abc-1".into(),
                     text: "x".into()
                 },
-                &aus
+                &from
             ),
             Ok(None)
         );
-        // Andere Aktionen.
+        // Other actions.
         assert_eq!(
             plan(
                 &w,
                 Action::MarkDone {
                     item: "abc-1".into()
                 },
-                &alles()
+                &all()
             ),
             Ok(None)
         );
-        assert_eq!(plan(&w, Action::AdvanceAgents, &alles()), Ok(None));
+        assert_eq!(plan(&w, Action::AdvanceAgents, &all()), Ok(None));
         assert_eq!(
             plan(
                 &w,
@@ -653,14 +655,14 @@ mod tests {
                     review: 7,
                     verdict: Verdict::Approve
                 },
-                &alles()
+                &all()
             ),
             Ok(None)
         );
     }
 
     #[test]
-    fn status_branch_merge_und_check() {
+    fn status_branch_merge_and_check() {
         let w = ws();
         assert_eq!(
             plan(
@@ -669,27 +671,27 @@ mod tests {
                     item: "abc-1".into(),
                     status: TicketStatus::Done
                 },
-                &alles()
+                &all()
             ),
-            Ok(Some(Ausgehend::JiraStatus {
+            Ok(Some(Outbound::JiraStatus {
                 key: "ABC-1".into(),
                 status: TicketStatus::Done
             }))
         );
-        let Ok(Some(Ausgehend::GitHubBranch { repo, name })) = plan(
+        let Ok(Some(Outbound::GitHubBranch { repo, name })) = plan(
             &w,
             Action::CreateBranch {
                 item: "abc-1".into(),
             },
-            &alles(),
+            &all(),
         ) else {
             panic!("Branch erwartet");
         };
         assert_eq!(repo, "a/x");
         assert_eq!(name, "feature/ABC-1-avatar-groesse");
-        let ohne_repo = Ziele {
+        let without_repo = Targets {
             repos: vec![],
-            ..alles()
+            ..all()
         };
         assert!(
             plan(
@@ -697,7 +699,7 @@ mod tests {
                 Action::CreateBranch {
                     item: "abc-1".into()
                 },
-                &ohne_repo
+                &without_repo
             )
             .is_err()
         );
@@ -708,15 +710,15 @@ mod tests {
                 review: 7,
                 method: MergeMethod::Squash,
             },
-            &alles(),
+            &all(),
         );
-        let anf = m.unwrap().unwrap().anfrage().unwrap();
+        let req = m.unwrap().unwrap().request().unwrap();
         assert_eq!(
-            (anf.methode, anf.pfad.as_str()),
+            (req.method, req.path.as_str()),
             ("PUT", "/repos/a/x/pulls/7/merge")
         );
         assert_eq!(
-            anf.body,
+            req.body,
             Some(json!({"merge_method": "squash", "sha": "abc123"}))
         );
 
@@ -727,37 +729,37 @@ mod tests {
                     review: 7,
                     check: "Tests".into()
                 },
-                &alles()
+                &all()
             ),
-            Ok(Some(Ausgehend::GitHubCheckNeu {
+            Ok(Some(Outbound::GitHubRecheck {
                 repo: "a/x".into(),
-                nummer: 7,
+                number: 7,
                 check: "Tests".into()
             }))
         );
     }
 
     #[test]
-    fn review_enthaelt_urteil_text_vorschlaege_und_zeilenkommentare() {
-        let d = review_daten(&review(), "  Insgesamt gut  ", "abc123");
-        assert_eq!(d.urteil, "REQUEST_CHANGES");
-        // Freigegebener Vorschlag mit Ort als Positionskommentar, abgelehnter fehlt, ortloser im Text.
-        assert_eq!(d.kommentare.len(), 3);
+    fn review_contains_verdict_text_suggestions_and_line_comments() {
+        let d = review_data(&review(), "  Insgesamt gut  ", "abc123");
+        assert_eq!(d.verdict, "REQUEST_CHANGES");
+        // Approved suggestion with location as a positioned comment, rejected one is missing, locationless one in the text.
+        assert_eq!(d.comments.len(), 3);
         assert_eq!(
-            d.kommentare[0],
-            ZeilenKommentar {
-                pfad: "a.rs".into(),
-                zeile: 2,
-                seite: "RIGHT",
+            d.comments[0],
+            LineComment {
+                path: "a.rs".into(),
+                line: 2,
+                page: "RIGHT",
                 text: "Name prüfen".into()
             }
         );
         assert_eq!(
-            d.kommentare[1].text,
+            d.comments[1].text,
             "Besser so\n\n```suggestion\n    neuer();\n```"
         );
-        assert_eq!(d.kommentare[1].seite, "RIGHT");
-        assert_eq!(d.kommentare[2].zeile, 1);
+        assert_eq!(d.comments[1].page, "RIGHT");
+        assert_eq!(d.comments[2].line, 1);
         assert!(d.text.starts_with("Insgesamt gut"));
         assert!(d.text.contains("unklar: Allgemein"));
         assert!(!d.text.contains("abgelehnt"));
@@ -769,69 +771,69 @@ mod tests {
     }
 
     #[test]
-    fn kommentar_an_entfernter_zeile_geht_nach_links() {
+    fn comment_on_removed_line_goes_left() {
         let mut r = review();
         r.line_comments.clear();
         r.add_line_comment("a.rs", 1, "weg damit", None).unwrap();
-        let d = review_daten(&r, "", "");
-        let k = d.kommentare.last().unwrap();
-        assert_eq!((k.seite, k.zeile), ("LEFT", 2));
+        let d = review_data(&r, "", "");
+        let k = d.comments.last().unwrap();
+        assert_eq!((k.page, k.line), ("LEFT", 2));
         assert!(d.body().get("commit_id").is_none());
     }
 
     #[test]
-    fn leeres_review_bekommt_einen_text_wo_github_ihn_verlangt() {
+    fn empty_review_gets_a_text_where_github_requires_one() {
         let mut r = review();
         r.suggestions.clear();
         r.line_comments.clear();
         r.verdict = Verdict::RequestChanges;
-        assert_eq!(review_daten(&r, "", "").text, "Änderungen angefordert.");
+        assert_eq!(review_data(&r, "", "").text, "Änderungen angefordert.");
         r.verdict = Verdict::Approve;
-        assert_eq!(review_daten(&r, "", "").text, "");
-        assert!(review_daten(&r, "", "").body().get("body").is_none());
+        assert_eq!(review_data(&r, "", "").text, "");
+        assert!(review_data(&r, "", "").body().get("body").is_none());
         r.verdict = Verdict::Comment;
-        assert_eq!(review_daten(&r, "", "").text, "Review aus dem Cockpit.");
+        assert_eq!(review_data(&r, "", "").text, "Review aus dem Cockpit.");
     }
 
     #[test]
-    fn transitionen_werden_nach_ziel_status_gewaehlt() {
-        let liste: Vec<Transition> = serde_json::from_value(json!([
+    fn transitions_are_chosen_by_target_status() {
+        let list: Vec<Transition> = serde_json::from_value(json!([
             {"id": "11", "name": "Start", "to": {"name": "In Progress", "statusCategory": {"key": "indeterminate"}}},
             {"id": "21", "name": "Prüfen", "to": {"name": "In Review", "statusCategory": {"key": "indeterminate"}}},
             {"id": "31", "name": "Fertig", "to": {"name": "Done", "statusCategory": {"key": "done"}}}
         ]))
         .unwrap();
         assert_eq!(
-            waehle_transition(&liste, TicketStatus::InProgress)
+            choose_transition(&list, TicketStatus::InProgress)
                 .unwrap()
                 .id,
             "11"
         );
         assert_eq!(
-            waehle_transition(&liste, TicketStatus::Review).unwrap().id,
+            choose_transition(&list, TicketStatus::Review).unwrap().id,
             "21"
         );
         assert_eq!(
-            waehle_transition(&liste, TicketStatus::Done).unwrap().id,
+            choose_transition(&list, TicketStatus::Done).unwrap().id,
             "31"
         );
-        assert!(waehle_transition(&liste, TicketStatus::Open).is_none());
-        let a = transition_anfrage("ABC-1", "31");
-        assert_eq!(a.pfad, "/rest/api/3/issue/ABC-1/transitions");
+        assert!(choose_transition(&list, TicketStatus::Open).is_none());
+        let a = transition_request("ABC-1", "31");
+        assert_eq!(a.path, "/rest/api/3/issue/ABC-1/transitions");
         assert_eq!(a.body, Some(json!({"transition": {"id": "31"}})));
     }
 
     #[test]
-    fn branch_und_check_aufrufe() {
-        let a = branch_anfrage("a/x", "feature/x", "deadbeef");
-        assert_eq!(a.pfad, "/repos/a/x/git/refs");
+    fn branch_and_check_calls() {
+        let a = branch_request("a/x", "feature/x", "deadbeef");
+        assert_eq!(a.path, "/repos/a/x/git/refs");
         assert_eq!(
             a.body,
             Some(json!({"ref": "refs/heads/feature/x", "sha": "deadbeef"}))
         );
-        let c = check_neu_anfrage("a/x", 99);
+        let c = check_again_request("a/x", 99);
         assert_eq!(
-            (c.methode, c.pfad.as_str(), c.body),
+            (c.method, c.path.as_str(), c.body),
             ("POST", "/repos/a/x/check-runs/99/rerequest", None)
         );
     }

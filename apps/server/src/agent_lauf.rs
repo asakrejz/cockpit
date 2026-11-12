@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use cockpit_core::api::{AgentStatus, Anbieter, ContainerStatus};
+use cockpit_core::api::{AgentStatus, ContainerStatus, Provider};
 use cockpit_core::{AgentReport, AgentRun, RunKind, RunState, Workspace};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -444,7 +444,7 @@ pub struct Voraussetzungen<'a> {
     pub container: &'a ContainerStatus,
     pub image: bool,
     /// Das Werkzeug des Agenten; nur umgesetzte laufen.
-    pub anbieter: Anbieter,
+    pub anbieter: Provider,
     pub modell: bool,
     pub key: bool,
     /// Das Repo, in dem der Agent arbeitet; `Err` mit der Erklärung, wenn es nicht eindeutig ist.
@@ -455,7 +455,7 @@ pub struct Voraussetzungen<'a> {
 /// Je fehlender Voraussetzung ein Satz in Klartext, mit dem Ort im Assistenten („Einrichten“).
 pub fn fehlende(v: &Voraussetzungen) -> Vec<String> {
     let mut f = Vec::new();
-    match (&v.container.laufzeit, v.container.engine_laeuft) {
+    match (&v.container.runtime, v.container.engine_running) {
         (None, _) => f.push(
             "Es gibt keine Container-Laufzeit. Öffne „Einrichten“ › „Container“ und installiere Rancher Desktop (dockerd) oder Podman."
                 .to_string(),
@@ -472,7 +472,7 @@ pub fn fehlende(v: &Voraussetzungen) -> Vec<String> {
             }
         }
     }
-    if let Some(m) = v.anbieter.nicht_umgesetzt() {
+    if let Some(m) = v.anbieter.not_implemented() {
         f.push(m);
     } else if !v.modell || !v.key {
         let mut was = Vec::new();
@@ -521,22 +521,22 @@ pub fn repo_waehlen<'a>(agent: Option<&'a str>, github: &'a [String]) -> Result<
 pub fn status(echt: bool, v: &Voraussetzungen) -> AgentStatus {
     if !echt {
         return AgentStatus {
-            modus: "simuliert".into(),
-            bereit: true,
+            mode: "simuliert".into(),
+            ready: true,
             image: v.image,
             image_name: IMAGE.into(),
             repo: None,
-            fehlt: Vec::new(),
+            missing: Vec::new(),
         };
     }
     let fehlt = fehlende(v);
     AgentStatus {
-        modus: "echt".into(),
-        bereit: fehlt.is_empty(),
+        mode: "echt".into(),
+        ready: fehlt.is_empty(),
         image: v.image,
         image_name: IMAGE.into(),
         repo: v.repo.as_ref().ok().map(|r| (*r).to_string()),
-        fehlt,
+        missing: fehlt,
     }
 }
 
@@ -826,7 +826,7 @@ mod tests {
                     ..AgentOptions::default()
                 },
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -894,7 +894,7 @@ mod tests {
             Action::ApprovePlan {
                 ticket: "BAU-142".into(),
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -917,7 +917,7 @@ mod tests {
                 Action::CancelAgent {
                     ticket: "BAU-142".into(),
                 },
-                Actor::Du,
+                Actor::User,
                 T,
             )
             .unwrap();
@@ -963,7 +963,7 @@ mod tests {
             Action::PauseAgent {
                 run: "BAU-142".into(),
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -975,7 +975,7 @@ mod tests {
             Action::ResumeAgent {
                 run: "BAU-142".into(),
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -1005,7 +1005,7 @@ mod tests {
                 run: "BAU-142".into(),
                 text: "der blaue".into(),
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -1021,7 +1021,7 @@ mod tests {
                 run: "BAU-142".into(),
                 text: "Kleine Commits".into(),
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -1039,11 +1039,11 @@ mod tests {
     #[test]
     fn ein_noch_nicht_umgesetztes_werkzeug_wird_in_klartext_abgelehnt() {
         let laeuft = ContainerStatus {
-            laufzeit: Some("docker".into()),
-            engine_laeuft: true,
+            runtime: Some("docker".into()),
+            engine_running: true,
             ..ContainerStatus::default()
         };
-        for a in [Anbieter::ClaudeCode, Anbieter::Codex] {
+        for a in [Provider::ClaudeCode, Provider::Codex] {
             let v = Voraussetzungen {
                 container: &laeuft,
                 image: true,
@@ -1055,8 +1055,8 @@ mod tests {
             };
             let f = fehlende(&v);
             assert_eq!(f.len(), 1, "{f:?}");
-            assert!(f[0].contains(a.bezeichnung()) && f[0].contains("noch nicht umgesetzt"));
-            assert!(!status(true, &v).bereit);
+            assert!(f[0].contains(a.label()) && f[0].contains("noch nicht umgesetzt"));
+            assert!(!status(true, &v).ready);
         }
     }
 
@@ -1066,7 +1066,7 @@ mod tests {
         let v = Voraussetzungen {
             container: &kein,
             image: false,
-            anbieter: Anbieter::ClaudeAgentSdk,
+            anbieter: Provider::ClaudeAgentSdk,
             modell: false,
             key: false,
             repo: Err("Es ist kein Repo eingetragen.".into()),
@@ -1078,14 +1078,14 @@ mod tests {
         assert!(f[1].contains("der Modellname, der Key") && !f[1].contains("Adresse"));
         assert!(f[3].contains("GitHub"));
         let laeuft = ContainerStatus {
-            laufzeit: Some("docker".into()),
-            engine_laeuft: true,
+            runtime: Some("docker".into()),
+            engine_running: true,
             ..ContainerStatus::default()
         };
         let fast = Voraussetzungen {
             container: &laeuft,
             image: false,
-            anbieter: Anbieter::ClaudeAgentSdk,
+            anbieter: Provider::ClaudeAgentSdk,
             modell: true,
             key: true,
             repo: Ok("firma/app"),
@@ -1101,16 +1101,16 @@ mod tests {
                 ..fast
             },
         );
-        assert!(s.bereit && s.modus == "echt" && s.repo.as_deref() == Some("firma/app"));
+        assert!(s.ready && s.mode == "echt" && s.repo.as_deref() == Some("firma/app"));
         let nicht_laeuft = ContainerStatus {
-            laufzeit: Some("podman".into()),
-            engine_laeuft: false,
+            runtime: Some("podman".into()),
+            engine_running: false,
             ..ContainerStatus::default()
         };
         let f = fehlende(&Voraussetzungen {
             container: &nicht_laeuft,
             image: true,
-            anbieter: Anbieter::ClaudeAgentSdk,
+            anbieter: Provider::ClaudeAgentSdk,
             modell: true,
             key: true,
             repo: Ok("a/b"),
@@ -1118,7 +1118,7 @@ mod tests {
         });
         assert!(f[0].contains("podman machine start"));
         // Simuliert: immer bereit.
-        assert!(status(false, &v).bereit);
+        assert!(status(false, &v).ready);
     }
 
     #[test]

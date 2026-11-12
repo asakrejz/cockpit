@@ -1,13 +1,11 @@
 //! Schritt 2: Jira verbinden – Standard ist der API-Token (drei einfache Schritte, danach ein
 //! Verbindungstest und die Wahl des Projekts); die Atlassian-App (OAuth) steckt eingeklappt unter
-//! „Erweitert“. Die Regeln (Adresse lesen, Texte) stehen in `cockpit_core::einrichten`.
+//! „Erweitert“. Die Regeln (Adresse lesen, Texte) stehen in `cockpit_core::setup`.
 
 use cockpit_core::Action;
-use cockpit_core::api::{ClientEingabe, JiraEingabe, JiraProject, JiraPruefung, KonfigAenderung};
+use cockpit_core::api::{ClientInput, ConfigChange, JiraCheck, JiraInput, JiraProject};
 use cockpit_core::connections::AuthKind;
-use cockpit_core::einrichten::{
-    JIRA_TOKEN_SEITE, client_id_lesen, jira_site_lesen, projekte_lesen,
-};
+use cockpit_core::setup::{JIRA_TOKEN_PAGE, client_id_read, jira_site_read, projects_read};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -32,11 +30,11 @@ fn vorbelegen(feld: RwSignal<String>, quelle: impl Fn() -> String + 'static) {
 #[component]
 pub fn JiraSchritt(ctx: Kontext) -> impl IntoView {
     // Das Ergebnis des Verbindungstests; erst danach erscheint die Wahl des Projekts.
-    let ergebnis: RwSignal<Option<JiraPruefung>> = RwSignal::new(None);
+    let ergebnis: RwSignal<Option<JiraCheck>> = RwSignal::new(None);
     let per_token = move || {
         ctx.store.health.with(|h| {
             h.as_ref().is_some_and(|h| {
-                h.anmeldung.jira.verbunden && h.anmeldung.jira.art == AuthKind::Token
+                h.anmeldung.jira.connected && h.anmeldung.jira.kind == AuthKind::Token
             })
         })
     };
@@ -44,7 +42,7 @@ pub fn JiraSchritt(ctx: Kontext) -> impl IntoView {
         ctx.einr.with(|e| e.atlassian_client_id.is_some())
             || ctx.store.health.with(|h| {
                 h.as_ref()
-                    .is_some_and(|h| h.anmeldung.jira.art == AuthKind::OAuth)
+                    .is_some_and(|h| h.anmeldung.jira.kind == AuthKind::OAuth)
             })
     };
     view! {
@@ -103,21 +101,21 @@ fn JiraOauth(ctx: Kontext) -> impl IntoView {
     });
     let projekte = RwSignal::new(String::new());
     vorbelegen(projekte, move || {
-        ctx.einr.with(|e| e.jira_projekte.join(", "))
+        ctx.einr.with(|e| e.jira_projects.join(", "))
     });
     let rueck_id: Rueckmeldung = RwSignal::new(None);
     let rueck_projekte: Rueckmeldung = RwSignal::new(None);
     let callback = Signal::derive(move || ctx.einr.with(|e| e.callback_atlassian.clone()));
 
-    let id_speichern = move |_| match client_id_lesen(&client_id.get_untracked()) {
+    let id_speichern = move |_| match client_id_read(&client_id.get_untracked()) {
         Ok(id) if id.is_empty() => rueck_id.set(Some((
             false,
             "Trage die Client-ID aus der Atlassian-Konsole ein.".into(),
         ))),
         Ok(id) => konfig_speichern(
             ctx,
-            KonfigAenderung {
-                atlassian: Some(ClientEingabe { client_id: id }),
+            ConfigChange {
+                atlassian: Some(ClientInput { client_id: id }),
                 ..Default::default()
             },
             rueck_id,
@@ -129,9 +127,9 @@ fn JiraOauth(ctx: Kontext) -> impl IntoView {
     let projekte_speichern = move |_| {
         konfig_speichern(
             ctx,
-            KonfigAenderung {
-                jira: Some(JiraEingabe {
-                    projects: Some(projekte_lesen(&projekte.get_untracked())),
+            ConfigChange {
+                jira: Some(JiraInput {
+                    projects: Some(projects_read(&projekte.get_untracked())),
                     ..Default::default()
                 }),
                 ..Default::default()
@@ -221,7 +219,7 @@ fn JiraOauth(ctx: Kontext) -> impl IntoView {
 }
 
 #[component]
-fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraPruefung>>) -> impl IntoView {
+fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraCheck>>) -> impl IntoView {
     let site = RwSignal::new(String::new());
     vorbelegen(site, move || ctx.einr.with(|e| e.jira_site.clone()));
     let email = RwSignal::new(String::new());
@@ -237,11 +235,11 @@ fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraPruefung>>) -> impl Int
     });
 
     // So versteht Cockpit die Eingabe: gleich unter dem Feld zu sehen.
-    let site_gelesen = Signal::derive(move || jira_site_lesen(&site.get()));
+    let site_gelesen = Signal::derive(move || jira_site_read(&site.get()));
     let verbunden = move || {
         ctx.store.health.with(|h| {
             h.as_ref().is_some_and(|h| {
-                h.anmeldung.jira.verbunden && h.anmeldung.jira.art == AuthKind::Token
+                h.anmeldung.jira.connected && h.anmeldung.jira.kind == AuthKind::Token
             })
         })
     };
@@ -275,8 +273,8 @@ fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraPruefung>>) -> impl Int
         // Erst Adresse und E-Mail sichern, dann der Test (nur Lesen).
         konfig_speichern(
             ctx,
-            KonfigAenderung {
-                jira: Some(JiraEingabe {
+            ConfigChange {
+                jira: Some(JiraInput {
                     site: Some(site_neu),
                     email: Some(email_neu),
                     projects: None,
@@ -289,8 +287,8 @@ fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraPruefung>>) -> impl Int
                 spawn_local(async move {
                     match server::post_jira_pruefen().await {
                         Ok(p) => ergebnis.set(Some(p)),
-                        Err(e) => ergebnis.set(Some(JiraPruefung {
-                            meldung: e.message(),
+                        Err(e) => ergebnis.set(Some(JiraCheck {
+                            message: e.message(),
                             ..Default::default()
                         })),
                     }
@@ -335,7 +333,7 @@ fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraPruefung>>) -> impl Int
                 <li>
                     "Klicke auf „Token-Seite öffnen“ und melde dich bei Atlassian an. Die Seite geht in einem neuen Tab auf."
                     <HStack spacing="12px" css="margin-top: 8px">
-                        <ExternKnopf href=JIRA_TOKEN_SEITE>"Token-Seite öffnen"</ExternKnopf>
+                        <ExternKnopf href=JIRA_TOKEN_PAGE>"Token-Seite öffnen"</ExternKnopf>
                     </HStack>
                 </li>
                 <li>"Klicke auf „Create API token“ (Token erstellen)."</li>
@@ -381,7 +379,7 @@ fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraPruefung>>) -> impl Int
                                 style=(!p.ok).then_some("color: var(--sys-color-red)")
                             >
                                 {if p.ok { "✓ " } else { "" }}
-                                {p.meldung}
+                                {p.message}
                             </p>
                         }
                     })
@@ -399,7 +397,7 @@ fn JiraProjektwahl(ctx: Kontext) -> impl IntoView {
     let geladen = RwSignal::new(false);
     spawn_local(async move {
         match server::fetch_jira_projects().await {
-            Ok(r) => projekte.set(r.projekte),
+            Ok(r) => projekte.set(r.projects),
             Err(CallError::Unreachable) => {
                 rueck.set(Some((false, CallError::Unreachable.message())))
             }

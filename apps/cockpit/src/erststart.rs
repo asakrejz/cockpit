@@ -1,7 +1,7 @@
 //! Beim ersten Start, wenn noch nichts eingerichtet ist, führt Cockpit zum Einrichtungsassistenten.
 //! Gemerkt wird nur, dass er einmal gezeigt wurde (kein Schlüssel, keine Zugangsdaten).
 
-use cockpit_core::einrichten::nichts_eingerichtet;
+use cockpit_core::setup::nothing_set_up;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
@@ -45,7 +45,7 @@ pub fn pruefen(store: Store) {
             let Ok(einrichtung) = server::fetch_einrichtung().await else {
                 return;
             };
-            let leer = nichts_eingerichtet(
+            let leer = nothing_set_up(
                 &einrichtung,
                 &health.anmeldung.jira,
                 &health.anmeldung.github,

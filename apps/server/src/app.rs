@@ -28,9 +28,9 @@ use crate::db;
 use crate::live::Live;
 use crate::secrets::{self, SecretStore};
 use crate::zugang;
-use cockpit_core::api::{AgentStatus, ContainerStatus, EndpunktStatus};
+use cockpit_core::api::{AgentStatus, ContainerStatus, EndpointStatus};
 use cockpit_core::{AuthKind, ServiceStatus};
-use cockpit_integrations::oauth::Dienst;
+use cockpit_integrations::oauth::Service;
 
 /// So oft macht der simulierte Agent einen Schritt (wie im Demo-Modus der App).
 pub const AGENT_TAKT: Duration = Duration::from_millis(2200);
@@ -119,7 +119,7 @@ pub(crate) struct Inner {
     /// Der Port, auf dem der Server lauscht – für die Prüfung von `Host` und `Origin`.
     pub(crate) port: u16,
     /// Offene OAuth-Anmeldungen (`state` → PKCE-Verifier), nur im Speicher.
-    pub(crate) anmeldungen: Mutex<cockpit_integrations::oauth::Anmeldungen>,
+    pub(crate) anmeldungen: Mutex<cockpit_integrations::oauth::SignIns>,
     /// Nur eine Auffrischung der OAuth-Tokens gleichzeitig (Refresh-Tokens drehen sich).
     pub(crate) auffrischen: tokio::sync::Mutex<()>,
     /// Jira und GitHub, wie konfiguriert (ob sie laufen, hängt noch vom Schlüssel ab).
@@ -311,7 +311,7 @@ pub struct Health {
     pub anmeldung: Anmeldung,
     pub abgleich: AbgleichZustand,
     /// Anbieter, Adresse, Modell und ob ein Key liegt – nie der Key.
-    pub endpunkt: EndpunktStatus,
+    pub endpunkt: EndpointStatus,
     pub container: ContainerStatus,
     /// Ob der echte Agent loslaufen kann und was fehlt.
     pub agent: AgentStatus,
@@ -335,12 +335,12 @@ impl AppState {
                     false
                 })
         };
-        let github = self.dienst_status(Dienst::GitHub, eingerichtet(secrets::GITHUB));
+        let github = self.dienst_status(Service::GitHub, eingerichtet(secrets::GITHUB));
         // Jira per Token braucht Adresse und E-Mail aus der Konfiguration (Eintrag in der Datenbank).
-        let jira = self.dienst_status(Dienst::Atlassian, eingerichtet(secrets::JIRA));
+        let jira = self.dienst_status(Service::Atlassian, eingerichtet(secrets::JIRA));
         let verbindungen = Verbindungen {
-            github: github.verbunden,
-            jira: jira.verbunden,
+            github: github.connected,
+            jira: jira.connected,
         };
         let hat_schluessel = |name: &str| self.inner.secrets.has(name).unwrap_or(false);
         let ws = self.inner.live.kopie();
@@ -355,11 +355,11 @@ impl AppState {
         };
         let q = self.quellen();
         let wahl = self.agent_wahl();
-        let endpunkt = EndpunktStatus {
-            konfiguriert: wahl.endpunkt.is_some(),
-            anbieter: wahl.anbieter,
+        let endpunkt = EndpointStatus {
+            configured: wahl.endpunkt.is_some(),
+            provider: wahl.anbieter,
             url: wahl.endpunkt.as_ref().and_then(|e| e.url.clone()),
-            modell: wahl.endpunkt.as_ref().and_then(|e| e.modell.clone()),
+            model: wahl.endpunkt.as_ref().and_then(|e| e.modell.clone()),
             key: hat_schluessel(secrets::AGENT_KEY) || hat_schluessel(secrets::LITELLM),
         };
         let container = self.container_status();
@@ -370,12 +370,12 @@ impl AppState {
             abgleich: AbgleichZustand {
                 github: zustand(
                     q.github.as_ref().is_some_and(|g| !g.repos.is_empty())
-                        && (github.art == AuthKind::OAuth || hat_schluessel(secrets::GITHUB)),
+                        && (github.kind == AuthKind::OAuth || hat_schluessel(secrets::GITHUB)),
                     cockpit_core::Source::GitHub,
                 ),
                 jira: zustand(
                     q.jira.is_some()
-                        && (jira.art == AuthKind::OAuth || hat_schluessel(secrets::JIRA)),
+                        && (jira.kind == AuthKind::OAuth || hat_schluessel(secrets::JIRA)),
                     cockpit_core::Source::Jira,
                 ),
                 intervall_s: q.intervall.as_secs(),
@@ -409,9 +409,9 @@ pub(crate) fn agent_key_lesen(
 
 impl AppState {
     /// Wohin die Aufrufe an den Endpunkt gehen: die eingetragene Adresse, sonst direkt Anthropic.
-    pub(crate) fn endpunkt_ziel(&self) -> cockpit_integrations::endpunkt::Ziel {
+    pub(crate) fn endpunkt_ziel(&self) -> cockpit_integrations::endpoint::Target {
         let wahl = self.agent_wahl();
-        cockpit_integrations::endpunkt::Ziel::aus(
+        cockpit_integrations::endpoint::Target::from(
             wahl.endpunkt.as_ref().and_then(|e| e.url.as_deref()),
             self.inner.einstellungen.anthropic_api.as_deref(),
         )
@@ -441,8 +441,8 @@ async fn endpunkt_pruefen(State(state): State<AppState>) -> Response {
     let wahl = state.agent_wahl();
     let Some(e) = wahl.endpunkt.clone() else {
         // Ohne Eintrag gibt es nichts zu prüfen (auch nicht „direkt“: erst wählt die Person ein Modell).
-        return Json(cockpit_core::api::EndpunktPruefung {
-            hinweis: Some(
+        return Json(cockpit_core::api::EndpointCheck {
+            hint: Some(
                 "Der Endpunkt ist nicht eingerichtet. Wähle im Schritt „Modell“ Anbieter, Endpunkt und Modell."
                     .into(),
             ),
@@ -455,7 +455,7 @@ async fn endpunkt_pruefen(State(state): State<AppState>) -> Response {
         Err(antwort) => return *antwort,
     };
     Json(
-        cockpit_integrations::endpunkt::pruefen(
+        cockpit_integrations::endpoint::verify(
             &state.endpunkt_ziel(),
             key.as_ref(),
             e.modell.as_deref(),
@@ -472,7 +472,7 @@ async fn agent_modelle(State(state): State<AppState>) -> Response {
         Ok(k) => k,
         Err(antwort) => return *antwort,
     };
-    Json(cockpit_integrations::endpunkt::modelle_laden(&state.endpunkt_ziel(), key.as_ref()).await)
+    Json(cockpit_integrations::endpoint::models_load(&state.endpunkt_ziel(), key.as_ref()).await)
         .into_response()
 }
 
@@ -511,7 +511,7 @@ pub(crate) fn fehler(status: StatusCode, meldung: impl Into<String>) -> Response
     (
         status,
         Json(ErrorBody {
-            fehler: meldung.into(),
+            error: meldung.into(),
         }),
     )
         .into_response()
@@ -601,7 +601,7 @@ async fn ereignisse(
     let weitere = BroadcastStream::new(rx).map(move |ereignis| {
         ereignis.unwrap_or_else(|_| ServerEvent {
             revision: state.inner.live.revision(),
-            eintraege: Vec::new(),
+            entries: Vec::new(),
         })
     });
     let strom = tokio_stream::once(erstes)
@@ -678,7 +678,7 @@ mod tests {
 
     use crate::config::EndpunktKonfig;
     use crate::secrets::MemoryStore;
-    use cockpit_core::api::Anbieter;
+    use cockpit_core::api::Provider;
 
     fn zustand(secrets: Arc<MemoryStore>) -> AppState {
         let conn = db::open_im_speicher().unwrap();
@@ -846,7 +846,7 @@ mod tests {
         assert!(ws.item(&id).unwrap().read);
         // Der Server wendet als „Du“ an, mit seiner Uhr.
         let letzter = ws.log.last().unwrap();
-        assert_eq!(letzter.actor, Actor::Du);
+        assert_eq!(letzter.actor, Actor::User);
         assert!(letzter.at_ms > 1_600_000_000_000);
     }
 
@@ -1362,7 +1362,7 @@ mod tests {
             .unwrap();
         let e = Einstellungen {
             agent: AgentWahl {
-                anbieter: Anbieter::ClaudeAgentSdk,
+                anbieter: Provider::ClaudeAgentSdk,
                 endpunkt: Some(EndpunktKonfig {
                     url: Some("http://localhost:4000".into()),
                     modell: Some("claude-sonnet-5-5".into()),
@@ -1431,7 +1431,7 @@ mod tests {
     ) -> Router {
         let e = Einstellungen {
             agent: AgentWahl {
-                anbieter: Anbieter::ClaudeAgentSdk,
+                anbieter: Provider::ClaudeAgentSdk,
                 endpunkt: Some(EndpunktKonfig {
                     url: url.map(str::to_string),
                     modell: Some("claude-sonnet-5-5".into()),

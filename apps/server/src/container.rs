@@ -50,18 +50,18 @@ pub fn waehle(
     if let Some((cli, quelle)) = gewaehlt(konfig, env) {
         if !vorhanden(&cli) {
             return ContainerStatus {
-                hinweis: Some(nicht_gefunden(&cli)),
-                laufzeit: Some(cli),
-                engine_laeuft: false,
-                quelle: quelle.into(),
+                hint: Some(nicht_gefunden(&cli)),
+                runtime: Some(cli),
+                engine_running: false,
+                source: quelle.into(),
             };
         }
         let engine_laeuft = laeuft(&cli);
         return ContainerStatus {
-            hinweis: (!engine_laeuft).then(|| nicht_gestartet(&cli)),
-            laufzeit: Some(cli),
-            engine_laeuft,
-            quelle: quelle.into(),
+            hint: (!engine_laeuft).then(|| nicht_gestartet(&cli)),
+            runtime: Some(cli),
+            engine_running: engine_laeuft,
+            source: quelle.into(),
         };
     }
     let mut erste = None;
@@ -71,26 +71,26 @@ pub fn waehle(
         }
         if laeuft(cli) {
             return ContainerStatus {
-                laufzeit: Some(cli.into()),
-                engine_laeuft: true,
-                quelle: "erkannt".into(),
-                hinweis: None,
+                runtime: Some(cli.into()),
+                engine_running: true,
+                source: "erkannt".into(),
+                hint: None,
             };
         }
         erste.get_or_insert(cli);
     }
     match erste {
         Some(cli) => ContainerStatus {
-            laufzeit: Some(cli.into()),
-            engine_laeuft: false,
-            quelle: "erkannt".into(),
-            hinweis: Some(nicht_gestartet(cli)),
+            runtime: Some(cli.into()),
+            engine_running: false,
+            source: "erkannt".into(),
+            hint: Some(nicht_gestartet(cli)),
         },
         None => ContainerStatus {
-            laufzeit: None,
-            engine_laeuft: false,
-            quelle: "keine".into(),
-            hinweis: Some(
+            runtime: None,
+            engine_running: false,
+            source: "keine".into(),
+            hint: Some(
                 "Weder podman noch docker im PATH. Installiere Rancher Desktop (Engine „dockerd (moby)“) oder Podman."
                     .into(),
             ),
@@ -191,52 +191,52 @@ mod tests {
     #[test]
     fn ohne_wahl_kommt_podman_vor_docker() {
         let s = waehle(None, None, alle, alle);
-        assert_eq!(s.laufzeit.as_deref(), Some("podman"));
-        assert!(s.engine_laeuft && s.hinweis.is_none());
-        assert_eq!(s.quelle, "erkannt");
+        assert_eq!(s.runtime.as_deref(), Some("podman"));
+        assert!(s.engine_running && s.hint.is_none());
+        assert_eq!(s.source, "erkannt");
     }
 
     #[test]
     fn laeuft_podman_nicht_wird_docker_genommen() {
         let s = waehle(None, None, alle, |cli| cli == "docker");
-        assert_eq!(s.laufzeit.as_deref(), Some("docker"));
-        assert!(s.engine_laeuft);
+        assert_eq!(s.runtime.as_deref(), Some("docker"));
+        assert!(s.engine_running);
         let s = waehle(None, None, |cli| cli == "docker", alle);
-        assert_eq!(s.laufzeit.as_deref(), Some("docker"));
+        assert_eq!(s.runtime.as_deref(), Some("docker"));
     }
 
     #[test]
     fn vorhanden_aber_ohne_engine_gibt_einen_hinweis() {
         let s = waehle(None, None, alle, keine);
-        assert_eq!(s.laufzeit.as_deref(), Some("podman"), "die erste gefundene");
-        assert!(!s.engine_laeuft);
-        assert!(s.hinweis.unwrap().contains("podman machine start"));
+        assert_eq!(s.runtime.as_deref(), Some("podman"), "die erste gefundene");
+        assert!(!s.engine_running);
+        assert!(s.hint.unwrap().contains("podman machine start"));
         let s = waehle(None, None, |c| c == "docker", keine);
-        assert!(s.hinweis.unwrap().contains("dockerd (moby)"));
+        assert!(s.hint.unwrap().contains("dockerd (moby)"));
     }
 
     #[test]
     fn ohne_beides_gibt_es_keine_laufzeit() {
         let s = waehle(None, None, keine, keine);
-        assert_eq!(s.laufzeit, None);
-        assert_eq!(s.quelle, "keine");
-        assert!(s.hinweis.unwrap().contains("Weder podman noch docker"));
+        assert_eq!(s.runtime, None);
+        assert_eq!(s.source, "keine");
+        assert!(s.hint.unwrap().contains("Weder podman noch docker"));
     }
 
     #[test]
     fn ausdrueckliche_wahl_geht_vor_und_umgebung_vor_datei() {
         let s = waehle(Some("podman"), Some("docker"), alle, alle);
-        assert_eq!(s.laufzeit.as_deref(), Some("docker"));
-        assert_eq!(s.quelle, "umgebung");
+        assert_eq!(s.runtime.as_deref(), Some("docker"));
+        assert_eq!(s.source, "umgebung");
         let s = waehle(Some("docker"), None, alle, alle);
-        assert_eq!(s.laufzeit.as_deref(), Some("docker"));
-        assert_eq!(s.quelle, "konfiguration");
+        assert_eq!(s.runtime.as_deref(), Some("docker"));
+        assert_eq!(s.source, "konfiguration");
         // Gewählt heißt gewählt: Es wird nicht auf die andere Laufzeit ausgewichen.
         let s = waehle(Some("docker"), None, alle, |cli| cli == "podman");
-        assert_eq!(s.laufzeit.as_deref(), Some("docker"));
-        assert!(!s.engine_laeuft);
+        assert_eq!(s.runtime.as_deref(), Some("docker"));
+        assert!(!s.engine_running);
         let s = waehle(Some("docker"), None, |cli| cli == "podman", alle);
-        assert!(s.hinweis.unwrap().contains("nicht im PATH"));
+        assert!(s.hint.unwrap().contains("nicht im PATH"));
     }
 
     #[cfg(unix)]
@@ -264,11 +264,11 @@ mod tests {
                 "[ \"$1\" = info ] && exit 0; exit 2",
             );
             let s = erkennen(None, None, ordner.path().as_os_str());
-            assert_eq!(s.laufzeit.as_deref(), Some("docker"));
-            assert!(s.engine_laeuft);
+            assert_eq!(s.runtime.as_deref(), Some("docker"));
+            assert!(s.engine_running);
             let s = erkennen(Some("podman"), None, ordner.path().as_os_str());
-            assert_eq!(s.laufzeit.as_deref(), Some("podman"));
-            assert!(!s.engine_laeuft);
+            assert_eq!(s.runtime.as_deref(), Some("podman"));
+            assert!(!s.engine_running);
         }
 
         #[test]
@@ -276,7 +276,7 @@ mod tests {
             let ordner = tempfile::tempdir().unwrap();
             std::fs::write(ordner.path().join("docker"), "#!/bin/sh\nexit 0\n").unwrap();
             let s = erkennen(None, None, ordner.path().as_os_str());
-            assert_eq!(s.laufzeit, None);
+            assert_eq!(s.runtime, None);
         }
     }
 

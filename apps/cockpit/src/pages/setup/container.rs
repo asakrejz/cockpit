@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use cockpit_core::api::{ContainerStatus, ImageBau};
+use cockpit_core::api::{ContainerStatus, ImageBuild};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -12,10 +12,10 @@ use crate::server::{self, CallError};
 use crate::store::Store;
 
 /// Fragt den Stand des Image-Baus ab und wiederholt das, solange er läuft.
-fn bau_beobachten(bau: RwSignal<Option<ImageBau>>, store: Store) {
+fn bau_beobachten(bau: RwSignal<Option<ImageBuild>>, store: Store) {
     spawn_local(async move {
         if let Ok(b) = server::fetch_image().await {
-            let weiter = b.laeuft;
+            let weiter = b.running;
             if bau.try_set(Some(b)).is_some() {
                 return;
             }
@@ -40,28 +40,28 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
     };
     let tone = move || match status() {
         Some(ContainerStatus {
-            laufzeit: Some(_),
-            engine_laeuft: true,
+            runtime: Some(_),
+            engine_running: true,
             ..
         }) => StatusTone::Green,
         Some(ContainerStatus {
-            laufzeit: Some(_), ..
+            runtime: Some(_), ..
         }) => StatusTone::Orange,
         _ => StatusTone::Gray,
     };
     let text = move || match status() {
         None => "Prüfe …".to_string(),
         Some(ContainerStatus {
-            laufzeit: Some(l),
-            engine_laeuft: true,
+            runtime: Some(l),
+            engine_running: true,
             ..
         }) => format!("{l} ist installiert und läuft"),
         Some(ContainerStatus {
-            laufzeit: Some(l), ..
+            runtime: Some(l), ..
         }) => format!("{l} ist installiert, läuft aber nicht"),
         Some(_) => "Noch nichts gefunden".to_string(),
     };
-    let bau = RwSignal::new(None::<ImageBau>);
+    let bau = RwSignal::new(None::<ImageBuild>);
     let bau_fehler = RwSignal::new(None::<String>);
     bau_beobachten(bau, ctx.store);
     let bauen = move |_| {
@@ -79,15 +79,15 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
             }
         });
     };
-    let bau_laeuft = move || bau.with(|b| b.as_ref().is_some_and(|b| b.laeuft));
+    let bau_laeuft = move || bau.with(|b| b.as_ref().is_some_and(|b| b.running));
     let image_da = move || {
         ctx.store
             .health
             .with(|h| h.as_ref().is_some_and(|h| h.agent.image))
     };
-    let engine_laeuft = move || status().is_some_and(|s| s.laufzeit.is_some() && s.engine_laeuft);
-    let fehlt = move || status().is_some_and(|s| s.laufzeit.is_none());
-    let steht_nicht = move || status().is_some_and(|s| s.laufzeit.is_some() && !s.engine_laeuft);
+    let engine_laeuft = move || status().is_some_and(|s| s.runtime.is_some() && s.engine_running);
+    let fehlt = move || status().is_some_and(|s| s.runtime.is_none());
+    let steht_nicht = move || status().is_some_and(|s| s.runtime.is_some() && !s.engine_running);
 
     view! {
         <VStack spacing="12px">
@@ -107,7 +107,7 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
                     </HStack>
                     {move || {
                         status()
-                            .and_then(|s| s.hinweis)
+                            .and_then(|s| s.hint)
                             .map(|h| view! { <p class="ui-hinweis" role="status">{h}</p> })
                     }}
                     <HStack spacing="12px">
@@ -152,14 +152,14 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
                                 }}
                                 {move || {
                                     bau.get()
-                                        .and_then(|b| b.fehler)
+                                        .and_then(|b| b.error)
                                         .map(|m| view! { <p class="ui-hinweis" role="alert">{m}</p> })
                                 }}
                                 {move || {
                                     bau.get()
-                                        .filter(|b| !b.zeilen.is_empty())
+                                        .filter(|b| !b.lines.is_empty())
                                         .map(|b| {
-                                            let text = b.zeilen.join("\n");
+                                            let text = b.lines.join("\n");
                                             view! { <Log text=Signal::derive(move || text.clone()) /> }
                                         })
                                 }}

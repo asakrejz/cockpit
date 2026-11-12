@@ -1,5 +1,5 @@
-//! Beispieldaten nach dem Design. Sie stehen für Jira, GitHub und den Agenten,
-//! solange kein Backend angebunden ist.
+//! Sample data following the design. They stand in for Jira, GitHub and the agent
+//! as long as no backend is connected.
 
 use crate::agent::{AgentRun, Question, RunState, STEPS};
 use crate::model::*;
@@ -61,13 +61,13 @@ fn item(
     }
 }
 
-/// Das zweite Repo der Beispieldaten.
+/// The second repo of the sample data.
 pub const DEMO_REPO_TOKENS: &str = "asakrejz/design-tokens";
 
-/// Fälligkeit des Demo-Tickets BAU-150: liegt vor dem Tag, an dem die Demo entstand.
+/// Due date of the demo ticket BAU-150: lies before the day the demo was made.
 pub const DEMO_OVERDUE: &str = "2026-11-09";
 
-/// Der Ausgangszustand des Cockpits.
+/// The initial state of the cockpit.
 pub fn workspace() -> Workspace {
     let bau142 = Item {
         status: TicketStatus::InProgress,
@@ -175,7 +175,7 @@ pub fn workspace() -> Workspace {
         )
     };
     let bau150 = Item {
-        // Fällig vor „heute“ (11.11.2026): greift die Regel „überfälliges Ticket“.
+        // Due before „today“ (11.11.2026): the rule „overdue ticket“ applies.
         due: Some(DEMO_OVERDUE.into()),
         labels: vec!["feature".into()],
         ..item(
@@ -189,7 +189,7 @@ pub fn workspace() -> Workspace {
             Person::me(),
         )
     };
-    // Ein zweites Projekt (DOC) und ein zweites Repo, damit die Filter der Inbox etwas zeigen.
+    // A second project (DOC) and a second repo, so that the inbox filters show something.
     let doc7 = Item {
         status: TicketStatus::Open,
         labels: vec!["docs".into()],
@@ -310,7 +310,7 @@ pub fn workspace() -> Workspace {
             ],
         )
     };
-    // Zwei Kommentare von Reviewern zu BAU-138: Der Agent kann sie umsetzen (Folgeauftrag).
+    // Two comments from reviewers on BAU-138: the agent can implement them (follow-up job).
     let foreign =
         |id: &str, who: Person, file: &str, line: usize, text: &str, code: Option<&str>| {
             LineComment {
@@ -392,7 +392,7 @@ pub fn workspace() -> Workspace {
 
     review85.check_runs = failing_checks();
 
-    // BAU-138 hat der Agent schon umgesetzt.
+    // The agent has already implemented BAU-138.
     let mut run138 = AgentRun::new(&bau138.key, &bau138.title);
     run138.files = review91.files.iter().map(|f| f.name.clone()).collect();
     run138.state = RunState::Done;
@@ -412,14 +412,14 @@ pub fn workspace() -> Workspace {
         reviews: vec![review87, review91, review85],
         runs: vec![run138],
         log: Vec::new(),
-        // BAU-138 hängt an #91 (Review angefragt) und steht schon auf „Review“.
+        // BAU-138 hangs on #91 (review requested) and is already in „Review“.
         status_seen: vec![("BAU-138".to_string(), TicketStatus::Review)],
         repo_rules: BTreeMap::from([(DEMO_REPO.to_string(), repo_rules())]),
         ..Workspace::default()
     }
 }
 
-/// Die Regeln, mit denen das Demo-Repo startet: Workflows und Sperrdateien bleiben tabu.
+/// The rules the demo repo starts with: workflows and lock files stay off limits.
 pub fn repo_rules() -> RepoRules {
     RepoRules {
         forbidden_paths: vec![".github/workflows/**".into(), "*.lock".into()],
@@ -427,9 +427,9 @@ pub fn repo_rules() -> RepoRules {
     }
 }
 
-/// Verbrauch eines Demo-Schritts: Eingabe-Tokens, Ausgabe-Tokens und Laufzeit in Millisekunden.
-/// Fest und vom Ticket abhängig, damit Demo und Tests immer dasselbe zeigen. Ein echter Agent
-/// meldet diese Werte selbst (siehe [`AgentRun::record_usage`]).
+/// Consumption of a demo step: input tokens, output tokens and runtime in milliseconds.
+/// Fixed and dependent on the ticket, so that demo and tests always show the same. A real agent
+/// reports these values itself (see [`AgentRun::record_usage`]).
 pub fn step_tokens(ticket_key: &str, step: usize) -> (u64, u64, u64) {
     const INPUT: [u64; STEPS] = [8_200, 15_600, 46_300, 28_900, 9_400];
     const OUTPUT: [u64; STEPS] = [900, 1_400, 6_800, 2_300, 1_500];
@@ -446,8 +446,8 @@ pub fn step_tokens(ticket_key: &str, step: usize) -> (u64, u64, u64) {
     )
 }
 
-/// Die Rückfrage, die der Demo-Agent für ein Ticket stellt: vor welchem Schritt (Zahl
-/// der abgeschlossenen Schritte) und was. Für alle anderen Tickets fragt er nichts.
+/// The question the demo agent asks for a ticket: before which step (number
+/// of completed steps) and what. For all other tickets it asks nothing.
 pub fn agent_question(ticket_key: &str) -> Option<(usize, Question)> {
     match ticket_key {
         "BAU-142" => Some((
@@ -461,7 +461,7 @@ pub fn agent_question(ticket_key: &str) -> Option<(usize, Question)> {
                 ],
             },
         )),
-        // Folgeauftrag „Kommentare in #91 umsetzen“.
+        // Follow-up job „Kommentare in #91 umsetzen“.
         "review-91" => Some((
             2,
             Question {
@@ -477,7 +477,7 @@ pub fn agent_question(ticket_key: &str) -> Option<(usize, Question)> {
     }
 }
 
-/// Drei grüne Checks, wie sie ein sauberer Pull Request hat.
+/// Three green checks, as a clean pull request has them.
 pub fn passing_checks() -> Vec<CheckRun> {
     vec![
         CheckRun::new(
@@ -501,7 +501,7 @@ pub fn passing_checks() -> Vec<CheckRun> {
     ]
 }
 
-/// Checks von #85: der Lint-Fehler ist echt, der Test wackelt nur.
+/// Checks of #85: the lint error is real, the test is just flaky.
 fn failing_checks() -> Vec<CheckRun> {
     vec![
         CheckRun::new(
@@ -526,7 +526,7 @@ fn failing_checks() -> Vec<CheckRun> {
     ]
 }
 
-/// Was der Demo-Agent für ein Ticket ändert.
+/// What the demo agent changes for a ticket.
 pub fn agent_changes(ticket_key: &str) -> Vec<FileDiff> {
     match ticket_key {
         "BAU-142" => vec![

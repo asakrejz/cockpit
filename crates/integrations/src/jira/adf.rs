@@ -1,87 +1,87 @@
-//! Atlassian Document Format (ADF) → Klartext. Jira v3 liefert Beschreibungen und
-//! Kommentare in diesem JSON-Baum.
+//! Atlassian Document Format (ADF) → plain text. Jira v3 delivers descriptions and
+//! comments in this JSON tree.
 
 use serde_json::Value;
 
-/// Wandelt einen ADF-Baum in Text. Unbekannte Knoten werden durchlaufen, ihr Text bleibt
-/// erhalten. `null` oder ein anderer Typ ergibt einen leeren Text; ein einfacher String
-/// (ältere API) wird unverändert übernommen.
-pub fn adf_to_text(wert: &Value) -> String {
-    if let Some(s) = wert.as_str() {
+/// Turns an ADF tree into text. Unknown nodes are traversed, their text is
+/// kept. `null` or another type yields an empty text; a plain string
+/// (older API) is taken over unchanged.
+pub fn adf_to_text(value: &Value) -> String {
+    if let Some(s) = value.as_str() {
         return s.to_string();
     }
     let mut out = String::new();
-    knoten(wert, &mut out);
+    node(value, &mut out);
     out.trim().to_string()
 }
 
-/// Wie [`adf_to_text`]; Erwähnungen von `ich` (Konto-ID) erscheinen als `@Du`, damit die
-/// Regeln für Erwähnungen im Cockpit greifen.
-pub fn adf_to_text_fuer(wert: &Value, ich: &str) -> String {
-    fn ersetze(n: &mut Value, ich: &str) {
-        if n["type"] == "mention" && n["attrs"]["id"] == ich {
+/// Like [`adf_to_text`]; mentions of `me` (account ID) appear as `@Du`, so that the
+/// mention rules in the cockpit apply.
+pub fn adf_to_text_for(value: &Value, me: &str) -> String {
+    fn replace(n: &mut Value, me: &str) {
+        if n["type"] == "mention" && n["attrs"]["id"] == me {
             n["attrs"]["text"] = Value::String("@Du".into());
         }
-        if let Some(kinder) = n["content"].as_array_mut() {
-            for k in kinder {
-                ersetze(k, ich);
+        if let Some(children) = n["content"].as_array_mut() {
+            for k in children {
+                replace(k, me);
             }
         }
     }
-    let mut kopie = wert.clone();
-    ersetze(&mut kopie, ich);
-    adf_to_text(&kopie)
+    let mut copy = value.clone();
+    replace(&mut copy, me);
+    adf_to_text(&copy)
 }
 
-/// Text → ADF-Dokument für einen Kommentar: ein Absatz je Zeile.
+/// Text → ADF document for a comment: one paragraph per line.
 pub fn text_to_adf(text: &str) -> Value {
-    let absaetze: Vec<Value> = text
+    let paragraphs: Vec<Value> = text
         .lines()
         .filter(|z| !z.trim().is_empty())
         .map(|z| serde_json::json!({"type": "paragraph", "content": [{"type": "text", "text": z}]}))
         .collect();
-    serde_json::json!({"type": "doc", "version": 1, "content": absaetze})
+    serde_json::json!({"type": "doc", "version": 1, "content": paragraphs})
 }
 
-fn kinder(n: &Value, out: &mut String) {
+fn children(n: &Value, out: &mut String) {
     for k in n["content"].as_array().into_iter().flatten() {
-        knoten(k, out);
+        node(k, out);
     }
 }
 
-fn zeilenende(out: &mut String) {
+fn line_end(out: &mut String) {
     if !out.is_empty() && !out.ends_with('\n') {
         out.push('\n');
     }
 }
 
-fn knoten(n: &Value, out: &mut String) {
+fn node(n: &Value, out: &mut String) {
     match n["type"].as_str().unwrap_or("") {
         "text" => out.push_str(n["text"].as_str().unwrap_or("")),
         "hardBreak" => out.push('\n'),
         "mention" | "emoji" => out.push_str(n["attrs"]["text"].as_str().unwrap_or("")),
         "inlineCard" => out.push_str(n["attrs"]["url"].as_str().unwrap_or("")),
         "bulletList" | "orderedList" => {
-            zeilenende(out);
-            let nummeriert = n["type"] == "orderedList";
-            for (i, eintrag) in n["content"].as_array().into_iter().flatten().enumerate() {
-                let mut zeile = String::new();
-                kinder(eintrag, &mut zeile);
-                if nummeriert {
+            line_end(out);
+            let numbered = n["type"] == "orderedList";
+            for (i, entry) in n["content"].as_array().into_iter().flatten().enumerate() {
+                let mut line = String::new();
+                children(entry, &mut line);
+                if numbered {
                     out.push_str(&format!("{}. ", i + 1));
                 } else {
                     out.push_str("• ");
                 }
-                out.push_str(zeile.trim_end());
+                out.push_str(line.trim_end());
                 out.push('\n');
             }
         }
         "paragraph" | "heading" | "codeBlock" | "blockquote" | "rule" => {
-            zeilenende(out);
-            kinder(n, out);
-            zeilenende(out);
+            line_end(out);
+            children(n, out);
+            line_end(out);
         }
-        _ => kinder(n, out),
+        _ => children(n, out),
     }
 }
 
@@ -91,23 +91,23 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn eigene_erwaehnung_wird_zu_du() {
+    fn own_mention_becomes_user() {
         let adf = json!({"type":"doc","version":1,"content":[{"type":"paragraph","content":[
             {"type":"mention","attrs":{"id":"ich","text":"@Anna Schmidt"}},
             {"type":"text","text":" und "},
             {"type":"mention","attrs":{"id":"x","text":"@Mira"}}]}]});
-        assert_eq!(adf_to_text_fuer(&adf, "ich"), "@Du und @Mira");
+        assert_eq!(adf_to_text_for(&adf, "ich"), "@Du und @Mira");
     }
 
     #[test]
-    fn text_wird_zu_adf_absaetzen() {
+    fn text_becomes_adf_paragraphs() {
         let adf = text_to_adf("Eins\n\nZwei");
         assert_eq!(adf["content"].as_array().unwrap().len(), 2);
         assert_eq!(adf_to_text(&adf), "Eins\nZwei");
     }
 
     #[test]
-    fn absaetze_listen_und_erwaehnungen() {
+    fn paragraphs_lists_and_mentions() {
         let adf = json!({"type":"doc","version":1,"content":[
             {"type":"paragraph","content":[
                 {"type":"text","text":"Hallo "},
@@ -127,7 +127,7 @@ mod tests {
     }
 
     #[test]
-    fn leer_und_text() {
+    fn empty_and_text() {
         assert_eq!(adf_to_text(&Value::Null), "");
         assert_eq!(adf_to_text(&json!("schlichter Text")), "schlichter Text");
         assert_eq!(adf_to_text(&json!({"type":"doc","content":[]})), "");

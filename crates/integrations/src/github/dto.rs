@@ -1,4 +1,4 @@
-//! Antworten der GitHub-REST-API – nur die Felder, die das Cockpit braucht.
+//! Responses of the GitHub REST API – only the fields the cockpit needs.
 
 use serde::Deserialize;
 
@@ -22,11 +22,11 @@ pub struct SearchItem {
 }
 
 impl SearchItem {
-    /// `owner/name` aus `repository_url`.
+    /// `owner/name` from `repository_url`.
     pub fn repo(&self) -> Option<String> {
-        let mut teile = self.repository_url.trim_end_matches('/').rsplit('/');
-        let name = teile.next()?;
-        let owner = teile.next()?;
+        let mut parts = self.repository_url.trim_end_matches('/').rsplit('/');
+        let name = parts.next()?;
+        let owner = parts.next()?;
         (!name.is_empty() && !owner.is_empty()).then(|| format!("{owner}/{name}"))
     }
 }
@@ -67,7 +67,7 @@ pub struct Label {
 #[derive(Debug, Clone, Deserialize)]
 pub struct PullFile {
     pub filename: String,
-    /// Fehlt bei Binärdateien und sehr großen Änderungen.
+    /// Missing for binary files and very large changes.
     #[serde(default)]
     pub patch: Option<String>,
 }
@@ -82,7 +82,7 @@ pub struct IssueComment {
     pub created_at: String,
 }
 
-/// `GET /repos/{owner}/{repo}/pulls/{number}/comments` (Kommentare an Diff-Zeilen)
+/// `GET /repos/{owner}/{repo}/pulls/{number}/comments` (comments on diff lines)
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReviewComment {
     pub user: User,
@@ -92,7 +92,7 @@ pub struct ReviewComment {
     pub created_at: String,
     #[serde(default)]
     pub path: String,
-    /// `null`, wenn der Kommentar veraltet ist („outdated“).
+    /// `null` when the comment is outdated („outdated“).
     #[serde(default)]
     pub line: Option<u32>,
 }
@@ -113,7 +113,7 @@ pub struct CheckRun {
     /// `queued`, `in_progress`, `completed`
     #[serde(default)]
     pub status: String,
-    /// Nur bei `completed`: `success`, `failure`, `neutral`, `cancelled`, `skipped` …
+    /// Only for `completed`: `success`, `failure`, `neutral`, `cancelled`, `skipped` …
     #[serde(default)]
     pub conclusion: Option<String>,
     #[serde(default)]
@@ -125,7 +125,7 @@ pub struct CheckRun {
 }
 
 impl CheckRun {
-    /// Ausgabe des Laufs (Titel und Zusammenfassung), soweit GitHub sie liefert.
+    /// Output of the run (title and summary), as far as GitHub provides it.
     pub fn log(&self) -> String {
         let Some(out) = &self.output else {
             return String::new();
@@ -168,7 +168,7 @@ pub struct Repo {
 
 /// `GET /repos/{owner}/{repo}/git/ref/heads/{branch}`
 #[derive(Debug, Clone, Deserialize)]
-pub struct GitRefAntwort {
+pub struct GitRefResponse {
     pub object: GitObject,
 }
 

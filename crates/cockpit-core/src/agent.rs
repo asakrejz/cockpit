@@ -1,24 +1,24 @@
-//! Ein Agent setzt ein Ticket um: lesen, Branch, Änderungen, Tests, Pull Request.
+//! An agent implements a ticket: read, branch, changes, tests, pull request.
 //!
-//! Der Lauf ist eine kleine Zustandsmaschine. Wer sie antreibt – in der Demo ein
-//! Timer, später ein Backend –, ruft nur [`AgentRun::advance`] auf.
+//! The run is a small state machine. Whoever drives it – in the demo a
+//! timer, later a backend – only calls [`AgentRun::advance`].
 //!
-//! Auf Wunsch legt der Agent vorher einen [`Plan`] vor und wartet auf die Freigabe
-//! ([`RunState::AwaitingApproval`]). Bis dahin entsteht nichts: kein Branch, keine Änderung.
+//! On request the agent first presents a [`Plan`] and waits for approval
+//! ([`RunState::AwaitingApproval`]). Until then nothing comes into being: no branch, no change.
 //!
-//! Während des Laufs kann der Agent eine [`Question`] stellen ([`RunState::AwaitingAnswer`]),
-//! der Nutzer kann ihm Hinweise schicken ([`AgentRun::steer`]) und ihn pausieren
-//! ([`RunState::Paused`]). Alles Gesagte steht im Gesprächsverlauf ([`AgentRun::messages`]).
+//! During the run the agent can ask a [`Question`] ([`RunState::AwaitingAnswer`]),
+//! the user can send it hints ([`AgentRun::steer`]) and pause it
+//! ([`RunState::Paused`]). Everything said is in the conversation history ([`AgentRun::messages`]).
 //!
-//! Neben dem Lauf „Ticket umsetzen“ gibt es zwei Folgeaufträge ([`RunKind`]): Review-Kommentare
-//! umsetzen (neuer Commit auf demselben Branch, kein neuer Pull Request) und einen roten Check
-//! untersuchen. Die Untersuchung hält nach der [`Diagnosis`] an ([`RunState::AwaitingFix`]) und
-//! tut nichts, bevor du den Fix übernimmst.
+//! Besides the run „implement ticket“ there are two follow-up jobs ([`RunKind`]): implementing review comments
+//! (new commit on the same branch, no new pull request) and investigating a red check.
+//! The investigation stops after the [`Diagnosis`] ([`RunState::AwaitingFix`]) and
+//! does nothing before you adopt the fix.
 //!
-//! Jeder Schritt hat einen Verbrauch ([`AgentRun::step_usage`]). Erreicht ein Lauf eine Grenze
-//! ([`AgentLimits`]), hält er an ([`RunState::Stopped`]) und wartet darauf, dass du das Limit
-//! erhöhst und ihn fortsetzt – oder abbrichst. Die Regeln des Repos ([`RepoRules`]) gelten ab dem
-//! Start: Sie stehen im Plan, und ein Plan, der verbotene Pfade berührt, lässt sich nicht freigeben.
+//! Every step has a consumption ([`AgentRun::step_usage`]). If a run reaches a limit
+//! ([`AgentLimits`]), it stops ([`RunState::Stopped`]) and waits for you to raise the limit
+//! and resume it – or cancel. The rules of the repo ([`RepoRules`]) apply from the
+//! start: they appear in the plan, and a plan that touches forbidden paths cannot be approved.
 
 use serde::{Deserialize, Serialize};
 
@@ -27,19 +27,19 @@ use crate::rules::{PathViolation, RepoRules};
 use crate::text::slug;
 use crate::usage::{AgentLimits, StopReason, Usage};
 
-/// Anzahl der Schritte eines Laufs.
+/// Number of steps of a run.
 pub const STEPS: usize = 5;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default)]
 pub struct AgentOptions {
     pub run_tests: bool,
-    /// Pull Request als Entwurf anlegen.
+    /// Create the pull request as a draft.
     pub draft_pr: bool,
-    /// Zusätzliche Hinweise an den Agenten.
+    /// Additional hints to the agent.
     pub hint: String,
     pub base_branch: String,
-    /// Erst einen Plan vorlegen und auf die Freigabe warten.
+    /// First present a plan and wait for approval.
     pub plan_first: bool,
 }
 
@@ -59,37 +59,37 @@ impl Default for AgentOptions {
 pub enum RunState {
     #[default]
     Idle,
-    /// Der Plan liegt vor, der Agent wartet auf den Nutzer.
+    /// The plan is ready, the agent waits for the user.
     AwaitingApproval,
     Running,
-    /// Der Agent hat eine Frage gestellt und wartet auf die Antwort.
+    /// The agent asked a question and waits for the answer.
     AwaitingAnswer,
-    /// Der Nutzer hat den Lauf angehalten.
+    /// The user has paused the run.
     Paused,
-    /// Die Diagnose eines roten Checks liegt vor; der Agent wartet, ob er den Fix übernehmen soll.
+    /// The diagnosis of a red check is ready; the agent waits whether it should adopt the fix.
     AwaitingFix,
-    /// Eine Grenze (Budget, Zeitlimit) ist erreicht: Der Lauf wartet auf dich.
+    /// A limit (budget, time limit) is reached: the run waits for you.
     Stopped(StopReason),
     Done,
 }
 
-/// Was der Lauf tut.
+/// What the run does.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub enum RunKind {
-    /// Ein Ticket umsetzen und einen Pull Request anlegen.
+    /// Implement a ticket and create a pull request.
     #[default]
     Implement,
-    /// Kommentare eines Reviews umsetzen und auf den Branch des Pull Requests pushen.
+    /// Implement comments of a review and push to the pull request's branch.
     AddressReview {
-        /// Nummer des Pull Requests.
+        /// Number of the pull request.
         review: u32,
-        /// IDs der Zeilenkommentare, die der Agent umsetzen soll.
+        /// IDs of the line comments the agent is to implement.
         comments: Vec<String>,
     },
-    /// Einen roten Check untersuchen, eine Diagnose vorlegen und – nach deiner Freigabe –
-    /// den Fix pushen.
+    /// Investigate a red check, present a diagnosis and – after your approval –
+    /// push the fix.
     Diagnose {
-        /// Nummer des Pull Requests.
+        /// Number of the pull request.
         review: u32,
         /// Name des Checks.
         check: String,
@@ -97,7 +97,7 @@ pub enum RunKind {
 }
 
 impl RunKind {
-    /// Der Pull Request, auf dem ein Folgeauftrag arbeitet.
+    /// The pull request a follow-up job works on.
     pub fn review(&self) -> Option<u32> {
         match self {
             RunKind::Implement => None,
@@ -108,10 +108,10 @@ impl RunKind {
     }
 }
 
-/// Nach so vielen abgeschlossenen Schritten legt die Untersuchung die Diagnose vor.
+/// After this many completed steps the investigation presents the diagnosis.
 const DIAGNOSED_AT: usize = 3;
 
-/// Eine Rückfrage des Agenten, optional mit vorgeschlagenen Antworten.
+/// A follow-up question of the agent, optionally with proposed answers.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct Question {
     pub text: String,
@@ -119,7 +119,7 @@ pub struct Question {
     pub suggestions: Vec<String>,
 }
 
-/// Der Plan, den der echte Agent aus dem Container vorgelegt hat (statt des abgeleiteten).
+/// The plan the real agent presented from the container (instead of the derived one).
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct AgentPlan {
     #[serde(default)]
@@ -130,20 +130,20 @@ pub struct AgentPlan {
     pub steps: Vec<String>,
 }
 
-/// Was der echte Agent aus dem Container meldet. Das Backend prüft die Zeilen des Containers und
-/// reicht sie als `Action::ReportAgent` (Urheber Agent) an; `cockpit-core` entscheidet, was sie
-/// bewirken – der Agent kann den Zustand nur auf diesen Wegen ändern.
+/// What the real agent reports from the container. The backend checks the container's lines and
+/// passes them on as `Action::ReportAgent` (author Agent); `cockpit-core` decides what they
+/// effect – the agent can change the state only through these paths.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum AgentReport {
-    /// Der Container läuft. `detail` ist ein Satz für den Verlauf (Laufzeit, Modus).
+    /// The container is running. `detail` is a sentence for the history (runtime, mode).
     Started { detail: String },
-    /// Der Plan liegt vor (nur, solange der Lauf auf die Freigabe wartet).
+    /// The plan is ready (only while the run waits for approval).
     Plan {
         summary: String,
         files: Vec<String>,
         steps: Vec<String>,
     },
-    /// Ein Arbeitsschritt mit seinem Verbrauch.
+    /// A work step with its consumption.
     Step {
         title: String,
         text: String,
@@ -151,96 +151,97 @@ pub enum AgentReport {
         output_tokens: u64,
         millis: u64,
     },
-    /// Die Dateien, die der Agent geändert hat.
+    /// The files the agent has changed.
     Files { files: Vec<String> },
-    /// Eine Rückfrage; der Lauf wartet auf die Antwort.
+    /// A follow-up question; the run waits for the answer.
     Question {
         text: String,
         #[serde(default)]
         suggestions: Vec<String>,
     },
-    /// So viele Hinweise des Nutzers (die ältesten) sind beim Agenten angekommen.
+    /// This many hints of the user (the oldest) have arrived at the agent.
     HintsDelivered { count: usize },
-    /// Fertig: Der Branch ist gepusht.
+    /// Done: the branch is pushed.
     Done { summary: String },
-    /// Der Lauf endete ohne Ergebnis (Fehler, Zeitüberschreitung, Neustart). `reason` in Klartext.
+    /// The run ended without result (error, timeout, restart). `reason` in plain text.
     Failed { reason: String },
 }
 
-/// Was eine Meldung des Agenten bewirkt hat; der Workspace verbucht und protokolliert es.
+/// What a report of the agent has effected; the workspace books and logs it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ReportEffect {
-    /// Sätze für das Protokoll.
+    /// Sentences for the log.
     pub notes: Vec<String>,
-    /// Neuer Verbrauch für das Kassenbuch.
+    /// New consumption for the ledger.
     pub usage: Option<Usage>,
-    /// Der Lauf ist fertig geworden.
+    /// The run has finished.
     pub finished: bool,
-    /// Der Lauf wurde beendet und startbereit zurückgesetzt.
+    /// The run was ended and reset to ready to start.
     pub failed: bool,
-    /// Eine Grenze hat den Lauf angehalten.
+    /// A limit has stopped the run.
     pub stopped: Option<StopReason>,
-    /// Der Lauf wartet jetzt auf eine Antwort.
+    /// The run now waits for an answer.
     pub asking: bool,
 }
 
-/// Wer im Verlauf spricht.
+/// Who speaks in the history.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Speaker {
     Agent,
-    Du,
+    #[serde(rename = "Du")]
+    User,
 }
 
-/// Was eine Meldung im Verlauf ist.
+/// What a message in the history is.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MessageKind {
-    /// Normale Meldung (Auftrag, Schritt abgeschlossen).
+    /// Normal message (job, step completed).
     Info,
     Question,
     Answer,
-    /// Hinweis des Nutzers, auch eine Anmerkung zum Plan.
+    /// Hint of the user, also a note on the plan.
     Hint,
-    /// Der Agent bestätigt, dass er einen Hinweis berücksichtigt.
+    /// The agent confirms that it takes a hint into account.
     Ack,
 }
 
-/// Eine Zeile im Gesprächsverlauf eines Laufs.
+/// A line in the conversation history of a run.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct RunMessage {
     pub from: Speaker,
     pub kind: MessageKind,
-    /// Zahl der abgeschlossenen Schritte, als die Meldung entstand.
+    /// Number of completed steps at the time the message arose.
     pub step: usize,
     pub text: String,
 }
 
-/// Was ein Takt bewirkt hat.
+/// What a tick has effected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tick {
-    /// Der Lauf läuft nicht, nichts geschah.
+    /// The run is not running, nothing happened.
     Idle,
-    /// Der Agent hat angehalten und eine Frage gestellt.
+    /// The agent has stopped and asked a question.
     Asked,
-    /// Die Untersuchung hat die Diagnose vorgelegt und wartet auf die Entscheidung.
+    /// The investigation has presented the diagnosis and waits for the decision.
     Diagnosed,
-    /// Ein Schritt wurde abgeschlossen.
+    /// A step was completed.
     Stepped,
-    /// Der letzte Schritt wurde abgeschlossen.
+    /// The last step was completed.
     Finished,
-    /// Eine Grenze ist erreicht: Der Lauf hat angehalten, ohne einen Schritt zu machen.
+    /// A limit is reached: the run has stopped without making a step.
     Stopped,
 }
 
-/// Was der Agent vorhat. Wird aus Ticket, Hinweisen und Dateien abgeleitet.
+/// What the agent intends to do. Derived from ticket, hints and files.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Plan {
     pub summary: String,
     pub files: Vec<String>,
     pub steps: Vec<String>,
-    /// Die Regeln des Repos, die für diesen Lauf gelten (eine Zeile je Regel).
+    /// The rules of the repo that apply to this run (one line per rule).
     pub rules: Vec<String>,
-    /// Dateien des Plans, die gegen die Pfad-Regeln verstoßen. Solange es welche gibt, ist der
-    /// Plan nicht freigebbar.
+    /// Files of the plan that violate the path rules. As long as there are any, the
+    /// plan cannot be approved.
     pub violations: Vec<PathViolation>,
 }
 
@@ -256,7 +257,7 @@ pub struct Step {
     pub title: String,
     pub text: String,
     pub state: StepState,
-    /// Verbrauch des Schritts, sobald er abgeschlossen ist.
+    /// Consumption of the step once it is completed.
     pub usage: Option<Usage>,
 }
 
@@ -266,74 +267,74 @@ pub struct AgentRun {
     pub ticket_key: String,
     #[serde(default)]
     pub ticket_title: String,
-    /// Kommentare am Ticket, die der Agent mitliest.
+    /// Comments on the ticket that the agent reads along.
     #[serde(default)]
     pub comments: usize,
-    /// Namen der Dateien, die der Agent ändert.
+    /// Names of the files the agent changes.
     #[serde(default)]
     pub files: Vec<String>,
     #[serde(default)]
     pub options: AgentOptions,
     #[serde(default)]
     pub state: RunState,
-    /// Zahl der abgeschlossenen Schritte (0 bis [`STEPS`]).
+    /// Number of completed steps (0 to [`STEPS`]).
     #[serde(default)]
     pub completed: usize,
-    /// Nummer des Pull Requests, den der Lauf anlegt.
+    /// Number of the pull request the run creates.
     #[serde(default)]
     pub pr_number: Option<u32>,
-    /// Anmerkungen des Nutzers, die zu einem neuen Plan geführt haben.
+    /// Notes of the user that led to a new plan.
     #[serde(default)]
     pub plan_notes: Vec<String>,
-    /// Der Lauf hat mit einem Plan begonnen (auch nach der Freigabe).
+    /// The run began with a plan (also after approval).
     #[serde(default)]
     pub planned: bool,
-    /// Gesprächsverlauf: Meldungen des Agenten, Fragen, Antworten und Hinweise.
+    /// Conversation history: messages of the agent, questions, answers and hints.
     #[serde(default)]
     pub messages: Vec<RunMessage>,
-    /// Die offene Frage, solange der Lauf auf eine Antwort wartet.
+    /// The open question, as long as the run waits for an answer.
     #[serde(default)]
     pub question: Option<Question>,
-    /// Die Frage wurde in diesem Lauf schon gestellt (sie kommt nur einmal).
+    /// The question was already asked in this run (it comes only once).
     #[serde(default)]
     pub asked: bool,
-    /// Hinweise, die der Agent beim nächsten Schritt berücksichtigt.
+    /// Hints the agent takes into account in the next step.
     #[serde(default)]
     pub pending_hints: Vec<String>,
-    /// Was der Lauf tut. Alte Stände kennen nur „Ticket umsetzen“.
+    /// What the run does. Old states know only „implement ticket“.
     #[serde(default)]
     pub kind: RunKind,
-    /// Branch des Pull Requests, auf den ein Folgeauftrag pusht. Leer bei „Ticket umsetzen“.
+    /// Branch of the pull request a follow-up job pushes to. Empty for „implement ticket“.
     #[serde(default)]
     pub target_branch: String,
-    /// Die Diagnose einer Untersuchung, sobald sie vorliegt.
+    /// The diagnosis of an investigation, once it is available.
     #[serde(default)]
     pub diagnosis: Option<Diagnosis>,
-    /// Das Repo, in dem der Lauf arbeitet (Schlüssel der Regeln).
+    /// The repo the run works in (key of the rules).
     #[serde(default)]
     pub repo: String,
-    /// Die Regeln des Repos, wie sie beim Start (bzw. beim Planen) galten.
+    /// The rules of the repo as they applied at start (or at planning).
     #[serde(default)]
     pub rules: RepoRules,
-    /// Verbrauch je abgeschlossenem Schritt (Index = Schritt).
+    /// Consumption per completed step (index = step).
     #[serde(default)]
     pub step_usage: Vec<Usage>,
-    /// Beim Fortsetzen zusätzlich erlaubtes Budget dieses Laufs, in Cent.
+    /// Additionally allowed budget of this run on resume, in cents.
     #[serde(default)]
     pub extra_budget_cents: u64,
-    /// Beim Fortsetzen zusätzlich erlaubte Minuten dieses Laufs.
+    /// Additionally allowed minutes of this run on resume.
     #[serde(default)]
     pub extra_minutes: u64,
-    /// Der Lauf gehört dem echten Agenten (Container); der simulierte Takt fasst ihn nicht an.
+    /// The run belongs to the real agent (container); the simulated tick does not touch it.
     #[serde(default)]
     pub real: bool,
-    /// Der Plan aus dem Container. Solange er fehlt, arbeitet der Agent noch daran.
+    /// The plan from the container. As long as it is missing, the agent is still working on it.
     #[serde(default)]
     pub agent_plan: Option<AgentPlan>,
-    /// Warum der letzte Lauf ohne Ergebnis endete (Klartext); leer, solange alles gut ging.
+    /// Why the last run ended without result (plain text); empty as long as everything went well.
     #[serde(default)]
     pub ended: Option<String>,
-    /// Das Ergebnis des Agenten, wenn er fertig ist.
+    /// The agent's result, when it is done.
     #[serde(default)]
     pub summary: String,
 }
@@ -370,8 +371,8 @@ impl AgentRun {
         }
     }
 
-    /// Ein Folgeauftrag auf einem bestehenden Pull Request. `item_key` ist der Eintrag, an dem
-    /// der Pull Request hängt, `branch` sein Branch.
+    /// A follow-up job on an existing pull request. `item_key` is the entry the pull request
+    /// hangs on, `branch` its branch.
     pub fn followup(kind: RunKind, item_key: &str, title: &str, branch: &str) -> Self {
         let mut run = Self::new(item_key, title);
         run.pr_number = kind.review();
@@ -380,8 +381,8 @@ impl AgentRun {
         run
     }
 
-    /// Der Schlüssel des Laufs, unter dem Seiten, Aktionen und Protokoll ihn finden:
-    /// bei „Ticket umsetzen“ der Ticket-Schlüssel, sonst `review-91` bzw. `check-85-lint`.
+    /// The key of the run under which pages, actions and log find it:
+    /// for „implement ticket“ the ticket key, otherwise `review-91` or `check-85-lint`.
     pub fn key(&self) -> String {
         match &self.kind {
             RunKind::Implement => self.ticket_key.clone(),
@@ -392,7 +393,7 @@ impl AgentRun {
         }
     }
 
-    /// Kurzer Name für Meldungen: der Schlüssel, bei Folgeaufträgen mit Klartext.
+    /// Short name for messages: the key, for follow-up jobs with plain text.
     pub fn label(&self) -> String {
         match &self.kind {
             RunKind::Implement => self.ticket_key.clone(),
@@ -413,7 +414,7 @@ impl AgentRun {
         self.state == RunState::AwaitingApproval
     }
 
-    /// Wartet auf die Antwort auf eine Rückfrage.
+    /// Waits for the answer to a follow-up question.
     pub fn is_asking(&self) -> bool {
         self.state == RunState::AwaitingAnswer
     }
@@ -422,12 +423,12 @@ impl AgentRun {
         self.state == RunState::Paused
     }
 
-    /// Eine Grenze hat den Lauf angehalten.
+    /// A limit has stopped the run.
     pub fn is_stopped(&self) -> bool {
         matches!(self.state, RunState::Stopped(_))
     }
 
-    /// Welche Grenze den Lauf angehalten hat.
+    /// Which limit has stopped the run.
     pub fn stop_reason(&self) -> Option<StopReason> {
         match self.state {
             RunState::Stopped(reason) => Some(reason),
@@ -435,7 +436,7 @@ impl AgentRun {
         }
     }
 
-    /// Wartet, fragt, pausiert, ist angehalten oder läuft – der Lauf belegt das Ticket.
+    /// Waits, asks, is paused, is stopped or running – the run occupies the ticket.
     pub fn is_active(&self) -> bool {
         self.is_awaiting()
             || self.is_running()
@@ -445,8 +446,8 @@ impl AgentRun {
             || self.is_stopped()
     }
 
-    /// Der Agent arbeitet an den Schritten (läuft, fragt, ist pausiert, angehalten oder wartet
-    /// auf die Entscheidung über seinen Fix).
+    /// The agent works on the steps (running, asking, paused, stopped or waiting
+    /// for the decision about its fix).
     fn is_working(&self) -> bool {
         self.is_running()
             || self.is_asking()
@@ -455,23 +456,23 @@ impl AgentRun {
             || self.is_stopped()
     }
 
-    /// Die Diagnose liegt vor; der Agent wartet auf „Fix übernehmen“ oder „Verwerfen“.
+    /// The diagnosis is ready; the agent waits for „Fix übernehmen“ or „Verwerfen“.
     pub fn is_diagnosed(&self) -> bool {
         self.state == RunState::AwaitingFix
     }
 
-    /// Wartet der Lauf auf eine Entscheidung von dir (Plan, Antwort oder Fix)?
+    /// Is the run waiting for a decision from you (plan, answer or fix)?
     pub fn is_waiting_for_you(&self) -> bool {
         self.is_awaiting() || self.is_asking() || self.is_diagnosed()
     }
 
-    /// Der Lauf verbraucht gerade Ressourcen: Er arbeitet oder wartet mitten im Schritt auf eine
-    /// Antwort. Nur diese Läufe zählen für die Grenze paralleler Läufe.
+    /// The run currently consumes resources: it works or waits in the middle of a step for an
+    /// answer. Only these runs count for the limit of parallel runs.
     pub fn is_consuming(&self) -> bool {
         self.is_running() || self.is_asking()
     }
 
-    /// Verbrauch des ganzen Laufs (Summe der Schritte).
+    /// Consumption of the whole run (sum of the steps).
     pub fn usage(&self) -> Usage {
         let mut sum = Usage::default();
         for u in &self.step_usage {
@@ -480,9 +481,9 @@ impl AgentRun {
         sum
     }
 
-    /// Trägt den Verbrauch des Schritts ein, an dem der Agent gerade arbeitet. In der Demo macht
-    /// das der Takt; der echte Agent meldet hier die Werte aus dem Lauf. Mehrere Meldungen für
-    /// denselben Schritt addieren sich.
+    /// Enters the consumption of the step the agent is currently working on. In the demo
+    /// the tick does this; the real agent reports the values from the run here. Several reports for
+    /// the same step add up.
     pub fn record_usage(&mut self, usage: Usage) {
         while self.step_usage.len() <= self.completed {
             self.step_usage.push(Usage::default());
@@ -490,7 +491,7 @@ impl AgentRun {
         self.step_usage[self.completed].add(&usage);
     }
 
-    /// Dateien des Laufs, die gegen die Pfad-Regeln verstoßen.
+    /// Files of the run that violate the path rules.
     pub fn violations(&self) -> Vec<PathViolation> {
         self.rules.violations(&self.files)
     }
@@ -516,16 +517,16 @@ impl AgentRun {
     }
 
     pub fn start(&mut self, mut options: AgentOptions, pr_number: u32) {
-        // Die Regeln des Repos gehen vor: Pflicht-Tests lassen sich nicht abschalten, und wer
-        // gegen die Pfad-Regeln verstößt oder dessen Repo es verlangt, legt immer einen Plan vor.
+        // The rules of the repo come first: required tests cannot be switched off, and whoever
+        // violates the path rules or whose repo demands it always presents a plan.
         if !self.rules.required_tests.is_empty() {
             options.run_tests = true;
         }
         if self.rules.plan_required || !self.violations().is_empty() {
             options.plan_first = true;
         }
-        // Eine Untersuchung ändert erst nach deiner Freigabe des Fixes etwas, ein Plan wäre
-        // doppelt. Folgeaufträge legen keinen neuen Pull Request an.
+        // An investigation only changes something after your approval of the fix, a plan would be
+        // redundant. Follow-up jobs do not create a new pull request.
         let investigate = matches!(self.kind, RunKind::Diagnose { .. });
         self.planned = options.plan_first && !investigate;
         self.state = if self.planned {
@@ -550,7 +551,7 @@ impl AgentRun {
         );
         let hint = self.options.hint.trim().to_string();
         if !hint.is_empty() {
-            self.say(Speaker::Du, MessageKind::Hint, hint);
+            self.say(Speaker::User, MessageKind::Hint, hint);
         }
         if self.planned {
             self.say(
@@ -584,7 +585,7 @@ impl AgentRun {
         });
     }
 
-    /// Bricht ab oder setzt zurück: Der Lauf ist danach wieder startbereit.
+    /// Cancels or resets: the run is ready to start again afterwards.
     pub fn reset(&mut self) {
         self.state = RunState::Idle;
         self.completed = 0;
@@ -599,29 +600,29 @@ impl AgentRun {
         self.clear_conversation();
     }
 
-    /// Übernimmt den Fix der Diagnose: Der Agent wendet ihn an, pusht und startet den Check
-    /// neu. `false`, wenn keine Diagnose wartet.
+    /// Adopts the fix of the diagnosis: the agent applies it, pushes and restarts the check.
+    /// `false` if no diagnosis is waiting.
     pub fn accept_fix(&mut self) -> bool {
         if !self.is_diagnosed() {
             return false;
         }
         self.state = RunState::Running;
-        self.say(Speaker::Du, MessageKind::Info, "Fix übernommen.".into());
+        self.say(Speaker::User, MessageKind::Info, "Fix übernommen.".into());
         true
     }
 
-    /// Gibt den Plan frei: Ab jetzt arbeitet der Agent. `false`, wenn es nichts freizugeben gibt.
+    /// Approves the plan: from now on the agent works. `false` if there is nothing to approve.
     pub fn approve(&mut self) -> bool {
-        // Ein Plan, der verbotene Pfade berührt, lässt sich nicht freigeben.
+        // A plan that touches forbidden paths cannot be approved.
         if !self.is_awaiting() || !self.violations().is_empty() || self.is_drafting() {
             return false;
         }
         self.state = RunState::Running;
-        self.say(Speaker::Du, MessageKind::Info, "Plan freigegeben.".into());
+        self.say(Speaker::User, MessageKind::Info, "Plan freigegeben.".into());
         true
     }
 
-    /// Lehnt den Plan ab. Der Lauf endet ohne Spuren, wie beim Abbrechen.
+    /// Rejects the plan. The run ends without traces, as with cancelling.
     pub fn reject(&mut self) -> bool {
         if !self.is_awaiting() {
             return false;
@@ -630,7 +631,7 @@ impl AgentRun {
         true
     }
 
-    /// Fordert mit einer Anmerkung einen neuen Plan an. Leere Anmerkungen zählen nicht.
+    /// Requests a new plan with a note. Empty notes do not count.
     pub fn revise(&mut self, note: &str) -> bool {
         let note = note.trim();
         if !self.is_awaiting() || note.is_empty() {
@@ -638,24 +639,24 @@ impl AgentRun {
         }
         self.plan_notes.push(note.to_string());
         self.say(
-            Speaker::Du,
+            Speaker::User,
             MessageKind::Hint,
             format!("Anmerkung zum Plan: {note}"),
         );
-        // Der echte Agent erarbeitet einen neuen Plan; bis er vorliegt, ist keine Freigabe möglich.
+        // The real agent works out a new plan; until it is ready, no approval is possible.
         if self.real {
             self.agent_plan = None;
         }
         true
     }
 
-    /// Der echte Agent erarbeitet den Plan noch: Es gibt nichts freizugeben.
+    /// The real agent is still working out the plan: there is nothing to approve.
     pub fn is_drafting(&self) -> bool {
         self.is_awaiting() && self.real && self.agent_plan.is_none()
     }
 
-    /// Beantwortet die offene Frage; danach arbeitet der Agent weiter. Leere Antworten
-    /// zählen nicht.
+    /// Answers the open question; afterwards the agent keeps working. Empty answers
+    /// do not count.
     pub fn answer(&mut self, text: &str) -> bool {
         let text = text.trim();
         if !self.is_asking() || text.is_empty() {
@@ -663,45 +664,45 @@ impl AgentRun {
         }
         self.question = None;
         self.state = RunState::Running;
-        self.say(Speaker::Du, MessageKind::Answer, text.to_string());
+        self.say(Speaker::User, MessageKind::Answer, text.to_string());
         true
     }
 
-    /// Schickt dem Agenten einen Hinweis. Er berücksichtigt ihn beim nächsten Schritt.
-    /// Möglich, solange der Lauf an den Schritten arbeitet (auch pausiert oder wartend).
+    /// Sends the agent a hint. It takes it into account in the next step.
+    /// Possible as long as the run works on the steps (also paused or waiting).
     pub fn steer(&mut self, text: &str) -> bool {
         let text = text.trim();
         if !self.is_working() || text.is_empty() {
             return false;
         }
         self.pending_hints.push(text.to_string());
-        self.say(Speaker::Du, MessageKind::Hint, text.to_string());
+        self.say(Speaker::User, MessageKind::Hint, text.to_string());
         true
     }
 
-    /// Hält einen laufenden Agenten an. Eine offene Frage bleibt dabei bestehen.
+    /// Stops a running agent. An open question remains.
     pub fn pause(&mut self) -> bool {
         if !self.is_running() {
             return false;
         }
         self.state = RunState::Paused;
-        self.say(Speaker::Du, MessageKind::Info, "Lauf pausiert.".into());
+        self.say(Speaker::User, MessageKind::Info, "Lauf pausiert.".into());
         true
     }
 
-    /// Setzt einen pausierten Lauf fort.
+    /// Resumes a paused run.
     pub fn resume(&mut self) -> bool {
         if !self.is_paused() {
             return false;
         }
         self.state = RunState::Running;
-        self.say(Speaker::Du, MessageKind::Info, "Lauf fortgesetzt.".into());
+        self.say(Speaker::User, MessageKind::Info, "Lauf fortgesetzt.".into());
         true
     }
 
-    /// Setzt einen angehaltenen Lauf fort. `extra` erhöht, was ihn angehalten hat: Cent beim
-    /// Budget des Laufs, Minuten beim Zeitlimit. Das Monatsbudget erhöht der Workspace selbst;
-    /// hier ist es nur die Meldung. `false`, wenn der Lauf nicht angehalten ist.
+    /// Resumes a stopped run. `extra` raises what stopped it: cents for the
+    /// run's budget, minutes for the time limit. The workspace raises the monthly budget itself;
+    /// here it is only the message. `false` if the run is not stopped.
     pub fn resume_after_stop(&mut self, extra: u64) -> bool {
         let Some(reason) = self.stop_reason() else {
             return false;
@@ -723,11 +724,11 @@ impl AgentRun {
                 reason.raise_label(extra)
             )
         };
-        self.say(Speaker::Du, MessageKind::Info, text);
+        self.say(Speaker::User, MessageKind::Info, text);
         true
     }
 
-    /// Der aktuelle Plan. Vor dem Start gibt es keinen.
+    /// The current plan. Before the start there is none.
     pub fn plan(&self) -> Option<Plan> {
         if !self.planned {
             return None;
@@ -799,7 +800,7 @@ impl AgentRun {
         })
     }
 
-    /// Plan für „Review-Kommentare umsetzen“: kein neuer Branch, kein neuer Pull Request.
+    /// Plan for „implement review comments“: no new branch, no new pull request.
     fn address_plan(&self, review: u32, comments: usize) -> Plan {
         let o = &self.options;
         let hint = o.hint.trim();
@@ -850,9 +851,9 @@ impl AgentRun {
         }
     }
 
-    /// Nimmt eine Meldung des echten Agenten entgegen. `None`, wenn sie im jetzigen Zustand nicht
-    /// passt (der Lauf ist nicht aktiv, der Plan wird nicht erwartet …): Dann ändert sich nichts.
-    /// Die Meldungen sind die einzige Möglichkeit, wie der Container den Lauf verändert.
+    /// Takes a report of the real agent. `None` if it does not fit in the current state
+    /// (the run is not active, the plan is not expected …): then nothing changes.
+    /// The reports are the only way the container changes the run.
     pub fn report(
         &mut self,
         report: AgentReport,
@@ -916,7 +917,7 @@ impl AgentRun {
                 };
                 self.say(Speaker::Agent, MessageKind::Info, line);
                 if self.is_working() {
-                    // Der letzte Schritt gehört dem Ergebnis; nur `Done` schließt den Lauf ab.
+                    // The last step belongs to the result; only `Done` completes the run.
                     if self.completed + 1 < STEPS {
                         self.completed += 1;
                     }
@@ -1008,21 +1009,21 @@ impl AgentRun {
         Some(effect)
     }
 
-    /// Schließt den aktuellen Schritt ab. Gibt `true` zurück, wenn der Lauf damit
-    /// fertig geworden ist.
+    /// Completes the current step. Returns `true` if the run is
+    /// finished with it.
     pub fn advance(&mut self) -> bool {
         self.tick() == Tick::Finished
     }
 
-    /// Ein Takt: Der Agent berücksichtigt wartende Hinweise, stellt vielleicht eine
-    /// Frage und schließt sonst den aktuellen Schritt ab.
+    /// A tick: the agent takes waiting hints into account, perhaps asks a
+    /// question and otherwise completes the current step.
     pub fn tick(&mut self) -> Tick {
         self.tick_with(&AgentLimits::unlimited(), 0)
     }
 
-    /// Wie [`AgentRun::tick`], mit Grenzen. Ist vor dem Schritt eine Grenze erreicht, hält der Lauf
-    /// an (`Stopped`) und tut nichts. `month_spent_cents` ist, was im Monat über alle Läufe
-    /// ausgegeben wurde. Den Verbrauch des Schritts rechnet der Takt nach den Preisen der Grenzen aus.
+    /// Like [`AgentRun::tick`], with limits. If a limit is reached before the step, the run
+    /// stops (`Stopped`) and does nothing. `month_spent_cents` is what was spent in the month across all runs.
+    /// The step's consumption is calculated by the tick according to the prices of the limits.
     pub fn tick_with(&mut self, limits: &AgentLimits, month_spent_cents: u64) -> Tick {
         if !self.is_running() || self.real {
             return Tick::Idle;
@@ -1048,8 +1049,8 @@ impl AgentRun {
                 format!("Hinweis erhalten: {hint}"),
             );
         }
-        // Die Rückfrage ist in der Demo fest verdrahtet (siehe `demo::agent_question`);
-        // ein Backend würde sie vom echten Agenten bekommen.
+        // The follow-up question is hard-wired in the demo (see `demo::agent_question`);
+        // a backend would get it from the real agent.
         if !self.asked
             && let Some((step, question)) = crate::demo::agent_question(&self.key())
             && step == self.completed
@@ -1066,7 +1067,7 @@ impl AgentRun {
             MessageKind::Info,
             format!("{}: {}", done.title, done.text),
         );
-        // Verbrauch des Schritts: in der Demo erfundene, aber feste Werte.
+        // Consumption of the step: made-up but fixed values in the demo.
         let (input, output, millis) = crate::demo::step_tokens(&self.ticket_key, self.completed);
         self.record_usage(Usage::priced(input, output, millis, &limits.pricing));
         self.completed += 1;
@@ -1074,7 +1075,7 @@ impl AgentRun {
             self.state = RunState::Done;
             Tick::Finished
         } else if self.completed == DIAGNOSED_AT && matches!(self.kind, RunKind::Diagnose { .. }) {
-            // Die Diagnose liegt vor. Bis zu deiner Entscheidung bleibt der Branch unberührt.
+            // The diagnosis is ready. Until your decision the branch stays untouched.
             self.state = RunState::AwaitingFix;
             self.say(
                 Speaker::Agent,
@@ -1092,7 +1093,7 @@ impl AgentRun {
             .map_or("Pull Request".to_string(), |n| format!("#{n}"))
     }
 
-    /// Titel und Text jedes Schritts, passend zu Art und Optionen des Laufs.
+    /// Title and text of each step, matching kind and options of the run.
     pub fn steps(&self) -> Vec<Step> {
         let texts = match &self.kind {
             RunKind::Implement => self.implement_texts(),
@@ -1282,7 +1283,7 @@ impl AgentRun {
                         usage: None,
                     };
                 }
-                // Hat der Nutzer an diesem Schritt eine Frage beantwortet, steht es dabei.
+                // If the user answered a question at this step, it is noted there.
                 let text = match self
                     .messages
                     .iter()
@@ -1311,17 +1312,17 @@ impl AgentRun {
             .collect()
     }
 
-    /// Das Protokoll eines echten Laufs: was der Agent und du gesagt haben, dazu der Verbrauch.
+    /// The log of a real run: what the agent and you said, plus the consumption.
     fn real_log(&self) -> String {
         let mut lines: Vec<String> = self
             .messages
             .iter()
             .map(|m| {
-                let wer = match m.from {
+                let who = match m.from {
                     Speaker::Agent => "Agent",
-                    Speaker::Du => "Du",
+                    Speaker::User => "Du",
                 };
-                format!("› {wer}: {}", m.text)
+                format!("› {who}: {}", m.text)
             })
             .collect();
         let usage = self.usage();
@@ -1334,7 +1335,7 @@ impl AgentRun {
         lines.join("\n")
     }
 
-    /// Protokollzeilen eines Schritts von „Review-Kommentare umsetzen“.
+    /// Log lines of a step of „implement review comments“.
     fn address_log(&self, lines: &mut Vec<String>, step: usize, review: u32, comments: usize) {
         let o = &self.options;
         let hint = o.hint.trim();
@@ -1374,7 +1375,7 @@ impl AgentRun {
         }
     }
 
-    /// Protokollzeilen eines Schritts von „Check untersuchen“.
+    /// Log lines of a step of „investigate check“.
     fn diagnose_log(&self, lines: &mut Vec<String>, step: usize, review: u32, check: &str) {
         let code = self.diagnosis.as_ref().is_none_or(Diagnosis::changes_code);
         match step {
@@ -1394,7 +1395,7 @@ impl AgentRun {
         }
     }
 
-    /// Protokoll bis einschließlich des Schritts, an dem der Agent gerade arbeitet.
+    /// Log up to and including the step the agent is currently working on.
     pub fn log(&self) -> String {
         if self.real || self.ended.is_some() {
             return self.real_log();
@@ -1473,7 +1474,7 @@ impl AgentRun {
                     if o.draft_pr { " (Entwurf)" } else { "" }
                 )),
             }
-            // Fragen, Antworten und berücksichtigte Hinweise dieses Schritts.
+            // Questions, answers and acknowledged hints of this step.
             for m in self.messages.iter().filter(|m| m.step == step) {
                 match m.kind {
                     MessageKind::Question => lines.push(format!("› Frage: {}", m.text)),
@@ -1514,7 +1515,7 @@ fn files_label(n: usize) -> String {
 mod tests {
     use super::*;
 
-    /// Ohne Plan-Freigabe: der Lauf startet sofort.
+    /// Without plan approval: the run starts immediately.
     fn direct() -> AgentOptions {
         AgentOptions {
             plan_first: false,
@@ -1522,7 +1523,7 @@ mod tests {
         }
     }
 
-    /// Ein Lauf ohne Rückfrage (die Demo fragt nur bei BAU-142).
+    /// A run without a follow-up question (the demo asks only for BAU-142).
     fn quiet() -> AgentRun {
         let mut r = run();
         r.ticket_key = "BAU-200".into();
@@ -1574,7 +1575,7 @@ mod tests {
         assert!(r.is_done());
         assert!(r.steps().iter().all(|s| s.state == StepState::Done));
         assert!(r.log().ends_with("› Pull Request #92 erstellt (Entwurf)"));
-        assert!(!r.advance(), "ein fertiger Lauf bleibt fertig");
+        assert!(!r.advance(), "a finished run stays finished");
         assert_eq!(r.completed, STEPS);
     }
 
@@ -1620,7 +1621,7 @@ mod tests {
         let options = r.options.clone();
         r.start(options, 92);
         assert!(r.is_awaiting() && r.is_active() && !r.is_running());
-        assert!(!r.advance(), "ohne Freigabe kein Fortschritt");
+        assert!(!r.advance(), "no progress without approval");
         assert_eq!(r.completed, 0);
         let plan = r.plan().unwrap();
         assert_eq!(plan.files, ["components.css", "tokens.css"]);
@@ -1631,7 +1632,7 @@ mod tests {
         assert_eq!(steps[0].title, "Plan liegt vor");
         assert!(steps[1..].iter().all(|s| s.state == StepState::Pending));
         assert!(r.log().ends_with("› Warte auf Freigabe"), "{}", r.log());
-        // Es steht noch kein Branch im Protokoll.
+        // There is no branch in the log yet.
         assert!(!r.log().contains("git switch"));
 
         assert!(r.approve());
@@ -1671,12 +1672,12 @@ mod tests {
                 .iter()
                 .any(|s| s == "Berücksichtigen: Bitte auch Tests für den Slider")
         );
-        assert!(r.is_awaiting(), "der neue Plan braucht wieder Freigabe");
+        assert!(r.is_awaiting(), "the new plan needs approval again");
         assert!(
             r.log()
                 .contains("› Neuer Plan angefordert: Bitte auch Tests für den Slider")
         );
-        // Nach der Freigabe lässt sich nicht mehr überarbeiten.
+        // After approval it can no longer be revised.
         r.approve();
         assert!(!r.revise("zu spät"));
     }
@@ -1690,7 +1691,7 @@ mod tests {
         assert!(!r.log().contains("Plan"));
     }
 
-    /// Bringt BAU-142 bis zur Rückfrage.
+    /// Brings BAU-142 up to the follow-up question.
     fn asking() -> AgentRun {
         let mut r = run();
         r.start(direct(), 92);
@@ -1704,11 +1705,11 @@ mod tests {
     fn the_agent_asks_a_question_and_waits() {
         let mut r = asking();
         assert!(r.is_asking() && r.is_active() && !r.is_running());
-        assert_eq!(r.completed, 2, "die Frage ist kein Schritt");
+        assert_eq!(r.completed, 2, "the question is not a step");
         let q = r.question.clone().unwrap();
         assert!(q.text.contains("deprecated"));
         assert_eq!(q.suggestions.len(), 3);
-        assert_eq!(r.tick(), Tick::Idle, "ohne Antwort kein Fortschritt");
+        assert_eq!(r.tick(), Tick::Idle, "no progress without an answer");
         assert!(!r.advance());
         assert_eq!(r.completed, 2);
         let steps = r.steps();
@@ -1726,18 +1727,22 @@ mod tests {
     #[test]
     fn an_answer_continues_the_run_and_stays_in_the_history() {
         let mut r = asking();
-        assert!(!r.answer("   "), "leer zählt nicht");
+        assert!(!r.answer("   "), "empty does not count");
         assert!(r.is_asking());
         assert!(r.answer("  Als deprecated markieren "));
         assert!(r.is_running() && r.question.is_none());
-        assert!(!r.answer("noch einmal"), "nur einmal antworten");
+        assert!(!r.answer("noch einmal"), "answer only once");
         let last = r.messages.last().unwrap();
         assert_eq!(
             (last.from, last.kind, last.text.as_str()),
-            (Speaker::Du, MessageKind::Answer, "Als deprecated markieren")
+            (
+                Speaker::User,
+                MessageKind::Answer,
+                "Als deprecated markieren"
+            )
         );
         assert!(r.log().contains("› Antwort: Als deprecated markieren"));
-        // Die Frage kommt nur einmal; der Lauf geht zu Ende.
+        // The question comes only once; the run goes to the end.
         while !r.advance() {}
         assert!(r.is_done());
         assert_eq!(
@@ -1766,7 +1771,7 @@ mod tests {
     fn a_hint_is_taken_into_account_at_the_next_step() {
         let mut r = quiet();
         r.start(direct(), 92);
-        assert!(!r.steer("  "), "leer zählt nicht");
+        assert!(!r.steer("  "), "empty does not count");
         assert!(r.steer(" Auch den Slider prüfen "));
         assert_eq!(r.pending_hints, ["Auch den Slider prüfen"]);
         assert!(
@@ -1793,7 +1798,7 @@ mod tests {
     #[test]
     fn hints_only_work_while_the_agent_works() {
         let mut r = quiet();
-        assert!(!r.steer("zu früh"), "idle");
+        assert!(!r.steer("too early"), "idle");
         r.start(AgentOptions::default(), 92);
         assert!(
             !r.steer("Plan noch offen"),
@@ -1802,7 +1807,7 @@ mod tests {
         r.approve();
         assert!(r.steer("jetzt"));
         while !r.advance() {}
-        assert!(!r.steer("zu spät"), "fertig");
+        assert!(!r.steer("zu spät"), "done");
     }
 
     #[test]
@@ -1814,11 +1819,11 @@ mod tests {
         assert!(r.pause() && r.is_paused() && r.is_active());
         assert!(!r.pause(), "schon pausiert");
         assert_eq!(r.tick(), Tick::Idle);
-        assert_eq!(r.completed, 1, "pausiert heißt: kein Fortschritt");
+        assert_eq!(r.completed, 1, "paused means: no progress");
         assert_eq!(r.steps()[1].state, StepState::Active);
         assert!(r.steps()[1].text.starts_with("Pausiert"));
         assert!(r.log().ends_with("› Pausiert"));
-        // Hinweise lassen sich auch pausiert schicken und warten bis zur Fortsetzung.
+        // Hints can also be sent while paused and wait until resume.
         assert!(r.steer("Während der Pause"));
         assert_eq!(r.tick(), Tick::Idle);
         assert_eq!(r.pending_hints.len(), 1);
@@ -1830,7 +1835,7 @@ mod tests {
     #[test]
     fn a_question_cannot_be_skipped_by_pausing() {
         let mut r = asking();
-        assert!(!r.pause(), "wer fragt, läuft nicht");
+        assert!(!r.pause(), "whoever asks is not running");
         assert!(r.is_asking());
     }
 
@@ -1840,7 +1845,7 @@ mod tests {
         r.steer("noch ein Hinweis");
         r.reset();
         assert!(r.messages.is_empty() && r.question.is_none() && r.pending_hints.is_empty());
-        // Ein neuer Lauf fragt wieder.
+        // A new run asks again.
         r.start(direct(), 93);
         assert_eq!(r.messages.len(), 1);
         r.advance();
@@ -1865,10 +1870,10 @@ mod tests {
             texts,
             [
                 (Speaker::Agent, MessageKind::Info),
-                (Speaker::Du, MessageKind::Hint),
+                (Speaker::User, MessageKind::Hint),
                 (Speaker::Agent, MessageKind::Info),
-                (Speaker::Du, MessageKind::Hint),
-                (Speaker::Du, MessageKind::Info),
+                (Speaker::User, MessageKind::Hint),
+                (Speaker::User, MessageKind::Info),
             ]
         );
     }
@@ -2017,7 +2022,7 @@ mod tests {
         assert!(e.failed && r.is_idle() && !r.real);
         assert_eq!(r.ended.as_deref(), Some("Der Container endete mit Code 1"));
         assert!(r.log().contains("Der Container endete mit Code 1"));
-        // Ein neuer Start löscht den Grund.
+        // A new start clears the reason.
         r.start(AgentOptions::default(), 92);
         assert_eq!(r.ended, None);
     }
@@ -2046,7 +2051,7 @@ mod tests {
             0,
         );
         assert!(r.is_drafting());
-        assert!(!r.approve(), "ohne Plan gibt es nichts freizugeben");
+        assert!(!r.approve(), "without a plan there is nothing to approve");
         r.report(
             AgentReport::Plan {
                 summary: "Fokus-Ring ergänzen".into(),
@@ -2060,7 +2065,7 @@ mod tests {
         assert_eq!(plan.summary, "Fokus-Ring ergänzen");
         assert_eq!(r.files, ["src/toggle.rs"]);
         assert!(!r.is_drafting());
-        // Eine Anmerkung verlangt einen neuen Plan.
+        // A note demands a new plan.
         assert!(r.revise("Auch Tests"));
         assert!(r.is_drafting() && !r.approve());
         r.report(
