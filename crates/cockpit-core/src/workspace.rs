@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 use crate::action::LogEntry;
-use crate::agent::{AgentOptions, AgentRun, RunKind, Tick};
+use crate::agent::{AgentOptions, AgentReport, AgentRun, ReportEffect, RunKind, Tick};
 use crate::attention::{self, Hit, Rule, Rules, Snooze};
 use crate::demo;
 use crate::diagnosis::diagnose;
@@ -342,7 +342,10 @@ impl Workspace {
     }
 
     pub fn running_agents(&self) -> usize {
-        self.runs.iter().filter(|r| r.is_running()).count()
+        self.runs
+            .iter()
+            .filter(|r| r.is_running() && !r.real)
+            .count()
     }
 
     /// Agenten, die auf den Nutzer warten: auf die Freigabe eines Plans, eine Antwort, die
@@ -1330,6 +1333,70 @@ impl Workspace {
         finished.into_iter().map(|r| r.key()).collect()
     }
 
+    /// Verbucht eine Meldung des echten Agenten (aus dem Container) beim Lauf `key`: Zustand,
+    /// Verbrauch im Kassenbuch, Notiz am Ticket. `None`, wenn die Meldung nicht passt – dann
+    /// bleibt alles, wie es war.
+    pub fn report_agent(
+        &mut self,
+        key: &str,
+        report: AgentReport,
+        now_ms: u64,
+    ) -> Option<ReportEffect> {
+        let limits = self.limits.clone();
+        let month_spent = self.spent_month(now_ms).cost_cents;
+        let run = self
+            .runs
+            .iter_mut()
+            .find(|r| r.key() == key && r.is_active())?;
+        let ticket = run.ticket_key.clone();
+        let effect = run.report(report, &limits, month_spent)?;
+        let run = run.clone();
+        if let Some(usage) = effect.usage {
+            self.charge(now_ms, &ticket, usage);
+        }
+        if effect.failed {
+            self.clear_agent_note(key);
+            self.drop_idle_followups();
+        } else if effect.finished {
+            self.finish_real(&run);
+        } else if let Some(reason) = effect.stopped {
+            self.set_agent_note(
+                key,
+                &format!("Der Agent ist angehalten: {}", reason.label()),
+            );
+        } else if effect.asking {
+            self.set_agent_note(key, "Der Agent hat eine Frage an dich");
+        } else if run.is_awaiting() {
+            self.set_agent_note(
+                key,
+                if run.is_drafting() {
+                    "Der Agent erarbeitet seinen Plan"
+                } else {
+                    "Der Agent wartet auf die Freigabe seines Plans"
+                },
+            );
+        } else if run.is_running() {
+            self.set_agent_note(key, "Der Agent arbeitet an der Umsetzung");
+        }
+        Some(effect)
+    }
+
+    /// Der echte Agent ist fertig: Der Branch steht auf GitHub. Einen Pull Request legt der Agent
+    /// nicht an – das tust du; es gibt daher noch kein Review.
+    fn finish_real(&mut self, run: &AgentRun) {
+        let branch = run.branch();
+        if let Some(item) = self.items.iter_mut().find(|i| i.key == run.ticket_key) {
+            item.branch = Some(branch.clone());
+            item.agent_note = Some(format!(
+                "Vom Agenten umgesetzt – Branch {branch} ist gepusht, den Pull Request legst du an"
+            ));
+            item.reason = ReasonKind::AgentFinished;
+            item.reason_text = format!("Agent fertig · Branch {branch} gepusht");
+            item.time = "gerade eben".into();
+            item.read = false;
+        }
+    }
+
     // ---------- Folgeaufträge: Review-Kommentare umsetzen, rote Checks untersuchen ----------
 
     /// Der Schlüssel des Eintrags, an dem der Pull Request hängt (Ticket oder PR-Eintrag).
@@ -1970,7 +2037,7 @@ mod tests {
         let item = w.item("bau142").unwrap();
         assert_eq!(
             item.branch.as_deref(),
-            Some("agent/BAU-142-toggle-fokus-ring-fehlt")
+            Some("claude/BAU-142-toggle-fokus-ring-fehlt")
         );
         assert_eq!(item.pr.as_ref().unwrap().label(), "#92 · Entwurf");
         assert_eq!(item.status, TicketStatus::Review);

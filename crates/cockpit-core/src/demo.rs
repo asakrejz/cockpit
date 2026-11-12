@@ -122,7 +122,7 @@ pub fn workspace() -> Workspace {
         status: TicketStatus::Review,
         labels: vec!["a11y".into(), "agent".into()],
 
-        branch: Some("agent/BAU-138-segmented-picker".into()),
+        branch: Some("claude/BAU-138-segmented-picker".into()),
         pr: Some(PrRef {
             number: 91,
             draft: true,

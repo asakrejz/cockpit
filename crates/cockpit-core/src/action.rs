@@ -10,7 +10,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::agent::{AgentOptions, AgentRun, RunKind, STEPS};
+use crate::agent::{AgentOptions, AgentReport, AgentRun, RunKind, STEPS};
 use crate::attention::Rule;
 use crate::demo;
 use crate::model::{Checks, Item, Person, Priority, TicketStatus};
@@ -196,6 +196,12 @@ pub enum Action {
     },
     /// Der Takt: jeder laufende Agent schließt einen Schritt ab.
     AdvanceAgents,
+    /// Meldung des echten Agenten aus dem Container (`run` ist der Schlüssel des Laufs). Nur das
+    /// Backend löst sie aus, als `Actor::Agent`; andere werden abgewiesen.
+    ReportAgent {
+        run: String,
+        report: AgentReport,
+    },
     /// Folgeauftrag: Der Agent setzt Kommentare eines Reviews um (IDs der Zeilenkommentare)
     /// und pusht auf den Branch des Pull Requests. Der Lauf heißt dann `review-<Nummer>`.
     AddressReview {
@@ -259,6 +265,11 @@ impl Action {
     /// Aktionen, die nur das Backend selbst auslösen darf (nie die Oberfläche).
     pub fn system_only(&self) -> bool {
         matches!(self, Action::SyncRemote { .. })
+    }
+
+    /// Aktionen, die nur der Agent (Container, über das Backend) auslösen darf.
+    pub fn agent_only(&self) -> bool {
+        matches!(self, Action::ReportAgent { .. })
     }
 }
 
@@ -371,6 +382,8 @@ pub enum ActionError {
     SystemOnly,
     /// Es gibt noch Gründe, die gegen das Mergen sprechen.
     MergeBlocked(Vec<MergeBlocker>),
+    /// Diese Aktion kommt nur vom Agenten im Container.
+    AgentOnly,
 }
 
 impl ActionError {
@@ -447,6 +460,7 @@ impl ActionError {
             ActionError::SystemOnly => {
                 "Das macht nur das System – der Abgleich läuft im Server".into()
             }
+            ActionError::AgentOnly => "Das meldet nur der Agent aus seinem Container".into(),
             ActionError::MergeBlocked(blockers) => {
                 let reasons: Vec<&str> = blockers.iter().map(|b| b.reason()).collect();
                 format!("Mergen geht noch nicht: {}", reasons.join(" "))
@@ -558,6 +572,9 @@ impl Workspace {
         }
         if action.system_only() && actor != Actor::System {
             return Err(ActionError::SystemOnly);
+        }
+        if action.agent_only() && actor != Actor::Agent {
+            return Err(ActionError::AgentOnly);
         }
         let notes = self.perform(action, at_ms)?;
         let mut summary = String::new();
@@ -1251,6 +1268,30 @@ impl Workspace {
                 )])
             }
             Action::AdvanceAgents => self.advance_logged(at_ms),
+            Action::ReportAgent { run, report } => {
+                let effect = self
+                    .report_agent(&run, report, at_ms)
+                    .ok_or(ActionError::NothingToDo)?;
+                let label = self.label_of(&run);
+                let mut notes: Vec<Note> = effect
+                    .notes
+                    .into_iter()
+                    .map(|text| Note::new(Target::Run(run.clone()), text).by(Actor::Agent))
+                    .collect();
+                if effect.finished {
+                    notes.push(
+                        Note::new(
+                            Target::Run(run.clone()),
+                            format!(
+                                "{label}: Fertig – Branch gepusht, der Pull Request wartet auf dich"
+                            ),
+                        )
+                        .by(Actor::Agent),
+                    );
+                }
+                // Meldungen ohne Satz (Dateiliste, Hinweise zugestellt) sind kein Protokolleintrag.
+                Ok(notes)
+            }
             Action::AddressReview {
                 review,
                 comments,
@@ -1444,7 +1485,7 @@ impl Workspace {
         let stepping: Vec<(String, usize, String, Option<u32>, bool, usize)> = self
             .runs
             .iter()
-            .filter(|r| r.is_running())
+            .filter(|r| r.is_running() && !r.real)
             .map(|r| {
                 let title = r.steps()[r.completed.min(STEPS - 1)].title.clone();
                 (
@@ -3672,7 +3713,7 @@ mod tests {
         );
         let run = w.run("review-91").unwrap();
         assert!(run.is_running() && run.is_followup());
-        assert_eq!(run.branch(), "agent/BAU-138-segmented-picker");
+        assert_eq!(run.branch(), "claude/BAU-138-segmented-picker");
         assert_eq!(run.files, ["controls.rs", "components.css"]);
         assert_eq!(w.next_pr_number(), prs, "kein neuer Pull Request");
         // Das Ticket mit seinem Lauf „Ticket umsetzen“ bleibt unberührt.
@@ -4679,5 +4720,195 @@ mod tests {
                 Err(ActionError::MergeNotAllowed(actor))
             );
         }
+    }
+
+    // ---------- Meldungen des echten Agenten ----------
+
+    fn report(w: &mut Workspace, run: &str, report: AgentReport) -> Result<Applied, ActionError> {
+        w.apply(
+            Action::ReportAgent {
+                run: run.into(),
+                report,
+            },
+            Actor::Agent,
+            T,
+        )
+    }
+
+    #[test]
+    fn only_the_agent_may_report() {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::StartAgent {
+                ticket: "BAU-142".into(),
+                options: direct(),
+            },
+            1,
+        );
+        for actor in [Actor::Du, Actor::System] {
+            let before = w.clone();
+            let a = Action::ReportAgent {
+                run: "BAU-142".into(),
+                report: AgentReport::HintsDelivered,
+            };
+            assert_eq!(w.apply(a, actor, T), Err(ActionError::AgentOnly));
+            assert_eq!(w, before);
+        }
+    }
+
+    #[test]
+    fn a_real_run_logs_as_agent_and_books_the_cost() {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::StartAgent {
+                ticket: "BAU-142".into(),
+                options: direct(),
+            },
+            1,
+        );
+        report(
+            &mut w,
+            "BAU-142",
+            AgentReport::Started {
+                detail: "docker, Modus umsetzen".into(),
+            },
+        )
+        .unwrap();
+        let applied = report(
+            &mut w,
+            "BAU-142",
+            AgentReport::Step {
+                title: "Datei lesen".into(),
+                text: "src/ring.rs".into(),
+                input_tokens: 10_000,
+                output_tokens: 1_000,
+                millis: 4_000,
+            },
+        )
+        .unwrap();
+        assert_eq!(applied.logged, 1);
+        let last = w.log.last().unwrap();
+        assert_eq!(last.actor, Actor::Agent);
+        assert_eq!(last.target, Some(Target::Run("BAU-142".into())));
+        assert_eq!(w.spent_month(T).input_tokens, 10_000);
+        // Der simulierte Takt fasst den echten Lauf nicht an.
+        assert_eq!(w.running_agents(), 0);
+        fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
+        // Fertig: Branch am Ticket, kein erfundener Pull Request.
+        let reviews = w.reviews.len();
+        report(
+            &mut w,
+            "BAU-142",
+            AgentReport::Done {
+                summary: "Fokus-Ring ergänzt".into(),
+            },
+        )
+        .unwrap();
+        assert_eq!(w.reviews.len(), reviews);
+        let item = w.item_by_key("BAU-142").unwrap();
+        assert_eq!(
+            item.branch.as_deref(),
+            Some("claude/BAU-142-toggle-fokus-ring-fehlt")
+        );
+        assert!(item.agent_note.as_deref().unwrap().contains("gepusht"));
+    }
+
+    #[test]
+    fn a_failed_real_run_ends_with_the_reason_and_clears_the_note() {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::StartAgent {
+                ticket: "BAU-142".into(),
+                options: direct(),
+            },
+            1,
+        );
+        report(
+            &mut w,
+            "BAU-142",
+            AgentReport::Failed {
+                reason: "Zeitlimit des Containers überschritten".into(),
+            },
+        )
+        .unwrap();
+        let run = w.run("BAU-142").unwrap();
+        assert!(run.is_idle());
+        assert_eq!(
+            run.ended.as_deref(),
+            Some("Zeitlimit des Containers überschritten")
+        );
+        assert_eq!(w.item_by_key("BAU-142").unwrap().agent_note, None);
+        // Nichts mehr aktiv: weitere Meldungen sind abgewiesen und ändern nichts.
+        let before = w.clone();
+        assert_eq!(
+            report(&mut w, "BAU-142", AgentReport::HintsDelivered),
+            Err(ActionError::NothingToDo)
+        );
+        assert_eq!(w, before);
+    }
+
+    #[test]
+    fn the_budget_in_the_workspace_stops_a_real_run() {
+        let mut w = ws();
+        let mut limits = w.limits.clone();
+        limits.run_budget_cents = Some(50);
+        assert!(w.set_limits(limits));
+        ok(
+            &mut w,
+            Action::StartAgent {
+                ticket: "BAU-142".into(),
+                options: direct(),
+            },
+            1,
+        );
+        report(
+            &mut w,
+            "BAU-142",
+            AgentReport::Step {
+                title: "Viel gelesen".into(),
+                text: String::new(),
+                input_tokens: 1_000_000,
+                output_tokens: 0,
+                millis: 1,
+            },
+        )
+        .unwrap();
+        assert!(w.run("BAU-142").unwrap().is_stopped());
+        assert_eq!(w.stopped_agents(), 1);
+    }
+
+    #[test]
+    fn a_real_run_survives_save_and_load() {
+        let mut w = ws();
+        ok(
+            &mut w,
+            Action::StartAgent {
+                ticket: "BAU-142".into(),
+                options: AgentOptions::default(),
+            },
+            2,
+        );
+        report(
+            &mut w,
+            "BAU-142",
+            AgentReport::Plan {
+                summary: "Plan".into(),
+                files: vec!["a.rs".into()],
+                steps: vec!["x".into()],
+            },
+        )
+        .unwrap();
+        let (back, _) = persist::restore(Some(&persist::save(&w)));
+        assert_eq!(back, w);
+        assert!(back.run("BAU-142").unwrap().agent_plan.is_some());
+        let json = serde_json::to_string(&Action::ReportAgent {
+            run: "X".into(),
+            report: AgentReport::HintsDelivered,
+        })
+        .unwrap();
+        assert!(serde_json::from_str::<Action>(&json).is_ok());
     }
 }

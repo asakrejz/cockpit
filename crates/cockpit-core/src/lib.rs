@@ -47,8 +47,8 @@ pub mod workspace;
 
 pub use action::{Action, ActionError, Actor, Applied, LogEntry, MAX_LOG, Target};
 pub use agent::{
-    AgentOptions, AgentRun, MessageKind, Plan, Question, RunKind, RunMessage, RunState, Speaker,
-    Step, StepState, Tick,
+    AgentOptions, AgentPlan, AgentReport, AgentRun, MessageKind, Plan, Question, ReportEffect,
+    RunKind, RunMessage, RunState, Speaker, Step, StepState, Tick,
 };
 pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::{AuthKind, Connections, ServiceStatus};

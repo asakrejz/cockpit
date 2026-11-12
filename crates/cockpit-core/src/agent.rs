@@ -119,6 +119,71 @@ pub struct Question {
     pub suggestions: Vec<String>,
 }
 
+/// Der Plan, den der echte Agent aus dem Container vorgelegt hat (statt des abgeleiteten).
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct AgentPlan {
+    #[serde(default)]
+    pub summary: String,
+    #[serde(default)]
+    pub files: Vec<String>,
+    #[serde(default)]
+    pub steps: Vec<String>,
+}
+
+/// Was der echte Agent aus dem Container meldet. Das Backend prüft die Zeilen des Containers und
+/// reicht sie als `Action::ReportAgent` (Urheber Agent) an; `cockpit-core` entscheidet, was sie
+/// bewirken – der Agent kann den Zustand nur auf diesen Wegen ändern.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum AgentReport {
+    /// Der Container läuft. `detail` ist ein Satz für den Verlauf (Laufzeit, Modus).
+    Started { detail: String },
+    /// Der Plan liegt vor (nur, solange der Lauf auf die Freigabe wartet).
+    Plan {
+        summary: String,
+        files: Vec<String>,
+        steps: Vec<String>,
+    },
+    /// Ein Arbeitsschritt mit seinem Verbrauch.
+    Step {
+        title: String,
+        text: String,
+        input_tokens: u64,
+        output_tokens: u64,
+        millis: u64,
+    },
+    /// Die Dateien, die der Agent geändert hat.
+    Files { files: Vec<String> },
+    /// Eine Rückfrage; der Lauf wartet auf die Antwort.
+    Question {
+        text: String,
+        #[serde(default)]
+        suggestions: Vec<String>,
+    },
+    /// Die Hinweise des Nutzers sind beim Agenten angekommen.
+    HintsDelivered,
+    /// Fertig: Der Branch ist gepusht.
+    Done { summary: String },
+    /// Der Lauf endete ohne Ergebnis (Fehler, Zeitüberschreitung, Neustart). `reason` in Klartext.
+    Failed { reason: String },
+}
+
+/// Was eine Meldung des Agenten bewirkt hat; der Workspace verbucht und protokolliert es.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ReportEffect {
+    /// Sätze für das Protokoll.
+    pub notes: Vec<String>,
+    /// Neuer Verbrauch für das Kassenbuch.
+    pub usage: Option<Usage>,
+    /// Der Lauf ist fertig geworden.
+    pub finished: bool,
+    /// Der Lauf wurde beendet und startbereit zurückgesetzt.
+    pub failed: bool,
+    /// Eine Grenze hat den Lauf angehalten.
+    pub stopped: Option<StopReason>,
+    /// Der Lauf wartet jetzt auf eine Antwort.
+    pub asking: bool,
+}
+
 /// Wer im Verlauf spricht.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Speaker {
@@ -259,6 +324,18 @@ pub struct AgentRun {
     /// Beim Fortsetzen zusätzlich erlaubte Minuten dieses Laufs.
     #[serde(default)]
     pub extra_minutes: u64,
+    /// Der Lauf gehört dem echten Agenten (Container); der simulierte Takt fasst ihn nicht an.
+    #[serde(default)]
+    pub real: bool,
+    /// Der Plan aus dem Container. Solange er fehlt, arbeitet der Agent noch daran.
+    #[serde(default)]
+    pub agent_plan: Option<AgentPlan>,
+    /// Warum der letzte Lauf ohne Ergebnis endete (Klartext); leer, solange alles gut ging.
+    #[serde(default)]
+    pub ended: Option<String>,
+    /// Das Ergebnis des Agenten, wenn er fertig ist.
+    #[serde(default)]
+    pub summary: String,
 }
 
 impl AgentRun {
@@ -286,6 +363,10 @@ impl AgentRun {
             step_usage: Vec::new(),
             extra_budget_cents: 0,
             extra_minutes: 0,
+            real: false,
+            agent_plan: None,
+            ended: None,
+            summary: String::new(),
         }
     }
 
@@ -422,12 +503,16 @@ impl AgentRun {
         self.state == RunState::Done
     }
 
-    /// `agent/BAU-142-toggle-fokus-ring-fehlt`
+    /// `claude/BAU-142-toggle-fokus-ring-fehlt`
     pub fn branch(&self) -> String {
         if !self.target_branch.is_empty() {
             return self.target_branch.clone();
         }
-        format!("agent/{}-{}", self.ticket_key, slug(&self.ticket_title, 24))
+        format!(
+            "claude/{}-{}",
+            self.ticket_key,
+            slug(&self.ticket_title, 24)
+        )
     }
 
     pub fn start(&mut self, mut options: AgentOptions, pr_number: u32) {
@@ -453,6 +538,9 @@ impl AgentRun {
         self.pr_number = Some(self.kind.review().unwrap_or(pr_number));
         self.plan_notes.clear();
         self.diagnosis = None;
+        self.agent_plan = None;
+        self.ended = None;
+        self.summary.clear();
         self.clear_usage();
         self.clear_conversation();
         self.say(
@@ -504,6 +592,9 @@ impl AgentRun {
         self.plan_notes.clear();
         self.planned = false;
         self.diagnosis = None;
+        self.agent_plan = None;
+        self.summary.clear();
+        self.real = false;
         self.clear_usage();
         self.clear_conversation();
     }
@@ -522,7 +613,7 @@ impl AgentRun {
     /// Gibt den Plan frei: Ab jetzt arbeitet der Agent. `false`, wenn es nichts freizugeben gibt.
     pub fn approve(&mut self) -> bool {
         // Ein Plan, der verbotene Pfade berührt, lässt sich nicht freigeben.
-        if !self.is_awaiting() || !self.violations().is_empty() {
+        if !self.is_awaiting() || !self.violations().is_empty() || self.is_drafting() {
             return false;
         }
         self.state = RunState::Running;
@@ -551,7 +642,16 @@ impl AgentRun {
             MessageKind::Hint,
             format!("Anmerkung zum Plan: {note}"),
         );
+        // Der echte Agent erarbeitet einen neuen Plan; bis er vorliegt, ist keine Freigabe möglich.
+        if self.real {
+            self.agent_plan = None;
+        }
         true
+    }
+
+    /// Der echte Agent erarbeitet den Plan noch: Es gibt nichts freizugeben.
+    pub fn is_drafting(&self) -> bool {
+        self.is_awaiting() && self.real && self.agent_plan.is_none()
     }
 
     /// Beantwortet die offene Frage; danach arbeitet der Agent weiter. Leere Antworten
@@ -631,6 +731,15 @@ impl AgentRun {
     pub fn plan(&self) -> Option<Plan> {
         if !self.planned {
             return None;
+        }
+        if let Some(p) = &self.agent_plan {
+            return Some(Plan {
+                summary: p.summary.clone(),
+                files: p.files.clone(),
+                steps: p.steps.clone(),
+                rules: self.rules.lines(),
+                violations: self.violations(),
+            });
         }
         if let RunKind::AddressReview { review, comments } = &self.kind {
             return Some(self.address_plan(*review, comments.len()));
@@ -741,6 +850,163 @@ impl AgentRun {
         }
     }
 
+    /// Nimmt eine Meldung des echten Agenten entgegen. `None`, wenn sie im jetzigen Zustand nicht
+    /// passt (der Lauf ist nicht aktiv, der Plan wird nicht erwartet …): Dann ändert sich nichts.
+    /// Die Meldungen sind die einzige Möglichkeit, wie der Container den Lauf verändert.
+    pub fn report(
+        &mut self,
+        report: AgentReport,
+        limits: &AgentLimits,
+        month_spent_cents: u64,
+    ) -> Option<ReportEffect> {
+        if !self.is_active() {
+            return None;
+        }
+        let mut effect = ReportEffect::default();
+        match report {
+            AgentReport::Started { detail } => {
+                self.real = true;
+                effect
+                    .notes
+                    .push(format!("{}: Container gestartet", self.label()));
+                self.say(Speaker::Agent, MessageKind::Info, detail);
+            }
+            AgentReport::Plan {
+                summary,
+                files,
+                steps,
+            } => {
+                if !self.is_awaiting() {
+                    return None;
+                }
+                self.real = true;
+                self.files = files.clone();
+                self.agent_plan = Some(AgentPlan {
+                    summary,
+                    files,
+                    steps,
+                });
+                self.say(
+                    Speaker::Agent,
+                    MessageKind::Info,
+                    "Der Plan liegt vor. Ich warte auf deine Freigabe.".into(),
+                );
+                effect.notes.push(format!(
+                    "Plan für {} vorgelegt, wartet auf Freigabe",
+                    self.label()
+                ));
+            }
+            AgentReport::Step {
+                title,
+                text,
+                input_tokens,
+                output_tokens,
+                millis,
+            } => {
+                if !(self.is_working() || self.is_awaiting()) {
+                    return None;
+                }
+                let usage = Usage::priced(input_tokens, output_tokens, millis, &limits.pricing);
+                self.record_usage(usage);
+                effect.usage = Some(usage);
+                let line = if text.trim().is_empty() {
+                    title.clone()
+                } else {
+                    format!("{title}: {text}")
+                };
+                self.say(Speaker::Agent, MessageKind::Info, line);
+                if self.is_working() {
+                    // Der letzte Schritt gehört dem Ergebnis; nur `Done` schließt den Lauf ab.
+                    if self.completed + 1 < STEPS {
+                        self.completed += 1;
+                    }
+                    effect.notes.push(format!("{}: {title}", self.label()));
+                    if self.is_running()
+                        && let Some(reason) =
+                            limits.reached(self, month_spent_cents.saturating_add(usage.cost_cents))
+                    {
+                        self.state = RunState::Stopped(reason);
+                        let detail = limits.describe(
+                            reason,
+                            self,
+                            month_spent_cents.saturating_add(usage.cost_cents),
+                        );
+                        self.say(
+                            Speaker::Agent,
+                            MessageKind::Info,
+                            format!(
+                                "Angehalten: {}. {detail} Erhöhe {} und setze den Lauf fort – oder brich ihn ab.",
+                                reason.label(),
+                                reason.raises()
+                            ),
+                        );
+                        effect.notes.push(format!(
+                            "{}: Angehalten – {}",
+                            self.label(),
+                            reason.label()
+                        ));
+                        effect.stopped = Some(reason);
+                    }
+                }
+            }
+            AgentReport::Files { files } => {
+                if !self.is_working() {
+                    return None;
+                }
+                self.files = files;
+            }
+            AgentReport::Question { text, suggestions } => {
+                if !self.is_running() || text.trim().is_empty() {
+                    return None;
+                }
+                self.asked = true;
+                self.state = RunState::AwaitingAnswer;
+                self.say(Speaker::Agent, MessageKind::Question, text.clone());
+                self.question = Some(Question { text, suggestions });
+                effect.asking = true;
+                effect.notes.push(format!(
+                    "{}: Der Agent hat eine Frage und wartet auf deine Antwort",
+                    self.label()
+                ));
+            }
+            AgentReport::HintsDelivered => {
+                for hint in std::mem::take(&mut self.pending_hints) {
+                    self.say(
+                        Speaker::Agent,
+                        MessageKind::Ack,
+                        format!("Hinweis erhalten: {hint}"),
+                    );
+                }
+            }
+            AgentReport::Done { summary } => {
+                if !self.is_working() {
+                    return None;
+                }
+                self.state = RunState::Done;
+                self.completed = STEPS;
+                self.summary = summary.clone();
+                self.question = None;
+                self.say(Speaker::Agent, MessageKind::Info, summary);
+                effect.finished = true;
+            }
+            AgentReport::Failed { reason } => {
+                let label = self.label();
+                self.reset();
+                self.ended = Some(reason.clone());
+                self.say(
+                    Speaker::Agent,
+                    MessageKind::Info,
+                    format!("Der Lauf endete ohne Ergebnis: {reason}"),
+                );
+                effect.failed = true;
+                effect
+                    .notes
+                    .push(format!("{label}: Lauf beendet – {reason}"));
+            }
+        }
+        Some(effect)
+    }
+
     /// Schließt den aktuellen Schritt ab. Gibt `true` zurück, wenn der Lauf damit
     /// fertig geworden ist.
     pub fn advance(&mut self) -> bool {
@@ -757,7 +1023,7 @@ impl AgentRun {
     /// an (`Stopped`) und tut nichts. `month_spent_cents` ist, was im Monat über alle Läufe
     /// ausgegeben wurde. Den Verbrauch des Schritts rechnet der Takt nach den Preisen der Grenzen aus.
     pub fn tick_with(&mut self, limits: &AgentLimits, month_spent_cents: u64) -> Tick {
-        if !self.is_running() {
+        if !self.is_running() || self.real {
             return Tick::Idle;
         }
         if let Some(reason) = limits.reached(self, month_spent_cents) {
@@ -1044,6 +1310,29 @@ impl AgentRun {
             .collect()
     }
 
+    /// Das Protokoll eines echten Laufs: was der Agent und du gesagt haben, dazu der Verbrauch.
+    fn real_log(&self) -> String {
+        let mut lines: Vec<String> = self
+            .messages
+            .iter()
+            .map(|m| {
+                let wer = match m.from {
+                    Speaker::Agent => "Agent",
+                    Speaker::Du => "Du",
+                };
+                format!("› {wer}: {}", m.text)
+            })
+            .collect();
+        let usage = self.usage();
+        if !usage.is_empty() {
+            lines.push(format!("› Verbrauch: {}", usage.line()));
+        }
+        if lines.is_empty() {
+            return "Noch keine Aktivität.".into();
+        }
+        lines.join("\n")
+    }
+
     /// Protokollzeilen eines Schritts von „Review-Kommentare umsetzen“.
     fn address_log(&self, lines: &mut Vec<String>, step: usize, review: u32, comments: usize) {
         let o = &self.options;
@@ -1106,6 +1395,9 @@ impl AgentRun {
 
     /// Protokoll bis einschließlich des Schritts, an dem der Agent gerade arbeitet.
     pub fn log(&self) -> String {
+        if self.real || self.ended.is_some() {
+            return self.real_log();
+        }
         let shown = if self.is_awaiting() {
             1
         } else if self.is_diagnosed() {
@@ -1249,7 +1541,7 @@ mod tests {
         assert!(r.is_idle());
         assert!(r.log().starts_with("Noch keine Aktivität"));
         assert!(r.steps().iter().all(|s| s.state == StepState::Pending));
-        assert_eq!(r.branch(), "agent/BAU-142-toggle-fokus-ring-fehlt");
+        assert_eq!(r.branch(), "claude/BAU-142-toggle-fokus-ring-fehlt");
     }
 
     #[test]
@@ -1332,7 +1624,7 @@ mod tests {
         let plan = r.plan().unwrap();
         assert_eq!(plan.files, ["components.css", "tokens.css"]);
         assert!(plan.summary.contains("Auch den Slider prüfen"));
-        assert!(plan.steps.iter().any(|s| s.contains("agent/BAU-142")));
+        assert!(plan.steps.iter().any(|s| s.contains("claude/BAU-142")));
         let steps = r.steps();
         assert_eq!(steps[0].state, StepState::Active);
         assert_eq!(steps[0].title, "Plan liegt vor");
@@ -1577,6 +1869,221 @@ mod tests {
                 (Speaker::Du, MessageKind::Hint),
                 (Speaker::Du, MessageKind::Info),
             ]
+        );
+    }
+
+    fn real_run() -> AgentRun {
+        let mut r = run();
+        r.start(
+            AgentOptions {
+                plan_first: false,
+                ..AgentOptions::default()
+            },
+            92,
+        );
+        r.report(
+            AgentReport::Started {
+                detail: "Container gestartet".into(),
+            },
+            &AgentLimits::unlimited(),
+            0,
+        );
+        r
+    }
+
+    fn step(tokens_in: u64, tokens_out: u64, millis: u64) -> AgentReport {
+        AgentReport::Step {
+            title: "Datei lesen".into(),
+            text: "src/lib.rs".into(),
+            input_tokens: tokens_in,
+            output_tokens: tokens_out,
+            millis,
+        }
+    }
+
+    #[test]
+    fn a_real_run_is_not_touched_by_the_simulated_tick() {
+        let mut r = real_run();
+        assert!(r.real);
+        assert_eq!(r.tick(), Tick::Idle);
+        assert_eq!(r.completed, 0);
+    }
+
+    #[test]
+    fn steps_record_usage_with_the_prices_and_never_finish_the_run() {
+        let mut r = real_run();
+        let limits = AgentLimits::unlimited();
+        for _ in 0..10 {
+            let e = r.report(step(1_000_000, 0, 1_000), &limits, 0).unwrap();
+            assert_eq!(e.usage.unwrap().cost_cents, 300);
+            assert!(!e.finished);
+        }
+        assert_eq!(r.completed, STEPS - 1);
+        assert!(r.is_running());
+        assert_eq!(r.usage().cost_cents, 3_000);
+        assert_eq!(r.usage().millis, 10_000);
+    }
+
+    #[test]
+    fn the_budget_stops_a_real_run_with_a_plain_message() {
+        let mut r = real_run();
+        let limits = AgentLimits {
+            run_budget_cents: Some(100),
+            ..AgentLimits::unlimited()
+        };
+        let e = r.report(step(1_000_000, 0, 10), &limits, 0).unwrap();
+        assert_eq!(e.stopped, Some(StopReason::RunBudget));
+        assert_eq!(r.stop_reason(), Some(StopReason::RunBudget));
+        assert!(
+            r.messages
+                .last()
+                .unwrap()
+                .text
+                .starts_with("Angehalten: Budget pro Lauf erreicht")
+        );
+    }
+
+    #[test]
+    fn the_month_budget_counts_what_the_step_just_cost() {
+        let mut r = real_run();
+        let limits = AgentLimits {
+            month_budget_cents: Some(400),
+            ..AgentLimits::unlimited()
+        };
+        let e = r.report(step(1_000_000, 0, 10), &limits, 150).unwrap();
+        assert_eq!(e.stopped, Some(StopReason::MonthBudget));
+    }
+
+    #[test]
+    fn a_question_waits_for_the_answer_and_the_answer_resumes() {
+        let mut r = real_run();
+        let limits = AgentLimits::unlimited();
+        let e = r
+            .report(
+                AgentReport::Question {
+                    text: "Welcher Branch?".into(),
+                    suggestions: vec!["main".into()],
+                },
+                &limits,
+                0,
+            )
+            .unwrap();
+        assert!(e.asking && r.is_asking());
+        assert_eq!(r.question.as_ref().unwrap().suggestions, ["main"]);
+        assert!(r.answer("main"));
+        assert!(r.is_running());
+    }
+
+    #[test]
+    fn hints_are_acknowledged_when_the_container_got_them() {
+        let mut r = real_run();
+        r.steer("Bitte kleine Commits");
+        assert_eq!(r.pending_hints.len(), 1);
+        r.report(AgentReport::HintsDelivered, &AgentLimits::unlimited(), 0);
+        assert!(r.pending_hints.is_empty());
+        assert_eq!(r.messages.last().unwrap().kind, MessageKind::Ack);
+    }
+
+    #[test]
+    fn done_finishes_and_failed_resets_with_the_reason() {
+        let mut r = real_run();
+        let limits = AgentLimits::unlimited();
+        let e = r
+            .report(
+                AgentReport::Done {
+                    summary: "Fertig".into(),
+                },
+                &limits,
+                0,
+            )
+            .unwrap();
+        assert!(e.finished && r.is_done() && r.completed == STEPS);
+
+        let mut r = real_run();
+        let e = r
+            .report(
+                AgentReport::Failed {
+                    reason: "Der Container endete mit Code 1".into(),
+                },
+                &limits,
+                0,
+            )
+            .unwrap();
+        assert!(e.failed && r.is_idle() && !r.real);
+        assert_eq!(r.ended.as_deref(), Some("Der Container endete mit Code 1"));
+        assert!(r.log().contains("Der Container endete mit Code 1"));
+        // Ein neuer Start löscht den Grund.
+        r.start(AgentOptions::default(), 92);
+        assert_eq!(r.ended, None);
+    }
+
+    #[test]
+    fn reports_for_an_inactive_run_change_nothing() {
+        let mut r = run();
+        let before = r.clone();
+        assert!(
+            r.report(step(1, 1, 1), &AgentLimits::unlimited(), 0)
+                .is_none()
+        );
+        assert_eq!(r, before);
+    }
+
+    #[test]
+    fn the_plan_comes_from_the_agent_and_cannot_be_approved_before() {
+        let mut r = run();
+        let limits = AgentLimits::unlimited();
+        r.start(AgentOptions::default(), 92);
+        r.report(
+            AgentReport::Started {
+                detail: "Plan-Lauf".into(),
+            },
+            &limits,
+            0,
+        );
+        assert!(r.is_drafting());
+        assert!(!r.approve(), "ohne Plan gibt es nichts freizugeben");
+        r.report(
+            AgentReport::Plan {
+                summary: "Fokus-Ring ergänzen".into(),
+                files: vec!["src/toggle.rs".into()],
+                steps: vec!["Lesen".into(), "Ändern".into()],
+            },
+            &limits,
+            0,
+        );
+        let plan = r.plan().unwrap();
+        assert_eq!(plan.summary, "Fokus-Ring ergänzen");
+        assert_eq!(r.files, ["src/toggle.rs"]);
+        assert!(!r.is_drafting());
+        // Eine Anmerkung verlangt einen neuen Plan.
+        assert!(r.revise("Auch Tests"));
+        assert!(r.is_drafting() && !r.approve());
+        r.report(
+            AgentReport::Plan {
+                summary: "Neu".into(),
+                files: vec![],
+                steps: vec![],
+            },
+            &limits,
+            0,
+        );
+        assert!(r.approve());
+    }
+
+    #[test]
+    fn a_plan_report_outside_the_approval_is_ignored() {
+        let mut r = real_run();
+        assert!(
+            r.report(
+                AgentReport::Plan {
+                    summary: "x".into(),
+                    files: vec![],
+                    steps: vec![]
+                },
+                &AgentLimits::unlimited(),
+                0
+            )
+            .is_none()
         );
     }
 }
