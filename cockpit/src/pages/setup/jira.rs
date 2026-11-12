@@ -1,20 +1,23 @@
-//! Schritt 2: Jira verbinden – per Atlassian-App (OAuth) oder, einfacher, per API-Token.
+//! Schritt 2: Jira verbinden – Standard ist der API-Token (drei einfache Schritte, danach ein
+//! Verbindungstest und die Wahl des Projekts); die Atlassian-App (OAuth) steckt eingeklappt unter
+//! „Erweitert“. Die Regeln (Adresse lesen, Texte) stehen in `cockpit_core::einrichten`.
 
-use cockpit_core::api::{ClientEingabe, JiraEingabe, KonfigAenderung};
-use cockpit_core::einrichten::{client_id_lesen, projekte_lesen};
+use cockpit_core::Action;
+use cockpit_core::api::{ClientEingabe, JiraEingabe, JiraProject, JiraPruefung, KonfigAenderung};
+use cockpit_core::connections::AuthKind;
+use cockpit_core::einrichten::{
+    JIRA_TOKEN_SEITE, client_id_lesen, jira_site_lesen, projekte_lesen,
+};
 use feature_ui::*;
 use leptos::prelude::*;
+use leptos::task::spawn_local;
 
 use super::felder::{
     Abschnitt, Einleitung, Extern, Kontext, Kopierfeld, Meldung, Rueckmeldung, SchluesselFeld,
     konfig_speichern,
 };
 use crate::oauth_card::{OAuthCard, Service};
-
-const WEGE: &[(&str, &str)] = &[
-    ("oauth", "Mit Atlassian-App (empfohlen)"),
-    ("token", "Mit API-Token (einfacher)"),
-];
+use crate::server::{self, CallError};
 
 /// Füllt ein Feld aus dem Server, solange es noch leer ist (der Nutzer tippt nie dagegen an).
 fn vorbelegen(feld: RwSignal<String>, quelle: impl Fn() -> String + 'static) {
@@ -28,38 +31,66 @@ fn vorbelegen(feld: RwSignal<String>, quelle: impl Fn() -> String + 'static) {
 
 #[component]
 pub fn JiraSchritt(ctx: Kontext) -> impl IntoView {
-    let weg = RwSignal::new("oauth");
-    Effect::new(move |_| {
-        // Wer schon per Token eingerichtet ist, sieht gleich diesen Weg.
-        let e = ctx.einr.get();
-        if e.atlassian_client_id.is_none() && !e.jira_site.is_empty() {
-            weg.set("token");
-        }
-    });
+    // Das Ergebnis des Verbindungstests; erst danach erscheint die Wahl des Projekts.
+    let ergebnis: RwSignal<Option<JiraPruefung>> = RwSignal::new(None);
+    let per_token = move || {
+        ctx.store.health.with(|h| {
+            h.as_ref().is_some_and(|h| {
+                h.anmeldung.jira.verbunden && h.anmeldung.jira.art == AuthKind::Token
+            })
+        })
+    };
+    let oauth_aktiv = move || {
+        ctx.einr.with(|e| e.atlassian_client_id.is_some())
+            || ctx.store.health.with(|h| {
+                h.as_ref()
+                    .is_some_and(|h| h.anmeldung.jira.art == AuthKind::OAuth)
+            })
+    };
     view! {
         <VStack spacing="12px">
             <Einleitung title="Jira verbinden">
                 <p>
-                    "Damit zeigt dir Cockpit deine Tickets, kann sie kommentieren und ihren Status ändern. Es gibt zwei Wege – beide kannst du später wechseln."
+                    "Damit zeigt dir Cockpit deine Tickets. Am einfachsten geht das mit einem „Token“: einem Passwort nur für Programme, das du in deinem Atlassian-Konto selbst erzeugst. Du brauchst drei Angaben und etwa zwei Minuten."
                 </p>
                 <p>
-                    <strong>"Atlassian-App:"</strong>
-                    " Du legst einmal eine eigene kleine „App“ in deinem Atlassian-Konto an. Cockpit meldet dich damit an, ohne dass ein Passwort weitergegeben wird, und du kannst den Zugriff jederzeit entziehen. Etwas mehr Klickarbeit, dafür sauberer."
-                </p>
-                <p>
-                    <strong>"API-Token:"</strong>
-                    " Ein Token ist ein Passwort nur für Programme. Schnell erledigt, gilt aber mit all deinen Rechten, bis du es löschst."
+                    <strong>"Gut zu wissen:"</strong>
+                    " Der Token hat die Rechte deines Kontos. Solange Cockpit nur lesen soll, nimm am besten ein Konto oder eine Rolle ohne Schreibrechte. Du kannst den Token jederzeit löschen."
                 </p>
             </Einleitung>
-            <Segmented options=WEGE value=weg aria_label="Weg der Anmeldung bei Jira" />
+            <JiraToken ctx=ctx ergebnis=ergebnis />
             {move || {
-                if weg.get() == "oauth" {
-                    view! { <JiraOauth ctx=ctx /> }.into_any()
-                } else {
-                    view! { <JiraToken ctx=ctx /> }.into_any()
-                }
+                (ergebnis.with(|e| e.as_ref().is_some_and(|e| e.ok)) || per_token())
+                    .then(|| view! { <JiraProjektwahl ctx=ctx /> })
             }}
+            <details class="ui-erweitert" open=oauth_aktiv>
+                <summary>"Erweitert: Mit OAuth statt Token"</summary>
+                <VStack spacing="12px">
+                    <Einleitung title="Mit Atlassian-App (OAuth)">
+                        <p>
+                            "Du legst einmal eine eigene kleine „App“ in der Atlassian-Entwicklerkonsole an. Cockpit meldet dich damit an, ohne dass ein Passwort weitergegeben wird, und du kannst den Zugriff jederzeit entziehen. Mehr Klickarbeit, und deine Firma muss eigene Apps erlauben."
+                        </p>
+                    </Einleitung>
+                    <JiraOauth ctx=ctx />
+                </VStack>
+            </details>
         </VStack>
+    }
+}
+
+/// Ein Link im Look eines Knopfes, der in einem neuen Tab aufgeht.
+#[component]
+fn ExternKnopf(#[prop(into)] href: String, children: Children) -> impl IntoView {
+    view! {
+        <a
+            class="ui-button"
+            data-style="glass-prominent"
+            href=href
+            target="_blank"
+            rel="noopener noreferrer"
+        >
+            {children()}
+        </a>
     }
 }
 
@@ -190,90 +221,252 @@ fn JiraOauth(ctx: Kontext) -> impl IntoView {
 }
 
 #[component]
-fn JiraToken(ctx: Kontext) -> impl IntoView {
+fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraPruefung>>) -> impl IntoView {
     let site = RwSignal::new(String::new());
     vorbelegen(site, move || ctx.einr.with(|e| e.jira_site.clone()));
     let email = RwSignal::new(String::new());
     vorbelegen(email, move || ctx.einr.with(|e| e.jira_email.clone()));
     let rueck: Rueckmeldung = RwSignal::new(None);
+    let laeuft = RwSignal::new(false);
 
-    let speichern = move |_| {
+    // Schlägt das Speichern fehl, läuft der Test nicht: den Knopf wieder freigeben.
+    Effect::new(move |_| {
+        if rueck.with(|r| r.as_ref().is_some_and(|(gut, _)| !gut)) {
+            laeuft.set(false);
+        }
+    });
+
+    // So versteht Cockpit die Eingabe: gleich unter dem Feld zu sehen.
+    let site_gelesen = Signal::derive(move || jira_site_lesen(&site.get()));
+    let verbunden = move || {
+        ctx.store.health.with(|h| {
+            h.as_ref().is_some_and(|h| {
+                h.anmeldung.jira.verbunden && h.anmeldung.jira.art == AuthKind::Token
+            })
+        })
+    };
+
+    let pruefen = move |_| {
+        ergebnis.set(None);
+        rueck.set(None);
+        let site_neu = match site_gelesen.get_untracked() {
+            Ok(s) if !s.is_empty() => s,
+            Ok(_) => {
+                rueck.set(Some((
+                    false,
+                    "Trage zuerst die Adresse deiner Jira-Site ein.".into(),
+                )));
+                return;
+            }
+            Err(m) => {
+                rueck.set(Some((false, m)));
+                return;
+            }
+        };
+        let email_neu = email.get_untracked().trim().to_string();
+        if !email_neu.contains('@') || email_neu.contains(char::is_whitespace) {
+            rueck.set(Some((
+                false,
+                "Trage die E-Mail-Adresse deines Atlassian-Kontos ein.".into(),
+            )));
+            return;
+        }
+        laeuft.set(true);
+        // Erst Adresse und E-Mail sichern, dann der Test (nur Lesen).
         konfig_speichern(
             ctx,
             KonfigAenderung {
                 jira: Some(JiraEingabe {
-                    site: Some(site.get_untracked()),
-                    email: Some(email.get_untracked()),
+                    site: Some(site_neu),
+                    email: Some(email_neu),
                     projects: None,
                 }),
                 ..Default::default()
             },
             rueck,
-            "Site und E-Mail gespeichert.",
-            || {},
-        )
-    };
-    let verbunden = move || {
-        ctx.store
-            .health
-            .with(|h| h.as_ref().is_some_and(|h| h.anmeldung.jira.verbunden))
+            "Adresse und E-Mail gespeichert.",
+            move || {
+                spawn_local(async move {
+                    match server::post_jira_pruefen().await {
+                        Ok(p) => ergebnis.set(Some(p)),
+                        Err(e) => ergebnis.set(Some(JiraPruefung {
+                            meldung: e.message(),
+                            ..Default::default()
+                        })),
+                    }
+                    ctx.laden();
+                    laeuft.set(false);
+                });
+            },
+        );
     };
 
     view! {
-        <Abschnitt title="1. Token in deinem Atlassian-Konto erzeugen">
-            <ol class="ui-anleitung">
-                <li>
-                    "Öffne "
-                    <Extern href="https://id.atlassian.com/manage-profile/security/api-tokens">
-                        "id.atlassian.com/manage-profile/security/api-tokens"
-                    </Extern>
-                    " und melde dich an."
-                </li>
-                <li>
-                    "Klicke auf „Create API token“, gib einen Namen wie „Cockpit“ ein, wähle ein Ablaufdatum und klicke auf „Create“."
-                </li>
-                <li>
-                    "Kopiere das Token mit „Copy“. Es wird nur jetzt angezeigt – füge es gleich unten ein."
-                </li>
-            </ol>
-        </Abschnitt>
-        <Abschnitt title="2. Angaben eintragen">
+        <Abschnitt title="1. Adresse deiner Jira-Site">
             <TextField
-                label="Jira-Adresse (Site)"
+                label="Jira-Adresse"
                 value=site
                 placeholder="firma.atlassian.net"
-                hint="So beginnt die Adresse, wenn du Jira im Browser öffnest. „firma“ oder „firma.atlassian.net“ genügt."
+                hint="So beginnt die Adresse, wenn du Jira im Browser öffnest. Du kannst sie auch einfach hineinkopieren – mit https:// und allem dahinter."
                 autocomplete="off"
             />
+            {move || match site_gelesen.get() {
+                Ok(s) if !s.is_empty() => {
+                    view! { <p class="ui-hinweis">"Cockpit verwendet: " <code>{s}</code></p> }.into_any()
+                }
+                Ok(_) => ().into_any(),
+                Err(m) => {
+                    view! { <p class="ui-hinweis" role="alert" style="color: var(--sys-color-red)">{m}</p> }
+                        .into_any()
+                }
+            }}
+        </Abschnitt>
+        <Abschnitt title="2. E-Mail-Adresse deines Atlassian-Kontos">
             <TextField
-                label="E-Mail-Adresse deines Atlassian-Kontos"
+                label="E-Mail-Adresse"
                 value=email
                 input_type="email"
+                hint="Die Adresse, mit der du dich bei Atlassian anmeldest."
                 autocomplete="off"
             />
-            <HStack spacing="12px">
-                <Button variant=ButtonStyle::GlassProminent on_click=speichern>
-                    "Site und E-Mail speichern"
-                </Button>
-            </HStack>
-            <Meldung rueckmeldung=rueck />
+        </Abschnitt>
+        <Abschnitt title="3. Token erstellen">
+            <ol class="ui-anleitung">
+                <li>
+                    "Klicke auf „Token-Seite öffnen“ und melde dich bei Atlassian an. Die Seite geht in einem neuen Tab auf."
+                    <HStack spacing="12px" css="margin-top: 8px">
+                        <ExternKnopf href=JIRA_TOKEN_SEITE>"Token-Seite öffnen"</ExternKnopf>
+                    </HStack>
+                </li>
+                <li>"Klicke auf „Create API token“ (Token erstellen)."</li>
+                <li>
+                    "Gib einen Namen ein, zum Beispiel „Cockpit“, und wähle ein Ablaufdatum. Ein kürzeres ist sicherer; wenn es abläuft, erzeugst du einfach einen neuen."
+                </li>
+                <li>
+                    "Klicke auf „Create“ und dann auf „Copy“ (Kopieren). Der Token wird nur jetzt angezeigt. Füge ihn gleich hier unten ein."
+                </li>
+            </ol>
             <SchluesselFeld
                 ctx=ctx
                 name="jira"
-                label="API-Token"
-                hinweis="Geheim wie ein Passwort. Es wird nur im Schlüsselbund dieses Rechners gespeichert."
+                label="Token"
+                hinweis="Geheim wie ein Passwort. Er wird nur im Schlüsselbund dieses Rechners gespeichert und nie wieder angezeigt."
             />
-            <Status tone=Signal::derive(move || {
-                if verbunden() { StatusTone::Green } else { StatusTone::Gray }
-            })>
-                {move || {
-                    if verbunden() {
-                        "Verbunden"
+        </Abschnitt>
+        <Abschnitt title="4. Verbindung prüfen">
+            <p class="t-subheadline t-secondary">
+                "Cockpit speichert Adresse und E-Mail und fragt Jira, wer du bist. Dabei wird nur gelesen, nichts verändert."
+            </p>
+            <HStack spacing="12px">
+                <Button
+                    variant=ButtonStyle::GlassProminent
+                    disabled=laeuft
+                    on_click=pruefen
+                >
+                    "Verbindung prüfen"
+                </Button>
+                <Status tone=Signal::derive(move || {
+                    if verbunden() { StatusTone::Green } else { StatusTone::Gray }
+                })>{move || if verbunden() { "Verbunden – mit API-Token" } else { "Noch nicht geprüft" }}</Status>
+            </HStack>
+            <Meldung rueckmeldung=rueck />
+            {move || {
+                ergebnis
+                    .get()
+                    .map(|p| {
+                        view! {
+                            <p
+                                class="ui-hinweis"
+                                role=if p.ok { "status" } else { "alert" }
+                                style=(!p.ok).then_some("color: var(--sys-color-red)")
+                            >
+                                {if p.ok { "✓ " } else { "" }}
+                                {p.meldung}
+                            </p>
+                        }
+                    })
+            }}
+        </Abschnitt>
+    }
+}
+
+/// Nach dem Test: die Jira-Projekte zur Auswahl („Alle Projekte“ ist möglich). Gewählt wird wie in
+/// der Inbox mit `Action::SelectJiraProject`; die Liste wird nur gelesen.
+#[component]
+fn JiraProjektwahl(ctx: Kontext) -> impl IntoView {
+    let projekte = RwSignal::new(Vec::<JiraProject>::new());
+    let rueck: Rueckmeldung = RwSignal::new(None);
+    let geladen = RwSignal::new(false);
+    spawn_local(async move {
+        match server::fetch_jira_projects().await {
+            Ok(r) => projekte.set(r.projekte),
+            Err(CallError::Unreachable) => {
+                rueck.set(Some((false, CallError::Unreachable.message())))
+            }
+            Err(e) => rueck.set(Some((
+                false,
+                format!("Die Projekte konnten nicht geladen werden: {}", e.message()),
+            ))),
+        }
+        geladen.set(true);
+    });
+    let optionen = Signal::derive(move || {
+        let mut liste: Vec<(String, String)> = projekte.with(|p| {
+            p.iter()
+                .map(|p| {
+                    let label = if p.name.is_empty() {
+                        p.key.clone()
                     } else {
-                        "Noch nicht verbunden – speichere Site, E-Mail und Token."
-                    }
-                }}
-            </Status>
+                        format!("{} · {}", p.key, p.name)
+                    };
+                    (p.key.clone(), label)
+                })
+                .collect()
+        });
+        liste.sort_by_key(|a| a.1.to_lowercase());
+        std::iter::once((String::new(), "Alle Projekte".to_string()))
+            .chain(liste)
+            .collect()
+    });
+    let gewaehlt = Signal::derive(move || {
+        ctx.store
+            .ws
+            .with(|w| w.jira_project.clone().unwrap_or_default())
+    });
+    let wechseln = move |key: String| {
+        let project = (!key.is_empty()).then_some(key);
+        if let Err(e) = ctx.store.dispatch(Action::SelectJiraProject { project }) {
+            rueck.set(Some((false, e.message())));
+        } else {
+            rueck.set(Some((true, "Auswahl gespeichert.".into())));
+        }
+    };
+    view! {
+        <Abschnitt title="Welche Projekte soll Cockpit zeigen?">
+            <p class="t-subheadline t-secondary">
+                "Wähle ein Projekt oder „Alle Projekte“. Du kannst das später in der Inbox ändern."
+            </p>
+            {move || {
+                (!geladen.get())
+                    .then(|| view! { <p class="t-footnote t-secondary">"Lade deine Projekte …"</p> })
+            }}
+            {move || {
+                (geladen.get() && projekte.with(|p| p.is_empty()) && rueck.with(|r| r.is_none()))
+                    .then(|| {
+                        view! {
+                            <p class="ui-hinweis">
+                                "Jira zeigt für dieses Konto keine Projekte. Du kannst „Alle Projekte“ lassen."
+                            </p>
+                        }
+                    })
+            }}
+            <Select
+                options=optionen
+                value=gewaehlt
+                on_change=wechseln
+                aria_label="Jira-Projekt"
+            />
+            <Meldung rueckmeldung=rueck />
         </Abschnitt>
     }
 }

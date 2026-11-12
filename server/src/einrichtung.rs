@@ -3,7 +3,9 @@
 //! * `GET /api/einrichtung`: aktuelle, nicht geheime Werte und welche Schlüssel liegen
 //! * `PUT /api/konfiguration`: schreibt Client-IDs, Jira, Repos und LiteLLM in `config.toml`
 //!   (atomar, Kommentare und andere Werte bleiben) und wendet sie ohne Neustart an
-//! * `PUT /api/schluessel/{name}`: legt einen Schlüssel im Schlüsselbund ab
+//! * `PUT /api/schluessel/{name}`: legt einen Schlüssel im Schlüsselbund ab; `DELETE` löscht einen
+//!   Token (`jira`, `github`) wieder („Trennen“)
+//! * `POST /api/jira/pruefen`: Verbindungstest für Jira per API-Token (nur Lesen)
 //!
 //! Alle drei laufen hinter der Prüfung aus `zugang` (Loopback, Host, Origin, Content-Type).
 //! Ein Schlüssel kommt nur im Body der Anfrage vor, wird nirgends geloggt und nie zurückgeschickt;
@@ -18,14 +20,16 @@ use axum::extract::{Path as UrlPfad, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use cockpit_core::api::{
-    Einrichtung, KonfigAenderung, KonfigAntwort, SchluesselAntwort, SchluesselEingabe,
+    Einrichtung, JiraPruefung, JiraUrsache, KonfigAenderung, KonfigAntwort, SchluesselAntwort,
+    SchluesselEingabe,
 };
 use cockpit_core::einrichten::{
-    SCHLUESSEL_NAMEN, client_id_lesen, jira_site_lesen, litellm_url_lesen, projekte_lesen,
-    repos_lesen, schluessel_name_erlaubt, schluessel_pruefen,
+    SCHLUESSEL_NAMEN, client_id_lesen, jira_pruefung_text, jira_site_lesen, litellm_url_lesen,
+    projekte_lesen, repos_lesen, schluessel_loeschbar, schluessel_name_erlaubt, schluessel_pruefen,
 };
-use cockpit_integrations::Secret;
+use cockpit_integrations::jira::JiraClient;
 use cockpit_integrations::oauth::Dienst;
+use cockpit_integrations::{Fehler, Secret};
 use toml_edit::{Array, DocumentMut, Item, Table, value};
 
 use crate::app::{AppState, fehler};
@@ -388,6 +392,95 @@ pub async fn schluessel(
         }
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
+}
+
+/// `DELETE /api/schluessel/{name}`: löscht einen Token aus dem Schlüsselbund („Trennen“). Erlaubt
+/// sind nur die Tokens `jira` und `github`; ein nicht vorhandener Schlüssel ist kein Fehler.
+pub async fn schluessel_loeschen(
+    State(state): State<AppState>,
+    UrlPfad(name): UrlPfad<String>,
+) -> Response {
+    if !schluessel_loeschbar(&name) {
+        return fehler(
+            StatusCode::NOT_FOUND,
+            format!("Einen löschbaren Schlüssel „{name}“ gibt es nicht"),
+        );
+    }
+    let secrets = state.inner.secrets.clone();
+    let n = name.clone();
+    match tokio::task::spawn_blocking(move || secrets.delete(&n)).await {
+        Ok(Ok(())) => {
+            tracing::info!("Schlüssel für {name} gelöscht");
+            Json(SchluesselAntwort {
+                name,
+                gesetzt: false,
+            })
+            .into_response()
+        }
+        Ok(Err(e)) => {
+            tracing::warn!("Schlüssel für {name} nicht gelöscht: {e}");
+            fehler(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Der Schlüsselbund hat den Schlüssel nicht gelöscht. Prüfe, ob der Schlüsselbund entsperrt ist.",
+            )
+        }
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+fn pruefung(ursache: JiraUrsache, name: Option<String>) -> JiraPruefung {
+    JiraPruefung {
+        ok: ursache == JiraUrsache::Ok,
+        ursache,
+        meldung: jira_pruefung_text(ursache, name.as_deref()),
+        name: name.filter(|n| !n.is_empty()),
+    }
+}
+
+/// Welche Ursache zu einem Fehler von Jira gehört.
+fn jira_ursache(f: &Fehler) -> JiraUrsache {
+    match f {
+        Fehler::NichtAngemeldet => JiraUrsache::Token,
+        Fehler::KeineBerechtigung => JiraUrsache::Berechtigung,
+        // 404, eine fremde Seite statt Jira (kein JSON) oder eine unbrauchbare Adresse.
+        Fehler::NichtGefunden | Fehler::Antwort(_) | Fehler::Einstellung(_) => JiraUrsache::Adresse,
+        Fehler::Netzwerk(_) => JiraUrsache::Erreichbar,
+        _ => JiraUrsache::Sonst,
+    }
+}
+
+impl AppState {
+    /// Der Verbindungstest für Jira mit E-Mail und API-Token (nie mit OAuth): Adresse und E-Mail
+    /// aus der Konfiguration, der Token aus dem Schlüsselbund. Nur `GET /rest/api/3/myself`.
+    pub async fn jira_pruefen(&self) -> JiraPruefung {
+        let s = self.clone();
+        let angaben = tokio::task::spawn_blocking(move || {
+            let j = s.quellen().jira.clone().filter(|j| !j.site.is_empty());
+            j.map(|j| (j.site, j.email, s.token(crate::secrets::JIRA)))
+        })
+        .await
+        .ok()
+        .flatten();
+        let Some((site, email, Some(token))) = angaben.filter(|(_, e, _)| !e.is_empty()) else {
+            return pruefung(JiraUrsache::Angaben, None);
+        };
+        let client = match JiraClient::new(&site, &email, token) {
+            Ok(c) => c,
+            Err(e) => return pruefung(jira_ursache(&e), None),
+        };
+        match client.ich_name().await {
+            Ok(name) => pruefung(JiraUrsache::Ok, Some(name)),
+            Err(e) => {
+                tracing::warn!("Jira-Verbindungstest: {e}");
+                pruefung(jira_ursache(&e), None)
+            }
+        }
+    }
+}
+
+/// `POST /api/jira/pruefen`: ohne Body; liest nur.
+pub async fn jira_pruefen(State(state): State<AppState>) -> Response {
+    Json(state.jira_pruefen().await).into_response()
 }
 
 #[cfg(test)]
@@ -871,5 +964,165 @@ mod tests {
         .await;
         let h = get(&p.app, "/api/health").await;
         assert_eq!(h["anmeldung"]["jira"]["verbunden"], true);
+    }
+
+    // ---- Verbindungstest für Jira (nur wiremock, nie ein echter Dienst) ----
+
+    use wiremock::matchers::{header_exists, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use crate::config::JiraKonfig;
+
+    const TOKEN: &str = "test-wert-123";
+
+    /// Ein Server, dessen Jira-Adresse `site` ist; der Token liegt nur auf Wunsch im Schlüsselbund.
+    fn jira_stand(site: &str, email: &str, mit_token: bool) -> (Router, Arc<MemoryStore>) {
+        let secrets = Arc::new(MemoryStore::new());
+        if mit_token {
+            secrets.set("jira", &Secret::new(TOKEN)).unwrap();
+        }
+        let quellen = Quellen {
+            jira: (!site.is_empty()).then(|| JiraKonfig {
+                site: site.into(),
+                email: email.into(),
+                projects: vec![],
+                jql: None,
+            }),
+            ..Quellen::default()
+        };
+        let state = AppState::neu(
+            db::open_im_speicher().unwrap(),
+            secrets.clone(),
+            8787,
+            quellen,
+            Einstellungen::default(),
+        );
+        (router(state, PathBuf::from("/x")), secrets)
+    }
+
+    async fn pruefen(app: &Router) -> serde_json::Value {
+        let (status, body) = sende(
+            app,
+            anfrage("POST", "/api/jira/pruefen")
+                .header("content-type", "application/json")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert!(!body.contains(TOKEN), "Token in der Antwort: {body}");
+        serde_json::from_str(&body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn jira_test_ok_liest_nur_und_kennt_den_namen() {
+        let jira = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/rest/api/3/myself"))
+            .and(header_exists("authorization"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(r#"{"accountId":"acc-1","displayName":"Mira Keller"}"#),
+            )
+            .mount(&jira)
+            .await;
+        let (app, _) = jira_stand(&jira.uri(), "mira@firma.example", true);
+        let a = pruefen(&app).await;
+        assert_eq!(a["ok"], true);
+        assert_eq!(a["ursache"], "ok");
+        assert_eq!(a["name"], "Mira Keller");
+        assert!(a["meldung"].as_str().unwrap().contains("kennt dich"));
+        // Genau ein lesender Aufruf, sonst nichts.
+        let anfragen = jira.received_requests().await.unwrap();
+        assert_eq!(anfragen.len(), 1);
+        assert_eq!(anfragen[0].method.as_str(), "GET");
+        assert_eq!(anfragen[0].url.path(), "/rest/api/3/myself");
+    }
+
+    #[tokio::test]
+    async fn jira_test_sagt_im_klartext_woran_es_liegt() {
+        for (antwort, ursache) in [
+            (ResponseTemplate::new(401), "token"),
+            (ResponseTemplate::new(403), "berechtigung"),
+            (ResponseTemplate::new(404), "adresse"),
+            // Eine fremde Seite statt Jira.
+            (
+                ResponseTemplate::new(200).set_body_string("<html>Anmelden</html>"),
+                "adresse",
+            ),
+            (ResponseTemplate::new(500), "sonst"),
+        ] {
+            let jira = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/rest/api/3/myself"))
+                .respond_with(antwort)
+                .mount(&jira)
+                .await;
+            let (app, _) = jira_stand(&jira.uri(), "mira@firma.example", true);
+            let a = pruefen(&app).await;
+            assert_eq!(a["ok"], false);
+            assert_eq!(a["ursache"], ursache, "{a}");
+            assert!(!a["meldung"].as_str().unwrap().is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn jira_test_ohne_verbindung_und_ohne_angaben() {
+        // Nichts lauscht auf dem Port.
+        let (app, _) = jira_stand("http://127.0.0.1:1", "mira@firma.example", true);
+        assert_eq!(pruefen(&app).await["ursache"], "erreichbar");
+        // Ohne Token, ohne E-Mail, ohne Site: „Angaben“, ohne dass etwas aufgerufen wird.
+        for (site, email, token) in [
+            ("http://127.0.0.1:1", "mira@firma.example", false),
+            ("http://127.0.0.1:1", "", true),
+            ("", "", true),
+        ] {
+            let (app, _) = jira_stand(site, email, token);
+            let a = pruefen(&app).await;
+            assert_eq!(a["ursache"], "angaben", "{site} {email} {token}");
+            assert_eq!(a["ok"], false);
+        }
+    }
+
+    #[tokio::test]
+    async fn jira_test_gibt_den_token_nie_aus_auch_wenn_jira_ihn_zurueckspielt() {
+        let jira = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(400).set_body_string(format!("Bad {TOKEN}")))
+            .mount(&jira)
+            .await;
+        let (app, _) = jira_stand(&jira.uri(), "mira@firma.example", true);
+        let a = pruefen(&app).await;
+        assert_eq!(a["ok"], false);
+        // `pruefen` prüft schon, dass der Token nicht in der Antwort steht.
+        assert!(!a.to_string().contains(TOKEN));
+    }
+
+    #[tokio::test]
+    async fn trennen_loescht_nur_tokens() {
+        let (app, secrets) = jira_stand("", "", true);
+        secrets.set("litellm", &Secret::new(TOKEN)).unwrap();
+        let loeschen = |name: &str| {
+            anfrage("DELETE", &format!("/api/schluessel/{name}"))
+                .header("content-type", "application/json")
+                .body(Body::empty())
+                .unwrap()
+        };
+        let (status, body) = sende(&app, loeschen("jira")).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert!(body.contains(r#""gesetzt":false"#) && !body.contains(TOKEN));
+        assert!(secrets.get("jira").unwrap().is_none());
+        // Zweites Mal ist kein Fehler.
+        assert_eq!(sende(&app, loeschen("jira")).await.0, StatusCode::OK);
+        // Der Modell-Key und Client-Secrets bleiben.
+        for name in ["litellm", "atlassian-oauth", "unsinn"] {
+            assert_eq!(sende(&app, loeschen(name)).await.0, StatusCode::NOT_FOUND);
+        }
+        assert!(secrets.get("litellm").unwrap().is_some());
+        // Ohne JSON-Content-Type lehnt die gemeinsame Prüfung ab.
+        let roh = anfrage("DELETE", "/api/schluessel/jira")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(sende(&app, roh).await.0, StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
 }

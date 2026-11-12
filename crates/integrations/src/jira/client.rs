@@ -154,6 +154,16 @@ impl JiraClient {
             .account_id)
     }
 
+    /// Der Anzeigename des Schlüsselinhabers (leer, wenn Jira keinen nennt). Nur Lesen; dient dem
+    /// Verbindungstest im Einrichtungsassistenten.
+    pub async fn ich_name(&self) -> Result<String, Fehler> {
+        Ok(self
+            .lies_json::<Myself>(self.get("/rest/api/3/myself"))
+            .await?
+            .display_name
+            .unwrap_or_default())
+    }
+
     /// Issues zu einer JQL-Abfrage, seitenweise (`nextPageToken`), höchstens [`MAX_ISSUES`].
     pub async fn suche(&self, jql: &str) -> Result<Vec<super::dto::Issue>, Fehler> {
         let mut alle = Vec::new();

@@ -2,7 +2,9 @@
 //! Zusammenfassung in Klartext. Reine Logik ohne Oberfläche und Netzwerk; die Seite „Einrichten“
 //! verdrahtet sie nur.
 
-use crate::api::{AgentStatus, ContainerStatus, Einrichtung, LitellmPruefung, LitellmStatus};
+use crate::api::{
+    AgentStatus, ContainerStatus, Einrichtung, JiraUrsache, LitellmPruefung, LitellmStatus,
+};
 use crate::connections::{AuthKind, ServiceStatus};
 
 /// Die Namen, unter denen das Backend Schlüssel im Schlüsselbund ablegt (`PUT /api/schluessel/{name}`).
@@ -13,6 +15,9 @@ pub const SCHLUESSEL_NAMEN: &[&str] = &[
     "jira",
     "github",
 ];
+
+/// Wo man bei Atlassian einen API-Token erzeugt.
+pub const JIRA_TOKEN_SEITE: &str = "https://id.atlassian.com/manage-profile/security/api-tokens";
 
 /// Längster erlaubter Schlüssel (Zeichen). Echte Tokens sind weit kürzer.
 pub const MAX_SCHLUESSEL: usize = 4096;
@@ -116,6 +121,44 @@ pub fn schluessel_name_erlaubt(name: &str) -> bool {
     SCHLUESSEL_NAMEN.contains(&name)
 }
 
+/// Ob `name` ein Token ist, den „Trennen“ aus dem Schlüsselbund löschen darf. Client-Secrets und
+/// der Modell-Key gehören nicht dazu.
+pub fn schluessel_loeschbar(name: &str) -> bool {
+    matches!(name, "jira" | "github")
+}
+
+/// Der Klartext zum Ergebnis des Jira-Verbindungstests. Nennt nie den Token.
+pub fn jira_pruefung_text(ursache: JiraUrsache, name: Option<&str>) -> String {
+    match ursache {
+        JiraUrsache::Ok => match name.filter(|n| !n.is_empty()) {
+            Some(n) => format!("Jira antwortet und kennt dich: {n}."),
+            None => "Jira antwortet und kennt dich.".into(),
+        },
+        JiraUrsache::Angaben => {
+            "Es fehlen noch Angaben: Adresse der Site, E-Mail-Adresse und Token.".into()
+        }
+        JiraUrsache::Adresse => {
+            "Unter dieser Adresse antwortet kein Jira. Prüfe die Adresse – sie steht in der Adresszeile, wenn du Jira im Browser öffnest (z. B. firma.atlassian.net)."
+                .into()
+        }
+        JiraUrsache::Token => {
+            "Jira lehnt den Token ab. Prüfe die E-Mail-Adresse (die deines Atlassian-Kontos) und erzeuge im Zweifel einen neuen Token. Ist er abgelaufen, hilft ebenfalls ein neuer."
+                .into()
+        }
+        JiraUrsache::Berechtigung => {
+            "Der Token ist gültig, aber Jira verweigert den Zugriff. Dein Konto braucht Zugang zu dieser Site – frag die Administration."
+                .into()
+        }
+        JiraUrsache::Erreichbar => {
+            "Jira ist nicht erreichbar. Stimmt die Adresse, und bist du im richtigen Netz oder VPN?"
+                .into()
+        }
+        JiraUrsache::Sonst => {
+            "Jira hat unerwartet geantwortet. Versuche es in einer Minute noch einmal.".into()
+        }
+    }
+}
+
 /// Die Site einer Jira-Cloud-Instanz als Adresse: `firma` → `https://firma.atlassian.net`,
 /// `firma.atlassian.net` und `https://firma.atlassian.net/jira/…` → `https://firma.atlassian.net`.
 /// Leer bleibt leer.
@@ -126,6 +169,19 @@ pub fn jira_site_lesen(text: &str) -> Result<String, String> {
     }
     if t.chars().any(char::is_whitespace) {
         return Err("Die Adresse darf keine Leerzeichen enthalten.".into());
+    }
+    // Der eigene Rechner (für Tests mit einer Attrappe) darf ohne https angesprochen werden.
+    if let Some((s, r)) = t.split_once("://")
+        && s.eq_ignore_ascii_case("http")
+    {
+        let host = r.split(['/', '?', '#']).next().unwrap_or_default();
+        let name = host.split(':').next().unwrap_or_default();
+        let port_ok = host
+            .split_once(':')
+            .is_none_or(|(_, p)| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()));
+        if matches!(name, "127.0.0.1" | "localhost") && port_ok {
+            return Ok(format!("http://{host}"));
+        }
     }
     let (schema, rest) = match t.split_once("://") {
         Some((s, r)) if s.eq_ignore_ascii_case("https") => ("https", r),
@@ -293,7 +349,7 @@ fn dienst_zeile(
 ) -> Zeile {
     let (ton, text) = match (status.verbunden, status.art) {
         (true, AuthKind::OAuth) => (Ton::Gut, format!("Verbunden – du bist über {name} angemeldet.")),
-        (true, _) => (Ton::Gut, "Verbunden – mit einem Zugangs-Token.".to_string()),
+        (true, _) => (Ton::Gut, "Verbunden – mit API-Token.".to_string()),
         (false, _) if !client_id && !secret => (
             Ton::Offen,
             format!("Noch nicht eingerichtet. {token_weg}"),
@@ -320,6 +376,56 @@ fn dienst_zeile(
     }
 }
 
+/// Die Jira-Zeile: Token (Standard) oder OAuth, mit der Art der Anmeldung im Text.
+fn jira_zeile(s: &Stand) -> Zeile {
+    let e = &s.einrichtung;
+    let client_id = e.atlassian_client_id.is_some();
+    let secret = e.hat_schluessel("atlassian-oauth");
+    let (ton, text) = match (s.jira.verbunden, s.jira.art) {
+        (true, AuthKind::OAuth) => (
+            Ton::Gut,
+            "Verbunden – mit OAuth (über deine Atlassian-App angemeldet).".to_string(),
+        ),
+        (true, _) => (Ton::Gut, "Verbunden – mit API-Token.".to_string()),
+        // Der Weg über die Atlassian-App ist angefangen: wie bisher sagen, was fehlt.
+        (false, _) if client_id || secret => {
+            let z = dienst_zeile("Atlassian", Schritt::Jira, &s.jira, client_id, secret, "");
+            (z.ton, z.text)
+        }
+        (false, _) => {
+            let fehlt: Vec<&str> = [
+                (e.jira_site.is_empty(), "die Adresse der Site"),
+                (e.jira_email.is_empty(), "die E-Mail-Adresse"),
+                (!e.hat_schluessel("jira"), "der Token"),
+            ]
+            .into_iter()
+            .filter_map(|(fehlt, name)| fehlt.then_some(name))
+            .collect();
+            if fehlt.len() == 3 {
+                (
+                    Ton::Offen,
+                    "Noch nicht eingerichtet. Am einfachsten geht es mit einem API-Token."
+                        .to_string(),
+                )
+            } else {
+                (
+                    Ton::Offen,
+                    format!(
+                        "Die Anmeldung mit API-Token ist noch nicht fertig: Es fehlt {}.",
+                        fehlt.join(" und ")
+                    ),
+                )
+            }
+        }
+    };
+    Zeile {
+        name: "Jira",
+        ton,
+        text,
+        schritt: Schritt::Jira,
+    }
+}
+
 /// Die Zusammenfassung am Ende: je Punkt ein Haken oder ein Satz, was fehlt.
 pub fn zusammenfassung(s: &Stand) -> Vec<Zeile> {
     let e = &s.einrichtung;
@@ -343,19 +449,7 @@ pub fn zusammenfassung(s: &Stand) -> Vec<Zeile> {
             "Noch kein Docker oder Podman gefunden. Du brauchst es erst für den Agenten.".into(),
         ),
     };
-    let mut jira = dienst_zeile(
-        "Atlassian",
-        Schritt::Jira,
-        &s.jira,
-        e.atlassian_client_id.is_some(),
-        e.hat_schluessel("atlassian-oauth"),
-        if e.jira_site.is_empty() {
-            "Dafür brauchst du einen Atlassian-Zugang."
-        } else {
-            "Die Anmeldung per Token ist nicht abgeschlossen."
-        },
-    );
-    jira.name = "Jira";
+    let jira = jira_zeile(s);
     let mut github = dienst_zeile(
         "GitHub",
         Schritt::GitHub,
@@ -529,6 +623,13 @@ mod tests {
             );
         }
         assert_eq!(jira_site_lesen("").unwrap(), "");
+        // Nur der eigene Rechner geht ohne https.
+        assert_eq!(
+            jira_site_lesen("http://127.0.0.1:9911/x").unwrap(),
+            "http://127.0.0.1:9911"
+        );
+        assert!(jira_site_lesen("http://127.0.0.1:").is_err());
+        assert!(jira_site_lesen("http://127.0.0.1.evil.example").is_err());
         assert_eq!(
             jira_site_lesen("jira.firma.example").unwrap(),
             "https://jira.firma.example"
@@ -687,5 +788,91 @@ mod tests {
         assert!(z.text.contains("Image bauen"));
         s.agent.image = true;
         assert_eq!(zusammenfassung(&s)[0].ton, Ton::Gut);
+    }
+
+    #[test]
+    fn jira_line_names_the_kind_of_login() {
+        let token = ServiceStatus {
+            verbunden: true,
+            art: AuthKind::Token,
+            ..Default::default()
+        };
+        let mut s = Stand {
+            jira: token,
+            ..Default::default()
+        };
+        let z = &zusammenfassung(&s)[1];
+        assert_eq!((z.ton, z.name), (Ton::Gut, "Jira"));
+        assert!(z.text.contains("mit API-Token"), "{}", z.text);
+        s.jira = oauth(true);
+        let z = &zusammenfassung(&s)[1];
+        assert_eq!(z.ton, Ton::Gut);
+        assert!(z.text.contains("mit OAuth"), "{}", z.text);
+    }
+
+    #[test]
+    fn jira_line_says_what_the_token_way_lacks() {
+        let mut s = Stand::default();
+        let z = &zusammenfassung(&s)[1];
+        assert_eq!(z.ton, Ton::Offen);
+        assert!(z.text.contains("API-Token"));
+        s.einrichtung.jira_site = "https://firma.atlassian.net".into();
+        let z = &zusammenfassung(&s)[1];
+        assert!(
+            z.text.contains("E-Mail-Adresse und der Token"),
+            "{}",
+            z.text
+        );
+        s.einrichtung.jira_email = "a@b.de".into();
+        let z = &zusammenfassung(&s)[1];
+        assert!(z.text.ends_with("der Token."), "{}", z.text);
+        // Der Weg über die App bleibt erhalten.
+        let mut o = Stand::default();
+        o.einrichtung.atlassian_client_id = Some("id".into());
+        let z = &zusammenfassung(&o)[1];
+        assert_eq!(z.ton, Ton::Problem);
+        assert!(z.text.contains("Client-Secret"));
+    }
+
+    #[test]
+    fn first_start_counts_token_and_oauth_alike() {
+        let aus = ServiceStatus::default();
+        let l = LitellmStatus::default();
+        let e = Einrichtung::default();
+        for art in [AuthKind::Token, AuthKind::OAuth] {
+            let an = ServiceStatus {
+                verbunden: true,
+                art,
+                ..Default::default()
+            };
+            assert!(!nichts_eingerichtet(&e, &an, &aus, &l));
+        }
+    }
+
+    #[test]
+    fn jira_test_texts_never_mention_a_token_value() {
+        for u in [
+            JiraUrsache::Ok,
+            JiraUrsache::Angaben,
+            JiraUrsache::Adresse,
+            JiraUrsache::Token,
+            JiraUrsache::Berechtigung,
+            JiraUrsache::Erreichbar,
+            JiraUrsache::Sonst,
+        ] {
+            let t = jira_pruefung_text(u, Some("Ada"));
+            assert!(!t.is_empty());
+            assert!(!t.contains("test-wert"));
+        }
+        assert!(jira_pruefung_text(JiraUrsache::Ok, Some("Ada")).contains("kennt dich: Ada"));
+        assert!(jira_pruefung_text(JiraUrsache::Ok, None).ends_with("kennt dich."));
+    }
+
+    #[test]
+    fn only_tokens_can_be_deleted() {
+        assert!(schluessel_loeschbar("jira") && schluessel_loeschbar("github"));
+        for n in ["litellm", "atlassian-oauth", "github-oauth", "", "Jira"] {
+            assert!(!schluessel_loeschbar(n), "{n}");
+        }
     }
 }

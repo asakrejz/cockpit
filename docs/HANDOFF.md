@@ -19,8 +19,14 @@ im Gespräch stand. Eine neue Session liest zuerst diese Datei, dann `docs/ROADM
   (Claude Agent SDK umgesetzt, Claude Code und Codex als „noch nicht umgesetzt“), `[agent] anbieter`, `[agent.endpunkt]
   url/modell`, Schlüssel `agent-key`, alte `[litellm]`-Werte als Alias; Adapter-Struktur im Läufer. (2) Modellname im
   Assistenten als Drop-down aus `GET <url>/v1/models` (bei Anthropic direkt mit `x-api-key`), Freitext als Ausweg.
-  (3) **Jira per API-Token statt OAuth** (Firma gibt keine Apps frei): Der Token-Weg gibt es (`token setzen jira`, Feld im
-  Assistenten); der Assistent sollte ihn als Standard anbieten. (4) Nach dem Funktionsumfang ein Refactoring: Ordnerstruktur
+  (3) **Jira per API-Token statt OAuth** (Firma gibt keine Apps frei): **umgesetzt** (Branch `claude/w4-jira-token-…`): Im
+  Schritt „Jira“ ist der Token der Standard (Site, E-Mail, „Token-Seite öffnen“, Passwortfeld), dann Verbindungstest
+  (`POST /api/jira/pruefen`, nur `GET /rest/api/3/myself`) und Projektwahl über `Action::SelectJiraProject`; OAuth steckt
+  eingeklappt unter „Erweitert“. Die Zusammenfassung nennt die Art der Anmeldung und bietet „Token erneuern“/„Trennen“
+  (`DELETE /api/schluessel/{jira|github}`). Nur gegen wiremock und eine lokale Attrappe geprüft, **nie** gegen ein echtes
+  Atlassian; die Wortlaute der Atlassian-Token-Seite („Create API token“, „Copy“) sind nach bestem Wissen geschrieben.
+  Sicherheit: Der Token hat die Rechte des Kontos; ein Konto/eine Rolle ohne Schreibrechte ist empfohlen, solange nur
+  gelesen werden soll. (4) Nach dem Funktionsumfang ein Refactoring: Ordnerstruktur
   (Cockpit ist die Hauptanwendung, der Playground nur die Spielwiese der Komponentenbibliothek), alles auf Englisch (Code,
   Benennung, Docs), Übergabe-Dateien und die Roadmap am Ende entfernen, toten Code löschen.
 
