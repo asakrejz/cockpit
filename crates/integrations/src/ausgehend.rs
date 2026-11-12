@@ -446,6 +446,8 @@ mod tests {
             read: false,
             priority: Default::default(),
             due: None,
+            repo: None,
+            labels: Vec::new(),
         }
     }
 

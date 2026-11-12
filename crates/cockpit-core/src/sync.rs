@@ -658,6 +658,8 @@ mod tests {
             read: false,
             due: None,
             priority: Default::default(),
+            repo: None,
+            labels: Vec::new(),
         }
     }
 
@@ -971,6 +973,54 @@ mod tests {
         assert_eq!(merged.title, "Neuer Titel");
         assert_eq!(merged.priority, crate::model::Priority::Highest);
         assert_eq!(merged.pr.map(|p| p.number), Some(7));
+    }
+
+    #[test]
+    fn labels_and_repo_come_from_the_service() {
+        let mut local = ticket("X-1", "Titel");
+        local.labels = vec!["alt".into()];
+        let mut remote = ticket("X-1", "Titel");
+        remote.labels = vec!["neu".into(), "bug".into()];
+        let merged = merge_item(local, &remote, &mut Vec::new());
+        assert_eq!(merged.labels, ["neu", "bug"], "der Dienst gewinnt");
+
+        // Entfernt der Dienst alle Labels, verschwinden sie auch hier.
+        let mut local = ticket("X-1", "Titel");
+        local.labels = vec!["alt".into()];
+        let merged = merge_item(local, &ticket("X-1", "Titel"), &mut Vec::new());
+        assert!(merged.labels.is_empty());
+
+        let mut pr = pr_item(7);
+        pr.repo = Some("a/x".into());
+        let merged = merge_item(pr_item(7), &pr, &mut Vec::new());
+        assert_eq!(merged.repo.as_deref(), Some("a/x"));
+    }
+
+    #[test]
+    fn the_same_pr_number_in_two_repos_stays_two_entries() {
+        let mut a = pr_item(7);
+        a.id = "gh-a-x-7".into();
+        a.repo = Some("a/x".into());
+        let mut b = pr_item(7);
+        b.id = "gh-a-y-7".into();
+        b.repo = Some("a/y".into());
+        let ws = synced(&github(vec![a.clone(), b.clone()], Vec::new()));
+        assert_eq!(ws.items.len(), 2);
+        // Ein zweiter Abgleich ändert daran nichts, und jedes Repo behält das seine.
+        let (ws, _) = merge(&ws, &github(vec![b, a], Vec::new()), T + 1);
+        assert_eq!(ws.items.len(), 2);
+        let repos: Vec<_> = ws.items.iter().filter_map(|i| i.repo.as_deref()).collect();
+        assert!(repos.contains(&"a/x") && repos.contains(&"a/y"));
+    }
+
+    #[test]
+    fn old_saves_without_labels_and_repo_still_load() {
+        let mut v = serde_json::to_value(ticket("X-1", "T")).unwrap();
+        let o = v.as_object_mut().unwrap();
+        o.remove("labels");
+        o.remove("repo");
+        let item: Item = serde_json::from_value(v).unwrap();
+        assert!(item.labels.is_empty() && item.repo.is_none());
     }
 
     #[test]

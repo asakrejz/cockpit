@@ -2,7 +2,8 @@
 //! mit Status, Branch, Kommentaren und dem Weg zum Agenten.
 
 use cockpit_core::{
-    Action, Filter, Item, Person, Priority, Rule, SnoozeChoice, SourceFilter, TicketStatus,
+    Action, Filter, InboxFilter, Item, Person, Priority, Rule, SnoozeChoice, SourceFilter,
+    TicketStatus,
 };
 use feature_ui::*;
 use leptos::{ev, prelude::*, wasm_bindgen::JsCast};
@@ -25,10 +26,23 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
     // Suchtext und Quelle gehören nur dieser Seite; sie bleiben nicht über Navigation hinweg.
     let query = RwSignal::new(String::new());
     let source = RwSignal::new(SourceFilter::All);
+    // Repo, Person, Status und Label ebenso; leer heißt „alle“.
+    let repo = RwSignal::new(String::new());
+    let person = RwSignal::new(String::new());
+    let status = RwSignal::new(String::new());
+    let label = RwSignal::new(String::new());
+    let inbox_filter = Memo::new(move |_| InboxFilter {
+        repo: some_if_set(repo.get()),
+        person: some_if_set(person.get()),
+        status: TicketStatus::from_id(&status.get()),
+        label: some_if_set(label.get()),
+    });
     let items = Memo::new(move |_| {
         let (source, query, now) = (source.get(), query.get(), store.now.get());
+        let inbox_filter = inbox_filter.get();
         store.ws.with(|w| {
-            w.search(filter, source, &query, now)
+            inbox_filter
+                .apply(w.search(filter, source, &query, now))
                 .into_iter()
                 .map(|item| with_reason(w, item, filter, now))
                 .collect::<Vec<Item>>()
@@ -142,6 +156,61 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                         aria_label="Quelle"
                     />
                     {project_picker(store)}
+                    <div class="ck-filters">
+                        {filter_select(
+                            "Repo",
+                            "Alle Repos",
+                            repo,
+                            Signal::derive(move || {
+                                store.ws.with(|w| w.item_repos()).into_iter().map(|r| (r.clone(), r)).collect()
+                            }),
+                        )}
+                        {filter_select(
+                            "Person",
+                            "Alle Personen",
+                            person,
+                            Signal::derive(move || {
+                                store
+                                    .ws
+                                    .with(|w| w.owners())
+                                    .into_iter()
+                                    .map(|p| (p.name.clone(), p.name))
+                                    .collect()
+                            }),
+                        )}
+                        {filter_select(
+                            "Status",
+                            "Alle Status",
+                            status,
+                            Signal::derive(|| {
+                                TicketStatus::OPTIONS
+                                    .iter()
+                                    .map(|(id, l)| (id.to_string(), l.to_string()))
+                                    .collect()
+                            }),
+                        )}
+                        {filter_select(
+                            "Label",
+                            "Alle Labels",
+                            label,
+                            Signal::derive(move || {
+                                store.ws.with(|w| w.labels()).into_iter().map(|l| (l.clone(), l)).collect()
+                            }),
+                        )}
+                        <Show when=move || !inbox_filter.get().is_default()>
+                            <Button
+                                size=ControlSize::Small
+                                on_click=move |_| {
+                                    repo.set(String::new());
+                                    person.set(String::new());
+                                    status.set(String::new());
+                                    label.set(String::new());
+                                }
+                            >
+                                "Filter zurücksetzen"
+                            </Button>
+                        </Show>
+                    </div>
                     <div class="ck-search">
                         <SearchField value=query placeholder="Inbox durchsuchen" />
                     </div>
@@ -152,18 +221,22 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                 <ul class="ck-inbox">
                     {move || {
                         let list = items.get();
-                        if list.is_empty() && is_narrowed(&query.get(), source.get()) {
+                        if list.is_empty() && is_narrowed(&query.get(), source.get(), &inbox_filter.get()) {
                             let reset = move |_| {
                                 query.set(String::new());
                                 source.set(SourceFilter::All);
+                                repo.set(String::new());
+                                person.set(String::new());
+                                status.set(String::new());
+                                label.set(String::new());
                             };
                             view! {
                                 <li class="ck-empty ui-vstack">
                                     <p class="t-subheadline t-secondary">
-                                        "Keine Treffer. Passe Suche oder Quelle an."
+                                        "Keine Treffer. Passe Suche, Quelle oder Filter an."
                                     </p>
                                     <Button size=ControlSize::Small on_click=reset>
-                                        "Suche zurücksetzen"
+                                        "Alles zurücksetzen"
                                     </Button>
                                 </li>
                             }
@@ -404,8 +477,42 @@ fn snooze(store: Store, items: Memo<Vec<Item>>, id: &str, choice: SnoozeChoice) 
 }
 
 /// Ist die Liste durch Suche oder Quelle eingeschränkt?
-fn is_narrowed(query: &str, source: SourceFilter) -> bool {
-    !query.trim().is_empty() || source != SourceFilter::All
+fn is_narrowed(query: &str, source: SourceFilter, filter: &InboxFilter) -> bool {
+    !query.trim().is_empty() || source != SourceFilter::All || !filter.is_default()
+}
+
+fn some_if_set(value: String) -> Option<String> {
+    (!value.is_empty()).then_some(value)
+}
+
+/// Eine Auswahl der Filterleiste. Der leere Wert heißt „alle“, `all` ist seine Beschriftung.
+/// Ein gewählter Wert, der nicht mehr vorkommt (etwa nach einem Abgleich), bleibt in der
+/// Liste, damit die Anzeige zum Filter passt.
+fn filter_select(
+    aria_label: &'static str,
+    all: &'static str,
+    value: RwSignal<String>,
+    choices: Signal<Vec<(String, String)>>,
+) -> impl IntoView {
+    let options = Signal::derive(move || {
+        let mut list = choices.get();
+        let current = value.get();
+        if !current.is_empty() && !list.iter().any(|(v, _)| *v == current) {
+            list.push((current.clone(), current));
+        }
+        std::iter::once((String::new(), all.to_string()))
+            .chain(list)
+            .collect::<Vec<_>>()
+    });
+    view! {
+        <Select
+            options=options
+            value=value
+            on_change=move |v: String| value.set(v)
+            aria_label=aria_label
+            compact=true
+        />
+    }
 }
 
 /// Erstes Element, das zum Selektor passt.

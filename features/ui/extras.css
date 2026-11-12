@@ -77,6 +77,17 @@
   color: var(--sys-color-label);
 }
 
+/* Filterleiste der Inbox: Auswahlen und Zurücksetzen brechen um, nichts scrollt seitlich. */
+.ck-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ref-space-8);
+  min-width: 0;
+}
+.ck-filters .ui-select-field { max-width: 100%; }
+.ck-filters .ui-select { max-width: 100%; text-overflow: ellipsis; }
+
 /* Auswahlliste (`Select`): natives <select> im Look des Textfelds, Pfeil rechts. */
 .ui-select-field { display: inline-flex; }
 .ui-select {

@@ -125,6 +125,17 @@ die Aktion `SelectJiraProject` und bleibt gespeichert. Ist ein Projekt gewählt,
 
 Nach einem Wechsel gleicht der Server sofort ab. Im Demo-Modus filtert das Drop-down nur die Beispieldaten.
 
+**Filter der Inbox.** Neben dem Jira-Projekt filtert die Kopfzeile der Inbox nach **Repo**, **Person** (Besitzer),
+**Status** und **Label**; jede Auswahl steht auf „Alle“, bis du etwas wählst, die Filter gelten zusammen (UND), und
+„Filter zurücksetzen“ stellt alles zurück. Die Wahl gehört nur der Seite (wie Suchtext und Quelle) und wird nicht
+gespeichert; die Anzahl der Treffer steht für Screenreader im Status. Die Logik steckt in `cockpit_core::InboxFilter`
+(`crates/cockpit-core/src/search.rs`); die Auswahlwerte liefern `Workspace::item_repos()`, `owners()` und `labels()`.
+
+- **Repo:** Pull Requests tragen ihr Repo (`owner/name`, `Item::repo`); Tickets haben keines und fallen bei einer Repo-Wahl heraus.
+- **Status:** Tickets zählen mit ihrem Status, Pull Requests mit dem, den sie nahelegen (gemergt → Fertig, Review angefragt → Review, sonst In Arbeit).
+- **Label:** `Item::labels` kommt vom Dienst (Jira `fields.labels`, GitHub-Labels des Pull Requests) und wird bei jedem Abgleich ersetzt; Groß-/Kleinschreibung zählt beim Filtern nicht.
+- Gleiche Pull-Request-Nummern aus zwei Repos sind in der Inbox getrennte Einträge (die ID enthält das Repo). Die Reviews und die Zuordnung `PrLink` hängen weiter an der Nummer – zwei Repos mit derselben Nummer teilen sich dort einen Platz.
+
 **2. Token setzen** (von der Standardeingabe in den Schlüsselbund, nie in Datei, Datenbank, Log oder Browser):
 
 ```bash

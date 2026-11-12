@@ -44,6 +44,14 @@ fn zugewiesenes_issue() {
     // 09:12 +02:00 = 07:12 UTC → 4 h 48 min vor 12:00 UTC
     assert_eq!(item.time, "vor 4 Std.");
     assert!(item.pr.is_none() && item.branch.is_none() && item.comments.is_empty());
+    assert_eq!(item.labels, ["a11y", "tokens"]);
+    assert_eq!(item.repo, None, "Tickets haben kein Repo");
+    // Ohne Feld `labels` (Issue ohne Labels) bleibt die Liste leer.
+    assert!(
+        issue_to_item(&s.issues[1], "acc-mira", jetzt())
+            .labels
+            .is_empty()
+    );
 }
 
 #[test]

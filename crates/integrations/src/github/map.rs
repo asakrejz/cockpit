@@ -77,6 +77,8 @@ pub fn pull_to_item(
         comments: Vec::new(),
         read: false,
         due: None,
+        repo: Some(repo.to_string()),
+        labels: pull.labels.iter().map(|l| l.name.clone()).collect(),
     }
 }
 

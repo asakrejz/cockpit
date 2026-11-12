@@ -54,6 +54,13 @@ pub struct Pull {
     pub base: GitRef,
     #[serde(default)]
     pub updated_at: String,
+    #[serde(default)]
+    pub labels: Vec<Label>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Label {
+    pub name: String,
 }
 
 /// `GET /repos/{owner}/{repo}/pulls/{number}/files`

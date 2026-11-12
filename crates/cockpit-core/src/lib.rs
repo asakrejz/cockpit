@@ -61,6 +61,7 @@ pub use review::{
     merge_blockers,
 };
 pub use rules::{DEMO_REPO, PathViolation, RepoRules, ViolationKind, glob_match};
+pub use search::InboxFilter;
 pub use sync::{
     Change, Loaded, Outcome, PrLink, Problem, Remote, SourceData, SourceState, SyncState,
 };

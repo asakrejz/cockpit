@@ -68,6 +68,8 @@ pub struct Fields {
     /// Fälligkeitsdatum als Tag (`2026-11-09`).
     #[serde(default)]
     pub duedate: Option<String>,
+    #[serde(default)]
+    pub labels: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

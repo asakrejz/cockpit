@@ -58,7 +58,7 @@ pub fn jql_fuer_projekt(projekt: &str) -> Result<String, Fehler> {
 const PROJEKTE_SEITE: usize = 50;
 const MAX_PROJEKTE: usize = 500;
 
-const FELDER: &str = "summary,description,status,assignee,reporter,updated,duedate";
+const FELDER: &str = "summary,description,status,assignee,reporter,updated,duedate,labels";
 /// So viele Issues je Seite und höchstens in Summe.
 const SEITE: usize = 50;
 const MAX_ISSUES: usize = 150;

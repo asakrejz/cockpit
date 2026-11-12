@@ -1,6 +1,6 @@
 //! Suche und Filter der Inbox – reine Funktionen, ohne Zustand.
 
-use crate::model::{Filter, Item, SourceFilter};
+use crate::model::{Filter, Item, SourceFilter, TicketStatus};
 
 /// Passt der Eintrag zum Suchtext?
 ///
@@ -29,6 +29,55 @@ pub fn matches_query(item: &Item, query: &str) -> bool {
     .join("\n")
     .to_lowercase();
     query.split_whitespace().all(|word| haystack.contains(word))
+}
+
+/// Die Filter der Inbox nach Repo, Person, Status und Label. Jedes Feld ist `None` = „alle“.
+/// Das Jira-Projekt gehört nicht dazu: Es ist eine Einstellung des Workspaces
+/// ([`crate::Workspace::in_project`]). Der Wert ist reiner Oberflächenzustand.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct InboxFilter {
+    /// `owner/name`; Einträge ohne Repo (Tickets) fallen heraus, sobald ein Repo gewählt ist.
+    pub repo: Option<String>,
+    /// Name des Besitzers.
+    pub person: Option<String>,
+    /// Siehe [`Item::effective_status`].
+    pub status: Option<TicketStatus>,
+    /// Ohne Rücksicht auf Groß-/Kleinschreibung.
+    pub label: Option<String>,
+}
+
+impl InboxFilter {
+    /// Ist nichts eingeschränkt?
+    pub fn is_default(&self) -> bool {
+        *self == Self::default()
+    }
+
+    /// Passt der Eintrag zu allen gewählten Werten?
+    ///
+    /// ```
+    /// use cockpit_core::{InboxFilter, demo};
+    /// let ws = demo::workspace();
+    /// let filter = InboxFilter { label: Some("docs".into()), ..Default::default() };
+    /// assert!(filter.matches(ws.item_by_key("DOC-7").unwrap()));
+    /// assert!(!filter.matches(ws.item_by_key("BAU-142").unwrap()));
+    /// ```
+    pub fn matches(&self, item: &Item) -> bool {
+        self.repo
+            .as_ref()
+            .is_none_or(|r| item.repo.as_ref() == Some(r))
+            && self.person.as_ref().is_none_or(|p| item.owner.name == *p)
+            && self.status.is_none_or(|s| item.effective_status() == s)
+            && self.label.as_ref().is_none_or(|l| {
+                item.labels
+                    .iter()
+                    .any(|own| own.to_lowercase() == l.to_lowercase())
+            })
+    }
+
+    /// Behält die Einträge, die passen; die Reihenfolge bleibt erhalten.
+    pub fn apply<'a>(&self, items: Vec<&'a Item>) -> Vec<&'a Item> {
+        items.into_iter().filter(|i| self.matches(i)).collect()
+    }
 }
 
 /// Filtert Einträge nach Besitzer, Quelle und Suchtext; die Reihenfolge bleibt erhalten.
@@ -135,5 +184,105 @@ mod tests {
             let expected: Vec<_> = visible.into_iter().filter(|k| found.contains(k)).collect();
             assert_eq!(found, expected, "Reihenfolge bleibt");
         }
+    }
+
+    fn keys_of(filter: &InboxFilter) -> Vec<String> {
+        let ws = demo::workspace();
+        keys(&filter.apply(ws.items.iter().collect()))
+    }
+
+    #[test]
+    fn the_default_filter_keeps_everything() {
+        let ws = demo::workspace();
+        let filter = InboxFilter::default();
+        assert!(filter.is_default());
+        assert_eq!(
+            filter.apply(ws.items.iter().collect()).len(),
+            ws.items.len()
+        );
+    }
+
+    #[test]
+    fn filters_by_repo() {
+        let f = InboxFilter {
+            repo: Some(crate::demo::DEMO_REPO_TOKENS.into()),
+            ..Default::default()
+        };
+        assert_eq!(keys_of(&f), ["#12"]);
+        let f = InboxFilter {
+            repo: Some(crate::DEMO_REPO.into()),
+            ..Default::default()
+        };
+        assert_eq!(keys_of(&f), ["#87", "#85"], "Tickets haben kein Repo");
+    }
+
+    #[test]
+    fn filters_by_person_status_and_label() {
+        let f = InboxFilter {
+            person: Some("Jonas".into()),
+            ..Default::default()
+        };
+        assert_eq!(keys_of(&f), ["#87"]);
+        // Tickets: eigener Status; Pull Requests: der, den sie nahelegen (#87: Review angefragt).
+        let f = InboxFilter {
+            status: Some(TicketStatus::Review),
+            ..Default::default()
+        };
+        assert_eq!(keys_of(&f), ["#87", "BAU-138"]);
+        let f = InboxFilter {
+            label: Some("A11Y".into()),
+            ..Default::default()
+        };
+        assert_eq!(
+            keys_of(&f),
+            ["BAU-142", "BAU-138"],
+            "ohne Groß-/Kleinschreibung"
+        );
+    }
+
+    #[test]
+    fn filters_combine_with_and() {
+        let f = InboxFilter {
+            label: Some("bug".into()),
+            repo: Some(crate::DEMO_REPO.into()),
+            ..Default::default()
+        };
+        assert_eq!(keys_of(&f), ["#85"]);
+        let f = InboxFilter {
+            label: Some("docs".into()),
+            person: Some("Jonas".into()),
+            ..Default::default()
+        };
+        assert!(keys_of(&f).is_empty());
+        assert!(!f.is_default());
+    }
+
+    #[test]
+    fn the_choices_come_from_the_workspace() {
+        let ws = demo::workspace();
+        assert_eq!(
+            ws.item_repos(),
+            [crate::demo::DEMO_REPO_TOKENS, crate::DEMO_REPO]
+        );
+        assert_eq!(
+            ws.labels(),
+            ["a11y", "agent", "bug", "design", "docs", "feature"]
+        );
+        let names: Vec<_> = ws.owners().into_iter().map(|p| p.name).collect();
+        assert_eq!(names, ["Du", "Jonas", "Mira"]);
+    }
+
+    #[test]
+    fn labels_ignore_case_and_empty_values() {
+        let mut ws = demo::workspace();
+        ws.items[0].labels = vec!["Bug".into(), String::new()];
+        assert_eq!(
+            ws.labels()
+                .iter()
+                .filter(|l| l.eq_ignore_ascii_case("bug"))
+                .count(),
+            1
+        );
+        assert!(!ws.labels().iter().any(String::is_empty));
     }
 }

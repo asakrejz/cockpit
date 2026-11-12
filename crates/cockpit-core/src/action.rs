@@ -2175,7 +2175,7 @@ mod tests {
         value["workspace"].as_object_mut().unwrap().remove("log");
         let back = persist::load(&value.to_string()).unwrap();
         assert!(back.log.is_empty());
-        assert_eq!(back.items.len(), 5);
+        assert_eq!(back.items.len(), 7);
         // Und es geht weiter.
         let mut back = back;
         back.apply(
@@ -3468,7 +3468,7 @@ mod tests {
         fremd.id = "web7".into();
         fremd.key = "WEB-7".into();
         w.items.push(fremd);
-        assert_eq!(w.projects(), ["BAU", "WEB"]);
+        assert_eq!(w.projects(), ["BAU", "DOC", "WEB"]);
         let alle = w.search(Filter::All, SourceFilter::All, "", 0).len();
 
         let applied = ok(
@@ -3503,7 +3503,7 @@ mod tests {
         // Die Wahl ist eine Einstellung: Sie übersteht das Zurücksetzen der Demo.
         w.apply(Action::ResetDemo, Actor::Du, T).unwrap();
         assert_eq!(w.jira_project.as_deref(), Some("WEB"));
-        assert_eq!(w.projects(), ["BAU", "WEB"]);
+        assert_eq!(w.projects(), ["BAU", "DOC", "WEB"]);
 
         let applied = ok(&mut w, Action::SelectJiraProject { project: None }, 1);
         assert_eq!(applied.summary, "Jira-Projekt: alle");
