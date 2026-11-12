@@ -23,6 +23,9 @@ pub struct GitHubDienst {
 pub struct JiraDienst {
     pub client: JiraClient,
     pub jql: String,
+    /// Die Abfrage holt alle Tickets eines Projekts ([`jira::jql_fuer_projekt`]): Was weder
+    /// zugewiesen noch beobachtet ist, steht dann mit dem Grund „Im Projekt“ da.
+    pub im_projekt: bool,
 }
 
 /// Die eingerichteten Dienste. Eine Quelle, die fehlt, ist aus.
@@ -86,7 +89,7 @@ impl Dienste {
             .as_ref()
             .filter(|_| !pausiert.contains(&Source::Jira))
         {
-            let res = jira_laden(&j.client, &j.jql, jetzt_s).await;
+            let res = jira_laden(&j.client, &j.jql, j.im_projekt, jetzt_s).await;
             sources.push(als_quelle(Source::Jira, res, jetzt_ms));
         }
         Remote { sources }
@@ -209,11 +212,19 @@ async fn pull_laden(
     Ok((item, review, link))
 }
 
-pub async fn jira_laden(client: &JiraClient, jql: &str, jetzt_s: i64) -> Result<Loaded, Fehler> {
+pub async fn jira_laden(
+    client: &JiraClient,
+    jql: &str,
+    im_projekt: bool,
+    jetzt_s: i64,
+) -> Result<Loaded, Fehler> {
     let ich = client.ich().await?;
     let mut out = Loaded::default();
     for issue in client.suche(jql).await? {
         let mut item = jira::issue_to_item(&issue, &ich, jetzt_s);
+        if im_projekt && item.scope != cockpit_core::Scope::Mine {
+            item.reason_text = "Im Projekt".into();
+        }
         match client.kommentare(&issue.key).await {
             Ok(k) => item.comments = jira::comments_to_core(&k, &ich, jetzt_s),
             Err(Fehler::NichtGefunden) => continue,

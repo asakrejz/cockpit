@@ -4,7 +4,9 @@ use cockpit_core::Item;
 
 use serde::de::DeserializeOwned;
 
-use super::dto::{CommentPage, JiraComment, Myself, SearchResult, TransitionList};
+use super::dto::{
+    CommentPage, JiraComment, Myself, Project, ProjectPage, SearchResult, TransitionList,
+};
 use super::map;
 use crate::ausgehend::{Anfrage, Ausgehend, transition_anfrage, waehle_transition};
 use crate::http::{basis_url, client, sende};
@@ -26,9 +28,7 @@ pub fn jql_fuer(projekte: &[String], eigene: Option<&str>) -> Result<String, Feh
         return Ok(ASSIGNED_OR_WATCHED_JQL.to_string());
     }
     for p in projekte {
-        let ok = p.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
-            && p.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-        if !ok {
+        if !cockpit_core::is_project_key(p) {
             return Err(Fehler::Einstellung(format!(
                 "Ungültiger Projektschlüssel: {p}"
             )));
@@ -40,6 +40,23 @@ pub fn jql_fuer(projekte: &[String], eigene: Option<&str>) -> Result<String, Feh
         projekte.join(", ")
     ))
 }
+
+/// Alle offenen Tickets eines Projekts – egal, wem sie gehören. Gilt, wenn in der App ein
+/// Projekt gewählt ist.
+pub fn jql_fuer_projekt(projekt: &str) -> Result<String, Fehler> {
+    if !cockpit_core::is_project_key(projekt) {
+        return Err(Fehler::Einstellung(format!(
+            "Ungültiger Projektschlüssel: {projekt}"
+        )));
+    }
+    Ok(format!(
+        "project = {projekt} AND statusCategory != Done ORDER BY updated DESC"
+    ))
+}
+
+/// So viele Projekte je Seite und höchstens in Summe.
+const PROJEKTE_SEITE: usize = 50;
+const MAX_PROJEKTE: usize = 500;
 
 const FELDER: &str = "summary,description,status,assignee,reporter,updated,duedate";
 /// So viele Issues je Seite und höchstens in Summe.
@@ -142,6 +159,29 @@ impl JiraClient {
             }
         }
         alle.truncate(MAX_ISSUES);
+        Ok(alle)
+    }
+
+    /// Die Projekte, die der Schlüssel sehen darf, nach Namen sortiert (seitenweise, höchstens
+    /// [`MAX_PROJEKTE`]).
+    pub async fn projekte(&self) -> Result<Vec<Project>, Fehler> {
+        let mut alle = Vec::new();
+        loop {
+            let frage = [
+                ("startAt", alle.len().to_string()),
+                ("maxResults", PROJEKTE_SEITE.to_string()),
+                ("orderBy", "name".to_string()),
+            ];
+            let seite: ProjectPage = self
+                .lies_json(self.get("/rest/api/3/project/search").query(&frage))
+                .await?;
+            let leer = seite.values.is_empty();
+            alle.extend(seite.values);
+            if seite.is_last || leer || alle.len() >= MAX_PROJEKTE {
+                break;
+            }
+        }
+        alle.truncate(MAX_PROJEKTE);
         Ok(alle)
     }
 

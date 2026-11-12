@@ -86,6 +86,28 @@ pub struct StatusCategory {
     pub key: String,
 }
 
+/// `GET /rest/api/3/project/search` – eine Seite der Projekte.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectPage {
+    #[serde(default)]
+    pub values: Vec<Project>,
+    /// Fehlt das Feld, gilt die Seite als letzte.
+    #[serde(default = "ja")]
+    pub is_last: bool,
+}
+
+fn ja() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+pub struct Project {
+    pub key: String,
+    #[serde(default)]
+    pub name: String,
+}
+
 /// `GET /rest/api/3/issue/{key}/comment`
 #[derive(Debug, Clone, Deserialize)]
 pub struct CommentPage {

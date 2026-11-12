@@ -424,6 +424,32 @@ impl Item {
     pub fn is_ticket(&self) -> bool {
         self.kind == Kind::Ticket
     }
+
+    /// Das Jira-Projekt eines Tickets: der Teil des Schlüssels vor dem Bindestrich
+    /// (`BAU-142` → `BAU`). Pull Requests und andere Einträge haben keines.
+    ///
+    /// ```
+    /// use cockpit_core::demo;
+    /// let ws = demo::workspace();
+    /// assert_eq!(ws.item_by_key("BAU-142").unwrap().project(), Some("BAU"));
+    /// assert_eq!(ws.item_by_key("#87").unwrap().project(), None);
+    /// ```
+    pub fn project(&self) -> Option<&str> {
+        if self.source != Source::Jira {
+            return None;
+        }
+        self.key
+            .split_once('-')
+            .map(|(p, _)| p)
+            .filter(|p| is_project_key(p))
+    }
+}
+
+/// Ist das ein gültiger Jira-Projektschlüssel? Ein Buchstabe vorn, dann Buchstaben, Ziffern
+/// oder `_`. So rutscht nichts in eine JQL-Abfrage.
+pub fn is_project_key(key: &str) -> bool {
+    key.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+        && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
 
 #[cfg(test)]

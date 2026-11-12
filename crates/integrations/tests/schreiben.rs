@@ -450,6 +450,7 @@ async fn dienste_leiten_an_den_richtigen_client() {
         jira: Some(JiraDienst {
             client: jira(&j).await,
             jql: "x".into(),
+            im_projekt: false,
         }),
     };
     assert!(dienste.ziele().github && dienste.ziele().jira);

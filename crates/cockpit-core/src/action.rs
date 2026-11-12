@@ -100,6 +100,11 @@ pub enum Action {
     SetStatusFollowsPr {
         enabled: bool,
     },
+    /// Jira-Projekt wählen (Schlüssel wie `BAU`), `None` = alle Projekte. Im Server-Modus holt
+    /// der nächste Abgleich dann alle offenen Tickets dieses Projekts.
+    SelectJiraProject {
+        project: Option<String>,
+    },
     // Review
     Decide {
         review: u32,
@@ -853,6 +858,25 @@ impl Workspace {
                 notes.extend(status_notes(self.follow_status()));
                 Ok(notes)
             }
+            Action::SelectJiraProject { project } => {
+                let project = project
+                    .map(|p| p.trim().to_uppercase())
+                    .filter(|p| !p.is_empty());
+                if project
+                    .as_deref()
+                    .is_some_and(|p| !crate::is_project_key(p))
+                {
+                    return Err(ActionError::InvalidInput);
+                }
+                let text = match &project {
+                    Some(p) => format!("Jira-Projekt gewählt: {p}"),
+                    None => "Jira-Projekt: alle".to_string(),
+                };
+                if !self.set_jira_project(project) {
+                    return Err(ActionError::Unchanged);
+                }
+                Ok(vec![Note::new(Target::Settings, text)])
+            }
             Action::Decide {
                 review,
                 suggestion,
@@ -1386,7 +1410,9 @@ impl Workspace {
                 let pr_status_off = self.pr_status_off;
                 let limits = self.limits.clone();
                 let repo_rules = std::mem::take(&mut self.repo_rules);
+                let jira_project = self.jira_project.take();
                 *self = demo::workspace();
+                self.jira_project = jira_project;
                 self.notifications = notifications;
                 self.pr_status_off = pr_status_off;
                 self.limits = limits;
@@ -3432,6 +3458,56 @@ mod tests {
         // Bewegt sich der Pull Request, zieht das Ticket wieder nach.
         ok(&mut w, Action::RequestReview { review: 85 }, 2);
         assert_eq!(status(&w, "bau150"), TicketStatus::Review);
+    }
+
+    #[test]
+    fn a_jira_project_narrows_the_inbox() {
+        use crate::{Filter, SourceFilter};
+        let mut w = ws();
+        let mut fremd = w.item_by_key("BAU-142").unwrap().clone();
+        fremd.id = "web7".into();
+        fremd.key = "WEB-7".into();
+        w.items.push(fremd);
+        assert_eq!(w.projects(), ["BAU", "WEB"]);
+        let alle = w.search(Filter::All, SourceFilter::All, "", 0).len();
+
+        let applied = ok(
+            &mut w,
+            Action::SelectJiraProject {
+                project: Some(" web ".into()),
+            },
+            1,
+        );
+        assert_eq!(applied.summary, "Jira-Projekt gewählt: WEB");
+        assert_eq!(w.jira_project.as_deref(), Some("WEB"));
+        let treffer = w.search(Filter::All, SourceFilter::All, "", 0);
+        assert!(treffer.iter().any(|i| i.key == "WEB-7"));
+        assert!(treffer.iter().all(|i| i.project() != Some("BAU")));
+        // Pull Requests gehören zu keinem Projekt und bleiben sichtbar.
+        assert!(treffer.iter().any(|i| !i.is_ticket()));
+        fails(
+            &mut w,
+            Action::SelectJiraProject {
+                project: Some("WEB".into()),
+            },
+            ActionError::Unchanged,
+        );
+        fails(
+            &mut w,
+            Action::SelectJiraProject {
+                project: Some("A) OR (B".into()),
+            },
+            ActionError::InvalidInput,
+        );
+
+        // Die Wahl ist eine Einstellung: Sie übersteht das Zurücksetzen der Demo.
+        w.apply(Action::ResetDemo, Actor::Du, T).unwrap();
+        assert_eq!(w.jira_project.as_deref(), Some("WEB"));
+        assert_eq!(w.projects(), ["BAU", "WEB"]);
+
+        let applied = ok(&mut w, Action::SelectJiraProject { project: None }, 1);
+        assert_eq!(applied.summary, "Jira-Projekt: alle");
+        assert!(w.search(Filter::All, SourceFilter::All, "", 0).len() < alle);
     }
 
     #[test]

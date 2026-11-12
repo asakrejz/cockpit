@@ -76,3 +76,24 @@
   background: var(--sys-color-secondary-grouped-background, var(--sys-color-grouped-background));
   color: var(--sys-color-label);
 }
+
+/* Auswahlliste (`Select`): natives <select> im Look des Textfelds, Pfeil rechts. */
+.ui-select-field { display: inline-flex; }
+.ui-select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  padding-inline-end: calc(var(--ref-space-16) * 2);
+  background-image: linear-gradient(45deg, transparent 50%, var(--sys-color-secondary-label) 50%),
+    linear-gradient(135deg, var(--sys-color-secondary-label) 50%, transparent 50%);
+  background-position: calc(100% - var(--ref-space-16) - 5px) 50%, calc(100% - var(--ref-space-16)) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.ui-select[data-size="small"] {
+  height: auto;
+  min-height: var(--comp-segmented-height);
+  font: var(--sys-type-subheadline);
+  border-radius: var(--ref-radius-full);
+}
+.ui-select:disabled { cursor: default; opacity: 0.5; }

@@ -238,8 +238,24 @@ async fn aktion(State(state): State<AppState>, body: Bytes) -> Response {
             "Die Anfrage ist keine bekannte Aktion",
         );
     };
+    // Ein anderes Jira-Projekt: gleich abgleichen, damit dessen Tickets kommen. Das Ergebnis
+    // erreicht die App über den Ereignisstrom.
+    let projekt_gewechselt = matches!(
+        anfrage.action,
+        cockpit_core::Action::SelectJiraProject { .. }
+    );
     match state.aktion_ausfuehren(anfrage.action).await {
-        Ok(antwort) => Json(antwort).into_response(),
+        Ok(antwort) => {
+            if projekt_gewechselt {
+                let s = state.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = s.abgleichen().await {
+                        tracing::warn!("Abgleich nach Projektwechsel: {e:?}");
+                    }
+                });
+            }
+            Json(antwort).into_response()
+        }
         Err(e) => aktions_fehler(e),
     }
 }
@@ -247,6 +263,14 @@ async fn aktion(State(state): State<AppState>, body: Bytes) -> Response {
 /// `POST /api/sync`: „jetzt abgleichen“.
 async fn abgleichen(State(state): State<AppState>) -> Response {
     match state.abgleichen().await {
+        Ok(antwort) => Json(antwort).into_response(),
+        Err(e) => aktions_fehler(e),
+    }
+}
+
+/// `GET /api/jira/projekte`: die Projekte für die Auswahl in der Inbox.
+async fn jira_projekte(State(state): State<AppState>) -> Response {
+    match state.jira_projekte().await {
         Ok(antwort) => Json(antwort).into_response(),
         Err(e) => aktions_fehler(e),
     }
@@ -297,6 +321,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/actions", post(aktion))
         .route("/api/sync", post(abgleichen))
         .route("/api/events", get(ereignisse))
+        .route("/api/jira/projekte", get(jira_projekte))
         .route("/api/{*rest}", any(api_unbekannt))
         // Gilt nur für `/api`, nicht für die Dateien der App.
         .layer(axum::middleware::from_fn_with_state(

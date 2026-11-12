@@ -3,6 +3,7 @@
 //! * `GET /api/workspace`: der Stand in der Form von [`persist`](crate::persist), dazu `revision`
 //! * `POST /api/actions`: Body [`ActionRequest`], Antwort [`ActionResponse`] oder [`ErrorBody`]
 //! * `GET /api/events`: Server-Sent Events, jedes Ereignis trägt ein [`ServerEvent`]
+//! * `GET /api/jira/projekte`: die Jira-Projekte für die Auswahl, [`JiraProjectsResponse`]
 //!
 //! Beide Seiten benutzen diese Typen, damit die Formen nicht auseinanderlaufen.
 
@@ -36,6 +37,25 @@ pub struct SyncResponse {
     pub revision: u64,
     /// Zahl der neuen Protokolleinträge.
     pub protokolliert: usize,
+}
+
+/// Ein Jira-Projekt für die Auswahl in der Inbox.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct JiraProject {
+    /// Schlüssel, z. B. `BAU`.
+    pub key: String,
+    /// Name, z. B. „Baukasten“.
+    #[serde(default)]
+    pub name: String,
+}
+
+/// Antwort auf `GET /api/jira/projekte`.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct JiraProjectsResponse {
+    /// `false`, wenn Jira nicht eingerichtet ist oder der Schlüssel fehlt.
+    pub aktiv: bool,
+    #[serde(default)]
+    pub projekte: Vec<JiraProject>,
 }
 
 /// Fehlerantwort (4xx/5xx) mit deutscher Meldung für die Oberfläche.

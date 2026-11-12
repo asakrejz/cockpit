@@ -10,8 +10,9 @@ use web_sys::{HtmlElement, KeyboardEvent, ScrollIntoViewOptions, ScrollLogicalPo
 
 use crate::{
     route::Route,
+    server,
     sidebar::AppSidebar,
-    store::{Store, navigate, now_ms, use_store, utc_offset_min},
+    store::{Mode, Store, navigate, now_ms, use_store, utc_offset_min},
     view,
 };
 
@@ -140,6 +141,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                         }
                         aria_label="Quelle"
                     />
+                    {project_picker(store)}
                     <div class="ck-search">
                         <SearchField value=query placeholder="Inbox durchsuchen" />
                     </div>
@@ -204,6 +206,72 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                 }}
             </Pane>
         </SplitView>
+    }
+}
+
+/// Auswahl des Jira-Projekts. Die Liste kommt im Server-Modus von Jira (mit Namen), dazu die
+/// Projekte der Tickets, die schon da sind; im Demo-Modus nur diese. Ohne Projekte bleibt sie
+/// weg. Die Wahl ist eine Action: Im Server-Modus gleicht der Server danach gleich ab.
+fn project_picker(store: Store) -> impl IntoView {
+    let remote = RwSignal::new(Vec::<cockpit_core::api::JiraProject>::new());
+    if store.mode.get_untracked() == Mode::Server {
+        leptos::task::spawn_local(async move {
+            match server::fetch_jira_projects().await {
+                Ok(r) => remote.set(r.projekte),
+                Err(e) => store.notify(format!("Jira-Projekte nicht geladen: {}", e.message())),
+            }
+        });
+    }
+    let options = Signal::derive(move || {
+        let mut list: Vec<(String, String)> = remote.with(|r| {
+            r.iter()
+                .map(|p| {
+                    let label = if p.name.is_empty() {
+                        p.key.clone()
+                    } else {
+                        format!("{} · {}", p.key, p.name)
+                    };
+                    (p.key.clone(), label)
+                })
+                .collect()
+        });
+        for key in store.ws.with(|w| w.projects()) {
+            if !list.iter().any(|(k, _)| *k == key) {
+                list.push((key.clone(), key));
+            }
+        }
+        list.sort_by_key(|a| a.1.to_lowercase());
+        list
+    });
+    let value = Signal::derive(move || {
+        store
+            .ws
+            .with(|w| w.jira_project.clone().unwrap_or_default())
+    });
+    let on_change = move |key: String| {
+        let project = (!key.is_empty()).then_some(key);
+        if let Err(e) = store.dispatch(Action::SelectJiraProject { project }) {
+            store.notify(e.message());
+        }
+    };
+    move || {
+        let list = options.get();
+        (!list.is_empty()).then(|| {
+            let all = std::iter::once((String::new(), "Alle Projekte".to_string()))
+                .chain(list)
+                .collect::<Vec<_>>();
+            view! {
+                <div class="ck-project">
+                    <Select
+                        options=all
+                        value=value
+                        on_change=on_change
+                        aria_label="Jira-Projekt"
+                        compact=true
+                    />
+                </div>
+            }
+        })
     }
 }
 
