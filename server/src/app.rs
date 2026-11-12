@@ -632,6 +632,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
             "/api/agent/pruefen/container",
             get(endpunkt_pruefen_container),
         )
+        .route("/api/jira/pruefen", post(crate::einrichtung::jira_pruefen))
         .route(
             "/api/litellm/pruefen/container",
             get(endpunkt_pruefen_container),
@@ -644,7 +645,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/konfiguration", put(crate::einrichtung::konfiguration))
         .route(
             "/api/schluessel/{name}",
-            put(crate::einrichtung::schluessel),
+            put(crate::einrichtung::schluessel).delete(crate::einrichtung::schluessel_loeschen),
         )
         .route("/api/oauth/{dienst}/start", get(crate::oauth::start))
         .route("/api/oauth/{dienst}/callback", get(crate::oauth::callback))

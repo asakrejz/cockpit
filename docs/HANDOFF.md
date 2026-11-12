@@ -20,9 +20,14 @@ im Gespräch stand. Eine neue Session liest zuerst diese Datei, dann `docs/ROADM
   `agent-key`; alte `[litellm]`-Werte und der Schlüssel `litellm` werden weiter gelesen. Der Läufer hat Adapter
   (`agent/runner/src/adapter/`), der Assistent ein Modell-Drop-down aus `GET /api/agent/modelle`. **Offen:** die Adapter für
   Claude Code und Codex (nur übersetzen, siehe `agent/README.md`), `COCKPIT_ANBIETER` an den Container geben, sobald es sie gibt.
-- **Wünsche des Nutzers, noch offen (12.11.2026):**
-  (1) **Jira per API-Token statt OAuth** (Firma gibt keine Apps frei): Der Token-Weg gibt es (`token setzen jira`, Feld im
-  Assistenten); der Assistent sollte ihn als Standard anbieten. (2) Nach dem Funktionsumfang ein Refactoring: Ordnerstruktur
+- **Wünsche des Nutzers, noch offen (12.11.2026):** (1) **Jira per API-Token statt OAuth** (Firma gibt keine Apps frei): **umgesetzt** (Branch `claude/w4-jira-token-…`): Im
+  Schritt „Jira“ ist der Token der Standard (Site, E-Mail, „Token-Seite öffnen“, Passwortfeld), dann Verbindungstest
+  (`POST /api/jira/pruefen`, nur `GET /rest/api/3/myself`) und Projektwahl über `Action::SelectJiraProject`; OAuth steckt
+  eingeklappt unter „Erweitert“. Die Zusammenfassung nennt die Art der Anmeldung und bietet „Token erneuern“/„Trennen“
+  (`DELETE /api/schluessel/{jira|github}`). Nur gegen wiremock und eine lokale Attrappe geprüft, **nie** gegen ein echtes
+  Atlassian; die Wortlaute der Atlassian-Token-Seite („Create API token“, „Copy“) sind nach bestem Wissen geschrieben.
+  Sicherheit: Der Token hat die Rechte des Kontos; ein Konto/eine Rolle ohne Schreibrechte ist empfohlen, solange nur
+  gelesen werden soll. (2) Nach dem Funktionsumfang ein Refactoring: Ordnerstruktur
   (Cockpit ist die Hauptanwendung, der Playground nur die Spielwiese der Komponentenbibliothek), alles auf Englisch (Code,
   Benennung, Docs), Übergabe-Dateien und die Roadmap am Ende entfernen, toten Code löschen.
 

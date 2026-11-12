@@ -8,6 +8,8 @@ use serde_json::Value;
 #[serde(rename_all = "camelCase")]
 pub struct Myself {
     pub account_id: String,
+    #[serde(default)]
+    pub display_name: Option<String>,
 }
 
 /// `GET /rest/api/3/issue/{key}/transitions`

@@ -69,9 +69,12 @@ Zusammenfassung) und erklärt jeden Klick. Jeden Schritt kannst du überspringen
 
 **Was nur du tun kannst** – das lässt sich nicht automatisieren, der Assistent führt dich aber Schritt für Schritt hindurch:
 
-- **Atlassian-Konto und -App.** Du brauchst Zugriff auf eure Jira-Site. Für die Anmeldung legst du in der
-  [Atlassian-Entwicklerkonsole](https://developer.atlassian.com/console/myapps/) eine eigene OAuth-App an (oder, einfacher,
-  ein API-Token). Jede Person legt ihre **eigene** App an, denn das Client-Secret ist nicht teilbar.
+- **Atlassian-Konto und API-Token.** Du brauchst Zugriff auf eure Jira-Site. Der einfache Weg ist ein **API-Token**: Du
+  erzeugst ihn selbst unter [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens) („Token
+  erstellen“, Namen vergeben, Ablaufdatum wählen, kopieren) und trägst Site, E-Mail und Token im Assistenten ein. Nur wenn
+  du lieber eine Anmeldung im Browser willst, legst du in der
+  [Atlassian-Entwicklerkonsole](https://developer.atlassian.com/console/myapps/) eine eigene OAuth-App an (unter
+  „Erweitert“). Jede Person legt ihre **eigene** App an, denn das Client-Secret ist nicht teilbar.
 - **GitHub App.** Du legst in deinem GitHub-Konto (oder eurer Organisation) eine eigene GitHub App an und installierst sie
   auf den Repos. Auch hier gilt: eigene App, eigenes Secret.
 - **Zugang zu einem Modell.** Entweder ein API-Key von Anthropic (direkt) oder Adresse und Key eines Proxys wie LiteLLM,
@@ -238,6 +241,8 @@ und hört auf Änderungen:
 | `GET /api/einrichtung` | Was der Assistent vorbelegt: Jira-Site/E-Mail/Projekte, Client-IDs, Repos, Anbieter, Endpunkt-Adresse und Modell, die beiden Callback-Adressen und je Schlüssel nur `{name, gesetzt}` |
 | `PUT /api/konfiguration` | Schreibt Client-IDs, Jira, Repos sowie Agent-Anbieter und Endpunkt in `config.toml` (siehe „Einrichten in der App“). Antwort `{gespeichert, wirkt_sofort, hinweis}`; ungültige Eingaben sind `422` mit Klartext |
 | `PUT /api/schluessel/{name}` | Legt einen Schlüssel im Schlüsselbund ab. Body `{"wert": "…"}`, nur `github-oauth`, `atlassian-oauth`, `agent-key` (ältere Schreibweise `litellm`), `jira`, `github`. Antwort `{name, gesetzt}` – nie der Wert |
+| `DELETE /api/schluessel/{name}` | „Trennen“ für Tokens: löscht `jira` oder `github` aus dem Schlüsselbund (andere Namen: `404`). Antwort `{name, gesetzt: false}` |
+| `POST /api/jira/pruefen` | Verbindungstest für Jira per API-Token, nur lesend (`GET /rest/api/3/myself`): `{ok, ursache, meldung, name}`, `ursache` = `ok`, `angaben`, `adresse`, `token`, `berechtigung`, `erreichbar`, `sonst`. Nie der Token |
 
 Ist der Server nicht erreichbar (nicht gestartet, anderer Port), zeigt die App oben einen Hinweis mit „Erneut versuchen“;
 die Seiten bleiben leer, es geht nichts verloren.
@@ -245,6 +250,28 @@ die Seiten bleiben leer, es geht nichts verloren.
 Alle Routen unter `/api` prüfen die Gegenstelle (nur Loopback) und den `Host`-Header (`127.0.0.1:<port>` oder
 `localhost:<port>`, gegen DNS-Rebinding). Schreibende Anfragen brauchen zusätzlich `Content-Type: application/json`
 und einen fehlenden oder eigenen `Origin`. Das gilt auch für `PUT /api/konfiguration` und `PUT /api/schluessel/{name}`.
+
+### Jira verbinden
+
+**Standard: API-Token (drei Angaben).** In der App unter „Einrichten“ › „Jira“ trägst du ein: (1) die Adresse deiner
+Jira-Site (`firma.atlassian.net`; auch eine kopierte Adresse mit `https://` und Pfad wird verstanden), (2) die
+E-Mail-Adresse deines Atlassian-Kontos, (3) den Token. „Token-Seite öffnen“ führt in einem neuen Tab zu
+`https://id.atlassian.com/manage-profile/security/api-tokens`: „Token erstellen“, Namen vergeben, Ablaufdatum wählen,
+kopieren und in das Passwortfeld einfügen. Der Token geht über `PUT /api/schluessel/jira` in den Schlüsselbund, Site und
+E-Mail über `PUT /api/konfiguration` in die `config.toml`. Danach prüft „Verbindung prüfen“ (`POST /api/jira/pruefen`,
+nur lesend: `GET /rest/api/3/myself`), ob „Jira antwortet und dich kennt“, und nennt sonst im Klartext die Ursache
+(Adresse falsch, Token abgelehnt, keine Berechtigung, nicht erreichbar). Nach dem Test schlägt der Assistent die
+Jira-Projekte zur Auswahl vor (oder „Alle Projekte“), wie das Drop-down in der Inbox. In der Zusammenfassung steht, ob die
+Anmeldung „mit API-Token“ oder „mit OAuth“ läuft; „Token erneuern“ führt zurück in den Schritt, „Trennen“ löscht den Token
+im Schlüsselbund (`DELETE /api/schluessel/jira`).
+
+**Sicherheit.** Der Token hat die Rechte deines Atlassian-Kontos. Solange Cockpit nur lesen soll, nimm ein Konto oder eine
+Rolle ohne Schreibrechte; ein kurzes Ablaufdatum begrenzt den Schaden. Der Token liegt nur im Schlüsselbund und kommt nie
+in Browser-Speicher, Adresse, Datenbank, `config.toml` oder Log.
+
+**Alternative: OAuth.** Wer keinen Token will, legt in der Atlassian-Entwicklerkonsole eine eigene OAuth-App an und
+meldet sich im Browser an; im Assistenten steht das eingeklappt unter „Erweitert: Mit OAuth statt Token“, die Schritte
+stehen weiter unten („Anmeldung per OAuth“). Ist beides da, geht OAuth vor dem Token.
 
 ### Mit echten Diensten verbinden
 
@@ -387,10 +414,11 @@ was offen ist und was zu prüfen ist, mit „Ansehen“ zum passenden Schritt. D
 
 - *Container.* Erkennt Docker oder Podman; fehlt beides, erklärt der Schritt, was ein Container ist, und verweist auf
   Rancher Desktop (Engine **„dockerd (moby)“**) bzw. Podman. „Erneut prüfen“ fragt neu.
-- *Jira.* Zwei Wege: **Atlassian-App** (empfohlen) mit Anleitung durch die Entwicklerkonsole (App anlegen,
+- *Jira.* Standard ist der **API-Token** in drei Schritten (Site, E-Mail, Token erstellen und einfügen), dann
+  Verbindungstest und Projektwahl (siehe „Jira verbinden“). Die **Atlassian-App** (OAuth) bleibt als Alternative unter
+  „Erweitert: Mit OAuth statt Token“ eingeklappt, mit Anleitung durch die Entwicklerkonsole (App anlegen,
   Resource-level, Jira API hinzufügen, Classic scopes `read:jira-work`, `write:jira-work`, `read:jira-user`, Callback-URL mit
-  „Kopieren“-Knopf, Client-ID und Secret eintragen, dann „Mit Atlassian anmelden“) oder **API-Token** für Einsteiger
-  (Site, E-Mail, Token). Optional die Jira-Projekte.
+  „Kopieren“-Knopf, Client-ID und Secret eintragen, dann „Mit Atlassian anmelden“).
 - *GitHub.* Anleitung für eine **GitHub App** mit Abhak-Liste der Berechtigungen (Contents, Pull requests, Issues, Checks
   Read & write; Commit statuses und Metadata Read-only), Callback-URL zum Kopieren, Client-ID und Secret, Hinweis „Install
   App“ und die Repos, dann „Mit GitHub anmelden“.

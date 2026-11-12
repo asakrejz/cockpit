@@ -5,9 +5,9 @@
 use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
     ActionRequest, ActionResponse, AgentStatus, ContainerPruefung, ContainerStatus, Einrichtung,
-    EndpunktPruefung, EndpunktStatus, ErrorBody, ImageBau, JiraProjectsResponse, KonfigAenderung,
-    KonfigAntwort, Modellliste, SchluesselAntwort, SchluesselEingabe, ServerEvent, SyncResponse,
-    WiderrufAntwort,
+    EndpunktPruefung, EndpunktStatus, ErrorBody, ImageBau, JiraProjectsResponse, JiraPruefung,
+    KonfigAenderung, KonfigAntwort, Modellliste, SchluesselAntwort, SchluesselEingabe, ServerEvent,
+    SyncResponse, WiderrufAntwort,
 };
 use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
@@ -309,6 +309,37 @@ pub async fn put_schluessel(name: &str, wert: String) -> Result<SchluesselAntwor
         .header("Content-Type", "application/json")
         .json(&SchluesselEingabe { wert })
         .map_err(|_| CallError::Rejected("Die Eingabe lässt sich nicht senden".into()))?;
+    let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<SchluesselAntwort>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Verbindungstest für Jira per API-Token (`POST /api/jira/pruefen`). Nur Lesen; die Antwort
+/// enthält nie den Token.
+pub async fn post_jira_pruefen() -> Result<JiraPruefung, CallError> {
+    let request = Request::post("/api/jira/pruefen")
+        .header("Content-Type", "application/json")
+        .build()
+        .map_err(|_| CallError::Rejected("Der Test lässt sich nicht starten".into()))?;
+    let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<JiraPruefung>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Löscht einen Token aus dem Schlüsselbund (`DELETE /api/schluessel/{name}`), „Trennen“.
+pub async fn delete_schluessel(name: &str) -> Result<SchluesselAntwort, CallError> {
+    let request = Request::delete(&format!("/api/schluessel/{name}"))
+        .header("Content-Type", "application/json")
+        .build()
+        .map_err(|_| CallError::Rejected("Das Trennen lässt sich nicht starten".into()))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection(resp).await);

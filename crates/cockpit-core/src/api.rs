@@ -8,6 +8,8 @@
 //! * `GET /api/jira/projekte`: die Jira-Projekte für die Auswahl, [`JiraProjectsResponse`]
 //! * `GET /api/agent/modelle`: die Modell-IDs des Endpunkts für das Drop-down, [`Modellliste`]
 //! * `GET /api/agent/pruefen` (Alias `GET /api/litellm/pruefen`): Verbindungstest zum Endpunkt, [`EndpunktPruefung`]
+//! * `POST /api/jira/pruefen`: Verbindungstest für Jira per API-Token (nur Lesen), [`JiraPruefung`]
+//! * `DELETE /api/schluessel/{name}`: löscht einen Token (`jira`, `github`) aus dem Schlüsselbund
 //! * `GET /api/einrichtung`: was der Einrichtungsassistent vorbelegt, [`Einrichtung`]
 //! * `PUT /api/konfiguration`: Body [`KonfigAenderung`], schreibt `config.toml`, Antwort [`KonfigAntwort`]
 //! * `PUT /api/schluessel/{name}`: Body [`SchluesselEingabe`], legt den Schlüssel im Schlüsselbund
@@ -67,6 +69,42 @@ pub struct JiraProjectsResponse {
     pub aktiv: bool,
     #[serde(default)]
     pub projekte: Vec<JiraProject>,
+}
+
+/// Woran der Verbindungstest zu Jira gescheitert ist (oder `Ok`).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum JiraUrsache {
+    /// Jira antwortet und kennt den Token.
+    Ok,
+    /// Adresse, E-Mail oder Token fehlen noch.
+    #[default]
+    Angaben,
+    /// Unter der Adresse antwortet kein Jira (404 oder eine andere Seite).
+    Adresse,
+    /// Jira lehnt E-Mail oder Token ab (401).
+    Token,
+    /// Der Token ist gültig, hat aber nicht die nötigen Rechte (403).
+    Berechtigung,
+    /// Keine Verbindung (Netz, VPN, Adresse nicht auffindbar).
+    Erreichbar,
+    /// Etwas anderes (Kontingent, Störung bei Jira).
+    Sonst,
+}
+
+/// Antwort auf `POST /api/jira/pruefen`: nur Lesen (`GET /rest/api/3/myself`), nie der Token.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct JiraPruefung {
+    #[serde(default)]
+    pub ok: bool,
+    #[serde(default)]
+    pub ursache: JiraUrsache,
+    /// Klartext für die Oberfläche.
+    #[serde(default)]
+    pub meldung: String,
+    /// Bei Erfolg: der Anzeigename, unter dem Jira dich kennt.
+    #[serde(default)]
+    pub name: Option<String>,
 }
 
 /// Antwort auf `POST /api/oauth/{dienst}/widerrufen`.
