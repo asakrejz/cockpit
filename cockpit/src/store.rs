@@ -82,12 +82,8 @@ impl Store {
             events: StoredValue::new_local(None),
             selected: RwSignal::new(first_id(&ws)),
             ws: RwSignal::new(ws),
-            // Der Agent im Server ist (noch) simuliert und braucht keine Anbindung; Jira und
-            // GitHub meldet das Backend.
-            conn: RwSignal::new(Connections {
-                agent: true,
-                ..Connections::default()
-            }),
+            // Ob der Agent bereit ist, Jira und GitHub verbunden sind, meldet das Backend.
+            conn: RwSignal::new(Connections::default()),
             health: RwSignal::new(None),
             route: RwSignal::new(Route::parse(&current_hash())),
             toasts: RwSignal::new(Vec::new()),
@@ -146,9 +142,10 @@ impl Store {
         let store = *self;
         spawn_local(async move {
             if let Ok(health) = server::fetch_health().await {
-                store
-                    .conn
-                    .update(|c| c.apply_services(&health.anmeldung.github, &health.anmeldung.jira));
+                store.conn.update(|c| {
+                    c.apply_services(&health.anmeldung.github, &health.anmeldung.jira);
+                    c.agent = health.agent.bereit;
+                });
                 store.health.set(Some(health));
             }
         });

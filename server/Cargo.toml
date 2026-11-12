@@ -16,7 +16,7 @@ cockpit-integrations = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 axum = "0.8"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time", "process", "io-util", "fs"] }
 # Ereignisse (SSE) aus dem Broadcast-Kanal
 tokio-stream = { version = "0.1", features = ["sync"] }
 # Statische Dateien (die gebaute Web-App)

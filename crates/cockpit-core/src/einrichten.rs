@@ -2,7 +2,7 @@
 //! Zusammenfassung in Klartext. Reine Logik ohne Oberfläche und Netzwerk; die Seite „Einrichten“
 //! verdrahtet sie nur.
 
-use crate::api::{ContainerStatus, Einrichtung, LitellmPruefung, LitellmStatus};
+use crate::api::{AgentStatus, ContainerStatus, Einrichtung, LitellmPruefung, LitellmStatus};
 use crate::connections::{AuthKind, ServiceStatus};
 
 /// Die Namen, unter denen das Backend Schlüssel im Schlüsselbund ablegt (`PUT /api/schluessel/{name}`).
@@ -277,6 +277,8 @@ pub struct Stand {
     pub github: ServiceStatus,
     pub litellm: LitellmStatus,
     pub container: ContainerStatus,
+    /// Ob der echte Agent loslaufen kann (Image gebaut, alles eingerichtet).
+    pub agent: AgentStatus,
     /// Ergebnis des letzten Verbindungstests zum Proxy, falls schon gelaufen.
     pub pruefung: Option<LitellmPruefung>,
 }
@@ -322,6 +324,13 @@ fn dienst_zeile(
 pub fn zusammenfassung(s: &Stand) -> Vec<Zeile> {
     let e = &s.einrichtung;
     let container = match (&s.container.laufzeit, s.container.engine_laeuft) {
+        // Läuft der echte Agent, fehlt ohne Image noch ein Schritt.
+        (Some(l), true) if s.agent.modus == "echt" && !s.agent.image => (
+            Ton::Offen,
+            format!(
+                "{l} läuft. Das Agent-Image ist noch nicht gebaut – klicke im Schritt „Container“ auf „Image bauen“."
+            ),
+        ),
         (Some(l), true) => (Ton::Gut, format!("{l} ist installiert und läuft.")),
         (Some(l), false) => (
             Ton::Problem,
@@ -663,5 +672,20 @@ mod tests {
         p.modell_vorhanden = true;
         assert_eq!(pruefung_klartext(&p).0, Ton::Gut);
         assert_eq!(pruefung_klartext(&LitellmPruefung::default()).0, Ton::Offen);
+    }
+
+    #[test]
+    fn summary_asks_for_the_image_when_the_real_agent_needs_it() {
+        let mut s = Stand::default();
+        s.container.laufzeit = Some("docker".into());
+        s.container.engine_laeuft = true;
+        // Simuliert oder unbekannt: wie bisher grün.
+        assert_eq!(zusammenfassung(&s)[0].ton, Ton::Gut);
+        s.agent.modus = "echt".into();
+        let z = &zusammenfassung(&s)[0];
+        assert_eq!(z.ton, Ton::Offen);
+        assert!(z.text.contains("Image bauen"));
+        s.agent.image = true;
+        assert_eq!(zusammenfassung(&s)[0].ton, Ton::Gut);
     }
 }

@@ -88,6 +88,50 @@ Entpacken, Rechtsklick auf `Cockpit starten.command` › „Öffnen“. Die Prog
 Rückfrage von macOS. Intel-Macs, Windows und Linux bauen selbst (Schritte oben). Der Workflow ist noch nie gelaufen
 (es gab noch kein Tag); beim ersten Tag prüfen, ob das Archiv startet.
 
+## Den Agenten einrichten
+
+Der Agent setzt ein Ticket in einem **Container** um (Claude Agent SDK, ein Container pro Lauf). Einrichten, einmalig:
+
+1. **Container-Laufzeit starten:** Rancher Desktop mit der Engine „dockerd (moby)“ (nicht „containerd“) *oder* Podman
+   (`podman machine start`). Der Assistent („Einrichten“ › „Container“) zeigt, ob sie läuft.
+2. **Image bauen:** dort auf „Image bauen“ klicken (oder `POST /api/agent/image`). Der Bau lädt Pakete aus dem Internet und
+   dauert einige Minuten; Fortschritt und Fehler stehen in Klartext darunter. `/api/health` meldet unter `agent`, ob das Image
+   da ist (`image inspect`). Von Hand: `docker build -f agent/Containerfile -t localhost/cockpit-agent:1 agent` (bzw. `podman`).
+3. **Modellzugang:** Adresse, Modellname und Key im Schritt „Modell“ (LiteLLM-Proxy; Key im Schlüsselbund als `litellm`).
+   Dort prüft „Aus dem Container testen“, ob ein Container den Proxy erreicht. Liegt der Proxy nur im **VPN**, kennt die
+   Container-Maschine von Rancher Desktop bzw. Podman die VPN-Route oder den Namen womöglich nicht: Dann meldet der Test
+   „Dein Mac erreicht den Proxy, der Container aber nicht“ – VPN zuerst verbinden und Rancher Desktop bzw. die
+   Podman-Maschine neu starten.
+4. **GitHub verbinden und das Repo festlegen:** Der Agent klont über das Backend. Ist in `[github] repos` genau ein Repo,
+   gilt es; sonst `[agent] repo = "owner/name"` in `config.toml`. Der Ordner `agent/` wird neben `cockpit/dist` gesucht
+   (`[agent] dir` bzw. `COCKPIT_AGENT_DIR` überschreibt).
+
+Ist etwas nicht eingerichtet, startet kein Lauf; die Meldung sagt in Klartext, was fehlt und wo im Assistenten man es holt.
+
+**Ablauf eines Laufs.** „Agent starten“ legt (auf Wunsch) erst einen Plan vor: ein kurzer Container im Lesemodus. Nach deiner
+Freigabe klont das Backend das Repo frisch, legt den Branch `claude/<ticket>-…` an und startet den Container (`run --rm`,
+Label `cockpit.lauf=<schlüssel>`, `--add-host cockpit-host:host-gateway`, Repo per `-v <klon>:/work`, Läufer ohne Root;
+Adresse, Key und Modell nur als `-e NAME`, die Werte stehen in der Umgebung des Prozesses, nie in der Argumentliste oder im
+Log). Plan, Rückfragen, Verbrauch und Protokoll kommen als JSON-Zeilen aus dem Container (`agent/README.md`) und werden als
+Aktionen des Agenten angewendet; Kosten rechnet `cockpit-core` mit den Preisen aus „Grenzen & Regeln“. Antworten und
+Hinweise gehen über stdin zurück, „Pausieren“ ist `pause`/`unpause`.
+
+**Was der Agent darf – und nie darf.**
+
+- Er hat **kein GitHub-Token** und kann nicht pushen. Er committet auf `claude/<ticket>-…`; das Backend prüft den Branch in
+  einem frischen Bare-Repo (nie im Klon, den der Container beschrieben hat), gegen die Pfad-Regeln des Repos, und pusht
+  ihn dann. **Nie** der Hauptbranch, **nie** ein Force-Push, **nie** ein Merge. Den Pull Request legst du selbst an.
+- Kommentare und Reviews des Agenten gehen erst nach deiner Freigabe raus.
+- Er schreibt nur in `/work`; `canUseTool` im Läufer sperrt `.git`, verbotene Pfade, `git push`, Netzwerkbefehle.
+- Grenzen (Budget pro Lauf und Monat, Zeitlimit, parallele Läufe) gelten wie bisher; bei Erreichen wird der Container
+  beendet (`rm -f`), der Lauf wartet angehalten auf dich (der Klon bleibt zum Fortsetzen).
+- Abbruch, Zeitlimit, Fehler im Container und ein Neustart des Servers (verwaiste Container werden per Label entfernt, Läufe als
+  abgebrochen markiert) stehen in Klartext im Protokoll und am Lauf.
+
+**Noch offen:** Folgeaufträge (Review-Kommentare umsetzen, roten Check untersuchen) laufen nur simuliert; der Pull Request
+wird nicht automatisch angelegt; das Ticket wird nur über das Repo aus der Einstellung zugeordnet; Prüfung mit echten
+Containern und echtem Modell steht aus (siehe `docs/ROADMAP.md`).
+
 ## Backend starten
 
 Das Backend (`server/`, Binary `cockpit-server`) ist ein lokaler Dienst für eine Person. Es lauscht nur
@@ -179,6 +223,8 @@ und hört auf Änderungen:
 | `GET /api/events` | Server-Sent Events: erst die aktuelle Revision, dann je Aktion ein Ereignis mit neuer Revision und den neuen Protokolleinträgen, dazu Keep-Alive |
 | `GET /api/jira/projekte` | Jira-Projekte für die Auswahl in der Inbox: `{aktiv, projekte: [{key, name}]}`; `aktiv: false` ohne Jira oder Token |
 
+| `GET /api/agent/image` / `POST /api/agent/image` | Stand von „Image bauen“ `{laeuft, vorhanden, fehler, zeilen}` bzw. Bau im Hintergrund starten |
+| `GET /api/litellm/pruefen/container` | Dieselbe Prüfung aus einem Container: `{geprueft, mac_erreicht, container_erreicht, key_ok, hinweis}` |
 | `GET /api/litellm/pruefen` | Verbindungstest zum LiteLLM-Proxy: `{konfiguriert, erreichbar, key_ok, modell_vorhanden, hinweis}` (siehe „Einrichten“) |
 | `GET /api/einrichtung` | Was der Assistent vorbelegt: Jira-Site/E-Mail/Projekte, Client-IDs, Repos, LiteLLM-Adresse und Modell, die beiden Callback-Adressen und je Schlüssel nur `{name, gesetzt}` |
 | `PUT /api/konfiguration` | Schreibt Client-IDs, Jira, Repos und LiteLLM in `config.toml` (siehe „Einrichten in der App“). Antwort `{gespeichert, wirkt_sofort, hinweis}`; ungültige Eingaben sind `422` mit Klartext |
@@ -370,8 +416,8 @@ Die Abschnitte „Modellzugang“ und „Container“ im Einzelnen:
   oder Podman. Das Backend wählt: `COCKPIT_CONTAINER`, sonst `[agent] container`, sonst sucht es erst `podman`, dann
   `docker` im `PATH` und prüft mit `<laufzeit> info`, ob die Engine läuft (nur als Prozessaufruf, nie über den Socket; das Ergebnis
   wird 10 Sekunden gemerkt). `/api/health` meldet unter `container` `laufzeit`, `engine_laeuft`, `quelle`
-  (`umgebung`, `konfiguration`, `erkannt`, `keine`) und einen `hinweis`. Das Agent-Image baut Cockpit erst mit dem
-  echten Agenten.
+  (`umgebung`, `konfiguration`, `erkannt`, `keine`) und einen `hinweis`. Das Agent-Image baust du im Schritt
+  „Container“ mit „Image bauen“ (siehe „Den Agenten einrichten“).
 
 **Was abgeglichen wird.** Das Backend fragt im Takt (und bei `POST /api/sync`, in der App unter „Einrichten“ ›
 Übersicht › Abgleich › „Jetzt abgleichen“) beide Dienste ab und führt das Ergebnis über die Aktion `SyncRemote`
@@ -568,11 +614,11 @@ der auf dein Review wartet.
 
 Welche Ereignisse melden, leitet `crates/cockpit-core/src/notify.rs` rein aus dem Vergleich des Workspace vor und nach einer Aktion ab (mit Tests). Die Einstellungen liegen im Workspace und ändern sich über Aktionen (`SetNotifyChannel`, `SetQuietHours`). Im **Browser** fragt Cockpit nie von selbst nach der Erlaubnis, nur über den Knopf unter „Benachrichtigungen“. Ist der Tab im Vordergrund, erscheint ein Hinweis in der App, sonst eine Systemmeldung; ein Klick darauf öffnet das Ziel. In den Ruhezeiten bleibt es still. **E-Mail** und **Slack** sind nur vorbereitet: Die Auswahl wird gespeichert, versendet wird später über das Backend. Adressen und Webhook-URLs liegen nie im Browser.
 
-### Stand: simulierter Agent, Beispieldaten nur als Seed
+### Stand: echter Agent im Container, simulierter nur für den Seed
 
-Die Oberfläche und die Abläufe sind vollständig. Der Agent im Server ist **noch simuliert**: ein Timer, der die fünf
-Schritte durchläuft; sein „Review“ sind einfache Regeln (feste Farbwerte, feste Pixelwerte, entfernter Fokus-Ring). Der
-echte Agent (Claude Agent SDK im Container, Modell über LiteLLM) kommt als Nächstes. Beispieldaten
+Die Oberfläche und die Abläufe sind vollständig. Der Agent im Server ist ein **echter Lauf im Container** (siehe „Den
+Agenten einrichten“). Nur mit dem Seed `COCKPIT_SEED=demo` (und in Tests) läuft weiterhin der simulierte Agent: ein
+Timer, der die fünf Schritte durchläuft. Beispieldaten
 (`crates/cockpit-core/src/demo.rs`) gibt es nur als Seed (`COCKPIT_SEED=demo`) sowie als Testdaten und für die Stories im
 Playground. Im Einzelnen:
 

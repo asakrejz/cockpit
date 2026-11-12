@@ -2,7 +2,7 @@
 //! Meldungen und das Speichern der Konfiguration. Die Regeln (Prüfung, Normalisierung) stehen in
 //! `cockpit_core::einrichten`, das Schreiben im Server; hier ist nur Verdrahtung.
 
-use cockpit_core::api::{Einrichtung, KonfigAenderung, LitellmPruefung};
+use cockpit_core::api::{ContainerPruefung, Einrichtung, KonfigAenderung, LitellmPruefung};
 use cockpit_core::einrichten::schluessel_pruefen;
 use feature_ui::*;
 use leptos::prelude::*;
@@ -20,6 +20,8 @@ pub struct Kontext {
     pub einr: RwSignal<Einrichtung>,
     /// Ergebnis des letzten Verbindungstests zum LiteLLM-Proxy.
     pub pruefung: RwSignal<Option<LitellmPruefung>>,
+    /// Ergebnis der Prüfung „aus dem Container erreichbar“.
+    pub container_pruefung: RwSignal<Option<ContainerPruefung>>,
 }
 
 impl Kontext {
@@ -28,6 +30,7 @@ impl Kontext {
             store,
             einr: RwSignal::new(Einrichtung::default()),
             pruefung: RwSignal::new(None),
+            container_pruefung: RwSignal::new(None),
         };
         k.laden();
         k

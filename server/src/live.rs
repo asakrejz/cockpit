@@ -124,11 +124,12 @@ impl Live {
         })
     }
 
-    /// Der Takt: Jeder laufende Agent und jeder neu gestartete Check macht einen Schritt,
+    /// Der Takt: Jeder simulierte Agent (nur mit `agenten_simulieren`; echte Läufe melden sich selbst)
+    /// und jeder neu gestartete Check macht einen Schritt,
     /// und abgelaufene Zurückstellungen kommen zurück in die Inbox, Pull Requests mit Ticket-Schlüssel
     /// in Branch oder Titel werden verknüpft, und der Status verknüpfter Tickets folgt dem Pull Request. Ist nichts zu tun, passiert nichts
     /// (und es gibt keine Revision).
-    pub fn takt(&self, db: &Mutex<Connection>, at_ms: u64) {
+    pub fn takt(&self, db: &Mutex<Connection>, at_ms: u64, agenten_simulieren: bool) {
         let (agenten, checks, wecken, verknuepfen, status) = {
             let stand = sperre(&self.stand);
             (
@@ -140,7 +141,7 @@ impl Live {
             )
         };
         let mut schritte = Vec::new();
-        if agenten {
+        if agenten && agenten_simulieren {
             schritte.push((Action::AdvanceAgents, Actor::Agent));
         }
         if checks {

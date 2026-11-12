@@ -11,7 +11,9 @@
 //! * `PUT /api/konfiguration`: Body [`KonfigAenderung`], schreibt `config.toml`, Antwort [`KonfigAntwort`]
 //! * `PUT /api/schluessel/{name}`: Body [`SchluesselEingabe`], legt den Schlüssel im Schlüsselbund
 //!   ab, Antwort [`SchluesselAntwort`] (nur „gesetzt“, nie der Wert)
-//! * `GET /api/health`: unter `litellm` ein [`LitellmStatus`], unter `container` ein [`ContainerStatus`]
+//! * `GET /api/agent/image` / `POST /api/agent/image`: Stand bzw. Start von „Image bauen“, [`ImageBau`]
+//! * `GET /api/litellm/pruefen/container`: dieselbe Prüfung aus einem Container, [`ContainerPruefung`]
+//! * `GET /api/health`: unter `agent` ein [`AgentStatus`], unter `litellm` ein [`LitellmStatus`], unter `container` ein [`ContainerStatus`]
 //!
 //! Beide Seiten benutzen diese Typen, damit die Formen nicht auseinanderlaufen.
 
@@ -109,6 +111,66 @@ pub struct ContainerStatus {
     #[serde(default)]
     pub quelle: String,
     /// Was zu tun ist, wenn es nicht geht.
+    #[serde(default)]
+    pub hinweis: Option<String>,
+}
+
+/// Ob der echte Agent loslaufen kann, wie `GET /api/health` es meldet.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct AgentStatus {
+    /// `echt` (Container) oder `simuliert` (Seed `demo`, nur zum Ausprobieren).
+    #[serde(default)]
+    pub modus: String,
+    /// Läufe können starten: Alles Nötige ist eingerichtet (immer wahr im Modus `simuliert`).
+    #[serde(default)]
+    pub bereit: bool,
+    /// Das Agent-Image ist gebaut (`image inspect`).
+    #[serde(default)]
+    pub image: bool,
+    /// Name des Images, z. B. `localhost/cockpit-agent:1`.
+    #[serde(default)]
+    pub image_name: String,
+    /// Das Repo, in dem der Agent arbeitet (`owner/name`), falls eindeutig.
+    #[serde(default)]
+    pub repo: Option<String>,
+    /// Was noch fehlt, je Eintrag ein Satz in Klartext mit dem Ort im Assistenten.
+    #[serde(default)]
+    pub fehlt: Vec<String>,
+}
+
+/// Stand von „Image bauen“ (`GET`/`POST /api/agent/image`).
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct ImageBau {
+    /// Der Bau läuft gerade.
+    #[serde(default)]
+    pub laeuft: bool,
+    /// Das Image gibt es (nach dem letzten Bau oder schon vorher).
+    #[serde(default)]
+    pub vorhanden: bool,
+    /// Warum der letzte Bau scheiterte, in Klartext.
+    #[serde(default)]
+    pub fehler: Option<String>,
+    /// Die letzten Zeilen der Ausgabe des Baus.
+    #[serde(default)]
+    pub zeilen: Vec<String>,
+}
+
+/// Antwort auf `GET /api/litellm/pruefen/container`: Erreicht ein Container den Proxy?
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct ContainerPruefung {
+    /// Es konnte geprüft werden (Image, Laufzeit und Proxy sind da).
+    #[serde(default)]
+    pub geprueft: bool,
+    /// Der Mac (das Backend) erreicht den Proxy.
+    #[serde(default)]
+    pub mac_erreicht: bool,
+    /// Der Container erreicht ihn.
+    #[serde(default)]
+    pub container_erreicht: bool,
+    /// Der Proxy nimmt den Key im Container an.
+    #[serde(default)]
+    pub key_ok: bool,
+    /// Was als Nächstes zu tun ist oder woran es lag.
     #[serde(default)]
     pub hinweis: Option<String>,
 }

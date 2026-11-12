@@ -554,10 +554,29 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                 .get()
                                 .filter(|_| idle.get())
                                 .map(|reason| {
+                                    // Der Server sagt genau, was fehlt und wo man es einrichtet.
+                                    let genau = store.health.with(|h| {
+                                        h.as_ref()
+                                            .map(|h| h.agent.fehlt.join(" "))
+                                            .filter(|t| !t.is_empty())
+                                    });
                                     view! {
                                         <p class="t-footnote t-secondary">
-                                            {reason} " "
-                                            <a class="ui-link" href=Route::Setup.hash()>"Einstellungen öffnen"</a>
+                                            {genau.unwrap_or_else(|| reason.to_string())} " "
+                                            <a class="ui-link" href=Route::Setup.hash()>"Zur Einrichtung"</a>
+                                        </p>
+                                    }
+                                })
+                        }}
+                        {move || {
+                            // Warum der letzte Lauf ohne Ergebnis endete (Fehler, Zeitlimit, Neustart).
+                            run.get()
+                                .filter(|r| r.is_idle())
+                                .and_then(|r| r.ended)
+                                .map(|text| {
+                                    view! {
+                                        <p class="t-footnote ck-problem" role="alert">
+                                            "Der letzte Lauf endete ohne Ergebnis: " {text}
                                         </p>
                                     }
                                 })

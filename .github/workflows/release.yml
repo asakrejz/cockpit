@@ -36,6 +36,11 @@ jobs:
           mkdir -p "$name/cockpit"
           cp target/release/cockpit-server "$name/"
           cp -R cockpit/dist "$name/cockpit/dist"
+          # Containerfile und Läufer des Agenten (ohne node_modules): „Image bauen“ braucht sie.
+          mkdir -p "$name/agent"
+          cp agent/Containerfile agent/README.md "$name/agent/"
+          mkdir -p "$name/agent/runner"
+          cp -R agent/runner/package.json agent/runner/package-lock.json agent/runner/src "$name/agent/runner/"
           cp "Cockpit starten.command" "$name/"
           cp README.md "$name/LIESMICH.md"
           chmod +x "$name/cockpit-server" "$name/Cockpit starten.command"

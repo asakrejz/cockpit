@@ -11,9 +11,18 @@ im Gespräch stand. Eine neue Session liest zuerst diese Datei, dann `docs/ROADM
 - Gegen echte Dienste ist noch **nichts** geprüft (auch der Assistent lief nur mit leerer `config.toml`, eigener Datenbank und Dummy-Werten; die Anleitungen zur Atlassian-Konsole und zur GitHub App sind nach bestem Wissen geschrieben und nicht an den echten Seiten nachgeklickt – die Oberflächen der Dienste ändern sich): GitHub/Jira-Abgleich, Schreibaufrufe und
   Schlüsselbund sind nur gegen nachgebaute Antworten getestet.
 - **Einrichtungsassistent (Anforderung 12.11.2026: Andere sollen das Cockpit lokal einrichten können, auch ohne Programmierkenntnisse).** Seite „Einrichten“ = geführter Assistent in fünf Schritten (Container, Jira, GitHub, Modell, Zusammenfassung), erscheint beim ersten Start von selbst. Gemeint ist **nicht**, Jira-/GitHub-Apps per Klick zu erzeugen (das geht nicht), sondern die Person verständlich durch die Einrichtung zu führen; jede Person legt ihre **eigenen** OAuth-Apps an (Client-Secrets sind nicht teilbar). Alles, was sich lokal per Klick erledigen lässt, ist umgesetzt: Konfiguration per `PUT /api/konfiguration` (schreibt `config.toml` atomar, wirkt ohne Neustart), Schlüssel per Passwortfeld über `PUT /api/schluessel/{name}`, Start per Doppelklick (`Cockpit starten.command`), README „Schnellstart für Einsteiger“ mit allen manuellen Schritten. Ein Release-Archiv für macOS (Apple Silicon) baut `.github/workflows/release.yml` bei einem Tag `v…` – **noch nie gelaufen**, beim ersten Tag prüfen; die Datei ist unsigniert (Rechtsklick › Öffnen), Intel, Windows und Linux bauen selbst.
-- Welle 4 läuft: offen sind noch Webhooks/Live-Aktualisierung und der echte Agent (Claude Agent SDK im
-  Container, Modell über LiteLLM, Agent-Image bauen). Die Einrichtung dafür (LiteLLM-Verbindungstest,
-  Container-Erkennung) steht.
+- Welle 4 läuft: offen sind noch Webhooks/Live-Aktualisierung. Der **echte Agent** steht (Container pro Lauf,
+  `agent/` mit Containerfile und Läufer, `server/src/agent_lauf.rs` rein, `agent_betrieb.rs` Prozesse, `agent_git.rs`
+  Klonen/Prüfen/Pushen; Kern: `AgentReport`/`Action::ReportAgent`). Alles nur gegen Attrappen geprüft (Shell-Skript als
+  `docker`, lokales Git-Remote, SDK-Attrappe im Läufer) – **nie** ein echter Lauf, kein echter Proxy.
+- **Wünsche des Nutzers, noch offen (12.11.2026):** (1) Der Agent soll nicht an LiteLLM gebunden sein: `Anbieter`-Enum
+  (Claude Agent SDK umgesetzt, Claude Code und Codex als „noch nicht umgesetzt“), `[agent] anbieter`, `[agent.endpunkt]
+  url/modell`, Schlüssel `agent-key`, alte `[litellm]`-Werte als Alias; Adapter-Struktur im Läufer. (2) Modellname im
+  Assistenten als Drop-down aus `GET <url>/v1/models` (bei Anthropic direkt mit `x-api-key`), Freitext als Ausweg.
+  (3) **Jira per API-Token statt OAuth** (Firma gibt keine Apps frei): Der Token-Weg gibt es (`token setzen jira`, Feld im
+  Assistenten); der Assistent sollte ihn als Standard anbieten. (4) Nach dem Funktionsumfang ein Refactoring: Ordnerstruktur
+  (Cockpit ist die Hauptanwendung, der Playground nur die Spielwiese der Komponentenbibliothek), alles auf Englisch (Code,
+  Benennung, Docs), Übergabe-Dateien und die Roadmap am Ende entfernen, toten Code löschen.
 
 ## Entscheidungen des Nutzers
 

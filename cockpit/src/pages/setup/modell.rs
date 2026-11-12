@@ -57,6 +57,22 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
             test_laeuft.set(false);
         });
     };
+    let c_laeuft = RwSignal::new(false);
+    let c_fehler = RwSignal::new(None::<String>);
+    let aus_container = move |_| {
+        c_laeuft.set(true);
+        c_fehler.set(None);
+        spawn_local(async move {
+            match server::fetch_container_check().await {
+                Ok(p) => ctx.container_pruefung.set(Some(p)),
+                Err(CallError::Unreachable) => c_fehler.set(Some(
+                    "Cockpit antwortet gerade nicht. Läuft das Startfenster noch?".into(),
+                )),
+                Err(e) => c_fehler.set(Some(e.message())),
+            }
+            c_laeuft.set(false);
+        });
+    };
     let bereit = move || {
         ctx.store.health.with(|h| {
             h.as_ref()
@@ -147,6 +163,47 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
                                 <HStack spacing="8px">
                                     <Status tone=tone>{if ton == Ton::Gut { "Gelungen" } else { "Nicht gelungen" }}</Status>
                                     <span class="t-subheadline">{text}</span>
+                                </HStack>
+                            }
+                        })
+                }}
+            </Abschnitt>
+            <Abschnitt title="4. Aus dem Container erreichbar?">
+                <p class="t-subheadline t-secondary">
+                    "Der Agent läuft in einem Container, der den Proxy womöglich anders sieht als dein Mac – etwa, wenn der Proxy nur im VPN liegt. Dieser Test startet kurz einen Container und fragt den Proxy von dort aus. Er braucht das gebaute Agent-Image (Schritt „Container“) und kostet nichts."
+                </p>
+                <HStack spacing="12px">
+                    <Button
+                        variant=ButtonStyle::GlassProminent
+                        disabled=Signal::derive(move || c_laeuft.get() || !bereit())
+                        on_click=aus_container
+                    >
+                        {move || if c_laeuft.get() { "Teste im Container …" } else { "Aus dem Container testen" }}
+                    </Button>
+                </HStack>
+                {move || {
+                    c_fehler
+                        .get()
+                        .map(|m| view! { <p class="ui-hinweis" role="alert">{m}</p> })
+                }}
+                {move || {
+                    ctx.container_pruefung
+                        .get()
+                        .map(|p| {
+                            let gut = p.geprueft && p.container_erreicht && p.key_ok;
+                            let tone = if gut {
+                                StatusTone::Green
+                            } else if p.geprueft {
+                                StatusTone::Red
+                            } else {
+                                StatusTone::Gray
+                            };
+                            view! {
+                                <HStack spacing="8px">
+                                    <Status tone=tone>
+                                        {if gut { "Gelungen" } else if p.geprueft { "Nicht gelungen" } else { "Nicht geprüft" }}
+                                    </Status>
+                                    <span class="t-subheadline">{p.hinweis.unwrap_or_default()}</span>
                                 </HStack>
                             }
                         })
