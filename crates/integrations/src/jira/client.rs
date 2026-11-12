@@ -68,6 +68,8 @@ pub struct JiraClient {
     basis: String,
     email: String,
     token: Secret,
+    /// Mit OAuth: `Authorization: Bearer`, sonst Basic mit E-Mail und API-Token.
+    oauth: bool,
 }
 
 impl std::fmt::Debug for JiraClient {
@@ -88,14 +90,30 @@ impl JiraClient {
             basis: basis_url(site_url)?,
             email: email.to_string(),
             token,
+            oauth: false,
+        })
+    }
+
+    /// Anmeldung per OAuth: `basis` ist `https://api.atlassian.com/ex/jira/<cloudId>`
+    /// ([`crate::oauth::jira_basis`]), `access` das Access-Token.
+    pub fn oauth(basis: &str, access: Secret) -> Result<Self, Fehler> {
+        Ok(Self {
+            http: client()?,
+            basis: basis_url(basis)?,
+            email: String::new(),
+            token: access,
+            oauth: true,
         })
     }
 
     fn anfrage(&self, methode: reqwest::Method, pfad: &str) -> reqwest::RequestBuilder {
-        self.http
-            .request(methode, format!("{}{pfad}", self.basis))
-            .basic_auth(&self.email, Some(self.token.expose()))
-            .header("Accept", "application/json")
+        let req = self.http.request(methode, format!("{}{pfad}", self.basis));
+        let req = if self.oauth {
+            req.bearer_auth(self.token.expose())
+        } else {
+            req.basic_auth(&self.email, Some(self.token.expose()))
+        };
+        req.header("Accept", "application/json")
     }
 
     fn get(&self, pfad: &str) -> reqwest::RequestBuilder {

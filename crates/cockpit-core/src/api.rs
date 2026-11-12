@@ -3,6 +3,8 @@
 //! * `GET /api/workspace`: der Stand in der Form von [`persist`](crate::persist), dazu `revision`
 //! * `POST /api/actions`: Body [`ActionRequest`], Antwort [`ActionResponse`] oder [`ErrorBody`]
 //! * `GET /api/events`: Server-Sent Events, jedes Ereignis trägt ein [`ServerEvent`]
+//! * `GET /api/oauth/{github|atlassian}/start` und `…/callback`: Anmeldung per OAuth (Navigation des
+//!   Browsers, leitet nach `/` um); `POST …/widerrufen`: [`WiderrufAntwort`]
 //! * `GET /api/jira/projekte`: die Jira-Projekte für die Auswahl, [`JiraProjectsResponse`]
 //!
 //! Beide Seiten benutzen diese Typen, damit die Formen nicht auseinanderlaufen.
@@ -56,6 +58,19 @@ pub struct JiraProjectsResponse {
     pub aktiv: bool,
     #[serde(default)]
     pub projekte: Vec<JiraProject>,
+}
+
+/// Antwort auf `POST /api/oauth/{dienst}/widerrufen`.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct WiderrufAntwort {
+    /// Die Tokens im Schlüsselbund sind gelöscht.
+    pub getrennt: bool,
+    /// Der Dienst selbst hat das Token widerrufen (nicht alle bieten das an).
+    #[serde(default)]
+    pub beim_dienst: bool,
+    /// Was der Nutzer sonst noch tun kann oder warum der Dienst nicht widerrufen hat.
+    #[serde(default)]
+    pub hinweis: Option<String>,
 }
 
 /// Fehlerantwort (4xx/5xx) mit deutscher Meldung für die Oberfläche.

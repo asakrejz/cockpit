@@ -16,6 +16,7 @@ use leptos::{html, prelude::*};
 use web_sys::wasm_bindgen::JsCast;
 
 use crate::mode_switch::ModeSwitch;
+use crate::oauth_card::{OAuthCard, Service};
 use crate::store::{Mode, use_store};
 use crate::sync_status::SyncStatus;
 
@@ -83,6 +84,22 @@ impl Link {
                 );
             }
         }
+    }
+
+    /// Der Server meldet eine bestehende Verbindung (z. B. nach der Anmeldung per OAuth).
+    fn mark_connected(&self, store: crate::store::Store) {
+        if self.check.try_get_untracked() != Some(Check::Connected) {
+            self.check.set(Check::Connected);
+            let set = self.set;
+            store.conn.update(|c| set(c, true));
+        }
+    }
+
+    /// Die Verbindung wurde getrennt (z. B. widerrufen).
+    fn mark_disconnected(&self, store: crate::store::Store) {
+        self.check.set(Check::Untested);
+        let set = self.set;
+        store.conn.update(|c| set(c, false));
     }
 
     /// Geänderte Eingaben machen eine Prüfung ungültig.
@@ -223,6 +240,11 @@ pub fn SetupPage() -> impl IntoView {
                     title="Jira verbinden"
                     text="Damit Cockpit deine Tickets und die deines Teams lesen, kommentieren und den Status ändern kann."
                 />
+                <OAuthCard
+                    service=Service::Atlassian
+                    on_connected=move |_| jira.mark_connected(store)
+                    on_disconnected=move |_| jira.mark_disconnected(store)
+                />
                 <Card>
                     <CardBody css="gap: 16px">
                         <TextField
@@ -261,6 +283,11 @@ pub fn SetupPage() -> impl IntoView {
                 <Intro
                     title="GitHub verbinden"
                     text="Für Pull Requests, Reviews und Branches. Am besten ein fein abgestuftes Token nur für die Repositories, die du hier brauchst."
+                />
+                <OAuthCard
+                    service=Service::GitHub
+                    on_connected=move |_| github.mark_connected(store)
+                    on_disconnected=move |_| github.mark_disconnected(store)
                 />
                 <Card>
                     <CardBody css="gap: 16px">

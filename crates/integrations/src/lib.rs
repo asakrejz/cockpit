@@ -3,6 +3,7 @@
 //!
 //! * [`github`]: Pull Requests, Dateien mit Patch, Kommentare, Check-Status
 //! * [`jira`]: Issues per JQL, Kommentare (Atlassian Document Format → Text)
+//! * [`oauth`]: Anmeldung per OAuth (GitHub App, Atlassian 3LO), Refresh und Widerruf
 //! * [`Secret`]: ein Schlüssel, der nie in `Debug`-Ausgaben oder Logs auftaucht
 //!
 //! * [`ausgehend`]: welche Aktion geht als welcher Aufruf an welchen Dienst (rein, getestet)
@@ -16,6 +17,7 @@ pub mod abgleich;
 pub mod ausgehend;
 mod error;
 mod http;
+pub mod oauth;
 mod secret;
 pub mod text;
 pub mod zeit;

@@ -3,11 +3,57 @@
 //! [`Connections`] hält nur Haken – **nie Schlüssel**. Die `check_*`-Funktionen prüfen
 //! das Format der Eingaben. Ob ein Schlüssel wirklich gilt, kann nur der Dienst sagen.
 
+use serde::{Deserialize, Serialize};
+
+/// Womit sich das Backend bei einem Dienst anmeldet.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AuthKind {
+    /// Nicht verbunden.
+    #[default]
+    None,
+    /// API-Token oder Personal Access Token (`cockpit-server token setzen`).
+    Token,
+    /// Anmeldung im Browser per OAuth.
+    OAuth,
+}
+
+impl AuthKind {
+    /// Kurzer Text für die Oberfläche.
+    pub fn label(self) -> &'static str {
+        match self {
+            AuthKind::None => "Getrennt",
+            AuthKind::Token => "Token",
+            AuthKind::OAuth => "OAuth",
+        }
+    }
+}
+
+/// Verbindungsstatus eines Dienstes, wie ihn das Backend in `/api/health` meldet.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ServiceStatus {
+    #[serde(default)]
+    pub verbunden: bool,
+    /// Art der Anmeldung; `none`, solange getrennt.
+    #[serde(default)]
+    pub art: AuthKind,
+    /// Die OAuth-App ist in `config.toml` eingerichtet und ihr Secret liegt im Schlüsselbund:
+    /// „Mit … anmelden“ ist möglich.
+    #[serde(default)]
+    pub oauth_moeglich: bool,
+    /// Bei Atlassian: die gewählte Site.
+    #[serde(default)]
+    pub site: Option<String>,
+}
+
 /// Welche Verbindungen stehen und was der Agent selbstständig darf.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Connections {
     pub jira: bool,
     pub github: bool,
+    /// Art der Anmeldung (nur vom Server gemeldet, wird nicht gespeichert).
+    pub jira_auth: AuthKind,
+    pub github_auth: AuthKind,
     pub agent: bool,
     pub may_branch: bool,
     pub may_open_pr: bool,
@@ -19,6 +65,8 @@ impl Default for Connections {
         Self {
             jira: false,
             github: false,
+            jira_auth: AuthKind::None,
+            github_auth: AuthKind::None,
             agent: false,
             may_branch: true,
             may_open_pr: true,
@@ -28,6 +76,14 @@ impl Default for Connections {
 }
 
 impl Connections {
+    /// Übernimmt den Stand, den das Backend meldet (Haken und Art der Anmeldung).
+    pub fn apply_services(&mut self, github: &ServiceStatus, jira: &ServiceStatus) {
+        self.github = github.verbunden;
+        self.github_auth = github.art;
+        self.jira = jira.verbunden;
+        self.jira_auth = jira.art;
+    }
+
     pub fn all_connected(&self) -> bool {
         self.jira && self.github && self.agent
     }
@@ -74,6 +130,9 @@ impl Connections {
                 Self {
                     jira,
                     github,
+                    // Die Art kommt nur vom Server, nie aus dem gespeicherten Text.
+                    jira_auth: AuthKind::None,
+                    github_auth: AuthKind::None,
                     agent,
                     may_branch,
                     may_open_pr,
@@ -166,6 +225,8 @@ mod tests {
         let c = Connections {
             jira: true,
             github: false,
+            jira_auth: AuthKind::None,
+            github_auth: AuthKind::None,
             agent: true,
             may_branch: false,
             may_open_pr: true,
@@ -176,6 +237,38 @@ mod tests {
         assert_eq!(
             Connections::decode(&Connections::default().encode()),
             Connections::default()
+        );
+    }
+
+    #[test]
+    fn server_reports_kind_but_it_is_not_stored() {
+        let mut c = Connections::default();
+        let oauth = ServiceStatus {
+            verbunden: true,
+            art: AuthKind::OAuth,
+            ..Default::default()
+        };
+        c.apply_services(&oauth, &ServiceStatus::default());
+        assert!(c.github && !c.jira);
+        assert_eq!(
+            (c.github_auth, c.jira_auth),
+            (AuthKind::OAuth, AuthKind::None)
+        );
+        let back = Connections::decode(&c.encode());
+        assert!(back.github);
+        assert_eq!(back.github_auth, AuthKind::None);
+    }
+
+    #[test]
+    fn service_status_reads_old_and_partial_json() {
+        let s: ServiceStatus = serde_json::from_str("{}").unwrap();
+        assert_eq!(s, ServiceStatus::default());
+        let s: ServiceStatus =
+            serde_json::from_str(r#"{"verbunden":true,"art":"oauth","site":"firma"}"#).unwrap();
+        assert_eq!(s.art, AuthKind::OAuth);
+        assert_eq!(
+            serde_json::to_string(&AuthKind::Token).unwrap(),
+            "\"token\""
         );
     }
 

@@ -270,10 +270,13 @@ dependencies = [
 name = "cockpit-integrations"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "cockpit-core",
+ "getrandom 0.4.3",
  "reqwest",
  "serde",
  "serde_json",
+ "sha2",
  "tokio",
  "wiremock",
 ]

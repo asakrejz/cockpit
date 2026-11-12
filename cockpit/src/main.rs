@@ -6,6 +6,8 @@
 mod banner;
 mod mode_switch;
 mod notify;
+mod oauth_card;
+mod oauth_result;
 mod pages;
 mod route;
 mod server;
@@ -54,6 +56,8 @@ fn system_theme() -> Theme {
 fn App() -> impl IntoView {
     let store = Store::new();
     provide_context(store);
+    // Rückkehr von der Anmeldung per OAuth: Erfolg oder Fehler anzeigen.
+    oauth_result::announce(store);
 
     // Die Adresse bestimmt die Seite.
     let listener = window_event_listener(leptos::ev::hashchange, move |_| {

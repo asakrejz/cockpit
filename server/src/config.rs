@@ -21,6 +21,20 @@
 //! jql = "project = BAU AND ..."        # optional: eigene Abfrage statt der Projekte
 //! ```
 //!
+//! Anmeldung per OAuth (statt eines API-Tokens), nur Client-IDs – die Secrets liegen im
+//! Schlüsselbund (`cockpit-server token setzen github-oauth|atlassian-oauth`):
+//!
+//! ```toml
+//! [github_oauth]
+//! client_id = "Iv23li…"                # GitHub App
+//!
+//! [atlassian]
+//! client_id = "7dNimh…"                # OAuth-2.0-3LO-App
+//! site = "firma"                       # optional: Name, Adresse oder Id, falls mehrere freigegeben sind
+//! ```
+//!
+//! Mit `[atlassian]` braucht `[jira]` weder `site` noch `email` (nur noch `projects`/`jql`).
+//!
 //! Eine Quelle gleicht nur ab, wenn sie hier eingerichtet ist **und** ihr Schlüssel im
 //! Schlüsselbund liegt (`cockpit-server token setzen <github|jira>`). Ohne Quelle bleiben
 //! die Beispieldaten.
@@ -47,6 +61,8 @@ pub struct Config {
     pub db: PathBuf,
     pub github: Option<GitHubKonfig>,
     pub jira: Option<JiraKonfig>,
+    pub github_oauth: Option<OAuthKonfig>,
+    pub atlassian: Option<AtlassianKonfig>,
     /// Abstand des Abgleichs in Sekunden.
     pub intervall_s: u64,
 }
@@ -58,6 +74,21 @@ pub struct GitHubKonfig {
     pub repos: Vec<String>,
 }
 
+/// Die GitHub App für die Anmeldung. Das Client-Secret liegt im Schlüsselbund.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OAuthKonfig {
+    pub client_id: String,
+}
+
+/// Die Atlassian-App (OAuth 2.0 3LO). Das Client-Secret liegt im Schlüsselbund.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AtlassianKonfig {
+    pub client_id: String,
+    /// Welche Site, falls mehrere freigegeben sind (Name, Adresse oder Id).
+    pub site: Option<String>,
+}
+
+/// Mit OAuth sind `site` und `email` leer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JiraKonfig {
     pub site: String,
@@ -96,6 +127,21 @@ struct Datei {
     intervall_s: Option<u64>,
     github: Option<DateiGitHub>,
     jira: Option<DateiJira>,
+    github_oauth: Option<DateiOAuth>,
+    atlassian: Option<DateiAtlassian>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DateiOAuth {
+    client_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DateiAtlassian {
+    client_id: String,
+    site: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -109,7 +155,9 @@ struct DateiGitHub {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct DateiJira {
+    #[serde(default)]
     site: String,
+    #[serde(default)]
     email: String,
     #[serde(default)]
     projects: Vec<String>,
@@ -148,6 +196,8 @@ impl Config {
             db: standard_db_pfad(),
             github: None,
             jira: None,
+            github_oauth: None,
+            atlassian: None,
             intervall_s: STANDARD_INTERVALL_S,
         }
     }
@@ -195,7 +245,46 @@ impl Config {
                 repos: g.repos,
             });
         }
-        if let Some(j) = d.jira {
+        let client_id = |wer: &str, id: String| {
+            let id = id.trim().to_string();
+            if id.is_empty() || id.chars().any(char::is_whitespace) {
+                Err(KonfigFehler::Wert(format!(
+                    "{wer}: client_id fehlt oder enthält Leerzeichen"
+                )))
+            } else {
+                Ok(id)
+            }
+        };
+        if let Some(o) = d.github_oauth {
+            c.github_oauth = Some(OAuthKonfig {
+                client_id: client_id("[github_oauth]", o.client_id)?,
+            });
+        }
+        if let Some(a) = d.atlassian {
+            c.atlassian = Some(AtlassianKonfig {
+                client_id: client_id("[atlassian]", a.client_id)?,
+                site: a
+                    .site
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty()),
+            });
+        }
+        // Mit Atlassian-Anmeldung genügt Jira ohne eigene Angaben.
+        let jira = d.jira.or_else(|| {
+            c.atlassian.as_ref().map(|_| DateiJira {
+                site: String::new(),
+                email: String::new(),
+                projects: Vec::new(),
+                jql: None,
+            })
+        });
+        if let Some(j) = jira {
+            if c.atlassian.is_none() && (j.site.trim().is_empty() || j.email.trim().is_empty()) {
+                return Err(KonfigFehler::Wert(
+                    "[jira] braucht site und email – oder [atlassian] für die Anmeldung per OAuth"
+                        .into(),
+                ));
+            }
             for p in &j.projects {
                 if cockpit_integrations::jira::jql_fuer(std::slice::from_ref(p), None).is_err() {
                     return Err(KonfigFehler::Wert(format!(
@@ -362,5 +451,54 @@ mod tests {
         ));
         // Jira braucht Adresse und E-Mail.
         assert!(Config::aus(Some("[jira]\nsite = \"https://x\""), keine_env).is_err());
+    }
+
+    #[test]
+    fn oauth_abschnitte() {
+        let toml = r#"
+            [github_oauth]
+            client_id = " Iv23abc "
+            [atlassian]
+            client_id = "atl123"
+            site = "firma"
+        "#;
+        let c = Config::aus(Some(toml), keine_env).unwrap();
+        assert_eq!(c.github_oauth.unwrap().client_id, "Iv23abc");
+        let a = c.atlassian.unwrap();
+        assert_eq!(
+            (a.client_id.as_str(), a.site.as_deref()),
+            ("atl123", Some("firma"))
+        );
+        // [atlassian] allein richtet Jira ein, ohne site und email.
+        let j = c.jira.unwrap();
+        assert!(j.site.is_empty() && j.email.is_empty() && j.projects.is_empty());
+
+        // Projekte bleiben einstellbar.
+        let toml = "[atlassian]\nclient_id = \"a\"\n[jira]\nprojects = [\"BAU\"]";
+        assert_eq!(
+            Config::aus(Some(toml), keine_env)
+                .unwrap()
+                .jira
+                .unwrap()
+                .projects,
+            ["BAU"]
+        );
+        for kaputt in [
+            "[github_oauth]\nclient_id = \"\"",
+            "[atlassian]\nclient_id = \"a b\"",
+        ] {
+            assert!(matches!(
+                Config::aus(Some(kaputt), keine_env),
+                Err(KonfigFehler::Wert(_))
+            ));
+        }
+        // Tippfehler im Abschnitt fallen auf (Secrets gehören nicht in die Datei).
+        assert!(matches!(
+            Config::aus(
+                Some("[atlassian]\nclient_id = \"a\"\nclient_secret = \"x\""),
+                keine_env
+            ),
+            Err(KonfigFehler::Toml(_))
+        ));
     }
 }
