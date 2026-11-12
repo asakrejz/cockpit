@@ -485,11 +485,6 @@ impl Workspace {
         true
     }
 
-    /// Agenten, die eine Frage gestellt haben.
-    pub fn asking_agents(&self) -> usize {
-        self.runs.iter().filter(|r| r.is_asking()).count()
-    }
-
     /// Pausierte Agenten.
     pub fn paused_agents(&self) -> usize {
         self.runs.iter().filter(|r| r.is_paused()).count()

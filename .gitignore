@@ -1,8 +1,8 @@
 /target
-/dist
-/cockpit/dist
+/apps/playground/dist
+/apps/cockpit/dist
 .env
 .env.*
 
 # Läufer des Agenten (npm install im Image)
-/agent/runner/node_modules
+/apps/agent/runner/node_modules

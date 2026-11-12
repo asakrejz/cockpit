@@ -10,12 +10,12 @@
 //! | `role: .destructive`       | `destructive=true`                     | `data-role="destructive"`        |
 //!
 //! Die Werte (Farben, Abstände, Radien …) kommen ausschließlich aus den
-//! Design-Tokens (`styles/tokens.css` im Workspace). Einbinden:
+//! Design-Tokens (`crates/ui/tokens.css` im Workspace). Einbinden:
 //!
 //! ```html
-//! <link data-trunk rel="css" href="styles/tokens.css" />
-//! <link data-trunk rel="css" href="features/ui/components.css" />
-//! <link data-trunk rel="css" href="features/ui/extras.css" />
+//! <link data-trunk rel="css" href="crates/ui/tokens.css" />
+//! <link data-trunk rel="css" href="crates/ui/components.css" />
+//! <link data-trunk rel="css" href="crates/ui/extras.css" />
 //! ```
 //!
 //! Alle Komponenten müssen innerhalb von [`Root`] stehen (setzt Theme, Tint, Kontrast).

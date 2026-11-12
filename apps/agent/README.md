@@ -55,5 +55,5 @@ außerhalb von `/work`, `.git`, verbotene Pfade und Befehle wie `git push`, `cur
 ## Tests
 
 ```bash
-cd agent/runner && npm install && npm test   # Node ≥ 22.18, ohne Netz, das SDK ist eine Attrappe
+cd apps/agent/runner && npm install && npm test   # Node ≥ 22.18, ohne Netz, das SDK ist eine Attrappe
 ```

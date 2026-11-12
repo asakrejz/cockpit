@@ -12,14 +12,14 @@ im Gespräch stand. Eine neue Session liest zuerst diese Datei, dann `docs/ROADM
   Schlüsselbund sind nur gegen nachgebaute Antworten getestet.
 - **Einrichtungsassistent (Anforderung 12.11.2026: Andere sollen das Cockpit lokal einrichten können, auch ohne Programmierkenntnisse).** Seite „Einrichten“ = geführter Assistent in fünf Schritten (Container, Jira, GitHub, Modell, Zusammenfassung), erscheint beim ersten Start von selbst. Gemeint ist **nicht**, Jira-/GitHub-Apps per Klick zu erzeugen (das geht nicht), sondern die Person verständlich durch die Einrichtung zu führen; jede Person legt ihre **eigenen** OAuth-Apps an (Client-Secrets sind nicht teilbar). Alles, was sich lokal per Klick erledigen lässt, ist umgesetzt: Konfiguration per `PUT /api/konfiguration` (schreibt `config.toml` atomar, wirkt ohne Neustart), Schlüssel per Passwortfeld über `PUT /api/schluessel/{name}`, Start per Doppelklick (`Cockpit starten.command`), README „Schnellstart für Einsteiger“ mit allen manuellen Schritten. Ein Release-Archiv für macOS (Apple Silicon) baut `.github/workflows/release.yml` bei einem Tag `v…` – **noch nie gelaufen**, beim ersten Tag prüfen; die Datei ist unsigniert (Rechtsklick › Öffnen), Intel, Windows und Linux bauen selbst.
 - Welle 4 läuft: offen sind noch Webhooks/Live-Aktualisierung. Der **echte Agent** steht (Container pro Lauf,
-  `agent/` mit Containerfile und Läufer, `server/src/agent_lauf.rs` rein, `agent_betrieb.rs` Prozesse, `agent_git.rs`
+  `apps/agent/` mit Containerfile und Läufer, `apps/server/src/agent_lauf.rs` rein, `agent_betrieb.rs` Prozesse, `agent_git.rs`
   Klonen/Prüfen/Pushen; Kern: `AgentReport`/`Action::ReportAgent`). Alles nur gegen Attrappen geprüft (Shell-Skript als
   `docker`, lokales Git-Remote, SDK-Attrappe im Läufer) – **nie** ein echter Lauf, kein echter Proxy.
 - **Agent-Anbieter und Endpunkt (umgesetzt, nur gegen Attrappen geprüft):** `Anbieter`-Enum (Claude Agent SDK läuft, Claude Code
   und Codex sind bekannte Werte und melden „noch nicht umgesetzt“), `[agent] anbieter`, `[agent.endpunkt] url/modell`, Schlüssel
   `agent-key`; alte `[litellm]`-Werte und der Schlüssel `litellm` werden weiter gelesen. Der Läufer hat Adapter
-  (`agent/runner/src/adapter/`), der Assistent ein Modell-Drop-down aus `GET /api/agent/modelle`. **Offen:** die Adapter für
-  Claude Code und Codex (nur übersetzen, siehe `agent/README.md`), `COCKPIT_ANBIETER` an den Container geben, sobald es sie gibt.
+  (`apps/agent/runner/src/adapter/`), der Assistent ein Modell-Drop-down aus `GET /api/agent/modelle`. **Offen:** die Adapter für
+  Claude Code und Codex (nur übersetzen, siehe `apps/agent/README.md`), `COCKPIT_ANBIETER` an den Container geben, sobald es sie gibt.
 - **Wünsche des Nutzers, noch offen (12.11.2026):** (1) **Jira per API-Token statt OAuth** (Firma gibt keine Apps frei): **umgesetzt** (Branch `claude/w4-jira-token-…`): Im
   Schritt „Jira“ ist der Token der Standard (Site, E-Mail, „Token-Seite öffnen“, Passwortfeld), dann Verbindungstest
   (`POST /api/jira/pruefen`, nur `GET /rest/api/3/myself`) und Projektwahl über `Action::SelectJiraProject`; OAuth steckt
@@ -28,7 +28,7 @@ im Gespräch stand. Eine neue Session liest zuerst diese Datei, dann `docs/ROADM
   Atlassian; die Wortlaute der Atlassian-Token-Seite („Create API token“, „Copy“) sind nach bestem Wissen geschrieben.
   Sicherheit: Der Token hat die Rechte des Kontos; ein Konto/eine Rolle ohne Schreibrechte ist empfohlen, solange nur
   gelesen werden soll. (2) Nach dem Funktionsumfang ein Refactoring: Ordnerstruktur
-  (Cockpit ist die Hauptanwendung, der Playground nur die Spielwiese der Komponentenbibliothek), alles auf Englisch (Code,
+  (**Phase 1 erledigt:** `apps/` = cockpit, server, agent, playground; `crates/` = cockpit-core, integrations, ui; Cockpit ist die Hauptanwendung, der Playground nur die Spielwiese der Komponentenbibliothek), alles auf Englisch (Code,
   Benennung, Docs), Übergabe-Dateien und die Roadmap am Ende entfernen, toten Code löschen.
 
 ## Entscheidungen des Nutzers
@@ -85,7 +85,7 @@ cargo clippy --workspace --exclude cockpit-server --exclude cockpit-integrations
   --all-targets --target wasm32-unknown-unknown -- -D warnings
 cargo clippy -p cockpit-server -p cockpit-integrations --all-targets -- -D warnings
 cargo test --workspace
-trunk build && (cd cockpit && trunk build)
+(cd apps/playground && trunk build) && (cd apps/cockpit && trunk build)
 ```
 
 Dazu ein Browser-Durchlauf gegen den Server, ohne Konsolenfehler: einmal mit leerem Start
@@ -100,7 +100,7 @@ erreichbar“ mit „Erneut versuchen“). Beim Ausprobieren immer eine eigene D
 1. Alle PR-Branches lokal nacheinander in einen Integrations-Branch mergen (`git config
    rerere.enabled true`), Konflikte lösen und die Prüfung oben laufen lassen.
 2. Auf Lücken *zwischen* den PRs achten. Bisher gefunden: Takt-Aufgaben müssen im Browser
-   (`cockpit/src/main.rs`) **und** im Server (`server/src/live.rs`, `takt`) laufen; Läufe über
+   (`apps/cockpit/src/main.rs`) **und** im Server (`apps/server/src/live.rs`, `takt`) laufen; Läufe über
    `run.key()` suchen, nicht über `ticket_key` (Folgeaufträge haben eigene Schlüssel); neue
    lokale Felder dürfen vom Abgleich (`sync.rs`, `merge_item`) nicht überschrieben werden.
 3. Je PR den Branch auf den geprüften Zwischenstand bringen (`git merge -s ours origin/main`,

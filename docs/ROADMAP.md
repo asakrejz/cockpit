@@ -8,7 +8,7 @@ wie Agenten. Es hält die Entscheidungen fest und teilt die Arbeit in Wellen.
 | Frage | Entscheidung |
 |-------|--------------|
 | Betrieb | **Lokal, für eine Person.** Ein Dienst auf dem eigenen Rechner. Kein Hosting, keine Mandanten. |
-| Backend | Rust-Crate `server/` (axum, tokio). Liefert auch die gebaute Web-App aus. |
+| Backend | Rust-Crate `apps/server/` (axum, tokio). Liefert auch die gebaute Web-App aus. |
 | Daten | SQLite in einer Datei im Nutzerverzeichnis. |
 | Schlüssel | Liegen nur im Backend (Schlüsselbund des Systems, sonst verschlüsselte Datei). **Nie im Repo, nie im Log, nie im Speicher des Browsers.** Ausnahme mit Bedingungen (Entscheidung vom 12.11.2026): Der Einrichtungsassistent nimmt Secrets, Tokens und den Key des Agent-Endpunkts in Passwortfelder auf und schickt sie einmal über die Loopback-Verbindung an `PUT /api/schluessel/{name}`; dort gelten Loopback-, Host-, Origin- und Content-Type-Prüfung, nur feste Namen, keine Rückgabe des Werts (nur „gesetzt“), das Feld wird sofort geleert. Der Terminal-Weg `token setzen` bleibt. |
 | Agent | Claude Agent SDK in einem Container pro Lauf, **mit Docker (Rancher Desktop) oder Podman**. Der Container bekommt nur das geklonte Repo und ein Token für genau dieses Repo. |
@@ -49,7 +49,7 @@ Regeln für alles, was Container baut oder startet:
 ## Architektur
 
 ```
-Browser (cockpit/, WASM)                 Backend (server/)
+Browser (apps/cockpit, WASM)            Backend (apps/server/)
 ┌──────────────────────────┐   HTTP    ┌────────────────────────────────┐
 │ Seiten → store.dispatch  │ ────────▶ │ POST /api/actions              │──▶ GitHub, Jira
 │ Workspace (Signal)       │ ◀──────── │ GET  /api/workspace (Snapshot) │──▶ Agent (Container)
@@ -75,8 +75,8 @@ Grundsätze:
 
 - Ein Feature, ein Branch, ein PR nach `main`. Klein halten, fremde Bereiche nicht anfassen.
 - Logik nach `cockpit-core` mit Unit-Tests. Die App verdrahtet nur.
-- Texte und Kommentare auf Deutsch. CSS nur mit Tokens. `styles/tokens.css` und
-  `features/ui/components.css` stammen 1:1 aus dem Design und bleiben unverändert.
+- Texte und Kommentare auf Deutsch. CSS nur mit Tokens. `crates/ui/tokens.css` und
+  `crates/ui/components.css` stammen 1:1 aus dem Design und bleiben unverändert.
 - Vor dem PR grün: `cargo fmt --all --check`; `cargo clippy --workspace --exclude
   cockpit-server --exclude cockpit-integrations --all-targets --target wasm32-unknown-unknown
   -- -D warnings` (die Server-Crates kompilieren nicht für Wasm); `cargo clippy -p cockpit-server
@@ -105,7 +105,7 @@ Aufgaben parallel; sie sind so geschnitten, dass je Bereich nur eine Aufgabe lä
 | Bereich | Aufgabe |
 |---------|---------|
 | Kern | **Action-Schicht und Protokoll:** `Action`-Enum, `Workspace::apply`, `store.dispatch`; alle Seiten stellen um. Jede Aktion landet mit Zeit und Urheber im Protokoll (eigene Seite). |
-| Backend | **Grundgerüst `server/`:** axum, SQLite, Schlüsselablage, Konfiguration, `GET /api/health`. Clients für GitHub und Jira als Bibliothek, getestet gegen nachgebaute Antworten, mit Abbildung auf die Typen aus `cockpit-core`. |
+| Backend | **Grundgerüst `apps/server/`:** axum, SQLite, Schlüsselablage, Konfiguration, `GET /api/health`. Clients für GitHub und Jira als Bibliothek, getestet gegen nachgebaute Antworten, mit Abbildung auf die Typen aus `cockpit-core`. |
 
 ### Welle 2 – erledigt (#14–#18)
 
@@ -124,7 +124,7 @@ Tickets bearbeiten und mit PRs verknüpfen (Status folgt dem PR), Agent-Folgeauf
 | Backend | ✅ Geführter Einrichtungsassistent für Einsteiger: Seite „Einrichten“ in fünf Schritten (Container, Jira, GitHub, Modell, Zusammenfassung), Konfiguration per Klick (`PUT /api/konfiguration`, schreibt `config.toml` atomar, wirkt ohne Neustart), Schlüssel per Passwortfeld (`PUT /api/schluessel/{name}` in den Schlüsselbund), `Cockpit starten.command` (Doppelklick), README „Schnellstart für Einsteiger“ und Release-Workflow (`.github/workflows/release.yml`, nur bei Tag, noch nie gelaufen). Nur gegen nachgebaute Antworten und Fixtures geprüft |
 | Backend | Webhooks und Live-Aktualisierung in der App |
 | Backend | ✅ Agent-Anbieter und Endpunkt wählbar: `Anbieter`-Enum, `[agent] anbieter`, `[agent.endpunkt]`, Schlüssel `agent-key`, `GET /api/agent/modelle` für das Modell-Drop-down, Adapter-Struktur im Läufer. Nur gegen Attrappen geprüft (wiremock, Läufer-Attrappe), nie gegen einen echten Endpunkt. |
-| Backend | ✅ Echter Agent: Claude Agent SDK im Container (Docker oder Podman, siehe „Container“); Modell über den gewählten Endpunkt (Proxy wie LiteLLM oder direkt bei Anthropic); Plan, Rückfragen, Kosten und Protokoll kommen aus dem Lauf (`agent/`, `server/src/agent_*.rs`, Aktion `ReportAgent`). Nur gegen Attrappen geprüft. **Offen:** Folgeaufträge (Kommentare umsetzen, Check untersuchen), Pull Request automatisch anlegen, Zuordnung Ticket → Repo (heute ein Repo, `[agent] repo`), Regeln je echtem Repo, Lauf mit echtem Container und Modell (`#[ignore]`-Tests mit `COCKPIT_CONTAINER=docker|podman` fehlen), Adapter für Claude Code (`claude -p --output-format stream-json`) und Codex (`codex exec --json`) im Läufer (`agent/runner/src/adapter/`, Ereignisformen in `agent/README.md`) |
+| Backend | ✅ Echter Agent: Claude Agent SDK im Container (Docker oder Podman, siehe „Container“); Modell über den gewählten Endpunkt (Proxy wie LiteLLM oder direkt bei Anthropic); Plan, Rückfragen, Kosten und Protokoll kommen aus dem Lauf (`apps/agent/`, `apps/server/src/agent_*.rs`, Aktion `ReportAgent`). Nur gegen Attrappen geprüft. **Offen:** Folgeaufträge (Kommentare umsetzen, Check untersuchen), Pull Request automatisch anlegen, Zuordnung Ticket → Repo (heute ein Repo, `[agent] repo`), Regeln je echtem Repo, Lauf mit echtem Container und Modell (`#[ignore]`-Tests mit `COCKPIT_CONTAINER=docker|podman` fehlen), Adapter für Claude Code (`claude -p --output-format stream-json`) und Codex (`codex exec --json`) im Läufer (`apps/agent/runner/src/adapter/`, Ereignisformen in `apps/agent/README.md`) |
 | Inbox | ✅ Mehrere Projekte und Repos; Filter nach Projekt, Repo, Person, Status, Label (siehe README „Filter der Inbox“). Offen: `Review` und `PrLink` unterscheiden Pull Requests noch nach Nummer, nicht nach Repo |
 
 ### Welle 5 – Abschluss

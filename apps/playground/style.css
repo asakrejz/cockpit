@@ -1,4 +1,4 @@
-/* Hülle des Playgrounds. Benutzt ausschließlich Design-Tokens aus styles/tokens.css
+/* Hülle des Playgrounds. Benutzt ausschließlich Design-Tokens aus crates/ui/tokens.css
    (keine eigenen Farben oder festen Radien), damit Theme, Tint und Kontrast greifen. */
 
 body { margin: 0; }

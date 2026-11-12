@@ -26,21 +26,20 @@ jobs:
 
       - name: App bauen
         run: trunk build --release
-        working-directory: cockpit
+        working-directory: apps/cockpit
       - name: Server bauen
         run: cargo build --release -p cockpit-server
 
       - name: Archiv zusammenstellen
         run: |
           name="cockpit-${GITHUB_REF_NAME}-macos-arm64"
-          mkdir -p "$name/cockpit"
+          mkdir -p "$name/apps/cockpit"
           cp target/release/cockpit-server "$name/"
-          cp -R cockpit/dist "$name/cockpit/dist"
+          cp -R apps/cockpit/dist "$name/apps/cockpit/dist"
           # Containerfile und Läufer des Agenten (ohne node_modules): „Image bauen“ braucht sie.
-          mkdir -p "$name/agent"
-          cp agent/Containerfile agent/README.md "$name/agent/"
-          mkdir -p "$name/agent/runner"
-          cp -R agent/runner/package.json agent/runner/package-lock.json agent/runner/src "$name/agent/runner/"
+          mkdir -p "$name/apps/agent/runner"
+          cp apps/agent/Containerfile apps/agent/README.md "$name/apps/agent/"
+          cp -R apps/agent/runner/package.json apps/agent/runner/package-lock.json apps/agent/runner/src "$name/apps/agent/runner/"
           cp "Cockpit starten.command" "$name/"
           cp README.md "$name/LIESMICH.md"
           chmod +x "$name/cockpit-server" "$name/Cockpit starten.command"

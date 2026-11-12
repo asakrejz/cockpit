@@ -1,6 +1,6 @@
 // Die gemeinsame Schnittstelle der Adapter. Ein Adapter führt einen Auftrag mit einem
 // Agenten-Werkzeug aus (Claude Agent SDK, später Claude Code und Codex) und meldet das Ergebnis
-// als JSON-Zeilen-Ereignisse (siehe ereignis.ts und agent/README.md). Alles, was ein Werkzeug
+// als JSON-Zeilen-Ereignisse (siehe ereignis.ts und apps/agent/README.md). Alles, was ein Werkzeug
 // anders macht, bleibt im Adapter; das Backend sieht immer dieselben Ereignisformen.
 
 import type { Auftrag } from "../auftrag.ts";

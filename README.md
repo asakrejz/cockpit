@@ -7,8 +7,8 @@ Projekten wiederverwenden kannst.
 
 Im Repo liegen zwei Apps, die sich die Bausteine teilen:
 
-- **Playground** (`app/`): zeigt jeden Baustein einzeln.
-- **Cockpit** (`cockpit/`): ein Dashboard für Jira, GitHub und Agenten, gebaut aus denselben Bausteinen. Es braucht den lokalen Server (`server/`), der Daten und Schlüssel hält.
+- **Playground** (`apps/playground/`): zeigt jeden Baustein einzeln.
+- **Cockpit** (`apps/cockpit/`): ein Dashboard für Jira, GitHub und Agenten, gebaut aus denselben Bausteinen. Es braucht den lokalen Server (`apps/server/`), der Daten und Schlüssel hält.
 
 Technik:
 
@@ -26,12 +26,12 @@ rustup target add wasm32-unknown-unknown   # passiert dank rust-toolchain.toml a
 cargo install trunk --locked                # oder: brew install trunk
 
 scripts/start.sh --open             # Cockpit (oder Doppelklick auf „Cockpit starten.command“): App bauen (falls nötig), Server starten, Browser öffnen
-trunk serve --open                  # Playground auf http://localhost:8080
+(cd apps/playground && trunk serve --open)   # Playground auf http://localhost:8080
 cargo test                          # Tests laufen nativ, ohne Browser
-trunk build --release               # fertige Playground-Seite nach ./dist
+(cd apps/playground && trunk build --release)   # fertige Playground-Seite nach apps/playground/dist
 ```
 
-Beim Lernen hilft: `trunk serve` laufen lassen, eine Datei ändern, Speichern – der Browser
+Beim Lernen hilft: im Ordner `apps/playground` `trunk serve` laufen lassen, eine Datei ändern, Speichern – der Browser
 lädt neu, und der Compiler sagt dir sofort, was nicht passt.
 
 ## Schnellstart für Einsteiger
@@ -87,7 +87,7 @@ nur an den Server auf deinem Rechner, der sie im **Schlüsselbund** ablegt – n
 Datei. Wer lieber im Terminal arbeitet, nimmt `cockpit-server token setzen <name>` (siehe „Backend starten“).
 
 **Fertiges Archiv statt selbst bauen.** Bei jedem Versions-Tag (`v…`) baut `.github/workflows/release.yml` ein Archiv für
-macOS (Apple Silicon): `cockpit-server`, `cockpit/dist` und `Cockpit starten.command` in einem Ordner, ohne Rust und Trunk.
+macOS (Apple Silicon): `cockpit-server`, `apps/cockpit/dist` und `Cockpit starten.command` in einem Ordner, ohne Rust und Trunk.
 Entpacken, Rechtsklick auf `Cockpit starten.command` › „Öffnen“. Die Programme sind nicht signiert, deshalb die
 Rückfrage von macOS. Intel-Macs, Windows und Linux bauen selbst (Schritte oben). Der Workflow ist noch nie gelaufen
 (es gab noch kein Tag); beim ersten Tag prüfen, ob das Archiv startet.
@@ -110,7 +110,7 @@ Der Agent setzt ein Ticket in einem **Container** um (Claude Agent SDK, ein Cont
    „Dein Mac erreicht den Proxy, der Container aber nicht“ – VPN zuerst verbinden und Rancher Desktop bzw. die
    Podman-Maschine neu starten.
 4. **GitHub verbinden und das Repo festlegen:** Der Agent klont über das Backend. Ist in `[github] repos` genau ein Repo,
-   gilt es; sonst `[agent] repo = "owner/name"` in `config.toml`. Der Ordner `agent/` wird neben `cockpit/dist` gesucht
+   gilt es; sonst `[agent] repo = "owner/name"` in `config.toml`. Der Ordner `apps/agent/` wird neben `apps/cockpit/dist` gesucht
    (`[agent] dir` bzw. `COCKPIT_AGENT_DIR` überschreibt).
 
 Ist etwas nicht eingerichtet, startet kein Lauf; die Meldung sagt in Klartext, was fehlt und wo im Assistenten man es holt.
@@ -152,9 +152,9 @@ scripts/start.sh --open         # zusätzlich den Browser öffnen
 curl localhost:8787/api/health  # {"status":"ok","version":"…","verbindungen":{…},"abgleich":{…},"endpunkt":{…},"container":{…}}
 ```
 
-`scripts/start.sh` (bash, macOS) prüft `cargo` und `trunk`, baut `cockpit` nach `cockpit/dist`, wenn die Ausgabe fehlt
+`scripts/start.sh` (bash, macOS) prüft `cargo` und `trunk`, baut `apps/cockpit` nach `apps/cockpit/dist`, wenn die Ausgabe fehlt
 oder eine Quelle neuer ist, und startet `cockpit-server`. Es installiert nichts. Mit `--release` baut es den Server
-als Release-Build. Ohne das Skript: `(cd cockpit && trunk build) && cargo run -p cockpit-server`. **Ohne Terminal** startet ein Doppelklick auf
+als Release-Build. Ohne das Skript: `(cd apps/cockpit && trunk build) && cargo run -p cockpit-server`. **Ohne Terminal** startet ein Doppelklick auf
 `Cockpit starten.command` dasselbe (`--open`) und zeigt Fehler in lesbarem Deutsch.
 
 
@@ -170,7 +170,7 @@ COCKPIT_SEED=demo COCKPIT_DB=/tmp/cockpit-demo.db scripts/start.sh --open   # Be
 
 Konfiguration (alles optional): Datei `config.toml` im Konfigurationsverzeichnis (`~/.config/cockpit/`
 unter Linux, `~/Library/Application Support/cockpit/` unter macOS), darüber Umgebungsvariablen `COCKPIT_PORT` (8787),
-`COCKPIT_DIST` (`cockpit/dist`), `COCKPIT_DB` (Datenverzeichnis des Nutzers, `cockpit/cockpit.db`), `COCKPIT_CONFIG`
+`COCKPIT_DIST` (`apps/cockpit/dist`), `COCKPIT_DB` (Datenverzeichnis des Nutzers, `cockpit/cockpit.db`), `COCKPIT_CONFIG`
 (Pfad der Datei), `COCKPIT_SEED` (`leer` oder `demo`) und `COCKPIT_CONTAINER` (`docker` oder `podman`).
 
 ```toml
@@ -199,11 +199,11 @@ laufen nur nativ; für Wasm schließt die CI sie aus (siehe `docs/ROADMAP.md`).
 
 ### Entwickeln mit `trunk serve`
 
-`cockpit/Trunk.toml` leitet `/api` an `http://127.0.0.1:8787` weiter (`[[proxy]]`). Server und Entwicklungsserver zusammen:
+`apps/cockpit/Trunk.toml` leitet `/api` an `http://127.0.0.1:8787` weiter (`[[proxy]]`). Server und Entwicklungsserver zusammen:
 
 ```bash
 COCKPIT_DEV_PORT=8081 COCKPIT_SEED=demo cargo run -p cockpit-server   # Terminal 1
-(cd cockpit && trunk serve --open)                                    # Terminal 2, http://localhost:8081
+(cd apps/cockpit && trunk serve --open)                                    # Terminal 2, http://localhost:8081
 ```
 
 Trunk schickt `Host` ohne Port und lässt den `Origin` der Entwicklungsseite stehen; beides lässt der Server nur zu, wenn
@@ -500,25 +500,25 @@ siehst, und die Story im Playground, in der es sichtbar wird.
 
 | # | Konzept | Im Code | Im Playground |
 |---|---------|---------|---------------|
-| 1 | **Komponenten und Props**: eine Funktion mit `#[component]`, Parameter sind Props | `features/ui/src/text.rs` (`Text`) | Foundations |
-| 2 | **Enums statt Strings**: `enum`, `impl`, `#[derive(Default)]`, `#[default]`, `const ALL` | `features/ui/src/button.rs` (`ButtonStyle`) | Button |
+| 1 | **Komponenten und Props**: eine Funktion mit `#[component]`, Parameter sind Props | `crates/ui/src/text.rs` (`Text`) | Foundations |
+| 2 | **Enums statt Strings**: `enum`, `impl`, `#[derive(Default)]`, `#[default]`, `const ALL` | `crates/ui/src/button.rs` (`ButtonStyle`) | Button |
 | 3 | **`Option` und `then_some`**: ein Attribut nur manchmal setzen | `button.rs`, Funktion `attr()` und `data-role` | Button |
-| 4 | **Children**: Inhalt an eine Komponente übergeben | `features/ui/src/layout.rs` (`VStack`) | Stacks & Grids |
-| 5 | **Signals**: reaktiver Zustand, `RwSignal`, `.get()` / `.set()` | `features/ui/src/controls.rs` (`Toggle`) | Toggle · Picker · … |
+| 4 | **Children**: Inhalt an eine Komponente übergeben | `crates/ui/src/layout.rs` (`VStack`) | Stacks & Grids |
+| 5 | **Signals**: reaktiver Zustand, `RwSignal`, `.get()` / `.set()` | `crates/ui/src/controls.rs` (`Toggle`) | Toggle · Picker · … |
 | 6 | **Closures mit `move`**: warum Signals in `move \|\| …` stehen | überall, z. B. `data-role=role` in `button.rs` | Button |
-| 7 | **Abgeleitete Signals**: `Signal::derive` | `app/src/stories/button.rs` | Button (Live-Controls) |
+| 7 | **Abgeleitete Signals**: `Signal::derive` | `apps/playground/src/stories/button.rs` | Button (Live-Controls) |
 | 8 | **Callbacks**: Ereignisse nach oben melden | `button.rs` (`on_click`) | Button |
 | 9 | **Listen rendern**: Iteratoren und `collect_view()` | `controls.rs` (`Segmented`) | Toggle · Picker · … |
 | 10 | **Bedingt rendern**: `<Show>` und `match` mit `.into_any()` | `sheet.rs`, `list.rs` (`ListRow`) | iPhone-Beispiel |
-| 11 | **`'static` und Konstanten**: `&'static [(&str, &str)]`, `const`, `static` | `controls.rs`, `app/src/stories/mod.rs` | alle |
-| 12 | **Funktionszeiger**: `render: fn() -> AnyView` in einer Registry | `app/src/stories/mod.rs` (`Story`) | die Navigation selbst |
-| 13 | **`Option` und `Result` verketten**: `.ok().flatten().is_some_and(…)` | `app/src/main.rs` (`system_theme`) | Hell/Dunkel-Schalter |
-| 14 | **Ereignisse aus dem Browser**: `window_event_listener`, Aufräumen mit `on_cleanup` | `app/src/main.rs` | Navigation per URL (`#button`) |
-| 15 | **Globaler Zähler**: `AtomicU32` für eindeutige IDs | `features/ui/src/field.rs` | TextField & Search |
-| 16 | **Tests**: `#[cfg(test)]`, `include_str!` liest das CSS zur Compile-Zeit | `features/ui/src/lib.rs` | `cargo test` |
+| 11 | **`'static` und Konstanten**: `&'static [(&str, &str)]`, `const`, `static` | `controls.rs`, `apps/playground/src/stories/mod.rs` | alle |
+| 12 | **Funktionszeiger**: `render: fn() -> AnyView` in einer Registry | `apps/playground/src/stories/mod.rs` (`Story`) | die Navigation selbst |
+| 13 | **`Option` und `Result` verketten**: `.ok().flatten().is_some_and(…)` | `apps/playground/src/main.rs` (`system_theme`) | Hell/Dunkel-Schalter |
+| 14 | **Ereignisse aus dem Browser**: `window_event_listener`, Aufräumen mit `on_cleanup` | `apps/playground/src/main.rs` | Navigation per URL (`#button`) |
+| 15 | **Globaler Zähler**: `AtomicU32` für eindeutige IDs | `crates/ui/src/field.rs` | TextField & Search |
+| 16 | **Tests**: `#[cfg(test)]`, `include_str!` liest das CSS zur Compile-Zeit | `crates/ui/src/lib.rs` | `cargo test` |
 | 17 | **Logik ohne UI**: `struct`, `impl`, `Result`, Zustandsmaschine, viele Tests | `crates/cockpit-core/src/agent.rs`, `workspace.rs` | Cockpit |
-| 18 | **Gemeinsamer Zustand**: ein `Copy`-Store im Kontext, `Memo`, `Effect` | `cockpit/src/store.rs`, `cockpit/src/pages/inbox.rs` | Cockpit |
-| 19 | **Workspace und Crates**: gemeinsame Versionen, ein Crate pro Baustein | `Cargo.toml`, `features/ui/Cargo.toml` | – |
+| 18 | **Gemeinsamer Zustand**: ein `Copy`-Store im Kontext, `Memo`, `Effect` | `apps/cockpit/src/store.rs`, `apps/cockpit/src/pages/inbox.rs` | Cockpit |
+| 19 | **Workspace und Crates**: gemeinsame Versionen, ein Crate pro Baustein | `Cargo.toml`, `crates/ui/Cargo.toml` | – |
 
 Gute Übung für jeden Schritt: Ändere etwas absichtlich falsch (z. B. `ButtonStyle::Glas`
 statt `Glass`) und lies die Compiler-Meldung. Rust erklärt Fehler meist sehr genau.
@@ -528,54 +528,57 @@ statt `Glass`) und lies die Compiler-Meldung. Rust erklärt Fehler meist sehr ge
 ```
 .
 ├── Cargo.toml                  # Workspace: gemeinsame Versionen & Mitglieder
-├── Trunk.toml                  # Trunk-Konfiguration (Einstieg: app/index.html)
-├── styles/
-│   └── tokens.css              # Design-Tokens, für das ganze Projekt
-├── features/
-│   └── ui/                     # wiederverwendbare Bausteine (Crate `feature-ui`)
+├── apps/                       # alles, was man startet
+│   ├── cockpit/                # die Hauptanwendung: Oberfläche (WASM), eigenes index.html und Trunk.toml
+│   │   └── src/
+│   │       ├── main.rs         # Start, Routing, Takt der Agenten
+│   │       ├── route.rs        # Seiten und ihre Adressen (#/review/87)
+│   │       ├── store.rs        # gemeinsamer Zustand
+│   │       └── pages/          # Einrichten, Inbox, Review, Agent
+│   ├── server/                 # Backend des Cockpits: axum, SQLite, Schlüsselablage
+│   ├── agent/                  # Container-Image und Läufer des Agenten (Node/TypeScript)
+│   └── playground/             # die Spielwiese: zeigt jeden Baustein einzeln (eigenes Trunk.toml)
+│       ├── index.html          # bindet WASM und CSS ein
+│       ├── style.css           # Layout der Hülle (nur Tokens, keine festen Farben)
+│       └── src/
+│           ├── main.rs         # Navigation, Theme-Schalter, aktive Story
+│           └── stories/        # eine Datei pro Story + Registry in mod.rs
+├── crates/                     # Bibliotheken
+│   ├── cockpit-core/           # Fachlogik des Cockpits – ohne UI, mit Tests
+│   ├── integrations/           # GitHub- und Jira-Clients (lesen, schreiben, abgleichen), nativ
+│   └── ui/                     # Komponentenbibliothek (Crate `feature-ui`), von Cockpit und Playground genutzt
+│       ├── tokens.css          # Design-Tokens, für das ganze Projekt
 │       ├── components.css      # Komponenten-CSS, 1:1 aus dem Design
 │       ├── extras.css          # Ergänzungen und Korrekturen zum Design
 │       └── src/                # Leptos-Komponenten, eine Datei pro Gruppe
 ├── scripts/                    # start.sh (App bauen, Server starten), launchd-Vorlage
-├── crates/
-│   ├── cockpit-core/           # Fachlogik des Cockpits – ohne UI, mit Tests
-│   └── integrations/           # GitHub- und Jira-Clients (lesen, schreiben, abgleichen), nativ
-├── server/                     # Backend: axum, SQLite, Schlüsselablage
-├── cockpit/                    # die Cockpit-App (eigenes index.html und Trunk.toml)
-│   └── src/
-│       ├── main.rs             # Start, Routing, Takt der Agenten
-│       ├── route.rs            # Seiten und ihre Adressen (#/review/87)
-│       ├── store.rs            # gemeinsamer Zustand
-│       └── pages/              # Einrichten, Inbox, Review, Agent
-└── app/                        # der Playground
-    ├── index.html              # bindet WASM und CSS ein
-    ├── style.css               # Layout der Hülle (nur Tokens, keine festen Farben)
-    └── src/
-        ├── main.rs             # Navigation, Theme-Schalter, aktive Story
-        └── stories/            # eine Datei pro Story + Registry in mod.rs
+└── docs/                       # Übergabe und Fahrplan
 ```
+
+`apps/` enthält die Programme, `crates/` die Bibliotheken, die sie teilen. Das Cockpit ist die
+Hauptanwendung; Playground und `crates/ui` sind die Spielwiese für die Komponenten.
 
 ### Baustein und Story
 
 | Begriff      | Wo?                         | Kennt den Playground? |
 |--------------|-----------------------------|-----------------------|
-| **Baustein** | `features/<name>/` (Crate)  | nein, daher wiederverwendbar |
-| **Story**    | `app/src/stories/<name>.rs` | ja, zeigt den Baustein mit Beispielwerten |
+| **Baustein** | `crates/<name>/` (Crate)   | nein, daher wiederverwendbar |
+| **Story**    | `apps/playground/src/stories/<name>.rs` | ja, zeigt den Baustein mit Beispielwerten |
 
 Ein Baustein-Crate hängt nur von `leptos` ab. In einem anderen Projekt bindest du ihn
 per Pfad ein:
 
 ```toml
 [dependencies]
-feature-ui = { path = "../rust-playground/features/ui" }
+feature-ui = { path = "../rust-playground/crates/ui" }
 ```
 
-Dazu `styles/tokens.css`, `features/ui/components.css` und `features/ui/extras.css`
+Dazu `crates/ui/tokens.css`, `crates/ui/components.css` und `crates/ui/extras.css`
 einbinden, in dieser Reihenfolge.
 
 ## Design-Tokens
 
-`styles/tokens.css` hat drei Ebenen:
+`crates/ui/tokens.css` hat drei Ebenen:
 
 | Ebene      | Präfix    | Inhalt                          | Beispiel |
 |------------|-----------|---------------------------------|----------|
@@ -677,7 +680,7 @@ Playground. Im Einzelnen:
 
 ## Eigene Story hinzufügen
 
-1. Datei `app/src/stories/mein_baustein.rs` anlegen, Vorlage ist `link_badge.rs`:
+1. Datei `apps/playground/src/stories/mein_baustein.rs` anlegen, Vorlage ist `link_badge.rs`:
    ```rust
    use feature_ui::*;
    use leptos::prelude::*;
@@ -696,20 +699,20 @@ Playground. Im Einzelnen:
        view! { <Section title="Beispiel">{/* … */}</Section> }.into_any()
    }
    ```
-2. In `app/src/stories/mod.rs` `mod mein_baustein;` ergänzen und `mein_baustein::STORY`
+2. In `apps/playground/src/stories/mod.rs` `mod mein_baustein;` ergänzen und `mein_baustein::STORY`
    in `STORIES` eintragen.
 
 ## Eigenen Baustein als neues Crate
 
-1. `cargo new --lib features/mein-baustein --name feature-mein-baustein`
-2. In dessen `Cargo.toml`: `leptos = { workspace = true }`. Durch `members = ["app", "features/*"]`
+1. `cargo new --lib crates/mein-baustein --name feature-mein-baustein`
+2. In dessen `Cargo.toml`: `leptos = { workspace = true }`. Durch `members = [..., "crates/*"]`
    gehört es automatisch zum Workspace.
 3. Im Root-`Cargo.toml` unter `[workspace.dependencies]` eintragen:
-   `feature-mein-baustein = { path = "features/mein-baustein" }`, dann in `app/Cargo.toml` verwenden.
-4. Eigenes CSS in `app/index.html` per `<link data-trunk rel="css" …>` einbinden, nach den Tokens.
+   `feature-mein-baustein = { path = "crates/mein-baustein" }`, dann in `apps/playground/Cargo.toml` verwenden.
+4. Eigenes CSS in `apps/playground/index.html` per `<link data-trunk rel="css" …>` einbinden, nach den Tokens.
 
 ## Schrift
 
 Das Design nutzt SF Pro (auf Apple-Geräten vorhanden) und fällt sonst auf **Inter** zurück.
-`app/index.html` lädt Inter von Google Fonts. Ohne externe Verbindung entfernst du die drei
+`apps/playground/index.html` lädt Inter von Google Fonts. Ohne externe Verbindung entfernst du die drei
 `<link>`-Zeilen, dann greift der System-Font.

@@ -3,7 +3,7 @@
 #
 # * Aus dem geklonten Repo: ruft scripts/start.sh auf (baut die App beim ersten Mal; das dauert
 #   ein paar Minuten).
-# * Aus dem fertigen Archiv (cockpit-server und cockpit/dist liegen neben dieser Datei): startet
+# * Aus dem fertigen Archiv (cockpit-server und apps/cockpit/dist liegen neben dieser Datei): startet
 #   direkt, ohne Rust und Trunk.
 #
 # Beim ersten Mal fragt macOS eventuell, ob du die Datei öffnen willst: Rechtsklick auf die Datei,

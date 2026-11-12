@@ -255,7 +255,7 @@ impl AppState {
             .einstellungen
             .agent_dir
             .clone()
-            .unwrap_or_else(|| PathBuf::from("agent"))
+            .unwrap_or_else(|| PathBuf::from("apps/agent"))
     }
 
     /// Ablehnungen vor dem Anwenden einer Aktion im echten Modus: Läufe starten nur, wenn alles

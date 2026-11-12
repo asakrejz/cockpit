@@ -5,7 +5,7 @@
 //!
 //! ```toml
 //! port = 8787
-//! dist = "/pfad/zu/cockpit/dist"
+//! dist = "/pfad/zu/apps/cockpit/dist"
 //! db = "/pfad/zur/cockpit.db"
 //!
 //! intervall_s = 120                    # Abgleich alle 2 Minuten (mindestens 30)
@@ -45,7 +45,7 @@
 //! anbieter = "claude-agent-sdk"        # umgesetzt; "claude-code" und "codex" sind bekannt, aber noch nicht umgesetzt
 //! container = "podman"                 # oder "docker"; ohne Angabe erkennt das Backend die Laufzeit
 //! repo = "firma/app"                   # Repo, in dem der Agent arbeitet (sonst das einzige aus [github] repos)
-//! dir = "/pfad/zu/agent"               # Ordner mit Containerfile und Läufer (sonst ./agent bzw. neben cockpit/dist)
+//! dir = "/pfad/zu/agent"               # Ordner mit Containerfile und Läufer (sonst ./apps/agent bzw. neben apps/cockpit/dist)
 //!
 //! [agent.endpunkt]
 //! url = "https://litellm.example"      # Proxy oder kompatibler Endpunkt; leer oder weglassen = direkt bei Anthropic
@@ -80,7 +80,7 @@ pub const MIN_INTERVALL_S: u64 = 30;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
     pub port: u16,
-    /// Ordner der gebauten Web-App (`cockpit/dist`).
+    /// Ordner der gebauten Web-App (`apps/cockpit/dist`).
     pub dist: PathBuf,
     pub db: PathBuf,
     pub github: Option<GitHubKonfig>,
@@ -306,7 +306,7 @@ impl Config {
     pub fn standard() -> Self {
         Self {
             port: STANDARD_PORT,
-            dist: PathBuf::from("cockpit/dist"),
+            dist: PathBuf::from("apps/cockpit/dist"),
             db: standard_db_pfad(),
             github: None,
             jira: None,
@@ -567,7 +567,7 @@ mod tests {
     fn standardwerte() {
         let c = Config::aus(None, keine_env).unwrap();
         assert_eq!(c.port, 8787);
-        assert_eq!(c.dist, PathBuf::from("cockpit/dist"));
+        assert_eq!(c.dist, PathBuf::from("apps/cockpit/dist"));
         assert!(c.db.ends_with("cockpit/cockpit.db"));
         assert!(c.github.is_none() && c.jira.is_none());
     }
