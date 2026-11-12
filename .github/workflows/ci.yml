@@ -31,9 +31,10 @@ jobs:
           version: latest
       - name: Build playground
         run: trunk build --release
+        working-directory: apps/playground
       - name: Build cockpit
         run: trunk build --release
-        working-directory: cockpit
+        working-directory: apps/cockpit
 
   # Der Läufer des Agenten (Node/TypeScript). Die Tests brauchen weder Netz noch das echte SDK.
   laeufer:
@@ -45,4 +46,4 @@ jobs:
           node-version: 24
       - name: Tests des Läufers
         run: node --disable-warning=ExperimentalWarning --test test/*.test.ts
-        working-directory: agent/runner
+        working-directory: apps/agent/runner

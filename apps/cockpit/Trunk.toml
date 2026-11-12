@@ -1,4 +1,4 @@
-# Cockpit wird aus diesem Ordner gebaut:  cd cockpit && trunk serve --open  (mit laufendem cockpit-server)
+# Cockpit wird aus diesem Ordner gebaut:  cd apps/cockpit && trunk serve --open  (mit laufendem cockpit-server)
 [build]
 target = "index.html"
 dist = "dist"

@@ -94,7 +94,7 @@ impl Einstellungen {
 
 /// Der Ordner `agent` mit Containerfile und Läufer: `[agent] dir` bzw. `COCKPIT_AGENT_DIR`, sonst
 /// neben der gebauten App (`<dist>/../../agent`, so liegt er im Repo und im Release-Archiv),
-/// sonst `./agent`.
+/// sonst `./apps/agent`.
 fn agent_ordner_finden(config: &Config) -> PathBuf {
     if let Some(d) = &config.agent_dir {
         return d.clone();
@@ -103,7 +103,7 @@ fn agent_ordner_finden(config: &Config) -> PathBuf {
     if neben_dist.join("Containerfile").is_file() {
         return neben_dist;
     }
-    PathBuf::from("agent")
+    PathBuf::from("apps/agent")
 }
 
 /// Gemeinsamer Zustand der Handler. Klonen ist billig.

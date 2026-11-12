@@ -1,7 +1,7 @@
 //! Registry aller Stories.
 //!
 //! Eine *Story* ist die Präsentation eines Bausteins im Playground.
-//! Der Baustein selbst lebt im Crate unter `features/` und weiß nichts
+//! Der Baustein selbst lebt im Crate unter `crates/` und weiß nichts
 //! vom Playground – so bleibt er wiederverwendbar.
 
 mod app_blocks;

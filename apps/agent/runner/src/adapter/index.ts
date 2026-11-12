@@ -2,7 +2,7 @@
 //
 // Neue Adapter (Claude Code mit `claude -p --output-format stream-json`, Codex mit
 // `codex exec --json`) müssen nur die Ausgabe ihres Werkzeugs in die Ereignisse aus ereignis.ts
-// übersetzen; siehe agent/README.md.
+// übersetzen; siehe apps/agent/README.md.
 
 import { claudeAgentSdk } from "./claude-agent-sdk.ts";
 import type { Adapter } from "./schnittstelle.ts";

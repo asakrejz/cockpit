@@ -7,7 +7,7 @@ pub const STORY: Story = Story {
     id: "foundations",
     title: "Foundations",
     group: "Grundlagen",
-    description: "Die Design-Tokens: Farben, Text Styles, Radien, Abstände und Schatten. Alles liegt in styles/tokens.css und gilt für das ganze Projekt.",
+    description: "Die Design-Tokens: Farben, Text Styles, Radien, Abstände und Schatten. Alles liegt in crates/ui/tokens.css und gilt für das ganze Projekt.",
     api: "--ref-* (Rohwerte) · --sys-* (Rollen) · --comp-* (pro Baustein)",
     render,
 };

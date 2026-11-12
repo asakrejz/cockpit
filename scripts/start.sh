@@ -44,18 +44,18 @@ command -v trunk > /dev/null || fehlt trunk "Trunk ist noch nicht installiert. M
 
 # Die App ist veraltet, wenn sie fehlt oder irgendeine Quelle neuer ist als das Ergebnis.
 app_veraltet() {
-  local ziel="cockpit/dist/index.html"
+  local ziel="apps/cockpit/dist/index.html"
   [ -f "$ziel" ] || return 0
-  [ -n "$(find cockpit/src cockpit/index.html cockpit/style.css cockpit/Trunk.toml \
-    crates/cockpit-core/src features styles Cargo.toml Cargo.lock \
+  [ -n "$(find apps/cockpit/src apps/cockpit/index.html apps/cockpit/style.css apps/cockpit/Trunk.toml \
+    crates/cockpit-core/src crates/ui Cargo.toml Cargo.lock \
     -type f -newer "$ziel" -print -quit 2> /dev/null)" ]
 }
 
 if app_veraltet; then
-  echo "Baue die App nach cockpit/dist …"
-  (cd cockpit && trunk build --release)
+  echo "Baue die App nach apps/cockpit/dist …"
+  (cd apps/cockpit && trunk build --release)
 else
-  echo "App in cockpit/dist ist aktuell."
+  echo "App in apps/cockpit/dist ist aktuell."
 fi
 
 port="${COCKPIT_PORT:-8787}"
