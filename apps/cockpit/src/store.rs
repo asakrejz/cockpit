@@ -144,7 +144,7 @@ impl Store {
             if let Ok(health) = server::fetch_health().await {
                 store.conn.update(|c| {
                     c.apply_services(&health.anmeldung.github, &health.anmeldung.jira);
-                    c.agent = health.agent.bereit;
+                    c.agent = health.agent.ready;
                 });
                 store.health.set(Some(health));
             }
@@ -226,13 +226,13 @@ impl Store {
     /// sie anwendet und protokolliert. Das Ergebnis erscheint über den Ereignisstrom; Fehler als
     /// Hinweis.
     pub fn dispatch(&self, action: Action) -> Result<Applied, ActionError> {
-        self.dispatch_as(action, Actor::Du)
+        self.dispatch_as(action, Actor::User)
     }
 
     /// Wie [`Store::dispatch`], für Änderungen, die nicht vom Nutzer kommen. Die macht der Server
     /// selbst (Takt der Agenten, Abgleich); der Browser schickt nur, was „Du“ tust.
     pub fn dispatch_as(&self, action: Action, actor: Actor) -> Result<Applied, ActionError> {
-        if actor == Actor::Du {
+        if actor == Actor::User {
             self.send(action);
         }
         Ok(Applied {

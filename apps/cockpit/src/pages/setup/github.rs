@@ -1,7 +1,7 @@
 //! Schritt 3: GitHub verbinden – über eine eigene GitHub App.
 
-use cockpit_core::api::{ClientEingabe, GitHubEingabe, KonfigAenderung};
-use cockpit_core::einrichten::{client_id_lesen, repos_lesen};
+use cockpit_core::api::{ClientInput, GitHubInput, ConfigChange};
+use cockpit_core::setup::{client_id_read, repos_read};
 use feature_ui::*;
 use leptos::prelude::*;
 
@@ -60,15 +60,15 @@ pub fn GitHubSchritt(ctx: Kontext) -> impl IntoView {
     let rueck_repos: Rueckmeldung = RwSignal::new(None);
     let callback = Signal::derive(move || ctx.einr.with(|e| e.callback_github.clone()));
 
-    let id_speichern = move |_| match client_id_lesen(&client_id.get_untracked()) {
+    let id_speichern = move |_| match client_id_read(&client_id.get_untracked()) {
         Ok(id) if id.is_empty() => rueck_id.set(Some((
             false,
             "Trage die Client ID von der Seite deiner GitHub App ein.".into(),
         ))),
         Ok(id) => konfig_speichern(
             ctx,
-            KonfigAenderung {
-                github_oauth: Some(ClientEingabe { client_id: id }),
+            ConfigChange {
+                github_oauth: Some(ClientInput { client_id: id }),
                 ..Default::default()
             },
             rueck_id,
@@ -77,11 +77,11 @@ pub fn GitHubSchritt(ctx: Kontext) -> impl IntoView {
         ),
         Err(m) => rueck_id.set(Some((false, m))),
     };
-    let repos_speichern = move |_| match repos_lesen(&repos.get_untracked()) {
+    let repos_speichern = move |_| match repos_read(&repos.get_untracked()) {
         Ok(liste) => konfig_speichern(
             ctx,
-            KonfigAenderung {
-                github: Some(GitHubEingabe { repos: liste }),
+            ConfigChange {
+                github: Some(GitHubInput { repos: liste }),
                 ..Default::default()
             },
             rueck_repos,

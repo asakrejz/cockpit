@@ -2,9 +2,9 @@
 //! LiteLLM oder ein anderer kompatibler Endpunkt), Key, Modellname als Drop-down aus der Liste des
 //! Endpunkts und die Verbindungstests. Die Regeln stehen in `cockpit_core::einrichten`.
 
-use cockpit_core::api::{Anbieter, EndpunktEingabe, KonfigAenderung};
-use cockpit_core::einrichten::{
-    EndpunktArt, Ton, modell_auswahl, modell_hinweis, modellname_lesen, pruefung_klartext,
+use cockpit_core::api::{Provider, EndpointInput, ConfigChange};
+use cockpit_core::setup::{
+    EndpointKind, Tone, model_selection, model_hint, model_name_read, check_plain_text,
 };
 use feature_ui::*;
 use leptos::prelude::*;
@@ -16,18 +16,18 @@ use super::felder::{
 use crate::server::{self, CallError};
 
 /// Der Text im Drop-down für ein Werkzeug; die noch nicht umgesetzten stehen als „bald“ da.
-fn anbieter_text(a: Anbieter) -> String {
-    if a.umgesetzt() {
-        a.bezeichnung().to_string()
+fn anbieter_text(a: Provider) -> String {
+    if a.implemented() {
+        a.label().to_string()
     } else {
-        format!("{} (bald)", a.bezeichnung())
+        format!("{} (bald)", a.label())
     }
 }
 
 #[component]
 pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
-    let anbieter = RwSignal::new(Anbieter::default());
-    let art = RwSignal::new(EndpunktArt::Direkt);
+    let anbieter = RwSignal::new(Provider::default());
+    let art = RwSignal::new(EndpointKind::Direct);
     let url = RwSignal::new(String::new());
     let modell = RwSignal::new(String::new());
     let von_hand = RwSignal::new(String::new());
@@ -41,11 +41,11 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
         if angefasst.get_untracked() {
             return;
         }
-        let adresse = e.endpunkt_url.unwrap_or_default();
-        art.set(EndpunktArt::aus_url(&adresse));
+        let adresse = e.endpoint_url.unwrap_or_default();
+        art.set(EndpointKind::from_url(&adresse));
         url.set(adresse);
-        modell.set(e.endpunkt_modell.unwrap_or_default());
-        anbieter.set(e.anbieter);
+        modell.set(e.endpoint_model.unwrap_or_default());
+        anbieter.set(e.provider);
     });
     let rueck: Rueckmeldung = RwSignal::new(None);
     let test_laeuft = RwSignal::new(false);
@@ -57,18 +57,18 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
         if hand.trim().is_empty() {
             Ok(modell.get_untracked().trim().to_string())
         } else {
-            modellname_lesen(&hand)
+            model_name_read(&hand)
         }
     };
-    let eingabe = move |modell: Option<String>| EndpunktEingabe {
-        anbieter: Some(anbieter.get_untracked()),
+    let eingabe = move |modell: Option<String>| EndpointInput {
+        provider: Some(anbieter.get_untracked()),
         // Direkt bei Anthropic: keine Adresse.
-        url: Some(if art.get_untracked().braucht_adresse() {
+        url: Some(if art.get_untracked().needs_address() {
             url.get_untracked()
         } else {
             String::new()
         }),
-        modell,
+        model: modell,
     };
 
     let speichern = move |_| match gewaehltes_modell() {
@@ -76,8 +76,8 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
             let hand = !von_hand.get_untracked().trim().is_empty();
             konfig_speichern(
                 ctx,
-                KonfigAenderung {
-                    endpunkt: Some(eingabe(Some(m.clone()))),
+                ConfigChange {
+                    endpoint: Some(eingabe(Some(m.clone()))),
                     ..Default::default()
                 },
                 rueck,
@@ -97,8 +97,8 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
     let laden = move |_| {
         liste_laedt.set(true);
         liste_hinweis.set(None);
-        let aenderung = KonfigAenderung {
-            endpunkt: Some(eingabe(None)),
+        let aenderung = ConfigChange {
+            endpoint: Some(eingabe(None)),
             ..Default::default()
         };
         spawn_local(async move {
@@ -115,11 +115,11 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
             }
             ctx.laden();
             match server::fetch_modelle().await {
-                Ok(l) if l.geladen => {
-                    liste_hinweis.set(Some(format!("{} Modelle geladen.", l.modelle.len())));
-                    liste.set(l.modelle);
+                Ok(l) if l.loaded => {
+                    liste_hinweis.set(Some(format!("{} Modelle geladen.", l.models.len())));
+                    liste.set(l.models);
                 }
-                Ok(l) => liste_hinweis.set(Some(l.hinweis.unwrap_or_else(|| {
+                Ok(l) => liste_hinweis.set(Some(l.hint.unwrap_or_else(|| {
                     "Der Endpunkt hat keine Modelle geliefert. Trage den Namen von Hand ein.".into()
                 }))),
                 Err(e) => liste_hinweis.set(Some(fehler(e))),
@@ -160,21 +160,21 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
     let bereit = move || {
         ctx.store.health.with(|h| {
             h.as_ref()
-                .is_some_and(|h| h.endpunkt.konfiguriert && h.endpunkt.key)
+                .is_some_and(|h| h.endpunkt.configured && h.endpunkt.key)
         })
     };
 
-    let key_gesetzt = move || ctx.einr.with(|e| e.hat_schluessel("agent-key"));
+    let key_gesetzt = move || ctx.einr.with(|e| e.has_key("agent-key"));
     let anbieter_optionen = Signal::derive(move || {
-        Anbieter::ALLE
+        Provider::ALL
             .into_iter()
-            .map(|a| (a.kennung().to_string(), anbieter_text(a)))
+            .map(|a| (a.id().to_string(), anbieter_text(a)))
             .collect::<Vec<_>>()
     });
     let art_optionen = Signal::derive(move || {
-        EndpunktArt::ALLE
+        EndpointKind::ALL
             .into_iter()
-            .map(|a| (a.id().to_string(), a.bezeichnung().to_string()))
+            .map(|a| (a.id().to_string(), a.label().to_string()))
             .collect::<Vec<_>>()
     });
     let modell_optionen = Signal::derive(move || {
@@ -184,9 +184,9 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
         if gewaehlt.trim().is_empty() {
             o.push((String::new(), "– Modell wählen –".into()));
         }
-        o.extend(modell_auswahl(&l, &gewaehlt).into_iter().map(|m| {
+        o.extend(model_selection(&l, &gewaehlt).into_iter().map(|m| {
             // „Nicht in der Liste“ gilt nur, wenn es überhaupt eine Liste gibt.
-            let text = if m.unbekannt && !l.is_empty() {
+            let text = if m.unknown && !l.is_empty() {
                 format!("{} (nicht in der Liste)", m.id)
             } else {
                 m.id.clone()
@@ -211,9 +211,9 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
                 <Select
                     label="Werkzeug des Agenten"
                     options=anbieter_optionen
-                    value=Signal::derive(move || anbieter.get().kennung().to_string())
+                    value=Signal::derive(move || anbieter.get().id().to_string())
                     on_change=Callback::new(move |v: String| {
-                        if let Some(a) = Anbieter::aus_kennung(&v) {
+                        if let Some(a) = Provider::from_id(&v) {
                             angefasst.set(true);
                             anbieter.set(a);
                         }
@@ -222,7 +222,7 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
                 {move || {
                     anbieter
                         .get()
-                        .nicht_umgesetzt()
+                        .not_implemented()
                         .map(|m| {
                             view! {
                                 <p class="ui-hinweis" role="status">
@@ -239,22 +239,22 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
                     options=art_optionen
                     value=Signal::derive(move || art.get().id().to_string())
                     on_change=Callback::new(move |v: String| {
-                        if let Some(a) = EndpunktArt::aus_id(&v) {
+                        if let Some(a) = EndpointKind::from_id(&v) {
                             angefasst.set(true);
                             art.set(a);
                         }
                     })
                 />
-                <p class="t-footnote t-secondary">{move || art.get().erklaerung()}</p>
+                <p class="t-footnote t-secondary">{move || art.get().explanation()}</p>
                 {move || {
                     art.get()
-                        .braucht_adresse()
+                        .needs_address()
                         .then(|| {
                             view! {
                                 <TextField
                                     label="Adresse des Endpunkts"
                                     value=url
-                                    placeholder=art.get().url_platzhalter()
+                                    placeholder=art.get().url_placeholder()
                                     hint="Beginnt meist mit https://. Ohne Angabe ergänzt Cockpit http://."
                                     autocomplete="off"
                                 />
@@ -268,7 +268,7 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
                         <SchluesselFeld
                             ctx=ctx
                             name="agent-key"
-                            label=art.get().key_bezeichnung()
+                            label=art.get().key_label()
                             hinweis="Geheim wie ein Passwort. Er wird nur im Schlüsselbund dieses Rechners gespeichert."
                         />
                     }
@@ -283,7 +283,7 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
                         variant=ButtonStyle::GlassProminent
                         disabled=Signal::derive(move || {
                             liste_laedt.get() || !key_gesetzt()
-                                || (art.get().braucht_adresse() && url.with(|u| u.trim().is_empty()))
+                                || (art.get().needs_address() && url.with(|u| u.trim().is_empty()))
                         })
                         on_click=laden
                     >
@@ -318,7 +318,7 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
                     })
                 />
                 {move || {
-                    modell_hinweis(&liste.get(), &modell.get())
+                    model_hint(&liste.get(), &modell.get())
                         .map(|m| view! { <p class="ui-hinweis" role="status">{m}</p> })
                 }}
                 <TextField
@@ -367,15 +367,15 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
                     ctx.pruefung
                         .get()
                         .map(|p| {
-                            let (ton, text) = pruefung_klartext(&p);
+                            let (ton, text) = check_plain_text(&p);
                             let tone = match ton {
-                                Ton::Gut => StatusTone::Green,
-                                Ton::Offen => StatusTone::Gray,
-                                Ton::Problem => StatusTone::Red,
+                                Tone::Good => StatusTone::Green,
+                                Tone::Open => StatusTone::Gray,
+                                Tone::Problem => StatusTone::Red,
                             };
                             view! {
                                 <HStack spacing="8px">
-                                    <Status tone=tone>{if ton == Ton::Gut { "Gelungen" } else { "Nicht gelungen" }}</Status>
+                                    <Status tone=tone>{if ton == Tone::Good { "Gelungen" } else { "Nicht gelungen" }}</Status>
                                     <span class="t-subheadline">{text}</span>
                                 </HStack>
                             }
@@ -404,10 +404,10 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
                     ctx.container_pruefung
                         .get()
                         .map(|p| {
-                            let gut = p.geprueft && p.container_erreicht && p.key_ok;
+                            let gut = p.checked && p.container_reached && p.key_ok;
                             let tone = if gut {
                                 StatusTone::Green
-                            } else if p.geprueft {
+                            } else if p.checked {
                                 StatusTone::Red
                             } else {
                                 StatusTone::Gray
@@ -415,9 +415,9 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
                             view! {
                                 <HStack spacing="8px">
                                     <Status tone=tone>
-                                        {if gut { "Gelungen" } else if p.geprueft { "Nicht gelungen" } else { "Nicht geprüft" }}
+                                        {if gut { "Gelungen" } else if p.checked { "Nicht gelungen" } else { "Nicht geprüft" }}
                                     </Status>
-                                    <span class="t-subheadline">{p.hinweis.unwrap_or_default()}</span>
+                                    <span class="t-subheadline">{p.hint.unwrap_or_default()}</span>
                                 </HStack>
                             }
                         })

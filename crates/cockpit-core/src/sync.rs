@@ -27,9 +27,9 @@ use crate::review::{FileDiff, LineComment, Review};
 use crate::workspace::Workspace;
 
 /// So viele neue oder entfernte Einträge stehen einzeln im Protokoll; darüber eine Sammelzeile.
-const MAX_EINZELN: usize = 5;
+const MAX_SINGLE: usize = 5;
 /// So viele Hinweise je Quelle behält der Zustand.
-const MAX_WARNUNGEN: usize = 5;
+const MAX_WARNINGS: usize = 5;
 
 // ---------- Was die Dienste liefern ----------
 
@@ -216,7 +216,7 @@ impl SyncState {
         entry.last_try_ms = now_ms;
         if problem.is_none() {
             entry.last_ok_ms = Some(now_ms);
-            entry.warnings = warn.iter().take(MAX_WARNUNGEN).cloned().collect();
+            entry.warnings = warn.iter().take(MAX_WARNINGS).cloned().collect();
         }
         entry.problem = problem;
     }
@@ -441,7 +441,7 @@ fn merge_items(ws: &mut Workspace, source: Source, remote: &[Item], changes: &mu
 
 /// Bis [`MAX_EINZELN`] einzeln, darüber eine Sammelzeile (die erste Änderung als Träger).
 fn collapse(list: Vec<Change>, out: &mut Vec<Change>, noun: &str) {
-    if list.len() <= MAX_EINZELN {
+    if list.len() <= MAX_SINGLE {
         out.extend(list);
         return;
     }
@@ -1127,7 +1127,7 @@ mod tests {
             remote: Remote::default(),
         };
         assert_eq!(
-            ws.apply(action.clone(), Actor::Du, T),
+            ws.apply(action.clone(), Actor::User, T),
             Err(crate::ActionError::SystemOnly)
         );
         assert!(ws.apply(action, Actor::System, T).is_ok());

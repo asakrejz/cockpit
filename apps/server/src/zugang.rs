@@ -112,7 +112,7 @@ pub async fn schuetzen(State(zugang): State<Zugang>, request: Request, next: Nex
         Err((status, meldung)) => (
             status,
             Json(ErrorBody {
-                fehler: meldung.into(),
+                error: meldung.into(),
             }),
         )
             .into_response(),

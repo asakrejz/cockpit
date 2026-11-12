@@ -13,7 +13,7 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use cockpit_core::api::{AgentStatus, ContainerPruefung, ContainerStatus, ImageBau};
+use cockpit_core::api::{AgentStatus, ContainerCheck, ContainerStatus, ImageBau};
 use cockpit_core::{Action, ActionError, Actor, AgentReport, RunKind, RunState, Workspace};
 use cockpit_integrations::Secret;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -127,7 +127,7 @@ impl AppState {
     }
 
     fn cli_pfad(&self, status: &ContainerStatus) -> Option<PathBuf> {
-        container::im_pfad(status.laufzeit.as_deref()?, &self.suchpfad())
+        container::im_pfad(status.runtime.as_deref()?, &self.suchpfad())
     }
 
     /// Gibt es das Agent-Image? (`image inspect`, kurz gemerkt). Blockierend.
@@ -180,7 +180,7 @@ impl AppState {
         let container = self.container_status();
         let image = self
             .cli_pfad(&container)
-            .filter(|_| container.engine_laeuft)
+            .filter(|_| container.engine_running)
             .is_some_and(|cli| self.image_vorhanden(&cli));
         let wahl = self.agent_wahl();
         let repo = self.repo_name();
@@ -199,12 +199,12 @@ impl AppState {
     /// Alles für einen Lauf, oder die Liste dessen, was fehlt. Blockierend.
     fn zugang(&self) -> Result<Zugang, Vec<String>> {
         let st = self.agent_status();
-        if !st.bereit {
-            return Err(st.fehlt);
+        if !st.ready {
+            return Err(st.missing);
         }
         let container = self.container_status();
         let wahl = self.agent_wahl();
-        if let Some(m) = wahl.anbieter.nicht_umgesetzt() {
+        if let Some(m) = wahl.anbieter.not_implemented() {
             return Err(vec![m]);
         }
         let endpunkt = wahl
@@ -268,10 +268,10 @@ impl AppState {
         match action {
             Action::StartAgent { .. } | Action::ResumeStopped { .. } => {
                 let st = self.agent_status();
-                (!st.bereit).then(|| {
+                (!st.ready).then(|| {
                     format!(
                         "Der Agent kann noch nicht starten. {}",
-                        st.fehlt.join(" ")
+                        st.missing.join(" ")
                     )
                 })
             }
@@ -390,7 +390,7 @@ impl AppState {
     /// verloren gingen, als abgebrochen kennzeichnen. Blockierend.
     pub(crate) fn agent_aufraeumen(&self) {
         let status = self.container_status();
-        if let Some(cli) = self.cli_pfad(&status).filter(|_| status.engine_laeuft) {
+        if let Some(cli) = self.cli_pfad(&status).filter(|_| status.engine_running) {
             let n = container_labels_entfernen(&cli);
             if n > 0 {
                 tracing::info!("{n} Container eines früheren Starts entfernt");
@@ -439,7 +439,7 @@ impl AppState {
     pub(crate) fn image_stand(&self) -> ImageBau {
         let mut b = sperre(&self.inner.agent.bau).clone();
         let status = self.container_status();
-        b.vorhanden = status.engine_laeuft
+        b.present = status.engine_running
             && self
                 .cli_pfad(&status)
                 .is_some_and(|cli| self.image_vorhanden(&cli));
@@ -451,12 +451,12 @@ impl AppState {
     pub(crate) fn image_bauen(&self) -> Result<ImageBau, String> {
         let status = self.container_status();
         let Some(cli) = self.cli_pfad(&status) else {
-            return Err(status.hinweis.unwrap_or_else(|| {
+            return Err(status.hint.unwrap_or_else(|| {
                 "Es gibt keine Container-Laufzeit. Installiere Rancher Desktop oder Podman.".into()
             }));
         };
-        if !status.engine_laeuft {
-            return Err(status.hinweis.unwrap_or_else(|| {
+        if !status.engine_running {
+            return Err(status.hint.unwrap_or_else(|| {
                 "Die Container-Laufzeit läuft nicht. Starte sie und versuche es erneut.".into()
             }));
         }
@@ -469,14 +469,14 @@ impl AppState {
         }
         {
             let mut b = sperre(&self.inner.agent.bau);
-            if b.laeuft {
+            if b.running {
                 return Ok(b.clone());
             }
             *b = ImageBau {
-                laeuft: true,
-                vorhanden: false,
-                fehler: None,
-                zeilen: vec!["Der Bau startet …".into()],
+                running: true,
+                present: false,
+                error: None,
+                lines: vec!["Der Bau startet …".into()],
             };
         }
         let s = self.clone();
@@ -488,23 +488,23 @@ impl AppState {
 
     /// Prüft, ob ein Container den Endpunkt erreicht (kurzer Lauf des Images im Prüfmodus,
     /// `--rm`), und vergleicht mit dem, was der Mac sieht.
-    pub(crate) async fn container_pruefen(&self) -> ContainerPruefung {
+    pub(crate) async fn container_pruefen(&self) -> ContainerCheck {
         let s = self.clone();
         let vorbereitet = tokio::task::spawn_blocking(move || {
             let status = s.container_status();
-            let cli = s.cli_pfad(&status).filter(|_| status.engine_laeuft);
+            let cli = s.cli_pfad(&status).filter(|_| status.engine_running);
             let image = cli.as_ref().is_some_and(|c| s.image_vorhanden(c));
             (status, cli, image, s.agent_wahl(), s.agent_key())
         })
         .await;
         let Ok((status, cli, image, wahl, key)) = vorbereitet else {
-            return ContainerPruefung::default();
+            return ContainerCheck::default();
         };
-        let nicht = |hinweis: &str| ContainerPruefung {
-            hinweis: Some(hinweis.into()),
+        let nicht = |hinweis: &str| ContainerCheck {
+            hint: Some(hinweis.into()),
             ..Default::default()
         };
-        if let Some(m) = wahl.anbieter.nicht_umgesetzt() {
+        if let Some(m) = wahl.anbieter.not_implemented() {
             return nicht(&m);
         }
         let Some(endpunkt) = wahl.endpunkt else {
@@ -518,7 +518,7 @@ impl AppState {
             );
         };
         let Some(cli) = cli else {
-            return nicht(&status.hinweis.unwrap_or_else(|| {
+            return nicht(&status.hint.unwrap_or_else(|| {
                 "Die Container-Laufzeit läuft nicht (Schritt „Container“).".into()
             }));
         };
@@ -527,7 +527,7 @@ impl AppState {
                 "Das Agent-Image fehlt. Baue es im Schritt „Container“ mit „Image bauen“, dann kann der Container testen.",
             );
         }
-        let mac = cockpit_integrations::endpunkt::pruefen(
+        let mac = cockpit_integrations::endpoint::verify(
             &self.endpunkt_ziel(),
             Some(&key),
             endpunkt.modell.as_deref(),
@@ -550,12 +550,12 @@ impl AppState {
             Ok(_) => (false, false, "Unerwartete Antwort des Containers.".into()),
             Err(m) => (false, false, m.clone()),
         };
-        ContainerPruefung {
-            geprueft: true,
-            mac_erreicht: mac.erreichbar,
-            container_erreicht: erreicht,
+        ContainerCheck {
+            checked: true,
+            mac_reached: mac.reachable,
+            container_reached: erreicht,
             key_ok,
-            hinweis: Some(pruefung_hinweis(mac.erreichbar, erreicht, key_ok, &text)),
+            hint: Some(pruefung_hinweis(mac.reachable, erreicht, key_ok, &text)),
         }
     }
 }
@@ -774,9 +774,9 @@ async fn bau_aufgabe(state: AppState, cli: PathBuf, quelle: PathBuf) {
     let fertig = |fehler: Option<String>| {
         state.image_vergessen();
         let mut b = sperre(&state.inner.agent.bau);
-        b.laeuft = false;
-        b.vorhanden = fehler.is_none();
-        b.fehler = fehler;
+        b.running = false;
+        b.present = fehler.is_none();
+        b.error = fehler;
     };
     let mut kind = match kind {
         Ok(k) => k,
@@ -807,17 +807,17 @@ async fn bau_aufgabe(state: AppState, cli: PathBuf, quelle: PathBuf) {
             continue;
         }
         let mut b = sperre(&state.inner.agent.bau);
-        b.zeilen.push(z);
-        let n = b.zeilen.len();
+        b.lines.push(z);
+        let n = b.lines.len();
         if n > MAX_BAU_ZEILEN {
-            b.zeilen.drain(..n - MAX_BAU_ZEILEN);
+            b.lines.drain(..n - MAX_BAU_ZEILEN);
         }
     }
     let status = kind.wait().await;
     match status {
         Ok(s) if s.success() => fertig(None),
         Ok(s) => {
-            let zeilen = sperre(&state.inner.agent.bau).zeilen.clone();
+            let zeilen = sperre(&state.inner.agent.bau).lines.clone();
             let letzte = zeilen.iter().rev().find(|z| !z.trim().is_empty()).cloned();
             let mut m = format!(
                 "Der Bau ist gescheitert (Code {}).",
@@ -1367,7 +1367,7 @@ mod tests {
     use crate::config::{AgentWahl, EndpunktKonfig};
     use crate::secrets;
     use crate::secrets::{MemoryStore, SecretStore};
-    use cockpit_core::api::Anbieter;
+    use cockpit_core::api::Provider;
     use cockpit_core::{AgentOptions, MessageKind, demo};
 
     const TOKEN: &str = "sk-test-geheim-123";
@@ -1619,7 +1619,7 @@ exit 0
             container_env: Some("docker".into()),
             suchpfad: Some(bin.clone().into_os_string()),
             agent: AgentWahl {
-                anbieter: Anbieter::ClaudeAgentSdk,
+                anbieter: Provider::ClaudeAgentSdk,
                 endpunkt: eingerichtet.then(|| EndpunktKonfig {
                     url: Some("https://litellm.example".into()),
                     modell: Some("claude-sonnet-5-5".into()),
@@ -1672,9 +1672,9 @@ exit 0
         let status = tokio::task::spawn_blocking(move || st.agent_status())
             .await
             .unwrap();
-        assert_eq!(status.modus, "echt");
-        assert!(!status.bereit);
-        let text = status.fehlt.join(" ");
+        assert_eq!(status.mode, "echt");
+        assert!(!status.ready);
+        let text = status.missing.join(" ");
         assert!(
             text.contains("Einrichten")
                 && text.contains("Container")
@@ -1713,11 +1713,11 @@ exit 0
         let status = tokio::task::spawn_blocking(move || st.agent_status())
             .await
             .unwrap();
-        assert!(!status.bereit && !status.image);
+        assert!(!status.ready && !status.image);
         assert!(
-            status.fehlt[0].contains("Image bauen"),
+            status.missing[0].contains("Image bauen"),
             "{:?}",
-            status.fehlt
+            status.missing
         );
     }
 
@@ -1835,7 +1835,7 @@ exit 0
     #[test]
     fn ein_noch_nicht_umgesetztes_werkzeug_startet_keinen_lauf() {
         let w = welt(true);
-        for a in [Anbieter::ClaudeCode, Anbieter::Codex] {
+        for a in [Provider::ClaudeCode, Provider::Codex] {
             let state = mit_wahl(
                 &w,
                 AgentWahl {
@@ -1844,13 +1844,13 @@ exit 0
                 },
             );
             let st = state.agent_status();
-            assert!(!st.bereit);
+            assert!(!st.ready);
             assert!(
-                st.fehlt
+                st.missing
                     .iter()
-                    .any(|f| f.contains(a.bezeichnung()) && f.contains("noch nicht umgesetzt")),
+                    .any(|f| f.contains(a.label()) && f.contains("noch nicht umgesetzt")),
                 "{:?}",
-                st.fehlt
+                st.missing
             );
             let Err(fehlt) = state.zugang() else {
                 panic!("kein Zugang für {a:?}");
@@ -1865,7 +1865,7 @@ exit 0
         let state = mit_wahl(
             &w,
             AgentWahl {
-                anbieter: Anbieter::ClaudeAgentSdk,
+                anbieter: Provider::ClaudeAgentSdk,
                 endpunkt: Some(EndpunktKonfig {
                     url: None,
                     modell: Some("claude-opus-5-5".into()),
@@ -1877,7 +1877,7 @@ exit 0
             .set(secrets::AGENT_KEY, &Secret::new("sk-ant-neu"))
             .unwrap();
         let st = state.agent_status();
-        assert!(st.bereit, "{:?}", st.fehlt);
+        assert!(st.ready, "{:?}", st.missing);
         let z = state.zugang().unwrap();
         assert_eq!(z.endpunkt_url, None);
         assert_eq!(z.key.expose(), "sk-ant-neu");
@@ -1886,8 +1886,8 @@ exit 0
         // Ohne Modell fehlt etwas, und der Hinweis nennt es.
         let state = mit_wahl(&w, AgentWahl::default());
         let st = state.agent_status();
-        assert!(!st.bereit);
-        assert!(st.fehlt.iter().any(|f| f.contains("der Modellname")));
+        assert!(!st.ready);
+        assert!(st.missing.iter().any(|f| f.contains("der Modellname")));
     }
 
     #[tokio::test]
@@ -2328,20 +2328,20 @@ printf '%s\n' '{{"t":"hinweise_angekommen"}}'
             .await
             .unwrap()
             .unwrap();
-        assert!(b.laeuft);
+        assert!(b.running);
         let ende = Instant::now() + Duration::from_secs(10);
         loop {
             let st = w.state.clone();
             let b = tokio::task::spawn_blocking(move || st.image_stand())
                 .await
                 .unwrap();
-            if !b.laeuft {
-                assert!(b.fehler.is_none(), "{b:?}");
-                assert!(b.vorhanden);
+            if !b.running {
+                assert!(b.error.is_none(), "{b:?}");
+                assert!(b.present);
                 assert!(
-                    b.zeilen.iter().any(|z| z.starts_with("Step 2/5")),
+                    b.lines.iter().any(|z| z.starts_with("Step 2/5")),
                     "{:?}",
-                    b.zeilen
+                    b.lines
                 );
                 break;
             }
@@ -2370,8 +2370,8 @@ printf '%s\n' '{{"t":"hinweise_angekommen"}}'
             let b = tokio::task::spawn_blocking(move || st.image_stand())
                 .await
                 .unwrap();
-            if !b.laeuft {
-                let f = b.fehler.expect("Fehler");
+            if !b.running {
+                let f = b.error.expect("Fehler");
                 assert!(f.contains("gescheitert") && f.contains("Platz"), "{f}");
                 break;
             }
@@ -2427,7 +2427,7 @@ printf '%s\n' '{{"t":"hinweise_angekommen"}}'
         // Der Proxy des Tests liegt auf dem Mac; der „Container“ erreicht ihn nicht.
         let e = Einstellungen {
             agent: AgentWahl {
-                anbieter: Anbieter::ClaudeAgentSdk,
+                anbieter: Provider::ClaudeAgentSdk,
                 endpunkt: Some(EndpunktKonfig {
                     url: Some(proxy.uri()),
                     modell: Some("claude-sonnet-5-5".into()),
@@ -2451,10 +2451,10 @@ exit 1
         );
         let p = state.container_pruefen().await;
         assert!(
-            p.geprueft && p.mac_erreicht && !p.container_erreicht,
+            p.checked && p.mac_reached && !p.container_reached,
             "{p:?}"
         );
-        let h = p.hinweis.unwrap();
+        let h = p.hint.unwrap();
         assert!(
             h.contains("Dein Mac erreicht den Proxy, der Container aber nicht")
                 && h.contains("VPN")
@@ -2471,9 +2471,9 @@ exit 1
             "printf '%s\\n' '{\"t\":\"pruefung\",\"erreichbar\":true,\"key_ok\":true,\"hinweis\":\"ok\"}'\nexit 0\n",
         );
         let p = state.container_pruefen().await;
-        assert!(p.container_erreicht && p.key_ok);
+        assert!(p.container_reached && p.key_ok);
         assert!(
-            p.hinweis
+            p.hint
                 .unwrap()
                 .contains("auch aus dem Container erreichbar")
         );
@@ -2483,11 +2483,11 @@ exit 1
     async fn pruefung_aus_dem_container_ohne_image_oder_key_ruft_nichts_auf() {
         let w = welt(false);
         let p = w.state.container_pruefen().await;
-        assert!(!p.geprueft && p.hinweis.unwrap().contains("nicht eingerichtet"));
+        assert!(!p.checked && p.hint.unwrap().contains("nicht eingerichtet"));
         let w = welt(true);
         std::fs::write(w.bin().join("kein-image"), "").unwrap();
         let p = w.state.container_pruefen().await;
-        assert!(!p.geprueft && p.hinweis.unwrap().contains("Image fehlt"));
+        assert!(!p.checked && p.hint.unwrap().contains("Image fehlt"));
         assert!(!w.log("aufrufe.log").contains("run "));
     }
 }

@@ -24,9 +24,9 @@ pub struct SearchItem {
 impl SearchItem {
     /// `owner/name` aus `repository_url`.
     pub fn repo(&self) -> Option<String> {
-        let mut teile = self.repository_url.trim_end_matches('/').rsplit('/');
-        let name = teile.next()?;
-        let owner = teile.next()?;
+        let mut parts = self.repository_url.trim_end_matches('/').rsplit('/');
+        let name = parts.next()?;
+        let owner = parts.next()?;
         (!name.is_empty() && !owner.is_empty()).then(|| format!("{owner}/{name}"))
     }
 }
@@ -168,7 +168,7 @@ pub struct Repo {
 
 /// `GET /repos/{owner}/{repo}/git/ref/heads/{branch}`
 #[derive(Debug, Clone, Deserialize)]
-pub struct GitRefAntwort {
+pub struct GitRefResponse {
     pub object: GitObject,
 }
 

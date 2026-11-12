@@ -14,19 +14,19 @@
 //! Funktionen und werden mit gespeicherten Beispiel-Antworten getestet; die Clients mit
 //! einem Mock-Server. Gegen die echten Dienste ist noch nichts geprüft.
 
-pub mod abgleich;
-pub mod ausgehend;
+pub mod sync;
+pub mod outbound;
 mod error;
 mod http;
 pub mod oauth;
 mod secret;
 pub mod text;
-pub mod zeit;
+pub mod time;
 
-pub mod endpunkt;
+pub mod endpoint;
 pub mod github;
 pub mod jira;
 
-pub use abgleich::{Dienste, GitHubDienst, JiraDienst};
-pub use error::Fehler;
+pub use sync::{Services, GitHubService, JiraService};
+pub use error::Error;
 pub use secret::Secret;

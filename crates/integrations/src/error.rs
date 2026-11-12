@@ -4,117 +4,117 @@ use cockpit_core::Problem;
 
 /// Was bei einem Aufruf schiefgehen kann. Die Meldungen enthalten nie einen Schlüssel.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Fehler {
+pub enum Error {
     /// Keine Verbindung, Zeitüberschreitung o. Ä.
-    Netzwerk(String),
+    Network(String),
     /// 401: Schlüssel fehlt, ist abgelaufen oder widerrufen.
-    NichtAngemeldet,
+    NotSignedIn,
     /// 403: Schlüssel gültig, aber ohne Berechtigung.
-    KeineBerechtigung,
+    NoPermission,
     /// 403/429 mit aufgebrauchtem Kontingent. `warten_s`: so lange sollen wir pausieren
     /// (aus `Retry-After` bzw. dem Zeitpunkt, an dem das Kontingent zurückkommt).
     RateLimit {
-        warten_s: Option<u64>,
+        wait_s: Option<u64>,
     },
-    NichtGefunden,
+    NotFound,
     /// Der Dienst lehnt die Anfrage ab (400, 405, 409, 422) – mit seiner Meldung, falls er eine gibt.
-    Abgelehnt(String),
+    Rejected(String),
     /// Anderer HTTP-Status.
     Status(u16),
     /// Antwort nicht lesbar oder anders aufgebaut als erwartet.
-    Antwort(String),
+    Response(String),
     /// Ungültige Einstellung (z. B. Adresse).
-    Einstellung(String),
+    Config(String),
     /// Der Dienst kennt keine passende Möglichkeit (z. B. keine Jira-Transition zum Ziel-Status).
-    NichtMoeglich(String),
+    NotPossible(String),
 }
 
-impl Fehler {
+impl Error {
     /// Ersetzt den Schlüssel in allen Texten durch `***`, falls ein Dienst ihn zurückspielt.
-    pub fn ohne_schluessel(self, schluessel: &str) -> Self {
-        if schluessel.is_empty() {
+    pub fn without_key(self, key: &str) -> Self {
+        if key.is_empty() {
             return self;
         }
-        let rein = |m: String| m.replace(schluessel, "***");
+        let pure = |m: String| m.replace(key, "***");
         match self {
-            Fehler::Netzwerk(m) => Fehler::Netzwerk(rein(m)),
-            Fehler::Abgelehnt(m) => Fehler::Abgelehnt(rein(m)),
-            Fehler::Antwort(m) => Fehler::Antwort(rein(m)),
-            Fehler::Einstellung(m) => Fehler::Einstellung(rein(m)),
-            Fehler::NichtMoeglich(m) => Fehler::NichtMoeglich(rein(m)),
-            sonst => sonst,
+            Error::Network(m) => Error::Network(pure(m)),
+            Error::Rejected(m) => Error::Rejected(pure(m)),
+            Error::Response(m) => Error::Response(pure(m)),
+            Error::Config(m) => Error::Config(pure(m)),
+            Error::NotPossible(m) => Error::NotPossible(pure(m)),
+            other => other,
         }
     }
 
     /// Der Zustand für die Anzeige je Quelle. `jetzt_ms`: Uhrzeit des Aufrufers (Millisekunden).
-    pub fn problem(&self, jetzt_ms: u64) -> Problem {
+    pub fn problem(&self, now_ms: u64) -> Problem {
         match self {
-            Fehler::NichtAngemeldet => Problem::Unauthorized,
-            Fehler::KeineBerechtigung => Problem::NoPermission,
-            Fehler::RateLimit { warten_s } => Problem::RateLimited {
-                until_ms: warten_s.map(|s| jetzt_ms + s * 1000),
+            Error::NotSignedIn => Problem::Unauthorized,
+            Error::NoPermission => Problem::NoPermission,
+            Error::RateLimit { wait_s } => Problem::RateLimited {
+                until_ms: wait_s.map(|s| now_ms + s * 1000),
             },
-            Fehler::Netzwerk(_) => Problem::Offline,
-            andere => Problem::Other(andere.to_string()),
+            Error::Network(_) => Problem::Offline,
+            other => Problem::Other(other.to_string()),
         }
     }
 }
 
-impl fmt::Display for Fehler {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Fehler::Netzwerk(m) => write!(f, "Keine Verbindung zum Dienst: {m}"),
-            Fehler::NichtAngemeldet => {
+            Error::Network(m) => write!(f, "Keine Verbindung zum Dienst: {m}"),
+            Error::NotSignedIn => {
                 write!(
                     f,
                     "Nicht angemeldet: Schlüssel fehlt, ist abgelaufen oder widerrufen"
                 )
             }
-            Fehler::KeineBerechtigung => write!(f, "Dem Schlüssel fehlt die Berechtigung"),
-            Fehler::RateLimit { .. } => write!(
+            Error::NoPermission => write!(f, "Dem Schlüssel fehlt die Berechtigung"),
+            Error::RateLimit { .. } => write!(
                 f,
                 "Kontingent des Dienstes aufgebraucht, später erneut versuchen"
             ),
-            Fehler::NichtGefunden => write!(f, "Nicht gefunden"),
-            Fehler::Abgelehnt(m) if m.is_empty() => write!(f, "Der Dienst lehnt die Anfrage ab"),
-            Fehler::Abgelehnt(m) => write!(f, "Der Dienst lehnt die Anfrage ab: {m}"),
-            Fehler::Status(code) => write!(f, "Unerwarteter Status vom Dienst: {code}"),
-            Fehler::Antwort(m) => write!(f, "Antwort des Dienstes nicht lesbar: {m}"),
-            Fehler::Einstellung(m) => write!(f, "Ungültige Einstellung: {m}"),
-            Fehler::NichtMoeglich(m) => write!(f, "{m}"),
+            Error::NotFound => write!(f, "Nicht gefunden"),
+            Error::Rejected(m) if m.is_empty() => write!(f, "Der Dienst lehnt die Anfrage ab"),
+            Error::Rejected(m) => write!(f, "Der Dienst lehnt die Anfrage ab: {m}"),
+            Error::Status(code) => write!(f, "Unerwarteter Status vom Dienst: {code}"),
+            Error::Response(m) => write!(f, "Antwort des Dienstes nicht lesbar: {m}"),
+            Error::Config(m) => write!(f, "Ungültige Einstellung: {m}"),
+            Error::NotPossible(m) => write!(f, "{m}"),
         }
     }
 }
 
-impl std::error::Error for Fehler {}
+impl std::error::Error for Error {}
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn schluessel_wird_aus_meldungen_entfernt() {
+    fn key_is_removed_from_messages() {
         let f =
-            Fehler::Abgelehnt("Bad credentials ghp_geheim".into()).ohne_schluessel("ghp_geheim");
+            Error::Rejected("Bad credentials ghp_geheim".into()).without_key("ghp_geheim");
         assert!(!f.to_string().contains("ghp_geheim"));
         assert!(f.to_string().contains("***"));
     }
 
     #[test]
-    fn problem_je_fehler() {
-        assert_eq!(Fehler::NichtAngemeldet.problem(0), Problem::Unauthorized);
-        assert_eq!(Fehler::KeineBerechtigung.problem(0), Problem::NoPermission);
-        assert_eq!(Fehler::Netzwerk("x".into()).problem(0), Problem::Offline);
+    fn problem_per_error() {
+        assert_eq!(Error::NotSignedIn.problem(0), Problem::Unauthorized);
+        assert_eq!(Error::NoPermission.problem(0), Problem::NoPermission);
+        assert_eq!(Error::Network("x".into()).problem(0), Problem::Offline);
         assert_eq!(
-            Fehler::RateLimit { warten_s: Some(30) }.problem(1000),
+            Error::RateLimit { wait_s: Some(30) }.problem(1000),
             Problem::RateLimited {
                 until_ms: Some(31_000)
             }
         );
         assert_eq!(
-            Fehler::RateLimit { warten_s: None }.problem(1000),
+            Error::RateLimit { wait_s: None }.problem(1000),
             Problem::RateLimited { until_ms: None }
         );
-        assert!(matches!(Fehler::Status(500).problem(0), Problem::Other(_)));
+        assert!(matches!(Error::Status(500).problem(0), Problem::Other(_)));
     }
 }

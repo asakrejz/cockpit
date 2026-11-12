@@ -33,14 +33,17 @@ impl AuthKind {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServiceStatus {
     #[serde(default)]
-    pub verbunden: bool,
+    #[serde(rename = "verbunden")]
+    pub connected: bool,
     /// Art der Anmeldung; `none`, solange getrennt.
     #[serde(default)]
-    pub art: AuthKind,
+    #[serde(rename = "art")]
+    pub kind: AuthKind,
     /// Die OAuth-App ist in `config.toml` eingerichtet und ihr Secret liegt im Schlüsselbund:
     /// „Mit … anmelden“ ist möglich.
     #[serde(default)]
-    pub oauth_moeglich: bool,
+    #[serde(rename = "oauth_moeglich")]
+    pub oauth_possible: bool,
     /// Bei Atlassian: die gewählte Site.
     #[serde(default)]
     pub site: Option<String>,
@@ -78,10 +81,10 @@ impl Default for Connections {
 impl Connections {
     /// Übernimmt den Stand, den das Backend meldet (Haken und Art der Anmeldung).
     pub fn apply_services(&mut self, github: &ServiceStatus, jira: &ServiceStatus) {
-        self.github = github.verbunden;
-        self.github_auth = github.art;
-        self.jira = jira.verbunden;
-        self.jira_auth = jira.art;
+        self.github = github.connected;
+        self.github_auth = github.kind;
+        self.jira = jira.connected;
+        self.jira_auth = jira.kind;
     }
 
     /// Warum der Agent kein Ticket umsetzen darf – oder `None`, wenn er darf.
@@ -106,8 +109,8 @@ mod tests {
     fn server_reports_the_kind() {
         let mut c = Connections::default();
         let oauth = ServiceStatus {
-            verbunden: true,
-            art: AuthKind::OAuth,
+            connected: true,
+            kind: AuthKind::OAuth,
             ..Default::default()
         };
         c.apply_services(&oauth, &ServiceStatus::default());
@@ -124,7 +127,7 @@ mod tests {
         assert_eq!(s, ServiceStatus::default());
         let s: ServiceStatus =
             serde_json::from_str(r#"{"verbunden":true,"art":"oauth","site":"firma"}"#).unwrap();
-        assert_eq!(s.art, AuthKind::OAuth);
+        assert_eq!(s.kind, AuthKind::OAuth);
         assert_eq!(
             serde_json::to_string(&AuthKind::Token).unwrap(),
             "\"token\""

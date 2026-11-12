@@ -276,17 +276,18 @@ impl Action {
 /// Wer die Aktion ausgelöst hat.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Actor {
-    Du,
+    #[serde(rename = "Du")]
+    User,
     Agent,
     System,
 }
 
 impl Actor {
-    pub const ALL: [Actor; 3] = [Actor::Du, Actor::Agent, Actor::System];
+    pub const ALL: [Actor; 3] = [Actor::User, Actor::Agent, Actor::System];
 
     pub fn label(self) -> &'static str {
         match self {
-            Actor::Du => "Du",
+            Actor::User => "Du",
             Actor::Agent => "Agent",
             Actor::System => "System",
         }
@@ -294,7 +295,7 @@ impl Actor {
 
     pub fn id(self) -> &'static str {
         match self {
-            Actor::Du => "du",
+            Actor::User => "du",
             Actor::Agent => "agent",
             Actor::System => "system",
         }
@@ -454,7 +455,7 @@ impl ActionError {
                 match actor {
                     Actor::Agent => "der Agent",
                     Actor::System => "das System",
-                    Actor::Du => "du",
+                    Actor::User => "du",
                 }
             ),
             ActionError::SystemOnly => {
@@ -567,7 +568,7 @@ impl Workspace {
         at_ms: u64,
     ) -> Result<Applied, ActionError> {
         // Mergen ist Sache des Nutzers: Das prüft schon die Schicht, nicht erst die Oberfläche.
-        if matches!(action, Action::MergePr { .. }) && actor != Actor::Du {
+        if matches!(action, Action::MergePr { .. }) && actor != Actor::User {
             return Err(ActionError::MergeNotAllowed(actor));
         }
         if action.system_only() && actor != Actor::System {
@@ -1589,7 +1590,7 @@ mod tests {
     /// Wendet an und erwartet genau `n` neue Einträge.
     fn ok(w: &mut Workspace, action: Action, n: usize) -> Applied {
         let before = w.log.len();
-        let applied = w.apply(action.clone(), Actor::Du, T).unwrap();
+        let applied = w.apply(action.clone(), Actor::User, T).unwrap();
         assert_eq!(applied.logged, n, "{action:?}");
         assert_eq!(w.log.len(), before + n, "{action:?}");
         applied
@@ -1597,7 +1598,7 @@ mod tests {
 
     fn fails(w: &mut Workspace, action: Action, error: ActionError) {
         let before = w.clone();
-        assert_eq!(w.apply(action, Actor::Du, T), Err(error));
+        assert_eq!(w.apply(action, Actor::User, T), Err(error));
         assert_eq!(
             *w, before,
             "ein Fehler ändert nichts und protokolliert nichts"
@@ -1763,7 +1764,7 @@ mod tests {
             2,
         );
         ok(&mut w, Action::RejectPlan { ticket: key }, 1);
-        let reset = w.apply(Action::ResetDemo, Actor::Du, T).unwrap();
+        let reset = w.apply(Action::ResetDemo, Actor::User, T).unwrap();
         assert_eq!(reset.logged, 1);
         assert_eq!(
             w.log.len(),
@@ -1781,7 +1782,7 @@ mod tests {
             Action::MarkDone {
                 item: "bau142".into(),
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -1791,7 +1792,7 @@ mod tests {
             (
                 1,
                 T,
-                Actor::Du,
+                Actor::User,
                 Some(Target::Item("bau142".into())),
                 "BAU-142 als erledigt markiert"
             )
@@ -1801,7 +1802,7 @@ mod tests {
                 item: "bau150".into(),
                 status: TicketStatus::InProgress,
             },
-            Actor::Du,
+            Actor::User,
             T + 5,
         )
         .unwrap();
@@ -1971,7 +1972,7 @@ mod tests {
                 ticket: "BAU-142".into(),
                 options: direct(),
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -1982,7 +1983,7 @@ mod tests {
                         run: "BAU-142".into(),
                         text: "Entfernen".into(),
                     },
-                    Actor::Du,
+                    Actor::User,
                     T + 1 + i as u64,
                 )
                 .unwrap();
@@ -2010,7 +2011,7 @@ mod tests {
         let last = w.log.last().unwrap();
         assert_eq!(last.target, Some(Target::Review(92)));
         assert_eq!(w.log[1].target, Some(Target::Run("BAU-142".into())));
-        assert_eq!(w.log_entries(Some(Actor::Du)).len(), 2, "Start und Antwort");
+        assert_eq!(w.log_entries(Some(Actor::User)).len(), 2, "Start und Antwort");
         assert_eq!(w.log_entries(None).len(), 8);
         assert_eq!(w.log_entries(Some(Actor::System)).len(), 0);
         assert_eq!(w.log_entries(None)[0].id, 8, "neueste zuerst");
@@ -2031,7 +2032,7 @@ mod tests {
                     review: 87,
                     comment: String::new()
                 },
-                Actor::Du,
+                Actor::User,
                 T
             ),
             Err(ActionError::Send(SendError::Undecided(
@@ -2044,7 +2045,7 @@ mod tests {
                 ticket: "BAU-150".into(),
                 options: direct(),
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -2068,7 +2069,7 @@ mod tests {
                     item: "bau150".into(),
                     status,
                 },
-                Actor::Du,
+                Actor::User,
                 T + i as u64,
             );
         }
@@ -2144,7 +2145,7 @@ mod tests {
             },
             1,
         );
-        w.apply(Action::ResetDemo, Actor::Du, T).unwrap();
+        w.apply(Action::ResetDemo, Actor::User, T).unwrap();
         assert!(
             !w.notifications
                 .enabled(NotifyReason::Assigned, Channel::Browser)
@@ -2199,11 +2200,11 @@ mod tests {
             Action::MarkDone {
                 item: "bau142".into(),
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
-        w.apply(Action::RequestAgentReview { review: 85 }, Actor::Du, T + 1)
+        w.apply(Action::RequestAgentReview { review: 85 }, Actor::User, T + 1)
             .unwrap();
         let back = persist::load(&persist::save(&w)).unwrap();
         assert_eq!(back.log, w.log);
@@ -2223,7 +2224,7 @@ mod tests {
             Action::MarkDone {
                 item: "bau142".into(),
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -2364,7 +2365,7 @@ mod tests {
                 rule: Rule::Assigned,
                 enabled: false,
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -2373,7 +2374,7 @@ mod tests {
                 item: "pr87".into(),
                 until_ms: Some(T + 1),
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -2457,7 +2458,7 @@ mod tests {
         let last = w.log.last().unwrap();
         assert_eq!(
             (last.actor, &last.target),
-            (Actor::Du, &Some(Target::Run("BAU-142".into())))
+            (Actor::User, &Some(Target::Run("BAU-142".into())))
         );
         assert!(w.run("BAU-142").unwrap().is_running());
         assert_eq!(
@@ -2606,7 +2607,7 @@ mod tests {
         );
         // Rote Checks (#85) blockieren, die Begründung steht in der Fehlermeldung.
         let err = w
-            .apply(merge(85, MergeMethod::Merge), Actor::Du, T)
+            .apply(merge(85, MergeMethod::Merge), Actor::User, T)
             .unwrap_err();
         assert!(err.message().contains("Check ist fehlgeschlagen"));
         // Unbekannt.
@@ -2733,7 +2734,7 @@ mod tests {
             assert!(err.message().starts_with("Nur du darfst mergen"));
         }
         assert_eq!(w, before, "kein Merge, kein Protokolleintrag");
-        w.apply(merge(87, MergeMethod::Merge), Actor::Du, T)
+        w.apply(merge(87, MergeMethod::Merge), Actor::User, T)
             .unwrap();
         assert!(w.review(87).unwrap().merged.is_some());
     }
@@ -2821,7 +2822,7 @@ mod tests {
         let entry = w.log.last().unwrap();
         assert_eq!(
             (entry.actor, &entry.target),
-            (Actor::Du, &Some(Target::Review(87)))
+            (Actor::User, &Some(Target::Review(87)))
         );
     }
 
@@ -3027,7 +3028,7 @@ mod tests {
         let entry = w.log.last().unwrap();
         assert_eq!(
             (entry.actor, &entry.target),
-            (Actor::Du, &Some(Target::Item("bau150".into())))
+            (Actor::User, &Some(Target::Item("bau150".into())))
         );
 
         let applied = ok(&mut w, edit("bau150", "Sheet: Detents", "Anderer Text"), 1);
@@ -3209,7 +3210,7 @@ mod tests {
                 item: "bau150".into(),
                 priority: Priority::High,
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -3505,12 +3506,12 @@ mod tests {
     fn a_jira_project_narrows_the_inbox() {
         use crate::{Filter, SourceFilter};
         let mut w = ws();
-        let mut fremd = w.item_by_key("BAU-142").unwrap().clone();
-        fremd.id = "web7".into();
-        fremd.key = "WEB-7".into();
-        w.items.push(fremd);
+        let mut other = w.item_by_key("BAU-142").unwrap().clone();
+        other.id = "web7".into();
+        other.key = "WEB-7".into();
+        w.items.push(other);
         assert_eq!(w.projects(), ["BAU", "DOC", "WEB"]);
-        let alle = w.search(Filter::All, SourceFilter::All, "", 0).len();
+        let all = w.search(Filter::All, SourceFilter::All, "", 0).len();
 
         let applied = ok(
             &mut w,
@@ -3521,11 +3522,11 @@ mod tests {
         );
         assert_eq!(applied.summary, "Jira-Projekt gewählt: WEB");
         assert_eq!(w.jira_project.as_deref(), Some("WEB"));
-        let treffer = w.search(Filter::All, SourceFilter::All, "", 0);
-        assert!(treffer.iter().any(|i| i.key == "WEB-7"));
-        assert!(treffer.iter().all(|i| i.project() != Some("BAU")));
+        let hits = w.search(Filter::All, SourceFilter::All, "", 0);
+        assert!(hits.iter().any(|i| i.key == "WEB-7"));
+        assert!(hits.iter().all(|i| i.project() != Some("BAU")));
         // Pull Requests gehören zu keinem Projekt und bleiben sichtbar.
-        assert!(treffer.iter().any(|i| !i.is_ticket()));
+        assert!(hits.iter().any(|i| !i.is_ticket()));
         fails(
             &mut w,
             Action::SelectJiraProject {
@@ -3542,13 +3543,13 @@ mod tests {
         );
 
         // Die Wahl ist eine Einstellung: Sie übersteht das Zurücksetzen der Demo.
-        w.apply(Action::ResetDemo, Actor::Du, T).unwrap();
+        w.apply(Action::ResetDemo, Actor::User, T).unwrap();
         assert_eq!(w.jira_project.as_deref(), Some("WEB"));
         assert_eq!(w.projects(), ["BAU", "DOC", "WEB"]);
 
         let applied = ok(&mut w, Action::SelectJiraProject { project: None }, 1);
         assert_eq!(applied.summary, "Jira-Projekt: alle");
-        assert!(w.search(Filter::All, SourceFilter::All, "", 0).len() < alle);
+        assert!(w.search(Filter::All, SourceFilter::All, "", 0).len() < all);
     }
 
     #[test]
@@ -3595,7 +3596,7 @@ mod tests {
         // Die Einstellung übersteht Zurücksetzen und Speichern.
         let (back, _) = persist::restore(Some(&persist::save(&w)));
         assert!(back.pr_status_off);
-        w.apply(Action::ResetDemo, Actor::Du, T).unwrap();
+        w.apply(Action::ResetDemo, Actor::User, T).unwrap();
         assert!(w.pr_status_off);
 
         // Wieder an: Was sich bewegt hat, wird nachgeführt, mit dem System als Urheber.
@@ -3618,7 +3619,7 @@ mod tests {
                 ticket: "BAU-150".into(),
                 options: direct(),
             },
-            Actor::Du,
+            Actor::User,
             T,
         )
         .unwrap();
@@ -3683,7 +3684,7 @@ mod tests {
                 .find(|r| r.is_asking())
                 .map(|r| (r.key(), r.question.as_ref().unwrap().suggestions[0].clone()));
             if let Some((run, text)) = asking {
-                w.apply(Action::AnswerAgent { run, text }, Actor::Du, T)
+                w.apply(Action::AnswerAgent { run, text }, Actor::User, T)
                     .unwrap();
             }
             if w.running_agents() == 0 {
@@ -4525,7 +4526,7 @@ mod tests {
                 Action::ApprovePlan {
                     ticket: "BAU-142".into(),
                 },
-                Actor::Du,
+                Actor::User,
                 T,
             )
             .unwrap_err();
@@ -4654,7 +4655,7 @@ mod tests {
         start(&mut w, "BAU-150");
         advance(&mut w, 2);
         assert!(!w.spend.is_empty());
-        w.apply(Action::ResetDemo, Actor::Du, T).unwrap();
+        w.apply(Action::ResetDemo, Actor::User, T).unwrap();
         assert_eq!(w.limits.max_parallel, 2);
         assert!(w.spend.is_empty());
         assert!(!w.repo_rules.is_empty());
@@ -4746,7 +4747,7 @@ mod tests {
             },
             1,
         );
-        for actor in [Actor::Du, Actor::System] {
+        for actor in [Actor::User, Actor::System] {
             let before = w.clone();
             let a = Action::ReportAgent {
                 run: "BAU-142".into(),

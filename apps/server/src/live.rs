@@ -115,12 +115,12 @@ impl Live {
         // Niemand verbunden ist kein Fehler.
         let _ = self.tx.send(ServerEvent {
             revision,
-            eintraege,
+            entries: eintraege,
         });
         Ok(ActionResponse {
             revision,
-            zusammenfassung: angewendet.summary,
-            protokolliert: angewendet.logged,
+            summary: angewendet.summary,
+            logged: angewendet.logged,
         })
     }
 
@@ -172,7 +172,7 @@ impl Live {
         let rx = self.tx.subscribe();
         let erstes = ServerEvent {
             revision: stand.revision,
-            eintraege: Vec::new(),
+            entries: Vec::new(),
         };
         (rx, erstes)
     }

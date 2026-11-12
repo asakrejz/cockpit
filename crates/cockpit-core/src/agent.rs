@@ -188,7 +188,8 @@ pub struct ReportEffect {
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Speaker {
     Agent,
-    Du,
+    #[serde(rename = "Du")]
+    User,
 }
 
 /// Was eine Meldung im Verlauf ist.
@@ -550,7 +551,7 @@ impl AgentRun {
         );
         let hint = self.options.hint.trim().to_string();
         if !hint.is_empty() {
-            self.say(Speaker::Du, MessageKind::Hint, hint);
+            self.say(Speaker::User, MessageKind::Hint, hint);
         }
         if self.planned {
             self.say(
@@ -606,7 +607,7 @@ impl AgentRun {
             return false;
         }
         self.state = RunState::Running;
-        self.say(Speaker::Du, MessageKind::Info, "Fix übernommen.".into());
+        self.say(Speaker::User, MessageKind::Info, "Fix übernommen.".into());
         true
     }
 
@@ -617,7 +618,7 @@ impl AgentRun {
             return false;
         }
         self.state = RunState::Running;
-        self.say(Speaker::Du, MessageKind::Info, "Plan freigegeben.".into());
+        self.say(Speaker::User, MessageKind::Info, "Plan freigegeben.".into());
         true
     }
 
@@ -638,7 +639,7 @@ impl AgentRun {
         }
         self.plan_notes.push(note.to_string());
         self.say(
-            Speaker::Du,
+            Speaker::User,
             MessageKind::Hint,
             format!("Anmerkung zum Plan: {note}"),
         );
@@ -663,7 +664,7 @@ impl AgentRun {
         }
         self.question = None;
         self.state = RunState::Running;
-        self.say(Speaker::Du, MessageKind::Answer, text.to_string());
+        self.say(Speaker::User, MessageKind::Answer, text.to_string());
         true
     }
 
@@ -675,7 +676,7 @@ impl AgentRun {
             return false;
         }
         self.pending_hints.push(text.to_string());
-        self.say(Speaker::Du, MessageKind::Hint, text.to_string());
+        self.say(Speaker::User, MessageKind::Hint, text.to_string());
         true
     }
 
@@ -685,7 +686,7 @@ impl AgentRun {
             return false;
         }
         self.state = RunState::Paused;
-        self.say(Speaker::Du, MessageKind::Info, "Lauf pausiert.".into());
+        self.say(Speaker::User, MessageKind::Info, "Lauf pausiert.".into());
         true
     }
 
@@ -695,7 +696,7 @@ impl AgentRun {
             return false;
         }
         self.state = RunState::Running;
-        self.say(Speaker::Du, MessageKind::Info, "Lauf fortgesetzt.".into());
+        self.say(Speaker::User, MessageKind::Info, "Lauf fortgesetzt.".into());
         true
     }
 
@@ -723,7 +724,7 @@ impl AgentRun {
                 reason.raise_label(extra)
             )
         };
-        self.say(Speaker::Du, MessageKind::Info, text);
+        self.say(Speaker::User, MessageKind::Info, text);
         true
     }
 
@@ -1317,11 +1318,11 @@ impl AgentRun {
             .messages
             .iter()
             .map(|m| {
-                let wer = match m.from {
+                let who = match m.from {
                     Speaker::Agent => "Agent",
-                    Speaker::Du => "Du",
+                    Speaker::User => "Du",
                 };
-                format!("› {wer}: {}", m.text)
+                format!("› {who}: {}", m.text)
             })
             .collect();
         let usage = self.usage();
@@ -1734,7 +1735,7 @@ mod tests {
         let last = r.messages.last().unwrap();
         assert_eq!(
             (last.from, last.kind, last.text.as_str()),
-            (Speaker::Du, MessageKind::Answer, "Als deprecated markieren")
+            (Speaker::User, MessageKind::Answer, "Als deprecated markieren")
         );
         assert!(r.log().contains("› Antwort: Als deprecated markieren"));
         // Die Frage kommt nur einmal; der Lauf geht zu Ende.
@@ -1865,10 +1866,10 @@ mod tests {
             texts,
             [
                 (Speaker::Agent, MessageKind::Info),
-                (Speaker::Du, MessageKind::Hint),
+                (Speaker::User, MessageKind::Hint),
                 (Speaker::Agent, MessageKind::Info),
-                (Speaker::Du, MessageKind::Hint),
-                (Speaker::Du, MessageKind::Info),
+                (Speaker::User, MessageKind::Hint),
+                (Speaker::User, MessageKind::Info),
             ]
         );
     }

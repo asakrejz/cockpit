@@ -47,7 +47,7 @@ pub fn SyncStatus() -> impl IntoView {
             let result = server::post_sync().await;
             busy.set(false);
             match result {
-                Ok(r) if !r.aktiv => store.notify(
+                Ok(r) if !r.active => store.notify(
                     "Keine Quelle verbunden – richte Jira oder GitHub unter „Einrichten“ ein",
                 ),
                 Ok(_) => {} // Der Stand kommt über den Ereignisstrom.

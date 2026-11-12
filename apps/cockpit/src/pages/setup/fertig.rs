@@ -1,7 +1,7 @@
 //! Schritt 5: Zusammenfassung mit Haken und Klartext.
 
 use cockpit_core::AuthKind;
-use cockpit_core::einrichten::{Schritt, Stand, Ton, zusammenfassung};
+use cockpit_core::setup::{Step, Snapshot, Tone, summary};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -13,11 +13,11 @@ use crate::sync_status::SyncStatus;
 /// „Token erneuern“ und „Trennen“ für Jira. Trennen löscht den Token im Schlüsselbund (bei
 /// OAuth: widerruft die Anmeldung); die Einstellungen bleiben, der Weg zurück ist der Schritt „Jira“.
 #[component]
-fn JiraAktionen(ctx: Kontext, zu_schritt: Callback<Schritt>) -> impl IntoView {
+fn JiraAktionen(ctx: Kontext, zu_schritt: Callback<Step>) -> impl IntoView {
     let art = move || {
         ctx.store
             .health
-            .with(|h| h.as_ref().map(|h| h.anmeldung.jira.art))
+            .with(|h| h.as_ref().map(|h| h.anmeldung.jira.kind))
     };
     let trennen = move |_| {
         let oauth = art() == Some(AuthKind::OAuth);
@@ -43,7 +43,7 @@ fn JiraAktionen(ctx: Kontext, zu_schritt: Callback<Schritt>) -> impl IntoView {
                     view! {
                         <Button
                             size=ControlSize::Small
-                            on_click=move |_| zu_schritt.run(Schritt::Jira)
+                            on_click=move |_| zu_schritt.run(Step::Jira)
                         >
                             "Token erneuern"
                         </Button>
@@ -57,17 +57,17 @@ fn JiraAktionen(ctx: Kontext, zu_schritt: Callback<Schritt>) -> impl IntoView {
 }
 
 #[component]
-pub fn FertigSchritt(ctx: Kontext, zu_schritt: Callback<Schritt>) -> impl IntoView {
+pub fn FertigSchritt(ctx: Kontext, zu_schritt: Callback<Step>) -> impl IntoView {
     let zeilen = move || {
         let health = ctx.store.health.get().unwrap_or_default();
-        zusammenfassung(&Stand {
-            einrichtung: ctx.einr.get(),
+        summary(&Snapshot {
+            setup: ctx.einr.get(),
             jira: health.anmeldung.jira.clone(),
             github: health.anmeldung.github.clone(),
-            endpunkt: health.endpunkt.clone(),
+            endpoint: health.endpunkt.clone(),
             container: health.container.clone(),
             agent: health.agent.clone(),
-            pruefung: ctx.pruefung.get(),
+            check: ctx.pruefung.get(),
         })
     };
     view! {
@@ -83,17 +83,17 @@ pub fn FertigSchritt(ctx: Kontext, zu_schritt: Callback<Schritt>) -> impl IntoVi
                         zeilen()
                             .into_iter()
                             .map(|z| {
-                                let (tone, label, symbol) = match z.ton {
-                                    Ton::Gut => (StatusTone::Green, "In Ordnung", "✓ "),
-                                    Ton::Offen => (StatusTone::Gray, "Offen", ""),
-                                    Ton::Problem => (StatusTone::Red, "Prüfen", "! "),
+                                let (tone, label, symbol) = match z.tone {
+                                    Tone::Good => (StatusTone::Green, "In Ordnung", "✓ "),
+                                    Tone::Open => (StatusTone::Gray, "Offen", ""),
+                                    Tone::Problem => (StatusTone::Red, "Prüfen", "! "),
                                 };
-                                let schritt = z.schritt;
-                                let jira_verbunden = z.name == "Jira" && z.ton == Ton::Gut;
+                                let schritt = z.step;
+                                let jira_verbunden = z.name == "Jira" && z.tone == Tone::Good;
                                 view! {
                                     <ListRow title=format!("{symbol}{}", z.name) subtitle=z.text wrap=true>
                                         <Status tone=tone>{label}</Status>
-                                        {(z.ton != Ton::Gut)
+                                        {(z.tone != Tone::Good)
                                             .then(|| {
                                                 view! {
                                                     <Button

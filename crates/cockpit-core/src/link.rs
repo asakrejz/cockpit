@@ -87,7 +87,7 @@ mod tests {
     }
 
     #[test]
-    fn key_must_stand_on_word_boundaries() {
+    fn key_must_sit_on_word_boundaries() {
         // Kein falscher Treffer: BAU-1420 ist ein anderes Ticket als BAU-142.
         assert_eq!(ticket_keys("bau-1420-foo"), ["BAU-1420"]);
         assert_eq!(find_ticket(&["bau-1420-foo"], ["BAU-142"]), None);

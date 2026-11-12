@@ -67,7 +67,7 @@
 
 use std::path::{Path, PathBuf};
 
-use cockpit_core::api::Anbieter;
+use cockpit_core::api::Provider;
 use serde::Deserialize;
 
 pub const STANDARD_PORT: u16 = 8787;
@@ -92,7 +92,7 @@ pub struct Config {
     /// Womit ein Workspace beginnt, der noch nie gespeichert wurde.
     pub seed: Seed,
     /// `[agent] anbieter`: das Werkzeug des Agenten.
-    pub anbieter: Anbieter,
+    pub anbieter: Provider,
     /// `[agent.endpunkt]` (oder das ältere `[litellm]`).
     pub endpunkt: Option<EndpunktKonfig>,
     /// Gewählte Container-Laufzeit (`docker` oder `podman`) aus der Datei; `COCKPIT_CONTAINER`
@@ -138,7 +138,7 @@ impl Seed {
 /// Das Werkzeug und sein Endpunkt, wie zuletzt konfiguriert (im Betrieb austauschbar).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AgentWahl {
-    pub anbieter: Anbieter,
+    pub anbieter: Provider,
     pub endpunkt: Option<EndpunktKonfig>,
 }
 
@@ -314,7 +314,7 @@ impl Config {
             atlassian: None,
             intervall_s: STANDARD_INTERVALL_S,
             seed: Seed::Leer,
-            anbieter: Anbieter::default(),
+            anbieter: Provider::default(),
             endpunkt: None,
             container: None,
             container_env: None,
@@ -410,7 +410,7 @@ impl Config {
                 ));
             }
             for p in &j.projects {
-                if cockpit_integrations::jira::jql_fuer(std::slice::from_ref(p), None).is_err() {
+                if cockpit_integrations::jira::jql_for(std::slice::from_ref(p), None).is_err() {
                     return Err(KonfigFehler::Wert(format!(
                         "Jira-Projekt „{p}“ ist kein gültiger Schlüssel"
                     )));
@@ -431,7 +431,7 @@ impl Config {
         let mut endpunkt = d.litellm.map(|l| ("[litellm]", l));
         if let Some(a) = d.agent {
             if let Some(text) = a.anbieter {
-                c.anbieter = Anbieter::aus_kennung(&text).ok_or_else(|| {
+                c.anbieter = Provider::from_id(&text).ok_or_else(|| {
                     KonfigFehler::Wert(format!(
                         "[agent] anbieter „{}“ ist unbekannt, erlaubt sind claude-agent-sdk, claude-code und codex",
                         text.trim()
@@ -771,7 +771,7 @@ mod tests {
             modell = "claude-sonnet-5-5"
         "#;
         let c = Config::aus(Some(toml), keine_env).unwrap();
-        assert_eq!(c.anbieter, Anbieter::ClaudeAgentSdk);
+        assert_eq!(c.anbieter, Provider::ClaudeAgentSdk);
         let e = c.endpunkt.unwrap();
         assert_eq!(e.url.as_deref(), Some("http://localhost:4000"));
         assert_eq!(e.modell.as_deref(), Some("claude-sonnet-5-5"));
@@ -838,15 +838,15 @@ mod tests {
         );
         assert_eq!(
             Config::aus(None, keine_env).unwrap().anbieter,
-            Anbieter::ClaudeAgentSdk
+            Provider::ClaudeAgentSdk
         );
     }
 
     #[test]
     fn bekannte_werkzeuge_lassen_sich_eintragen() {
         for (text, soll) in [
-            ("claude-code", Anbieter::ClaudeCode),
-            ("codex", Anbieter::Codex),
+            ("claude-code", Provider::ClaudeCode),
+            ("codex", Provider::Codex),
         ] {
             let c =
                 Config::aus(Some(&format!("[agent]\nanbieter = \"{text}\"")), keine_env).unwrap();
@@ -861,7 +861,7 @@ mod tests {
         let e = c.endpunkt.unwrap();
         assert_eq!(e.url.as_deref(), Some("http://localhost:4000"));
         assert_eq!(e.modell.as_deref(), Some("altes-modell"));
-        assert_eq!(c.anbieter, Anbieter::ClaudeAgentSdk);
+        assert_eq!(c.anbieter, Provider::ClaudeAgentSdk);
         assert_eq!(c.container.as_deref(), Some("docker"));
 
         let neu = "[agent.endpunkt]\nurl = \"https://litellm.example\"\nmodell = \"neues-modell\"";

@@ -20,16 +20,16 @@ use axum::extract::{Path as UrlPfad, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use cockpit_core::api::{
-    Einrichtung, JiraPruefung, JiraUrsache, KonfigAenderung, KonfigAntwort, SchluesselAntwort,
-    SchluesselEingabe,
+    Setup, JiraCheck, JiraCause, ConfigChange, ConfigResponse, KeyResponse,
+    KeyInput,
 };
-use cockpit_core::einrichten::{
-    SCHLUESSEL_NAMEN, client_id_lesen, endpunkt_url_lesen, jira_pruefung_text, jira_site_lesen,
-    projekte_lesen, repos_lesen, schluessel_loeschbar, schluessel_name_erlaubt, schluessel_pruefen,
+use cockpit_core::setup::{
+    KEY_NAMES, client_id_read, endpoint_url_read, jira_check_text, jira_site_read,
+    projects_read, repos_read, key_deletable, key_name_allowed, key_verify,
 };
 use cockpit_integrations::jira::JiraClient;
-use cockpit_integrations::oauth::Dienst;
-use cockpit_integrations::{Fehler, Secret};
+use cockpit_integrations::oauth::Service;
+use cockpit_integrations::{Error, Secret};
 use toml_edit::{Array, DocumentMut, Item, Table, value};
 
 use crate::app::{AppState, fehler};
@@ -86,10 +86,10 @@ fn liste(eintraege: &[String]) -> Item {
 /// älteres `[litellm]` wird dabei übernommen und entfernt, damit nur ein Ort gilt.
 fn endpunkt_schreiben(
     doc: &mut DocumentMut,
-    e: &cockpit_core::api::EndpunktEingabe,
+    e: &cockpit_core::api::EndpointInput,
 ) -> Result<(), String> {
-    let url = e.url.as_deref().map(endpunkt_url_lesen).transpose()?;
-    let modell = match e.modell.as_deref().map(str::trim) {
+    let url = e.url.as_deref().map(endpoint_url_read).transpose()?;
+    let modell = match e.model.as_deref().map(str::trim) {
         Some(m) if m.chars().any(|c| c.is_whitespace() || c.is_control()) => {
             return Err("Der Modellname enthält Leerzeichen oder Sonderzeichen.".into());
         }
@@ -106,8 +106,8 @@ fn endpunkt_schreiben(
     }
     {
         let agent = tabelle(doc, "agent")?;
-        if let Some(anbieter) = e.anbieter {
-            setzen(agent, "anbieter", value(anbieter.kennung()));
+        if let Some(anbieter) = e.provider {
+            setzen(agent, "anbieter", value(anbieter.id()));
         }
         if !agent.contains_key("endpunkt") {
             agent.insert("endpunkt", Item::Table(Table::new()));
@@ -152,7 +152,7 @@ fn endpunkt_schreiben(
 
 /// Wendet die Änderung auf den Text von `config.toml` an. Der Text wird anschließend wie beim
 /// Start geprüft (`Config::aus`); ein Fehler heißt: nichts schreiben.
-pub fn aendern(text: &str, a: &KonfigAenderung) -> Result<(String, Config), String> {
+pub fn aendern(text: &str, a: &ConfigChange) -> Result<(String, Config), String> {
     let mut doc: DocumentMut = text.parse().map_err(|e: toml_edit::TomlError| {
         format!("config.toml ist fehlerhaft: {}", e.message())
     })?;
@@ -161,7 +161,7 @@ pub fn aendern(text: &str, a: &KonfigAenderung) -> Result<(String, Config), Stri
         {
             let t = tabelle(&mut doc, "jira")?;
             if let Some(site) = &j.site {
-                let site = jira_site_lesen(site)?;
+                let site = jira_site_read(site)?;
                 if site.is_empty() {
                     t.remove("site");
                 } else {
@@ -179,7 +179,7 @@ pub fn aendern(text: &str, a: &KonfigAenderung) -> Result<(String, Config), Stri
                 }
             }
             if let Some(p) = &j.projects {
-                let projekte = projekte_lesen(&p.join(","));
+                let projekte = projects_read(&p.join(","));
                 if projekte.is_empty() {
                     t.remove("projects");
                 } else {
@@ -194,7 +194,7 @@ pub fn aendern(text: &str, a: &KonfigAenderung) -> Result<(String, Config), Stri
         ("github_oauth", &a.github_oauth),
     ] {
         if let Some(c) = eingabe {
-            let id = client_id_lesen(&c.client_id)?;
+            let id = client_id_read(&c.client_id)?;
             if id.is_empty() {
                 doc.remove(name);
             } else {
@@ -203,7 +203,7 @@ pub fn aendern(text: &str, a: &KonfigAenderung) -> Result<(String, Config), Stri
         }
     }
     if let Some(g) = &a.github {
-        let repos = repos_lesen(&g.repos.join(","))?;
+        let repos = repos_read(&g.repos.join(","))?;
         {
             let t = tabelle(&mut doc, "github")?;
             if repos.is_empty() {
@@ -214,7 +214,7 @@ pub fn aendern(text: &str, a: &KonfigAenderung) -> Result<(String, Config), Stri
         }
         leer_entfernen(&mut doc, "github");
     }
-    if let Some(e) = &a.endpunkt {
+    if let Some(e) = &a.endpoint {
         endpunkt_schreiben(&mut doc, e)?;
     }
 
@@ -286,8 +286,8 @@ impl AppState {
     /// Ändert `config.toml` und wendet das Ergebnis an. Blockierend.
     fn konfiguration_aendern(
         &self,
-        a: &KonfigAenderung,
-    ) -> Result<KonfigAntwort, (StatusCode, String)> {
+        a: &ConfigChange,
+    ) -> Result<ConfigResponse, (StatusCode, String)> {
         let Some(pfad) = self.inner.einstellungen.konfig_pfad.clone() else {
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -344,22 +344,22 @@ impl AppState {
             "Du hast die Client-ID einer App geändert. Melde dich danach neu an, damit die Anmeldung zur neuen App gehört."
                 .to_string()
         });
-        Ok(KonfigAntwort {
-            gespeichert: true,
-            wirkt_sofort: true,
-            hinweis,
+        Ok(ConfigResponse {
+            stored: true,
+            takes_effect_immediately: true,
+            hint: hinweis,
         })
     }
 
     /// Die aktuellen, nicht geheimen Werte. Blockierend (Schlüsselbund).
-    fn einrichtung(&self) -> Einrichtung {
+    fn einrichtung(&self) -> Setup {
         let q = self.quellen();
         let wahl = self.agent_wahl();
         let port = self.inner.port;
-        Einrichtung {
+        Setup {
             jira_site: q.jira.as_ref().map(|j| j.site.clone()).unwrap_or_default(),
             jira_email: q.jira.as_ref().map(|j| j.email.clone()).unwrap_or_default(),
-            jira_projekte: q
+            jira_projects: q
                 .jira
                 .as_ref()
                 .map(|j| j.projects.clone())
@@ -371,16 +371,16 @@ impl AppState {
                 .as_ref()
                 .map(|g| g.repos.clone())
                 .unwrap_or_default(),
-            anbieter: wahl.anbieter,
-            endpunkt_url: wahl.endpunkt.as_ref().and_then(|e| e.url.clone()),
-            endpunkt_modell: wahl.endpunkt.and_then(|e| e.modell),
-            callback_github: redirect_uri(Dienst::GitHub, port),
-            callback_atlassian: redirect_uri(Dienst::Atlassian, port),
-            schluessel: SCHLUESSEL_NAMEN
+            provider: wahl.anbieter,
+            endpoint_url: wahl.endpunkt.as_ref().and_then(|e| e.url.clone()),
+            endpoint_model: wahl.endpunkt.and_then(|e| e.modell),
+            callback_github: redirect_uri(Service::GitHub, port),
+            callback_atlassian: redirect_uri(Service::Atlassian, port),
+            key: KEY_NAMES
                 .iter()
-                .map(|n| SchluesselAntwort {
+                .map(|n| KeyResponse {
                     name: (*n).to_string(),
-                    gesetzt: self.inner.secrets.has(n).unwrap_or(false),
+                    set: self.inner.secrets.has(n).unwrap_or(false),
                 })
                 .collect(),
         }
@@ -397,7 +397,7 @@ pub async fn lesen(State(state): State<AppState>) -> Response {
 
 /// `PUT /api/konfiguration`.
 pub async fn konfiguration(State(state): State<AppState>, body: Bytes) -> Response {
-    let Ok(a) = serde_json::from_slice::<KonfigAenderung>(&body) else {
+    let Ok(a) = serde_json::from_slice::<ConfigChange>(&body) else {
         return fehler(StatusCode::BAD_REQUEST, "Die Eingaben sind nicht lesbar");
     };
     match tokio::task::spawn_blocking(move || state.konfiguration_aendern(&a)).await {
@@ -414,16 +414,16 @@ pub async fn schluessel(
     UrlPfad(name): UrlPfad<String>,
     body: Bytes,
 ) -> Response {
-    if !schluessel_name_erlaubt(&name) {
+    if !key_name_allowed(&name) {
         return fehler(
             StatusCode::NOT_FOUND,
             format!("Einen Schlüssel „{name}“ gibt es nicht"),
         );
     }
-    let Ok(eingabe) = serde_json::from_slice::<SchluesselEingabe>(&body) else {
+    let Ok(eingabe) = serde_json::from_slice::<KeyInput>(&body) else {
         return fehler(StatusCode::BAD_REQUEST, "Die Eingabe ist nicht lesbar");
     };
-    let wert = match schluessel_pruefen(&eingabe.wert) {
+    let wert = match key_verify(&eingabe.value) {
         Ok(w) => w,
         Err(m) => return fehler(StatusCode::UNPROCESSABLE_ENTITY, m),
     };
@@ -433,9 +433,9 @@ pub async fn schluessel(
     match ergebnis {
         Ok(Ok(())) => {
             tracing::info!("Schlüssel für {name} abgelegt");
-            Json(SchluesselAntwort {
+            Json(KeyResponse {
                 name,
-                gesetzt: true,
+                set: true,
             })
             .into_response()
         }
@@ -456,7 +456,7 @@ pub async fn schluessel_loeschen(
     State(state): State<AppState>,
     UrlPfad(name): UrlPfad<String>,
 ) -> Response {
-    if !schluessel_loeschbar(&name) {
+    if !key_deletable(&name) {
         return fehler(
             StatusCode::NOT_FOUND,
             format!("Einen löschbaren Schlüssel „{name}“ gibt es nicht"),
@@ -467,9 +467,9 @@ pub async fn schluessel_loeschen(
     match tokio::task::spawn_blocking(move || secrets.delete(&n)).await {
         Ok(Ok(())) => {
             tracing::info!("Schlüssel für {name} gelöscht");
-            Json(SchluesselAntwort {
+            Json(KeyResponse {
                 name,
-                gesetzt: false,
+                set: false,
             })
             .into_response()
         }
@@ -484,31 +484,31 @@ pub async fn schluessel_loeschen(
     }
 }
 
-fn pruefung(ursache: JiraUrsache, name: Option<String>) -> JiraPruefung {
-    JiraPruefung {
-        ok: ursache == JiraUrsache::Ok,
-        ursache,
-        meldung: jira_pruefung_text(ursache, name.as_deref()),
+fn pruefung(ursache: JiraCause, name: Option<String>) -> JiraCheck {
+    JiraCheck {
+        ok: ursache == JiraCause::Ok,
+        cause: ursache,
+        message: jira_check_text(ursache, name.as_deref()),
         name: name.filter(|n| !n.is_empty()),
     }
 }
 
 /// Welche Ursache zu einem Fehler von Jira gehört.
-fn jira_ursache(f: &Fehler) -> JiraUrsache {
+fn jira_ursache(f: &Error) -> JiraCause {
     match f {
-        Fehler::NichtAngemeldet => JiraUrsache::Token,
-        Fehler::KeineBerechtigung => JiraUrsache::Berechtigung,
+        Error::NotSignedIn => JiraCause::Token,
+        Error::NoPermission => JiraCause::Permission,
         // 404, eine fremde Seite statt Jira (kein JSON) oder eine unbrauchbare Adresse.
-        Fehler::NichtGefunden | Fehler::Antwort(_) | Fehler::Einstellung(_) => JiraUrsache::Adresse,
-        Fehler::Netzwerk(_) => JiraUrsache::Erreichbar,
-        _ => JiraUrsache::Sonst,
+        Error::NotFound | Error::Response(_) | Error::Config(_) => JiraCause::Address,
+        Error::Network(_) => JiraCause::Reachable,
+        _ => JiraCause::Other,
     }
 }
 
 impl AppState {
     /// Der Verbindungstest für Jira mit E-Mail und API-Token (nie mit OAuth): Adresse und E-Mail
     /// aus der Konfiguration, der Token aus dem Schlüsselbund. Nur `GET /rest/api/3/myself`.
-    pub async fn jira_pruefen(&self) -> JiraPruefung {
+    pub async fn jira_pruefen(&self) -> JiraCheck {
         let s = self.clone();
         let angaben = tokio::task::spawn_blocking(move || {
             let j = s.quellen().jira.clone().filter(|j| !j.site.is_empty());
@@ -518,14 +518,14 @@ impl AppState {
         .ok()
         .flatten();
         let Some((site, email, Some(token))) = angaben.filter(|(_, e, _)| !e.is_empty()) else {
-            return pruefung(JiraUrsache::Angaben, None);
+            return pruefung(JiraCause::Details, None);
         };
         let client = match JiraClient::new(&site, &email, token) {
             Ok(c) => c,
             Err(e) => return pruefung(jira_ursache(&e), None),
         };
-        match client.ich_name().await {
-            Ok(name) => pruefung(JiraUrsache::Ok, Some(name)),
+        match client.my_name().await {
+            Ok(name) => pruefung(JiraCause::Ok, Some(name)),
             Err(e) => {
                 tracing::warn!("Jira-Verbindungstest: {e}");
                 pruefung(jira_ursache(&e), None)
@@ -549,7 +549,7 @@ mod tests {
     use axum::body::Body;
     use axum::extract::ConnectInfo;
     use axum::http::Request;
-    use cockpit_core::api::{Anbieter, ClientEingabe, EndpunktEingabe, GitHubEingabe, JiraEingabe};
+    use cockpit_core::api::{Provider, ClientInput, EndpointInput, GitHubInput, JiraInput};
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
@@ -560,9 +560,9 @@ mod tests {
 
     const MIT_KOMMENTAREN: &str = "# Meine Einstellungen\nport = 8787 # Standard\n\n[github]\n# Diese Repos gleicht Cockpit ab\nrepos = [\"alt/repo\"] # alt\n";
 
-    fn aenderung_github(repos: &[&str]) -> KonfigAenderung {
-        KonfigAenderung {
-            github: Some(GitHubEingabe {
+    fn aenderung_github(repos: &[&str]) -> ConfigChange {
+        ConfigChange {
+            github: Some(GitHubInput {
                 repos: repos.iter().map(|r| (*r).to_string()).collect(),
             }),
             ..Default::default()
@@ -585,21 +585,21 @@ mod tests {
 
     #[test]
     fn aendern_legt_abschnitte_in_einer_leeren_datei_an() {
-        let a = KonfigAenderung {
-            atlassian: Some(ClientEingabe {
+        let a = ConfigChange {
+            atlassian: Some(ClientInput {
                 client_id: " 7dNimh ".into(),
             }),
-            github_oauth: Some(ClientEingabe {
+            github_oauth: Some(ClientInput {
                 client_id: "Iv23li".into(),
             }),
-            jira: Some(JiraEingabe {
+            jira: Some(JiraInput {
                 projects: Some(vec!["bau".into(), "web".into()]),
                 ..Default::default()
             }),
-            endpunkt: Some(EndpunktEingabe {
-                anbieter: Some(Anbieter::ClaudeAgentSdk),
+            endpoint: Some(EndpointInput {
+                provider: Some(Provider::ClaudeAgentSdk),
                 url: Some("localhost:4000/".into()),
-                modell: Some("claude-sonnet-5-5".into()),
+                model: Some("claude-sonnet-5-5".into()),
             }),
             ..Default::default()
         };
@@ -624,9 +624,9 @@ mod tests {
     fn aendern_uebernimmt_ein_aelteres_litellm_und_behaelt_agent_werte() {
         let alt = "[litellm]\nurl = \"http://a:1\"\nmodell = \"altes-modell\"\n[agent]\ncontainer = \"podman\" # meins\nrepo = \"firma/app\"\n";
         // Nur das Modell ändern: die alte Adresse bleibt, `[litellm]` wandert.
-        let a = KonfigAenderung {
-            endpunkt: Some(EndpunktEingabe {
-                modell: Some("neues-modell".into()),
+        let a = ConfigChange {
+            endpoint: Some(EndpointInput {
+                model: Some("neues-modell".into()),
                 ..Default::default()
             }),
             ..Default::default()
@@ -644,11 +644,11 @@ mod tests {
     #[test]
     fn aendern_wechselt_auf_direkt_ohne_adresse() {
         let start = "[agent.endpunkt]\nurl = \"http://a:1\"\nmodell = \"m\"\n";
-        let a = KonfigAenderung {
-            endpunkt: Some(EndpunktEingabe {
-                anbieter: Some(Anbieter::ClaudeAgentSdk),
+        let a = ConfigChange {
+            endpoint: Some(EndpointInput {
+                provider: Some(Provider::ClaudeAgentSdk),
                 url: Some(String::new()),
-                modell: Some("claude-opus-5-5".into()),
+                model: Some("claude-opus-5-5".into()),
             }),
             ..Default::default()
         };
@@ -660,27 +660,27 @@ mod tests {
             (None, Some("claude-opus-5-5"))
         );
         // Ein noch nicht umgesetztes Werkzeug lässt sich eintragen.
-        let a = KonfigAenderung {
-            endpunkt: Some(EndpunktEingabe {
-                anbieter: Some(Anbieter::Codex),
+        let a = ConfigChange {
+            endpoint: Some(EndpointInput {
+                provider: Some(Provider::Codex),
                 ..Default::default()
             }),
             ..Default::default()
         };
-        assert_eq!(aendern("", &a).unwrap().1.anbieter, Anbieter::Codex);
+        assert_eq!(aendern("", &a).unwrap().1.anbieter, Provider::Codex);
     }
 
     #[test]
     fn aendern_entfernt_mit_leeren_werten() {
         let start = "[atlassian]\nclient_id = \"x\"\n[agent.endpunkt]\nurl = \"http://a:1\"\nmodell = \"m\"\n[github]\nrepos = [\"a/b\"]\n";
-        let a = KonfigAenderung {
-            atlassian: Some(ClientEingabe::default()),
-            endpunkt: Some(EndpunktEingabe {
+        let a = ConfigChange {
+            atlassian: Some(ClientInput::default()),
+            endpoint: Some(EndpointInput {
                 url: Some(String::new()),
-                modell: Some(String::new()),
+                model: Some(String::new()),
                 ..Default::default()
             }),
-            github: Some(GitHubEingabe::default()),
+            github: Some(GitHubInput::default()),
             ..Default::default()
         };
         let (neu, c) = aendern(start, &a).unwrap();
@@ -692,16 +692,16 @@ mod tests {
     #[test]
     fn aendern_prueft_wie_der_start() {
         // Jira ohne OAuth braucht Site und E-Mail.
-        let nur_projekte = KonfigAenderung {
-            jira: Some(JiraEingabe {
+        let nur_projekte = ConfigChange {
+            jira: Some(JiraInput {
                 projects: Some(vec!["BAU".into()]),
                 ..Default::default()
             }),
             ..Default::default()
         };
         assert!(aendern("", &nur_projekte).is_err());
-        let token = KonfigAenderung {
-            jira: Some(JiraEingabe {
+        let token = ConfigChange {
+            jira: Some(JiraInput {
                 site: Some("firma".into()),
                 email: Some("ich@firma.example".into()),
                 projects: None,
@@ -715,22 +715,22 @@ mod tests {
 
         for schlecht in [
             aenderung_github(&["kein-repo"]),
-            KonfigAenderung {
-                jira: Some(JiraEingabe {
+            ConfigChange {
+                jira: Some(JiraInput {
                     email: Some("keine-adresse".into()),
                     ..Default::default()
                 }),
                 ..Default::default()
             },
-            KonfigAenderung {
-                endpunkt: Some(EndpunktEingabe {
+            ConfigChange {
+                endpoint: Some(EndpointInput {
                     url: Some("ftp://x".into()),
                     ..Default::default()
                 }),
                 ..Default::default()
             },
-            KonfigAenderung {
-                github_oauth: Some(ClientEingabe {
+            ConfigChange {
+                github_oauth: Some(ClientInput {
                     client_id: "mit leerzeichen".into(),
                 }),
                 ..Default::default()
@@ -993,8 +993,8 @@ mod tests {
             "github":{"repos":["firma/app","https://github.com/firma/web.git"]}}"#;
         let (status, antwort) = put(&p.app, "/api/konfiguration", body).await;
         assert_eq!(status, StatusCode::OK, "{antwort}");
-        let a: KonfigAntwort = serde_json::from_str(&antwort).unwrap();
-        assert!(a.gespeichert && a.wirkt_sofort);
+        let a: ConfigResponse = serde_json::from_str(&antwort).unwrap();
+        assert!(a.stored && a.takes_effect_immediately);
 
         // Datei: neu, aber Kommentare und alte Werte bleiben.
         let datei = std::fs::read_to_string(&p.pfad).unwrap();
@@ -1073,16 +1073,16 @@ mod tests {
         let id = |i: &str| format!(r#"{{"atlassian":{{"client_id":"{i}"}}}}"#);
         let (_, erste) = put(&p.app, "/api/konfiguration", &id("alt")).await;
         assert!(
-            serde_json::from_str::<KonfigAntwort>(&erste)
+            serde_json::from_str::<ConfigResponse>(&erste)
                 .unwrap()
-                .hinweis
+                .hint
                 .is_none()
         );
         let (_, zweite) = put(&p.app, "/api/konfiguration", &id("neu")).await;
         assert!(
-            serde_json::from_str::<KonfigAntwort>(&zweite)
+            serde_json::from_str::<ConfigResponse>(&zweite)
                 .unwrap()
-                .hinweis
+                .hint
                 .is_some()
         );
     }

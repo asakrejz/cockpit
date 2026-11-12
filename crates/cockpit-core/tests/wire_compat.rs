@@ -4,7 +4,7 @@
 
 use cockpit_core::{Action, Actor, AgentOptions, Rule, TicketStatus, Workspace, demo, persist};
 
-const USER: Actor = Actor::Du;
+const USER: Actor = Actor::User;
 
 fn busy_workspace() -> Workspace {
     let mut ws = demo::workspace();

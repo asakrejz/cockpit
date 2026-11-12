@@ -3,10 +3,10 @@
 //! Dienste geprüft.
 
 use cockpit_core::{MergeMethod, TicketStatus};
-use cockpit_integrations::ausgehend::{Ausgehend, ReviewDaten, ZeilenKommentar};
+use cockpit_integrations::outbound::{Outbound, ReviewData, LineComment};
 use cockpit_integrations::github::GitHubClient;
 use cockpit_integrations::jira::JiraClient;
-use cockpit_integrations::{Dienste, Fehler, GitHubDienst, JiraDienst, Secret};
+use cockpit_integrations::{Services, Error, GitHubService, JiraService, Secret};
 use serde_json::json;
 use wiremock::matchers::{body_json, header, header_exists, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -25,21 +25,21 @@ fn bearer() -> impl wiremock::Match {
     header("authorization", format!("Bearer {TOKEN}").as_str())
 }
 
-fn review() -> ReviewDaten {
-    ReviewDaten {
-        urteil: "REQUEST_CHANGES",
+fn review() -> ReviewData {
+    ReviewData {
+        verdict: "REQUEST_CHANGES",
         text: "Bitte nachbessern".into(),
-        kommentare: vec![
-            ZeilenKommentar {
-                pfad: "a.rs".into(),
-                zeile: 12,
-                seite: "RIGHT",
+        comments: vec![
+            LineComment {
+                path: "a.rs".into(),
+                line: 12,
+                page: "RIGHT",
                 text: "Besser so\n\n```suggestion\n    neu();\n```".into(),
             },
-            ZeilenKommentar {
-                pfad: "a.rs".into(),
-                zeile: 3,
-                seite: "LEFT",
+            LineComment {
+                path: "a.rs".into(),
+                line: 3,
+                page: "LEFT",
                 text: "weg".into(),
             },
         ],
@@ -50,7 +50,7 @@ fn review() -> ReviewDaten {
 // ---------- GitHub ----------
 
 #[tokio::test]
-async fn github_kommentar() {
+async fn github_comment() {
     let s = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/repos/a/x/issues/7/comments"))
@@ -63,9 +63,9 @@ async fn github_kommentar() {
         .await;
     github(&s)
         .await
-        .ausfuehren(&Ausgehend::GitHubKommentar {
+        .execute(&Outbound::GitHubComment {
             repo: "a/x".into(),
-            nummer: 7,
+            number: 7,
             text: "Hallo".into(),
         })
         .await
@@ -73,7 +73,7 @@ async fn github_kommentar() {
 }
 
 #[tokio::test]
-async fn github_review_mit_positionskommentaren_und_suggestion() {
+async fn github_review_with_positioned_comments_and_suggestion() {
     let s = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/repos/a/x/pulls/7/reviews"))
@@ -94,9 +94,9 @@ async fn github_review_mit_positionskommentaren_und_suggestion() {
         .await;
     github(&s)
         .await
-        .ausfuehren(&Ausgehend::GitHubReview {
+        .execute(&Outbound::GitHubReview {
             repo: "a/x".into(),
-            nummer: 7,
+            number: 7,
             review: review(),
         })
         .await
@@ -104,7 +104,7 @@ async fn github_review_mit_positionskommentaren_und_suggestion() {
 }
 
 #[tokio::test]
-async fn github_merge_mit_methode() {
+async fn github_merge_with_method() {
     let s = MockServer::start().await;
     Mock::given(method("PUT"))
         .and(path("/repos/a/x/pulls/7/merge"))
@@ -118,10 +118,10 @@ async fn github_merge_mit_methode() {
         .await;
     github(&s)
         .await
-        .ausfuehren(&Ausgehend::GitHubMerge {
+        .execute(&Outbound::GitHubMerge {
             repo: "a/x".into(),
-            nummer: 7,
-            methode: MergeMethod::Squash,
+            number: 7,
+            method: MergeMethod::Squash,
             sha: "abc123".into(),
         })
         .await
@@ -129,7 +129,7 @@ async fn github_merge_mit_methode() {
 }
 
 #[tokio::test]
-async fn github_branch_vom_standard_branch() {
+async fn github_branch_from_default_branch() {
     let s = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/repos/a/x"))
@@ -158,7 +158,7 @@ async fn github_branch_vom_standard_branch() {
         .await;
     github(&s)
         .await
-        .ausfuehren(&Ausgehend::GitHubBranch {
+        .execute(&Outbound::GitHubBranch {
             repo: "a/x".into(),
             name: "feature/ABC-1-x".into(),
         })
@@ -167,7 +167,7 @@ async fn github_branch_vom_standard_branch() {
 }
 
 #[tokio::test]
-async fn github_check_neu_anfordern() {
+async fn github_rerequest_check() {
     let s = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/repos/a/x/pulls/7"))
@@ -195,25 +195,25 @@ async fn github_check_neu_anfordern() {
         .mount(&s)
         .await;
     let c = github(&s).await;
-    c.ausfuehren(&Ausgehend::GitHubCheckNeu {
+    c.execute(&Outbound::GitHubRecheck {
         repo: "a/x".into(),
-        nummer: 7,
+        number: 7,
         check: "Tests".into(),
     })
     .await
     .unwrap();
     // Einen Check, den es nicht gibt, meldet der Client verständlich.
-    let fehler = c
-        .check_neu_starten("a/x", 7, "Gibt es nicht")
+    let error = c
+        .check_again_start("a/x", 7, "Gibt es nicht")
         .await
         .unwrap_err();
-    assert!(fehler.to_string().contains("Gibt es nicht"), "{fehler}");
+    assert!(error.to_string().contains("Gibt es nicht"), "{error}");
 }
 
 // ---------- Jira ----------
 
 #[tokio::test]
-async fn jira_kommentar_als_adf() {
+async fn jira_comment_as_adf() {
     let s = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/rest/api/3/issue/ABC-1/comment"))
@@ -230,15 +230,15 @@ async fn jira_kommentar_als_adf() {
         .await;
     jira(&s)
         .await
-        .ausfuehren(&Ausgehend::JiraKommentar {
+        .execute(&Outbound::JiraComment {
             key: "ABC-1".into(),
             text: "Eins\nZwei".into(),
         })
         .await
         .unwrap();
     // Basic-Auth mit E-Mail und Token.
-    let anfragen = s.received_requests().await.unwrap();
-    let auth = anfragen[0]
+    let request = s.received_requests().await.unwrap();
+    let auth = request[0]
         .headers
         .get("authorization")
         .unwrap()
@@ -247,7 +247,7 @@ async fn jira_kommentar_als_adf() {
     assert!(auth.starts_with("Basic "), "{auth}");
 }
 
-fn transitionen() -> serde_json::Value {
+fn transitions() -> serde_json::Value {
     json!({"transitions": [
         {"id": "11", "name": "Start", "to": {"name": "In Progress", "statusCategory": {"key": "indeterminate"}}},
         {"id": "31", "name": "Erledigt", "to": {"name": "Done", "statusCategory": {"key": "done"}}}
@@ -255,11 +255,11 @@ fn transitionen() -> serde_json::Value {
 }
 
 #[tokio::test]
-async fn jira_status_sucht_die_passende_transition() {
+async fn jira_status_finds_the_matching_transition() {
     let s = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/rest/api/3/issue/ABC-1/transitions"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(transitionen()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(transitions()))
         .expect(1)
         .mount(&s)
         .await;
@@ -272,7 +272,7 @@ async fn jira_status_sucht_die_passende_transition() {
         .await;
     jira(&s)
         .await
-        .ausfuehren(&Ausgehend::JiraStatus {
+        .execute(&Outbound::JiraStatus {
             key: "ABC-1".into(),
             status: TicketStatus::Done,
         })
@@ -281,11 +281,11 @@ async fn jira_status_sucht_die_passende_transition() {
 }
 
 #[tokio::test]
-async fn jira_ohne_passende_transition_ruft_nichts_auf() {
+async fn jira_without_matching_transition_calls_nothing() {
     let s = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/rest/api/3/issue/ABC-1/transitions"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(transitionen()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(transitions()))
         .mount(&s)
         .await;
     Mock::given(method("POST"))
@@ -293,30 +293,30 @@ async fn jira_ohne_passende_transition_ruft_nichts_auf() {
         .expect(0)
         .mount(&s)
         .await;
-    let fehler = jira(&s)
+    let error = jira(&s)
         .await
-        .status_setzen("ABC-1", TicketStatus::Review)
+        .status_set("ABC-1", TicketStatus::Review)
         .await
         .unwrap_err();
     assert_eq!(
-        fehler.to_string(),
+        error.to_string(),
         "Jira bietet für ABC-1 keine Transition nach „Review“ an"
     );
 }
 
 // ---------- Fehlerfälle ----------
 
-async fn kommentar_mit(antwort: ResponseTemplate) -> Fehler {
+async fn comment_with(response: ResponseTemplate) -> Error {
     let s = MockServer::start().await;
     Mock::given(method("POST"))
-        .respond_with(antwort)
+        .respond_with(response)
         .mount(&s)
         .await;
     github(&s)
         .await
-        .ausfuehren(&Ausgehend::GitHubKommentar {
+        .execute(&Outbound::GitHubComment {
             repo: "a/x".into(),
-            nummer: 7,
+            number: 7,
             text: "x".into(),
         })
         .await
@@ -324,40 +324,40 @@ async fn kommentar_mit(antwort: ResponseTemplate) -> Fehler {
 }
 
 #[tokio::test]
-async fn fehler_401_403_404_422_und_rate_limit() {
+async fn errors_401_403_404_422_and_rate_limit() {
     assert_eq!(
-        kommentar_mit(ResponseTemplate::new(401)).await,
-        Fehler::NichtAngemeldet
+        comment_with(ResponseTemplate::new(401)).await,
+        Error::NotSignedIn
     );
     assert_eq!(
-        kommentar_mit(ResponseTemplate::new(403)).await,
-        Fehler::KeineBerechtigung
+        comment_with(ResponseTemplate::new(403)).await,
+        Error::NoPermission
     );
     assert_eq!(
-        kommentar_mit(ResponseTemplate::new(404)).await,
-        Fehler::NichtGefunden
+        comment_with(ResponseTemplate::new(404)).await,
+        Error::NotFound
     );
     assert_eq!(
-        kommentar_mit(
+        comment_with(
             ResponseTemplate::new(403)
                 .insert_header("x-ratelimit-remaining", "0")
                 .insert_header("retry-after", "30")
         )
         .await,
-        Fehler::RateLimit { warten_s: Some(30) }
+        Error::RateLimit { wait_s: Some(30) }
     );
     assert_eq!(
-        kommentar_mit(
+        comment_with(
             ResponseTemplate::new(422)
                 .set_body_json(json!({"message": "Validation Failed", "errors": ["Zeile fehlt"]}))
         )
         .await,
-        Fehler::Abgelehnt("Validation Failed; Zeile fehlt".into())
+        Error::Rejected("Validation Failed; Zeile fehlt".into())
     );
 }
 
 #[tokio::test]
-async fn merge_wird_abgelehnt_mit_der_meldung_des_dienstes() {
+async fn merge_is_rejected_with_the_service_message() {
     let s = MockServer::start().await;
     Mock::given(method("PUT"))
         .respond_with(
@@ -366,18 +366,18 @@ async fn merge_wird_abgelehnt_mit_der_meldung_des_dienstes() {
         )
         .mount(&s)
         .await;
-    let fehler = github(&s)
+    let error = github(&s)
         .await
-        .ausfuehren(&Ausgehend::GitHubMerge {
+        .execute(&Outbound::GitHubMerge {
             repo: "a/x".into(),
-            nummer: 7,
-            methode: MergeMethod::Merge,
+            number: 7,
+            method: MergeMethod::Merge,
             sha: String::new(),
         })
         .await
         .unwrap_err();
     assert_eq!(
-        fehler.to_string(),
+        error.to_string(),
         "Der Dienst lehnt die Anfrage ab: Pull Request is not mergeable"
     );
 }
@@ -385,7 +385,7 @@ async fn merge_wird_abgelehnt_mit_der_meldung_des_dienstes() {
 // ---------- Schlüssel ----------
 
 #[tokio::test]
-async fn schluessel_steht_nie_in_fehlern_oder_debug() {
+async fn key_never_appears_in_errors_or_debug() {
     // Ein Dienst, der den Schlüssel in der Meldung zurückspielt.
     let s = MockServer::start().await;
     Mock::given(method("POST"))
@@ -396,30 +396,30 @@ async fn schluessel_steht_nie_in_fehlern_oder_debug() {
         .mount(&s)
         .await;
     let c = github(&s).await;
-    let fehler = c
-        .ausfuehren(&Ausgehend::GitHubKommentar {
+    let error = c
+        .execute(&Outbound::GitHubComment {
             repo: "a/x".into(),
-            nummer: 1,
+            number: 1,
             text: "x".into(),
         })
         .await
         .unwrap_err();
-    for text in [fehler.to_string(), format!("{fehler:?}"), format!("{c:?}")] {
+    for text in [error.to_string(), format!("{error:?}"), format!("{c:?}")] {
         assert!(!text.contains(TOKEN), "{text}");
     }
 
     // Netz weg.
     let c = GitHubClient::new("http://127.0.0.1:9", Secret::new(TOKEN)).unwrap();
-    let fehler = c
-        .ausfuehren(&Ausgehend::GitHubKommentar {
+    let error = c
+        .execute(&Outbound::GitHubComment {
             repo: "a/x".into(),
-            nummer: 1,
+            number: 1,
             text: "x".into(),
         })
         .await
         .unwrap_err();
-    assert!(matches!(fehler, Fehler::Netzwerk(_)));
-    assert!(!fehler.to_string().contains(TOKEN));
+    assert!(matches!(error, Error::Network(_)));
+    assert!(!error.to_string().contains(TOKEN));
 
     // Jira: Token steckt im Basic-Header, nie in Meldungen.
     let j = JiraClient::new("http://127.0.0.1:9", "a@b.de", Secret::new(TOKEN)).unwrap();
@@ -427,7 +427,7 @@ async fn schluessel_steht_nie_in_fehlern_oder_debug() {
 }
 
 #[tokio::test]
-async fn dienste_leiten_an_den_richtigen_client() {
+async fn services_route_to_the_right_client() {
     let g = MockServer::start().await;
     let j = MockServer::start().await;
     Mock::given(method("POST"))
@@ -442,42 +442,42 @@ async fn dienste_leiten_an_den_richtigen_client() {
         .expect(1)
         .mount(&j)
         .await;
-    let dienste = Dienste {
-        github: Some(GitHubDienst {
+    let services = Services {
+        github: Some(GitHubService {
             client: github(&g).await,
             repos: vec!["a/x".into()],
         }),
-        jira: Some(JiraDienst {
+        jira: Some(JiraService {
             client: jira(&j).await,
             jql: "x".into(),
-            im_projekt: false,
+            in_project: false,
         }),
     };
-    assert!(dienste.ziele().github && dienste.ziele().jira);
-    dienste
-        .ausfuehren(&Ausgehend::GitHubKommentar {
+    assert!(services.targets().github && services.targets().jira);
+    services
+        .execute(&Outbound::GitHubComment {
             repo: "a/x".into(),
-            nummer: 7,
+            number: 7,
             text: "a".into(),
         })
         .await
         .unwrap();
-    dienste
-        .ausfuehren(&Ausgehend::JiraKommentar {
+    services
+        .execute(&Outbound::JiraComment {
             key: "ABC-1".into(),
             text: "b".into(),
         })
         .await
         .unwrap();
     // Ohne Jira: verständlicher Fehler statt Absturz.
-    let nur_github = Dienste {
+    let github_only = Services {
         jira: None,
         github: None,
     };
-    assert!(nur_github.ist_leer());
+    assert!(github_only.is_empty());
     assert!(
-        nur_github
-            .ausfuehren(&Ausgehend::JiraKommentar {
+        github_only
+            .execute(&Outbound::JiraComment {
                 key: "ABC-1".into(),
                 text: "b".into()
             })

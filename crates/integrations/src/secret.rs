@@ -6,8 +6,8 @@ use std::fmt;
 pub struct Secret(String);
 
 impl Secret {
-    pub fn new(wert: impl Into<String>) -> Self {
-        Self(wert.into())
+    pub fn new(value: impl Into<String>) -> Self {
+        Self(value.into())
     }
 
     /// Der Klartext. Nur für den Aufruf beim Dienst verwenden, nie loggen.
@@ -31,7 +31,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn debug_zeigt_den_schluessel_nie() {
+    fn debug_never_shows_the_key() {
         let s = Secret::new("ghp_geheim");
         assert_eq!(format!("{s:?}"), "Secret(***)");
         assert_eq!(format!("{:#?}", Some(&s)), "Some(\n    Secret(***),\n)");

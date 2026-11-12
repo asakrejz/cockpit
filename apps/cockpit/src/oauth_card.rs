@@ -42,7 +42,7 @@ impl Service {
 
 /// Text zum Stand einer Verbindung.
 fn describe(status: &ServiceStatus) -> String {
-    match (status.verbunden, status.art) {
+    match (status.connected, status.kind) {
         (true, AuthKind::OAuth) => match &status.site {
             Some(site) => format!("Verbunden per OAuth (Site {site})"),
             None => "Verbunden per OAuth".into(),
@@ -69,7 +69,7 @@ pub fn OAuthCard(
         spawn_local(async move {
             if let Ok(services) = server::fetch_services().await {
                 let s = service.pick(&services);
-                if s.verbunden {
+                if s.connected {
                     on_connected.run(());
                 }
                 status.set(Some(s));
@@ -85,7 +85,7 @@ pub fn OAuthCard(
                     on_disconnected.run(());
                     store.notify(
                         answer
-                            .hinweis
+                            .hint
                             .unwrap_or_else(|| format!("Von {} getrennt", service.name())),
                     );
                     if let Ok(services) = server::fetch_services().await {
@@ -103,9 +103,9 @@ pub fn OAuthCard(
             {
                 {
                     let s = status.get().unwrap_or_default();
-                    let tone = if s.verbunden { StatusTone::Green } else { StatusTone::Gray };
-                    let oauth = s.art == AuthKind::OAuth;
-                    let possible = s.oauth_moeglich;
+                    let tone = if s.connected { StatusTone::Green } else { StatusTone::Gray };
+                    let oauth = s.kind == AuthKind::OAuth;
+                    let possible = s.oauth_possible;
                     let login_label = format!("Mit {} anmelden", service.name());
                     let hint = format!(
                         "Zuerst oben die Client-ID speichern und das Client-Secret ablegen (Terminal-Weg: „cockpit-server token setzen {}-oauth“).",

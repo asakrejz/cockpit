@@ -4,10 +4,10 @@
 
 use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
-    ActionRequest, ActionResponse, AgentStatus, ContainerPruefung, ContainerStatus, Einrichtung,
-    EndpunktPruefung, EndpunktStatus, ErrorBody, ImageBau, JiraProjectsResponse, JiraPruefung,
-    KonfigAenderung, KonfigAntwort, Modellliste, SchluesselAntwort, SchluesselEingabe, ServerEvent,
-    SyncResponse, WiderrufAntwort,
+    ActionRequest, ActionResponse, AgentStatus, ContainerCheck, ContainerStatus, Setup,
+    EndpointCheck, EndpointStatus, ErrorBody, ImageBau, JiraProjectsResponse, JiraCheck,
+    ConfigChange, ConfigResponse, ModelList, KeyResponse, KeyInput, ServerEvent,
+    SyncResponse, RevokeResponse,
 };
 use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
@@ -37,7 +37,7 @@ async fn rejection(resp: gloo_net::http::Response) -> CallError {
     let message = resp
         .json::<ErrorBody>()
         .await
-        .map(|e| e.fehler)
+        .map(|e| e.error)
         .unwrap_or_else(|_| format!("Der Server antwortet mit Fehler {status}"));
     CallError::Rejected(message)
 }
@@ -159,7 +159,7 @@ pub struct Health {
     #[serde(default)]
     pub anmeldung: Services,
     #[serde(default)]
-    pub endpunkt: EndpunktStatus,
+    pub endpunkt: EndpointStatus,
     #[serde(default)]
     pub container: ContainerStatus,
     #[serde(default)]
@@ -186,7 +186,7 @@ pub async fn fetch_services() -> Result<Services, CallError> {
 }
 
 /// Verbindungstest zum Endpunkt (`GET /api/agent/pruefen`).
-pub async fn fetch_endpunkt_check() -> Result<EndpunktPruefung, CallError> {
+pub async fn fetch_endpunkt_check() -> Result<EndpointCheck, CallError> {
     let resp = Request::get("/api/agent/pruefen")
         .send()
         .await
@@ -194,13 +194,13 @@ pub async fn fetch_endpunkt_check() -> Result<EndpunktPruefung, CallError> {
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<EndpunktPruefung>()
+    resp.json::<EndpointCheck>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
 /// Die Modell-IDs des gespeicherten Endpunkts (`GET /api/agent/modelle`).
-pub async fn fetch_modelle() -> Result<Modellliste, CallError> {
+pub async fn fetch_modelle() -> Result<ModelList, CallError> {
     let resp = Request::get("/api/agent/modelle")
         .send()
         .await
@@ -208,7 +208,7 @@ pub async fn fetch_modelle() -> Result<Modellliste, CallError> {
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<Modellliste>()
+    resp.json::<ModelList>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
@@ -243,7 +243,7 @@ pub async fn post_image_bauen() -> Result<ImageBau, CallError> {
 }
 
 /// Prüft, ob ein Container den Endpunkt erreicht (`GET /api/agent/pruefen/container`).
-pub async fn fetch_container_check() -> Result<ContainerPruefung, CallError> {
+pub async fn fetch_container_check() -> Result<ContainerCheck, CallError> {
     let resp = Request::get("/api/agent/pruefen/container")
         .send()
         .await
@@ -251,14 +251,14 @@ pub async fn fetch_container_check() -> Result<ContainerPruefung, CallError> {
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<ContainerPruefung>()
+    resp.json::<ContainerCheck>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
 /// „Trennen“: widerruft die Anmeldung (`POST /api/oauth/{dienst}/widerrufen`). `service`:
 /// `github` oder `atlassian`.
-pub async fn post_revoke(service: &str) -> Result<WiderrufAntwort, CallError> {
+pub async fn post_revoke(service: &str) -> Result<RevokeResponse, CallError> {
     let request = Request::post(&format!("/api/oauth/{service}/widerrufen"))
         .header("Content-Type", "application/json")
         .build()
@@ -267,13 +267,13 @@ pub async fn post_revoke(service: &str) -> Result<WiderrufAntwort, CallError> {
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<WiderrufAntwort>()
+    resp.json::<RevokeResponse>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
 /// Die aktuellen, nicht geheimen Werte für den Assistenten (`GET /api/einrichtung`).
-pub async fn fetch_einrichtung() -> Result<Einrichtung, CallError> {
+pub async fn fetch_einrichtung() -> Result<Setup, CallError> {
     let resp = Request::get("/api/einrichtung")
         .send()
         .await
@@ -281,13 +281,13 @@ pub async fn fetch_einrichtung() -> Result<Einrichtung, CallError> {
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<Einrichtung>()
+    resp.json::<Setup>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
 /// Schreibt Client-IDs, Jira, Repos oder Anbieter und Endpunkt in `config.toml` (`PUT /api/konfiguration`).
-pub async fn put_konfiguration(aenderung: &KonfigAenderung) -> Result<KonfigAntwort, CallError> {
+pub async fn put_konfiguration(aenderung: &ConfigChange) -> Result<ConfigResponse, CallError> {
     let request = Request::put("/api/konfiguration")
         .header("Content-Type", "application/json")
         .json(aenderung)
@@ -296,7 +296,7 @@ pub async fn put_konfiguration(aenderung: &KonfigAenderung) -> Result<KonfigAntw
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<KonfigAntwort>()
+    resp.json::<ConfigResponse>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
@@ -304,23 +304,23 @@ pub async fn put_konfiguration(aenderung: &KonfigAenderung) -> Result<KonfigAntw
 /// Legt einen Schlüssel im Schlüsselbund des Servers ab (`PUT /api/schluessel/{name}`). Der Wert
 /// geht nur in den Body dieser Anfrage – nicht in die Adresse, nicht in den Speicher des Browsers.
 /// Die Antwort sagt nur „gesetzt“.
-pub async fn put_schluessel(name: &str, wert: String) -> Result<SchluesselAntwort, CallError> {
+pub async fn put_schluessel(name: &str, wert: String) -> Result<KeyResponse, CallError> {
     let request = Request::put(&format!("/api/schluessel/{name}"))
         .header("Content-Type", "application/json")
-        .json(&SchluesselEingabe { wert })
+        .json(&KeyInput { value: wert })
         .map_err(|_| CallError::Rejected("Die Eingabe lässt sich nicht senden".into()))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<SchluesselAntwort>()
+    resp.json::<KeyResponse>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
 /// Verbindungstest für Jira per API-Token (`POST /api/jira/pruefen`). Nur Lesen; die Antwort
 /// enthält nie den Token.
-pub async fn post_jira_pruefen() -> Result<JiraPruefung, CallError> {
+pub async fn post_jira_pruefen() -> Result<JiraCheck, CallError> {
     let request = Request::post("/api/jira/pruefen")
         .header("Content-Type", "application/json")
         .build()
@@ -329,13 +329,13 @@ pub async fn post_jira_pruefen() -> Result<JiraPruefung, CallError> {
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<JiraPruefung>()
+    resp.json::<JiraCheck>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
 /// Löscht einen Token aus dem Schlüsselbund (`DELETE /api/schluessel/{name}`), „Trennen“.
-pub async fn delete_schluessel(name: &str) -> Result<SchluesselAntwort, CallError> {
+pub async fn delete_schluessel(name: &str) -> Result<KeyResponse, CallError> {
     let request = Request::delete(&format!("/api/schluessel/{name}"))
         .header("Content-Type", "application/json")
         .build()
@@ -344,7 +344,7 @@ pub async fn delete_schluessel(name: &str) -> Result<SchluesselAntwort, CallErro
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<SchluesselAntwort>()
+    resp.json::<KeyResponse>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }

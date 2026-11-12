@@ -20,13 +20,13 @@ fn step_state(state: cockpit_core::StepState) -> StepState {
 
 /// Eine Zeile des Verlaufs als Sprechblase.
 fn bubble(m: RunMessage) -> impl IntoView {
-    let own = m.from == Speaker::Du;
+    let own = m.from == Speaker::User;
     let who = match (m.from, m.kind) {
         (Speaker::Agent, MessageKind::Question) => "Agent fragt",
         (Speaker::Agent, _) => "Agent",
-        (Speaker::Du, MessageKind::Answer) => "Du antwortest",
-        (Speaker::Du, MessageKind::Hint) => "Du schickst einen Hinweis",
-        (Speaker::Du, _) => "Du",
+        (Speaker::User, MessageKind::Answer) => "Du antwortest",
+        (Speaker::User, MessageKind::Hint) => "Du schickst einen Hinweis",
+        (Speaker::User, _) => "Du",
     };
     let time = match m.step {
         0 => "Start".to_string(),
@@ -557,7 +557,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                     // Der Server sagt genau, was fehlt und wo man es einrichtet.
                                     let genau = store.health.with(|h| {
                                         h.as_ref()
-                                            .map(|h| h.agent.fehlt.join(" "))
+                                            .map(|h| h.agent.missing.join(" "))
                                             .filter(|t| !t.is_empty())
                                     });
                                     view! {

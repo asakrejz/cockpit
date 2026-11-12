@@ -11,13 +11,13 @@ use axum::Json;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
-use cockpit_core::api::{ErrorBody, WiderrufAntwort};
+use cockpit_core::api::{ErrorBody, RevokeResponse};
 use cockpit_core::{AuthKind, ServiceStatus};
 use cockpit_integrations::jira::JiraClient;
 use cockpit_integrations::oauth::{
-    self, Anmeldungen, App, Dienst, Site, Tokens, jira_basis, site_waehlen,
+    self, SignIns, App, Service, Site, Tokens, jira_base, site_choose,
 };
-use cockpit_integrations::{Fehler, Secret};
+use cockpit_integrations::{Error, Secret};
 
 use crate::app::{AppState, jetzt_ms};
 use crate::db;
@@ -26,32 +26,32 @@ use crate::secrets;
 const SITE_ID: &str = "atlassian.cloud_id";
 const SITE_NAME: &str = "atlassian.site_name";
 
-fn secret_name(d: Dienst) -> &'static str {
+fn secret_name(d: Service) -> &'static str {
     match d {
-        Dienst::GitHub => secrets::GITHUB_OAUTH,
-        Dienst::Atlassian => secrets::ATLASSIAN_OAUTH,
+        Service::GitHub => secrets::GITHUB_OAUTH,
+        Service::Atlassian => secrets::ATLASSIAN_OAUTH,
     }
 }
 
-fn tokens_name(d: Dienst) -> &'static str {
+fn tokens_name(d: Service) -> &'static str {
     match d {
-        Dienst::GitHub => secrets::GITHUB_OAUTH_TOKENS,
-        Dienst::Atlassian => secrets::ATLASSIAN_OAUTH_TOKENS,
+        Service::GitHub => secrets::GITHUB_OAUTH_TOKENS,
+        Service::Atlassian => secrets::ATLASSIAN_OAUTH_TOKENS,
     }
 }
 
-fn befehl(d: Dienst) -> String {
+fn befehl(d: Service) -> String {
     format!("cockpit-server token setzen {}", secret_name(d))
 }
 
 /// Die Callback-Adresse, wie sie in der App des Dienstes eingetragen ist. GitHub: `127.0.0.1`,
 /// Atlassian: `localhost`.
-pub fn redirect_uri(d: Dienst, port: u16) -> String {
+pub fn redirect_uri(d: Service, port: u16) -> String {
     let host = match d {
-        Dienst::GitHub => "127.0.0.1",
-        Dienst::Atlassian => "localhost",
+        Service::GitHub => "127.0.0.1",
+        Service::Atlassian => "localhost",
     };
-    format!("http://{host}:{port}/api/oauth/{}/callback", d.kennung())
+    format!("http://{host}:{port}/api/oauth/{}/callback", d.id())
 }
 
 fn jetzt_s() -> u64 {
@@ -59,13 +59,13 @@ fn jetzt_s() -> u64 {
 }
 
 /// Eine Meldung für die Oberfläche; enthält nie einen Schlüssel.
-fn dienst_fehler(d: Dienst, f: &Fehler) -> String {
+fn dienst_fehler(d: Service, f: &Error) -> String {
     match f {
-        Fehler::NichtAngemeldet => format!(
+        Error::NotSignedIn => format!(
             "{} lehnt die Zugangsdaten ab – Client-ID in config.toml und Client-Secret im Schlüsselbund prüfen",
             d.name()
         ),
-        Fehler::Netzwerk(_) => format!("{} ist nicht erreichbar", d.name()),
+        Error::Network(_) => format!("{} ist nicht erreichbar", d.name()),
         andere => format!("{}: {andere}", d.name()),
     }
 }
@@ -84,55 +84,55 @@ fn kodiert(text: &str) -> String {
 }
 
 impl AppState {
-    fn oauth_konfig_id(&self, d: Dienst) -> Option<String> {
+    fn oauth_konfig_id(&self, d: Service) -> Option<String> {
         let q = self.quellen();
         match d {
-            Dienst::GitHub => q.github_oauth.as_ref().map(|o| o.client_id.clone()),
-            Dienst::Atlassian => q.atlassian.as_ref().map(|a| a.client_id.clone()),
+            Service::GitHub => q.github_oauth.as_ref().map(|o| o.client_id.clone()),
+            Service::Atlassian => q.atlassian.as_ref().map(|a| a.client_id.clone()),
         }
     }
 
     /// Das Client-Secret aus dem Schlüsselbund. Blockierend.
-    fn oauth_client_secret(&self, d: Dienst) -> Option<Secret> {
+    fn oauth_client_secret(&self, d: Service) -> Option<Secret> {
         match self.inner.secrets.get(secret_name(d)) {
             Ok(s) => s.filter(|s| !s.is_empty()),
             Err(e) => {
-                tracing::warn!("Client-Secret für {} nicht lesbar: {e}", d.kennung());
+                tracing::warn!("Client-Secret für {} nicht lesbar: {e}", d.id());
                 None
             }
         }
     }
 
     /// Die Tokens aus dem Schlüsselbund. Unlesbares zählt als fehlend. Blockierend.
-    pub(crate) fn oauth_tokens(&self, d: Dienst) -> Option<Tokens> {
+    pub(crate) fn oauth_tokens(&self, d: Service) -> Option<Tokens> {
         match self.inner.secrets.get(tokens_name(d)) {
             Ok(Some(t)) => {
-                let tokens = Tokens::aus_text(t.expose());
+                let tokens = Tokens::from_text(t.expose());
                 if tokens.is_none() {
-                    tracing::warn!("Gespeicherte Tokens für {} sind unlesbar", d.kennung());
+                    tracing::warn!("Gespeicherte Tokens für {} sind unlesbar", d.id());
                 }
                 tokens
             }
             Ok(None) => None,
             Err(e) => {
-                tracing::warn!("Tokens für {} nicht lesbar: {e}", d.kennung());
+                tracing::warn!("Tokens für {} nicht lesbar: {e}", d.id());
                 None
             }
         }
     }
 
-    fn oauth_tokens_setzen(&self, d: Dienst, t: &Tokens) -> Result<(), String> {
+    fn oauth_tokens_setzen(&self, d: Service, t: &Tokens) -> Result<(), String> {
         self.inner
             .secrets
-            .set(tokens_name(d), &Secret::new(t.als_text()))
+            .set(tokens_name(d), &Secret::new(t.as_text()))
             .map_err(|e| e.to_string())
     }
 
-    fn oauth_tokens_loeschen(&self, d: Dienst) {
+    fn oauth_tokens_loeschen(&self, d: Service) {
         if let Err(e) = self.inner.secrets.delete(tokens_name(d)) {
-            tracing::warn!("Tokens für {} nicht löschbar: {e}", d.kennung());
+            tracing::warn!("Tokens für {} nicht löschbar: {e}", d.id());
         }
-        if d == Dienst::Atlassian
+        if d == Service::Atlassian
             && let Ok(conn) = self.inner.db.lock()
         {
             for k in [SITE_ID, SITE_NAME] {
@@ -155,21 +155,21 @@ impl AppState {
     }
 
     /// Ein Jira-Client mit OAuth, falls angemeldet und eine Site gewählt ist. Blockierend.
-    pub(crate) fn jira_oauth_client(&self) -> Option<Result<JiraClient, Fehler>> {
-        let tokens = self.oauth_tokens(Dienst::Atlassian)?;
+    pub(crate) fn jira_oauth_client(&self) -> Option<Result<JiraClient, Error>> {
+        let tokens = self.oauth_tokens(Service::Atlassian)?;
         let (id, _) = self.atlassian_site()?;
         Some(
-            jira_basis(&self.quellen().endpunkte, &id)
-                .and_then(|basis| JiraClient::oauth(&basis, tokens.access)),
+            jira_base(&self.quellen().endpunkte, &id)
+                .and_then(|base| JiraClient::oauth(&base, tokens.access)),
         )
     }
 
     /// Verbindungsstatus eines Dienstes für `/api/health`. Blockierend.
-    pub(crate) fn dienst_status(&self, d: Dienst, token_vorhanden: bool) -> ServiceStatus {
+    pub(crate) fn dienst_status(&self, d: Service, token_vorhanden: bool) -> ServiceStatus {
         let oauth_moeglich =
             self.oauth_konfig_id(d).is_some() && self.oauth_client_secret(d).is_some();
         let oauth_verbunden = self.oauth_tokens(d).is_some()
-            && (d == Dienst::GitHub || self.atlassian_site().is_some());
+            && (d == Service::GitHub || self.atlassian_site().is_some());
         let (verbunden, art) = if oauth_verbunden {
             (true, AuthKind::OAuth)
         } else if token_vorhanden {
@@ -178,10 +178,10 @@ impl AppState {
             (false, AuthKind::None)
         };
         ServiceStatus {
-            verbunden,
-            art,
-            oauth_moeglich,
-            site: (d == Dienst::Atlassian && oauth_verbunden)
+            connected: verbunden,
+            kind: art,
+            oauth_possible: oauth_moeglich,
+            site: (d == Service::Atlassian && oauth_verbunden)
                 .then(|| self.atlassian_site().map(|(_, n)| n))
                 .flatten()
                 .filter(|n| !n.is_empty()),
@@ -191,7 +191,7 @@ impl AppState {
     // ───────────── Ablauf ─────────────
 
     /// Beginnt eine Anmeldung und liefert die Adresse des Dienstes.
-    pub async fn oauth_start(&self, d: Dienst) -> Result<String, String> {
+    pub async fn oauth_start(&self, d: Service) -> Result<String, String> {
         let Some(client_id) = self.oauth_konfig_id(d) else {
             return Err(format!(
                 "{}-Anmeldung ist nicht eingerichtet – Client-ID in config.toml eintragen",
@@ -213,7 +213,7 @@ impl AppState {
             .anmeldungen
             .lock()
             .map_err(|_| "Interner Fehler".to_string())?
-            .beginnen(d, jetzt_ms())
+            .begin(d, jetzt_ms())
             .map_err(|e| e.to_string())?;
         let uri = redirect_uri(d, self.inner.port);
         let app = App {
@@ -221,14 +221,14 @@ impl AppState {
             client_secret: &secret,
             redirect_uri: &uri,
         };
-        oauth::anmelde_url(&self.quellen().endpunkte, d, &app, &state, &challenge)
+        oauth::sign_in_url(&self.quellen().endpunkte, d, &app, &state, &challenge)
             .map_err(|e| e.to_string())
     }
 
     /// Verarbeitet den Callback. `Ok`: eine Erfolgsmeldung, `Err`: eine verständliche Meldung.
     pub async fn oauth_callback(
         &self,
-        d: Dienst,
+        d: Service,
         q: &HashMap<String, String>,
     ) -> Result<String, String> {
         let get = |k: &str| q.get(k).map(String::as_str).filter(|v| !v.is_empty());
@@ -236,7 +236,7 @@ impl AppState {
         // Der Nutzer hat abgelehnt oder der Dienst meldet einen Fehler: `state` verbrauchen.
         if let Some(fehler) = get("error") {
             if let (Some(st), Ok(mut a)) = (state, self.inner.anmeldungen.lock()) {
-                let _ = a.entnehmen(st, d, jetzt_ms());
+                let _ = a.extract(st, d, jetzt_ms());
             }
             let grund: String = get("error_description")
                 .unwrap_or(fehler)
@@ -260,7 +260,7 @@ impl AppState {
             .anmeldungen
             .lock()
             .map_err(|_| "Interner Fehler".to_string())?
-            .entnehmen(state, d, jetzt_ms())
+            .extract(state, d, jetzt_ms())
             .map_err(|e| e.text().to_string())?;
         let Some(code) = get("code") else {
             return Err(format!("{} hat keinen Code geschickt", d.name()));
@@ -281,21 +281,21 @@ impl AppState {
         };
         let quellen = self.quellen();
         let e = &quellen.endpunkte;
-        let tokens = oauth::code_tauschen(e, d, &app, code, &verifier, jetzt_s())
+        let tokens = oauth::code_exchange(e, d, &app, code, &verifier, jetzt_s())
             .await
             .map_err(|f| {
-                tracing::warn!("{}: Austausch fehlgeschlagen: {f}", d.kennung());
+                tracing::warn!("{}: Austausch fehlgeschlagen: {f}", d.id());
                 dienst_fehler(d, &f)
             })?;
 
         // Atlassian: erst die Site, dann wird gespeichert – kein halber Zustand.
-        let site: Option<Site> = if d == Dienst::Atlassian {
+        let site: Option<Site> = if d == Service::Atlassian {
             let gewuenscht = quellen.atlassian.as_ref().and_then(|a| a.site.clone());
             let liste = oauth::sites(e, &tokens.access).await.map_err(|f| {
                 tracing::warn!("Atlassian: accessible-resources fehlgeschlagen: {f}");
                 dienst_fehler(d, &f)
             })?;
-            Some(site_waehlen(&liste, gewuenscht.as_deref()).map_err(|f| f.to_string())?)
+            Some(site_choose(&liste, gewuenscht.as_deref()).map_err(|f| f.to_string())?)
         } else {
             None
         };
@@ -324,7 +324,7 @@ impl AppState {
         })
         .await
         .map_err(|_| "Interner Fehler".to_string())??;
-        tracing::info!("{}: angemeldet", d.kennung());
+        tracing::info!("{}: angemeldet", d.id());
 
         // Gleich abgleichen; das Ergebnis kommt über den Ereignisstrom.
         let s = self.clone();
@@ -341,13 +341,13 @@ impl AppState {
 
     /// Trennt den Dienst: ruft, wo es das gibt, den Widerruf beim Dienst auf und löscht die Tokens
     /// im Schlüsselbund. Gelöscht wird immer – auch wenn der Dienst nicht antwortet.
-    pub async fn oauth_widerrufen(&self, d: Dienst) -> Result<WiderrufAntwort, String> {
+    pub async fn oauth_widerrufen(&self, d: Service) -> Result<RevokeResponse, String> {
         let s = self.clone();
         let (tokens, secret) =
             tokio::task::spawn_blocking(move || (s.oauth_tokens(d), s.oauth_client_secret(d)))
                 .await
                 .map_err(|_| "Interner Fehler".to_string())?;
-        let mut antwort = WiderrufAntwort::default();
+        let mut antwort = RevokeResponse::default();
         if let (Some(tokens), Some(secret), Some(client_id)) =
             (&tokens, &secret, self.oauth_konfig_id(d))
         {
@@ -362,19 +362,19 @@ impl AppState {
                 .github
                 .as_ref()
                 .map_or(crate::config::STANDARD_GITHUB_API, |g| g.api_url.as_str());
-            match oauth::widerrufen(d, &app, api, tokens).await {
-                Ok(beim_dienst) => antwort.beim_dienst = beim_dienst,
+            match oauth::revoked(d, &app, api, tokens).await {
+                Ok(beim_dienst) => antwort.at_service = beim_dienst,
                 Err(f) => {
-                    tracing::warn!("{}: Widerruf beim Dienst fehlgeschlagen: {f}", d.kennung());
-                    antwort.hinweis = Some(format!(
+                    tracing::warn!("{}: Widerruf beim Dienst fehlgeschlagen: {f}", d.id());
+                    antwort.hint = Some(format!(
                         "Lokal getrennt, aber der Dienst hat den Widerruf nicht bestätigt ({f}). Zugriff bitte in den Einstellungen bei {} entziehen.",
                         d.name()
                     ));
                 }
             }
         }
-        if d == Dienst::Atlassian && antwort.hinweis.is_none() {
-            antwort.hinweis = Some(
+        if d == Service::Atlassian && antwort.hint.is_none() {
+            antwort.hint = Some(
                 "Lokal getrennt. Atlassian bietet keinen Widerruf per Aufruf – den Zugriff entziehst du unter id.atlassian.com/manage-profile/apps."
                     .into(),
             );
@@ -383,8 +383,8 @@ impl AppState {
         tokio::task::spawn_blocking(move || s.oauth_tokens_loeschen(d))
             .await
             .map_err(|_| "Interner Fehler".to_string())?;
-        antwort.getrennt = true;
-        tracing::info!("{}: getrennt", d.kennung());
+        antwort.disconnected = true;
+        tracing::info!("{}: getrennt", d.id());
         Ok(antwort)
     }
 
@@ -392,14 +392,14 @@ impl AppState {
     /// nicht mehr gelten lässt, werden die Tokens gelöscht: Der Dienst gilt als getrennt.
     /// Netzwerkfehler und Störungen des Dienstes lassen alles, wie es ist.
     pub async fn oauth_auffrischen(&self) {
-        for d in [Dienst::GitHub, Dienst::Atlassian] {
+        for d in [Service::GitHub, Service::Atlassian] {
             if self.oauth_konfig_id(d).is_some() {
                 self.oauth_auffrischen_fuer(d).await;
             }
         }
     }
 
-    async fn oauth_auffrischen_fuer(&self, d: Dienst) {
+    async fn oauth_auffrischen_fuer(&self, d: Service) {
         // Atlassian dreht das Refresh-Token: Zwei Auffrischungen gleichzeitig würden sich
         // gegenseitig ungültig machen.
         let _sperre = self.inner.auffrischen.lock().await;
@@ -410,13 +410,13 @@ impl AppState {
         else {
             return;
         };
-        if !tokens.braucht_auffrischen(jetzt_s()) {
+        if !tokens.needs_refresh(jetzt_s()) {
             return;
         }
         let (Some(secret), Some(client_id)) = (secret, self.oauth_konfig_id(d)) else {
             tracing::warn!(
                 "{}: Client-Secret fehlt, Tokens nicht aufgefrischt",
-                d.kennung()
+                d.id()
             );
             return;
         };
@@ -427,42 +427,42 @@ impl AppState {
             redirect_uri: &uri,
         };
         let ergebnis =
-            oauth::auffrischen(&self.quellen().endpunkte, d, &app, &tokens, jetzt_s()).await;
+            oauth::refresh(&self.quellen().endpunkte, d, &app, &tokens, jetzt_s()).await;
         let s = self.clone();
         match ergebnis {
             Ok(neu) => {
                 let _ = tokio::task::spawn_blocking(move || {
                     if let Err(e) = s.oauth_tokens_setzen(d, &neu) {
-                        tracing::warn!("{}: neue Tokens nicht ablegbar: {e}", d.kennung());
+                        tracing::warn!("{}: neue Tokens nicht ablegbar: {e}", d.id());
                     }
                 })
                 .await;
             }
             Err(
-                f @ (Fehler::NichtAngemeldet
-                | Fehler::Abgelehnt(_)
-                | Fehler::KeineBerechtigung
-                | Fehler::Antwort(_)),
+                f @ (Error::NotSignedIn
+                | Error::Rejected(_)
+                | Error::NoPermission
+                | Error::Response(_)),
             ) => {
-                tracing::warn!("{}: Auffrischen abgelehnt ({f}) – getrennt", d.kennung());
+                tracing::warn!("{}: Auffrischen abgelehnt ({f}) – getrennt", d.id());
                 let _ = tokio::task::spawn_blocking(move || s.oauth_tokens_loeschen(d)).await;
             }
-            Err(f) => tracing::warn!("{}: Auffrischen nicht möglich: {f}", d.kennung()),
+            Err(f) => tracing::warn!("{}: Auffrischen nicht möglich: {f}", d.id()),
         }
     }
 }
 
 // ───────────── Routen ─────────────
 
-fn dienst_aus(kennung: &str) -> Result<Dienst, ()> {
-    Dienst::von_kennung(kennung).ok_or(())
+fn dienst_aus(kennung: &str) -> Result<Service, ()> {
+    Service::from_id(kennung).ok_or(())
 }
 
 fn unbekannter_dienst() -> Response {
     (
         StatusCode::NOT_FOUND,
         Json(ErrorBody {
-            fehler: "Unbekannter Dienst".into(),
+            error: "Unbekannter Dienst".into(),
         }),
     )
         .into_response()
@@ -470,17 +470,17 @@ fn unbekannter_dienst() -> Response {
 
 /// Zurück in die App – über die Adresse `127.0.0.1`, damit der gespeicherte Modus des Browsers
 /// gilt, auch wenn der Dienst auf `localhost` zurückgeleitet hat.
-fn zurueck(port: u16, d: Dienst, ergebnis: &Result<String, String>) -> Redirect {
+fn zurueck(port: u16, d: Service, ergebnis: &Result<String, String>) -> Redirect {
     let basis = format!("http://127.0.0.1:{port}/");
     let ziel = match ergebnis {
         Ok(m) => format!(
             "{basis}?oauth=ok&dienst={}&meldung={}#/einrichten",
-            d.kennung(),
+            d.id(),
             kodiert(m)
         ),
         Err(m) => format!(
             "{basis}?oauth=fehler&dienst={}&meldung={}#/einrichten",
-            d.kennung(),
+            d.id(),
             kodiert(m)
         ),
     };
@@ -509,7 +509,7 @@ pub async fn callback(
     };
     let ergebnis = state.oauth_callback(d, &q).await;
     if let Err(m) = &ergebnis {
-        tracing::warn!("{}: Anmeldung gescheitert: {m}", d.kennung());
+        tracing::warn!("{}: Anmeldung gescheitert: {m}", d.id());
     }
     zurueck(state.inner.port, d, &ergebnis).into_response()
 }
@@ -523,15 +523,15 @@ pub async fn widerrufen(State(state): State<AppState>, Path(dienst): Path<String
         Ok(a) => Json(a).into_response(),
         Err(m) => (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody { fehler: m }),
+            Json(ErrorBody { error: m }),
         )
             .into_response(),
     }
 }
 
 /// Zustand für `AppState`: offene Anmeldungen.
-pub fn neue_anmeldungen() -> std::sync::Mutex<Anmeldungen> {
-    std::sync::Mutex::new(Anmeldungen::default())
+pub fn neue_anmeldungen() -> std::sync::Mutex<SignIns> {
+    std::sync::Mutex::new(SignIns::default())
 }
 
 #[cfg(test)]
@@ -544,7 +544,7 @@ mod tests {
     use axum::body::Body;
     use axum::extract::ConnectInfo;
     use axum::http::Request;
-    use cockpit_integrations::oauth::Endpunkte;
+    use cockpit_integrations::oauth::Endpoints;
     use http_body_util::BodyExt;
     use tower::ServiceExt;
     use wiremock::matchers::{method, path};
@@ -558,11 +558,11 @@ mod tests {
 
     const CLIENT_GEHEIM: &str = "client-geheimnis-abc123";
 
-    fn endpunkte(s: &MockServer) -> Endpunkte {
-        Endpunkte {
-            github_anmeldung: format!("{}/login/oauth/authorize", s.uri()),
+    fn endpunkte(s: &MockServer) -> Endpoints {
+        Endpoints {
+            github_sign_in: format!("{}/login/oauth/authorize", s.uri()),
             github_token: format!("{}/login/oauth/access_token", s.uri()),
-            atlassian_anmeldung: format!("{}/authorize", s.uri()),
+            atlassian_sign_in: format!("{}/authorize", s.uri()),
             atlassian_token: format!("{}/oauth/token", s.uri()),
             atlassian_api: s.uri(),
         }
@@ -725,7 +725,7 @@ mod tests {
             secrets: Arc::new(MemoryStore::new()),
         };
         let _ = &p.secrets;
-        assert!(p.state.oauth_start(Dienst::Atlassian).await.is_err());
+        assert!(p.state.oauth_start(Service::Atlassian).await.is_err());
 
         // Unbekannter Dienst.
         let p = stand(&server, None, true);
@@ -768,7 +768,7 @@ mod tests {
             .get(secrets::GITHUB_OAUTH_TOKENS)
             .unwrap()
             .unwrap();
-        let t = Tokens::aus_text(gespeichert.expose()).unwrap();
+        let t = Tokens::from_text(gespeichert.expose()).unwrap();
         assert_eq!(t.access.expose(), "ghu_zugriff_geheim");
         assert_eq!(t.refresh.unwrap().expose(), "ghr_erneuern_geheim");
 
@@ -1012,8 +1012,8 @@ mod tests {
 
         let (status, _, body) = aufruf(&p.app, "POST", "/api/oauth/github/widerrufen").await;
         assert_eq!(status, StatusCode::OK);
-        let a: WiderrufAntwort = serde_json::from_str(&body).unwrap();
-        assert!(a.getrennt && a.beim_dienst, "{body}");
+        let a: RevokeResponse = serde_json::from_str(&body).unwrap();
+        assert!(a.disconnected && a.at_service, "{body}");
         assert!(!p.secrets.has(secrets::GITHUB_OAUTH_TOKENS).unwrap());
         // Das Client-Secret bleibt (für die nächste Anmeldung).
         assert!(p.secrets.has(secrets::GITHUB_OAUTH).unwrap());
@@ -1039,9 +1039,9 @@ mod tests {
             &format!("/api/oauth/github/callback?code=c&state={state}"),
         )
         .await;
-        let a = p.state.oauth_widerrufen(Dienst::GitHub).await.unwrap();
-        assert!(a.getrennt && !a.beim_dienst);
-        assert!(a.hinweis.unwrap().contains("nicht bestätigt"));
+        let a = p.state.oauth_widerrufen(Service::GitHub).await.unwrap();
+        assert!(a.disconnected && !a.at_service);
+        assert!(a.hint.unwrap().contains("nicht bestätigt"));
         assert!(!p.secrets.has(secrets::GITHUB_OAUTH_TOKENS).unwrap());
     }
 
@@ -1057,26 +1057,26 @@ mod tests {
         atlassian_anmelden(&p).await;
         let (status, _, body) = aufruf(&p.app, "POST", "/api/oauth/atlassian/widerrufen").await;
         assert_eq!(status, StatusCode::OK);
-        let a: WiderrufAntwort = serde_json::from_str(&body).unwrap();
-        assert!(a.getrennt && !a.beim_dienst);
-        assert!(a.hinweis.unwrap().contains("id.atlassian.com"));
+        let a: RevokeResponse = serde_json::from_str(&body).unwrap();
+        assert!(a.disconnected && !a.at_service);
+        assert!(a.hint.unwrap().contains("id.atlassian.com"));
         assert!(!p.secrets.has(secrets::ATLASSIAN_OAUTH_TOKENS).unwrap());
         assert_eq!(p.state.atlassian_site(), None);
         // Widerruf ohne Anmeldung ist kein Fehler.
         assert!(
             p.state
-                .oauth_widerrufen(Dienst::Atlassian)
+                .oauth_widerrufen(Service::Atlassian)
                 .await
                 .unwrap()
-                .getrennt
+                .disconnected
         );
     }
 
-    fn abgelaufen(p: &Prufstand, d: Dienst, refresh: Option<&str>) {
+    fn abgelaufen(p: &Prufstand, d: Service, refresh: Option<&str>) {
         let t = Tokens {
             access: Secret::new("alt_zugriff"),
             refresh: refresh.map(Secret::new),
-            laeuft_ab_s: Some(1),
+            expires_in_s: Some(1),
         };
         p.state.oauth_tokens_setzen(d, &t).unwrap();
     }
@@ -1093,9 +1093,9 @@ mod tests {
             .mount(&server)
             .await;
         let p = stand(&server, None, true);
-        abgelaufen(&p, Dienst::GitHub, Some("alt_erneuern"));
+        abgelaufen(&p, Service::GitHub, Some("alt_erneuern"));
         p.state.oauth_auffrischen().await;
-        let t = p.state.oauth_tokens(Dienst::GitHub).unwrap();
+        let t = p.state.oauth_tokens(Service::GitHub).unwrap();
         assert_eq!(t.access.expose(), "neu_zugriff");
         assert_eq!(t.refresh.unwrap().expose(), "neu_erneuern");
         // Noch gültig: kein zweiter Aufruf (`expect(1)`).
@@ -1116,17 +1116,17 @@ mod tests {
             .mount(&server)
             .await;
         let p = stand(&server, None, true);
-        abgelaufen(&p, Dienst::GitHub, Some("alt_erneuern"));
+        abgelaufen(&p, Service::GitHub, Some("alt_erneuern"));
         p.state.oauth_auffrischen().await;
-        assert!(p.state.oauth_tokens(Dienst::GitHub).is_none());
-        let s = p.state.dienst_status(Dienst::GitHub, false);
-        assert!(!s.verbunden);
-        assert_eq!(s.art, AuthKind::None);
+        assert!(p.state.oauth_tokens(Service::GitHub).is_none());
+        let s = p.state.dienst_status(Service::GitHub, false);
+        assert!(!s.connected);
+        assert_eq!(s.kind, AuthKind::None);
 
         // Ohne Refresh-Token ist der abgelaufene Zugriff nicht zu retten.
-        abgelaufen(&p, Dienst::GitHub, None);
+        abgelaufen(&p, Service::GitHub, None);
         p.state.oauth_auffrischen().await;
-        assert!(p.state.oauth_tokens(Dienst::GitHub).is_none());
+        assert!(p.state.oauth_tokens(Service::GitHub).is_none());
     }
 
     #[tokio::test]
@@ -1137,9 +1137,9 @@ mod tests {
             .mount(&server)
             .await;
         let p = stand(&server, None, true);
-        abgelaufen(&p, Dienst::GitHub, Some("alt_erneuern"));
+        abgelaufen(&p, Service::GitHub, Some("alt_erneuern"));
         p.state.oauth_auffrischen().await;
-        assert!(p.state.oauth_tokens(Dienst::GitHub).is_some());
+        assert!(p.state.oauth_tokens(Service::GitHub).is_some());
     }
 
     #[tokio::test]
@@ -1149,25 +1149,25 @@ mod tests {
         p.secrets
             .set(secrets::GITHUB, &Secret::new("ghp_api_token_123"))
             .unwrap();
-        let status = p.state.dienst_status(Dienst::GitHub, true);
-        assert_eq!((status.verbunden, status.art), (true, AuthKind::Token));
+        let status = p.state.dienst_status(Service::GitHub, true);
+        assert_eq!((status.connected, status.kind), (true, AuthKind::Token));
         p.state
             .oauth_tokens_setzen(
-                Dienst::GitHub,
+                Service::GitHub,
                 &Tokens {
                     access: Secret::new("ghu_x"),
                     refresh: None,
-                    laeuft_ab_s: None,
+                    expires_in_s: None,
                 },
             )
             .unwrap();
-        let status = p.state.dienst_status(Dienst::GitHub, true);
-        assert_eq!(status.art, AuthKind::OAuth);
-        assert!(status.oauth_moeglich);
+        let status = p.state.dienst_status(Service::GitHub, true);
+        assert_eq!(status.kind, AuthKind::OAuth);
+        assert!(status.oauth_possible);
         // Nach dem Trennen gilt wieder das Token.
-        p.state.oauth_widerrufen(Dienst::GitHub).await.unwrap();
+        p.state.oauth_widerrufen(Service::GitHub).await.unwrap();
         assert_eq!(
-            p.state.dienst_status(Dienst::GitHub, true).art,
+            p.state.dienst_status(Service::GitHub, true).kind,
             AuthKind::Token
         );
     }
@@ -1205,11 +1205,11 @@ mod tests {
     #[test]
     fn adressen_und_kodierung() {
         assert_eq!(
-            redirect_uri(Dienst::GitHub, 8787),
+            redirect_uri(Service::GitHub, 8787),
             "http://127.0.0.1:8787/api/oauth/github/callback"
         );
         assert_eq!(
-            redirect_uri(Dienst::Atlassian, 8787),
+            redirect_uri(Service::Atlassian, 8787),
             "http://localhost:8787/api/oauth/atlassian/callback"
         );
         assert_eq!(kodiert("Ä b&c=d#"), "%C3%84%20b%26c%3Dd%23");

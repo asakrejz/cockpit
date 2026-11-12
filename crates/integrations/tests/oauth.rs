@@ -3,19 +3,19 @@
 
 use cockpit_integrations::jira::JiraClient;
 use cockpit_integrations::oauth::{
-    App, Dienst, Endpunkte, Tokens, auffrischen, code_tauschen, jira_basis, sites, widerrufen,
+    App, Service, Endpoints, Tokens, refresh, code_exchange, jira_base, sites, revoked,
 };
-use cockpit_integrations::{Fehler, Secret};
+use cockpit_integrations::{Error, Secret};
 use wiremock::matchers::{basic_auth, body_json, body_string_contains, header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-const GEHEIM: &str = "client-geheim-xyz";
+const SECRET: &str = "client-geheim-xyz";
 
-fn endpunkte(server: &MockServer) -> Endpunkte {
-    Endpunkte {
-        github_anmeldung: format!("{}/login/oauth/authorize", server.uri()),
+fn endpoints(server: &MockServer) -> Endpoints {
+    Endpoints {
+        github_sign_in: format!("{}/login/oauth/authorize", server.uri()),
         github_token: format!("{}/login/oauth/access_token", server.uri()),
-        atlassian_anmeldung: format!("{}/authorize", server.uri()),
+        atlassian_sign_in: format!("{}/authorize", server.uri()),
         atlassian_token: format!("{}/oauth/token", server.uri()),
         atlassian_api: server.uri(),
     }
@@ -33,12 +33,12 @@ fn tokens(refresh: Option<&str>) -> Tokens {
     Tokens {
         access: Secret::new("alt-access"),
         refresh: refresh.map(Secret::new),
-        laeuft_ab_s: Some(100),
+        expires_in_s: Some(100),
     }
 }
 
 #[tokio::test]
-async fn github_code_wird_getauscht() {
+async fn github_code_is_exchanged() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/login/oauth/access_token"))
@@ -53,10 +53,10 @@ async fn github_code_wird_getauscht() {
         .expect(1)
         .mount(&server)
         .await;
-    let secret = Secret::new(GEHEIM);
-    let t = code_tauschen(
-        &endpunkte(&server),
-        Dienst::GitHub,
+    let secret = Secret::new(SECRET);
+    let t = code_exchange(
+        &endpoints(&server),
+        Service::GitHub,
         &app(&secret),
         "der-code",
         "ver",
@@ -66,11 +66,11 @@ async fn github_code_wird_getauscht() {
     .unwrap();
     assert_eq!(t.access.expose(), "ghu_neu");
     assert_eq!(t.refresh.unwrap().expose(), "ghr_neu");
-    assert_eq!(t.laeuft_ab_s, Some(1000 + 28800));
+    assert_eq!(t.expires_in_s, Some(1000 + 28800));
 }
 
 #[tokio::test]
-async fn github_antwortet_200_mit_fehler() {
+async fn github_responds_200_with_error() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/login/oauth/access_token"))
@@ -80,10 +80,10 @@ async fn github_antwortet_200_mit_fehler() {
         })))
         .mount(&server)
         .await;
-    let secret = Secret::new(GEHEIM);
-    let f = code_tauschen(
-        &endpunkte(&server),
-        Dienst::GitHub,
+    let secret = Secret::new(SECRET);
+    let f = code_exchange(
+        &endpoints(&server),
+        Service::GitHub,
         &app(&secret),
         "x",
         "v",
@@ -92,20 +92,20 @@ async fn github_antwortet_200_mit_fehler() {
     .await
     .unwrap_err();
     assert!(
-        matches!(&f, Fehler::Abgelehnt(m) if m.contains("incorrect or expired")),
+        matches!(&f, Error::Rejected(m) if m.contains("incorrect or expired")),
         "{f:?}"
     );
 }
 
 #[tokio::test]
-async fn atlassian_code_wird_als_json_getauscht() {
+async fn atlassian_code_is_exchanged_as_json() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/oauth/token"))
         .and(body_json(serde_json::json!({
             "grant_type": "authorization_code",
             "client_id": "id123",
-            "client_secret": GEHEIM,
+            "client_secret": SECRET,
             "code": "c",
             "redirect_uri": "http://127.0.0.1:8787/api/oauth/github/callback",
             "code_verifier": "v",
@@ -117,10 +117,10 @@ async fn atlassian_code_wird_als_json_getauscht() {
         .expect(1)
         .mount(&server)
         .await;
-    let secret = Secret::new(GEHEIM);
-    let t = code_tauschen(
-        &endpunkte(&server),
-        Dienst::Atlassian,
+    let secret = Secret::new(SECRET);
+    let t = code_exchange(
+        &endpoints(&server),
+        Service::Atlassian,
         &app(&secret),
         "c",
         "v",
@@ -128,26 +128,26 @@ async fn atlassian_code_wird_als_json_getauscht() {
     )
     .await
     .unwrap();
-    assert_eq!((t.access.expose(), t.laeuft_ab_s), ("at", Some(3610)));
+    assert_eq!((t.access.expose(), t.expires_in_s), ("at", Some(3610)));
     assert_eq!(t.refresh.unwrap().expose(), "rt");
 }
 
 #[tokio::test]
-async fn fehlerantwort_des_dienstes_ohne_geheimnis() {
+async fn service_error_response_without_secret() {
     let server = MockServer::start().await;
     // Der Dienst spielt das Secret in der Meldung zurück.
     Mock::given(method("POST"))
         .and(path("/oauth/token"))
         .respond_with(ResponseTemplate::new(403).set_body_json(serde_json::json!({
             "error": "access_denied",
-            "error_description": format!("Unknown or invalid refresh token {GEHEIM}")
+            "error_description": format!("Unknown or invalid refresh token {SECRET}")
         })))
         .mount(&server)
         .await;
-    let secret = Secret::new(GEHEIM);
-    let f = code_tauschen(
-        &endpunkte(&server),
-        Dienst::Atlassian,
+    let secret = Secret::new(SECRET);
+    let f = code_exchange(
+        &endpoints(&server),
+        Service::Atlassian,
         &app(&secret),
         "c",
         "v",
@@ -155,7 +155,7 @@ async fn fehlerantwort_des_dienstes_ohne_geheimnis() {
     )
     .await
     .unwrap_err();
-    assert!(!format!("{f:?} {f}").contains(GEHEIM));
+    assert!(!format!("{f:?} {f}").contains(SECRET));
 
     // 400 (invalid_grant) kommt mit der Meldung des Dienstes.
     server.reset().await;
@@ -166,9 +166,9 @@ async fn fehlerantwort_des_dienstes_ohne_geheimnis() {
         })))
         .mount(&server)
         .await;
-    let f = code_tauschen(
-        &endpunkte(&server),
-        Dienst::Atlassian,
+    let f = code_exchange(
+        &endpoints(&server),
+        Service::Atlassian,
         &app(&secret),
         "c",
         "v",
@@ -177,7 +177,7 @@ async fn fehlerantwort_des_dienstes_ohne_geheimnis() {
     .await
     .unwrap_err();
     assert!(
-        matches!(&f, Fehler::Abgelehnt(m) if m.contains("abgelaufen")),
+        matches!(&f, Error::Rejected(m) if m.contains("abgelaufen")),
         "{f:?}"
     );
 
@@ -187,9 +187,9 @@ async fn fehlerantwort_des_dienstes_ohne_geheimnis() {
         .respond_with(ResponseTemplate::new(401))
         .mount(&server)
         .await;
-    let f = code_tauschen(
-        &endpunkte(&server),
-        Dienst::Atlassian,
+    let f = code_exchange(
+        &endpoints(&server),
+        Service::Atlassian,
         &app(&secret),
         "c",
         "v",
@@ -197,7 +197,7 @@ async fn fehlerantwort_des_dienstes_ohne_geheimnis() {
     )
     .await
     .unwrap_err();
-    assert_eq!(f, Fehler::NichtAngemeldet);
+    assert_eq!(f, Error::NotSignedIn);
 
     // Kein JSON.
     server.reset().await;
@@ -205,9 +205,9 @@ async fn fehlerantwort_des_dienstes_ohne_geheimnis() {
         .respond_with(ResponseTemplate::new(200).set_body_string("<html>"))
         .mount(&server)
         .await;
-    let f = code_tauschen(
-        &endpunkte(&server),
-        Dienst::GitHub,
+    let f = code_exchange(
+        &endpoints(&server),
+        Service::GitHub,
         &app(&secret),
         "c",
         "v",
@@ -215,11 +215,11 @@ async fn fehlerantwort_des_dienstes_ohne_geheimnis() {
     )
     .await
     .unwrap_err();
-    assert!(matches!(f, Fehler::Antwort(_)));
+    assert!(matches!(f, Error::Response(_)));
 }
 
 #[tokio::test]
-async fn github_refresh_ersetzt_beide_tokens() {
+async fn github_refresh_replaces_both_tokens() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/login/oauth/access_token"))
@@ -231,10 +231,10 @@ async fn github_refresh_ersetzt_beide_tokens() {
         .expect(1)
         .mount(&server)
         .await;
-    let secret = Secret::new(GEHEIM);
-    let t = auffrischen(
-        &endpunkte(&server),
-        Dienst::GitHub,
+    let secret = Secret::new(SECRET);
+    let t = refresh(
+        &endpoints(&server),
+        Service::GitHub,
         &app(&secret),
         &tokens(Some("alt-refresh")),
         5000,
@@ -243,17 +243,17 @@ async fn github_refresh_ersetzt_beide_tokens() {
     .unwrap();
     assert_eq!(t.access.expose(), "ghu_2");
     assert_eq!(t.refresh.unwrap().expose(), "ghr_2");
-    assert_eq!(t.laeuft_ab_s, Some(5000 + 28800));
+    assert_eq!(t.expires_in_s, Some(5000 + 28800));
 }
 
 #[tokio::test]
-async fn atlassian_refresh_dreht_das_refresh_token() {
+async fn atlassian_refresh_rotates_the_refresh_token() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/oauth/token"))
         .and(body_json(serde_json::json!({
             "grant_type": "refresh_token", "client_id": "id123",
-            "client_secret": GEHEIM, "refresh_token": "alt-refresh",
+            "client_secret": SECRET, "refresh_token": "alt-refresh",
         })))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "access_token": "at2", "refresh_token": "rt2", "expires_in": 3600
@@ -261,10 +261,10 @@ async fn atlassian_refresh_dreht_das_refresh_token() {
         .expect(1)
         .mount(&server)
         .await;
-    let secret = Secret::new(GEHEIM);
-    let t = auffrischen(
-        &endpunkte(&server),
-        Dienst::Atlassian,
+    let secret = Secret::new(SECRET);
+    let t = refresh(
+        &endpoints(&server),
+        Service::Atlassian,
         &app(&secret),
         &tokens(Some("alt-refresh")),
         0,
@@ -275,19 +275,19 @@ async fn atlassian_refresh_dreht_das_refresh_token() {
 }
 
 #[tokio::test]
-async fn refresh_scheitert() {
-    let secret = Secret::new(GEHEIM);
+async fn refresh_fails() {
+    let secret = Secret::new(SECRET);
     // Ohne Refresh-Token: nicht angemeldet, ohne Netzwerkaufruf.
-    let f = auffrischen(
-        &Endpunkte::default(),
-        Dienst::GitHub,
+    let f = refresh(
+        &Endpoints::default(),
+        Service::GitHub,
         &app(&secret),
         &tokens(None),
         0,
     )
     .await
     .unwrap_err();
-    assert_eq!(f, Fehler::NichtAngemeldet);
+    assert_eq!(f, Error::NotSignedIn);
 
     // Widerrufenes Refresh-Token.
     let server = MockServer::start().await;
@@ -297,24 +297,24 @@ async fn refresh_scheitert() {
         })))
         .mount(&server)
         .await;
-    let f = auffrischen(
-        &endpunkte(&server),
-        Dienst::GitHub,
+    let f = refresh(
+        &endpoints(&server),
+        Service::GitHub,
         &app(&secret),
         &tokens(Some("r")),
         0,
     )
     .await
     .unwrap_err();
-    assert!(matches!(f, Fehler::Abgelehnt(_)));
+    assert!(matches!(f, Error::Rejected(_)));
 }
 
 #[tokio::test]
-async fn github_widerruf_ruft_den_dienst() {
+async fn github_revoke_calls_the_service() {
     let server = MockServer::start().await;
     Mock::given(method("DELETE"))
         .and(path("/applications/id123/token"))
-        .and(basic_auth("id123", GEHEIM))
+        .and(basic_auth("id123", SECRET))
         .and(body_json(
             serde_json::json!({ "access_token": "alt-access" }),
         ))
@@ -322,9 +322,9 @@ async fn github_widerruf_ruft_den_dienst() {
         .expect(1)
         .mount(&server)
         .await;
-    let secret = Secret::new(GEHEIM);
-    let ok = widerrufen(
-        Dienst::GitHub,
+    let secret = Secret::new(SECRET);
+    let ok = revoked(
+        Service::GitHub,
         &app(&secret),
         &server.uri(),
         &tokens(Some("r")),
@@ -340,7 +340,7 @@ async fn github_widerruf_ruft_den_dienst() {
         .mount(&server)
         .await;
     assert!(
-        widerrufen(Dienst::GitHub, &app(&secret), &server.uri(), &tokens(None))
+        revoked(Service::GitHub, &app(&secret), &server.uri(), &tokens(None))
             .await
             .unwrap()
     );
@@ -350,32 +350,32 @@ async fn github_widerruf_ruft_den_dienst() {
         .mount(&server)
         .await;
     assert_eq!(
-        widerrufen(Dienst::GitHub, &app(&secret), &server.uri(), &tokens(None))
+        revoked(Service::GitHub, &app(&secret), &server.uri(), &tokens(None))
             .await
             .unwrap_err(),
-        Fehler::Status(500)
+        Error::Status(500)
     );
 }
 
 #[tokio::test]
-async fn atlassian_hat_keinen_widerrufs_aufruf() {
-    let secret = Secret::new(GEHEIM);
+async fn atlassian_has_no_revoke_call() {
+    let secret = Secret::new(SECRET);
     // Kein Server nötig: es geht nichts nach außen.
-    let beim_dienst = widerrufen(
-        Dienst::Atlassian,
+    let at_service = revoked(
+        Service::Atlassian,
         &app(&secret),
         "https://unbenutzt.invalid",
         &tokens(None),
     )
     .await
     .unwrap();
-    assert!(!beim_dienst);
+    assert!(!at_service);
 }
 
 #[tokio::test]
-async fn sites_und_jira_ueber_das_gateway() {
+async fn sites_and_jira_via_the_gateway() {
     let server = MockServer::start().await;
-    let e = endpunkte(&server);
+    let e = endpoints(&server);
     Mock::given(method("GET"))
         .and(path("/oauth/token/accessible-resources"))
         .and(header("authorization", "Bearer at"))
@@ -389,9 +389,9 @@ async fn sites_und_jira_ueber_das_gateway() {
         .expect(1)
         .mount(&server)
         .await;
-    let liste = sites(&e, &Secret::new("at")).await.unwrap();
-    assert_eq!(liste.len(), 1);
-    assert_eq!(liste[0].id, "1324a887-451a");
+    let list = sites(&e, &Secret::new("at")).await.unwrap();
+    assert_eq!(list.len(), 1);
+    assert_eq!(list[0].id, "1324a887-451a");
 
     // Jira wird über /ex/jira/<cloudId> mit Bearer angesprochen.
     Mock::given(method("GET"))
@@ -403,13 +403,13 @@ async fn sites_und_jira_ueber_das_gateway() {
         .expect(1)
         .mount(&server)
         .await;
-    let basis = jira_basis(&e, &liste[0].id).unwrap();
-    let jira = JiraClient::oauth(&basis, Secret::new("at")).unwrap();
-    assert_eq!(jira.ich().await.unwrap(), "acc-1");
+    let base = jira_base(&e, &list[0].id).unwrap();
+    let jira = JiraClient::oauth(&base, Secret::new("at")).unwrap();
+    assert_eq!(jira.me().await.unwrap(), "acc-1");
 }
 
 #[tokio::test]
-async fn widerrufenes_token_wird_zu_nicht_angemeldet() {
+async fn revoked_token_becomes_not_signed_in() {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .respond_with(ResponseTemplate::new(401).set_body_json(serde_json::json!({
@@ -417,12 +417,12 @@ async fn widerrufenes_token_wird_zu_nicht_angemeldet() {
         })))
         .mount(&server)
         .await;
-    let f = sites(&endpunkte(&server), &Secret::new("at"))
+    let f = sites(&endpoints(&server), &Secret::new("at"))
         .await
         .unwrap_err();
-    assert_eq!(f, Fehler::NichtAngemeldet);
+    assert_eq!(f, Error::NotSignedIn);
     assert_eq!(f.problem(0), cockpit_core::Problem::Unauthorized);
     let jira =
         JiraClient::oauth(&format!("{}/ex/jira/abc", server.uri()), Secret::new("at")).unwrap();
-    assert_eq!(jira.ich().await.unwrap_err(), Fehler::NichtAngemeldet);
+    assert_eq!(jira.me().await.unwrap_err(), Error::NotSignedIn);
 }

@@ -31,7 +31,7 @@ pub mod attention;
 pub mod connections;
 pub mod demo;
 pub mod diagnosis;
-pub mod einrichten;
+pub mod setup;
 pub mod link;
 pub mod model;
 pub mod notify;
