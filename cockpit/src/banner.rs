@@ -1,19 +1,18 @@
-//! Hinweise zum Server-Modus: wird verbunden, ist nicht erreichbar, oder der Server hat
-//! eine Aktion abgelehnt. Im Demo-Modus erscheint nichts.
+//! Hinweise zum Server: wird verbunden, ist nicht erreichbar, oder der Server hat
+//! eine Aktion abgelehnt.
 
 use feature_ui::*;
 use leptos::prelude::*;
 
-use crate::store::{Link, Mode, use_store};
+use crate::store::{Link, use_store};
 
 #[component]
 pub fn ServerBanner() -> impl IntoView {
     let store = use_store();
-    let server = move || store.mode.get() == Mode::Server;
-    let status = move || match (server(), store.link.get()) {
-        (true, Link::Connecting) => Some("Verbinde mit dem Server …"),
-        (true, Link::Offline) => Some("Der Server ist nicht erreichbar."),
-        _ => None,
+    let status = move || match store.link.get() {
+        Link::Connecting => Some("Verbinde mit dem Server …"),
+        Link::Offline => Some("Der Server ist nicht erreichbar."),
+        Link::Online => None,
     };
     view! {
         <div class="ck-banner-stack">
@@ -21,18 +20,13 @@ pub fn ServerBanner() -> impl IntoView {
                 <div class="ck-banner" role="status">
                     <span class="t-subheadline">{status}</span>
                     <Show when=move || store.link.get() == Link::Offline>
-                        <HStack spacing="8px">
-                            <Button size=ControlSize::Small on_click=move |_| store.connect()>
-                                "Erneut versuchen"
-                            </Button>
-                            <Button
-                                size=ControlSize::Small
-                                variant=ButtonStyle::GlassProminent
-                                on_click=move |_| store.switch_to_demo()
-                            >
-                                "Zurück zu Demo"
-                            </Button>
-                        </HStack>
+                        <Button
+                            size=ControlSize::Small
+                            variant=ButtonStyle::GlassProminent
+                            on_click=move |_| store.connect()
+                        >
+                            "Erneut versuchen"
+                        </Button>
                     </Show>
                 </div>
             </Show>

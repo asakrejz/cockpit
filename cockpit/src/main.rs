@@ -4,7 +4,6 @@
 //! `feature-ui`. Was die Knöpfe tun, steht in `cockpit-core`. Diese App verbindet beides.
 
 mod banner;
-mod mode_switch;
 mod notify;
 mod oauth_card;
 mod oauth_result;
@@ -20,7 +19,6 @@ mod view;
 use std::time::Duration;
 
 use banner::ServerBanner;
-use cockpit_core::{Action, Actor};
 use feature_ui::{Root, Theme};
 use leptos::prelude::*;
 use pages::{
@@ -28,12 +26,9 @@ use pages::{
     notifications::NotificationsPage, overview::OverviewPage, review::ReviewPage, setup::SetupPage,
 };
 use route::Route;
-use store::{Mode, Store, current_hash, navigate, now_ms};
+use store::{Store, current_hash, now_ms};
 
-/// So lange braucht der Demo-Agent für einen Schritt.
-const AGENT_STEP: Duration = Duration::from_millis(2200);
-/// So oft prüft der Takt, ob zurückgestellte Einträge zurückkehren, ob ein Ticket überfällig wurde
-/// und ob Tickets und Pull Requests zu verknüpfen oder im Status nachzuführen sind.
+/// So oft liest die App die Uhr neu (Zurückstellungen, „vor 5 Min.“).
 const CLOCK_TICK: Duration = Duration::from_secs(15);
 
 fn main() {
@@ -65,55 +60,9 @@ fn App() -> impl IntoView {
     });
     on_cleanup(move || listener.remove());
 
-    // Ohne Verbindungen führt jeder Weg zum Einrichten.
-    Effect::new(move |_| {
-        if !store.conn.get().all_connected() && store.route.get() != Route::Setup {
-            navigate(&Route::Setup);
-        }
-    });
-
-    // Ein Takt für alle Agenten und Checks – sie arbeiten weiter, egal welche Seite offen ist.
-    // Im Server-Modus macht den Takt der Server.
-    set_interval(
-        move || {
-            if store.mode.get_untracked() == Mode::Demo
-                && store.ws.with_untracked(|w| w.running_agents()) > 0
-            {
-                let _ = store.dispatch_as(Action::AdvanceAgents, Actor::Agent);
-            }
-            // Neu gestartete Checks laufen im selben Takt zu Ende.
-            if store.ws.with_untracked(|w| w.running_checks()) > 0 {
-                let _ = store.dispatch_as(Action::AdvanceChecks, Actor::System);
-            }
-        },
-        AGENT_STEP,
-    );
-
-    // Die Uhr der Aufmerksamkeit: aktualisiert die Zeit und holt zurückgestellte Einträge
-    // zurück, sobald ihre Zeit um ist oder sich etwas geändert hat.
-    set_interval(
-        move || {
-            store.now.set(now_ms());
-            if !store
-                .ws
-                .with_untracked(|w| w.expired_snoozes(store.now.get_untracked()))
-                .is_empty()
-            {
-                let _ = store.dispatch_as(Action::WakeSnoozed, Actor::System);
-            }
-            // Pull Requests mit Ticket-Schlüssel im Branch oder Titel verknüpfen, den Status
-            // verknüpfter Tickets nachführen. Im Server-Modus macht auch das der Server.
-            if store.mode.get_untracked() == Mode::Demo {
-                if !store.ws.with_untracked(|w| w.auto_links()).is_empty() {
-                    let _ = store.dispatch_as(Action::AutoLinkPrs, Actor::System);
-                }
-                if store.ws.with_untracked(|w| w.status_pending()) {
-                    let _ = store.dispatch_as(Action::SyncTicketStatus, Actor::System);
-                }
-            }
-        },
-        CLOCK_TICK,
-    );
+    // Die Uhr der Aufmerksamkeit: Die Seiten rechnen mit `store.now`, nicht mit einer eigenen Uhr.
+    // Zurückstellen, Verknüpfen, Statusabgleich und der Takt der Agenten laufen im Server.
+    set_interval(move || store.now.set(now_ms()), CLOCK_TICK);
 
     view! {
         <Root theme=system_theme() class="ck-root">

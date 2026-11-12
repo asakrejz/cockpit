@@ -8,7 +8,7 @@ Projekten wiederverwenden kannst.
 Im Repo liegen zwei Apps, die sich die Bausteine teilen:
 
 - **Playground** (`app/`): zeigt jeden Baustein einzeln.
-- **Cockpit** (`cockpit/`): ein Dashboard für Jira, GitHub und Agenten, gebaut aus denselben Bausteinen.
+- **Cockpit** (`cockpit/`): ein Dashboard für Jira, GitHub und Agenten, gebaut aus denselben Bausteinen. Es braucht den lokalen Server (`server/`), der Daten und Schlüssel hält.
 
 Technik:
 
@@ -23,10 +23,10 @@ Technik:
 rustup target add wasm32-unknown-unknown   # passiert dank rust-toolchain.toml auch automatisch
 cargo install trunk --locked                # oder: brew install trunk
 
+scripts/start.sh --open             # Cockpit: App bauen (falls nötig), Server starten, Browser öffnen
 trunk serve --open                  # Playground auf http://localhost:8080
-(cd cockpit && trunk serve --open)  # Cockpit auf http://localhost:8081
 cargo test                          # Tests laufen nativ, ohne Browser
-trunk build --release               # fertige Seite nach ./dist
+trunk build --release               # fertige Playground-Seite nach ./dist
 ```
 
 Beim Lernen hilft: `trunk serve` laufen lassen, eine Datei ändern, Speichern – der Browser
@@ -36,41 +36,82 @@ lädt neu, und der Compiler sagt dir sofort, was nicht passt.
 
 Das Backend (`server/`, Binary `cockpit-server`) ist ein lokaler Dienst für eine Person. Es lauscht nur
 auf `127.0.0.1`, liefert die gebaute Cockpit-App aus und hält Daten (SQLite) und Schlüssel
-(Schlüsselbund des Systems) – Schlüssel verlassen das Backend nie.
+(Schlüsselbund des Systems) – Schlüssel verlassen das Backend nie. **Die App läuft nur mit dem Server**: Es gibt
+keinen Modus ohne Backend mehr.
 
 ```bash
-(cd cockpit && trunk build)     # App nach cockpit/dist bauen
-cargo run -p cockpit-server     # http://127.0.0.1:8787
-curl localhost:8787/api/health  # {"status":"ok","version":"…","verbindungen":{…},"abgleich":{"github":"aus","jira":"aus","intervall_s":120}}
+scripts/start.sh                # bauen (falls nötig) und starten: http://127.0.0.1:8787
+scripts/start.sh --open         # zusätzlich den Browser öffnen
+curl localhost:8787/api/health  # {"status":"ok","version":"…","verbindungen":{…},"abgleich":{…},"litellm":{…},"container":{…}}
+```
+
+`scripts/start.sh` (bash, macOS) prüft `cargo` und `trunk`, baut `cockpit` nach `cockpit/dist`, wenn die Ausgabe fehlt
+oder eine Quelle neuer ist, und startet `cockpit-server`. Es installiert nichts. Mit `--release` baut es den Server
+als Release-Build. Ohne das Skript: `(cd cockpit && trunk build) && cargo run -p cockpit-server`.
+
+**Beim ersten Start ist alles leer.** Der Server beginnt mit einem leeren Workspace; die Seite „Einrichten“ zeigt je Dienst
+den Stand und den nächsten Schritt. Beispieldaten gibt es nur auf ausdrücklichen Wunsch: `COCKPIT_SEED=demo` (oder
+`seed = "demo"` in `config.toml`) lädt sie, **aber nur, wenn noch kein Stand gespeichert ist** – ein vorhandener Stand
+(auch ein leerer, mit Aktionen veränderter) geht vor. Für einen frischen Seed eine neue Datenbank nehmen
+(`COCKPIT_DB=/pfad/zur/neuen.db`).
+
+```bash
+COCKPIT_SEED=demo COCKPIT_DB=/tmp/cockpit-demo.db scripts/start.sh --open   # Beispieldaten, eigene Datenbank
 ```
 
 Konfiguration (alles optional): Datei `config.toml` im Konfigurationsverzeichnis (`~/.config/cockpit/`
-unter Linux), darüber Umgebungsvariablen `COCKPIT_PORT` (8787), `COCKPIT_DIST` (`cockpit/dist`),
-`COCKPIT_DB` (Datenverzeichnis des Nutzers, `cockpit/cockpit.db`) und `COCKPIT_CONFIG` (Pfad der Datei).
+unter Linux, `~/Library/Application Support/cockpit/` unter macOS), darüber Umgebungsvariablen `COCKPIT_PORT` (8787),
+`COCKPIT_DIST` (`cockpit/dist`), `COCKPIT_DB` (Datenverzeichnis des Nutzers, `cockpit/cockpit.db`), `COCKPIT_CONFIG`
+(Pfad der Datei), `COCKPIT_SEED` (`leer` oder `demo`) und `COCKPIT_CONTAINER` (`docker` oder `podman`).
 
 ```toml
 port = 8787
+seed = "leer"                     # oder "demo", siehe oben
 [github]                          # api_url ist optional
 [jira]
 site = "https://firma.atlassian.net"
 email = "ich@firma.example"
+[litellm]                         # Modellzugang, siehe „Einrichten“ unten
+url = "http://localhost:4000"
+modell = "claude-sonnet-5-5"
+[agent]
+container = "podman"              # oder "docker"; ohne Angabe wird erkannt
 ```
 
 Schlüssel stehen nie in der Datei. Sie kommen über die Standardeingabe in den Schlüsselbund:
-`echo "$TOKEN" | cargo run -p cockpit-server -- token setzen github` (oder `jira`; `token loeschen <name>` entfernt sie).
+`echo "$TOKEN" | cargo run -p cockpit-server -- token setzen github` (oder `jira`, `github-oauth`, `atlassian-oauth`,
+`litellm`; `token loeschen <name>` entfernt sie).
 `/api/health` meldet je Verbindung nur ja/nein. Die Server-Crates (`server/`, `crates/integrations`)
 laufen nur nativ; für Wasm schließt die CI sie aus (siehe `docs/ROADMAP.md`).
 
-### Server-Modus
+### Entwickeln mit `trunk serve`
 
-Standardmäßig rechnet die App im Browser (**Demo**). Mit dem Backend kann sie umschalten: Unter
-„Einrichten“ › Übersicht wählst du bei „Modus“ **Lokaler Server**. Das geht nur, wenn `GET /api/health`
-antwortet, also wenn du die App über den Server öffnest (`http://127.0.0.1:8787`, nicht über `trunk serve`).
-Der gewählte Modus steht in `localStorage` (`cockpit.mode`), der Wechsel lädt die Seite neu.
+`cockpit/Trunk.toml` leitet `/api` an `http://127.0.0.1:8787` weiter (`[[proxy]]`). Server und Entwicklungsserver zusammen:
 
-Im Server-Modus hält das Backend den `Workspace` (SQLite, Migration 2) und wendet jede Aktion selbst an;
-der Takt des simulierten Agenten läuft ebenfalls dort. Beim ersten Start ohne gespeicherten Stand beginnt es
-mit den Beispieldaten. Die App lädt den Stand, schickt Aktionen und hört auf Änderungen:
+```bash
+COCKPIT_DEV_PORT=8081 COCKPIT_SEED=demo cargo run -p cockpit-server   # Terminal 1
+(cd cockpit && trunk serve --open)                                    # Terminal 2, http://localhost:8081
+```
+
+Trunk schickt `Host` ohne Port und lässt den `Origin` der Entwicklungsseite stehen; beides lässt der Server nur zu, wenn
+`COCKPIT_DEV_PORT` gesetzt ist (nur als Umgebungsvariable, nie in der Datei). Ohne sie gilt die strenge Prüfung unten.
+
+### Beim Login starten (launchd, macOS)
+
+`scripts/de.cockpit.server.plist` ist eine Vorlage für einen LaunchAgent. **Es wird nichts automatisch installiert.**
+
+1. Einmal `scripts/start.sh` von Hand ausführen, damit alles gebaut ist.
+2. Vorlage nach `~/Library/LaunchAgents/de.cockpit.server.plist` kopieren und die Platzhalter `/PFAD/ZUM/REPO` und
+   `/Users/BENUTZER` ersetzen (siehe Kommentar in der Datei).
+3. Laden: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist`
+   · Entladen: `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist`.
+   Das Log steht in `~/Library/Logs/cockpit-server.log`.
+
+### Wie App und Server zusammenarbeiten
+
+Das Backend hält den `Workspace` (SQLite, Migration 2) und wendet jede Aktion selbst an; der Takt des simulierten
+Agenten läuft ebenfalls dort. Im Browser liegt nichts (kein `localStorage`). Die App lädt den Stand, schickt Aktionen
+und hört auf Änderungen:
 
 | Route | Zweck |
 |-------|-------|
@@ -80,8 +121,10 @@ mit den Beispieldaten. Die App lädt den Stand, schickt Aktionen und hört auf �
 | `GET /api/events` | Server-Sent Events: erst die aktuelle Revision, dann je Aktion ein Ereignis mit neuer Revision und den neuen Protokolleinträgen, dazu Keep-Alive |
 | `GET /api/jira/projekte` | Jira-Projekte für die Auswahl in der Inbox: `{aktiv, projekte: [{key, name}]}`; `aktiv: false` ohne Jira oder Token |
 
-Wer nicht erreichbar ist, sieht einen Hinweis mit „Erneut versuchen“ und „Zurück zu Demo“. Der Demo-Stand im
-Browser bleibt dabei unberührt.
+| `GET /api/litellm/pruefen` | Verbindungstest zum LiteLLM-Proxy: `{konfiguriert, erreichbar, key_ok, modell_vorhanden, hinweis}` (siehe „Einrichten“) |
+
+Ist der Server nicht erreichbar (nicht gestartet, anderer Port), zeigt die App oben einen Hinweis mit „Erneut versuchen“;
+die Seiten bleiben leer, es geht nichts verloren.
 
 Alle Routen unter `/api` prüfen die Gegenstelle (nur Loopback) und den `Host`-Header (`127.0.0.1:<port>` oder
 `localhost:<port>`, gegen DNS-Rebinding). Schreibende Anfragen brauchen zusätzlich `Content-Type: application/json`
@@ -89,10 +132,10 @@ und einen fehlenden oder eigenen `Origin`.
 
 ### Mit echten Diensten verbinden
 
-Ohne Einrichtung zeigt der Server-Modus die Beispieldaten. Sobald **eine Quelle eingerichtet ist und ihr Token im
-Schlüsselbund liegt**, gleicht das Backend ab: Beim ersten erfolgreichen Abruf verschwinden die (unveränderten)
-Beispieldaten, danach kommen Tickets, Pull Requests, Kommentare, Checks und Diffs von den Diensten. Eine Quelle
-ohne Konfiguration oder ohne Token bleibt aus.
+Ohne Einrichtung bleibt der Workspace leer (oder zeigt die Beispieldaten, wenn du `COCKPIT_SEED=demo` gewählt hast).
+Sobald **eine Quelle eingerichtet ist und ihr Token im Schlüsselbund liegt**, gleicht das Backend ab: Tickets, Pull
+Requests, Kommentare, Checks und Diffs kommen von den Diensten; die (unveränderten) Beispieldaten eines Seeds verschwinden
+beim ersten erfolgreichen Abruf. Eine Quelle ohne Konfiguration oder ohne Token bleibt aus.
 
 **1. Konfiguration** (`config.toml`, siehe oben; keine Schlüssel in der Datei):
 
@@ -123,7 +166,7 @@ die Aktion `SelectJiraProject` und bleibt gespeichert. Ist ein Projekt gewählt,
   deine. Was weder dir zugewiesen noch von dir beobachtet ist, steht mit „Im Projekt“ unter „Team“,
 - hat sie Vorrang vor `projects` und `jql` aus `config.toml`. Mit „Alle Projekte“ gelten wieder diese.
 
-Nach einem Wechsel gleicht der Server sofort ab. Im Demo-Modus filtert das Drop-down nur die Beispieldaten.
+Nach einem Wechsel gleicht der Server sofort ab.
 
 **Filter der Inbox.** Neben dem Jira-Projekt filtert die Kopfzeile der Inbox nach **Repo**, **Person** (Besitzer),
 **Status** und **Label**; jede Auswahl steht auf „Alle“, bis du etwas wählst, die Filter gelten zusammen (UND), und
@@ -181,7 +224,7 @@ Client-Secret liegen nur im Schlüsselbund des Backends, nie im Browser, Repo, i
    echo "$ATLASSIAN_CLIENT_SECRET" | cargo run -p cockpit-server -- token setzen atlassian-oauth
    ```
 
-4. *Anmelden.* In der App unter „Einrichten“ (Server-Modus) erscheint beim Jira- und beim GitHub-Schritt „Mit Atlassian
+4. *Anmelden.* In der App unter „Einrichten“ erscheint beim Jira- und beim GitHub-Schritt „Mit Atlassian
    anmelden“ bzw. „Mit GitHub anmelden“. Der Knopf öffnet `GET /api/oauth/{atlassian|github}/start` und leitet zum
    Dienst weiter (mit `state`, einmalig und 10 Minuten gültig, und PKCE). Nach der Zustimmung ruft der Dienst
    `GET /api/oauth/{dienst}/callback` auf; das Backend prüft `state`, tauscht den `code` gegen die Tokens und leitet nach
@@ -211,6 +254,24 @@ nachgebaute Antworten getestet (`cargo test`). Offen bis zum ersten echten Durch
 bei einer Web-App mit Client-Secret akzeptiert (sonst entfällt er dort), ob die GitHub App PKCE annimmt, und die
 Installations-Weiterleitung von GitHub (`installation_id`, `setup_action`): Ohne `state` aus unserem Start lehnt das
 Backend sie ab; die App ist schon installiert, die Anmeldung beginnt immer in Cockpit.
+
+**Einrichten in der App.** Die Seite „Einrichten“ (`#/einrichten`) zeigt je Dienst den Stand und den nächsten Schritt –
+ohne Eingabefelder für Schlüssel. Jira und GitHub: „Mit … anmelden“ und „Trennen“ (siehe oben) und die Schritte dazu
+(Client-ID in `config.toml`, Client-Secret im Terminal). Dazu zwei weitere Abschnitte:
+
+- *Modellzugang (LiteLLM).* Der Agent bekommt sein Modell über einen LiteLLM-Proxy, **nicht** über einen
+  Anthropic-API-Key. Adresse und Modellname stehen in `config.toml` (`[litellm] url`, `modell`; der Modellname hängt von
+  der LiteLLM-Konfiguration ab), der Key nur im Schlüsselbund: `echo "$KEY" | cargo run -p cockpit-server -- token setzen litellm`.
+  `/api/health` meldet unter `litellm` Adresse, Modell und ob ein Key liegt (nie den Key). „Verbindung testen“
+  ruft `GET /api/litellm/pruefen`; das Backend fragt dann nur `GET <url>/v1/models` mit dem Key ab (ohne
+  Weiterleitungen) und meldet *erreichbar*, *Key angenommen* und *Modell vorhanden*, bei Fehlern mit Hinweis. Ohne Key ruft es
+  den Proxy nicht auf.
+- *Container-Laufzeit.* Der Agent läuft später in einem Container, mit Docker (Rancher Desktop, Engine „dockerd (moby)“)
+  oder Podman. Das Backend wählt: `COCKPIT_CONTAINER`, sonst `[agent] container`, sonst sucht es erst `podman`, dann
+  `docker` im `PATH` und prüft mit `<laufzeit> info`, ob die Engine läuft (nur als Prozessaufruf, nie über den Socket; das Ergebnis
+  wird 10 Sekunden gemerkt). `/api/health` meldet unter `container` `laufzeit`, `engine_laeuft`, `quelle`
+  (`umgebung`, `konfiguration`, `erkannt`, `keine`) und einen `hinweis`. Das Agent-Image baut Cockpit erst mit dem
+  echten Agenten.
 
 **Was abgeglichen wird.** Das Backend fragt im Takt (und bei `POST /api/sync`, in der App unter „Einrichten“ ›
 Übersicht › Abgleich › „Jetzt abgleichen“) beide Dienste ab und führt das Ergebnis über die Aktion `SyncRemote`
@@ -288,6 +349,7 @@ statt `Glass`) und lies die Compiler-Meldung. Rust erklärt Fehler meist sehr ge
 │       ├── components.css      # Komponenten-CSS, 1:1 aus dem Design
 │       ├── extras.css          # Ergänzungen und Korrekturen zum Design
 │       └── src/                # Leptos-Komponenten, eine Datei pro Gruppe
+├── scripts/                    # start.sh (App bauen, Server starten), launchd-Vorlage
 ├── crates/
 │   ├── cockpit-core/           # Fachlogik des Cockpits – ohne UI, mit Tests
 │   └── integrations/           # GitHub- und Jira-Clients (lesen, schreiben, abgleichen), nativ
@@ -371,7 +433,7 @@ Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Diese S
 
 | Seite | Adresse | Was sie kann |
 |-------|---------|--------------|
-| Einrichten | `#/einrichten` | Jira, GitHub und Agent verbinden; festlegen, was der Agent darf |
+| Einrichten | `#/einrichten` | Je Dienst Stand und nächster Schritt: Jira und GitHub anmelden/trennen, LiteLLM-Proxy prüfen, Container-Laufzeit erkennen |
 | Aufmerksamkeit | `#/`, `#/meine`, `#/team`, `#/zurueckgestellt` | Inbox aus Tickets und Pull Requests, gefiltert nach einschaltbaren Regeln (Erwähnung, Review-Anfrage, blockierter PR, überfälliges Ticket, Agent fertig, zugewiesen); Zurückstellen (1 Stunde, morgen früh, nächste Woche, bis sich etwas ändert); Status ändern, Branch erstellen, antworten, Agent beauftragen; Ticket bearbeiten (Titel, Beschreibung, Zuweisung, Priorität); Ticket und Pull Request verknüpfen (automatisch über den Schlüssel im Branch oder Titel, `BAU-142`, sonst von Hand oder lösen); „Status folgt dem Pull Request“ (Entwurf/offen → In Arbeit, Review angefragt → Review, gemergt → Fertig, abschaltbar in der Seitenleiste, Urheber im Protokoll: System); Suche und Quellen-Filter; Tasten `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
 | Review | `#/review/87` | Diff lesen; Zeilen auswählen und eigene Kommentare schreiben; Kommentare des Agenten freigeben, ablehnen oder bearbeiten; Review senden |
 | Übersicht | `#/uebersicht` | Pro Person offene Einträge und Auslastung; „Hängt“ zeigt fehlgeschlagene Checks, wartende Reviews, Tickets ohne Branch und Agenten, die auf dich warten |
@@ -382,7 +444,7 @@ Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Diese S
 **Agent: Rückfragen und Nachsteuern.** Der Agent kann an einem Schritt anhalten und eine Frage stellen
 (Status „Wartet auf Antwort“, mit vorgeschlagenen Antworten zum Anklicken oder eigenem Text). Die Frage
 zählt als Aufmerksamkeit: Sie steht in der Übersicht unter „Hängt“ (Knopf „Frage beantworten“) und in der
-Sidebar bei „Agenten“. In der Demo fragt der Lauf für **BAU-142** nach dem zweiten Schritt, ob der alte Stil
+Sidebar bei „Agenten“. Bei den Beispieldaten fragt der Lauf für **BAU-142** nach dem zweiten Schritt, ob der alte Stil
 entfernt oder als deprecated markiert werden soll. Läuft der Agent, schickst du ihm unter „Nachsteuern“ einen
 Hinweis; er bestätigt ihn beim nächsten Schritt („Hinweis erhalten: …“). „Pausieren“ hält den Lauf an,
 „Fortsetzen“ geht weiter. Alles Gesagte steht im Verlauf neben der Timeline. Die Aktionen heißen
@@ -406,34 +468,25 @@ der auf dein Review wartet.
 
 Welche Ereignisse melden, leitet `crates/cockpit-core/src/notify.rs` rein aus dem Vergleich des Workspace vor und nach einer Aktion ab (mit Tests). Die Einstellungen liegen im Workspace und ändern sich über Aktionen (`SetNotifyChannel`, `SetQuietHours`). Im **Browser** fragt Cockpit nie von selbst nach der Erlaubnis, nur über den Knopf unter „Benachrichtigungen“. Ist der Tab im Vordergrund, erscheint ein Hinweis in der App, sonst eine Systemmeldung; ein Klick darauf öffnet das Ziel. In den Ruhezeiten bleibt es still. **E-Mail** und **Slack** sind nur vorbereitet: Die Auswahl wird gespeichert, versendet wird später über das Backend. Adressen und Webhook-URLs liegen nie im Browser.
 
-### Stand: Demo ohne Backend
+### Stand: simulierter Agent, Beispieldaten nur als Seed
 
-Die Oberfläche und die Abläufe sind vollständig, die Daten sind Beispieldaten
-(`crates/cockpit-core/src/demo.rs`). **Im Demo-Modus gibt es keine Verbindung zu Jira, GitHub oder
-einem Modell-Anbieter** – die gibt es nur im Server-Modus (siehe „Mit echten Diensten verbinden“, ohne
-Modell-Anbieter). Im Einzelnen:
+Die Oberfläche und die Abläufe sind vollständig. Der Agent im Server ist **noch simuliert**: ein Timer, der die fünf
+Schritte durchläuft; sein „Review“ sind einfache Regeln (feste Farbwerte, feste Pixelwerte, entfernter Fokus-Ring). Der
+echte Agent (Claude Agent SDK im Container, Modell über LiteLLM) kommt als Nächstes. Beispieldaten
+(`crates/cockpit-core/src/demo.rs`) gibt es nur als Seed (`COCKPIT_SEED=demo`) sowie als Testdaten und für die Stories im
+Playground. Im Einzelnen:
 
-- Einrichten prüft das Format der Eingaben, nicht die Schlüssel selbst.
-- Schlüssel werden nie gespeichert. Im Browser (`localStorage`) liegen nur die Haken „verbunden" und die
-  Berechtigungen (`cockpit.connections`) sowie der Stand der Beispieldaten (`cockpit.workspace`).
-- Der Agent ist ein Timer, der die fünf Schritte durchläuft. Sein „Review" sind einfache Regeln
-  (feste Farbwerte, feste Pixelwerte, entfernter Fokus-Ring).
-- Der Stand der Beispieldaten (gelesen, Status, Branches, Kommentare, Reviews, Agenten-Läufe) überlebt das
-  Neuladen. Ein laufender Agent macht danach an seinem Schritt weiter. Gespeichert wird gebündelt (nicht bei
-  jedem Tastendruck) als JSON mit Versionsnummer, siehe `crates/cockpit-core/src/persist.rs`. Passt die Version
-  nicht oder sind die Daten unlesbar, startet die App mit den Beispieldaten und überschreibt den alten Stand.
-  Neue Felder in den Typen brauchen `#[serde(default)]`, damit ältere Stände lesbar bleiben.
+- Einrichten zeigt den Stand der Anbindungen (siehe „Einrichten in der App“); Schlüssel gibst du dort nie ein.
+- Alles, was die App zeigt, liegt im Backend (SQLite) als JSON mit Versionsnummer, siehe
+  `crates/cockpit-core/src/persist.rs`. Passt die Version nicht oder sind die Daten unlesbar, startet der Server mit dem
+  Seed (leer oder Beispieldaten). Neue Felder in den Typen brauchen `#[serde(default)]`, damit ältere Stände lesbar bleiben.
 - Review: Beim Zeilenkommentar lässt sich mit „Änderung vorschlagen“ Ersatz-Code für die Zeile angeben (Vorher/Nachher-Diff,
   gesendet als `suggestion`-Block). Rechts stehen die Checks des Pull Requests mit Log; rote lassen sich neu starten
-  (in der Demo fest hinterlegtes Ergebnis nach ein paar Takten, #85: „Lint“ bleibt rot, „Tests (Browser)“ wird grün).
+  (bei den Beispieldaten fest hinterlegtes Ergebnis nach ein paar Takten, #85: „Lint“ bleibt rot, „Tests (Browser)“ wird grün).
   „Mergen“ (Merge/Squash/Rebase) geht nur mit grünen Checks, gesendetem Review und ohne „Änderungen“ – und nur für
-  dich, nie für den Agenten. Gemergt wird nur simuliert, nichts geht an GitHub.
-- Unter „Einrichten“ › Übersicht setzt „Demo-Daten zurücksetzen“ (mit Rückfrage) alles auf den Ausgangszustand.
-  Die Verbindungen bleiben.
-
-Für den echten Betrieb braucht es ein Backend, das die Schlüssel hält und die Aktionen aus
-`cockpit-core::Workspace` gegen die Dienste ausführt. Schlüssel gehören nicht in den Browser,
-und ein Agent, der Code ändert und testet, braucht eine Umgebung zum Ausführen.
+  dich, nie für den Agenten. Bei Beispieldaten wird nur simuliert, nichts geht an GitHub.
+- Die Berechtigungen des Agenten (Branches, Pull Requests, Tests) stehen mit dem echten Agenten im Backend; bis dahin gelten
+  die Standardwerte (Branches, Pull Requests und Tests erlaubt; Kommentare und Reviews nur nach deiner Freigabe, der Agent merged nie).
 
 ## Eigene Story hinzufügen
 

@@ -13,7 +13,8 @@ wie Agenten. Es hält die Entscheidungen fest und teilt die Arbeit in Wellen.
 | Schlüssel | Liegen nur im Backend (Schlüsselbund des Systems, sonst verschlüsselte Datei). **Nie im Browser, nie im Repo, nie im Log.** |
 | Agent | Claude Agent SDK in einem Container pro Lauf, **mit Docker (Rancher Desktop) oder Podman**. Der Container bekommt nur das geklonte Repo und ein Token für genau dieses Repo. |
 | Aktualität | Webhooks, wenn ein Tunnel eingerichtet ist; sonst fragt das Backend regelmäßig ab. |
-| Demo-Modus | Bleibt erhalten. Ohne Backend läuft die App mit Beispieldaten im Browser. |
+| Demo-Modus | **Entfällt** (seit Welle 4). Die App braucht das Backend. Beispieldaten (`demo::workspace()`) bleiben als Testdaten, für die Stories im Playground und als Seed `COCKPIT_SEED=demo` im Server – nur auf ausdrückliche Anforderung und nur, wenn noch kein Stand gespeichert ist. |
+| Modellzugang | Über einen **LiteLLM-Proxy**, kein Anthropic-API-Key. Adresse und Modellname stehen in `config.toml` (`[litellm]`), der Key nur im Schlüsselbund (`token setzen litellm`). |
 
 ## Container
 
@@ -62,13 +63,13 @@ Grundsätze:
 
 1. **`cockpit-core` ist die eine Wahrheit.** Modell und Regeln stehen dort, ohne UI und ohne
    Netzwerk, mit Tests. Browser und Backend benutzen dasselbe Crate.
-2. **Jede Änderung ist eine `Action`.** Die Oberfläche ruft `store.dispatch(action)`. Im
-   Demo-Modus wendet der Browser sie an, im Server-Modus das Backend – das zusätzlich die
-   Wirkung bei GitHub oder Jira auslöst und sie ins Protokoll schreibt.
+2. **Jede Änderung ist eine `Action`.** Die Oberfläche ruft `store.dispatch(action)`; das
+   Backend wendet sie an, löst zusätzlich die Wirkung bei GitHub oder Jira aus und schreibt sie
+   ins Protokoll. Der Browser hält nichts davon.
 3. **Zwei Regeln sind unverhandelbar:** Kommentare und Reviews des Agenten gehen erst nach
    Freigabe raus. Der Agent merged nie und schreibt nie in den Hauptbranch.
-4. **Jeder Schritt bleibt lauffähig.** Nach jedem PR bauen Playground und Cockpit, und der
-   Demo-Modus funktioniert.
+4. **Jeder Schritt bleibt lauffähig.** Nach jedem PR bauen Playground und Cockpit, und das
+   Cockpit läuft mit dem Server – mit leerem Start und mit `COCKPIT_SEED=demo`.
 
 ## Regeln für jeden PR
 
@@ -80,7 +81,7 @@ Grundsätze:
   cockpit-server --exclude cockpit-integrations --all-targets --target wasm32-unknown-unknown
   -- -D warnings` (die Server-Crates kompilieren nicht für Wasm); `cargo clippy -p cockpit-server
   -p cockpit-integrations --all-targets -- -D warnings` (nativ); `cargo test --workspace`;
-  `trunk build` für beide Apps. Das Feature im Browser durchspielen.
+  `trunk build` für beide Apps. Das Feature im Browser durchspielen, gegen den Server mit leerem Start und mit `COCKPIT_SEED=demo`.
 - Was nur mit echten Zugangsdaten prüfbar ist, wird gegen nachgebaute Antworten getestet
   und im PR klar als „nicht gegen den echten Dienst geprüft“ benannt.
 
@@ -119,6 +120,7 @@ Tickets bearbeiten und mit PRs verknüpfen (Status folgt dem PR), Agent-Folgeauf
 | Bereich | Aufgabe |
 |---------|---------|
 | Backend | Anmeldung per OAuth für GitHub und Atlassian, mit Widerruf – **erledigt** (nur gegen nachgebaute Antworten geprüft; siehe README „Mit echten Diensten verbinden“) |
+| Backend | ✅ Onboarding im Server-Modus: Seite „Einrichten“ mit Stand und nächstem Schritt je Dienst (Jira, GitHub, LiteLLM, Container-Laufzeit), Verbindungstest `GET /api/litellm/pruefen`, Erkennung von Docker/Podman (`/api/health`), Seed per `COCKPIT_SEED`, Start-Skript `scripts/start.sh` und launchd-Vorlage. Der Demo-Modus der App ist entfernt. |
 | Backend | Webhooks und Live-Aktualisierung in der App |
 | Backend | Echter Agent: Claude Agent SDK im Container (Docker oder Podman, siehe „Container“); Modell über den LiteLLM-Proxy; Plan, Rückfragen, Kosten und Protokoll kommen aus dem Lauf |
 | Inbox | ✅ Mehrere Projekte und Repos; Filter nach Projekt, Repo, Person, Status, Label (siehe README „Filter der Inbox“). Offen: `Review` und `PrLink` unterscheiden Pull Requests noch nach Nummer, nicht nach Repo |

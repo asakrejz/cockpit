@@ -3,6 +3,7 @@
 //!
 //! * [`github`]: Pull Requests, Dateien mit Patch, Kommentare, Check-Status
 //! * [`jira`]: Issues per JQL, Kommentare (Atlassian Document Format → Text)
+//! * [`litellm`]: Verbindungstest zum LiteLLM-Proxy (erreichbar, Key ok, Modell vorhanden)
 //! * [`oauth`]: Anmeldung per OAuth (GitHub App, Atlassian 3LO), Refresh und Widerruf
 //! * [`Secret`]: ein Schlüssel, der nie in `Debug`-Ausgaben oder Logs auftaucht
 //!
@@ -24,6 +25,7 @@ pub mod zeit;
 
 pub mod github;
 pub mod jira;
+pub mod litellm;
 
 pub use abgleich::{Dienste, GitHubDienst, JiraDienst};
 pub use error::Fehler;

@@ -7,6 +7,11 @@
 //! * Der `Host`-Header ist `127.0.0.1:<port>` oder `localhost:<port>` (gegen DNS-Rebinding:
 //!   dort trägt er den fremden Namen).
 //!
+//! Nur für die Entwicklung mit `trunk serve` gibt es einen zweiten erlaubten Port
+//! (`COCKPIT_DEV_PORT`, nur per Umgebungsvariable): Trunk leitet `/api` weiter, schickt den `Host`
+//! ohne Port (`127.0.0.1`) und lässt den `Origin` der Entwicklungsseite stehen. Nur dann gelten
+//! beides; ohne die Variable gilt nur der eigene Port.
+//!
 //! Für alles, was schreibt (nicht GET/HEAD), zusätzlich:
 //!
 //! * `Origin` fehlt oder ist genau eine der beiden eigenen Herkünfte (gegen fremde Seiten,
@@ -30,7 +35,8 @@ pub fn pruefen(
     peer: Option<IpAddr>,
     methode: &Method,
     kopf: &HeaderMap,
-    port: u16,
+    ports: &[u16],
+    dev: bool,
 ) -> Result<(), (StatusCode, &'static str)> {
     if !peer.is_some_and(|ip| ip.is_loopback()) {
         return Err((
@@ -41,7 +47,11 @@ pub fn pruefen(
     let host = kopf.get(HOST).and_then(|h| h.to_str().ok());
     let host_ok = host.is_some_and(|h| {
         let h = h.to_ascii_lowercase();
-        h == format!("127.0.0.1:{port}") || h == format!("localhost:{port}")
+        // Trunk schickt den Host ohne Port weiter; das gilt nur im Entwicklungsmodus.
+        (dev && (h == "127.0.0.1" || h == "localhost"))
+            || ports
+                .iter()
+                .any(|p| h == format!("127.0.0.1:{p}") || h == format!("localhost:{p}"))
     });
     if !host_ok {
         return Err((StatusCode::FORBIDDEN, "Unerwarteter Host"));
@@ -51,9 +61,10 @@ pub fn pruefen(
     }
     if let Some(origin) = kopf.get(ORIGIN) {
         let origin = origin.to_str().unwrap_or("").to_ascii_lowercase();
-        if origin != format!("http://127.0.0.1:{port}")
-            && origin != format!("http://localhost:{port}")
-        {
+        let eigene = ports.iter().any(|p| {
+            origin == format!("http://127.0.0.1:{p}") || origin == format!("http://localhost:{p}")
+        });
+        if !eigene {
             return Err((StatusCode::FORBIDDEN, "Fremde Herkunft"));
         }
     }
@@ -74,13 +85,29 @@ pub fn pruefen(
     Ok(())
 }
 
-/// Middleware für den `/api`-Teil des Routers. `port` ist der Port, auf dem der Server lauscht.
-pub async fn schuetzen(State(port): State<u16>, request: Request, next: Next) -> Response {
+/// Wie streng die Prüfung ist.
+#[derive(Clone)]
+pub struct Zugang {
+    /// Der Port, auf dem der Server lauscht, und – nur auf ausdrücklichen Wunsch
+    /// (`COCKPIT_DEV_PORT`) – der von `trunk serve`.
+    pub ports: Vec<u16>,
+    /// Entwicklungsmodus: Host auch ohne Port.
+    pub dev: bool,
+}
+
+/// Middleware für den `/api`-Teil des Routers.
+pub async fn schuetzen(State(zugang): State<Zugang>, request: Request, next: Next) -> Response {
     let peer = request
         .extensions()
         .get::<ConnectInfo<SocketAddr>>()
         .map(|c| c.0.ip());
-    match pruefen(peer, request.method(), request.headers(), port) {
+    match pruefen(
+        peer,
+        request.method(),
+        request.headers(),
+        &zugang.ports,
+        zugang.dev,
+    ) {
         Ok(()) => next.run(request).await,
         Err((status, meldung)) => (
             status,
@@ -109,13 +136,22 @@ mod tests {
     }
 
     fn post(paare: &[(&'static str, &'static str)]) -> Result<(), (StatusCode, &'static str)> {
-        pruefen(LOKAL, &Method::POST, &kopf(paare), PORT)
+        pruefen(LOKAL, &Method::POST, &kopf(paare), &[PORT], false)
     }
 
     #[test]
     fn get_mit_erlaubtem_host() {
         for host in ["127.0.0.1:8787", "localhost:8787", "LOCALHOST:8787"] {
-            assert!(pruefen(LOKAL, &Method::GET, &kopf(&[("host", host)]), PORT).is_ok());
+            assert!(
+                pruefen(
+                    LOKAL,
+                    &Method::GET,
+                    &kopf(&[("host", host)]),
+                    &[PORT],
+                    false
+                )
+                .is_ok()
+            );
         }
     }
 
@@ -128,10 +164,16 @@ mod tests {
             "localhost:9999",
             "127.0.0.1.evil.example:8787",
         ] {
-            let r = pruefen(LOKAL, &Method::GET, &kopf(&[("host", host)]), PORT);
+            let r = pruefen(
+                LOKAL,
+                &Method::GET,
+                &kopf(&[("host", host)]),
+                &[PORT],
+                false,
+            );
             assert_eq!(r.unwrap_err().0, StatusCode::FORBIDDEN, "{host}");
         }
-        assert!(pruefen(LOKAL, &Method::GET, &HeaderMap::new(), PORT).is_err());
+        assert!(pruefen(LOKAL, &Method::GET, &HeaderMap::new(), &[PORT], false).is_err());
     }
 
     #[test]
@@ -140,12 +182,23 @@ mod tests {
         for ip in ["192.168.1.5", "10.0.0.1", "8.8.8.8"] {
             let peer = Some(ip.parse().unwrap());
             assert_eq!(
-                pruefen(peer, &Method::GET, &k, PORT).unwrap_err().0,
+                pruefen(peer, &Method::GET, &k, &[PORT], false)
+                    .unwrap_err()
+                    .0,
                 StatusCode::FORBIDDEN
             );
         }
-        assert!(pruefen(Some("::1".parse().unwrap()), &Method::GET, &k, PORT).is_ok());
-        assert!(pruefen(None, &Method::GET, &k, PORT).is_err());
+        assert!(
+            pruefen(
+                Some("::1".parse().unwrap()),
+                &Method::GET,
+                &k,
+                &[PORT],
+                false
+            )
+            .is_ok()
+        );
+        assert!(pruefen(None, &Method::GET, &k, &[PORT], false).is_err());
     }
 
     #[test]
@@ -192,5 +245,37 @@ mod tests {
         ] {
             assert_eq!(mit(fremd).unwrap_err().0, StatusCode::FORBIDDEN, "{fremd}");
         }
+    }
+
+    #[test]
+    fn dev_port_ist_nur_auf_wunsch_erlaubt() {
+        let post_von_trunk = [
+            ("host", "localhost:8081"),
+            ("origin", "http://localhost:8081"),
+            ("content-type", "application/json"),
+        ];
+        assert_eq!(post(&post_von_trunk).unwrap_err().0, StatusCode::FORBIDDEN);
+        let k = kopf(&post_von_trunk);
+        assert!(pruefen(LOKAL, &Method::POST, &k, &[PORT, 8081], true).is_ok());
+        // Andere Ports bleiben draußen, auch mit Dev-Port.
+        let k = kopf(&[
+            ("host", "localhost:9999"),
+            ("content-type", "application/json"),
+        ]);
+        assert!(pruefen(LOKAL, &Method::POST, &k, &[PORT, 8081], true).is_err());
+    }
+
+    #[test]
+    fn trunk_schickt_den_host_ohne_port() {
+        let k = kopf(&[
+            ("host", "127.0.0.1"),
+            ("origin", "http://localhost:8081"),
+            ("content-type", "application/json"),
+        ]);
+        assert!(pruefen(LOKAL, &Method::POST, &k, &[PORT, 8081], true).is_ok());
+        assert!(pruefen(LOKAL, &Method::POST, &k, &[PORT], false).is_err());
+        // Ein fremder Name bleibt auch im Entwicklungsmodus draußen (DNS-Rebinding).
+        let k = kopf(&[("host", "boese.example")]);
+        assert!(pruefen(LOKAL, &Method::GET, &k, &[PORT, 8081], true).is_err());
     }
 }

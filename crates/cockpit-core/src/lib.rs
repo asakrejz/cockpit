@@ -15,7 +15,7 @@
 //! * [`team`]: Auslastung pro Person und was gerade hängt
 //! * [`workspace`]: alles zusammen, mit den Aktionen der Oberfläche
 //! * [`action`]: [`Action`], `Workspace::apply` und das Protokoll
-//! * [`demo`]: Beispieldaten, solange kein Backend angebunden ist
+//! * [`demo`]: Beispieldaten für Tests, Stories und den Seed `COCKPIT_SEED=demo` des Servers
 //! * [`api`]: die JSON-Formen zwischen App und Backend (Server-Modus)
 //! * [`persist`]: Speichern und Laden des Workspace (JSON mit Versionsnummer)
 //!
