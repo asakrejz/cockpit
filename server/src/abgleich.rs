@@ -143,8 +143,16 @@ impl AppState {
         Some(JiraClient::new(&j.site, &j.email, t))
     }
 
+    /// Der Zugang zu GitHub: die Anmeldung per OAuth geht vor dem Token. Blockierend.
+    pub(crate) fn github_zugang(&self) -> Option<cockpit_integrations::Secret> {
+        match self.oauth_tokens(Dienst::GitHub) {
+            Some(t) => Some(t.access),
+            None => self.token(secrets::GITHUB),
+        }
+    }
+
     /// Ein Schlüssel aus dem Schlüsselbund, leer zählt als fehlend. Blockierend.
-    fn token(&self, name: &str) -> Option<cockpit_integrations::Secret> {
+    pub(crate) fn token(&self, name: &str) -> Option<cockpit_integrations::Secret> {
         match self.inner.secrets.get(name) {
             Ok(t) => t.filter(|t| !t.is_empty()),
             Err(e) => {
@@ -217,6 +225,17 @@ impl AppState {
     /// er, ändert sich nichts.
     pub async fn aktion_ausfuehren(&self, action: Action) -> Result<ActionResponse, AktionFehler> {
         let inner = &self.inner;
+        // Der echte Agent startet nur, wenn alles eingerichtet ist; sonst sagt die Meldung, was fehlt.
+        if self.agent_echt() {
+            let s = self.clone();
+            let a = action.clone();
+            let sperre = tokio::task::spawn_blocking(move || s.agent_sperre(&a))
+                .await
+                .map_err(|_| AktionFehler::Intern)?;
+            if let Some(m) = sperre {
+                return Err(AktionFehler::Plan(m));
+            }
+        }
         let _sperre = inner.sperre.lock().await;
 
         // Probe auf einer Kopie: Die Regeln (auch „nur Du darfst mergen“) gelten vor jedem Aufruf.

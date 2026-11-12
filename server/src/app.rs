@@ -23,12 +23,12 @@ use tower_http::services::ServeDir;
 
 use crate::abgleich::{AktionFehler, Quellen};
 use crate::config::{Config, LitellmKonfig, Seed};
-use crate::container::{self, Zwischenspeicher};
+use crate::container::Zwischenspeicher;
 use crate::db;
 use crate::live::Live;
 use crate::secrets::{self, SecretStore};
 use crate::zugang;
-use cockpit_core::api::{ContainerStatus, LitellmStatus};
+use cockpit_core::api::{AgentStatus, ContainerStatus, LitellmStatus};
 use cockpit_core::{AuthKind, ServiceStatus};
 use cockpit_integrations::oauth::Dienst;
 
@@ -54,6 +54,16 @@ pub struct Einstellungen {
     pub dev_port: Option<u16>,
     /// Die `config.toml`, in die der Einrichtungsassistent schreibt.
     pub konfig_pfad: Option<PathBuf>,
+    /// `[agent] repo`: das Repo, in dem der Agent arbeitet.
+    pub agent_repo: Option<String>,
+    /// Ordner mit Containerfile und Läufer des Agenten.
+    pub agent_dir: Option<PathBuf>,
+    /// Basisadresse zum Klonen statt GitHub (nur Tests).
+    pub git_basis: Option<String>,
+    /// Hier legt der Agent Klone und Aufträge ab (neben der Datenbank).
+    pub daten_dir: Option<PathBuf>,
+    /// Feste Obergrenze in Sekunden für einen Lauf statt der Grenzen des Workspace (nur Tests).
+    pub lauf_sekunden: Option<u64>,
 }
 
 impl Einstellungen {
@@ -66,8 +76,27 @@ impl Einstellungen {
             suchpfad: None,
             dev_port: config.dev_port,
             konfig_pfad: config.konfig_pfad.clone(),
+            agent_repo: config.agent_repo.clone(),
+            agent_dir: Some(agent_ordner_finden(config)),
+            git_basis: config.git_basis.clone(),
+            daten_dir: config.db.parent().map(PathBuf::from),
+            lauf_sekunden: None,
         }
     }
+}
+
+/// Der Ordner `agent` mit Containerfile und Läufer: `[agent] dir` bzw. `COCKPIT_AGENT_DIR`, sonst
+/// neben der gebauten App (`<dist>/../../agent`, so liegt er im Repo und im Release-Archiv),
+/// sonst `./agent`.
+fn agent_ordner_finden(config: &Config) -> PathBuf {
+    if let Some(d) = &config.agent_dir {
+        return d.clone();
+    }
+    let neben_dist = config.dist.join("..").join("..").join("agent");
+    if neben_dist.join("Containerfile").is_file() {
+        return neben_dist;
+    }
+    PathBuf::from("agent")
 }
 
 /// Gemeinsamer Zustand der Handler. Klonen ist billig.
@@ -102,6 +131,8 @@ pub(crate) struct Inner {
     pub(crate) einstellungen: Einstellungen,
     /// Ergebnis der Suche nach der Container-Laufzeit, kurz gemerkt.
     pub(crate) container: Zwischenspeicher,
+    /// Läufe des echten Agenten (Container) und der Bau des Images.
+    pub(crate) agent: crate::agent_betrieb::Laeufe,
 }
 
 impl AppState {
@@ -160,6 +191,7 @@ impl AppState {
                 abgleich: tokio::sync::Mutex::new(()),
                 einstellungen,
                 container: Zwischenspeicher::default(),
+                agent: crate::agent_betrieb::Laeufe::default(),
             }),
         }
     }
@@ -202,9 +234,12 @@ impl AppState {
         }
     }
 
-    /// Ein Schritt des simulierten Agenten, als `Actor::Agent`. Blockierend.
+    /// Ein Takt der Aufgaben im Hintergrund. Der simulierte Agent macht nur mit, wenn der Server
+    /// mit dem Seed `demo` läuft; sonst arbeitet der echte Agent in Containern. Blockierend.
     pub fn takt(&self) {
-        self.inner.live.takt(&self.inner.db, jetzt_ms());
+        self.inner
+            .live
+            .takt(&self.inner.db, jetzt_ms(), !self.agent_echt());
     }
 }
 
@@ -214,8 +249,13 @@ pub(crate) fn jetzt_ms() -> u64 {
         .map_or(0, |d| d.as_millis() as u64)
 }
 
-/// Startet den Takt des simulierten Agenten im Server (statt im Browser).
+/// Startet die Hintergrundarbeit des Agenten im Server: im Modus „echt“ der Aufpasser für die
+/// Container, mit dem Seed `demo` der Takt des simulierten Agenten (statt im Browser).
 pub fn agent_takt_starten(state: AppState) {
+    if state.agent_echt() {
+        crate::agent_betrieb::aufpasser_starten(state);
+        return;
+    }
     tokio::spawn(async move {
         let mut takt = tokio::time::interval(AGENT_TAKT);
         takt.tick().await; // der erste Tick kommt sofort
@@ -262,6 +302,8 @@ pub struct Health {
     /// Adresse, Modell und ob ein Key liegt – nie der Key.
     pub litellm: LitellmStatus,
     pub container: ContainerStatus,
+    /// Ob der echte Agent loslaufen kann und was fehlt.
+    pub agent: AgentStatus,
 }
 
 impl AppState {
@@ -301,7 +343,6 @@ impl AppState {
                 .to_string()
         };
         let q = self.quellen();
-        let e = &self.inner.einstellungen;
         let proxy = self.litellm();
         let litellm = LitellmStatus {
             konfiguriert: proxy.is_some(),
@@ -309,18 +350,8 @@ impl AppState {
             modell: proxy.as_ref().and_then(|l| l.modell.clone()),
             key: hat_schluessel(secrets::LITELLM),
         };
-        let suchpfad = e
-            .suchpfad
-            .clone()
-            .or_else(|| std::env::var_os("PATH"))
-            .unwrap_or_default();
-        let container = self.inner.container.holen(|| {
-            container::erkennen(
-                e.container.as_deref(),
-                e.container_env.as_deref(),
-                &suchpfad,
-            )
-        });
+        let container = self.container_status();
+        let agent = self.agent_status();
         Health {
             status: "ok",
             version: VERSION,
@@ -341,6 +372,7 @@ impl AppState {
             anmeldung: Anmeldung { github, jira },
             litellm,
             container,
+            agent,
         }
     }
 }
@@ -380,6 +412,29 @@ async fn litellm_pruefen(State(state): State<AppState>) -> Response {
     };
     Json(cockpit_integrations::litellm::pruefen(&l.url, key.as_ref(), l.modell.as_deref()).await)
         .into_response()
+}
+
+/// `GET /api/agent/image`: Stand von „Image bauen“ (läuft, vorhanden, letzte Zeilen, Fehler).
+async fn agent_image_lesen(State(state): State<AppState>) -> Response {
+    match tokio::task::spawn_blocking(move || state.image_stand()).await {
+        Ok(b) => Json(b).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+/// `POST /api/agent/image`: baut das Agent-Image im Hintergrund (`docker build` bzw. `podman build`).
+/// Der Fortschritt steht in `GET /api/agent/image`.
+async fn agent_image_bauen(State(state): State<AppState>) -> Response {
+    match tokio::task::spawn_blocking(move || state.image_bauen()).await {
+        Ok(Ok(b)) => Json(b).into_response(),
+        Ok(Err(m)) => fehler(StatusCode::UNPROCESSABLE_ENTITY, m),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+/// `GET /api/litellm/pruefen/container`: erreicht ein Container den Proxy (Prüfmodus des Images)?
+async fn litellm_pruefen_container(State(state): State<AppState>) -> Response {
+    Json(state.container_pruefen().await).into_response()
 }
 
 async fn api_unbekannt() -> (StatusCode, Json<serde_json::Value>) {
@@ -508,6 +563,14 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/events", get(ereignisse))
         .route("/api/jira/projekte", get(jira_projekte))
         .route("/api/litellm/pruefen", get(litellm_pruefen))
+        .route(
+            "/api/litellm/pruefen/container",
+            get(litellm_pruefen_container),
+        )
+        .route(
+            "/api/agent/image",
+            get(agent_image_lesen).post(agent_image_bauen),
+        )
         .route("/api/einrichtung", get(crate::einrichtung::lesen))
         .route("/api/konfiguration", put(crate::einrichtung::konfiguration))
         .route(
@@ -1079,13 +1142,13 @@ mod tests {
 
         // Vor Ablauf tut der Takt nichts …
         let s = state.clone();
-        tokio::task::spawn_blocking(move || s.inner.live.takt(&s.inner.db, bis - 1))
+        tokio::task::spawn_blocking(move || s.inner.live.takt(&s.inner.db, bis - 1, true))
             .await
             .unwrap();
         assert_eq!(state.inner.live.revision(), vorher);
         // … danach ist der Eintrag zurück, protokolliert als System.
         let s = state.clone();
-        tokio::task::spawn_blocking(move || s.inner.live.takt(&s.inner.db, bis + 1))
+        tokio::task::spawn_blocking(move || s.inner.live.takt(&s.inner.db, bis + 1, true))
             .await
             .unwrap();
         assert_eq!(state.inner.live.revision(), vorher + 1);
@@ -1352,5 +1415,46 @@ mod tests {
             .body(Body::empty())
             .unwrap();
         assert_eq!(sende(app, req).await.0, StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn health_meldet_den_agenten_nie_geheimnisse() {
+        // Simuliert (Tests starten mit dem Seed demo): immer bereit.
+        let app = router(zustand(Arc::new(MemoryStore::new())), PathBuf::from("/x"));
+        let (_, body) = hole(app, "/api/health").await;
+        let j = json(&body);
+        assert_eq!(j["agent"]["modus"], "simuliert");
+        assert_eq!(j["agent"]["bereit"], true);
+        // Echt, aber nichts eingerichtet: sagt in Klartext, was fehlt.
+        let conn = db::open_im_speicher().unwrap();
+        let e = Einstellungen { seed: Seed::Leer, ..leer() };
+        let app = router(zustand_mit(conn, e, Arc::new(MemoryStore::new())), PathBuf::from("/x"));
+        let (_, body) = hole(app, "/api/health").await;
+        let j = json(&body);
+        assert_eq!(j["agent"]["modus"], "echt");
+        assert_eq!(j["agent"]["bereit"], false);
+        assert_eq!(j["agent"]["image_name"], "localhost/cockpit-agent:1");
+        let fehlt = j["agent"]["fehlt"].as_array().unwrap();
+        assert!(fehlt.len() >= 3);
+        assert!(fehlt.iter().all(|f| f.as_str().unwrap().contains("Einrichten")));
+    }
+
+    #[tokio::test]
+    async fn image_bauen_ohne_laufzeit_ist_422_mit_klartext() {
+        let conn = db::open_im_speicher().unwrap();
+        let e = Einstellungen { seed: Seed::Leer, ..leer() };
+        let app = router(zustand_mit(conn, e, Arc::new(MemoryStore::new())), PathBuf::from("/x"));
+        let (status, body) = hole(app.clone(), "/api/agent/image").await;
+        assert_eq!(status, StatusCode::OK);
+        let j = json(&body);
+        assert_eq!(j["laeuft"], false);
+        assert_eq!(j["vorhanden"], false);
+        let req = anfrage("POST", "/api/agent/image")
+            .header("content-type", "application/json")
+            .body(Body::from("{}"))
+            .unwrap();
+        let (status, body) = sende(app, req).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(json(&body)["fehler"].as_str().unwrap().contains("Rancher Desktop"), "{body}");
     }
 }

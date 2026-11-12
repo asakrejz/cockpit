@@ -4750,7 +4750,7 @@ mod tests {
             let before = w.clone();
             let a = Action::ReportAgent {
                 run: "BAU-142".into(),
-                report: AgentReport::HintsDelivered,
+                report: AgentReport::HintsDelivered { count: 1 },
             };
             assert_eq!(w.apply(a, actor, T), Err(ActionError::AgentOnly));
             assert_eq!(w, before);
@@ -4844,7 +4844,7 @@ mod tests {
         // Nichts mehr aktiv: weitere Meldungen sind abgewiesen und ändern nichts.
         let before = w.clone();
         assert_eq!(
-            report(&mut w, "BAU-142", AgentReport::HintsDelivered),
+            report(&mut w, "BAU-142", AgentReport::HintsDelivered { count: 1 }),
             Err(ActionError::NothingToDo)
         );
         assert_eq!(w, before);
@@ -4906,7 +4906,7 @@ mod tests {
         assert!(back.run("BAU-142").unwrap().agent_plan.is_some());
         let json = serde_json::to_string(&Action::ReportAgent {
             run: "X".into(),
-            report: AgentReport::HintsDelivered,
+            report: AgentReport::HintsDelivered { count: 1 },
         })
         .unwrap();
         assert!(serde_json::from_str::<Action>(&json).is_ok());

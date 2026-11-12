@@ -159,8 +159,8 @@ pub enum AgentReport {
         #[serde(default)]
         suggestions: Vec<String>,
     },
-    /// Die Hinweise des Nutzers sind beim Agenten angekommen.
-    HintsDelivered,
+    /// So viele Hinweise des Nutzers (die ältesten) sind beim Agenten angekommen.
+    HintsDelivered { count: usize },
     /// Fertig: Der Branch ist gepusht.
     Done { summary: String },
     /// Der Lauf endete ohne Ergebnis (Fehler, Zeitüberschreitung, Neustart). `reason` in Klartext.
@@ -969,8 +969,9 @@ impl AgentRun {
                     self.label()
                 ));
             }
-            AgentReport::HintsDelivered => {
-                for hint in std::mem::take(&mut self.pending_hints) {
+            AgentReport::HintsDelivered { count } => {
+                let count = count.min(self.pending_hints.len());
+                for hint in self.pending_hints.drain(..count).collect::<Vec<_>>() {
                     self.say(
                         Speaker::Agent,
                         MessageKind::Ack,
@@ -1979,7 +1980,11 @@ mod tests {
         let mut r = real_run();
         r.steer("Bitte kleine Commits");
         assert_eq!(r.pending_hints.len(), 1);
-        r.report(AgentReport::HintsDelivered, &AgentLimits::unlimited(), 0);
+        r.report(
+            AgentReport::HintsDelivered { count: 1 },
+            &AgentLimits::unlimited(),
+            0,
+        );
         assert!(r.pending_hints.is_empty());
         assert_eq!(r.messages.last().unwrap().kind, MessageKind::Ack);
     }
