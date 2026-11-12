@@ -328,10 +328,12 @@ mod lines;
 mod run;
 mod watcher;
 
+#[cfg(test)]
 pub use container_check::pruefung_hinweis;
 use container_check::{
     cli_still, container_entfernen, container_labels_entfernen, kind_umgebung, letzte_zeile,
 };
+#[cfg(test)]
 pub use image_build::bau_hinweis;
 pub use lines::{Gelesen, lies_zeile};
 use run::lauf_aufgabe;
