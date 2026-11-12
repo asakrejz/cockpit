@@ -5,11 +5,14 @@ im Gespräch stand. Eine neue Session liest zuerst diese Datei, dann `docs/ROADM
 
 ## Wo wir stehen
 
-- Wellen 0–3 sind gemergt (#5–#24). Cockpit läuft als Demo im Browser und im Server-Modus
-  (`cargo run -p cockpit-server`, App unter `http://127.0.0.1:8787`).
+- Wellen 0–3 sind gemergt (#5–#24), in Welle 4 dazu OAuth (#29), Inbox-Filter (#28) und das
+  Onboarding (Seite „Einrichten“, Seed, Start-Skript). Cockpit läuft **nur noch mit dem Server**
+  (`scripts/start.sh`, App unter `http://127.0.0.1:8787`); den Demo-Modus im Browser gibt es nicht mehr.
 - Gegen echte Dienste ist noch **nichts** geprüft: GitHub/Jira-Abgleich, Schreibaufrufe und
   Schlüsselbund sind nur gegen nachgebaute Antworten getestet.
-- Als Nächstes kommt Welle 4. Sie ist noch nicht gestartet.
+- Welle 4 läuft: offen sind noch Webhooks/Live-Aktualisierung und der echte Agent (Claude Agent SDK im
+  Container, Modell über LiteLLM, Agent-Image bauen). Die Einrichtung dafür (LiteLLM-Verbindungstest,
+  Container-Erkennung) steht.
 
 ## Entscheidungen des Nutzers
 
@@ -19,6 +22,7 @@ im Gespräch stand. Eine neue Session liest zuerst diese Datei, dann `docs/ROADM
 | Container | **Docker (Rancher Desktop) und Podman** müssen beide gehen. Siehe „Container“ in `docs/ROADMAP.md`. |
 | Modellzugang | **Kein Anthropic-API-Key, sondern ein LiteLLM-Proxy.** Der echte Agent (Claude Agent SDK) bekommt `ANTHROPIC_BASE_URL` = Proxy-Adresse und `ANTHROPIC_AUTH_TOKEN` = LiteLLM-Key; der Modellname ist eine Einstellung in Cockpit, weil er von der LiteLLM-Konfiguration abhängt. |
 | Schlüssel | Nur im Schlüsselbund des Backends (`cockpit-server token setzen <github\|jira\|litellm>`), nie im Browser, Repo, in der Datenbank oder in Logs. Der LiteLLM-Key wird nur beim Start an den Agent-Container gegeben. |
+| Demo / Seed | Der Demo-Modus (Beispieldaten im Browser ohne Backend) ist entfernt. `demo::workspace()` bleibt als Testdaten und Stories-Daten; der Server startet leer und lädt die Beispieldaten nur mit `COCKPIT_SEED=demo` (oder `seed = "demo"`), nur wenn noch kein Stand gespeichert ist. |
 | Repo | Bleibt privat (kein GitHub Pages). |
 | Sub-Agenten | Pro Aufgabe ein Agent mit eigenem PR, Modell **Sonnet** (`claude-sonnet-5-5`), nicht Fable. Höchstens **zwei gleichzeitig**: Sie teilen sich das 5-Stunden-Limit des Nutzers, vier parallel sind in Welle 3 daran abgebrochen. |
 
@@ -28,7 +32,7 @@ Auf dem Mac des Nutzers (Apple Silicon) laufen alle Prüfbefehle unten grün, be
 und `cockpit-server` antwortet auf `/api/health`. Dafür war nur Trunk nötig (`brew install trunk`);
 `wasm-bindgen` lädt Trunk selbst. Rust kommt über Homebrew-`rustup`, die `rust-toolchain.toml`
 zieht das Wasm-Target nach. Als Container-Laufzeit ist Rancher Desktop installiert (`docker`,
-`nerdctl`), Podman noch nicht. Containercode gibt es noch keinen – der kommt mit Welle 4.
+`nerdctl`), Podman noch nicht. Das Backend erkennt die Laufzeit (`/api/health` › `container`), ein Agent-Image gibt es noch nicht – das kommt mit dem Agenten.
 
 ## Für Welle 4 noch offen (vom Nutzer)
 
@@ -46,7 +50,6 @@ zieht das Wasm-Target nach. Als Container-Laufzeit ist Rancher Desktop installie
   der Abgleich überschreibt Titel und Beschreibung mit dem Stand des Dienstes (Priorität und
   PR-Verknüpfung bleiben lokal).
 - Gleiche PR-Nummern aus zwei Repos werden nicht unterschieden (mehrere Repos sind Welle 4).
-- Im Server-Modus zeigt die Marke oben noch „Demo“.
 - Benachrichtigungen des Browsers nur mit nachgebauter Notification-API geprüft.
 
 ## Wie gearbeitet wird
@@ -68,8 +71,12 @@ cargo test --workspace
 trunk build && (cd cockpit && trunk build)
 ```
 
-Dazu ein Browser-Durchlauf im Demo-Modus (`localStorage['cockpit.connections']='111111'`) und im
-Server-Modus (`localStorage['cockpit.mode']='server'`), ohne Konsolenfehler.
+Dazu ein Browser-Durchlauf gegen den Server, ohne Konsolenfehler: einmal mit leerem Start
+(`COCKPIT_CONFIG=<leere config.toml> COCKPIT_DB=<neue Datei> cargo run -p cockpit-server`, alle Seiten zeigen
+Leerzustände) und einmal mit `COCKPIT_SEED=demo` (frische `COCKPIT_DB`), dazu mit gestopptem Server (Hinweis „nicht
+erreichbar“ mit „Erneut versuchen“). Beim Ausprobieren immer eine eigene Datenbank und eine eigene, leere
+`config.toml` nehmen – **nie gegen echte Jira-/GitHub-Boards**. Mit `trunk serve`: `COCKPIT_DEV_PORT=8081` am Server setzen
+(siehe README „Entwickeln mit `trunk serve`“).
 
 **Mergen einer Welle:**
 

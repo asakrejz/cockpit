@@ -6,6 +6,8 @@
 //! * `GET /api/oauth/{github|atlassian}/start` und `…/callback`: Anmeldung per OAuth (Navigation des
 //!   Browsers, leitet nach `/` um); `POST …/widerrufen`: [`WiderrufAntwort`]
 //! * `GET /api/jira/projekte`: die Jira-Projekte für die Auswahl, [`JiraProjectsResponse`]
+//! * `GET /api/litellm/pruefen`: Verbindungstest zum LiteLLM-Proxy, [`LitellmPruefung`]
+//! * `GET /api/health`: unter `litellm` ein [`LitellmStatus`], unter `container` ein [`ContainerStatus`]
 //!
 //! Beide Seiten benutzen diese Typen, damit die Formen nicht auseinanderlaufen.
 
@@ -73,6 +75,60 @@ pub struct WiderrufAntwort {
     pub hinweis: Option<String>,
 }
 
+/// Die Anbindung an den LiteLLM-Proxy, wie `GET /api/health` sie meldet. Nie der Key selbst,
+/// nur ob einer im Schlüsselbund liegt.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct LitellmStatus {
+    /// `[litellm] url` steht in `config.toml`.
+    #[serde(default)]
+    pub konfiguriert: bool,
+    #[serde(default)]
+    pub url: Option<String>,
+    /// Der Modellname aus `[litellm] modell`.
+    #[serde(default)]
+    pub modell: Option<String>,
+    /// Ein Key liegt im Schlüsselbund (`cockpit-server token setzen litellm`).
+    #[serde(default)]
+    pub key: bool,
+}
+
+/// Die Container-Laufzeit, wie `GET /api/health` sie meldet.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct ContainerStatus {
+    /// `docker` oder `podman`; `None`, wenn keine gefunden oder gewählt ist.
+    #[serde(default)]
+    pub laufzeit: Option<String>,
+    /// `<cli> info` war erfolgreich: Die Engine läuft.
+    #[serde(default)]
+    pub engine_laeuft: bool,
+    /// Woher die Wahl kommt: `konfiguration`, `umgebung`, `erkannt` oder `keine`.
+    #[serde(default)]
+    pub quelle: String,
+    /// Was zu tun ist, wenn es nicht geht.
+    #[serde(default)]
+    pub hinweis: Option<String>,
+}
+
+/// Antwort auf `GET /api/litellm/pruefen`: was der Verbindungstest gefunden hat. Enthält nie den Key.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct LitellmPruefung {
+    /// `[litellm] url` ist eingerichtet; sonst wurde nichts geprüft.
+    #[serde(default)]
+    pub konfiguriert: bool,
+    /// Der Proxy hat auf `GET <url>/v1/models` geantwortet.
+    #[serde(default)]
+    pub erreichbar: bool,
+    /// Der Proxy hat den Key angenommen.
+    #[serde(default)]
+    pub key_ok: bool,
+    /// Der konfigurierte Modellname steht in der Liste des Proxys.
+    #[serde(default)]
+    pub modell_vorhanden: bool,
+    /// Was als Nächstes zu tun ist oder woran es lag.
+    #[serde(default)]
+    pub hinweis: Option<String>,
+}
+
 /// Fehlerantwort (4xx/5xx) mit deutscher Meldung für die Oberfläche.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ErrorBody {
@@ -118,5 +174,20 @@ mod tests {
         let e: ServerEvent = serde_json::from_str(r#"{"revision":3}"#).unwrap();
         assert_eq!(e.revision, 3);
         assert!(e.eintraege.is_empty());
+    }
+
+    #[test]
+    fn setup_statuses_read_old_and_partial_json() {
+        assert_eq!(
+            serde_json::from_str::<LitellmStatus>("{}").unwrap(),
+            LitellmStatus::default()
+        );
+        assert_eq!(
+            serde_json::from_str::<ContainerStatus>("{}").unwrap(),
+            ContainerStatus::default()
+        );
+        let p: LitellmPruefung =
+            serde_json::from_str(r#"{"konfiguriert":true,"erreichbar":true}"#).unwrap();
+        assert!(p.erreichbar && !p.key_ok && !p.modell_vorhanden);
     }
 }

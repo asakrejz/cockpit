@@ -17,6 +17,8 @@ pub const JIRA: &str = "jira";
 /// Client-Secrets der OAuth-Apps (`token setzen github-oauth|atlassian-oauth`).
 pub const GITHUB_OAUTH: &str = "github-oauth";
 pub const ATLASSIAN_OAUTH: &str = "atlassian-oauth";
+/// Key für den LiteLLM-Proxy (`token setzen litellm`); geht nur beim Start an den Agent-Container.
+pub const LITELLM: &str = "litellm";
 /// Access- und Refresh-Token nach der Anmeldung (ein Eintrag je Dienst, vom Backend gesetzt).
 pub const GITHUB_OAUTH_TOKENS: &str = "github-oauth-token";
 pub const ATLASSIAN_OAUTH_TOKENS: &str = "atlassian-oauth-token";

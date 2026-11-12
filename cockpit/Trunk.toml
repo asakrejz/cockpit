@@ -1,7 +1,12 @@
-# Cockpit wird aus diesem Ordner gebaut:  cd cockpit && trunk serve --open
+# Cockpit wird aus diesem Ordner gebaut:  cd cockpit && trunk serve --open  (mit laufendem cockpit-server)
 [build]
 target = "index.html"
 dist = "dist"
 
 [serve]
 port = 8081
+
+# Entwicklung mit `trunk serve`: Anfragen an /api gehen an den lokalen Server
+# (`cargo run -p cockpit-server`). Die App braucht den Server, es gibt keinen Browser-Modus mehr.
+[[proxy]]
+backend = "http://127.0.0.1:8787/api"

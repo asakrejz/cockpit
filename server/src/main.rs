@@ -10,8 +10,8 @@
 //! cockpit-server token loeschen <name>           Schlüssel entfernen
 //! ```
 //!
-//! `<name>`: `github`, `jira` (API-Token) sowie `github-oauth` und `atlassian-oauth` (Client-Secret
-//! der OAuth-Apps). Die Tokens der Anmeldung legt das Backend selbst ab.
+//! `<name>`: `github`, `jira` (API-Token), `github-oauth` und `atlassian-oauth` (Client-Secret
+//! der OAuth-Apps) sowie `litellm` (Key des LiteLLM-Proxys). Die Tokens der Anmeldung legt das Backend selbst ab.
 //!
 //! ```text
 //! ```
@@ -19,6 +19,7 @@
 mod abgleich;
 mod app;
 mod config;
+mod container;
 mod db;
 mod live;
 mod oauth;
@@ -52,7 +53,7 @@ async fn main() -> ExitCode {
     {
         [] => starten().await,
         ["token", aktion, name] => token(aktion, name),
-        _ => Err("Aufruf: cockpit-server [token setzen|loeschen <github|jira|github-oauth|atlassian-oauth>]".into()),
+        _ => Err("Aufruf: cockpit-server [token setzen|loeschen <github|jira|github-oauth|atlassian-oauth|litellm>]".into()),
     };
     match ergebnis {
         Ok(()) => ExitCode::SUCCESS,
@@ -69,6 +70,7 @@ const NAMEN: &[&str] = &[
     secrets::JIRA,
     secrets::GITHUB_OAUTH,
     secrets::ATLASSIAN_OAUTH,
+    secrets::LITELLM,
 ];
 
 /// Legt einen Schlüssel ab oder löscht ihn. Der Wert kommt von der Standardeingabe, damit er
@@ -135,11 +137,12 @@ async fn starten() -> Result<(), String> {
         );
     }
 
-    let state = app::AppState::mit_quellen(
+    let state = app::AppState::neu(
         conn,
         Arc::new(KeyringStore),
         config.port,
         abgleich::Quellen::aus(&config),
+        app::Einstellungen::aus(&config),
     );
     let router = app::router(state.clone(), config.dist.clone());
 

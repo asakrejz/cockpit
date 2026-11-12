@@ -61,8 +61,8 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
         <Sidebar label="Bereiche">
             <SidebarBrand href="#/">
                 "Cockpit"
-                <span title="Daten und Verbindungen sind simuliert">
-                    <Badge variant=BadgeVariant::Neutral>"Demo"</Badge>
+                <span title="Läuft lokal auf diesem Rechner">
+                    <Badge variant=BadgeVariant::Neutral>"Lokal"</Badge>
                 </span>
             </SidebarBrand>
             <SidebarSection>

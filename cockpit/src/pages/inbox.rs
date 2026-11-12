@@ -11,9 +11,9 @@ use web_sys::{HtmlElement, KeyboardEvent, ScrollIntoViewOptions, ScrollLogicalPo
 
 use crate::{
     route::Route,
-    server,
+    server::{self, CallError},
     sidebar::AppSidebar,
-    store::{Mode, Store, navigate, now_ms, use_store, utc_offset_min},
+    store::{Store, navigate, now_ms, use_store, utc_offset_min},
     view,
 };
 
@@ -241,6 +241,19 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                                 </li>
                             }
                                 .into_any()
+                        } else if list.is_empty() && store.ws.with(|w| w.items.is_empty()) {
+                            // Ein frischer Workspace: noch nichts verbunden oder abgeglichen.
+                            view! {
+                                <li class="ck-empty ui-vstack">
+                                    <p class="t-subheadline t-secondary">
+                                        "Noch keine Tickets oder Pull Requests. Verbinde Jira und GitHub unter „Einrichten“, dann erscheinen sie hier."
+                                    </p>
+                                    <Button size=ControlSize::Small href=Route::Setup.hash()>
+                                        "Einrichten"
+                                    </Button>
+                                </li>
+                            }
+                                .into_any()
                         } else if list.is_empty() {
                             view! { <li class="ck-empty t-subheadline t-secondary">{empty}</li> }.into_any()
                         } else {
@@ -282,19 +295,19 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
     }
 }
 
-/// Auswahl des Jira-Projekts. Die Liste kommt im Server-Modus von Jira (mit Namen), dazu die
-/// Projekte der Tickets, die schon da sind; im Demo-Modus nur diese. Ohne Projekte bleibt sie
-/// weg. Die Wahl ist eine Action: Im Server-Modus gleicht der Server danach gleich ab.
+/// Auswahl des Jira-Projekts. Die Liste kommt von Jira (mit Namen), dazu die
+/// Projekte der Tickets, die schon da sind. Ohne Projekte bleibt sie
+/// weg. Die Wahl ist eine Action: Der Server gleicht danach gleich ab.
 fn project_picker(store: Store) -> impl IntoView {
     let remote = RwSignal::new(Vec::<cockpit_core::api::JiraProject>::new());
-    if store.mode.get_untracked() == Mode::Server {
-        leptos::task::spawn_local(async move {
-            match server::fetch_jira_projects().await {
-                Ok(r) => remote.set(r.projekte),
-                Err(e) => store.notify(format!("Jira-Projekte nicht geladen: {}", e.message())),
-            }
-        });
-    }
+    leptos::task::spawn_local(async move {
+        match server::fetch_jira_projects().await {
+            Ok(r) => remote.set(r.projekte),
+            // Ist der Server nicht erreichbar, sagt das schon der Hinweis oben.
+            Err(CallError::Unreachable) => {}
+            Err(e) => store.notify(format!("Jira-Projekte nicht geladen: {}", e.message())),
+        }
+    });
     let options = Signal::derive(move || {
         let mut list: Vec<(String, String)> = remote.with(|r| {
             r.iter()

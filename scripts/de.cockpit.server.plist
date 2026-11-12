@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Vorlage für launchd: startet Cockpit beim Login. Es wird nichts automatisch installiert.
+
+  1. Diese Datei nach ~/Library/LaunchAgents/de.cockpit.server.plist kopieren.
+  2. Die beiden Platzhalter ersetzen:
+       /PFAD/ZUM/REPO    der Ordner dieses Repos (absolut, ohne ~)
+       /Users/BENUTZER   dein Home-Verzeichnis (für Log-Datei und PATH)
+  3. Einmal von Hand `scripts/start.sh` ausführen, damit Server und App fertig gebaut sind.
+  4. Laden:    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist
+     Entladen: launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist
+  Das Log steht in /Users/BENUTZER/Library/Logs/cockpit-server.log.
+
+  Eigene Einstellungen (COCKPIT_PORT, COCKPIT_DB, COCKPIT_SEED, …) gehören in die Datei
+  config.toml oder unten in EnvironmentVariables. Schlüssel gehören nie hierher: Sie liegen im
+  Schlüsselbund (`cockpit-server token setzen …`).
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>de.cockpit.server</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/PFAD/ZUM/REPO/scripts/start.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/PFAD/ZUM/REPO</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/Users/BENUTZER/.cargo/bin:/usr/bin:/bin</string>
+  </dict>
+
+  <!-- Beim Login starten. Beendet sich der Server mit einem Fehler, startet launchd ihn nicht neu. -->
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <false/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/BENUTZER/Library/Logs/cockpit-server.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/BENUTZER/Library/Logs/cockpit-server.log</string>
+</dict>
+</plist>

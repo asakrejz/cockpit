@@ -1,5 +1,5 @@
 //! Zustand des Abgleichs mit Jira und GitHub je Quelle, dazu „Jetzt abgleichen“.
-//! Gibt es nur im Server-Modus; die Daten stehen im Workspace (`sync`), der Abgleich läuft im
+//! Die Daten stehen im Workspace (`sync`), der Abgleich läuft im
 //! Backend. Hier steht kein Schlüssel.
 
 use cockpit_core::{Source, SourceState};
@@ -8,7 +8,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 
 use crate::server::{self, CallError};
-use crate::store::{Mode, now_ms, use_store};
+use crate::store::{now_ms, use_store};
 
 /// „vor 5 Min.“ – grob genug für eine Statuszeile.
 fn ago(then_ms: u64, now: u64) -> String {
@@ -64,7 +64,7 @@ pub fn SyncStatus() -> impl IntoView {
             return view! {
                 <ListRow
                     title="Keine Quelle abgeglichen"
-                    subtitle="Jira und GitHub richtest du in config.toml ein, die Token legst du mit „cockpit-server token setzen“ ab. Bis dahin zeigt Cockpit Beispieldaten."
+                    subtitle="Jira und GitHub richtest du in config.toml ein, die Token legst du mit „cockpit-server token setzen“ ab. Bis dahin bleibt der Workspace leer."
                     wrap=true
                 />
             }
@@ -91,8 +91,7 @@ pub fn SyncStatus() -> impl IntoView {
     };
 
     view! {
-        <Show when=move || store.mode.get() == Mode::Server>
-            <List>
+        <List>
                 <ListSection
                     header="Abgleich"
                     footer="Das Backend fragt Jira und GitHub regelmäßig ab (Standard: alle 2 Minuten). Aktionen wie Antworten, Status, Review oder Mergen gehen erst an den Dienst und werden danach hier angewendet."
@@ -104,7 +103,6 @@ pub fn SyncStatus() -> impl IntoView {
                         </Button>
                     </ListRow>
                 </ListSection>
-            </List>
-        </Show>
+        </List>
     }
 }

@@ -35,12 +35,27 @@
 //!
 //! Mit `[atlassian]` braucht `[jira]` weder `site` noch `email` (nur noch `projects`/`jql`).
 //!
+//! Modellzugang über einen LiteLLM-Proxy (nur Adresse und Modellname – der Key liegt im Schlüsselbund,
+//! `cockpit-server token setzen litellm`), Container-Laufzeit und Seed:
+//!
+//! ```toml
+//! seed = "demo"                        # Beispieldaten, nur wenn noch kein Stand gespeichert ist
+//!
+//! [litellm]
+//! url = "http://localhost:4000"
+//! modell = "claude-sonnet-5-5"         # Name, wie der Proxy ihn anbietet
+//!
+//! [agent]
+//! container = "podman"                 # oder "docker"; ohne Angabe erkennt das Backend die Laufzeit
+//! ```
+//!
 //! Eine Quelle gleicht nur ab, wenn sie hier eingerichtet ist **und** ihr Schlüssel im
-//! Schlüsselbund liegt (`cockpit-server token setzen <github|jira>`). Ohne Quelle bleiben
-//! die Beispieldaten.
+//! Schlüsselbund liegt (`cockpit-server token setzen <github|jira>`). Ohne Quelle bleibt der
+//! Workspace leer (oder zeigt die Beispieldaten, wenn der Seed `demo` gewählt ist).
 //!
 //! Umgebungsvariablen: `COCKPIT_PORT`, `COCKPIT_DIST`, `COCKPIT_DB`, `COCKPIT_CONFIG`
-//! (Pfad der Konfigurationsdatei).
+//! (Pfad der Konfigurationsdatei), `COCKPIT_SEED` (`leer` oder `demo`), `COCKPIT_CONTAINER`
+//! (`docker` oder `podman`), `COCKPIT_DEV_PORT` (Port von `trunk serve`, nur für die Entwicklung).
 
 use std::path::{Path, PathBuf};
 
@@ -65,6 +80,46 @@ pub struct Config {
     pub atlassian: Option<AtlassianKonfig>,
     /// Abstand des Abgleichs in Sekunden.
     pub intervall_s: u64,
+    /// Womit ein Workspace beginnt, der noch nie gespeichert wurde.
+    pub seed: Seed,
+    pub litellm: Option<LitellmKonfig>,
+    /// Gewählte Container-Laufzeit (`docker` oder `podman`) aus der Datei; `COCKPIT_CONTAINER`
+    /// steht in [`Config::container_env`].
+    pub container: Option<String>,
+    /// Wert von `COCKPIT_CONTAINER`, geht der Datei vor.
+    pub container_env: Option<String>,
+    /// `COCKPIT_DEV_PORT`: Port von `trunk serve` für die Entwicklung (nur Umgebung, nie Datei).
+    pub dev_port: Option<u16>,
+}
+
+/// Womit der Server startet, solange noch kein Stand gespeichert ist.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Seed {
+    /// Ein leerer Workspace (Standard).
+    #[default]
+    Leer,
+    /// Die Beispieldaten aus `cockpit_core::demo`.
+    Demo,
+}
+
+impl Seed {
+    fn aus_text(text: &str) -> Result<Self, KonfigFehler> {
+        match text.trim().to_lowercase().as_str() {
+            "" | "leer" => Ok(Seed::Leer),
+            "demo" => Ok(Seed::Demo),
+            anderes => Err(KonfigFehler::Wert(format!(
+                "seed „{anderes}“ ist unbekannt, erlaubt sind leer und demo"
+            ))),
+        }
+    }
+}
+
+/// Der LiteLLM-Proxy. Der Key liegt im Schlüsselbund, nie hier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LitellmKonfig {
+    /// Ohne Schrägstrich am Ende, z. B. `http://localhost:4000`.
+    pub url: String,
+    pub modell: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -129,6 +184,22 @@ struct Datei {
     jira: Option<DateiJira>,
     github_oauth: Option<DateiOAuth>,
     atlassian: Option<DateiAtlassian>,
+    seed: Option<String>,
+    litellm: Option<DateiLitellm>,
+    agent: Option<DateiAgent>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DateiLitellm {
+    url: String,
+    modell: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DateiAgent {
+    container: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -162,6 +233,16 @@ struct DateiJira {
     #[serde(default)]
     projects: Vec<String>,
     jql: Option<String>,
+}
+
+/// `docker` oder `podman`, sonst ein Fehler.
+fn laufzeit(text: &str) -> Result<String, KonfigFehler> {
+    match text.trim().to_lowercase().as_str() {
+        l @ ("docker" | "podman") => Ok(l.to_string()),
+        anderes => Err(KonfigFehler::Wert(format!(
+            "Container-Laufzeit „{anderes}“ wird nicht unterstützt, erlaubt sind docker und podman"
+        ))),
+    }
 }
 
 /// `owner/name` aus Buchstaben, Ziffern, `.`, `-` und `_`.
@@ -199,6 +280,11 @@ impl Config {
             github_oauth: None,
             atlassian: None,
             intervall_s: STANDARD_INTERVALL_S,
+            seed: Seed::Leer,
+            litellm: None,
+            container: None,
+            container_env: None,
+            dev_port: None,
         }
     }
 
@@ -300,6 +386,50 @@ impl Config {
             });
         }
 
+        if let Some(text) = d.seed {
+            c.seed = Seed::aus_text(&text)?;
+        }
+        if let Some(l) = d.litellm {
+            let url = l.url.trim().trim_end_matches('/').to_string();
+            let geht = url
+                .strip_prefix("http://")
+                .or_else(|| url.strip_prefix("https://"))
+                .is_some_and(|rest| !rest.is_empty() && !rest.contains(char::is_whitespace));
+            if !geht {
+                return Err(KonfigFehler::Wert(
+                    "[litellm] url muss mit http:// oder https:// beginnen, z. B. http://localhost:4000"
+                        .into(),
+                ));
+            }
+            c.litellm = Some(LitellmKonfig {
+                url,
+                modell: l
+                    .modell
+                    .map(|m| m.trim().to_string())
+                    .filter(|m| !m.is_empty()),
+            });
+        }
+        if let Some(a) = d.agent {
+            c.container = a.container.map(|t| laufzeit(&t)).transpose()?;
+        }
+
+        if let Some(p) = umgebung("COCKPIT_SEED").filter(|s| !s.trim().is_empty()) {
+            c.seed = Seed::aus_text(&p)?;
+        }
+        if let Some(p) = umgebung("COCKPIT_CONTAINER").filter(|s| !s.trim().is_empty()) {
+            c.container_env = Some(laufzeit(&p)?);
+        }
+        if let Some(p) = umgebung("COCKPIT_DEV_PORT").filter(|s| !s.trim().is_empty()) {
+            let nr: u16 = p.trim().parse().map_err(|_| {
+                KonfigFehler::Wert(format!("COCKPIT_DEV_PORT={p} ist keine Portnummer"))
+            })?;
+            if nr == 0 {
+                return Err(KonfigFehler::Wert(
+                    "COCKPIT_DEV_PORT 0 ist nicht erlaubt".into(),
+                ));
+            }
+            c.dev_port = Some(nr);
+        }
         if let Some(p) = umgebung("COCKPIT_PORT").filter(|s| !s.is_empty()) {
             c.port = p.trim().parse().map_err(|_| {
                 KonfigFehler::Wert(format!("COCKPIT_PORT={p} ist keine Portnummer"))
@@ -500,5 +630,82 @@ mod tests {
             ),
             Err(KonfigFehler::Toml(_))
         ));
+    }
+
+    #[test]
+    fn seed_ist_standardmaessig_leer() {
+        assert_eq!(Config::aus(None, keine_env).unwrap().seed, Seed::Leer);
+        assert_eq!(
+            Config::aus(Some("seed = \"demo\""), keine_env)
+                .unwrap()
+                .seed,
+            Seed::Demo
+        );
+        let env = |k: &str| (k == "COCKPIT_SEED").then(|| "leer".to_string());
+        assert_eq!(
+            Config::aus(Some("seed = \"demo\""), env).unwrap().seed,
+            Seed::Leer,
+            "die Umgebung geht der Datei vor"
+        );
+        let env = |k: &str| (k == "COCKPIT_SEED").then(|| " Demo ".to_string());
+        assert_eq!(Config::aus(None, env).unwrap().seed, Seed::Demo);
+        let env = |k: &str| (k == "COCKPIT_SEED").then(|| "viel".to_string());
+        assert!(matches!(Config::aus(None, env), Err(KonfigFehler::Wert(_))));
+        assert!(Config::aus(Some("seed = \"viel\""), keine_env).is_err());
+    }
+
+    #[test]
+    fn litellm_und_container() {
+        let toml = r#"
+            [litellm]
+            url = " http://localhost:4000/ "
+            modell = "claude-sonnet-5-5"
+            [agent]
+            container = "Podman"
+        "#;
+        let c = Config::aus(Some(toml), keine_env).unwrap();
+        let l = c.litellm.unwrap();
+        assert_eq!(l.url, "http://localhost:4000");
+        assert_eq!(l.modell.as_deref(), Some("claude-sonnet-5-5"));
+        assert_eq!(c.container.as_deref(), Some("podman"));
+        assert_eq!(c.container_env, None);
+
+        let env = |k: &str| (k == "COCKPIT_CONTAINER").then(|| "docker".to_string());
+        assert_eq!(
+            Config::aus(None, env).unwrap().container_env.as_deref(),
+            Some("docker")
+        );
+        for kaputt in [
+            "[litellm]\nurl = \"localhost:4000\"",
+            "[litellm]\nurl = \"http://\"",
+            "[litellm]\nurl = \"http://a b\"",
+            "[agent]\ncontainer = \"nerdctl\"",
+        ] {
+            assert!(
+                matches!(
+                    Config::aus(Some(kaputt), keine_env),
+                    Err(KonfigFehler::Wert(_))
+                ),
+                "{kaputt}"
+            );
+        }
+        // Der Key gehört nicht in die Datei.
+        assert!(matches!(
+            Config::aus(
+                Some("[litellm]\nurl = \"http://x\"\nkey = \"abc\""),
+                keine_env
+            ),
+            Err(KonfigFehler::Toml(_))
+        ));
+    }
+
+    #[test]
+    fn dev_port_nur_aus_der_umgebung() {
+        assert_eq!(Config::aus(None, keine_env).unwrap().dev_port, None);
+        let env = |k: &str| (k == "COCKPIT_DEV_PORT").then(|| "8081".to_string());
+        assert_eq!(Config::aus(None, env).unwrap().dev_port, Some(8081));
+        let env = |k: &str| (k == "COCKPIT_DEV_PORT").then(|| "x".to_string());
+        assert!(Config::aus(None, env).is_err());
+        assert!(Config::aus(Some("dev_port = 8081"), keine_env).is_err());
     }
 }

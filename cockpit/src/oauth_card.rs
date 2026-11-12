@@ -1,5 +1,5 @@
 //! Anmeldung per OAuth auf der Seite „Einrichten“: „Mit … anmelden“ und „Trennen“.
-//! Nur im Server-Modus. Die Logik liegt im Backend; hier steht nur die Verdrahtung. Der Browser
+//! Die Logik liegt im Backend; hier steht nur die Verdrahtung. Der Browser
 //! sieht weder Tokens noch Secrets: „Anmelden“ ist eine Navigation zu `/api/oauth/…/start`.
 
 use cockpit_core::{AuthKind, ServiceStatus};
@@ -8,7 +8,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 
 use crate::server::{self, CallError};
-use crate::store::{Mode, use_store};
+use crate::store::use_store;
 
 /// Welcher Dienst: Adresse im Backend, Name, Befehl für das Client-Secret.
 #[derive(Clone, Copy)]
@@ -100,8 +100,8 @@ pub fn OAuthCard(
 
     view! {
         {move || {
-            (store.mode.get() == Mode::Server)
-                .then(|| {
+            {
+                {
                     let s = status.get().unwrap_or_default();
                     let tone = if s.verbunden { StatusTone::Green } else { StatusTone::Gray };
                     let oauth = s.art == AuthKind::OAuth;
@@ -144,7 +144,8 @@ pub fn OAuthCard(
                             </CardBody>
                         </Card>
                     }
-                })
+                }
+            }
         }}
     }
 }

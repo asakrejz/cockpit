@@ -22,10 +22,13 @@ use tokio_stream::wrappers::BroadcastStream;
 use tower_http::services::ServeDir;
 
 use crate::abgleich::{AktionFehler, Quellen};
+use crate::config::{Config, LitellmKonfig, Seed};
+use crate::container::{self, Zwischenspeicher};
 use crate::db;
 use crate::live::Live;
 use crate::secrets::{self, SecretStore};
 use crate::zugang;
+use cockpit_core::api::{ContainerStatus, LitellmStatus};
 use cockpit_core::{AuthKind, ServiceStatus};
 use cockpit_integrations::oauth::Dienst;
 
@@ -35,6 +38,34 @@ pub const AGENT_TAKT: Duration = Duration::from_millis(2200);
 const KEEP_ALIVE: Duration = Duration::from_secs(15);
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// Einstellungen aus `config.toml` und Umgebung, die nicht Jira oder GitHub betreffen.
+#[derive(Debug, Clone, Default)]
+pub struct Einstellungen {
+    pub seed: Seed,
+    pub litellm: Option<LitellmKonfig>,
+    /// `[agent] container`.
+    pub container: Option<String>,
+    /// `COCKPIT_CONTAINER` (geht der Datei vor).
+    pub container_env: Option<String>,
+    /// Wo nach `docker` und `podman` gesucht wird; `None` = `PATH` des Prozesses (Tests setzen es).
+    pub suchpfad: Option<std::ffi::OsString>,
+    /// `COCKPIT_DEV_PORT`: der Port von `trunk serve`, dessen Anfragen (Host, Origin) auch gelten.
+    pub dev_port: Option<u16>,
+}
+
+impl Einstellungen {
+    pub fn aus(config: &Config) -> Self {
+        Self {
+            seed: config.seed,
+            litellm: config.litellm.clone(),
+            container: config.container.clone(),
+            container_env: config.container_env.clone(),
+            suchpfad: None,
+            dev_port: config.dev_port,
+        }
+    }
+}
 
 /// Gemeinsamer Zustand der Handler. Klonen ist billig.
 #[derive(Clone)]
@@ -60,6 +91,9 @@ pub(crate) struct Inner {
     pub(crate) geschrieben: AtomicU64,
     /// Nur ein Abgleich gleichzeitig.
     pub(crate) abgleich: tokio::sync::Mutex<()>,
+    pub(crate) einstellungen: Einstellungen,
+    /// Ergebnis der Suche nach der Container-Laufzeit, kurz gemerkt.
+    pub(crate) container: Zwischenspeicher,
 }
 
 impl AppState {
@@ -75,14 +109,33 @@ impl AppState {
         Self::mit_quellen(db, secrets, port, Quellen::default())
     }
 
-    /// Wie [`AppState::mit_port`], mit Jira und GitHub für den Abgleich.
+    /// Wie [`AppState::mit_port`], mit Jira und GitHub für den Abgleich. Die Tests starten mit
+    /// den Beispieldaten, der Server selbst mit leerem Workspace ([`AppState::neu`]).
+    #[cfg(test)]
     pub fn mit_quellen(
         db: Connection,
         secrets: Arc<dyn SecretStore>,
         port: u16,
         quellen: Quellen,
     ) -> Self {
-        let live = Live::laden(&db);
+        let einstellungen = Einstellungen {
+            seed: Seed::Demo,
+            // Tests suchen nirgends nach Container-Programmen: gleiches Ergebnis auf jedem Rechner.
+            suchpfad: Some(std::ffi::OsString::new()),
+            ..Einstellungen::default()
+        };
+        Self::neu(db, secrets, port, quellen, einstellungen)
+    }
+
+    /// Der Zustand des Servers. Ein gespeicherter Workspace wird geladen, sonst gilt der Seed.
+    pub fn neu(
+        db: Connection,
+        secrets: Arc<dyn SecretStore>,
+        port: u16,
+        quellen: Quellen,
+        einstellungen: Einstellungen,
+    ) -> Self {
+        let live = Live::laden(&db, einstellungen.seed);
         Self {
             inner: Arc::new(Inner {
                 db: Mutex::new(db),
@@ -95,6 +148,8 @@ impl AppState {
                 sperre: tokio::sync::Mutex::new(()),
                 geschrieben: AtomicU64::new(0),
                 abgleich: tokio::sync::Mutex::new(()),
+                einstellungen,
+                container: Zwischenspeicher::default(),
             }),
         }
     }
@@ -156,6 +211,9 @@ pub struct Health {
     pub verbindungen: Verbindungen,
     pub anmeldung: Anmeldung,
     pub abgleich: AbgleichZustand,
+    /// Adresse, Modell und ob ein Key liegt – nie der Key.
+    pub litellm: LitellmStatus,
+    pub container: ContainerStatus,
 }
 
 impl AppState {
@@ -195,6 +253,25 @@ impl AppState {
                 .to_string()
         };
         let q = &self.inner.quellen;
+        let e = &self.inner.einstellungen;
+        let litellm = LitellmStatus {
+            konfiguriert: e.litellm.is_some(),
+            url: e.litellm.as_ref().map(|l| l.url.clone()),
+            modell: e.litellm.as_ref().and_then(|l| l.modell.clone()),
+            key: hat_schluessel(secrets::LITELLM),
+        };
+        let suchpfad = e
+            .suchpfad
+            .clone()
+            .or_else(|| std::env::var_os("PATH"))
+            .unwrap_or_default();
+        let container = self.inner.container.holen(|| {
+            container::erkennen(
+                e.container.as_deref(),
+                e.container_env.as_deref(),
+                &suchpfad,
+            )
+        });
         Health {
             status: "ok",
             version: VERSION,
@@ -213,6 +290,8 @@ impl AppState {
             },
             verbindungen,
             anmeldung: Anmeldung { github, jira },
+            litellm,
+            container,
         }
     }
 }
@@ -222,6 +301,36 @@ async fn health(State(state): State<AppState>) -> Result<Json<Health>, StatusCod
         .await
         .map(Json)
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+/// `GET /api/litellm/pruefen`: ruft nur `GET <url>/v1/models` mit dem Key auf und meldet, ob der
+/// Proxy erreichbar ist, den Key annimmt und das Modell anbietet. Nie der Key.
+async fn litellm_pruefen(State(state): State<AppState>) -> Response {
+    let Some(l) = state.inner.einstellungen.litellm.clone() else {
+        return Json(cockpit_core::api::LitellmPruefung {
+            hinweis: Some(
+                "Der Proxy ist nicht eingerichtet. Trage url (und modell) unter [litellm] in config.toml ein."
+                    .into(),
+            ),
+            ..Default::default()
+        })
+        .into_response();
+    };
+    let secrets = state.inner.secrets.clone();
+    let key = tokio::task::spawn_blocking(move || secrets.get(secrets::LITELLM)).await;
+    let key = match key {
+        Ok(Ok(k)) => k,
+        Ok(Err(e)) => {
+            tracing::warn!("LiteLLM-Key nicht lesbar: {e}");
+            return fehler(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Der Schlüsselbund ist nicht lesbar",
+            );
+        }
+        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    };
+    Json(cockpit_integrations::litellm::pruefen(&l.url, key.as_ref(), l.modell.as_deref()).await)
+        .into_response()
 }
 
 async fn api_unbekannt() -> (StatusCode, Json<serde_json::Value>) {
@@ -336,7 +445,12 @@ async fn ereignisse(
 
 /// Baut den Router. `dist` ist der Ordner der gebauten Web-App.
 pub fn router(state: AppState, dist: PathBuf) -> Router {
-    let port = state.inner.port;
+    let mut ports = vec![state.inner.port];
+    ports.extend(state.inner.einstellungen.dev_port);
+    let zugang = zugang::Zugang {
+        dev: state.inner.einstellungen.dev_port.is_some(),
+        ports,
+    };
     Router::new()
         .route("/api/health", get(health))
         .route("/api/workspace", get(workspace))
@@ -344,6 +458,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/sync", post(abgleichen))
         .route("/api/events", get(ereignisse))
         .route("/api/jira/projekte", get(jira_projekte))
+        .route("/api/litellm/pruefen", get(litellm_pruefen))
         .route("/api/oauth/{dienst}/start", get(crate::oauth::start))
         .route("/api/oauth/{dienst}/callback", get(crate::oauth::callback))
         .route(
@@ -353,7 +468,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/{*rest}", any(api_unbekannt))
         // Gilt nur für `/api`, nicht für die Dateien der App.
         .layer(axum::middleware::from_fn_with_state(
-            port,
+            zugang,
             zugang::schuetzen,
         ))
         .with_state(state)
@@ -968,5 +1083,219 @@ mod tests {
         let (ws, revision) = cockpit_core::persist::load_with_revision(&body).unwrap();
         assert_eq!(ws, cockpit_core::demo::workspace());
         assert_eq!(revision, 0);
+    }
+
+    // ---------- Seed, LiteLLM, Container ----------
+
+    fn zustand_mit(conn: Connection, e: Einstellungen, secrets: Arc<MemoryStore>) -> AppState {
+        AppState::neu(conn, secrets, 8787, Quellen::default(), e)
+    }
+
+    fn leer() -> Einstellungen {
+        Einstellungen {
+            suchpfad: Some(std::ffi::OsString::new()),
+            ..Einstellungen::default()
+        }
+    }
+
+    async fn stand_von(state: AppState) -> (cockpit_core::Workspace, u64) {
+        let app = router(state, PathBuf::from("/x"));
+        let (status, body) = hole(app, "/api/workspace").await;
+        assert_eq!(status, StatusCode::OK);
+        cockpit_core::persist::load_with_revision(&body).unwrap()
+    }
+
+    #[tokio::test]
+    async fn ohne_seed_startet_der_workspace_leer() {
+        let conn = db::open_im_speicher().unwrap();
+        let (ws, revision) =
+            stand_von(zustand_mit(conn, leer(), Arc::new(MemoryStore::new()))).await;
+        assert_eq!(ws, cockpit_core::Workspace::default());
+        assert!(ws.items.is_empty() && ws.reviews.is_empty() && ws.runs.is_empty());
+        assert_eq!(revision, 0);
+    }
+
+    #[tokio::test]
+    async fn seed_demo_laedt_die_beispieldaten() {
+        let e = Einstellungen {
+            seed: Seed::Demo,
+            ..leer()
+        };
+        let conn = db::open_im_speicher().unwrap();
+        let (ws, _) = stand_von(zustand_mit(conn, e, Arc::new(MemoryStore::new()))).await;
+        assert_eq!(ws, cockpit_core::demo::workspace());
+    }
+
+    #[tokio::test]
+    async fn ein_gespeicherter_stand_geht_dem_seed_vor() {
+        let mut gespeichert = cockpit_core::demo::workspace();
+        let id = gespeichert.items[0].id.clone();
+        gespeichert.mark_done(&id);
+        let text = cockpit_core::persist::save_with_revision(&gespeichert, 5);
+        for seed in [Seed::Leer, Seed::Demo] {
+            let conn = db::open_im_speicher().unwrap();
+            db::workspace_speichern(&conn, 5, &text).unwrap();
+            let e = Einstellungen { seed, ..leer() };
+            let (ws, revision) =
+                stand_von(zustand_mit(conn, e, Arc::new(MemoryStore::new()))).await;
+            assert_eq!(ws, gespeichert, "{seed:?}");
+            assert_eq!(revision, 5);
+        }
+    }
+
+    #[tokio::test]
+    async fn unlesbarer_stand_faellt_auf_den_seed_zurueck() {
+        let conn = db::open_im_speicher().unwrap();
+        db::workspace_speichern(&conn, 7, "{kaputt").unwrap();
+        let (ws, revision) =
+            stand_von(zustand_mit(conn, leer(), Arc::new(MemoryStore::new()))).await;
+        assert_eq!(ws, cockpit_core::Workspace::default());
+        assert_eq!(revision, 0);
+    }
+
+    #[tokio::test]
+    async fn aktionen_auf_dem_leeren_workspace_lehnen_unbekannte_eintraege_ab() {
+        let conn = db::open_im_speicher().unwrap();
+        let app = router(
+            zustand_mit(conn, leer(), Arc::new(MemoryStore::new())),
+            PathBuf::from("/x"),
+        );
+        let (status, body) = schicke(app, &mark_done("gibt-es-nicht")).await;
+        assert!(status.is_client_error(), "{status} {body}");
+    }
+
+    #[tokio::test]
+    async fn health_meldet_litellm_ohne_den_key() {
+        let secrets = Arc::new(MemoryStore::new());
+        secrets
+            .set(secrets::LITELLM, &Secret::new("sk-geheim-123456"))
+            .unwrap();
+        let e = Einstellungen {
+            litellm: Some(LitellmKonfig {
+                url: "http://localhost:4000".into(),
+                modell: Some("claude-sonnet-5-5".into()),
+            }),
+            ..leer()
+        };
+        let conn = db::open_im_speicher().unwrap();
+        let app = router(zustand_mit(conn, e, secrets), PathBuf::from("/x"));
+        let (_, body) = hole(app, "/api/health").await;
+        assert!(!body.contains("geheim"), "{body}");
+        let j = json(&body);
+        assert_eq!(j["litellm"]["konfiguriert"], true);
+        assert_eq!(j["litellm"]["url"], "http://localhost:4000");
+        assert_eq!(j["litellm"]["modell"], "claude-sonnet-5-5");
+        assert_eq!(j["litellm"]["key"], true);
+
+        // Ohne Einstellung: nicht konfiguriert, kein Key.
+        let app = router(zustand(Arc::new(MemoryStore::new())), PathBuf::from("/x"));
+        let (_, body) = hole(app, "/api/health").await;
+        let j = json(&body);
+        assert_eq!(j["litellm"]["konfiguriert"], false);
+        assert_eq!(j["litellm"]["key"], false);
+        assert_eq!(j["container"]["quelle"], "keine");
+        assert_eq!(j["container"]["laufzeit"], serde_json::Value::Null);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn health_meldet_die_container_laufzeit() {
+        use std::os::unix::fs::PermissionsExt;
+        let ordner = tempfile::tempdir().unwrap();
+        let datei = ordner.path().join("podman");
+        std::fs::write(&datei, "#!/bin/sh\nexit 0\n").unwrap();
+        std::fs::set_permissions(&datei, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let e = Einstellungen {
+            suchpfad: Some(ordner.path().as_os_str().to_owned()),
+            ..Einstellungen::default()
+        };
+        let conn = db::open_im_speicher().unwrap();
+        let app = router(
+            zustand_mit(conn, e, Arc::new(MemoryStore::new())),
+            PathBuf::from("/x"),
+        );
+        let (_, body) = hole(app, "/api/health").await;
+        let j = json(&body);
+        assert_eq!(j["container"]["laufzeit"], "podman");
+        assert_eq!(j["container"]["engine_laeuft"], true);
+        assert_eq!(j["container"]["quelle"], "erkannt");
+    }
+
+    fn mit_litellm(url: &str, secrets: Arc<MemoryStore>) -> Router {
+        let e = Einstellungen {
+            litellm: Some(LitellmKonfig {
+                url: url.into(),
+                modell: Some("claude-sonnet-5-5".into()),
+            }),
+            ..leer()
+        };
+        let conn = db::open_im_speicher().unwrap();
+        router(zustand_mit(conn, e, secrets), PathBuf::from("/x"))
+    }
+
+    #[tokio::test]
+    async fn litellm_pruefen_meldet_erreichbar_key_und_modell() {
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let proxy = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .and(header("authorization", "Bearer sk-geheim-123456"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"data": [{"id": "claude-sonnet-5-5"}]})),
+            )
+            .expect(1)
+            .mount(&proxy)
+            .await;
+        let secrets = Arc::new(MemoryStore::new());
+        secrets
+            .set(secrets::LITELLM, &Secret::new("sk-geheim-123456"))
+            .unwrap();
+        let (status, body) = hole(mit_litellm(&proxy.uri(), secrets), "/api/litellm/pruefen").await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(!body.contains("geheim"), "{body}");
+        let j = json(&body);
+        assert_eq!(j["konfiguriert"], true);
+        assert_eq!(j["erreichbar"], true);
+        assert_eq!(j["key_ok"], true);
+        assert_eq!(j["modell_vorhanden"], true);
+    }
+
+    #[tokio::test]
+    async fn litellm_pruefen_ohne_key_ruft_den_proxy_nicht_auf() {
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let proxy = MockServer::start().await;
+        Mock::given(wiremock::matchers::any())
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&proxy)
+            .await;
+        let (_, body) = hole(
+            mit_litellm(&proxy.uri(), Arc::new(MemoryStore::new())),
+            "/api/litellm/pruefen",
+        )
+        .await;
+        let j = json(&body);
+        assert_eq!(j["konfiguriert"], true);
+        assert_eq!(j["key_ok"], false);
+        assert!(j["hinweis"].as_str().unwrap().contains("litellm"));
+    }
+
+    #[tokio::test]
+    async fn litellm_pruefen_ohne_einstellung_und_von_fremden_hosts() {
+        let app = router(zustand(Arc::new(MemoryStore::new())), PathBuf::from("/x"));
+        let (status, body) = hole(app.clone(), "/api/litellm/pruefen").await;
+        assert_eq!(status, StatusCode::OK);
+        let j = json(&body);
+        assert_eq!(j["konfiguriert"], false);
+        assert!(j["hinweis"].as_str().unwrap().contains("[litellm]"));
+        let req = Request::builder()
+            .uri("/api/litellm/pruefen")
+            .header("host", "boese.example")
+            .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 50000))))
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(sende(app, req).await.0, StatusCode::FORBIDDEN);
     }
 }

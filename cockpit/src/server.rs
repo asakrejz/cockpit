@@ -4,8 +4,8 @@
 
 use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
-    ActionRequest, ActionResponse, ErrorBody, JiraProjectsResponse, ServerEvent, SyncResponse,
-    WiderrufAntwort,
+    ActionRequest, ActionResponse, ContainerStatus, ErrorBody, JiraProjectsResponse,
+    LitellmPruefung, LitellmStatus, ServerEvent, SyncResponse, WiderrufAntwort,
 };
 use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
@@ -38,17 +38,6 @@ async fn rejection(resp: gloo_net::http::Response) -> CallError {
         .map(|e| e.fehler)
         .unwrap_or_else(|_| format!("Der Server antwortet mit Fehler {status}"));
     CallError::Rejected(message)
-}
-
-/// Ob unter dieser Adresse ein Cockpit-Server antwortet (`GET /api/health`).
-pub async fn health_ok() -> bool {
-    match Request::get("/api/health").send().await {
-        Ok(resp) if resp.ok() => resp
-            .json::<serde_json::Value>()
-            .await
-            .is_ok_and(|v| v["status"] == "ok"),
-        _ => false,
-    }
 }
 
 /// Lädt den aktuellen Stand samt Revision.
@@ -161,13 +150,20 @@ pub struct Services {
     pub jira: ServiceStatus,
 }
 
-/// Art und Stand der Anmeldung bei GitHub und Jira (`GET /api/health`).
-pub async fn fetch_services() -> Result<Services, CallError> {
-    #[derive(serde::Deserialize)]
-    struct Health {
-        #[serde(default)]
-        anmeldung: Services,
-    }
+/// Der Teil von `GET /api/health`, den die Seite „Einrichten“ braucht. Nie ein Schlüssel:
+/// Der Server meldet nur ja/nein.
+#[derive(Clone, Debug, Default, serde::Deserialize)]
+pub struct Health {
+    #[serde(default)]
+    pub anmeldung: Services,
+    #[serde(default)]
+    pub litellm: LitellmStatus,
+    #[serde(default)]
+    pub container: ContainerStatus,
+}
+
+/// Stand der Anmeldung, des LiteLLM-Proxys und der Container-Laufzeit (`GET /api/health`).
+pub async fn fetch_health() -> Result<Health, CallError> {
     let resp = Request::get("/api/health")
         .send()
         .await
@@ -177,7 +173,25 @@ pub async fn fetch_services() -> Result<Services, CallError> {
     }
     resp.json::<Health>()
         .await
-        .map(|h| h.anmeldung)
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Art und Stand der Anmeldung bei GitHub und Jira (`GET /api/health`).
+pub async fn fetch_services() -> Result<Services, CallError> {
+    fetch_health().await.map(|h| h.anmeldung)
+}
+
+/// Verbindungstest zum LiteLLM-Proxy (`GET /api/litellm/pruefen`).
+pub async fn fetch_litellm_check() -> Result<LitellmPruefung, CallError> {
+    let resp = Request::get("/api/litellm/pruefen")
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<LitellmPruefung>()
+        .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 

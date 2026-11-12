@@ -1,407 +1,407 @@
-//! Einrichten: Jira, GitHub und den Agenten verbinden.
+//! Einrichten: Stand und nächster Schritt je Dienst – Jira, GitHub, LiteLLM und Container.
 //!
-//! Das Format der Eingaben wird wirklich geprüft. Die Verbindung selbst ist in dieser
-//! Demo simuliert. Schlüssel leben nur in den Feldern dieser Seite: Sie werden nie
-//! gespeichert und verschwinden, sobald die Seite verlassen wird. In der Übersicht lassen
-//! sich außerdem die Demo-Daten zurücksetzen.
+//! Die Seite hat **keine Eingabefelder für Schlüssel**. Anmeldungen laufen über „Mit … anmelden“
+//! (OAuth, siehe `oauth_card`); Client-Secrets und der LiteLLM-Key gehen im Terminal per
+//! `cockpit-server token setzen …` direkt in den Schlüsselbund des Backends. Der Browser sieht
+//! nur ja/nein aus `GET /api/health` und das Ergebnis des Verbindungstests.
 
-use std::time::Duration;
-
-use cockpit_core::{
-    Action, Connections,
-    connections::{check_agent, check_github, check_jira},
-};
+use cockpit_core::api::{ContainerStatus, LitellmPruefung, LitellmStatus};
+use cockpit_core::{AuthKind, ServiceStatus};
 use feature_ui::*;
-use leptos::{html, prelude::*};
-use web_sys::wasm_bindgen::JsCast;
+use leptos::prelude::*;
+use leptos::task::spawn_local;
 
-use crate::mode_switch::ModeSwitch;
 use crate::oauth_card::{OAuthCard, Service};
-use crate::store::{Mode, use_store};
+use crate::server::{self, CallError};
+use crate::store::{Store, use_store};
 use crate::sync_status::SyncStatus;
 
-const STEPS: &[&str] = &["Jira", "GitHub", "Agent"];
-/// Nach dem letzten Schritt folgt die Übersicht.
-const OVERVIEW: usize = 3;
-/// So lange „prüft“ die simulierte Verbindung.
-const CHECK_TIME: Duration = Duration::from_millis(700);
-
-/// Stand der Prüfung einer Verbindung.
+/// Stand des Verbindungstests zum LiteLLM-Proxy.
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Check {
-    Untested,
-    Testing,
+enum Test {
+    Idle,
+    Running,
+    Done(LitellmPruefung),
     Failed(String),
-    Connected,
 }
 
-/// Eine Verbindung im Formular: ihr Stand und wie sie sich in [`Connections`] einträgt.
-#[derive(Clone, Copy)]
-struct Link {
-    check: RwSignal<Check>,
-    set: fn(&mut Connections, bool),
-    /// Text für „verbunden“: „Verbunden“ oder „Bereit“.
-    ready: &'static str,
+/// Eine Zeile „Nächste Schritte“: erledigt oder offen, mit Text.
+fn step_row(done: bool, title: &'static str, subtitle: &'static str) -> impl IntoView {
+    view! {
+        <ListRow title=title subtitle=subtitle wrap=true>
+            <Status tone=if done { StatusTone::Green } else { StatusTone::Gray }>
+                {if done { "Erledigt" } else { "Offen" }}
+            </Status>
+        </ListRow>
+    }
 }
 
-impl Link {
-    fn new(connected: bool, set: fn(&mut Connections, bool), ready: &'static str) -> Self {
-        let check = if connected {
-            Check::Connected
-        } else {
-            Check::Untested
-        };
-        Self {
-            check: RwSignal::new(check),
-            set,
-            ready,
-        }
-    }
+fn service_connected(pick: fn(&server::Health) -> &ServiceStatus) -> Signal<(bool, bool)> {
+    let store = use_store();
+    Signal::derive(move || {
+        store.health.with(|h| {
+            h.as_ref()
+                .map(|h| {
+                    let s = pick(h);
+                    (s.verbunden || s.oauth_moeglich, s.verbunden)
+                })
+                .unwrap_or_default()
+        })
+    })
+}
 
-    fn connected(&self) -> Signal<bool> {
-        let check = self.check;
-        Signal::derive(move || check.get() == Check::Connected)
+/// Jira oder GitHub: Anmeldung (Knöpfe) und die Schritte dazu.
+#[component]
+fn ServiceSection(service: Service) -> impl IntoView {
+    let store = use_store();
+    let (client_id, secret, config) = match service {
+        Service::Atlassian => (
+            "Client-ID der Atlassian-App in config.toml eintragen",
+            "Client-Secret ablegen: cockpit-server token setzen atlassian-oauth (im Terminal, Wert über die Standardeingabe)",
+            "[atlassian] client_id = \"…\" – Jira-Projekte, Abfrage und Site stehen optional unter [jira]",
+        ),
+        Service::GitHub => (
+            "Client-ID der GitHub App in config.toml eintragen",
+            "Client-Secret ablegen: cockpit-server token setzen github-oauth (im Terminal, Wert über die Standardeingabe)",
+            "[github_oauth] client_id = \"…\" – dazu die Repos unter [github] repos = [\"firma/app\"], die der Abgleich braucht",
+        ),
+    };
+    let ready = match service {
+        Service::Atlassian => service_connected(|h| &h.anmeldung.jira),
+        Service::GitHub => service_connected(|h| &h.anmeldung.github),
+    };
+    let (title, intro) = match service {
+        Service::Atlassian => (
+            "Jira",
+            "Damit Cockpit deine Tickets und die deines Teams lesen, kommentieren und den Status ändern kann.",
+        ),
+        Service::GitHub => (
+            "GitHub",
+            "Für Pull Requests, Reviews und Branches. Die GitHub App bekommt nur Zugriff auf die Repos, die du ihr gibst.",
+        ),
+    };
+    view! {
+        <VStack spacing="12px">
+            <Intro title=title text=intro />
+            <OAuthCard
+                service=service
+                on_connected=move |_| store.refresh_health()
+                on_disconnected=move |_| store.refresh_health()
+            />
+            <List>
+                <ListSection header="Nächste Schritte" footer=config>
+                    {move || step_row(ready.get().0, client_id, "Die Client-ID ist nicht geheim.")}
+                    {move || step_row(ready.get().0, "Client-Secret", secret)}
+                    {move || {
+                        step_row(
+                            ready.get().1,
+                            match service {
+                                Service::Atlassian => "Mit Atlassian anmelden",
+                                Service::GitHub => "Mit GitHub anmelden",
+                            },
+                            "Der Knopf oben öffnet die Anmeldung im Browser; „Trennen“ löscht die Tokens wieder.",
+                        )
+                    }}
+                </ListSection>
+            </List>
+        </VStack>
     }
+}
 
-    /// Prüft die Eingaben. Stimmen sie, steht die Verbindung nach kurzer Wartezeit.
-    fn test(&self, input: Result<(), String>) {
-        let store = use_store();
-        let (check, set) = (self.check, self.set);
-        match input {
-            Err(message) => check.set(Check::Failed(message)),
-            Ok(()) => {
-                check.set(Check::Testing);
-                set_timeout(
-                    move || {
-                        // Nur wenn die Prüfung noch läuft: Die Seite kann inzwischen verlassen
-                        // oder die Eingabe geändert worden sein.
-                        if check.try_get_untracked() == Some(Check::Testing) {
-                            check.set(Check::Connected);
-                            store.conn.update(|c| set(c, true));
-                        }
-                    },
-                    CHECK_TIME,
-                );
-            }
-        }
+/// Text für den Stand der Anmeldung in der Übersicht.
+fn auth_text(s: &ServiceStatus) -> String {
+    match (s.verbunden, s.art) {
+        (true, AuthKind::OAuth) => "Verbunden per OAuth".into(),
+        (true, kind) => format!("Verbunden ({})", kind.label()),
+        (false, _) => "Nicht verbunden".into(),
     }
+}
 
-    /// Der Server meldet eine bestehende Verbindung (z. B. nach der Anmeldung per OAuth).
-    fn mark_connected(&self, store: crate::store::Store) {
-        if self.check.try_get_untracked() != Some(Check::Connected) {
-            self.check.set(Check::Connected);
-            let set = self.set;
-            store.conn.update(|c| set(c, true));
-        }
-    }
+/// LiteLLM: Adresse und Modell (aus config.toml), Key (nur ja/nein) und der Verbindungstest.
+#[component]
+fn LitellmSection() -> impl IntoView {
+    let store = use_store();
+    let test = RwSignal::new(Test::Idle);
+    let status = move || store.health.with(|h| h.as_ref().map(|h| h.litellm.clone()));
 
-    /// Die Verbindung wurde getrennt (z. B. widerrufen).
-    fn mark_disconnected(&self, store: crate::store::Store) {
-        self.check.set(Check::Untested);
-        let set = self.set;
-        store.conn.update(|c| set(c, false));
-    }
-
-    /// Geänderte Eingaben machen eine Prüfung ungültig.
-    fn invalidate(&self) {
-        if self.check.get_untracked() != Check::Untested {
-            self.check.set(Check::Untested);
-            let set = self.set;
-            use_store().conn.update(|c| set(c, false));
-        }
-    }
-
-    fn status(&self) -> impl IntoView + use<> {
-        let (check, ready) = (self.check, self.ready);
-        let tone = Signal::derive(move || match check.get() {
-            Check::Untested => StatusTone::Gray,
-            Check::Testing => StatusTone::Blue,
-            Check::Failed(_) => StatusTone::Red,
-            Check::Connected => StatusTone::Green,
+    let run = move |_| {
+        test.set(Test::Running);
+        spawn_local(async move {
+            test.set(match server::fetch_litellm_check().await {
+                Ok(result) => Test::Done(result),
+                Err(CallError::Unreachable) => {
+                    Test::Failed("Der Server ist nicht erreichbar".into())
+                }
+                Err(e) => Test::Failed(e.message()),
+            });
         });
+    };
+
+    let state_tone = move || match status() {
+        Some(LitellmStatus {
+            konfiguriert: true,
+            key: true,
+            modell: Some(_),
+            ..
+        }) => StatusTone::Green,
+        Some(LitellmStatus {
+            konfiguriert: true, ..
+        }) => StatusTone::Orange,
+        _ => StatusTone::Gray,
+    };
+    let state_text = move || match status() {
+        Some(LitellmStatus {
+            konfiguriert: true,
+            key: true,
+            modell: Some(_),
+            ..
+        }) => "Eingerichtet",
+        Some(LitellmStatus {
+            konfiguriert: true, ..
+        }) => "Unvollständig",
+        Some(_) => "Nicht eingerichtet",
+        None => "Prüfe …",
+    };
+    let line = |ok: bool, yes: &'static str, no: &'static str| {
         view! {
-            <Status tone=tone>
-                {move || match check.get() {
-                    Check::Untested => "Noch nicht geprüft".to_string(),
-                    Check::Testing => "Prüfe …".to_string(),
-                    Check::Failed(message) => message,
-                    Check::Connected => ready.to_string(),
-                }}
+            <Status tone=if ok { StatusTone::Green } else { StatusTone::Red }>
+                {if ok { yes } else { no }}
             </Status>
         }
+    };
+
+    view! {
+        <VStack spacing="12px">
+            <Intro
+                title="Modellzugang (LiteLLM)"
+                text="Der Agent spricht mit seinem Modell über einen LiteLLM-Proxy – kein Anthropic-API-Key. Der Key liegt nur im Schlüsselbund des Backends."
+            />
+            <List>
+                <ListSection
+                    header="Stand"
+                    footer="Adresse und Modellname gehören in config.toml ([litellm] url, modell); der Key nie."
+                >
+                    <ListRow title="LiteLLM-Proxy">
+                        <Status tone=Signal::derive(state_tone)>{state_text}</Status>
+                    </ListRow>
+                    <ListRow
+                        title="Adresse"
+                        detail=Signal::derive(move || {
+                            status().and_then(|s| s.url).unwrap_or_else(|| "–".into())
+                        })
+                    />
+                    <ListRow
+                        title="Modell"
+                        detail=Signal::derive(move || {
+                            status().and_then(|s| s.modell).unwrap_or_else(|| "–".into())
+                        })
+                    />
+                    <ListRow title="Key im Schlüsselbund">
+                        <Status tone=Signal::derive(move || {
+                            if status().is_some_and(|s| s.key) { StatusTone::Green } else { StatusTone::Gray }
+                        })>
+                            {move || if status().is_some_and(|s| s.key) { "Liegt bereit" } else { "Fehlt" }}
+                        </Status>
+                    </ListRow>
+                </ListSection>
+            </List>
+            <List>
+                <ListSection header="Nächste Schritte">
+                    {move || {
+                        let s = status().unwrap_or_default();
+                        step_row(
+                            s.konfiguriert && s.modell.is_some(),
+                            "Adresse und Modell eintragen",
+                            "In config.toml: [litellm] url = \"http://localhost:4000\" und modell = \"claude-sonnet-5-5\" (so heißt das Modell im Proxy). Danach den Server neu starten.",
+                        )
+                    }}
+                    {move || {
+                        step_row(
+                            status().is_some_and(|s| s.key),
+                            "Key ablegen",
+                            "Im Terminal: cockpit-server token setzen litellm – den Key über die Standardeingabe einfügen, er landet im Schlüsselbund.",
+                        )
+                    }}
+                    {move || {
+                        step_row(
+                            matches!(test.get(), Test::Done(ref p) if p.key_ok && p.modell_vorhanden),
+                            "Verbindung testen",
+                            "Fragt den Proxy nach seiner Modellliste (GET /v1/models) und meldet, ob er antwortet, den Key annimmt und das Modell anbietet.",
+                        )
+                    }}
+                </ListSection>
+            </List>
+            <HStack spacing="12px">
+                <Button
+                    disabled=Signal::derive(move || {
+                        test.get() == Test::Running || !status().is_some_and(|s| s.konfiguriert)
+                    })
+                    on_click=run
+                >
+                    {move || if test.get() == Test::Running { "Teste …" } else { "Verbindung testen" }}
+                </Button>
+            </HStack>
+            {move || match test.get() {
+                Test::Done(p) => {
+                    view! {
+                        <List>
+                            <ListSection
+                                header="Ergebnis"
+                                footer=p.hinweis.clone().unwrap_or_default()
+                            >
+                                <ListRow title="Proxy erreichbar">
+                                    {line(p.erreichbar, "Ja", "Nein")}
+                                </ListRow>
+                                <ListRow title="Key angenommen">
+                                    {line(p.key_ok, "Ja", "Nein")}
+                                </ListRow>
+                                <ListRow title="Modell vorhanden">
+                                    {line(p.modell_vorhanden, "Ja", "Nein")}
+                                </ListRow>
+                            </ListSection>
+                        </List>
+                    }
+                        .into_any()
+                }
+                Test::Failed(message) => {
+                    view! {
+                        <p class="t-footnote t-secondary" role="status" style="padding-inline: 4px">
+                            {message}
+                        </p>
+                    }
+                        .into_any()
+                }
+                _ => ().into_any(),
+            }}
+        </VStack>
     }
 }
 
-/// Ruft `on_change` auf, sobald sich eines der Felder ändert – nicht beim ersten Lauf.
-fn watch(fields: Vec<RwSignal<String>>, on_change: impl Fn() + 'static) {
-    Effect::new(move |first_run: Option<()>| {
-        for field in &fields {
-            field.track();
+/// Container-Laufzeit: welche gefunden wurde, ob die Engine läuft, und was zu tun ist.
+#[component]
+fn ContainerSection() -> impl IntoView {
+    let store = use_store();
+    let status = move || {
+        store
+            .health
+            .with(|h| h.as_ref().map(|h| h.container.clone()))
+    };
+    let tone = move || match status() {
+        Some(ContainerStatus {
+            laufzeit: Some(_),
+            engine_laeuft: true,
+            ..
+        }) => StatusTone::Green,
+        Some(ContainerStatus {
+            laufzeit: Some(_), ..
+        }) => StatusTone::Orange,
+        _ => StatusTone::Gray,
+    };
+    let text = move || match status() {
+        None => "Prüfe …".to_string(),
+        Some(ContainerStatus {
+            laufzeit: Some(l),
+            engine_laeuft: true,
+            ..
+        }) => format!("{l} läuft"),
+        Some(ContainerStatus {
+            laufzeit: Some(l), ..
+        }) => format!("{l} läuft nicht"),
+        Some(_) => "Keine Laufzeit".to_string(),
+    };
+    let origin = move || {
+        match status().map(|s| s.quelle).as_deref() {
+            Some("umgebung") => "COCKPIT_CONTAINER",
+            Some("konfiguration") => "config.toml",
+            Some("erkannt") => "automatisch erkannt",
+            _ => "–",
         }
-        if first_run.is_some() {
-            on_change();
-        }
-    });
+        .to_string()
+    };
+    view! {
+        <VStack spacing="12px">
+            <Intro
+                title="Container-Laufzeit"
+                text="Der Agent läuft später in einem Container – mit Docker (Rancher Desktop) oder Podman. Cockpit ruft die Programme nur als Befehl auf, nie den Socket."
+            />
+            <List>
+                <ListSection header="Stand">
+                    <ListRow title="Laufzeit">
+                        <Status tone=Signal::derive(tone)>{text}</Status>
+                    </ListRow>
+                    <ListRow title="Gewählt über" detail=Signal::derive(origin) />
+                </ListSection>
+            </List>
+            {move || {
+                status()
+                    .and_then(|s| s.hinweis)
+                    .map(|hinweis| {
+                        view! {
+                            <p class="t-footnote t-secondary" role="status" style="padding-inline: 4px">
+                                {hinweis}
+                            </p>
+                        }
+                    })
+            }}
+            <List>
+                <ListSection
+                    header="Nächste Schritte"
+                    footer="Das Agent-Image baut Cockpit erst mit dem echten Agenten."
+                >
+                    {move || {
+                        step_row(
+                            status().is_some_and(|s| s.laufzeit.is_some()),
+                            "Docker oder Podman installieren",
+                            "Rancher Desktop mit Engine „dockerd (moby)“, oder Podman (brew install podman).",
+                        )
+                    }}
+                    {move || {
+                        step_row(
+                            status().is_some_and(|s| s.engine_laeuft),
+                            "Engine starten",
+                            "Rancher Desktop öffnen bzw. „podman machine start“. Geprüft wird mit „<Laufzeit> info“.",
+                        )
+                    }}
+                    <ListRow
+                        title="Laufzeit festlegen (optional)"
+                        subtitle="Sonst nimmt Cockpit podman, dann docker. Fest: [agent] container = \"docker\" oder \"podman\" in config.toml, oder die Umgebungsvariable COCKPIT_CONTAINER."
+                        wrap=true
+                    />
+                </ListSection>
+            </List>
+        </VStack>
+    }
 }
 
 #[component]
 pub fn SetupPage() -> impl IntoView {
-    let store = use_store();
-    let conn = store.conn.get_untracked();
-    let step = RwSignal::new(if conn.all_connected() { OVERVIEW } else { 0 });
+    let store: Store = use_store();
+    // Jeder Besuch fragt neu: Zwischen zwei Besuchen kann sich viel getan haben.
+    store.refresh_health();
 
-    let jira = Link::new(conn.jira, |c, on| c.jira = on, "Verbunden");
-    let github = Link::new(conn.github, |c, on| c.github = on, "Verbunden");
-    let agent = Link::new(conn.agent, |c, on| c.agent = on, "Bereit");
-
-    // Eingaben. Sie gehören dieser Seite und werden nirgends abgelegt.
-    let jira_url = RwSignal::new(String::new());
-    let jira_mail = RwSignal::new(String::new());
-    let jira_token = RwSignal::new(String::new());
-    let github_token = RwSignal::new(String::new());
-    let github_repos = RwSignal::new(String::new());
-    let agent_key = RwSignal::new(String::new());
-    watch(vec![jira_url, jira_mail, jira_token], move || {
-        jira.invalidate()
-    });
-    watch(vec![github_token, github_repos], move || {
-        github.invalidate()
-    });
-    watch(vec![agent_key], move || agent.invalidate());
-
-    // Was der Agent darf, gilt sofort.
-    let may_branch = RwSignal::new(conn.may_branch);
-    let may_open_pr = RwSignal::new(conn.may_open_pr);
-    let may_run_tests = RwSignal::new(conn.may_run_tests);
-    Effect::new(move |_| {
-        let (branch, pr, tests) = (may_branch.get(), may_open_pr.get(), may_run_tests.get());
-        store.conn.update(|c| {
-            c.may_branch = branch;
-            c.may_open_pr = pr;
-            c.may_run_tests = tests;
-        });
-    });
-
-    let next = move |_| step.update(|s| *s += 1);
-    let back = move |_| step.update(|s| *s = s.saturating_sub(1));
-    let disconnect = move |_| {
-        for link in [jira, github, agent] {
-            link.check.set(Check::Untested);
-        }
-        store.conn.update(|c| {
-            c.jira = false;
-            c.github = false;
-            c.agent = false;
-        });
-        step.set(0);
+    let summary = move || {
+        let health = store.health.get();
+        let jira = health
+            .as_ref()
+            .map(|h| auth_text(&h.anmeldung.jira))
+            .unwrap_or_else(|| "Prüfe …".into());
+        let github = health
+            .as_ref()
+            .map(|h| auth_text(&h.anmeldung.github))
+            .unwrap_or_else(|| "Prüfe …".into());
+        (jira, github)
     };
-
-    // Fußzeile eines Schritts: links prüfen, rechts weiter.
-    let actions = move |link: Link, test: Callback<()>, forward: &'static str, first: bool| {
-        view! {
-            <HStack css="justify-content: space-between">
-                <HStack spacing="12px">
-                    <Button on_click=move |_| test.run(())>"Verbindung testen"</Button>
-                    {link.status()}
-                </HStack>
-                <HStack>
-                    {(!first)
-                        .then(|| {
-                            view! {
-                                <Button variant=ButtonStyle::Borderless size=ControlSize::Large on_click=back>
-                                    "Zurück"
-                                </Button>
-                            }
-                        })}
-                    <Button
-                        variant=ButtonStyle::GlassProminent
-                        size=ControlSize::Large
-                        disabled=Signal::derive(move || !link.connected().get())
-                        on_click=next
-                    >
-                        {forward}
-                    </Button>
-                </HStack>
-            </HStack>
-        }
+    let tone = |connected: Signal<(bool, bool)>| {
+        Signal::derive(move || {
+            if connected.get().1 {
+                StatusTone::Green
+            } else {
+                StatusTone::Gray
+            }
+        })
     };
-
-    let jira_step = move || {
-        let test = Callback::new(move |_| {
-            jira.test(check_jira(
-                &jira_url.get_untracked(),
-                &jira_mail.get_untracked(),
-                &jira_token.get_untracked(),
-            ));
-        });
-        view! {
-            <VStack spacing="20px">
-                <Intro
-                    title="Jira verbinden"
-                    text="Damit Cockpit deine Tickets und die deines Teams lesen, kommentieren und den Status ändern kann."
-                />
-                <OAuthCard
-                    service=Service::Atlassian
-                    on_connected=move |_| jira.mark_connected(store)
-                    on_disconnected=move |_| jira.mark_disconnected(store)
-                />
-                <Card>
-                    <CardBody css="gap: 16px">
-                        <TextField
-                            label="Jira-Adresse"
-                            value=jira_url
-                            input_type="url"
-                            placeholder="https://[FIRMA].atlassian.net"
-                        />
-                        <TextField
-                            label="E-Mail deines Atlassian-Kontos"
-                            value=jira_mail
-                            input_type="email"
-                            placeholder="name@beispiel.de"
-                        />
-                        <TextField
-                            label="API-Token"
-                            value=jira_token
-                            input_type="password"
-                            placeholder="••••••••••••••••••••"
-                            hint="Erstellen unter: Atlassian-Konto › Sicherheit › API-Token."
-                        />
-                    </CardBody>
-                </Card>
-                {actions(jira, test, "Weiter", true)}
-            </VStack>
-        }
-    };
-
-    let github_step = move || {
-        let test = Callback::new(move |_| {
-            let input = check_github(&github_token.get_untracked(), &github_repos.get_untracked());
-            github.test(input.map(|_| ()));
-        });
-        view! {
-            <VStack spacing="20px">
-                <Intro
-                    title="GitHub verbinden"
-                    text="Für Pull Requests, Reviews und Branches. Am besten ein fein abgestuftes Token nur für die Repositories, die du hier brauchst."
-                />
-                <OAuthCard
-                    service=Service::GitHub
-                    on_connected=move |_| github.mark_connected(store)
-                    on_disconnected=move |_| github.mark_disconnected(store)
-                />
-                <Card>
-                    <CardBody css="gap: 16px">
-                        <TextField
-                            label="Personal Access Token"
-                            value=github_token
-                            input_type="password"
-                            placeholder="github_pat_••••••••••••"
-                            hint="Erstellen unter: Settings › Developer settings › Fine-grained tokens."
-                        />
-                        <TextField
-                            label="Repositories"
-                            value=github_repos
-                            placeholder="[ORGANISATION]/[REPOSITORY]"
-                            hint="Mehrere mit Komma trennen."
-                        />
-                    </CardBody>
-                </Card>
-                <List>
-                    <ListSection header="Benötigte Berechtigungen">
-                        <ListRow title="Pull requests" subtitle="Reviews lesen und senden" detail="Lesen & Schreiben" />
-                        <ListRow title="Contents" subtitle="Branches erstellen, Code lesen" detail="Lesen & Schreiben" />
-                        <ListRow title="Issues" subtitle="Kommentare und Verknüpfungen" detail="Lesen & Schreiben" />
-                        <ListRow title="Metadata" subtitle="Pflicht für jedes Token" detail="Lesen" />
-                    </ListSection>
-                </List>
-                {actions(github, test, "Weiter", false)}
-            </VStack>
-        }
-    };
-
-    let agent_step = move || {
-        let test = Callback::new(move |_| agent.test(check_agent(&agent_key.get_untracked())));
-        view! {
-            <VStack spacing="20px">
-                <Intro
-                    title="Agent verbinden"
-                    text="Der Agent setzt Tickets um und bereitet Reviews vor. Du legst fest, was er selbstständig darf."
-                />
-                <Card>
-                    <CardBody css="gap: 16px">
-                        <TextField
-                            label="API-Key des Modell-Anbieters"
-                            value=agent_key
-                            input_type="password"
-                            placeholder="sk-••••••••••••••••"
-                        />
-                    </CardBody>
-                </Card>
-                <List>
-                    <ListSection
-                        header="Was der Agent darf"
-                        footer="Der Agent schreibt nie direkt in den Hauptbranch und führt keine Merges aus."
-                    >
-                        <ListRow title="Branches erstellen" toggle_row=true>
-                            <Toggle checked=may_branch />
-                        </ListRow>
-                        <ListRow title="Pull Requests erstellen" subtitle="Für dein Review – der Agent merged nie" toggle_row=true>
-                            <Toggle checked=may_open_pr />
-                        </ListRow>
-                        <ListRow title="Tests vor dem Pull Request ausführen" toggle_row=true>
-                            <Toggle checked=may_run_tests />
-                        </ListRow>
-                        <ListRow title="Kommentare und Reviews senden" subtitle="Nur nach deiner Freigabe – nicht abschaltbar">
-                            <Status tone=StatusTone::Green>"Freigabe nötig"</Status>
-                        </ListRow>
-                    </ListSection>
-                </List>
-                {actions(agent, test, "Fertigstellen", false)}
-            </VStack>
-        }
-    };
-
-    let overview = move || {
-        let row = |title: &'static str, link: Link| {
-            view! { <ListRow title=title>{link.status()}</ListRow> }
-        };
-        view! {
-            <VStack spacing="20px">
-                <List>
-                    <ListSection
-                        header="Alles verbunden"
-                        prominent=true
-                        footer="Mit „Zurück“ änderst du eine Verbindung oder was der Agent darf."
-                    >
-                        {row("Jira", jira)}
-                        {row("GitHub", github)}
-                        {row("Agent", agent)}
-                    </ListSection>
-                </List>
-                <ModeSwitch />
-                <SyncStatus />
-                <ResetDemo />
-                <HStack css="justify-content: space-between">
-                    <HStack>
-                        <Button variant=ButtonStyle::Borderless size=ControlSize::Large on_click=back>
-                            "Zurück"
-                        </Button>
-                        <Button
-                            variant=ButtonStyle::Borderless
-                            size=ControlSize::Large
-                            destructive=true
-                            on_click=disconnect
-                        >
-                            "Alle trennen"
-                        </Button>
-                    </HStack>
-                    <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large href="#/">
-                        "Zum Dashboard"
-                    </Button>
-                </HStack>
-            </VStack>
-        }
-    };
+    let jira_on = service_connected(|h| &h.anmeldung.jira);
+    let github_on = service_connected(|h| &h.anmeldung.github);
 
     view! {
         <div class="ck-setup">
@@ -413,27 +413,39 @@ pub fn SetupPage() -> impl IntoView {
                                 <Icon path=icons::BRAND size=26 />
                             </span>
                             <span class="t-title3 t-bold">"Cockpit"</span>
-                            <Badge variant=BadgeVariant::Neutral>
-                                {move || if use_store().mode.get() == Mode::Server { "Server" } else { "Demo" }}
-                            </Badge>
+                            <Badge variant=BadgeVariant::Neutral>"Lokal"</Badge>
                         </HStack>
                         <h1 class="t-display">"Einrichten."</h1>
                         <p class="t-title3 t-secondary">
-                            "Drei Verbindungen, dann siehst du Tickets, Pull Requests und Agenten an einem Ort."
+                            "Jeder Dienst zeigt seinen Stand und den nächsten Schritt. Schlüssel gibst du hier nie ein."
                         </p>
                     </VStack>
 
-                    <Steps labels=STEPS current=step />
+                    <List>
+                        <ListSection header="Übersicht" prominent=true>
+                            <ListRow title="Jira">
+                                <Status tone=tone(jira_on)>{move || summary().0}</Status>
+                            </ListRow>
+                            <ListRow title="GitHub">
+                                <Status tone=tone(github_on)>{move || summary().1}</Status>
+                            </ListRow>
+                        </ListSection>
+                    </List>
 
-                    {move || match step.get() {
-                        0 => jira_step().into_any(),
-                        1 => github_step().into_any(),
-                        2 => agent_step().into_any(),
-                        _ => overview().into_any(),
-                    }}
+                    <ServiceSection service=Service::Atlassian />
+                    <ServiceSection service=Service::GitHub />
+                    <LitellmSection />
+                    <ContainerSection />
+                    <SyncStatus />
+
+                    <HStack css="justify-content: flex-end">
+                        <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large href="#/">
+                            "Zum Dashboard"
+                        </Button>
+                    </HStack>
 
                     <p class="t-footnote t-secondary" style="padding-inline: 4px">
-                        "Wo deine Schlüssel gespeichert werden: nirgends. Sie stehen nur in den Feldern dieser Seite und verschwinden, wenn du sie verlässt. Im Browser bleiben nur die Haken „verbunden“, die Berechtigungen des Agenten und der Stand der Beispieldaten (gelesen, Status, Kommentare, Reviews, Agenten-Läufe). Dies ist eine Demo – Cockpit prüft das Format deiner Eingaben, verbindet sich aber noch nicht mit Jira, GitHub oder einem Modell-Anbieter."
+                        "Wo Schlüssel liegen: nur im Schlüsselbund des Backends. Sie gehen im Terminal mit „cockpit-server token setzen <name>“ hinein (Wert über die Standardeingabe) und kommen nie in den Browser, ins Repo, in die Datenbank oder ins Log. Der Browser sieht nur ja/nein. Der Agent im Server ist noch simuliert; der echte Agent kommt mit Docker oder Podman und dem LiteLLM-Proxy."
                     </p>
                 </VStack>
             </Container>
@@ -441,7 +453,7 @@ pub fn SetupPage() -> impl IntoView {
     }
 }
 
-/// Überschrift und Erklärung eines Schritts.
+/// Überschrift und Erklärung eines Abschnitts.
 #[component]
 fn Intro(title: &'static str, text: &'static str) -> impl IntoView {
     view! {
@@ -449,105 +461,5 @@ fn Intro(title: &'static str, text: &'static str) -> impl IntoView {
             <p class="ui-list__header" data-prominent="">{title}</p>
             <p class="t-subheadline t-secondary" style="padding-inline: 4px">{text}</p>
         </div>
-    }
-}
-
-/// „Demo-Daten zurücksetzen“ mit Rückfrage. Die Rückfrage ist ein eigener Block mit
-/// `role="alertdialog"`: Der Fokus springt auf „Abbrechen“ (die sichere Wahl),
-/// Esc bricht ab, beide Antworten sind echte Buttons.
-#[component]
-fn ResetDemo() -> impl IntoView {
-    let store = use_store();
-    let asking = RwSignal::new(false);
-    let cancel_box = NodeRef::<html::Div>::new();
-    let ask_box = NodeRef::<html::Div>::new();
-
-    // Fokus: beim Öffnen auf „Abbrechen“, beim Schließen zurück auf „Zurücksetzen“.
-    let focus_in = move |node: NodeRef<html::Div>| {
-        if let Some(button) = node
-            .get_untracked()
-            .and_then(|b| b.query_selector("button").ok().flatten())
-            .and_then(|b| b.dyn_into::<web_sys::HtmlElement>().ok())
-        {
-            let _ = button.focus();
-        }
-    };
-    Effect::new(move |previous: Option<bool>| {
-        let open = asking.get();
-        if previous == Some(open) {
-            return open;
-        }
-        // Erst nach dem Zeichnen, sonst gibt es den Button noch nicht.
-        let target = if open { cancel_box } else { ask_box };
-        if previous.is_some() {
-            set_timeout(move || focus_in(target), Duration::ZERO);
-        }
-        open
-    });
-
-    let confirm = move |_| {
-        let _ = store.dispatch(Action::ResetDemo);
-        asking.set(false);
-    };
-
-    view! {
-        <List>
-            <ListSection
-                header="Demo-Daten"
-                footer="Gelesen, Status, Branches, Kommentare, Reviews und Agenten-Läufe bleiben beim Neuladen erhalten. Deine Verbindungen bleiben auch nach dem Zurücksetzen."
-            >
-                <ListRow
-                    title="Demo-Daten zurücksetzen"
-                    subtitle="Tickets, Pull Requests, Reviews und Agenten beginnen wieder von vorn"
-                    wrap=true
-                >
-                    <div node_ref=ask_box>
-                        <Button
-                            destructive=true
-                            disabled=Signal::derive(move || asking.get())
-                            on_click=move |_| asking.set(true)
-                        >
-                            "Zurücksetzen …"
-                        </Button>
-                    </div>
-                </ListRow>
-            </ListSection>
-        </List>
-        <Show when=move || asking.get()>
-            <div
-                role="alertdialog"
-                aria-labelledby="ck-reset-title"
-                aria-describedby="ck-reset-text"
-                on:keydown=move |ev| {
-                    if ev.key() == "Escape" {
-                        asking.set(false);
-                    }
-                }
-            >
-                <Card>
-                    <CardBody css="gap: 12px">
-                        <p id="ck-reset-title" class="t-headline">"Demo-Daten wirklich zurücksetzen?"</p>
-                        <p id="ck-reset-text" class="t-subheadline t-secondary">
-                            "Alle Änderungen an Tickets, Reviews und Agenten-Läufen gehen verloren und die Beispieldaten beginnen von vorn. Deine Verbindungen bleiben."
-                        </p>
-                        <HStack>
-                            <div node_ref=cancel_box>
-                                <Button size=ControlSize::Large on_click=move |_| asking.set(false)>
-                                    "Abbrechen"
-                                </Button>
-                            </div>
-                            <Button
-                                variant=ButtonStyle::GlassProminent
-                                size=ControlSize::Large
-                                destructive=true
-                                on_click=confirm
-                            >
-                                "Ja, zurücksetzen"
-                            </Button>
-                        </HStack>
-                    </CardBody>
-                </Card>
-            </div>
-        </Show>
     }
 }

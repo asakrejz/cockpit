@@ -1,6 +1,6 @@
 //! Speichern und Laden des [`Workspace`] als Text (JSON) – ohne Browser und ohne UI.
 //!
-//! Die App legt den Text in `localStorage` ab; hier steht nur, wie er aussieht und wie
+//! Das Backend legt den Text in SQLite ab; hier steht nur, wie er aussieht und wie
 //! er sicher wieder eingelesen wird:
 //!
 //! * Der Text trägt eine **Versionsnummer** ([`VERSION`]). Wer die Form der Daten

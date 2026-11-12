@@ -11,6 +11,7 @@ use cockpit_core::{Action, ActionError, Actor, Workspace, demo, persist};
 use rusqlite::Connection;
 use tokio::sync::broadcast;
 
+use crate::config::Seed;
 use crate::db;
 
 /// So viele Ereignisse puffert eine langsame Verbindung, bevor sie neu laden muss.
@@ -41,9 +42,14 @@ fn sperre<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 }
 
 impl Live {
-    /// Lädt den gespeicherten Stand; ohne (oder bei unlesbarem) Stand beginnt der Server
-    /// mit den Beispieldaten.
-    pub fn laden(conn: &Connection) -> Self {
+    /// Lädt den gespeicherten Stand; ohne (oder bei unlesbarem) Stand beginnt der Server mit
+    /// dem Seed: standardmäßig ein leerer Workspace, mit `Seed::Demo` die Beispieldaten.
+    /// Ein gespeicherter Stand geht dem Seed immer vor.
+    pub fn laden(conn: &Connection, seed: Seed) -> Self {
+        let anfang = || match seed {
+            Seed::Leer => Workspace::default(),
+            Seed::Demo => demo::workspace(),
+        };
         let gespeichert = db::workspace_laden(conn).unwrap_or_else(|e| {
             tracing::warn!("Gespeicherter Workspace nicht lesbar: {e}");
             None
@@ -52,11 +58,11 @@ impl Live {
             Some(Ok(stand)) => stand,
             Some(Err(e)) => {
                 tracing::warn!(
-                    "Gespeicherter Workspace passt nicht ({e:?}), starte mit Beispieldaten"
+                    "Gespeicherter Workspace passt nicht ({e:?}), starte mit dem Seed ({seed:?})"
                 );
-                (demo::workspace(), 0)
+                (anfang(), 0)
             }
-            None => (demo::workspace(), 0),
+            None => (anfang(), 0),
         };
         Self {
             stand: Mutex::new(Stand { ws, revision }),
