@@ -85,7 +85,7 @@ fn kodiert(text: &str) -> String {
 
 impl AppState {
     fn oauth_konfig_id(&self, d: Dienst) -> Option<String> {
-        let q = &self.inner.quellen;
+        let q = self.quellen();
         match d {
             Dienst::GitHub => q.github_oauth.as_ref().map(|o| o.client_id.clone()),
             Dienst::Atlassian => q.atlassian.as_ref().map(|a| a.client_id.clone()),
@@ -159,7 +159,7 @@ impl AppState {
         let tokens = self.oauth_tokens(Dienst::Atlassian)?;
         let (id, _) = self.atlassian_site()?;
         Some(
-            jira_basis(&self.inner.quellen.endpunkte, &id)
+            jira_basis(&self.quellen().endpunkte, &id)
                 .and_then(|basis| JiraClient::oauth(&basis, tokens.access)),
         )
     }
@@ -221,7 +221,7 @@ impl AppState {
             client_secret: &secret,
             redirect_uri: &uri,
         };
-        oauth::anmelde_url(&self.inner.quellen.endpunkte, d, &app, &state, &challenge)
+        oauth::anmelde_url(&self.quellen().endpunkte, d, &app, &state, &challenge)
             .map_err(|e| e.to_string())
     }
 
@@ -279,7 +279,8 @@ impl AppState {
             client_secret: &secret,
             redirect_uri: &uri,
         };
-        let e = &self.inner.quellen.endpunkte;
+        let quellen = self.quellen();
+        let e = &quellen.endpunkte;
         let tokens = oauth::code_tauschen(e, d, &app, code, &verifier, jetzt_s())
             .await
             .map_err(|f| {
@@ -289,12 +290,7 @@ impl AppState {
 
         // Atlassian: erst die Site, dann wird gespeichert – kein halber Zustand.
         let site: Option<Site> = if d == Dienst::Atlassian {
-            let gewuenscht = self
-                .inner
-                .quellen
-                .atlassian
-                .as_ref()
-                .and_then(|a| a.site.clone());
+            let gewuenscht = quellen.atlassian.as_ref().and_then(|a| a.site.clone());
             let liste = oauth::sites(e, &tokens.access).await.map_err(|f| {
                 tracing::warn!("Atlassian: accessible-resources fehlgeschlagen: {f}");
                 dienst_fehler(d, &f)
@@ -361,9 +357,8 @@ impl AppState {
                 client_secret: secret,
                 redirect_uri: &uri,
             };
-            let api = self
-                .inner
-                .quellen
+            let quellen = self.quellen();
+            let api = quellen
                 .github
                 .as_ref()
                 .map_or(crate::config::STANDARD_GITHUB_API, |g| g.api_url.as_str());
@@ -432,7 +427,7 @@ impl AppState {
             redirect_uri: &uri,
         };
         let ergebnis =
-            oauth::auffrischen(&self.inner.quellen.endpunkte, d, &app, &tokens, jetzt_s()).await;
+            oauth::auffrischen(&self.quellen().endpunkte, d, &app, &tokens, jetzt_s()).await;
         let s = self.clone();
         match ergebnis {
             Ok(neu) => {

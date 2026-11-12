@@ -108,3 +108,72 @@
   border-radius: var(--ref-radius-full);
 }
 .ui-select:disabled { cursor: default; opacity: 0.5; }
+
+/* Einrichtungsassistent: nummerierte Anleitung, kopierbare Werte und Abhak-Liste. */
+.ui-anleitung {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ref-space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: anleitung;
+}
+.ui-anleitung > li {
+  position: relative;
+  min-width: 0;
+  padding-inline-start: calc(var(--ref-space-16) * 2);
+  font: var(--sys-type-subheadline);
+  color: var(--sys-color-label);
+  counter-increment: anleitung;
+}
+.ui-anleitung > li::before {
+  content: counter(anleitung);
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--sys-color-tint-fill);
+  color: var(--sys-color-label);
+  font: var(--sys-type-footnote);
+  font-weight: 600;
+}
+.ui-anleitung code,
+.ui-kopie__text {
+  font-family: var(--sys-font-mono);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+.ui-anleitung code {
+  padding: 1px var(--ref-space-4);
+  border-radius: var(--ref-radius-6);
+  background: var(--sys-color-tertiary-fill);
+}
+.ui-kopie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ref-space-8);
+  min-width: 0;
+  margin-top: var(--ref-space-4);
+  padding: var(--ref-space-8) var(--ref-space-12);
+  border-radius: var(--ref-radius-12, 12px);
+  background: var(--sys-color-tertiary-grouped-background);
+}
+.ui-kopie__text { flex: 1 1 12em; min-width: 0; color: var(--sys-color-label); user-select: all; }
+.ui-haken-liste { display: flex; flex-direction: column; gap: var(--ref-space-4); margin: var(--ref-space-4) 0 0; padding: 0; list-style: none; }
+.ui-haken-liste > li { display: flex; flex-wrap: wrap; gap: var(--ref-space-4) var(--ref-space-8); align-items: baseline; font: var(--sys-type-footnote); }
+.ui-haken-liste__recht { color: var(--sys-color-secondary-label); }
+.ui-hinweis {
+  margin: 0;
+  padding: var(--ref-space-8) var(--ref-space-12);
+  border-radius: var(--ref-radius-12, 12px);
+  background: var(--sys-color-tint-fill);
+  color: var(--sys-color-label);
+  font: var(--sys-type-footnote);
+}

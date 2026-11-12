@@ -16,6 +16,9 @@ pub fn TextField(
     hint: Option<String>,
     #[prop(into, default = false.into())] error: Signal<bool>,
     #[prop(into, default = false.into())] disabled: Signal<bool>,
+    /// HTML-`autocomplete`, z. B. `"off"` für Schlüssel: Der Browser merkt sich dann nichts.
+    #[prop(optional)]
+    autocomplete: Option<&'static str>,
 ) -> impl IntoView {
     let id = next_id("field");
     view! {
@@ -25,6 +28,8 @@ pub fn TextField(
                 class="ui-field__input"
                 id=id
                 type=input_type
+                autocomplete=autocomplete
+                spellcheck=autocomplete.map(|_| "false")
                 placeholder=placeholder
                 disabled=move || disabled.get()
                 prop:value=move || value.get()

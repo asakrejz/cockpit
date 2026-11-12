@@ -21,6 +21,7 @@ mod app;
 mod config;
 mod container;
 mod db;
+mod einrichtung;
 mod live;
 mod oauth;
 mod secrets;
@@ -119,16 +120,6 @@ async fn starten() -> Result<(), String> {
         config.db.display(),
         db::AKTUELLE_VERSION
     );
-    // Adressen und Konten aus der Konfiguration in die Datenbank übernehmen (ohne Schlüssel).
-    if let Some(g) = &config.github {
-        db::verbindung_setzen(&conn, secrets::GITHUB, &g.api_url, None)
-            .map_err(|e| e.to_string())?;
-    }
-    // Mit OAuth hat Jira keine eigene Adresse; die Site wählt die Anmeldung.
-    if let Some(j) = config.jira.as_ref().filter(|j| !j.site.is_empty()) {
-        db::verbindung_setzen(&conn, secrets::JIRA, &j.site, Some(&j.email))
-            .map_err(|e| e.to_string())?;
-    }
 
     if !config.dist.join("index.html").is_file() {
         tracing::warn!(
@@ -144,6 +135,8 @@ async fn starten() -> Result<(), String> {
         abgleich::Quellen::aus(&config),
         app::Einstellungen::aus(&config),
     );
+    // Adressen und Konten aus der Konfiguration in die Datenbank übernehmen (ohne Schlüssel).
+    state.verbindungen_uebernehmen(&config)?;
     let router = app::router(state.clone(), config.dist.clone());
 
     // Nur lokal erreichbar – bewusst nicht einstellbar.

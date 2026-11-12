@@ -87,13 +87,9 @@ impl AppState {
     /// (Schlüsselbund).
     pub(crate) fn dienste_bauen(&self) -> Dienste {
         let inner = &self.inner;
+        let quellen = self.quellen();
         let mut dienste = Dienste::default();
-        if let Some(g) = inner
-            .quellen
-            .github
-            .as_ref()
-            .filter(|g| !g.repos.is_empty())
-        {
+        if let Some(g) = quellen.github.as_ref().filter(|g| !g.repos.is_empty()) {
             // Die Anmeldung per OAuth geht vor dem Token.
             let zugang = match self.oauth_tokens(Dienst::GitHub) {
                 Some(t) => Some(t.access),
@@ -111,7 +107,7 @@ impl AppState {
                 }
             }
         }
-        if let Some(j) = &inner.quellen.jira
+        if let Some(j) = &quellen.jira
             && let Some(client) = self.jira_client()
         {
             // Ein in der App gewähltes Projekt hat Vorrang vor `projects` und `jql` der Datei.
@@ -141,12 +137,8 @@ impl AppState {
         if let Some(c) = self.jira_oauth_client() {
             return Some(c);
         }
-        let j = self
-            .inner
-            .quellen
-            .jira
-            .as_ref()
-            .filter(|j| !j.site.is_empty())?;
+        let quellen = self.quellen();
+        let j = quellen.jira.as_ref().filter(|j| !j.site.is_empty())?;
         let t = self.token(secrets::JIRA)?;
         Some(JiraClient::new(&j.site, &j.email, t))
     }
@@ -165,7 +157,7 @@ impl AppState {
     /// Die Jira-Projekte, die der Schlüssel sehen darf – für die Auswahl in der Inbox.
     /// Ohne Jira oder Schlüssel: `aktiv: false`.
     pub async fn jira_projekte(&self) -> Result<JiraProjectsResponse, AktionFehler> {
-        if self.inner.quellen.jira.is_none() {
+        if self.quellen().jira.is_none() {
             return Ok(JiraProjectsResponse::default());
         }
         self.oauth_auffrischen().await;
@@ -194,7 +186,7 @@ impl AppState {
     }
 
     async fn dienste(&self) -> Dienste {
-        if !self.inner.quellen.moeglich() {
+        if !self.quellen().moeglich() {
             return Dienste::default();
         }
         // Zuerst auffrischen (Netzwerk), dann bauen (Schlüsselbund).
@@ -320,7 +312,7 @@ impl AppState {
 
 /// Startet den Abgleich im Takt der Konfiguration (der erste sofort).
 pub fn abgleich_starten(state: AppState) {
-    let intervall = state.inner.quellen.intervall;
+    let intervall = state.quellen().intervall;
     tokio::spawn(async move {
         let mut takt = tokio::time::interval(intervall);
         takt.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);

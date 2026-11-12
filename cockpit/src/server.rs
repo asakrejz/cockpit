@@ -4,8 +4,9 @@
 
 use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
-    ActionRequest, ActionResponse, ContainerStatus, ErrorBody, JiraProjectsResponse,
-    LitellmPruefung, LitellmStatus, ServerEvent, SyncResponse, WiderrufAntwort,
+    ActionRequest, ActionResponse, ContainerStatus, Einrichtung, ErrorBody, JiraProjectsResponse,
+    KonfigAenderung, KonfigAntwort, LitellmPruefung, LitellmStatus, SchluesselAntwort,
+    SchluesselEingabe, ServerEvent, SyncResponse, WiderrufAntwort,
 };
 use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
@@ -207,6 +208,52 @@ pub async fn post_revoke(service: &str) -> Result<WiderrufAntwort, CallError> {
         return Err(rejection(resp).await);
     }
     resp.json::<WiderrufAntwort>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Die aktuellen, nicht geheimen Werte für den Assistenten (`GET /api/einrichtung`).
+pub async fn fetch_einrichtung() -> Result<Einrichtung, CallError> {
+    let resp = Request::get("/api/einrichtung")
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<Einrichtung>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Schreibt Client-IDs, Jira, Repos oder LiteLLM in `config.toml` (`PUT /api/konfiguration`).
+pub async fn put_konfiguration(aenderung: &KonfigAenderung) -> Result<KonfigAntwort, CallError> {
+    let request = Request::put("/api/konfiguration")
+        .header("Content-Type", "application/json")
+        .json(aenderung)
+        .map_err(|_| CallError::Rejected("Die Eingaben lassen sich nicht senden".into()))?;
+    let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<KonfigAntwort>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Legt einen Schlüssel im Schlüsselbund des Servers ab (`PUT /api/schluessel/{name}`). Der Wert
+/// geht nur in den Body dieser Anfrage – nicht in die Adresse, nicht in den Speicher des Browsers.
+/// Die Antwort sagt nur „gesetzt“.
+pub async fn put_schluessel(name: &str, wert: String) -> Result<SchluesselAntwort, CallError> {
+    let request = Request::put(&format!("/api/schluessel/{name}"))
+        .header("Content-Type", "application/json")
+        .json(&SchluesselEingabe { wert })
+        .map_err(|_| CallError::Rejected("Die Eingabe lässt sich nicht senden".into()))?;
+    let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<SchluesselAntwort>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }

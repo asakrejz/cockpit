@@ -108,7 +108,7 @@ pub fn OAuthCard(
                     let possible = s.oauth_moeglich;
                     let login_label = format!("Mit {} anmelden", service.name());
                     let hint = format!(
-                        "Für die Anmeldung: Client-ID in config.toml eintragen und das Client-Secret mit „cockpit-server token setzen {}-oauth“ ablegen.",
+                        "Zuerst oben die Client-ID speichern und das Client-Secret ablegen (Terminal-Weg: „cockpit-server token setzen {}-oauth“).",
                         service.id(),
                     );
                     view! {

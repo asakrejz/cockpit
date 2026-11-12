@@ -10,7 +10,7 @@ wie Agenten. Es hält die Entscheidungen fest und teilt die Arbeit in Wellen.
 | Betrieb | **Lokal, für eine Person.** Ein Dienst auf dem eigenen Rechner. Kein Hosting, keine Mandanten. |
 | Backend | Rust-Crate `server/` (axum, tokio). Liefert auch die gebaute Web-App aus. |
 | Daten | SQLite in einer Datei im Nutzerverzeichnis. |
-| Schlüssel | Liegen nur im Backend (Schlüsselbund des Systems, sonst verschlüsselte Datei). **Nie im Browser, nie im Repo, nie im Log.** |
+| Schlüssel | Liegen nur im Backend (Schlüsselbund des Systems, sonst verschlüsselte Datei). **Nie im Repo, nie im Log, nie im Speicher des Browsers.** Ausnahme mit Bedingungen (Entscheidung vom 12.11.2026): Der Einrichtungsassistent nimmt Secrets, Tokens und den LiteLLM-Key in Passwortfelder auf und schickt sie einmal über die Loopback-Verbindung an `PUT /api/schluessel/{name}`; dort gelten Loopback-, Host-, Origin- und Content-Type-Prüfung, nur fünf feste Namen, keine Rückgabe des Werts (nur „gesetzt“), das Feld wird sofort geleert. Der Terminal-Weg `token setzen` bleibt. |
 | Agent | Claude Agent SDK in einem Container pro Lauf, **mit Docker (Rancher Desktop) oder Podman**. Der Container bekommt nur das geklonte Repo und ein Token für genau dieses Repo. |
 | Aktualität | Webhooks, wenn ein Tunnel eingerichtet ist; sonst fragt das Backend regelmäßig ab. |
 | Demo-Modus | **Entfällt** (seit Welle 4). Die App braucht das Backend. Beispieldaten (`demo::workspace()`) bleiben als Testdaten, für die Stories im Playground und als Seed `COCKPIT_SEED=demo` im Server – nur auf ausdrückliche Anforderung und nur, wenn noch kein Stand gespeichert ist. |
@@ -121,6 +121,7 @@ Tickets bearbeiten und mit PRs verknüpfen (Status folgt dem PR), Agent-Folgeauf
 |---------|---------|
 | Backend | Anmeldung per OAuth für GitHub und Atlassian, mit Widerruf – **erledigt** (nur gegen nachgebaute Antworten geprüft; siehe README „Mit echten Diensten verbinden“) |
 | Backend | ✅ Onboarding im Server-Modus: Seite „Einrichten“ mit Stand und nächstem Schritt je Dienst (Jira, GitHub, LiteLLM, Container-Laufzeit), Verbindungstest `GET /api/litellm/pruefen`, Erkennung von Docker/Podman (`/api/health`), Seed per `COCKPIT_SEED`, Start-Skript `scripts/start.sh` und launchd-Vorlage. Der Demo-Modus der App ist entfernt. |
+| Backend | ✅ Geführter Einrichtungsassistent für Einsteiger: Seite „Einrichten“ in fünf Schritten (Container, Jira, GitHub, Modell, Zusammenfassung), Konfiguration per Klick (`PUT /api/konfiguration`, schreibt `config.toml` atomar, wirkt ohne Neustart), Schlüssel per Passwortfeld (`PUT /api/schluessel/{name}` in den Schlüsselbund), `Cockpit starten.command` (Doppelklick), README „Schnellstart für Einsteiger“ und Release-Workflow (`.github/workflows/release.yml`, nur bei Tag, noch nie gelaufen). Nur gegen nachgebaute Antworten und Fixtures geprüft |
 | Backend | Webhooks und Live-Aktualisierung in der App |
 | Backend | Echter Agent: Claude Agent SDK im Container (Docker oder Podman, siehe „Container“); Modell über den LiteLLM-Proxy; Plan, Rückfragen, Kosten und Protokoll kommen aus dem Lauf |
 | Inbox | ✅ Mehrere Projekte und Repos; Filter nach Projekt, Repo, Person, Status, Label (siehe README „Filter der Inbox“). Offen: `Review` und `PrLink` unterscheiden Pull Requests noch nach Nummer, nicht nach Repo |

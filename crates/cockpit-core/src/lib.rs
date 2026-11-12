@@ -6,6 +6,7 @@
 //! * [`agent`]: der Lauf eines Agenten als Zustandsmaschine
 //! * [`diagnosis`]: Ursache und Fix-Vorschlag zu einem roten Check
 //! * [`connections`]: Verbindungen, Berechtigungen und Eingabeprüfung
+//! * [`einrichten`]: Schritte, Eingaben und Zusammenfassung des Einrichtungsassistenten
 //! * [`link`]: Ticket und Pull Request über den Ticket-Schlüssel verknüpfen
 //! * [`search`]: Suche und Filter der Inbox
 //! * [`notify`]: Ereignisse für Benachrichtigungen, Kanäle und Ruhezeiten
@@ -30,6 +31,7 @@ pub mod attention;
 pub mod connections;
 pub mod demo;
 pub mod diagnosis;
+pub mod einrichten;
 pub mod link;
 pub mod model;
 pub mod notify;

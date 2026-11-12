@@ -90,6 +90,9 @@ pub struct Config {
     pub container_env: Option<String>,
     /// `COCKPIT_DEV_PORT`: Port von `trunk serve` für die Entwicklung (nur Umgebung, nie Datei).
     pub dev_port: Option<u16>,
+    /// Die Datei, aus der gelesen wurde (und in die der Einrichtungsassistent schreibt); `None`,
+    /// wenn es kein Konfigurationsverzeichnis gibt.
+    pub konfig_pfad: Option<PathBuf>,
 }
 
 /// Womit der Server startet, solange noch kein Stand gespeichert ist.
@@ -285,6 +288,7 @@ impl Config {
             container: None,
             container_env: None,
             dev_port: None,
+            konfig_pfad: None,
         }
     }
 
@@ -464,7 +468,9 @@ impl Config {
             let p = pfad.unwrap_or_default();
             return Err(KonfigFehler::Lesen(p, std::io::ErrorKind::NotFound.into()));
         }
-        Self::aus(text.as_deref(), env)
+        let mut c = Self::aus(text.as_deref(), env)?;
+        c.konfig_pfad = pfad;
+        Ok(c)
     }
 }
 
