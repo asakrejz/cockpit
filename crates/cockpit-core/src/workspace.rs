@@ -162,6 +162,44 @@ impl Workspace {
         out
     }
 
+    /// Die Repos der Pull Requests in der Inbox, sortiert und ohne Doppelte. Nicht zu
+    /// verwechseln mit [`Workspace::repos`], den Repos mit Regeln für den Agenten.
+    pub fn item_repos(&self) -> Vec<String> {
+        let mut out: Vec<String> = self.items.iter().filter_map(|i| i.repo.clone()).collect();
+        out.sort();
+        out.dedup();
+        out
+    }
+
+    /// Alle Labels der Einträge, alphabetisch (ohne Rücksicht auf Groß-/Kleinschreibung)
+    /// und ohne Doppelte.
+    pub fn labels(&self) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for label in self.items.iter().flat_map(|i| i.labels.iter()) {
+            if !label.is_empty() && !out.iter().any(|l| l.eq_ignore_ascii_case(label)) {
+                out.push(label.clone());
+            }
+        }
+        out.sort_by_key(|l| l.to_lowercase());
+        out
+    }
+
+    /// Die Besitzer der Einträge als Auswahl für den Filter: du zuerst, dann die anderen in
+    /// der Reihenfolge der Inbox. Der Agent und leere Namen fehlen.
+    pub fn owners(&self) -> Vec<Person> {
+        let mut out: Vec<Person> = Vec::new();
+        for owner in self.items.iter().map(|i| &i.owner) {
+            if !owner.is_agent() && !owner.name.is_empty() && !out.contains(owner) {
+                out.push(owner.clone());
+            }
+        }
+        if let Some(i) = out.iter().position(|p| *p == Person::me()) {
+            let me = out.remove(i);
+            out.insert(0, me);
+        }
+        out
+    }
+
     /// Passt der Eintrag zum gewählten Projekt? Ohne Wahl passt alles; Pull Requests bleiben
     /// immer sichtbar, denn sie gehören zu keinem Jira-Projekt.
     pub fn in_project(&self, item: &Item) -> bool {
@@ -1665,17 +1703,23 @@ mod tests {
     #[test]
     fn demo_data_matches_the_design() {
         let w = ws();
-        assert_eq!(w.items.len(), 5);
-        assert_eq!(w.unread(Filter::All, NOW), 4, "pr85 gehört nicht mir");
+        assert_eq!(w.items.len(), 7);
+        assert_eq!(w.unread(Filter::All, NOW), 6, "pr85 gehört nicht mir");
         assert_eq!(
             (w.visible(Filter::Mine).len(), w.visible(Filter::Team).len()),
-            (3, 2)
+            (5, 2)
         );
         assert_eq!(w.review(87).unwrap().suggestions.len(), 3);
         assert_eq!(w.open_reviews(), 3);
         assert_eq!(w.running_agents(), 0);
         // Jeder Pull Request an einem Eintrag hat ein Review.
-        for pr in w.items.iter().filter_map(|i| i.pr.as_ref()) {
+        // (Ausnahme: #12 im zweiten Repo, das nur die Filter der Inbox zeigt.)
+        for pr in w
+            .items
+            .iter()
+            .filter_map(|i| i.pr.as_ref())
+            .filter(|p| p.number != 12)
+        {
             assert!(w.review(pr.number).is_some(), "#{}", pr.number);
         }
     }
@@ -1683,10 +1727,10 @@ mod tests {
     #[test]
     fn done_items_stop_counting() {
         let mut w = ws();
-        assert_eq!(w.unread(Filter::Mine, NOW), 3);
+        assert_eq!(w.unread(Filter::Mine, NOW), 5);
         w.mark_done("bau142");
-        assert_eq!(w.unread(Filter::All, NOW), 3);
-        assert_eq!(w.unread(Filter::Mine, NOW), 2);
+        assert_eq!(w.unread(Filter::All, NOW), 5);
+        assert_eq!(w.unread(Filter::Mine, NOW), 4);
         assert_eq!(w.unread(Filter::Team, NOW), 1);
     }
 
@@ -1704,7 +1748,7 @@ mod tests {
         // pr85 (Checks rot, aber von Mira) trifft keine Regel und fehlt.
         assert_eq!(
             ids(w.attention(Filter::All, NOW)),
-            ["bau142", "pr87", "bau138", "bau150"]
+            ["bau142", "pr87", "bau138", "bau150", "doc7", "pr12"]
         );
         assert_eq!(ids(w.attention(Filter::Team, NOW)), ["pr87"]);
         // Regel aus: die Treffer dahinter verschwinden – bau150 bleibt wegen „Zugewiesen“.
@@ -1730,16 +1774,17 @@ mod tests {
     #[test]
     fn counts_follow_the_rules_and_snoozing() {
         let mut w = ws();
-        assert_eq!(w.unread(Filter::Mine, NOW), 3);
+        assert_eq!(w.unread(Filter::Mine, NOW), 5);
         w.set_rule(Rule::Mention, false);
         w.set_rule(Rule::Assigned, false);
-        // bau142 hat nun keinen Grund mehr; bau138 (blockiert) und bau150 (überfällig) bleiben.
-        assert_eq!(w.unread(Filter::Mine, NOW), 2);
+        // bau142 und doc7 haben nun keinen Grund mehr; bau138 (blockiert), bau150 (überfällig)
+        // und pr12 (blockiert) bleiben.
+        assert_eq!(w.unread(Filter::Mine, NOW), 3);
         assert!(w.snooze("bau138", Some(NOW + HOUR)));
-        assert_eq!(w.unread(Filter::Mine, NOW), 1);
+        assert_eq!(w.unread(Filter::Mine, NOW), 2);
         assert_eq!(w.unread(Filter::Snoozed, NOW), 1);
         // Nach Ablauf zählt er wieder – auch ohne dass jemand `wake` aufruft.
-        assert_eq!(w.unread(Filter::Mine, NOW + HOUR), 2);
+        assert_eq!(w.unread(Filter::Mine, NOW + HOUR), 3);
         assert_eq!(w.unread(Filter::Snoozed, NOW + HOUR), 0);
     }
 

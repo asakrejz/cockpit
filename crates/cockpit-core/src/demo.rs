@@ -56,8 +56,13 @@ fn item(
         comments: Vec::new(),
         read: false,
         due: None,
+        repo: None,
+        labels: Vec::new(),
     }
 }
+
+/// Das zweite Repo der Beispieldaten.
+pub const DEMO_REPO_TOKENS: &str = "asakrejz/design-tokens";
 
 /// Fälligkeit des Demo-Tickets BAU-150: liegt vor dem Tag, an dem die Demo entstand.
 pub const DEMO_OVERDUE: &str = "2026-11-09";
@@ -66,6 +71,8 @@ pub const DEMO_OVERDUE: &str = "2026-11-09";
 pub fn workspace() -> Workspace {
     let bau142 = Item {
         status: TicketStatus::InProgress,
+        labels: vec!["bug".into(), "a11y".into()],
+
         comments: vec![Comment::new(
             lena(),
             "vor 12 Min.",
@@ -83,6 +90,8 @@ pub fn workspace() -> Workspace {
         )
     };
     let pr87 = Item {
+        repo: Some(DEMO_REPO.into()),
+        labels: vec!["design".into()],
         branch: Some("feature/BAU-131-slider-thumb".into()),
         pr: Some(PrRef {
             number: 87,
@@ -111,6 +120,8 @@ pub fn workspace() -> Workspace {
     };
     let bau138 = Item {
         status: TicketStatus::Review,
+        labels: vec!["a11y".into(), "agent".into()],
+
         branch: Some("agent/BAU-138-segmented-picker".into()),
         pr: Some(PrRef {
             number: 91,
@@ -136,6 +147,8 @@ pub fn workspace() -> Workspace {
         )
     };
     let pr85 = Item {
+        repo: Some(DEMO_REPO.into()),
+        labels: vec!["bug".into()],
         branch: Some("feature/BAU-127-list-separator".into()),
         pr: Some(PrRef {
             number: 85,
@@ -164,6 +177,7 @@ pub fn workspace() -> Workspace {
     let bau150 = Item {
         // Fällig vor „heute“ (11.11.2026): greift die Regel „überfälliges Ticket“.
         due: Some(DEMO_OVERDUE.into()),
+        labels: vec!["feature".into()],
         ..item(
             "bau150",
             Kind::Ticket,
@@ -172,6 +186,44 @@ pub fn workspace() -> Workspace {
             "Das Sheet soll zwei Höhen unterstützen (mittel, groß) und sich per Grabber zwischen ihnen ziehen lassen.",
             (ReasonKind::Assigned, "Dir zugewiesen von Mira"),
             "gestern",
+            Person::me(),
+        )
+    };
+    // Ein zweites Projekt (DOC) und ein zweites Repo, damit die Filter der Inbox etwas zeigen.
+    let doc7 = Item {
+        status: TicketStatus::Open,
+        labels: vec!["docs".into()],
+        ..item(
+            "doc7",
+            Kind::Ticket,
+            "DOC-7",
+            "Handbuch: Kapitel zu Tokens ergänzen",
+            "Das Handbuch erklärt Referenz-, System- und Komponenten-Tokens bisher nur in einem Absatz.",
+            (ReasonKind::Assigned, "Dir zugewiesen von Lena"),
+            "vor 3 Std.",
+            Person::me(),
+        )
+    };
+    let pr12 = Item {
+        repo: Some(DEMO_REPO_TOKENS.into()),
+        labels: vec!["docs".into(), "bug".into()],
+        branch: Some("fix/DOC-7-token-table".into()),
+        pr: Some(PrRef {
+            number: 12,
+            draft: false,
+            checks: Checks::Failed,
+            changes_requested: false,
+            merged: false,
+            review_requested: false,
+        }),
+        ..item(
+            "pr12",
+            Kind::PullRequest,
+            "#12",
+            "Token-Tabelle: Spalte für Dark Mode",
+            "Ergänzt die Token-Tabelle um eine Spalte für den Dark Mode. Der Link-Check schlägt fehl.",
+            (ReasonKind::ChecksFailed, "Checks fehlgeschlagen"),
+            "vor 4 Std.",
             Person::me(),
         )
     };
@@ -356,7 +408,7 @@ pub fn workspace() -> Workspace {
     }
 
     Workspace {
-        items: vec![bau142, pr87, bau138, pr85, bau150],
+        items: vec![bau142, pr87, bau138, pr85, bau150, doc7, pr12],
         reviews: vec![review87, review91, review85],
         runs: vec![run138],
         log: Vec::new(),

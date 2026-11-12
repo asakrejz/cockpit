@@ -60,6 +60,8 @@ pub fn issue_to_item(issue: &Issue, ich: &str, jetzt: i64) -> Item {
         comments: Vec::new(),
         read: false,
         due: f.duedate.clone().filter(|d| !d.is_empty()),
+        repo: None,
+        labels: f.labels.iter().filter(|l| !l.is_empty()).cloned().collect(),
     }
 }
 

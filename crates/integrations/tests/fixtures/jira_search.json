@@ -16,7 +16,8 @@
         "status": { "name": "In Progress", "statusCategory": { "key": "indeterminate", "name": "In Bearbeitung" } },
         "assignee": { "accountId": "acc-mira", "displayName": "Mira Keller" },
         "reporter": { "accountId": "acc-tobias", "displayName": "Tobias Lang" },
-        "updated": "2024-05-14T09:12:33.456+0200"
+        "updated": "2024-05-14T09:12:33.456+0200",
+        "labels": ["a11y", "tokens"]
       }
     },
     {

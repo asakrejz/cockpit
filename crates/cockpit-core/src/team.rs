@@ -440,9 +440,9 @@ mod tests {
         let me = member(&list, "Du");
         assert_eq!(
             (me.open, me.in_progress, me.review, me.pull_requests),
-            (1, 1, 1, 0)
+            (2, 1, 1, 1)
         );
-        assert_eq!(me.item_ids, ["bau142", "bau138", "bau150"]);
+        assert_eq!(me.item_ids, ["bau142", "bau138", "bau150", "doc7", "pr12"]);
         // Der Agent hat BAU-138 fertig, das Review wartet.
         let agent = member(&list, "Agent");
         assert_eq!((agent.in_progress, agent.review), (0, 1));
@@ -483,7 +483,7 @@ mod tests {
         w.mark_done("bau150");
         w.set_status("bau142", TicketStatus::Done);
         let list = members(&w);
-        assert_eq!(member(&list, "Du").item_ids, ["bau138"]);
+        assert_eq!(member(&list, "Du").item_ids, ["bau138", "doc7", "pr12"]);
     }
 
     #[test]
@@ -507,6 +507,7 @@ mod tests {
             found,
             [
                 ("#85", StuckKind::ChecksFailed),
+                ("#12", StuckKind::ChecksFailed),
                 ("BAU-138", StuckKind::AgentWaiting),
                 ("#87", StuckKind::ReviewWaiting),
                 ("BAU-142", StuckKind::NoBranch),

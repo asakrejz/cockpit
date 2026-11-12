@@ -74,6 +74,8 @@ fn pull_wird_zum_item_mit_review_anfrage() {
         Some("feature/BAU-142-avatar-tokens")
     );
     assert!(item.description.contains("Closes BAU-142"));
+    assert_eq!(item.repo.as_deref(), Some("acme/baukasten"));
+    assert_eq!(item.labels, ["design", "bug"]);
     let pr = item.pr.expect("PrRef gesetzt");
     assert_eq!(
         (pr.number, pr.draft, pr.checks),
@@ -93,6 +95,7 @@ fn eigener_entwurf_ohne_beschreibung() {
     );
     assert_eq!(rot.reason, ReasonKind::ChecksFailed);
     assert_eq!(rot.description, "");
+    assert!(rot.labels.is_empty(), "Pull Request ohne Labels");
     assert!(rot.pr.as_ref().unwrap().draft);
     let gruen = pull_to_item(
         "acme/baukasten",

@@ -418,6 +418,12 @@ pub struct Item {
     /// Fälligkeitsdatum als Tag (`2026-11-09`), nur für Tickets.
     #[serde(default)]
     pub due: Option<String>,
+    /// Das Repo (`owner/name`) eines Pull Requests; bei Tickets leer.
+    #[serde(default)]
+    pub repo: Option<String>,
+    /// Labels des Dienstes (Jira-Labels, GitHub-Labels).
+    #[serde(default)]
+    pub labels: Vec<String>,
 }
 
 impl Item {
@@ -442,6 +448,15 @@ impl Item {
             .split_once('-')
             .map(|(p, _)| p)
             .filter(|p| is_project_key(p))
+    }
+
+    /// Der Status für Filter: bei Tickets der eigene, bei Pull Requests der, den der Pull
+    /// Request nahelegt (gemergt → Fertig, Review angefragt → Review, sonst In Arbeit).
+    pub fn effective_status(&self) -> TicketStatus {
+        match (&self.kind, &self.pr) {
+            (Kind::PullRequest, Some(pr)) => pr.target_status(),
+            _ => self.status,
+        }
     }
 }
 

@@ -8,5 +8,6 @@
   "head": { "ref": "feature/BAU-142-avatar-tokens", "sha": "aaa111" },
   "base": { "ref": "main", "sha": "bbb222" },
   "created_at": "2024-05-13T08:00:00Z",
-  "updated_at": "2024-05-14T10:00:00Z"
+  "updated_at": "2024-05-14T10:00:00Z",
+  "labels": [ { "id": 1, "name": "design", "color": "ededed" }, { "id": 2, "name": "bug" } ]
 }
