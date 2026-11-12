@@ -1,4 +1,5 @@
 use super::LineKind::{Add, Context, Del};
+use super::suggest::{has_fixed_px, has_hex_color};
 use super::*;
 
 fn review() -> Review {
