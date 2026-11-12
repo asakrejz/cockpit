@@ -16,21 +16,27 @@ im Gespräch stand. Eine neue Session liest zuerst diese Datei, dann `docs/ROADM
 | Thema | Entscheidung |
 |-------|--------------|
 | Betrieb | Lokal, für eine Person, auf dem eigenen Rechner (`~/Documents/Web/rust-playground`) |
-| Container | **Podman** statt Docker |
+| Container | **Docker (Rancher Desktop) und Podman** müssen beide gehen. Siehe „Container“ in `docs/ROADMAP.md`. |
 | Modellzugang | **Kein Anthropic-API-Key, sondern ein LiteLLM-Proxy.** Der echte Agent (Claude Agent SDK) bekommt `ANTHROPIC_BASE_URL` = Proxy-Adresse und `ANTHROPIC_AUTH_TOKEN` = LiteLLM-Key; der Modellname ist eine Einstellung in Cockpit, weil er von der LiteLLM-Konfiguration abhängt. |
-| Schlüssel | Nur im Schlüsselbund des Backends (`cockpit-server token setzen <github\|jira\|litellm>`), nie im Browser, Repo, in der Datenbank oder in Logs. Der LiteLLM-Key wird nur beim Start an den Podman-Container gegeben. |
+| Schlüssel | Nur im Schlüsselbund des Backends (`cockpit-server token setzen <github\|jira\|litellm>`), nie im Browser, Repo, in der Datenbank oder in Logs. Der LiteLLM-Key wird nur beim Start an den Agent-Container gegeben. |
 | Repo | Bleibt privat (kein GitHub Pages). |
 | Sub-Agenten | Pro Aufgabe ein Agent mit eigenem PR, Modell **Sonnet** (`claude-sonnet-5-5`), nicht Fable. Höchstens **zwei gleichzeitig**: Sie teilen sich das 5-Stunden-Limit des Nutzers, vier parallel sind in Welle 3 daran abgebrochen. |
+
+## Lokale Einrichtung (12.11.2026, erledigt)
+
+Auf dem Mac des Nutzers (Apple Silicon) laufen alle Prüfbefehle unten grün, beide Apps bauen,
+und `cockpit-server` antwortet auf `/api/health`. Dafür war nur Trunk nötig (`brew install trunk`);
+`wasm-bindgen` lädt Trunk selbst. Rust kommt über Homebrew-`rustup`, die `rust-toolchain.toml`
+zieht das Wasm-Target nach. Als Container-Laufzeit ist Rancher Desktop installiert (`docker`,
+`nerdctl`), Podman noch nicht. Containercode gibt es noch keinen – der kommt mit Welle 4.
 
 ## Für Welle 4 noch offen (vom Nutzer)
 
 - Adresse des LiteLLM-Proxys, welche Modelle er anbietet (am besten Claude-Modelle) und ob er
-  vom Rechner bzw. aus dem Podman-Container erreichbar ist.
+  vom Rechner bzw. aus dem Container erreichbar ist (Docker und Podman).
 - Ein GitHub-Token (fine-grained: Contents, Pull requests, Checks, Issues) und ein Jira-API-Token
   zum Ausprobieren – direkt per `cockpit-server token setzen` eingeben, nicht in den Chat.
 - GitHub-OAuth-App und Atlassian-OAuth-App registrieren; optional ein Tunnel für Webhooks.
-- In `docs/ROADMAP.md` steht unter „Was nur du tun kannst“ noch „Anthropic-API-Key“ – beim Start
-  von Welle 4 durch LiteLLM ersetzen.
 
 ## Bekannte Lücken aus den PRs (Abschnitte „Offen“)
 
