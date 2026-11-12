@@ -177,3 +177,18 @@
   color: var(--sys-color-label);
   font: var(--sys-type-footnote);
 }
+
+/* Einrichtungsassistent: eingeklappter Bereich „Erweitert“. */
+.ui-erweitert {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ref-space-12);
+  min-width: 0;
+}
+.ui-erweitert > summary {
+  cursor: pointer;
+  padding: var(--ref-space-8) var(--ref-space-4);
+  color: var(--sys-color-secondary-label);
+  font: var(--sys-type-subheadline);
+}
+.ui-erweitert[open] > summary { color: var(--sys-color-label); margin-bottom: var(--ref-space-8); }
