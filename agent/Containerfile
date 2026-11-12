@@ -24,6 +24,7 @@ WORKDIR /work
 ENV HOME=/home/node \
     COCKPIT_AUFTRAG=/auftrag/auftrag.json \
     COCKPIT_WURZEL=/work \
+    COCKPIT_ANBIETER=claude-agent-sdk \
     NODE_ENV=production
 
 ENTRYPOINT ["node", "--disable-warning=ExperimentalWarning", "/opt/runner/src/main.ts"]

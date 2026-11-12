@@ -1,7 +1,7 @@
 //! Einrichten: ein geführter Assistent in fünf Schritten – Container, Jira, GitHub, Modellzugang
 //! und eine Zusammenfassung. Jeder Schritt lässt sich überspringen und später nachholen.
 //!
-//! Schlüssel (Client-Secrets, Tokens, der LiteLLM-Key) kommen in Passwortfelder und gehen einmal
+//! Schlüssel (Client-Secrets, Tokens, der Key des Modell-Endpunkts) kommen in Passwortfelder und gehen einmal
 //! an den lokalen Server, der sie im Schlüsselbund ablegt. Der Browser speichert sie nirgends
 //! (kein `localStorage`, keine Adresse), der Server schickt sie nie zurück. Die Regeln dazu
 //! stehen in `cockpit_core::einrichten`, das Schreiben von `config.toml` im Server.
@@ -72,7 +72,7 @@ pub fn SetupPage() -> impl IntoView {
                         Schritt::Container => view! { <ContainerSchritt ctx=ctx /> }.into_any(),
                         Schritt::Jira => view! { <JiraSchritt ctx=ctx /> }.into_any(),
                         Schritt::GitHub => view! { <GitHubSchritt ctx=ctx /> }.into_any(),
-                        Schritt::LiteLlm => view! { <ModellSchritt ctx=ctx /> }.into_any(),
+                        Schritt::Modell => view! { <ModellSchritt ctx=ctx /> }.into_any(),
                         Schritt::Fertig => {
                             view! { <FertigSchritt ctx=ctx zu_schritt=springen /> }.into_any()
                         }

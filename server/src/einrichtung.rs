@@ -1,7 +1,7 @@
 //! Einrichtung per Klick: Routen für den Assistenten in der App.
 //!
 //! * `GET /api/einrichtung`: aktuelle, nicht geheime Werte und welche Schlüssel liegen
-//! * `PUT /api/konfiguration`: schreibt Client-IDs, Jira, Repos und LiteLLM in `config.toml`
+//! * `PUT /api/konfiguration`: schreibt Client-IDs, Jira, Repos sowie Agent-Anbieter und Endpunkt in `config.toml`
 //!   (atomar, Kommentare und andere Werte bleiben) und wendet sie ohne Neustart an
 //! * `PUT /api/schluessel/{name}`: legt einen Schlüssel im Schlüsselbund ab
 //!
@@ -21,7 +21,7 @@ use cockpit_core::api::{
     Einrichtung, KonfigAenderung, KonfigAntwort, SchluesselAntwort, SchluesselEingabe,
 };
 use cockpit_core::einrichten::{
-    SCHLUESSEL_NAMEN, client_id_lesen, jira_site_lesen, litellm_url_lesen, projekte_lesen,
+    SCHLUESSEL_NAMEN, client_id_lesen, endpunkt_url_lesen, jira_site_lesen, projekte_lesen,
     repos_lesen, schluessel_name_erlaubt, schluessel_pruefen,
 };
 use cockpit_integrations::Secret;
@@ -76,6 +76,74 @@ fn leer_entfernen(doc: &mut DocumentMut, name: &str) {
 
 fn liste(eintraege: &[String]) -> Item {
     value(eintraege.iter().map(String::as_str).collect::<Array>())
+}
+
+/// Schreibt Anbieter und Endpunkt im neuen Format (`[agent] anbieter`, `[agent.endpunkt]`). Ein
+/// älteres `[litellm]` wird dabei übernommen und entfernt, damit nur ein Ort gilt.
+fn endpunkt_schreiben(
+    doc: &mut DocumentMut,
+    e: &cockpit_core::api::EndpunktEingabe,
+) -> Result<(), String> {
+    let url = e.url.as_deref().map(endpunkt_url_lesen).transpose()?;
+    let modell = match e.modell.as_deref().map(str::trim) {
+        Some(m) if m.chars().any(|c| c.is_whitespace() || c.is_control()) => {
+            return Err("Der Modellname enthält Leerzeichen oder Sonderzeichen.".into());
+        }
+        anderes => anderes,
+    };
+    // Werte aus einem älteren `[litellm]` retten, bevor es verschwindet.
+    let alt: Option<(Option<String>, Option<String>)> =
+        doc.get("litellm").and_then(Item::as_table_like).map(|t| {
+            let text = |k: &str| t.get(k).and_then(Item::as_str).map(str::to_string);
+            (text("url"), text("modell"))
+        });
+    if alt.is_some() {
+        doc.remove("litellm");
+    }
+    {
+        let agent = tabelle(doc, "agent")?;
+        if let Some(anbieter) = e.anbieter {
+            setzen(agent, "anbieter", value(anbieter.kennung()));
+        }
+        if !agent.contains_key("endpunkt") {
+            agent.insert("endpunkt", Item::Table(Table::new()));
+        }
+        let ep = agent
+            .get_mut("endpunkt")
+            .and_then(Item::as_table_like_mut)
+            .ok_or("In config.toml ist „agent.endpunkt“ keine Tabelle – bitte die Datei prüfen.")?;
+        if let Some((alte_url, altes_modell)) = alt {
+            if !ep.contains_key("url")
+                && let Some(u) = alte_url
+            {
+                ep.insert("url", value(u));
+            }
+            if !ep.contains_key("modell")
+                && let Some(m) = altes_modell
+            {
+                ep.insert("modell", value(m));
+            }
+        }
+        match url.as_deref() {
+            Some("") => {
+                ep.remove("url");
+            }
+            Some(u) => setzen(ep, "url", value(u)),
+            None => {}
+        }
+        match modell {
+            Some("") => {
+                ep.remove("modell");
+            }
+            Some(m) => setzen(ep, "modell", value(m)),
+            None => {}
+        }
+        if ep.is_empty() {
+            agent.remove("endpunkt");
+        }
+    }
+    leer_entfernen(doc, "agent");
+    Ok(())
 }
 
 /// Wendet die Änderung auf den Text von `config.toml` an. Der Text wird anschließend wie beim
@@ -142,21 +210,8 @@ pub fn aendern(text: &str, a: &KonfigAenderung) -> Result<(String, Config), Stri
         }
         leer_entfernen(&mut doc, "github");
     }
-    if let Some(l) = &a.litellm {
-        let url = litellm_url_lesen(&l.url)?;
-        if url.is_empty() {
-            doc.remove("litellm");
-        } else {
-            let t = tabelle(&mut doc, "litellm")?;
-            setzen(t, "url", value(url));
-            match l.modell.as_deref().map(str::trim) {
-                Some("") => {
-                    t.remove("modell");
-                }
-                Some(m) => setzen(t, "modell", value(m)),
-                None => {}
-            }
-        }
+    if let Some(e) = &a.endpunkt {
+        endpunkt_schreiben(&mut doc, e)?;
     }
 
     let neu = doc.to_string();
@@ -295,7 +350,7 @@ impl AppState {
     /// Die aktuellen, nicht geheimen Werte. Blockierend (Schlüsselbund).
     fn einrichtung(&self) -> Einrichtung {
         let q = self.quellen();
-        let proxy = self.litellm();
+        let wahl = self.agent_wahl();
         let port = self.inner.port;
         Einrichtung {
             jira_site: q.jira.as_ref().map(|j| j.site.clone()).unwrap_or_default(),
@@ -312,8 +367,9 @@ impl AppState {
                 .as_ref()
                 .map(|g| g.repos.clone())
                 .unwrap_or_default(),
-            litellm_url: proxy.as_ref().map(|l| l.url.clone()),
-            litellm_modell: proxy.and_then(|l| l.modell),
+            anbieter: wahl.anbieter,
+            endpunkt_url: wahl.endpunkt.as_ref().and_then(|e| e.url.clone()),
+            endpunkt_modell: wahl.endpunkt.and_then(|e| e.modell),
             callback_github: redirect_uri(Dienst::GitHub, port),
             callback_atlassian: redirect_uri(Dienst::Atlassian, port),
             schluessel: SCHLUESSEL_NAMEN
@@ -400,7 +456,7 @@ mod tests {
     use axum::body::Body;
     use axum::extract::ConnectInfo;
     use axum::http::Request;
-    use cockpit_core::api::{ClientEingabe, GitHubEingabe, JiraEingabe, LitellmEingabe};
+    use cockpit_core::api::{Anbieter, ClientEingabe, EndpunktEingabe, GitHubEingabe, JiraEingabe};
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
@@ -447,8 +503,9 @@ mod tests {
                 projects: Some(vec!["bau".into(), "web".into()]),
                 ..Default::default()
             }),
-            litellm: Some(LitellmEingabe {
-                url: "localhost:4000/".into(),
+            endpunkt: Some(EndpunktEingabe {
+                anbieter: Some(Anbieter::ClaudeAgentSdk),
+                url: Some("localhost:4000/".into()),
                 modell: Some("claude-sonnet-5-5".into()),
             }),
             ..Default::default()
@@ -457,24 +514,85 @@ mod tests {
         assert_eq!(c.atlassian.unwrap().client_id, "7dNimh");
         assert_eq!(c.github_oauth.unwrap().client_id, "Iv23li");
         assert_eq!(c.jira.unwrap().projects, vec!["BAU", "WEB"]);
-        let l = c.litellm.unwrap();
-        assert_eq!(l.url, "http://localhost:4000");
+        let l = c.endpunkt.unwrap();
+        assert_eq!(l.url.as_deref(), Some("http://localhost:4000"));
         assert_eq!(l.modell.as_deref(), Some("claude-sonnet-5-5"));
+        // Das neue Format, kein `[litellm]`.
+        assert!(
+            neu.contains("[agent.endpunkt]") && !neu.contains("litellm"),
+            "{neu}"
+        );
+        assert!(neu.contains("anbieter = \"claude-agent-sdk\""), "{neu}");
         // Ergebnis ist wieder lesbar wie beim Start.
         assert!(Config::aus(Some(&neu), |_| None).is_ok());
     }
 
     #[test]
+    fn aendern_uebernimmt_ein_aelteres_litellm_und_behaelt_agent_werte() {
+        let alt = "[litellm]\nurl = \"http://a:1\"\nmodell = \"altes-modell\"\n[agent]\ncontainer = \"podman\" # meins\nrepo = \"firma/app\"\n";
+        // Nur das Modell ändern: die alte Adresse bleibt, `[litellm]` wandert.
+        let a = KonfigAenderung {
+            endpunkt: Some(EndpunktEingabe {
+                modell: Some("neues-modell".into()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let (neu, c) = aendern(alt, &a).unwrap();
+        assert!(!neu.contains("[litellm]"), "{neu}");
+        assert!(neu.contains("container = \"podman\" # meins"), "{neu}");
+        let e = c.endpunkt.unwrap();
+        assert_eq!(e.url.as_deref(), Some("http://a:1"));
+        assert_eq!(e.modell.as_deref(), Some("neues-modell"));
+        assert_eq!(c.container.as_deref(), Some("podman"));
+        assert_eq!(c.agent_repo.as_deref(), Some("firma/app"));
+    }
+
+    #[test]
+    fn aendern_wechselt_auf_direkt_ohne_adresse() {
+        let start = "[agent.endpunkt]\nurl = \"http://a:1\"\nmodell = \"m\"\n";
+        let a = KonfigAenderung {
+            endpunkt: Some(EndpunktEingabe {
+                anbieter: Some(Anbieter::ClaudeAgentSdk),
+                url: Some(String::new()),
+                modell: Some("claude-opus-5-5".into()),
+            }),
+            ..Default::default()
+        };
+        let (neu, c) = aendern(start, &a).unwrap();
+        assert!(!neu.contains("url"), "{neu}");
+        let e = c.endpunkt.unwrap();
+        assert_eq!(
+            (e.url, e.modell.as_deref()),
+            (None, Some("claude-opus-5-5"))
+        );
+        // Ein noch nicht umgesetztes Werkzeug lässt sich eintragen.
+        let a = KonfigAenderung {
+            endpunkt: Some(EndpunktEingabe {
+                anbieter: Some(Anbieter::Codex),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        assert_eq!(aendern("", &a).unwrap().1.anbieter, Anbieter::Codex);
+    }
+
+    #[test]
     fn aendern_entfernt_mit_leeren_werten() {
-        let start = "[atlassian]\nclient_id = \"x\"\n[litellm]\nurl = \"http://a:1\"\nmodell = \"m\"\n[github]\nrepos = [\"a/b\"]\n";
+        let start = "[atlassian]\nclient_id = \"x\"\n[agent.endpunkt]\nurl = \"http://a:1\"\nmodell = \"m\"\n[github]\nrepos = [\"a/b\"]\n";
         let a = KonfigAenderung {
             atlassian: Some(ClientEingabe::default()),
-            litellm: Some(LitellmEingabe::default()),
+            endpunkt: Some(EndpunktEingabe {
+                url: Some(String::new()),
+                modell: Some(String::new()),
+                ..Default::default()
+            }),
             github: Some(GitHubEingabe::default()),
             ..Default::default()
         };
         let (neu, c) = aendern(start, &a).unwrap();
-        assert!(c.atlassian.is_none() && c.litellm.is_none());
+        assert!(c.atlassian.is_none() && c.endpunkt.is_none());
+        assert!(!neu.contains("agent"), "{neu}");
         assert!(c.github.is_none(), "{neu}");
     }
 
@@ -512,9 +630,9 @@ mod tests {
                 ..Default::default()
             },
             KonfigAenderung {
-                litellm: Some(LitellmEingabe {
-                    url: "ftp://x".into(),
-                    modell: None,
+                endpunkt: Some(EndpunktEingabe {
+                    url: Some("ftp://x".into()),
+                    ..Default::default()
                 }),
                 ..Default::default()
             },
@@ -752,13 +870,32 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn der_agent_key_geht_in_den_schluesselbund_und_nie_zurueck() {
+        let p = pruefstand(None);
+        let (status, antwort) = put(
+            &p.app,
+            "/api/schluessel/agent-key",
+            r#"{"wert":"sk-test-123"}"#,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{antwort}");
+        assert!(!antwort.contains("sk-test-123"), "{antwort}");
+        assert!(p.secrets.get("agent-key").unwrap().is_some());
+        let h = get(&p.app, "/api/health").await;
+        assert_eq!(h["endpunkt"]["key"], true);
+        assert!(!h.to_string().contains("sk-test-123"));
+        let e = get(&p.app, "/api/einrichtung").await;
+        assert!(!e.to_string().contains("sk-test-123"));
+    }
+
+    #[tokio::test]
     async fn konfiguration_schreibt_die_datei_und_wirkt_ohne_neustart() {
         let p = pruefstand(Some(MIT_KOMMENTAREN));
         // Vorher: nichts eingerichtet.
         let h = get(&p.app, "/api/health").await;
-        assert_eq!(h["litellm"]["konfiguriert"], false);
+        assert_eq!(h["endpunkt"]["konfiguriert"], false);
 
-        let body = r#"{"litellm":{"url":"localhost:4000","modell":"claude-sonnet-5-5"},
+        let body = r#"{"endpunkt":{"anbieter":"claude-agent-sdk","url":"localhost:4000","modell":"claude-sonnet-5-5"},
             "github_oauth":{"client_id":"Iv23li"},
             "github":{"repos":["firma/app","https://github.com/firma/web.git"]}}"#;
         let (status, antwort) = put(&p.app, "/api/konfiguration", body).await;
@@ -779,8 +916,20 @@ mod tests {
 
         // Ohne Neustart sichtbar.
         let h = get(&p.app, "/api/health").await;
-        assert_eq!(h["litellm"]["url"], "http://localhost:4000");
-        assert_eq!(h["litellm"]["modell"], "claude-sonnet-5-5");
+        assert_eq!(h["endpunkt"]["url"], "http://localhost:4000");
+        assert_eq!(h["endpunkt"]["modell"], "claude-sonnet-5-5");
+        // Auch die älteren Namen der Anfrage (`litellm`) gelten weiter.
+        let (status, antwort) = put(
+            &p.app,
+            "/api/konfiguration",
+            r#"{"litellm":{"url":"localhost:4001"}}"#,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{antwort}");
+        let e = get(&p.app, "/api/einrichtung").await;
+        assert_eq!(e["endpunkt_url"], "http://localhost:4001");
+        assert_eq!(e["endpunkt_modell"], "claude-sonnet-5-5");
+        assert_eq!(e["anbieter"], "claude-agent-sdk");
         let e = get(&p.app, "/api/einrichtung").await;
         assert_eq!(e["github_client_id"], "Iv23li");
         assert_eq!(

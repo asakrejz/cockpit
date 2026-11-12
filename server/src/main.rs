@@ -11,7 +11,7 @@
 //! ```
 //!
 //! `<name>`: `github`, `jira` (API-Token), `github-oauth` und `atlassian-oauth` (Client-Secret
-//! der OAuth-Apps) sowie `litellm` (Key des LiteLLM-Proxys). Die Tokens der Anmeldung legt das Backend selbst ab.
+//! der OAuth-Apps) sowie `agent-key` (Key des Agent-Endpunkts; `litellm` gilt als älterer Name). Die Tokens der Anmeldung legt das Backend selbst ab.
 //!
 //! ```text
 //! ```
@@ -57,7 +57,7 @@ async fn main() -> ExitCode {
     {
         [] => starten().await,
         ["token", aktion, name] => token(aktion, name),
-        _ => Err("Aufruf: cockpit-server [token setzen|loeschen <github|jira|github-oauth|atlassian-oauth|litellm>]".into()),
+        _ => Err("Aufruf: cockpit-server [token setzen|loeschen <github|jira|github-oauth|atlassian-oauth|agent-key|litellm>]".into()),
     };
     match ergebnis {
         Ok(()) => ExitCode::SUCCESS,
@@ -74,6 +74,7 @@ const NAMEN: &[&str] = &[
     secrets::JIRA,
     secrets::GITHUB_OAUTH,
     secrets::ATLASSIAN_OAUTH,
+    secrets::AGENT_KEY,
     secrets::LITELLM,
 ];
 

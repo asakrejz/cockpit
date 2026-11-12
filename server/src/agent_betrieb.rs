@@ -29,7 +29,6 @@ use crate::app::{AppState, jetzt_ms};
 use crate::config::Seed;
 use crate::container;
 use crate::live::Fehler;
-use crate::secrets;
 
 /// So oft vergleicht der Aufpasser Läufe und Container.
 pub const AUFPASSER_TAKT: Duration = Duration::from_secs(1);
@@ -87,7 +86,8 @@ fn sperre<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 /// Alles, was ein Lauf an Zugang braucht (aus Einstellungen und Schlüsselbund).
 struct Zugang {
     cli: PathBuf,
-    proxy_url: String,
+    /// `None` = direkt beim Anbieter.
+    endpunkt_url: Option<String>,
     key: Secret,
     modell: String,
     repo: String,
@@ -153,13 +153,15 @@ impl AppState {
         *sperre(&self.inner.agent.image) = None;
     }
 
-    fn secret(&self, name: &str) -> Option<Secret> {
-        self.inner
-            .secrets
-            .get(name)
-            .ok()
-            .flatten()
-            .filter(|s| !s.is_empty())
+    /// Der Key des Endpunkts: `agent-key`, ersatzweise das ältere `litellm`.
+    fn agent_key(&self) -> Option<Secret> {
+        match crate::app::agent_key_lesen(self.inner.secrets.as_ref()) {
+            Ok(k) => k.filter(|s| !s.is_empty()),
+            Err(e) => {
+                tracing::warn!("Key des Agent-Endpunkts nicht lesbar: {e}");
+                None
+            }
+        }
     }
 
     fn repo_name(&self) -> Result<String, String> {
@@ -180,14 +182,14 @@ impl AppState {
             .cli_pfad(&container)
             .filter(|_| container.engine_laeuft)
             .is_some_and(|cli| self.image_vorhanden(&cli));
-        let proxy = self.litellm();
+        let wahl = self.agent_wahl();
         let repo = self.repo_name();
         let v = Voraussetzungen {
             container: &container,
             image,
-            litellm_url: proxy.is_some(),
-            litellm_modell: proxy.as_ref().is_some_and(|p| p.modell.is_some()),
-            litellm_key: self.secret(secrets::LITELLM).is_some(),
+            anbieter: wahl.anbieter,
+            modell: wahl.endpunkt.as_ref().is_some_and(|e| e.modell.is_some()),
+            key: self.agent_key().is_some(),
             repo: repo.as_deref().map_err(Clone::clone),
             github_zugang: self.github_zugang().is_some(),
         };
@@ -201,8 +203,12 @@ impl AppState {
             return Err(st.fehlt);
         }
         let container = self.container_status();
-        let proxy = self
-            .litellm()
+        let wahl = self.agent_wahl();
+        if let Some(m) = wahl.anbieter.nicht_umgesetzt() {
+            return Err(vec![m]);
+        }
+        let endpunkt = wahl
+            .endpunkt
             .ok_or_else(|| vec!["Der Modellzugang fehlt.".to_string()])?;
         let q = self.quellen();
         let api = q
@@ -214,11 +220,11 @@ impl AppState {
             cli: self.cli_pfad(&container).ok_or_else(|| {
                 vec!["Das Container-Programm ist nicht mehr zu finden.".to_string()]
             })?,
-            proxy_url: proxy.url,
+            endpunkt_url: endpunkt.url,
             key: self
-                .secret(secrets::LITELLM)
-                .ok_or_else(|| vec!["Der LiteLLM-Key fehlt.".to_string()])?,
-            modell: proxy
+                .agent_key()
+                .ok_or_else(|| vec!["Der Key des Modellzugangs fehlt.".to_string()])?,
+            modell: endpunkt
                 .modell
                 .ok_or_else(|| vec!["Der Modellname fehlt.".to_string()])?,
             repo: st.repo.ok_or_else(|| vec!["Das Repo fehlt.".to_string()])?,
@@ -480,7 +486,7 @@ impl AppState {
 
     // ---------- Erreichbarkeit aus dem Container ----------
 
-    /// Prüft, ob ein Container den LiteLLM-Proxy erreicht (kurzer Lauf des Images im Prüfmodus,
+    /// Prüft, ob ein Container den Endpunkt erreicht (kurzer Lauf des Images im Prüfmodus,
     /// `--rm`), und vergleicht mit dem, was der Mac sieht.
     pub(crate) async fn container_pruefen(&self) -> ContainerPruefung {
         let s = self.clone();
@@ -488,22 +494,27 @@ impl AppState {
             let status = s.container_status();
             let cli = s.cli_pfad(&status).filter(|_| status.engine_laeuft);
             let image = cli.as_ref().is_some_and(|c| s.image_vorhanden(c));
-            (status, cli, image, s.litellm(), s.secret(secrets::LITELLM))
+            (status, cli, image, s.agent_wahl(), s.agent_key())
         })
         .await;
-        let Ok((status, cli, image, proxy, key)) = vorbereitet else {
+        let Ok((status, cli, image, wahl, key)) = vorbereitet else {
             return ContainerPruefung::default();
         };
         let nicht = |hinweis: &str| ContainerPruefung {
             hinweis: Some(hinweis.into()),
             ..Default::default()
         };
-        let Some(proxy) = proxy else {
-            return nicht("Der Proxy ist nicht eingerichtet. Trage zuerst Adresse und Modell ein.");
+        if let Some(m) = wahl.anbieter.nicht_umgesetzt() {
+            return nicht(&m);
+        }
+        let Some(endpunkt) = wahl.endpunkt else {
+            return nicht(
+                "Der Endpunkt ist nicht eingerichtet. Wähle zuerst Anbieter, Endpunkt und Modell.",
+            );
         };
         let Some(key) = key else {
             return nicht(
-                "Es fehlt der Key. Lege ihn zuerst ab, dann lässt sich der Proxy prüfen.",
+                "Es fehlt der Key. Lege ihn zuerst ab, dann lässt sich der Endpunkt prüfen.",
             );
         };
         let Some(cli) = cli else {
@@ -516,15 +527,18 @@ impl AppState {
                 "Das Agent-Image fehlt. Baue es im Schritt „Container“ mit „Image bauen“, dann kann der Container testen.",
             );
         }
-        let mac =
-            cockpit_integrations::litellm::pruefen(&proxy.url, Some(&key), proxy.modell.as_deref())
-                .await;
+        let mac = cockpit_integrations::endpunkt::pruefen(
+            &self.endpunkt_ziel(),
+            Some(&key),
+            endpunkt.modell.as_deref(),
+        )
+        .await;
         let im_container = pruef_container(
             self,
             &cli,
-            &proxy.url,
+            endpunkt.url.as_deref(),
             &key,
-            proxy.modell.as_deref().unwrap_or("-"),
+            endpunkt.modell.as_deref().unwrap_or("-"),
         )
         .await;
         let (erreicht, key_ok, text) = match &im_container {
@@ -626,10 +640,20 @@ fn pruef_auftrag_schreiben(ordner: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// Setzt die Werte, die `-e NAME` weitergibt, und entfernt die nicht benutzten aus der geerbten Umgebung.
+fn kind_umgebung(cmd: &mut Command, endpunkt_url: Option<&str>, key: &str, modell: &str) {
+    for (name, wert) in lauf::umgebung_fuer_kind(endpunkt_url, key, modell) {
+        match wert {
+            Some(w) => cmd.env(name, w),
+            None => cmd.env_remove(name),
+        };
+    }
+}
+
 async fn pruef_container(
     state: &AppState,
     cli: &Path,
-    proxy_url: &str,
+    endpunkt_url: Option<&str>,
     key: &Secret,
     modell: &str,
 ) -> Result<Ereignis, String> {
@@ -653,9 +677,7 @@ async fn pruef_container(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    for (k, v) in lauf::umgebung_fuer_kind(proxy_url, key.expose(), modell) {
-        cmd.env(k, v);
-    }
+    kind_umgebung(&mut cmd, endpunkt_url, key.expose(), modell);
     let lauf_ = tokio::time::timeout(PRUEFUNG_ZEIT, cmd.output()).await;
     let ergebnis = match lauf_ {
         Err(_) => {
@@ -1073,9 +1095,12 @@ async fn lauf_ausfuehren(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    for (k, v) in lauf::umgebung_fuer_kind(&zugang.proxy_url, zugang.key.expose(), &zugang.modell) {
-        cmd.env(k, v);
-    }
+    kind_umgebung(
+        &mut cmd,
+        zugang.endpunkt_url.as_deref(),
+        zugang.key.expose(),
+        &zugang.modell,
+    );
     let mut kind = match cmd.spawn() {
         Ok(k) => k,
         Err(e) => {
@@ -1339,8 +1364,10 @@ pub fn aufpasser_starten(state: AppState) {
 mod tests {
     use super::*;
     use crate::app::Einstellungen;
-    use crate::config::LitellmKonfig;
+    use crate::config::{AgentWahl, EndpunktKonfig};
+    use crate::secrets;
     use crate::secrets::{MemoryStore, SecretStore};
+    use cockpit_core::api::Anbieter;
     use cockpit_core::{AgentOptions, MessageKind, demo};
 
     const TOKEN: &str = "sk-test-geheim-123";
@@ -1591,10 +1618,13 @@ exit 0
             seed: Seed::Leer,
             container_env: Some("docker".into()),
             suchpfad: Some(bin.clone().into_os_string()),
-            litellm: eingerichtet.then(|| LitellmKonfig {
-                url: "https://litellm.example".into(),
-                modell: Some("claude-sonnet-5-5".into()),
-            }),
+            agent: AgentWahl {
+                anbieter: Anbieter::ClaudeAgentSdk,
+                endpunkt: eingerichtet.then(|| EndpunktKonfig {
+                    url: Some("https://litellm.example".into()),
+                    modell: Some("claude-sonnet-5-5".into()),
+                }),
+            },
             agent_repo: Some("firma/app".into()),
             agent_dir: Some(agent_dir),
             git_basis: Some(format!("file://{}/git", tmp.path().display())),
@@ -1782,6 +1812,82 @@ exit 0
             w.ws().item_by_key("BAU-142").unwrap().branch.as_deref(),
             Some(BRANCH)
         );
+    }
+
+    /// Ein Zustand wie `welt`, aber mit anderer Wahl von Anbieter und Endpunkt.
+    fn mit_wahl(w: &Welt, wahl: AgentWahl) -> AppState {
+        let e = Einstellungen {
+            agent: wahl,
+            ..w.state.inner.einstellungen.clone()
+        };
+        let conn = crate::db::open(&w.tmp.path().join("wahl.db")).unwrap();
+        let state = AppState::neu(
+            conn,
+            w.secrets.clone(),
+            8787,
+            crate::abgleich::Quellen::default(),
+            e,
+        );
+        state.inner.live.setze_stand_fuer_test(demo::workspace());
+        state
+    }
+
+    #[test]
+    fn ein_noch_nicht_umgesetztes_werkzeug_startet_keinen_lauf() {
+        let w = welt(true);
+        for a in [Anbieter::ClaudeCode, Anbieter::Codex] {
+            let state = mit_wahl(
+                &w,
+                AgentWahl {
+                    anbieter: a,
+                    endpunkt: w.state.agent_wahl().endpunkt,
+                },
+            );
+            let st = state.agent_status();
+            assert!(!st.bereit);
+            assert!(
+                st.fehlt
+                    .iter()
+                    .any(|f| f.contains(a.bezeichnung()) && f.contains("noch nicht umgesetzt")),
+                "{:?}",
+                st.fehlt
+            );
+            let Err(fehlt) = state.zugang() else {
+                panic!("kein Zugang für {a:?}");
+            };
+            assert!(fehlt[0].contains("noch nicht umgesetzt"));
+        }
+    }
+
+    #[test]
+    fn direkt_beim_anbieter_braucht_nur_key_und_modell() {
+        let w = welt(true);
+        let state = mit_wahl(
+            &w,
+            AgentWahl {
+                anbieter: Anbieter::ClaudeAgentSdk,
+                endpunkt: Some(EndpunktKonfig {
+                    url: None,
+                    modell: Some("claude-opus-5-5".into()),
+                }),
+            },
+        );
+        // Der Key liegt unter dem neuen Namen und geht dem älteren vor.
+        w.secrets
+            .set(secrets::AGENT_KEY, &Secret::new("sk-ant-neu"))
+            .unwrap();
+        let st = state.agent_status();
+        assert!(st.bereit, "{:?}", st.fehlt);
+        let z = state.zugang().unwrap();
+        assert_eq!(z.endpunkt_url, None);
+        assert_eq!(z.key.expose(), "sk-ant-neu");
+        assert_eq!(z.modell, "claude-opus-5-5");
+
+        // Ohne Modell fehlt etwas, und der Hinweis nennt es.
+        let state = mit_wahl(&w, AgentWahl::default());
+        let st = state.agent_status();
+        assert!(!st.bereit);
+        assert!(st.fehlt.iter().any(|f| f.contains("der Modellname")));
     }
 
     #[tokio::test]
@@ -2320,10 +2426,13 @@ printf '%s\n' '{{"t":"hinweise_angekommen"}}'
         let w = welt(true);
         // Der Proxy des Tests liegt auf dem Mac; der „Container“ erreicht ihn nicht.
         let e = Einstellungen {
-            litellm: Some(LitellmKonfig {
-                url: proxy.uri(),
-                modell: Some("claude-sonnet-5-5".into()),
-            }),
+            agent: AgentWahl {
+                anbieter: Anbieter::ClaudeAgentSdk,
+                endpunkt: Some(EndpunktKonfig {
+                    url: Some(proxy.uri()),
+                    modell: Some("claude-sonnet-5-5".into()),
+                }),
+            },
             ..w.state.inner.einstellungen.clone()
         };
         let conn = crate::db::open(&w.tmp.path().join("p.db")).unwrap();

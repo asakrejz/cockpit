@@ -2,13 +2,16 @@
 //! Zusammenfassung in Klartext. Reine Logik ohne Oberfläche und Netzwerk; die Seite „Einrichten“
 //! verdrahtet sie nur.
 
-use crate::api::{AgentStatus, ContainerStatus, Einrichtung, LitellmPruefung, LitellmStatus};
+use crate::api::{
+    AgentStatus, Anbieter, ContainerStatus, Einrichtung, EndpunktPruefung, EndpunktStatus,
+};
 use crate::connections::{AuthKind, ServiceStatus};
 
 /// Die Namen, unter denen das Backend Schlüssel im Schlüsselbund ablegt (`PUT /api/schluessel/{name}`).
 pub const SCHLUESSEL_NAMEN: &[&str] = &[
     "github-oauth",
     "atlassian-oauth",
+    "agent-key",
     "litellm",
     "jira",
     "github",
@@ -23,7 +26,7 @@ pub enum Schritt {
     Container,
     Jira,
     GitHub,
-    LiteLlm,
+    Modell,
     Fertig,
 }
 
@@ -32,7 +35,7 @@ impl Schritt {
         Schritt::Container,
         Schritt::Jira,
         Schritt::GitHub,
-        Schritt::LiteLlm,
+        Schritt::Modell,
         Schritt::Fertig,
     ];
 
@@ -42,7 +45,7 @@ impl Schritt {
             Schritt::Container => "Container",
             Schritt::Jira => "Jira",
             Schritt::GitHub => "GitHub",
-            Schritt::LiteLlm => "Modell",
+            Schritt::Modell => "Modell",
             Schritt::Fertig => "Fertig",
         }
     }
@@ -65,7 +68,7 @@ impl Schritt {
             Schritt::Container => "container",
             Schritt::Jira => "jira",
             Schritt::GitHub => "github",
-            Schritt::LiteLlm => "modell",
+            Schritt::Modell => "modell",
             Schritt::Fertig => "fertig",
         }
     }
@@ -80,12 +83,12 @@ pub fn nichts_eingerichtet(
     einrichtung: &Einrichtung,
     jira: &ServiceStatus,
     github: &ServiceStatus,
-    litellm: &LitellmStatus,
+    endpunkt: &EndpunktStatus,
 ) -> bool {
     !(jira.verbunden
         || github.verbunden
-        || litellm.konfiguriert
-        || litellm.key
+        || endpunkt.konfiguriert
+        || endpunkt.key
         || einrichtung.atlassian_client_id.is_some()
         || einrichtung.github_client_id.is_some()
         || !einrichtung.github_repos.is_empty()
@@ -222,9 +225,10 @@ pub fn client_id_lesen(text: &str) -> Result<String, String> {
     Ok(t.to_string())
 }
 
-/// Die Adresse des LiteLLM-Proxys: ohne `http://` oder `https://` wird `http://` ergänzt
-/// (`localhost:4000` → `http://localhost:4000`), ein Schrägstrich am Ende fällt weg. Leer bleibt leer.
-pub fn litellm_url_lesen(text: &str) -> Result<String, String> {
+/// Die Adresse des Endpunkts (LiteLLM, ein anderer kompatibler Dienst): ohne `http://` oder
+/// `https://` wird `http://` ergänzt (`localhost:4000` → `http://localhost:4000`), ein
+/// Schrägstrich am Ende fällt weg. Leer bleibt leer (= direkt beim Anbieter).
+pub fn endpunkt_url_lesen(text: &str) -> Result<String, String> {
     let t = text.trim();
     if t.is_empty() {
         return Ok(String::new());
@@ -245,6 +249,137 @@ pub fn litellm_url_lesen(text: &str) -> Result<String, String> {
         return Err("In der Adresse fehlt der Rechnername, z. B. localhost:4000.".into());
     }
     Ok(url.trim_end_matches('/').to_string())
+}
+
+/// Wohin der Agent seine Modellanfragen schickt. In `config.toml` unterscheidet sich nur, ob eine
+/// Adresse eingetragen ist; „Proxy“ und „anderer Endpunkt“ unterscheiden nur die Hinweise im Assistenten.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EndpunktArt {
+    /// Direkt bei Anthropic (keine Adresse, Key von der Anthropic-Konsole).
+    Direkt,
+    /// Ein eigener Proxy wie LiteLLM.
+    Proxy,
+    /// Ein anderer Anthropic-kompatibler Endpunkt.
+    Kompatibel,
+}
+
+impl EndpunktArt {
+    pub const ALLE: [EndpunktArt; 3] = [
+        EndpunktArt::Direkt,
+        EndpunktArt::Proxy,
+        EndpunktArt::Kompatibel,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            EndpunktArt::Direkt => "direkt",
+            EndpunktArt::Proxy => "proxy",
+            EndpunktArt::Kompatibel => "kompatibel",
+        }
+    }
+
+    pub fn aus_id(id: &str) -> Option<EndpunktArt> {
+        Self::ALLE.into_iter().find(|a| a.id() == id)
+    }
+
+    pub fn bezeichnung(self) -> &'static str {
+        match self {
+            EndpunktArt::Direkt => "Direkt bei Anthropic",
+            EndpunktArt::Proxy => "Eigener Proxy (z. B. LiteLLM)",
+            EndpunktArt::Kompatibel => "Anderer kompatibler Endpunkt",
+        }
+    }
+
+    /// Was in der gespeicherten Konfiguration steht: ohne Adresse direkt, sonst ein Proxy.
+    pub fn aus_url(url: &str) -> EndpunktArt {
+        if url.trim().is_empty() {
+            EndpunktArt::Direkt
+        } else {
+            EndpunktArt::Proxy
+        }
+    }
+
+    /// Braucht diese Art eine Adresse?
+    pub fn braucht_adresse(self) -> bool {
+        self != EndpunktArt::Direkt
+    }
+
+    /// Erklärung unter der Auswahl.
+    pub fn erklaerung(self) -> &'static str {
+        match self {
+            EndpunktArt::Direkt => {
+                "Der Agent spricht ohne Zwischenstation mit Anthropic. Du brauchst einen API-Key aus der Anthropic-Konsole."
+            }
+            EndpunktArt::Proxy => {
+                "Eine Zwischenstation, die dein Team betreibt (z. B. LiteLLM). Du bekommst Adresse und Key vom Betreiber."
+            }
+            EndpunktArt::Kompatibel => {
+                "Ein Dienst, der die Schnittstelle von Anthropic nachbildet. Trage seine Adresse und seinen Key ein."
+            }
+        }
+    }
+
+    pub fn url_platzhalter(self) -> &'static str {
+        match self {
+            EndpunktArt::Direkt => "",
+            EndpunktArt::Proxy => "https://litellm.example",
+            EndpunktArt::Kompatibel => "https://endpunkt.example",
+        }
+    }
+
+    pub fn key_bezeichnung(self) -> &'static str {
+        match self {
+            EndpunktArt::Direkt => "Anthropic-API-Key",
+            EndpunktArt::Proxy => "Key des Proxys",
+            EndpunktArt::Kompatibel => "Key des Endpunkts",
+        }
+    }
+}
+
+/// Eine Zeile des Drop-downs für den Modellnamen.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ModellOption {
+    pub id: String,
+    /// Das gespeicherte Modell steht nicht in der geladenen Liste.
+    pub unbekannt: bool,
+}
+
+/// Die Auswahl fürs Drop-down: die geladene Liste; ein gespeichertes Modell, das darin fehlt,
+/// bleibt vorne sichtbar (als `unbekannt` markiert), damit es nicht stillschweigend verschwindet.
+pub fn modell_auswahl(liste: &[String], gespeichert: &str) -> Vec<ModellOption> {
+    let gespeichert = gespeichert.trim();
+    let mut aus: Vec<ModellOption> = Vec::with_capacity(liste.len() + 1);
+    if !gespeichert.is_empty() && !liste.iter().any(|m| m == gespeichert) {
+        aus.push(ModellOption {
+            id: gespeichert.to_string(),
+            unbekannt: true,
+        });
+    }
+    aus.extend(liste.iter().map(|m| ModellOption {
+        id: m.clone(),
+        unbekannt: false,
+    }));
+    aus
+}
+
+/// Prüft einen von Hand getippten Modellnamen: nicht leer, ohne Leerraum und Steuerzeichen, nicht zu lang.
+pub fn modellname_lesen(text: &str) -> Result<String, String> {
+    let t = text.trim();
+    if t.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return Err("Der Modellname enthält Leerzeichen oder Sonderzeichen.".into());
+    }
+    if t.chars().count() > 200 {
+        return Err("Der Modellname ist zu lang.".into());
+    }
+    Ok(t.to_string())
+}
+
+/// Der Hinweis unter dem Drop-down, wenn das gespeicherte Modell nicht in der Liste steht.
+pub fn modell_hinweis(liste: &[String], gespeichert: &str) -> Option<String> {
+    let g = gespeichert.trim();
+    (!g.is_empty() && !liste.is_empty() && !liste.iter().any(|m| m == g)).then(|| {
+        format!("„{g}“ steht nicht in der Liste des Endpunkts. Wähle ein Modell aus der Liste, oder lass es, wenn du den Namen sicher kennst.")
+    })
 }
 
 /// Wie gut ein Punkt der Zusammenfassung steht.
@@ -275,12 +410,12 @@ pub struct Stand {
     pub einrichtung: Einrichtung,
     pub jira: ServiceStatus,
     pub github: ServiceStatus,
-    pub litellm: LitellmStatus,
+    pub endpunkt: EndpunktStatus,
     pub container: ContainerStatus,
     /// Ob der echte Agent loslaufen kann (Image gebaut, alles eingerichtet).
     pub agent: AgentStatus,
-    /// Ergebnis des letzten Verbindungstests zum Proxy, falls schon gelaufen.
-    pub pruefung: Option<LitellmPruefung>,
+    /// Ergebnis des letzten Verbindungstests zum Endpunkt, falls schon gelaufen.
+    pub pruefung: Option<EndpunktPruefung>,
 }
 
 fn dienst_zeile(
@@ -372,16 +507,23 @@ pub fn zusammenfassung(s: &Stand) -> Vec<Zeile> {
     }
 
     let modell = {
-        let (ton, text) = match (&s.pruefung, s.litellm.konfiguriert) {
+        let (ton, text) = match (&s.pruefung, s.endpunkt.konfiguriert || s.endpunkt.key) {
+            _ if !s.endpunkt.anbieter.umgesetzt() => (
+                Ton::Problem,
+                s.endpunkt
+                    .anbieter
+                    .nicht_umgesetzt()
+                    .unwrap_or_else(|| Anbieter::default().bezeichnung().to_string()),
+            ),
             (Some(p), _) => pruefung_klartext(p),
             (None, false) => (Ton::Offen, "Noch nicht eingerichtet.".to_string()),
-            (None, true) if !s.litellm.key => (
+            (None, true) if !s.endpunkt.key => (
                 Ton::Problem,
-                "Adresse eingetragen, aber der Key fehlt noch.".to_string(),
+                "Eingetragen, aber der Key fehlt noch.".to_string(),
             ),
-            (None, true) if s.litellm.modell.is_none() => (
+            (None, true) if s.endpunkt.modell.is_none() => (
                 Ton::Problem,
-                "Adresse und Key sind da, aber der Modellname fehlt.".to_string(),
+                "Key ist da, aber der Modellname fehlt noch.".to_string(),
             ),
             (None, true) => (
                 Ton::Offen,
@@ -392,7 +534,7 @@ pub fn zusammenfassung(s: &Stand) -> Vec<Zeile> {
             name: "Modellzugang",
             ton,
             text,
-            schritt: Schritt::LiteLlm,
+            schritt: Schritt::Modell,
         }
     };
 
@@ -410,28 +552,28 @@ pub fn zusammenfassung(s: &Stand) -> Vec<Zeile> {
 }
 
 /// Ergebnis des Verbindungstests in einem Satz Klartext.
-pub fn pruefung_klartext(p: &LitellmPruefung) -> (Ton, String) {
+pub fn pruefung_klartext(p: &EndpunktPruefung) -> (Ton, String) {
     if !p.konfiguriert {
-        return (Ton::Offen, "Noch keine Adresse eingetragen.".into());
+        return (Ton::Offen, "Noch nichts eingetragen.".into());
     }
     if !p.erreichbar {
         return (
             Ton::Problem,
-            "Der Proxy antwortet nicht. Stimmt die Adresse, und bist du im richtigen Netz oder VPN?"
+            "Der Endpunkt antwortet nicht. Stimmt die Adresse, und bist du im richtigen Netz oder VPN?"
                 .into(),
         );
     }
     if !p.key_ok {
         return (
             Ton::Problem,
-            "Der Proxy ist erreichbar, nimmt den Key aber nicht an. Prüfe, ob du den ganzen Key kopiert hast."
+            "Der Endpunkt ist erreichbar, nimmt den Key aber nicht an. Prüfe, ob du den ganzen Key kopiert hast."
                 .into(),
         );
     }
     if !p.modell_vorhanden {
         return (
             Ton::Problem,
-            "Verbindung und Key sind in Ordnung, aber der Proxy kennt den Modellnamen nicht. Frag den Betreiber nach dem genauen Namen."
+            "Verbindung und Key sind in Ordnung, aber der Endpunkt kennt den Modellnamen nicht. Lade die Modelle und wähle eines aus der Liste."
                 .into(),
         );
     }
@@ -451,7 +593,7 @@ mod tests {
         assert_eq!(Schritt::Container.vorheriger(), None);
         assert_eq!(Schritt::Container.naechster(), Some(Schritt::Jira));
         assert_eq!(Schritt::Fertig.naechster(), None);
-        assert_eq!(Schritt::Fertig.vorheriger(), Some(Schritt::LiteLlm));
+        assert_eq!(Schritt::Fertig.vorheriger(), Some(Schritt::Modell));
         for s in Schritt::ALLE {
             assert_eq!(Schritt::aus_id(s.id()), Some(s));
         }
@@ -462,7 +604,7 @@ mod tests {
     fn first_start_is_detected() {
         let e = Einrichtung::default();
         let aus = ServiceStatus::default();
-        let l = LitellmStatus::default();
+        let l = EndpunktStatus::default();
         assert!(nichts_eingerichtet(&e, &aus, &aus, &l));
         let mit_id = Einrichtung {
             github_client_id: Some("Iv1".into()),
@@ -474,7 +616,7 @@ mod tests {
             ..Default::default()
         };
         assert!(!nichts_eingerichtet(&e, &an, &aus, &l));
-        let llm = LitellmStatus {
+        let llm = EndpunktStatus {
             key: true,
             ..Default::default()
         };
@@ -502,6 +644,7 @@ mod tests {
         for n in [
             "github-oauth",
             "atlassian-oauth",
+            "agent-key",
             "litellm",
             "jira",
             "github",
@@ -569,18 +712,18 @@ mod tests {
     }
 
     #[test]
-    fn litellm_url_gets_a_scheme() {
+    fn endpoint_url_gets_a_scheme() {
         assert_eq!(
-            litellm_url_lesen("localhost:4000/").unwrap(),
+            endpunkt_url_lesen("localhost:4000/").unwrap(),
             "http://localhost:4000"
         );
         assert_eq!(
-            litellm_url_lesen(" https://llm.firma.example ").unwrap(),
+            endpunkt_url_lesen(" https://llm.firma.example ").unwrap(),
             "https://llm.firma.example"
         );
-        assert_eq!(litellm_url_lesen("").unwrap(), "");
+        assert_eq!(endpunkt_url_lesen("").unwrap(), "");
         for schlecht in ["ftp://x", "http://", "a b", "https:///"] {
-            assert!(litellm_url_lesen(schlecht).is_err(), "{schlecht}");
+            assert!(endpunkt_url_lesen(schlecht).is_err(), "{schlecht}");
         }
     }
 
@@ -642,13 +785,13 @@ mod tests {
         s.container.engine_laeuft = true;
         assert_eq!(zusammenfassung(&s)[0].ton, Ton::Gut);
 
-        s.litellm.konfiguriert = true;
+        s.endpunkt.konfiguriert = true;
         assert_eq!(zusammenfassung(&s)[3].ton, Ton::Problem);
-        s.litellm.key = true;
+        s.endpunkt.key = true;
         assert!(zusammenfassung(&s)[3].text.contains("Modellname"));
-        s.litellm.modell = Some("m".into());
+        s.endpunkt.modell = Some("m".into());
         assert_eq!(zusammenfassung(&s)[3].ton, Ton::Offen);
-        s.pruefung = Some(LitellmPruefung {
+        s.pruefung = Some(EndpunktPruefung {
             konfiguriert: true,
             erreichbar: true,
             key_ok: true,
@@ -660,7 +803,7 @@ mod tests {
 
     #[test]
     fn test_result_tells_where_it_failed() {
-        let mut p = LitellmPruefung {
+        let mut p = EndpunktPruefung {
             konfiguriert: true,
             ..Default::default()
         };
@@ -671,7 +814,10 @@ mod tests {
         assert!(pruefung_klartext(&p).1.contains("Modellnamen"));
         p.modell_vorhanden = true;
         assert_eq!(pruefung_klartext(&p).0, Ton::Gut);
-        assert_eq!(pruefung_klartext(&LitellmPruefung::default()).0, Ton::Offen);
+        assert_eq!(
+            pruefung_klartext(&EndpunktPruefung::default()).0,
+            Ton::Offen
+        );
     }
 
     #[test]
@@ -687,5 +833,63 @@ mod tests {
         assert!(z.text.contains("Image bauen"));
         s.agent.image = true;
         assert_eq!(zusammenfassung(&s)[0].ton, Ton::Gut);
+    }
+
+    #[test]
+    fn endpoint_kinds_roundtrip_and_follow_the_url() {
+        for a in EndpunktArt::ALLE {
+            assert_eq!(EndpunktArt::aus_id(a.id()), Some(a));
+        }
+        assert_eq!(EndpunktArt::aus_url(""), EndpunktArt::Direkt);
+        assert_eq!(EndpunktArt::aus_url("http://x:1"), EndpunktArt::Proxy);
+        assert!(!EndpunktArt::Direkt.braucht_adresse());
+        assert!(EndpunktArt::Kompatibel.braucht_adresse());
+        assert!(!EndpunktArt::Direkt.erklaerung().contains("LiteLLM"));
+    }
+
+    #[test]
+    fn model_choice_keeps_an_unknown_saved_model_visible() {
+        let liste = vec!["claude-a".to_string(), "gpt-x".to_string()];
+        let o = modell_auswahl(&liste, "claude-a");
+        assert_eq!(o.len(), 2);
+        assert!(o.iter().all(|m| !m.unbekannt));
+        assert_eq!(modell_hinweis(&liste, "claude-a"), None);
+
+        let o = modell_auswahl(&liste, " alt-modell ");
+        assert_eq!(o.len(), 3);
+        assert_eq!((o[0].id.as_str(), o[0].unbekannt), ("alt-modell", true));
+        assert!(
+            modell_hinweis(&liste, "alt-modell")
+                .unwrap()
+                .contains("alt-modell")
+        );
+
+        // Leere Liste oder nichts gespeichert: kein Hinweis, keine Zusatzzeile.
+        assert!(modell_auswahl(&liste, "").len() == 2);
+        assert_eq!(modell_hinweis(&[], "x"), None);
+        assert_eq!(modell_hinweis(&liste, ""), None);
+    }
+
+    #[test]
+    fn hand_typed_model_names_are_checked() {
+        assert_eq!(
+            modellname_lesen("  claude-sonnet-5-5 ").unwrap(),
+            "claude-sonnet-5-5"
+        );
+        assert_eq!(modellname_lesen("").unwrap(), "");
+        assert_eq!(modellname_lesen("a/b:c.1").unwrap(), "a/b:c.1");
+        for schlecht in ["a b", "a\nb", &"x".repeat(201)] {
+            assert!(modellname_lesen(schlecht).is_err());
+        }
+    }
+
+    #[test]
+    fn an_unimplemented_tool_is_a_problem_in_the_summary() {
+        let mut s = Stand::default();
+        s.endpunkt.anbieter = Anbieter::Codex;
+        s.endpunkt.konfiguriert = true;
+        let z = &zusammenfassung(&s)[3];
+        assert_eq!(z.ton, Ton::Problem);
+        assert!(z.text.contains("Codex") && z.text.contains("noch nicht umgesetzt"));
     }
 }

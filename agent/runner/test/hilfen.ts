@@ -1,6 +1,6 @@
 import type { Ereignis } from "../src/ereignis.ts";
 import { type Auftrag, pruefeAuftrag } from "../src/auftrag.ts";
-import type { Eingang, QueryOptionen, Sdk, SdkNachricht } from "../src/lauf.ts";
+import type { Eingang, QueryOptionen, Sdk, SdkNachricht } from "../src/adapter/claude-agent-sdk.ts";
 
 export function auftrag(teil: Record<string, unknown> = {}): Auftrag {
   return pruefeAuftrag({

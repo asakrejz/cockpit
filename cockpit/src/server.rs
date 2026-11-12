@@ -5,8 +5,8 @@
 use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
     ActionRequest, ActionResponse, AgentStatus, ContainerPruefung, ContainerStatus, Einrichtung,
-    ErrorBody, ImageBau, JiraProjectsResponse, KonfigAenderung, KonfigAntwort, LitellmPruefung,
-    LitellmStatus, SchluesselAntwort, SchluesselEingabe, ServerEvent, SyncResponse,
+    EndpunktPruefung, EndpunktStatus, ErrorBody, ImageBau, JiraProjectsResponse, KonfigAenderung,
+    KonfigAntwort, Modellliste, SchluesselAntwort, SchluesselEingabe, ServerEvent, SyncResponse,
     WiderrufAntwort,
 };
 use cockpit_core::{Action, Workspace, persist};
@@ -159,14 +159,14 @@ pub struct Health {
     #[serde(default)]
     pub anmeldung: Services,
     #[serde(default)]
-    pub litellm: LitellmStatus,
+    pub endpunkt: EndpunktStatus,
     #[serde(default)]
     pub container: ContainerStatus,
     #[serde(default)]
     pub agent: AgentStatus,
 }
 
-/// Stand der Anmeldung, des LiteLLM-Proxys und der Container-Laufzeit (`GET /api/health`).
+/// Stand der Anmeldung, des Agent-Endpunkts und der Container-Laufzeit (`GET /api/health`).
 pub async fn fetch_health() -> Result<Health, CallError> {
     let resp = Request::get("/api/health")
         .send()
@@ -185,16 +185,30 @@ pub async fn fetch_services() -> Result<Services, CallError> {
     fetch_health().await.map(|h| h.anmeldung)
 }
 
-/// Verbindungstest zum LiteLLM-Proxy (`GET /api/litellm/pruefen`).
-pub async fn fetch_litellm_check() -> Result<LitellmPruefung, CallError> {
-    let resp = Request::get("/api/litellm/pruefen")
+/// Verbindungstest zum Endpunkt (`GET /api/agent/pruefen`).
+pub async fn fetch_endpunkt_check() -> Result<EndpunktPruefung, CallError> {
+    let resp = Request::get("/api/agent/pruefen")
         .send()
         .await
         .map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<LitellmPruefung>()
+    resp.json::<EndpunktPruefung>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Die Modell-IDs des gespeicherten Endpunkts (`GET /api/agent/modelle`).
+pub async fn fetch_modelle() -> Result<Modellliste, CallError> {
+    let resp = Request::get("/api/agent/modelle")
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<Modellliste>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
@@ -228,9 +242,9 @@ pub async fn post_image_bauen() -> Result<ImageBau, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Prüft, ob ein Container den LiteLLM-Proxy erreicht (`GET /api/litellm/pruefen/container`).
+/// Prüft, ob ein Container den Endpunkt erreicht (`GET /api/agent/pruefen/container`).
 pub async fn fetch_container_check() -> Result<ContainerPruefung, CallError> {
-    let resp = Request::get("/api/litellm/pruefen/container")
+    let resp = Request::get("/api/agent/pruefen/container")
         .send()
         .await
         .map_err(|_| CallError::Unreachable)?;
@@ -272,7 +286,7 @@ pub async fn fetch_einrichtung() -> Result<Einrichtung, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Schreibt Client-IDs, Jira, Repos oder LiteLLM in `config.toml` (`PUT /api/konfiguration`).
+/// Schreibt Client-IDs, Jira, Repos oder Anbieter und Endpunkt in `config.toml` (`PUT /api/konfiguration`).
 pub async fn put_konfiguration(aenderung: &KonfigAenderung) -> Result<KonfigAntwort, CallError> {
     let request = Request::put("/api/konfiguration")
         .header("Content-Type", "application/json")

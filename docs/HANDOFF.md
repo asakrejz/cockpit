@@ -15,12 +15,14 @@ im Gespräch stand. Eine neue Session liest zuerst diese Datei, dann `docs/ROADM
   `agent/` mit Containerfile und Läufer, `server/src/agent_lauf.rs` rein, `agent_betrieb.rs` Prozesse, `agent_git.rs`
   Klonen/Prüfen/Pushen; Kern: `AgentReport`/`Action::ReportAgent`). Alles nur gegen Attrappen geprüft (Shell-Skript als
   `docker`, lokales Git-Remote, SDK-Attrappe im Läufer) – **nie** ein echter Lauf, kein echter Proxy.
-- **Wünsche des Nutzers, noch offen (12.11.2026):** (1) Der Agent soll nicht an LiteLLM gebunden sein: `Anbieter`-Enum
-  (Claude Agent SDK umgesetzt, Claude Code und Codex als „noch nicht umgesetzt“), `[agent] anbieter`, `[agent.endpunkt]
-  url/modell`, Schlüssel `agent-key`, alte `[litellm]`-Werte als Alias; Adapter-Struktur im Läufer. (2) Modellname im
-  Assistenten als Drop-down aus `GET <url>/v1/models` (bei Anthropic direkt mit `x-api-key`), Freitext als Ausweg.
-  (3) **Jira per API-Token statt OAuth** (Firma gibt keine Apps frei): Der Token-Weg gibt es (`token setzen jira`, Feld im
-  Assistenten); der Assistent sollte ihn als Standard anbieten. (4) Nach dem Funktionsumfang ein Refactoring: Ordnerstruktur
+- **Agent-Anbieter und Endpunkt (umgesetzt, nur gegen Attrappen geprüft):** `Anbieter`-Enum (Claude Agent SDK läuft, Claude Code
+  und Codex sind bekannte Werte und melden „noch nicht umgesetzt“), `[agent] anbieter`, `[agent.endpunkt] url/modell`, Schlüssel
+  `agent-key`; alte `[litellm]`-Werte und der Schlüssel `litellm` werden weiter gelesen. Der Läufer hat Adapter
+  (`agent/runner/src/adapter/`), der Assistent ein Modell-Drop-down aus `GET /api/agent/modelle`. **Offen:** die Adapter für
+  Claude Code und Codex (nur übersetzen, siehe `agent/README.md`), `COCKPIT_ANBIETER` an den Container geben, sobald es sie gibt.
+- **Wünsche des Nutzers, noch offen (12.11.2026):**
+  (1) **Jira per API-Token statt OAuth** (Firma gibt keine Apps frei): Der Token-Weg gibt es (`token setzen jira`, Feld im
+  Assistenten); der Assistent sollte ihn als Standard anbieten. (2) Nach dem Funktionsumfang ein Refactoring: Ordnerstruktur
   (Cockpit ist die Hauptanwendung, der Playground nur die Spielwiese der Komponentenbibliothek), alles auf Englisch (Code,
   Benennung, Docs), Übergabe-Dateien und die Roadmap am Ende entfernen, toten Code löschen.
 
@@ -30,8 +32,8 @@ im Gespräch stand. Eine neue Session liest zuerst diese Datei, dann `docs/ROADM
 |-------|--------------|
 | Betrieb | Lokal, für eine Person, auf dem eigenen Rechner (`~/Documents/Web/rust-playground`) |
 | Container | **Docker (Rancher Desktop) und Podman** müssen beide gehen. Siehe „Container“ in `docs/ROADMAP.md`. |
-| Modellzugang | **Kein Anthropic-API-Key, sondern ein LiteLLM-Proxy.** Der echte Agent (Claude Agent SDK) bekommt `ANTHROPIC_BASE_URL` = Proxy-Adresse und `ANTHROPIC_AUTH_TOKEN` = LiteLLM-Key; der Modellname ist eine Einstellung in Cockpit, weil er von der LiteLLM-Konfiguration abhängt. |
-| Schlüssel | Nur im Schlüsselbund des Backends, nie im Repo, in der Datenbank, in Logs oder im Speicher des Browsers. Zwei Wege hinein: `cockpit-server token setzen <name>` im Terminal, oder (freigegeben am 12.11.2026) die Passwortfelder des Assistenten, die den Wert einmal über Loopback an `PUT /api/schluessel/{name}` schicken (nur `github-oauth`, `atlassian-oauth`, `litellm`, `jira`, `github`; Antwort nur „gesetzt“; Feld wird sofort geleert; keine Logs, kein `localStorage`, keine URL). Der LiteLLM-Key wird nur beim Start an den Agent-Container gegeben. |
+| Modellzugang | Der Nutzer hat **keinen** Anthropic-Key, sondern einen LiteLLM-Proxy – LiteLLM ist aber nur ein möglicher Endpunkt. Der Agent-Anbieter und der Endpunkt sind wählbar (direkt bei Anthropic, Proxy, anderer kompatibler Endpunkt). Mit Adresse bekommt der Container `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`, ohne Adresse `ANTHROPIC_API_KEY`; der Modellname ist eine Einstellung und wird im Assistenten aus der Liste des Endpunkts gewählt. |
+| Schlüssel | Nur im Schlüsselbund des Backends, nie im Repo, in der Datenbank, in Logs oder im Speicher des Browsers. Zwei Wege hinein: `cockpit-server token setzen <name>` im Terminal, oder (freigegeben am 12.11.2026) die Passwortfelder des Assistenten, die den Wert einmal über Loopback an `PUT /api/schluessel/{name}` schicken (nur `github-oauth`, `atlassian-oauth`, `agent-key`, `litellm` als älterer Name, `jira`, `github`; Antwort nur „gesetzt“; Feld wird sofort geleert; keine Logs, kein `localStorage`, keine URL). Der Key des Endpunkts wird nur beim Start an den Agent-Container gegeben. |
 | Demo / Seed | Der Demo-Modus (Beispieldaten im Browser ohne Backend) ist entfernt. `demo::workspace()` bleibt als Testdaten und Stories-Daten; der Server startet leer und lädt die Beispieldaten nur mit `COCKPIT_SEED=demo` (oder `seed = "demo"`), nur wenn noch kein Stand gespeichert ist. |
 | Repo | Bleibt privat (kein GitHub Pages). |
 | Sub-Agenten | Pro Aufgabe ein Agent mit eigenem PR, Modell **Sonnet** (`claude-sonnet-5-5`), nicht Fable. Höchstens **zwei gleichzeitig**: Sie teilen sich das 5-Stunden-Limit des Nutzers, vier parallel sind in Welle 3 daran abgebrochen. |
@@ -46,7 +48,7 @@ zieht das Wasm-Target nach. Als Container-Laufzeit ist Rancher Desktop installie
 
 ## Für Welle 4 noch offen (vom Nutzer)
 
-- Adresse des LiteLLM-Proxys, welche Modelle er anbietet (am besten Claude-Modelle) und ob er
+- Adresse des Proxys (LiteLLM o. Ä.) oder ein Anthropic-Key, welche Modelle der Endpunkt anbietet (am besten Claude-Modelle) und ob er
   vom Rechner bzw. aus dem Container erreichbar ist (Docker und Podman).
 - Ein GitHub-Token (fine-grained: Contents, Pull requests, Checks, Issues) und ein Jira-API-Token
   zum Ausprobieren – direkt per `cockpit-server token setzen` eingeben, nicht in den Chat.

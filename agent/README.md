@@ -4,9 +4,31 @@ Der Agent des Cockpits läuft pro Lauf in einem eigenen Container (Docker oder P
 Verzeichnis enthält das Image:
 
 - `Containerfile` – Node 24, Git, der Läufer; läuft als Nutzer `node` (nicht root).
-- `runner/` – der Läufer (TypeScript, ohne Build-Schritt: Node führt `.ts` direkt aus) mit dem
-  Claude Agent SDK. Er liest den Auftrag aus `/auftrag/auftrag.json` und spricht über
-  `ANTHROPIC_BASE_URL` / `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_MODEL` mit dem LiteLLM-Proxy.
+- `runner/` – der Läufer (TypeScript, ohne Build-Schritt: Node führt `.ts` direkt aus). Er liest den
+  Auftrag aus `/auftrag/auftrag.json` und führt ihn mit einem **Adapter** aus (siehe unten).
+
+## Adapter
+
+Jedes Agenten-Werkzeug ist ein Adapter in `runner/src/adapter/` mit der gemeinsamen Schnittstelle aus
+`schnittstelle.ts`: Auftrag rein (plus Senke, Git, stdin-Eingang, Umgebung), JSON-Zeilen-Ereignisse raus
+(Tabelle unten), Exit-Code als Ergebnis. `COCKPIT_ANBIETER` (Standard `claude-agent-sdk`; im Image gesetzt) wählt den
+Adapter; unbekannte und noch nicht umgesetzte Namen ergeben ein `fehler`-Ereignis in Klartext.
+
+| Adapter | Stand | Werkzeug |
+|---------|-------|----------|
+| `claude-agent-sdk` | umgesetzt (`adapter/claude-agent-sdk.ts`) | Claude Agent SDK; Modell über `ANTHROPIC_MODEL` |
+| `claude-code` | **offen** | `claude -p --output-format stream-json`: dessen Zeilen (Assistant-Nachrichten, Tool-Aufrufe, Ergebnis mit Verbrauch) nur in die Ereignisse unten übersetzen |
+| `codex` | **offen** | `codex exec --json`: dessen Ereignisse (Nachrichten, Befehle, Dateiänderungen, Verbrauch) in dieselben Ereignisse übersetzen |
+
+Ein neuer Adapter muss nichts am Backend ändern: gleiche Ereignisformen, gleiche Regeln (kein Push, nur in `/work`
+schreiben, `git` zum Festhalten über `git.ts`).
+
+## Endpunkt in der Umgebung
+
+Das Backend gibt die Werte nur per `-e NAME` an den Container (nie in der Argumentliste). Mit Endpunkt-Adresse
+(Proxy wie LiteLLM, anderer kompatibler Endpunkt): `ANTHROPIC_BASE_URL` und `ANTHROPIC_AUTH_TOKEN` (Bearer). Ohne Adresse
+(direkt bei Anthropic): `ANTHROPIC_API_KEY` (`x-api-key`). Dazu immer `ANTHROPIC_MODEL`. Nicht benutzte Namen entfernt das
+Backend aus der geerbten Umgebung, damit kein Key aus der Shell der Person im Container landet.
 
 ## Ereignisse (stdout, eine JSON-Zeile je Ereignis)
 
