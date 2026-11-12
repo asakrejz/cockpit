@@ -16,7 +16,7 @@ fn bau_beobachten(bau: RwSignal<Option<ImageBau>>, store: Store) {
     spawn_local(async move {
         if let Ok(b) = server::fetch_image().await {
             let weiter = b.laeuft;
-            if bau.try_set(Some(b)).is_none() {
+            if bau.try_set(Some(b)).is_some() {
                 return;
             }
             if weiter {
