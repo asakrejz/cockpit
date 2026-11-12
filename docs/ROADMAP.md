@@ -11,9 +11,39 @@ wie Agenten. Es hält die Entscheidungen fest und teilt die Arbeit in Wellen.
 | Backend | Rust-Crate `server/` (axum, tokio). Liefert auch die gebaute Web-App aus. |
 | Daten | SQLite in einer Datei im Nutzerverzeichnis. |
 | Schlüssel | Liegen nur im Backend (Schlüsselbund des Systems, sonst verschlüsselte Datei). **Nie im Browser, nie im Repo, nie im Log.** |
-| Agent | Claude Agent SDK in einem **Podman**-Container pro Lauf. Der Container bekommt nur das geklonte Repo und ein Token für genau dieses Repo. |
+| Agent | Claude Agent SDK in einem Container pro Lauf, **mit Docker (Rancher Desktop) oder Podman**. Der Container bekommt nur das geklonte Repo und ein Token für genau dieses Repo. |
 | Aktualität | Webhooks, wenn ein Tunnel eingerichtet ist; sonst fragt das Backend regelmäßig ab. |
 | Demo-Modus | Bleibt erhalten. Ohne Backend läuft die App mit Beispieldaten im Browser. |
+
+## Container
+
+Der Agent-Container muss mit **Docker** (z. B. aus Rancher Desktop) **und** mit **Podman** laufen.
+Regeln für alles, was Container baut oder startet:
+
+1. **Nur über die Kommandozeile.** Das Backend ruft `docker` oder `podman` als Prozess auf, nie den
+   Docker-Socket oder eine Docker-Bibliothek. Benutzt werden nur Befehle und Schalter, die beide
+   gleich verstehen (`build -f`, `run --rm`, `-e`, `-v`, `--network`, `--add-host`, `--user`,
+   `--label`, `ps`, `rm -f`, `image inspect`).
+2. **Laufzeit wählbar.** Konfiguration `[agent] container = "docker" | "podman"`, darüber
+   `COCKPIT_CONTAINER`. Ohne Angabe sucht das Backend erst `podman`, dann `docker` im `PATH` und
+   prüft mit `<cli> info`, ob die Engine läuft. `/api/health` meldet, welche gefunden wurde.
+3. **Images voll benennen.** `docker.io/library/node:…` statt `node:…` – Podman löst Kurznamen
+   sonst nicht oder nur nach Rückfrage auf. Die Bauanleitung heißt `Containerfile`; beide bauen
+   sie mit `-f Containerfile`. Keine BuildKit-Sonderfunktionen (`RUN --mount`, `# syntax=`).
+4. **Rechner erreichen.** Den LiteLLM-Proxy auf dem eigenen Rechner erreicht der Container über
+   `--add-host cockpit-host:host-gateway` (Docker ab 20.10, Podman 5.x) und die Adresse
+   `http://cockpit-host:<port>` – nicht über `host.docker.internal` oder `host.containers.internal`,
+   die es nur bei je einer Laufzeit sicher gibt.
+5. **Dateirechte.** Das Repo wird eingebunden (`-v <klon>:/work`), ohne SELinux-Zusätze (`:Z`).
+   Der Prozess läuft als Nutzer ohne Root (`--user` im Containerfile festgelegt); Podman (rootless)
+   und Docker bilden Nutzer verschieden ab, also nach dem Lauf nur lesen, was im Klon liegt.
+6. **Geheimnisse nur per `-e NAME`** (Wert aus der Umgebung des Kindprozesses, nicht auf der
+   Kommandozeile), damit sie nicht in `ps` oder in Logs stehen.
+7. **Rancher Desktop** muss mit der Engine „dockerd (moby)“ laufen; im Modus „containerd“ gibt es
+   nur `nerdctl`, das unterstützen wir nicht.
+8. **Prüfen mit beiden.** Tests, die echte Container starten, sind `#[ignore]` und laufen per
+   `COCKPIT_CONTAINER=docker cargo test -- --ignored` bzw. `=podman`. Der PR nennt, mit welcher
+   Laufzeit geprüft wurde.
 
 ## Architektur
 
@@ -21,7 +51,7 @@ wie Agenten. Es hält die Entscheidungen fest und teilt die Arbeit in Wellen.
 Browser (cockpit/, WASM)                 Backend (server/)
 ┌──────────────────────────┐   HTTP    ┌────────────────────────────────┐
 │ Seiten → store.dispatch  │ ────────▶ │ POST /api/actions              │──▶ GitHub, Jira
-│ Workspace (Signal)       │ ◀──────── │ GET  /api/workspace (Snapshot) │──▶ Agent (Podman)
+│ Workspace (Signal)       │ ◀──────── │ GET  /api/workspace (Snapshot) │──▶ Agent (Container)
 │                          │ ◀── SSE ─ │ GET  /api/events (Änderungen)  │◀── Webhooks / Abfrage
 └──────────────────────────┘           │ SQLite · Schlüssel             │
                                         └────────────────────────────────┘
@@ -90,7 +120,7 @@ Tickets bearbeiten und mit PRs verknüpfen (Status folgt dem PR), Agent-Folgeauf
 |---------|---------|
 | Backend | Anmeldung per OAuth für GitHub und Atlassian, mit Widerruf |
 | Backend | Webhooks und Live-Aktualisierung in der App |
-| Backend | Echter Agent: Claude Agent SDK im Podman-Container; Plan, Rückfragen, Kosten und Protokoll kommen aus dem Lauf |
+| Backend | Echter Agent: Claude Agent SDK im Container (Docker oder Podman, siehe „Container“); Modell über den LiteLLM-Proxy; Plan, Rückfragen, Kosten und Protokoll kommen aus dem Lauf |
 | Inbox | Mehrere Projekte und Repos; Filter nach Projekt, Repo, Person, Status, Label |
 
 ### Welle 5 – Abschluss
@@ -108,4 +138,5 @@ Antworten; echt geprüft ist es erst, wenn du es mit deinen Zugängen ausprobier
 - PRs prüfen und mergen – jede Welle startet erst danach.
 - Ab Welle 3: ein GitHub-Token und ein Jira-API-Token zum Ausprobieren.
 - Ab Welle 4: eine GitHub-OAuth-App und eine Atlassian-OAuth-App registrieren, einen
-  Anthropic-API-Key bereitstellen, Podman installiert haben, optional einen Tunnel für Webhooks.
+  Adresse und Key des LiteLLM-Proxys bereitstellen (kein Anthropic-API-Key), Rancher Desktop
+  (Engine „dockerd (moby)“) oder Podman installiert haben, optional einen Tunnel für Webhooks.

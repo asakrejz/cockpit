@@ -21,7 +21,7 @@ Technik:
 ```bash
 # einmalig
 rustup target add wasm32-unknown-unknown   # passiert dank rust-toolchain.toml auch automatisch
-cargo install trunk --locked
+cargo install trunk --locked                # oder: brew install trunk
 
 trunk serve --open                  # Playground auf http://localhost:8080
 (cd cockpit && trunk serve --open)  # Cockpit auf http://localhost:8081
