@@ -77,11 +77,12 @@ Zusammenfassung) und erklärt jeden Klick. Jeden Schritt kannst du überspringen
   „Erweitert“). Jede Person legt ihre **eigene** App an, denn das Client-Secret ist nicht teilbar.
 - **GitHub App.** Du legst in deinem GitHub-Konto (oder eurer Organisation) eine eigene GitHub App an und installierst sie
   auf den Repos. Auch hier gilt: eigene App, eigenes Secret.
-- **LiteLLM-Zugang.** Adresse des Proxys, Key und Modellname bekommst du von dem Team, das den Proxy betreibt. Ohne ihn
-  läuft Cockpit weiter, der echte Agent aber noch nicht.
+- **Zugang zu einem Modell.** Entweder ein API-Key von Anthropic (direkt) oder Adresse und Key eines Proxys wie LiteLLM,
+  den dein Team betreibt (dann auch den Modellnamen, der sich aber im Assistenten aus einer Liste wählen lässt). Ohne
+  Zugang läuft Cockpit weiter, der echte Agent aber noch nicht.
 - **Container-Programm** installieren und starten (siehe Tabelle oben).
 
-Schlüssel (Client-Secrets, Tokens, LiteLLM-Key) tippst oder fügst du in die Passwortfelder des Assistenten ein. Sie gehen
+Schlüssel (Client-Secrets, Tokens, Key des Modell-Endpunkts) tippst oder fügst du in die Passwortfelder des Assistenten ein. Sie gehen
 nur an den Server auf deinem Rechner, der sie im **Schlüsselbund** ablegt – nicht in den Browser-Speicher, nicht in eine
 Datei. Wer lieber im Terminal arbeitet, nimmt `cockpit-server token setzen <name>` (siehe „Backend starten“).
 
@@ -100,8 +101,11 @@ Der Agent setzt ein Ticket in einem **Container** um (Claude Agent SDK, ein Cont
 2. **Image bauen:** dort auf „Image bauen“ klicken (oder `POST /api/agent/image`). Der Bau lädt Pakete aus dem Internet und
    dauert einige Minuten; Fortschritt und Fehler stehen in Klartext darunter. `/api/health` meldet unter `agent`, ob das Image
    da ist (`image inspect`). Von Hand: `docker build -f agent/Containerfile -t localhost/cockpit-agent:1 agent` (bzw. `podman`).
-3. **Modellzugang:** Adresse, Modellname und Key im Schritt „Modell“ (LiteLLM-Proxy; Key im Schlüsselbund als `litellm`).
-   Dort prüft „Aus dem Container testen“, ob ein Container den Proxy erreicht. Liegt der Proxy nur im **VPN**, kennt die
+3. **Agent-Anbieter und Endpunkt:** Im Schritt „Modell“ wählst du das Werkzeug (Claude Agent SDK; Claude Code und Codex
+   stehen als „bald“ da), den Endpunkt (direkt bei Anthropic, eigener Proxy wie LiteLLM, anderer kompatibler Endpunkt),
+   legst den Key ab (Schlüsselbund, Name `agent-key`) und wählst das Modell aus der Liste, die „Modelle laden“ beim
+   Endpunkt abfragt (Freitext als Ausweg). „Aus dem Container testen“ prüft, ob ein Container den Endpunkt erreicht.
+   Liegt der Proxy nur im **VPN**, kennt die
    Container-Maschine von Rancher Desktop bzw. Podman die VPN-Route oder den Namen womöglich nicht: Dann meldet der Test
    „Dein Mac erreicht den Proxy, der Container aber nicht“ – VPN zuerst verbinden und Rancher Desktop bzw. die
    Podman-Maschine neu starten.
@@ -145,7 +149,7 @@ keinen Modus ohne Backend mehr.
 ```bash
 scripts/start.sh                # bauen (falls nötig) und starten: http://127.0.0.1:8787
 scripts/start.sh --open         # zusätzlich den Browser öffnen
-curl localhost:8787/api/health  # {"status":"ok","version":"…","verbindungen":{…},"abgleich":{…},"litellm":{…},"container":{…}}
+curl localhost:8787/api/health  # {"status":"ok","version":"…","verbindungen":{…},"abgleich":{…},"endpunkt":{…},"container":{…}}
 ```
 
 `scripts/start.sh` (bash, macOS) prüft `cargo` und `trunk`, baut `cockpit` nach `cockpit/dist`, wenn die Ausgabe fehlt
@@ -176,16 +180,20 @@ seed = "leer"                     # oder "demo", siehe oben
 [jira]
 site = "https://firma.atlassian.net"
 email = "ich@firma.example"
-[litellm]                         # Modellzugang, siehe „Einrichten“ unten
-url = "http://localhost:4000"
-modell = "claude-sonnet-5-5"
 [agent]
+anbieter = "claude-agent-sdk"        # umgesetzt; "claude-code" und "codex" sind bekannt, aber noch nicht umgesetzt
 container = "podman"              # oder "docker"; ohne Angabe wird erkannt
+[agent.endpunkt]                  # Modellzugang, siehe „Einrichten“ unten
+url = "https://litellm.example"   # leer oder weglassen = direkt bei Anthropic
+modell = "claude-sonnet-5-5"
 ```
+
+Ältere Dateien mit `[litellm] url/modell` und dem Schlüssel `litellm` werden weiter gelesen (Alias für `[agent.endpunkt]`
+und `agent-key`); der Assistent schreibt beim Speichern das neue Format und übernimmt dabei die alten Werte.
 
 Schlüssel stehen nie in der Datei. Sie kommen über die Standardeingabe in den Schlüsselbund:
 `echo "$TOKEN" | cargo run -p cockpit-server -- token setzen github` (oder `jira`, `github-oauth`, `atlassian-oauth`,
-`litellm`; `token loeschen <name>` entfernt sie).
+`agent-key`; `token loeschen <name>` entfernt sie).
 `/api/health` meldet je Verbindung nur ja/nein. Die Server-Crates (`server/`, `crates/integrations`)
 laufen nur nativ; für Wasm schließt die CI sie aus (siehe `docs/ROADMAP.md`).
 
@@ -227,11 +235,12 @@ und hört auf Änderungen:
 | `GET /api/jira/projekte` | Jira-Projekte für die Auswahl in der Inbox: `{aktiv, projekte: [{key, name}]}`; `aktiv: false` ohne Jira oder Token |
 
 | `GET /api/agent/image` / `POST /api/agent/image` | Stand von „Image bauen“ `{laeuft, vorhanden, fehler, zeilen}` bzw. Bau im Hintergrund starten |
-| `GET /api/litellm/pruefen/container` | Dieselbe Prüfung aus einem Container: `{geprueft, mac_erreicht, container_erreicht, key_ok, hinweis}` |
-| `GET /api/litellm/pruefen` | Verbindungstest zum LiteLLM-Proxy: `{konfiguriert, erreichbar, key_ok, modell_vorhanden, hinweis}` (siehe „Einrichten“) |
-| `GET /api/einrichtung` | Was der Assistent vorbelegt: Jira-Site/E-Mail/Projekte, Client-IDs, Repos, LiteLLM-Adresse und Modell, die beiden Callback-Adressen und je Schlüssel nur `{name, gesetzt}` |
-| `PUT /api/konfiguration` | Schreibt Client-IDs, Jira, Repos und LiteLLM in `config.toml` (siehe „Einrichten in der App“). Antwort `{gespeichert, wirkt_sofort, hinweis}`; ungültige Eingaben sind `422` mit Klartext |
-| `PUT /api/schluessel/{name}` | Legt einen Schlüssel im Schlüsselbund ab. Body `{"wert": "…"}`, nur `github-oauth`, `atlassian-oauth`, `litellm`, `jira`, `github`. Antwort `{name, gesetzt}` – nie der Wert |
+| `GET /api/agent/pruefen/container` (Alias `/api/litellm/pruefen/container`) | Dieselbe Prüfung aus einem Container: `{geprueft, mac_erreicht, container_erreicht, key_ok, hinweis}` |
+| `GET /api/agent/pruefen` (Alias `/api/litellm/pruefen`) | Verbindungstest zum Endpunkt: `{konfiguriert, erreichbar, key_ok, modell_vorhanden, hinweis}` (siehe „Einrichten“) |
+| `GET /api/agent/modelle` | Die Modell-IDs des Endpunkts für das Drop-down: `{geladen, erreichbar, key_ok, modelle, hinweis}`; nur IDs, sortiert (Claude-Modelle zuerst), höchstens 200. Der Key bleibt im Backend |
+| `GET /api/einrichtung` | Was der Assistent vorbelegt: Jira-Site/E-Mail/Projekte, Client-IDs, Repos, Anbieter, Endpunkt-Adresse und Modell, die beiden Callback-Adressen und je Schlüssel nur `{name, gesetzt}` |
+| `PUT /api/konfiguration` | Schreibt Client-IDs, Jira, Repos sowie Agent-Anbieter und Endpunkt in `config.toml` (siehe „Einrichten in der App“). Antwort `{gespeichert, wirkt_sofort, hinweis}`; ungültige Eingaben sind `422` mit Klartext |
+| `PUT /api/schluessel/{name}` | Legt einen Schlüssel im Schlüsselbund ab. Body `{"wert": "…"}`, nur `github-oauth`, `atlassian-oauth`, `agent-key` (ältere Schreibweise `litellm`), `jira`, `github`. Antwort `{name, gesetzt}` – nie der Wert |
 | `DELETE /api/schluessel/{name}` | „Trennen“ für Tokens: löscht `jira` oder `github` aus dem Schlüsselbund (andere Namen: `404`). Antwort `{name, gesetzt: false}` |
 | `POST /api/jira/pruefen` | Verbindungstest für Jira per API-Token, nur lesend (`GET /rest/api/3/myself`): `{ok, ursache, meldung, name}`, `ursache` = `ok`, `angaben`, `adresse`, `token`, `berechtigung`, `erreichbar`, `sonst`. Nie der Token |
 
@@ -267,7 +276,7 @@ stehen weiter unten („Anmeldung per OAuth“). Ist beides da, geht OAuth vor d
 ### Mit echten Diensten verbinden
 
 **Der bequeme Weg ist der Assistent:** Die Seite „Einrichten“ führt durch Container, Jira, GitHub und den Modellzugang
-(siehe „Einrichten in der App“ weiter unten). Er schreibt Client-IDs, Jira-Site, Repos und LiteLLM-Adresse selbst in die
+(siehe „Einrichten in der App“ weiter unten). Er schreibt Client-IDs, Jira-Site, Repos sowie Agent-Anbieter und Endpunkt selbst in die
 `config.toml` und legt Schlüssel im Schlüsselbund ab – ohne dass du Datei oder Terminal anfasst. **Der Terminal-Weg bleibt
 als Alternative** und ist unten beschrieben: `config.toml` von Hand bearbeiten und `cockpit-server token setzen <name>`.
 Beides führt zum selben Ergebnis und lässt sich mischen.
@@ -415,31 +424,35 @@ was offen ist und was zu prüfen ist, mit „Ansehen“ zum passenden Schritt. D
   App“ und die Repos, dann „Mit GitHub anmelden“.
 - *Modellzugang.* Adresse, Modellname, Key und der Verbindungstest (siehe unten).
 
-**Wie Eingaben ankommen.** Nicht geheime Werte (Client-IDs, Jira-Site, E-Mail, Projekte, Repos, LiteLLM-Adresse und
+**Wie Eingaben ankommen.** Nicht geheime Werte (Client-IDs, Jira-Site, E-Mail, Projekte, Repos, Endpunkt-Adresse und
 -Modell) schickt die Seite an `PUT /api/konfiguration`. Der Server ändert die `config.toml` **atomar** (Nachbardatei,
 dann umbenennen; bestehende Kommentare, Reihenfolge und andere Werte bleiben, neue Dateien sind nur für dich lesbar) und
 prüft das Ergebnis **wie beim Start** (`Config::aus`): Ist es ungültig, bleibt die Datei, wie sie war, und die Antwort
 nennt den Grund in Klartext. Eingaben werden vereinheitlicht (`firma` → `https://firma.atlassian.net`, GitHub-Adressen →
 `owner/name`, Projekte in Großbuchstaben, `localhost:4000` → `http://localhost:4000`). Alles gilt **ohne Neustart**
-(Quellen, OAuth-Apps und LiteLLM werden im laufenden Server ausgetauscht); nur der Takt des Abgleichs und der Port
+(Quellen, OAuth-Apps und der Agent-Endpunkt werden im laufenden Server ausgetauscht); nur der Takt des Abgleichs und der Port
 bleiben bis zum Neustart. Ändert sich die Client-ID einer App, rät die Antwort, sich neu anzumelden.
 
-**Wie Schlüssel ankommen.** Client-Secrets, Tokens und der LiteLLM-Key kommen in Passwortfelder
+**Wie Schlüssel ankommen.** Client-Secrets, Tokens und der Key des Endpunkts kommen in Passwortfelder
 (`autocomplete="off"`) und gehen einmal an `PUT /api/schluessel/{name}` auf der Loopback-Verbindung. Der Server legt sie im
 Schlüsselbund ab. Der Wert steht nur im Feld und in dieser einen Anfrage: nicht in `localStorage`, nicht in der Adresse,
 nicht im Log, nicht in Fehlermeldungen und nie in einer Antwort (die sagt nur `gesetzt`); das Feld wird sofort nach dem
-Absenden geleert. Erlaubt sind nur die Namen `github-oauth`, `atlassian-oauth`, `litellm`, `jira` und `github`. Die beiden
+Absenden geleert. Erlaubt sind nur die Namen `github-oauth`, `atlassian-oauth`, `agent-key`, `litellm` (älterer Name), `jira` und `github`. Die beiden
 neuen `PUT`-Routen unterliegen derselben Loopback-, Host-, Origin- und Content-Type-Prüfung wie alle Routen unter `/api`.
 
 Die Abschnitte „Modellzugang“ und „Container“ im Einzelnen:
 
-- *Modellzugang (LiteLLM).* Der Agent bekommt sein Modell über einen LiteLLM-Proxy, **nicht** über einen
-  Anthropic-API-Key. Adresse und Modellname stehen in `config.toml` (`[litellm] url`, `modell`; der Modellname hängt von
-  der LiteLLM-Konfiguration ab), der Key nur im Schlüsselbund: `echo "$KEY" | cargo run -p cockpit-server -- token setzen litellm`.
-  `/api/health` meldet unter `litellm` Adresse, Modell und ob ein Key liegt (nie den Key). „Verbindung testen“
-  ruft `GET /api/litellm/pruefen`; das Backend fragt dann nur `GET <url>/v1/models` mit dem Key ab (ohne
-  Weiterleitungen) und meldet *erreichbar*, *Key angenommen* und *Modell vorhanden*, bei Fehlern mit Hinweis. Ohne Key ruft es
-  den Proxy nicht auf.
+- *Agent-Anbieter und Endpunkt.* `[agent] anbieter` wählt das Werkzeug im Container: `claude-agent-sdk` läuft; `claude-code`
+  und `codex` sind bekannte Werte, die in Klartext „noch nicht umgesetzt“ melden (der Assistent zeigt sie als „bald“).
+  `[agent.endpunkt]` sagt, wohin die Modellanfragen gehen: mit `url` an einen Anthropic-kompatiblen Endpunkt (LiteLLM,
+  anderer Proxy; im Container `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`), ohne `url` direkt zu Anthropic (im Container
+  `ANTHROPIC_API_KEY`). `modell` ist der Name, wie der Endpunkt ihn anbietet. Der Key liegt nur im Schlüsselbund
+  (`agent-key`): `echo "$KEY" | cargo run -p cockpit-server -- token setzen agent-key`; die Werte gehen nur per `-e NAME` an
+  den Container. `/api/health` meldet unter `endpunkt` Anbieter, Adresse, Modell und ob ein Key liegt (nie den Key).
+  „Modelle laden“ ruft `GET /api/agent/modelle`; das Backend fragt dann `GET <url>/v1/models` (Proxy: `Authorization: Bearer`;
+  direkt: `https://api.anthropic.com/v1/models` mit `x-api-key` und `anthropic-version`), ohne Weiterleitungen, mit
+  Zeitlimit und Größengrenze, und liefert nur die IDs. „Verbindung testen“ ruft `GET /api/agent/pruefen` und meldet
+  *erreichbar*, *Key angenommen* und *Modell vorhanden*, bei Fehlern mit Hinweis. Ohne Key ruft es den Endpunkt nicht auf.
 - *Container-Laufzeit.* Der Agent läuft später in einem Container, mit Docker (Rancher Desktop, Engine „dockerd (moby)“)
   oder Podman. Das Backend wählt: `COCKPIT_CONTAINER`, sonst `[agent] container`, sonst sucht es erst `podman`, dann
   `docker` im `PATH` und prüft mit `<laufzeit> info`, ob die Engine läuft (nur als Prozessaufruf, nie über den Socket; das Ergebnis
@@ -607,7 +620,7 @@ Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Diese S
 
 | Seite | Adresse | Was sie kann |
 |-------|---------|--------------|
-| Einrichten | `#/einrichten` | Je Dienst Stand und nächster Schritt: Jira und GitHub anmelden/trennen, LiteLLM-Proxy prüfen, Container-Laufzeit erkennen |
+| Einrichten | `#/einrichten` | Je Dienst Stand und nächster Schritt: Jira und GitHub anmelden/trennen, Agent-Endpunkt prüfen, Container-Laufzeit erkennen |
 | Aufmerksamkeit | `#/`, `#/meine`, `#/team`, `#/zurueckgestellt` | Inbox aus Tickets und Pull Requests, gefiltert nach einschaltbaren Regeln (Erwähnung, Review-Anfrage, blockierter PR, überfälliges Ticket, Agent fertig, zugewiesen); Zurückstellen (1 Stunde, morgen früh, nächste Woche, bis sich etwas ändert); Status ändern, Branch erstellen, antworten, Agent beauftragen; Ticket bearbeiten (Titel, Beschreibung, Zuweisung, Priorität); Ticket und Pull Request verknüpfen (automatisch über den Schlüssel im Branch oder Titel, `BAU-142`, sonst von Hand oder lösen); „Status folgt dem Pull Request“ (Entwurf/offen → In Arbeit, Review angefragt → Review, gemergt → Fertig, abschaltbar in der Seitenleiste, Urheber im Protokoll: System); Suche und Quellen-Filter; Tasten `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
 | Review | `#/review/87` | Diff lesen; Zeilen auswählen und eigene Kommentare schreiben; Kommentare des Agenten freigeben, ablehnen oder bearbeiten; Review senden |
 | Übersicht | `#/uebersicht` | Pro Person offene Einträge und Auslastung; „Hängt“ zeigt fehlgeschlagene Checks, wartende Reviews, Tickets ohne Branch und Agenten, die auf dich warten |

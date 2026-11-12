@@ -35,21 +35,26 @@
 //!
 //! Mit `[atlassian]` braucht `[jira]` weder `site` noch `email` (nur noch `projects`/`jql`).
 //!
-//! Modellzugang über einen LiteLLM-Proxy (nur Adresse und Modellname – der Key liegt im Schlüsselbund,
-//! `cockpit-server token setzen litellm`), Container-Laufzeit und Seed:
+//! Agent-Anbieter und Endpunkt (nur Adresse und Modellname – der Key liegt im Schlüsselbund,
+//! `cockpit-server token setzen agent-key`), Container-Laufzeit und Seed:
 //!
 //! ```toml
 //! seed = "demo"                        # Beispieldaten, nur wenn noch kein Stand gespeichert ist
 //!
-//! [litellm]
-//! url = "http://localhost:4000"
-//! modell = "claude-sonnet-5-5"         # Name, wie der Proxy ihn anbietet
-//!
 //! [agent]
+//! anbieter = "claude-agent-sdk"        # umgesetzt; "claude-code" und "codex" sind bekannt, aber noch nicht umgesetzt
 //! container = "podman"                 # oder "docker"; ohne Angabe erkennt das Backend die Laufzeit
 //! repo = "firma/app"                   # Repo, in dem der Agent arbeitet (sonst das einzige aus [github] repos)
 //! dir = "/pfad/zu/agent"               # Ordner mit Containerfile und Läufer (sonst ./agent bzw. neben cockpit/dist)
+//!
+//! [agent.endpunkt]
+//! url = "https://litellm.example"      # Proxy oder kompatibler Endpunkt; leer oder weglassen = direkt bei Anthropic
+//! modell = "claude-sonnet-5-5"         # Name, wie der Endpunkt ihn anbietet
 //! ```
+//!
+//! Ältere Dateien mit `[litellm]` (`url`, `modell`) und dem Schlüssel `litellm` werden weiter gelesen
+//! (gleichbedeutend mit `[agent.endpunkt]` und `agent-key`); steht beides da, gilt `[agent.endpunkt]`.
+//! Der Assistent schreibt das neue Format.
 //!
 //! Eine Quelle gleicht nur ab, wenn sie hier eingerichtet ist **und** ihr Schlüssel im
 //! Schlüsselbund liegt (`cockpit-server token setzen <github|jira>`). Ohne Quelle bleibt der
@@ -62,6 +67,7 @@
 
 use std::path::{Path, PathBuf};
 
+use cockpit_core::api::Anbieter;
 use serde::Deserialize;
 
 pub const STANDARD_PORT: u16 = 8787;
@@ -85,7 +91,10 @@ pub struct Config {
     pub intervall_s: u64,
     /// Womit ein Workspace beginnt, der noch nie gespeichert wurde.
     pub seed: Seed,
-    pub litellm: Option<LitellmKonfig>,
+    /// `[agent] anbieter`: das Werkzeug des Agenten.
+    pub anbieter: Anbieter,
+    /// `[agent.endpunkt]` (oder das ältere `[litellm]`).
+    pub endpunkt: Option<EndpunktKonfig>,
     /// Gewählte Container-Laufzeit (`docker` oder `podman`) aus der Datei; `COCKPIT_CONTAINER`
     /// steht in [`Config::container_env`].
     pub container: Option<String>,
@@ -126,11 +135,18 @@ impl Seed {
     }
 }
 
-/// Der LiteLLM-Proxy. Der Key liegt im Schlüsselbund, nie hier.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct LitellmKonfig {
-    /// Ohne Schrägstrich am Ende, z. B. `http://localhost:4000`.
-    pub url: String,
+/// Das Werkzeug und sein Endpunkt, wie zuletzt konfiguriert (im Betrieb austauschbar).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct AgentWahl {
+    pub anbieter: Anbieter,
+    pub endpunkt: Option<EndpunktKonfig>,
+}
+
+/// Der Modell-Endpunkt des Agenten. Der Key liegt im Schlüsselbund, nie hier.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct EndpunktKonfig {
+    /// Ohne Schrägstrich am Ende, z. B. `http://localhost:4000`; `None` = direkt beim Anbieter.
+    pub url: Option<String>,
     pub modell: Option<String>,
 }
 
@@ -197,14 +213,15 @@ struct Datei {
     github_oauth: Option<DateiOAuth>,
     atlassian: Option<DateiAtlassian>,
     seed: Option<String>,
-    litellm: Option<DateiLitellm>,
+    litellm: Option<DateiEndpunkt>,
     agent: Option<DateiAgent>,
 }
 
+/// `[litellm]` (älter) und `[agent.endpunkt]` haben dieselben Felder.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
-struct DateiLitellm {
-    url: String,
+struct DateiEndpunkt {
+    url: Option<String>,
     modell: Option<String>,
 }
 
@@ -214,6 +231,8 @@ struct DateiAgent {
     container: Option<String>,
     repo: Option<String>,
     dir: Option<PathBuf>,
+    anbieter: Option<String>,
+    endpunkt: Option<DateiEndpunkt>,
 }
 
 #[derive(Deserialize)]
@@ -295,7 +314,8 @@ impl Config {
             atlassian: None,
             intervall_s: STANDARD_INTERVALL_S,
             seed: Seed::Leer,
-            litellm: None,
+            anbieter: Anbieter::default(),
+            endpunkt: None,
             container: None,
             container_env: None,
             agent_repo: None,
@@ -407,27 +427,20 @@ impl Config {
         if let Some(text) = d.seed {
             c.seed = Seed::aus_text(&text)?;
         }
-        if let Some(l) = d.litellm {
-            let url = l.url.trim().trim_end_matches('/').to_string();
-            let geht = url
-                .strip_prefix("http://")
-                .or_else(|| url.strip_prefix("https://"))
-                .is_some_and(|rest| !rest.is_empty() && !rest.contains(char::is_whitespace));
-            if !geht {
-                return Err(KonfigFehler::Wert(
-                    "[litellm] url muss mit http:// oder https:// beginnen, z. B. http://localhost:4000"
-                        .into(),
-                ));
-            }
-            c.litellm = Some(LitellmKonfig {
-                url,
-                modell: l
-                    .modell
-                    .map(|m| m.trim().to_string())
-                    .filter(|m| !m.is_empty()),
-            });
-        }
+        // Das ältere `[litellm]` gilt, solange `[agent.endpunkt]` fehlt.
+        let mut endpunkt = d.litellm.map(|l| ("[litellm]", l));
         if let Some(a) = d.agent {
+            if let Some(text) = a.anbieter {
+                c.anbieter = Anbieter::aus_kennung(&text).ok_or_else(|| {
+                    KonfigFehler::Wert(format!(
+                        "[agent] anbieter „{}“ ist unbekannt, erlaubt sind claude-agent-sdk, claude-code und codex",
+                        text.trim()
+                    ))
+                })?;
+            }
+            if let Some(e) = a.endpunkt {
+                endpunkt = Some(("[agent.endpunkt]", e));
+            }
             c.container = a.container.map(|t| laufzeit(&t)).transpose()?;
             c.agent_repo = a
                 .repo
@@ -441,6 +454,33 @@ impl Config {
                 )));
             }
             c.agent_dir = a.dir;
+        }
+        if let Some((wo, e)) = endpunkt {
+            let url = e.url.map(|u| u.trim().trim_end_matches('/').to_string());
+            let url = match url.filter(|u| !u.is_empty()) {
+                None => None,
+                Some(u) => {
+                    let geht = u
+                        .strip_prefix("http://")
+                        .or_else(|| u.strip_prefix("https://"))
+                        .is_some_and(|rest| {
+                            !rest.is_empty() && !rest.contains(char::is_whitespace)
+                        });
+                    if !geht {
+                        return Err(KonfigFehler::Wert(format!(
+                            "{wo} url muss mit http:// oder https:// beginnen, z. B. http://localhost:4000"
+                        )));
+                    }
+                    Some(u)
+                }
+            };
+            let modell = e
+                .modell
+                .map(|m| m.trim().to_string())
+                .filter(|m| !m.is_empty());
+            if url.is_some() || modell.is_some() {
+                c.endpunkt = Some(EndpunktKonfig { url, modell });
+            }
         }
         if let Some(p) = umgebung("COCKPIT_AGENT_DIR").filter(|s| !s.trim().is_empty()) {
             c.agent_dir = Some(PathBuf::from(p.trim()));
@@ -721,18 +761,20 @@ mod tests {
     }
 
     #[test]
-    fn litellm_und_container() {
+    fn endpunkt_und_container() {
         let toml = r#"
-            [litellm]
-            url = " http://localhost:4000/ "
-            modell = "claude-sonnet-5-5"
             [agent]
             container = "Podman"
+            anbieter = "Claude-Agent-SDK"
+            [agent.endpunkt]
+            url = " http://localhost:4000/ "
+            modell = "claude-sonnet-5-5"
         "#;
         let c = Config::aus(Some(toml), keine_env).unwrap();
-        let l = c.litellm.unwrap();
-        assert_eq!(l.url, "http://localhost:4000");
-        assert_eq!(l.modell.as_deref(), Some("claude-sonnet-5-5"));
+        assert_eq!(c.anbieter, Anbieter::ClaudeAgentSdk);
+        let e = c.endpunkt.unwrap();
+        assert_eq!(e.url.as_deref(), Some("http://localhost:4000"));
+        assert_eq!(e.modell.as_deref(), Some("claude-sonnet-5-5"));
         assert_eq!(c.container.as_deref(), Some("podman"));
         assert_eq!(c.container_env, None);
 
@@ -742,10 +784,12 @@ mod tests {
             Some("docker")
         );
         for kaputt in [
-            "[litellm]\nurl = \"localhost:4000\"",
-            "[litellm]\nurl = \"http://\"",
-            "[litellm]\nurl = \"http://a b\"",
+            "[agent.endpunkt]\nurl = \"localhost:4000\"",
+            "[agent.endpunkt]\nurl = \"http://\"",
+            "[agent.endpunkt]\nurl = \"http://a b\"",
             "[agent]\ncontainer = \"nerdctl\"",
+            "[agent]\nanbieter = \"gpt\"",
+            "[litellm]\nurl = \"localhost:4000\"",
         ] {
             assert!(
                 matches!(
@@ -756,13 +800,81 @@ mod tests {
             );
         }
         // Der Key gehört nicht in die Datei.
-        assert!(matches!(
-            Config::aus(
-                Some("[litellm]\nurl = \"http://x\"\nkey = \"abc\""),
-                keine_env
-            ),
-            Err(KonfigFehler::Toml(_))
-        ));
+        for mit_key in [
+            "[agent.endpunkt]\nurl = \"http://x\"\nkey = \"abc\"",
+            "[litellm]\nurl = \"http://x\"\nkey = \"abc\"",
+        ] {
+            assert!(matches!(
+                Config::aus(Some(mit_key), keine_env),
+                Err(KonfigFehler::Toml(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn direkt_beim_anbieter_hat_keine_adresse() {
+        let c = Config::aus(
+            Some("[agent.endpunkt]\nmodell = \"claude-opus-5-5\""),
+            keine_env,
+        )
+        .unwrap();
+        let e = c.endpunkt.unwrap();
+        assert_eq!(
+            (e.url, e.modell.as_deref()),
+            (None, Some("claude-opus-5-5"))
+        );
+        // Leere Adresse = direkt; ganz leerer Abschnitt = nicht eingerichtet.
+        let c = Config::aus(
+            Some("[agent.endpunkt]\nurl = \"\"\nmodell = \"m\""),
+            keine_env,
+        )
+        .unwrap();
+        assert_eq!(c.endpunkt.unwrap().url, None);
+        assert_eq!(
+            Config::aus(Some("[agent.endpunkt]"), keine_env)
+                .unwrap()
+                .endpunkt,
+            None
+        );
+        assert_eq!(
+            Config::aus(None, keine_env).unwrap().anbieter,
+            Anbieter::ClaudeAgentSdk
+        );
+    }
+
+    #[test]
+    fn bekannte_werkzeuge_lassen_sich_eintragen() {
+        for (text, soll) in [
+            ("claude-code", Anbieter::ClaudeCode),
+            ("codex", Anbieter::Codex),
+        ] {
+            let c =
+                Config::aus(Some(&format!("[agent]\nanbieter = \"{text}\"")), keine_env).unwrap();
+            assert_eq!(c.anbieter, soll);
+        }
+    }
+
+    #[test]
+    fn alte_litellm_datei_wird_weiter_gelesen_und_die_neue_geht_vor() {
+        let alt = "[litellm]\nurl = \"http://localhost:4000/\"\nmodell = \"altes-modell\"\n[agent]\ncontainer = \"docker\"";
+        let c = Config::aus(Some(alt), keine_env).unwrap();
+        let e = c.endpunkt.unwrap();
+        assert_eq!(e.url.as_deref(), Some("http://localhost:4000"));
+        assert_eq!(e.modell.as_deref(), Some("altes-modell"));
+        assert_eq!(c.anbieter, Anbieter::ClaudeAgentSdk);
+        assert_eq!(c.container.as_deref(), Some("docker"));
+
+        let neu = "[agent.endpunkt]\nurl = \"https://litellm.example\"\nmodell = \"neues-modell\"";
+        let c = Config::aus(Some(neu), keine_env).unwrap();
+        assert_eq!(
+            c.endpunkt,
+            Config::aus(Some(&format!("{alt}\n{neu}")), keine_env)
+                .unwrap()
+                .endpunkt
+        );
+        let e = c.endpunkt.unwrap();
+        assert_eq!(e.url.as_deref(), Some("https://litellm.example"));
+        assert_eq!(e.modell.as_deref(), Some("neues-modell"));
     }
 
     #[test]

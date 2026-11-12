@@ -1,10 +1,13 @@
-// Der Ablauf eines Laufs. Das SDK, die Zeilen von stdin, Git und die Uhr kommen von außen
+// Adapter „claude-agent-sdk“: der Ablauf eines Laufs mit dem Claude Agent SDK. Das SDK, die Zeilen von stdin, Git und die Uhr kommen von außen
 // (`Abhaengigkeiten`), damit der Ablauf ohne Netz und ohne SDK getestet werden kann.
 
-import { type Auftrag, aufgabenText, systemText } from "./auftrag.ts";
-import { type Senke, kuerzen } from "./ereignis.ts";
-import { type Ausfuehren, festhalten } from "./git.ts";
-import { type Richtlinie, entscheide } from "./richtlinie.ts";
+import { type Auftrag, aufgabenText, systemText } from "../auftrag.ts";
+import { type Senke, kuerzen } from "../ereignis.ts";
+import { type Ausfuehren, festhalten } from "../git.ts";
+import { type Richtlinie, entscheide } from "../richtlinie.ts";
+import type { Adapter, Eingang } from "./schnittstelle.ts";
+
+export type { Eingang };
 
 /** Eine Nachricht des SDK (nur die Felder, die wir lesen). */
 export interface SdkNachricht {
@@ -34,11 +37,6 @@ export interface Sdk {
   query(p: { prompt: AsyncIterable<unknown>; options: QueryOptionen }): AsyncIterable<SdkNachricht>;
   /** Baut den MCP-Server mit dem Werkzeug „rueckfrage“. */
   rueckfrageServer(frage: (text: string, vorschlaege: string[]) => Promise<string>): unknown;
-}
-
-/** Zeilen von stdin: Antworten und Hinweise des Nutzers. */
-export interface Eingang {
-  naechste(): Promise<{ t: string; text: string } | null>;
 }
 
 export interface Abhaengigkeiten {
@@ -261,4 +259,45 @@ export async function lauf(a: Auftrag, d: Abhaengigkeiten): Promise<number> {
     d.senke({ t: "fehler", text: (e as Error).message });
     return 1;
   }
+}
+
+/** Lädt das echte SDK (erst im Container; die Tests geben eine Attrappe mit). */
+export async function ladeSdk(): Promise<Sdk> {
+  const m: any = await import("@anthropic-ai/claude-agent-sdk");
+  const { z } = await import("zod");
+  return {
+    query: (p) => m.query(p),
+    rueckfrageServer: (frage) =>
+      m.createSdkMcpServer({
+        name: "cockpit",
+        version: "1.0.0",
+        tools: [
+          m.tool(
+            "rueckfrage",
+            "Stellt dem Nutzer eine Frage und wartet auf seine Antwort. Nur für Dinge, die du aus dem Code nicht klären kannst.",
+            { frage: z.string(), vorschlaege: z.array(z.string()).optional() },
+            async (a: { frage: string; vorschlaege?: string[] }) => ({
+              content: [{ type: "text", text: await frage(a.frage, a.vorschlaege ?? []) }],
+            }),
+          ),
+        ],
+      }),
+  };
+}
+
+/** Der Adapter für `COCKPIT_ANBIETER=claude-agent-sdk`. `sdk` lädt das SDK erst bei Bedarf. */
+export function claudeAgentSdk(sdk: () => Promise<Sdk> = ladeSdk): Adapter {
+  return {
+    name: "claude-agent-sdk",
+    async ausfuehren(auftrag, d) {
+      let geladen: Sdk;
+      try {
+        geladen = await sdk();
+      } catch (e) {
+        d.senke({ t: "fehler", text: `Das Agent SDK lässt sich nicht laden (${(e as Error).message}). Image neu bauen?` });
+        return 2;
+      }
+      return lauf(auftrag, { ...d, sdk: geladen });
+    },
+  };
 }

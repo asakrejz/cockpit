@@ -64,7 +64,7 @@ pub fn FertigSchritt(ctx: Kontext, zu_schritt: Callback<Schritt>) -> impl IntoVi
             einrichtung: ctx.einr.get(),
             jira: health.anmeldung.jira.clone(),
             github: health.anmeldung.github.clone(),
-            litellm: health.litellm.clone(),
+            endpunkt: health.endpunkt.clone(),
             container: health.container.clone(),
             agent: health.agent.clone(),
             pruefung: ctx.pruefung.get(),
@@ -120,7 +120,7 @@ pub fn FertigSchritt(ctx: Kontext, zu_schritt: Callback<Schritt>) -> impl IntoVi
                 </Button>
             </HStack>
             <p class="t-footnote t-secondary" style="padding-inline: 4px">
-                "Wo Schlüssel liegen: nur im Schlüsselbund dieses Rechners. Sie gehen über die Eingabefelder hier (oder im Terminal mit „cockpit-server token setzen <name>“) hinein und kommen nie in den Browser-Speicher, ins Repo, in die Datenbank oder ins Log. Der Agent im Server ist noch simuliert; der echte Agent kommt mit Docker oder Podman und dem LiteLLM-Proxy."
+                "Wo Schlüssel liegen: nur im Schlüsselbund dieses Rechners. Sie gehen über die Eingabefelder hier (oder im Terminal mit „cockpit-server token setzen <name>“) hinein und kommen nie in den Browser-Speicher, ins Repo, in die Datenbank oder ins Log. Der echte Agent läuft in Docker oder Podman und spricht mit dem Modell-Endpunkt, den du im Schritt „Modell“ gewählt hast."
             </p>
         </VStack>
     }

@@ -55,7 +55,7 @@ pub struct Store {
     pub ws: RwSignal<Workspace>,
     /// Was das Backend über die Anmeldung bei Jira und GitHub meldet (`GET /api/health`).
     pub conn: RwSignal<Connections>,
-    /// LiteLLM und Container-Laufzeit, wie das Backend sie meldet; `None` bis zur ersten Antwort.
+    /// Agent-Endpunkt und Container-Laufzeit, wie das Backend sie meldet; `None` bis zur ersten Antwort.
     pub health: RwSignal<Option<server::Health>>,
     /// ID des Eintrags, der in der Inbox gewählt ist.
     pub selected: RwSignal<String>,
@@ -137,7 +137,7 @@ impl Store {
         store.refresh_health();
     }
 
-    /// Holt Anmeldung, LiteLLM und Container-Laufzeit vom Server.
+    /// Holt Anmeldung, Agent-Endpunkt und Container-Laufzeit vom Server.
     pub fn refresh_health(&self) {
         let store = *self;
         spawn_local(async move {

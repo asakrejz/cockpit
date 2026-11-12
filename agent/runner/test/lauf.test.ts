@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { lauf, planAusAntwort } from "../src/lauf.ts";
+import { lauf, planAusAntwort } from "../src/adapter/claude-agent-sdk.ts";
 import type { Ausfuehren } from "../src/git.ts";
 import { assistant, auftrag, eingang, ergebnisOk, sammler, sdkAttrappe } from "./hilfen.ts";
 

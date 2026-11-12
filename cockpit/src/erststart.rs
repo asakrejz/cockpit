@@ -49,7 +49,7 @@ pub fn pruefen(store: Store) {
                 &einrichtung,
                 &health.anmeldung.jira,
                 &health.anmeldung.github,
-                &health.litellm,
+                &health.endpunkt,
             );
             if leer && matches!(store.route.get_untracked(), Route::Inbox(_)) {
                 merken();

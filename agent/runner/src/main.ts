@@ -1,13 +1,15 @@
-// Einstieg des Läufers im Container. Alles Geheime kommt über die Umgebung
-// (ANTHROPIC_BASE_URL, ANTHROPIC_AUTH_TOKEN, ANTHROPIC_MODEL), der Auftrag aus einer Datei.
+// Einstieg des Läufers im Container. Alles Geheime kommt über die Umgebung (ANTHROPIC_MODEL und
+// entweder ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN für einen Proxy oder ANTHROPIC_API_KEY direkt
+// bei Anthropic), der Auftrag aus einer Datei. COCKPIT_ANBIETER wählt den Adapter (src/adapter/).
 // Auf stdout stehen ausschließlich JSON-Zeilen (siehe ereignis.ts), Diagnose auf stderr.
 
 import { createInterface } from "node:readline";
 import { leseAuftrag } from "./auftrag.ts";
 import { stdoutSenke } from "./ereignis.ts";
 import { gitAusfuehren } from "./git.ts";
-import { type Eingang, type Sdk, lauf } from "./lauf.ts";
-import { pruefeProxy } from "./pruefung.ts";
+import { waehleAdapter } from "./adapter/index.ts";
+import type { Eingang } from "./adapter/schnittstelle.ts";
+import { pruefeEndpunkt } from "./pruefung.ts";
 
 process.umask(0); // das Backend soll den Klon nach dem Lauf lesen und löschen können
 
@@ -29,29 +31,6 @@ function stdinEingang(): Eingang {
   };
 }
 
-async function ladeSdk(): Promise<Sdk> {
-  const m: any = await import("@anthropic-ai/claude-agent-sdk");
-  const { z } = await import("zod");
-  return {
-    query: (p) => m.query(p),
-    rueckfrageServer: (frage) =>
-      m.createSdkMcpServer({
-        name: "cockpit",
-        version: "1.0.0",
-        tools: [
-          m.tool(
-            "rueckfrage",
-            "Stellt dem Nutzer eine Frage und wartet auf seine Antwort. Nur für Dinge, die du aus dem Code nicht klären kannst.",
-            { frage: z.string(), vorschlaege: z.array(z.string()).optional() },
-            async (a: { frage: string; vorschlaege?: string[] }) => ({
-              content: [{ type: "text", text: await frage(a.frage, a.vorschlaege ?? []) }],
-            }),
-          ),
-        ],
-      }),
-  };
-}
-
 async function main(): Promise<number> {
   const senke = stdoutSenke();
   const pfad = process.env.COCKPIT_AUFTRAG ?? "/auftrag/auftrag.json";
@@ -62,16 +41,15 @@ async function main(): Promise<number> {
     senke({ t: "fehler", text: (e as Error).message });
     return 2;
   }
-  if (auftrag.modus === "pruefung") return pruefeProxy(process.env, senke);
-  let sdk: Sdk;
+  if (auftrag.modus === "pruefung") return pruefeEndpunkt(process.env, senke);
+  let adapter;
   try {
-    sdk = await ladeSdk();
+    adapter = waehleAdapter(process.env.COCKPIT_ANBIETER);
   } catch (e) {
-    senke({ t: "fehler", text: `Das Agent SDK lässt sich nicht laden (${(e as Error).message}). Image neu bauen?` });
+    senke({ t: "fehler", text: (e as Error).message });
     return 2;
   }
-  return lauf(auftrag, {
-    sdk,
+  return adapter.ausfuehren(auftrag, {
     senke,
     git: gitAusfuehren,
     eingang: stdinEingang(),

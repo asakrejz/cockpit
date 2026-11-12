@@ -2,7 +2,7 @@
 //! Meldungen und das Speichern der Konfiguration. Die Regeln (Prüfung, Normalisierung) stehen in
 //! `cockpit_core::einrichten`, das Schreiben im Server; hier ist nur Verdrahtung.
 
-use cockpit_core::api::{ContainerPruefung, Einrichtung, KonfigAenderung, LitellmPruefung};
+use cockpit_core::api::{ContainerPruefung, Einrichtung, EndpunktPruefung, KonfigAenderung};
 use cockpit_core::einrichten::schluessel_pruefen;
 use feature_ui::*;
 use leptos::prelude::*;
@@ -18,8 +18,8 @@ pub struct Kontext {
     pub store: Store,
     /// Die nicht geheimen Werte aus `GET /api/einrichtung`.
     pub einr: RwSignal<Einrichtung>,
-    /// Ergebnis des letzten Verbindungstests zum LiteLLM-Proxy.
-    pub pruefung: RwSignal<Option<LitellmPruefung>>,
+    /// Ergebnis des letzten Verbindungstests zum Endpunkt.
+    pub pruefung: RwSignal<Option<EndpunktPruefung>>,
     /// Ergebnis der Prüfung „aus dem Container erreichbar“.
     pub container_pruefung: RwSignal<Option<ContainerPruefung>>,
 }
@@ -117,7 +117,7 @@ pub fn konfig_speichern(
 #[component]
 pub fn SchluesselFeld(
     ctx: Kontext,
-    /// Name im Schlüsselbund (`github-oauth`, `atlassian-oauth`, `litellm`, `jira`, `github`).
+    /// Name im Schlüsselbund (`github-oauth`, `atlassian-oauth`, `agent-key`, `jira`, `github`).
     name: &'static str,
     label: &'static str,
     #[prop(optional)] hinweis: Option<&'static str>,

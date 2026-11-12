@@ -10,7 +10,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use cockpit_core::api::{AgentStatus, ContainerStatus};
+use cockpit_core::api::{AgentStatus, Anbieter, ContainerStatus};
 use cockpit_core::{AgentReport, AgentRun, RunKind, RunState, Workspace};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -279,23 +279,42 @@ pub fn run_args(b: &LaufBefehl) -> Vec<String> {
         s("-v"),
         format!("{}:/auftrag:ro", b.auftrag.display()),
     ]);
-    for name in [
-        "ANTHROPIC_BASE_URL",
-        "ANTHROPIC_AUTH_TOKEN",
-        "ANTHROPIC_MODEL",
-    ] {
+    for name in KIND_UMGEBUNG {
         a.extend([s("-e"), s(name)]);
     }
     a.push(s(IMAGE));
     a
 }
 
+/// Die Namen, die `docker run` per `-e NAME` weitergibt (nur der Name, nie ein Wert).
+pub const KIND_UMGEBUNG: [&str; 4] = [
+    "ANTHROPIC_BASE_URL",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_MODEL",
+    "ANTHROPIC_API_KEY",
+];
+
 /// Die Umgebung des `docker run`-Prozesses: Dort stehen die Werte, die `-e NAME` weitergibt.
-pub fn umgebung_fuer_kind(proxy_url: &str, key: &str, modell: &str) -> Vec<(String, String)> {
+/// `Some` setzt den Wert, `None` entfernt ihn aus der geerbten Umgebung, damit nie ein Key aus der
+/// Shell der Person in den Container wandert.
+///
+/// * Mit Adresse (Proxy wie LiteLLM, anderer kompatibler Endpunkt): `ANTHROPIC_BASE_URL` und
+///   `ANTHROPIC_AUTH_TOKEN` (Bearer).
+/// * Ohne Adresse (direkt bei Anthropic): `ANTHROPIC_API_KEY` (`x-api-key`), keine Basisadresse.
+pub fn umgebung_fuer_kind(
+    endpunkt_url: Option<&str>,
+    key: &str,
+    modell: &str,
+) -> Vec<(&'static str, Option<String>)> {
+    let (basis, token, api_key) = match endpunkt_url.map(str::trim).filter(|u| !u.is_empty()) {
+        Some(url) => (Some(fuer_container(url)), Some(key.to_string()), None),
+        None => (None, None, Some(key.to_string())),
+    };
     vec![
-        ("ANTHROPIC_BASE_URL".into(), fuer_container(proxy_url)),
-        ("ANTHROPIC_AUTH_TOKEN".into(), key.to_string()),
-        ("ANTHROPIC_MODEL".into(), modell.to_string()),
+        ("ANTHROPIC_BASE_URL", basis),
+        ("ANTHROPIC_AUTH_TOKEN", token),
+        ("ANTHROPIC_MODEL", Some(modell.to_string())),
+        ("ANTHROPIC_API_KEY", api_key),
     ]
 }
 
@@ -424,9 +443,10 @@ pub fn pruef_auftrag() -> Value {
 pub struct Voraussetzungen<'a> {
     pub container: &'a ContainerStatus,
     pub image: bool,
-    pub litellm_url: bool,
-    pub litellm_modell: bool,
-    pub litellm_key: bool,
+    /// Das Werkzeug des Agenten; nur umgesetzte laufen.
+    pub anbieter: Anbieter,
+    pub modell: bool,
+    pub key: bool,
     /// Das Repo, in dem der Agent arbeitet; `Err` mit der Erklärung, wenn es nicht eindeutig ist.
     pub repo: Result<&'a str, String>,
     pub github_zugang: bool,
@@ -452,15 +472,14 @@ pub fn fehlende(v: &Voraussetzungen) -> Vec<String> {
             }
         }
     }
-    if !v.litellm_url || !v.litellm_modell || !v.litellm_key {
+    if let Some(m) = v.anbieter.nicht_umgesetzt() {
+        f.push(m);
+    } else if !v.modell || !v.key {
         let mut was = Vec::new();
-        if !v.litellm_url {
-            was.push("die Adresse");
-        }
-        if !v.litellm_modell {
+        if !v.modell {
             was.push("der Modellname");
         }
-        if !v.litellm_key {
+        if !v.key {
             was.push("der Key");
         }
         f.push(format!(
@@ -712,7 +731,7 @@ mod tests {
             "--label cockpit.lauf=BAU-142",
             "--add-host cockpit-host:host-gateway",
             "-v /daten/klon:/work -v /daten/auftrag:/auftrag:ro",
-            "-e ANTHROPIC_BASE_URL -e ANTHROPIC_AUTH_TOKEN -e ANTHROPIC_MODEL",
+            "-e ANTHROPIC_BASE_URL -e ANTHROPIC_AUTH_TOKEN -e ANTHROPIC_MODEL -e ANTHROPIC_API_KEY",
             "--cap-drop ALL",
         ] {
             assert!(text.contains(muss), "{muss} fehlt in {text}");
@@ -732,11 +751,18 @@ mod tests {
             }
         }
         // Die Werte gehören in die Umgebung des Kindprozesses.
-        let env = umgebung_fuer_kind("http://localhost:4000/", "sk-geheim", "claude-sonnet-5-5");
+        let env = umgebung_fuer_kind(
+            Some("http://localhost:4000/"),
+            "sk-geheim",
+            "claude-sonnet-5-5",
+        );
         assert!(env.contains(&(
-            "ANTHROPIC_BASE_URL".into(),
-            "http://cockpit-host:4000".into()
+            "ANTHROPIC_BASE_URL",
+            Some("http://cockpit-host:4000".to_string())
         )));
+        assert!(env.contains(&("ANTHROPIC_AUTH_TOKEN", Some("sk-geheim".to_string()))));
+        // Mit Adresse nie ein `ANTHROPIC_API_KEY` aus der Umgebung der Person.
+        assert!(env.contains(&("ANTHROPIC_API_KEY", None)));
         assert!(!text.contains("sk-geheim"));
         let ro = run_args(&LaufBefehl {
             klon_nur_lesen: true,
@@ -745,6 +771,25 @@ mod tests {
         });
         assert!(ro.join(" ").contains("/daten/klon:/work:ro"));
         assert!(!ro.contains(&"-i".to_string()));
+    }
+
+    #[test]
+    fn direkt_beim_anbieter_gibt_nur_den_api_key_weiter() {
+        for leer in [None, Some(""), Some("  ")] {
+            let env = umgebung_fuer_kind(leer, "sk-ant-geheim", "claude-opus-5-5");
+            assert!(env.contains(&("ANTHROPIC_API_KEY", Some("sk-ant-geheim".to_string()))));
+            assert!(env.contains(&("ANTHROPIC_BASE_URL", None)));
+            assert!(env.contains(&("ANTHROPIC_AUTH_TOKEN", None)));
+            assert!(env.contains(&("ANTHROPIC_MODEL", Some("claude-opus-5-5".to_string()))));
+        }
+        // Jeder Name, den wir setzen oder entfernen, steht auch in der `-e`-Liste.
+        let namen: Vec<&str> = umgebung_fuer_kind(None, "k", "m")
+            .iter()
+            .map(|(n, _)| *n)
+            .collect();
+        for n in namen {
+            assert!(KIND_UMGEBUNG.contains(&n));
+        }
     }
 
     #[test]
@@ -992,21 +1037,45 @@ mod tests {
     }
 
     #[test]
+    fn ein_noch_nicht_umgesetztes_werkzeug_wird_in_klartext_abgelehnt() {
+        let laeuft = ContainerStatus {
+            laufzeit: Some("docker".into()),
+            engine_laeuft: true,
+            ..ContainerStatus::default()
+        };
+        for a in [Anbieter::ClaudeCode, Anbieter::Codex] {
+            let v = Voraussetzungen {
+                container: &laeuft,
+                image: true,
+                anbieter: a,
+                modell: true,
+                key: true,
+                repo: Ok("firma/app"),
+                github_zugang: true,
+            };
+            let f = fehlende(&v);
+            assert_eq!(f.len(), 1, "{f:?}");
+            assert!(f[0].contains(a.bezeichnung()) && f[0].contains("noch nicht umgesetzt"));
+            assert!(!status(true, &v).bereit);
+        }
+    }
+
+    #[test]
     fn voraussetzungen_sagen_in_klartext_was_fehlt_und_wohin() {
         let kein = ContainerStatus::default();
         let v = Voraussetzungen {
             container: &kein,
             image: false,
-            litellm_url: false,
-            litellm_modell: false,
-            litellm_key: false,
+            anbieter: Anbieter::ClaudeAgentSdk,
+            modell: false,
+            key: false,
             repo: Err("Es ist kein Repo eingetragen.".into()),
             github_zugang: false,
         };
         let f = fehlende(&v);
         assert_eq!(f.len(), 4);
         assert!(f[0].contains("Einrichten") && f[0].contains("Container"));
-        assert!(f[1].contains("die Adresse, der Modellname, der Key"));
+        assert!(f[1].contains("der Modellname, der Key") && !f[1].contains("Adresse"));
         assert!(f[3].contains("GitHub"));
         let laeuft = ContainerStatus {
             laufzeit: Some("docker".into()),
@@ -1016,9 +1085,9 @@ mod tests {
         let fast = Voraussetzungen {
             container: &laeuft,
             image: false,
-            litellm_url: true,
-            litellm_modell: true,
-            litellm_key: true,
+            anbieter: Anbieter::ClaudeAgentSdk,
+            modell: true,
+            key: true,
             repo: Ok("firma/app"),
             github_zugang: true,
         };
@@ -1041,9 +1110,9 @@ mod tests {
         let f = fehlende(&Voraussetzungen {
             container: &nicht_laeuft,
             image: true,
-            litellm_url: true,
-            litellm_modell: true,
-            litellm_key: true,
+            anbieter: Anbieter::ClaudeAgentSdk,
+            modell: true,
+            key: true,
             repo: Ok("a/b"),
             github_zugang: true,
         });

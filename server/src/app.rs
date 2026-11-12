@@ -22,13 +22,13 @@ use tokio_stream::wrappers::BroadcastStream;
 use tower_http::services::ServeDir;
 
 use crate::abgleich::{AktionFehler, Quellen};
-use crate::config::{Config, LitellmKonfig, Seed};
+use crate::config::{AgentWahl, Config, Seed};
 use crate::container::Zwischenspeicher;
 use crate::db;
 use crate::live::Live;
 use crate::secrets::{self, SecretStore};
 use crate::zugang;
-use cockpit_core::api::{AgentStatus, ContainerStatus, LitellmStatus};
+use cockpit_core::api::{AgentStatus, ContainerStatus, EndpunktStatus};
 use cockpit_core::{AuthKind, ServiceStatus};
 use cockpit_integrations::oauth::Dienst;
 
@@ -43,7 +43,10 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Debug, Clone, Default)]
 pub struct Einstellungen {
     pub seed: Seed,
-    pub litellm: Option<LitellmKonfig>,
+    /// `[agent] anbieter` und `[agent.endpunkt]`.
+    pub agent: AgentWahl,
+    /// Ersatz für `https://api.anthropic.com`, damit Tests nie die echte API erreichen.
+    pub anthropic_api: Option<String>,
     /// `[agent] container`.
     pub container: Option<String>,
     /// `COCKPIT_CONTAINER` (geht der Datei vor).
@@ -70,7 +73,11 @@ impl Einstellungen {
     pub fn aus(config: &Config) -> Self {
         Self {
             seed: config.seed,
-            litellm: config.litellm.clone(),
+            agent: AgentWahl {
+                anbieter: config.anbieter,
+                endpunkt: config.endpunkt.clone(),
+            },
+            anthropic_api: None,
             container: config.container.clone(),
             container_env: config.container_env.clone(),
             suchpfad: None,
@@ -118,8 +125,8 @@ pub(crate) struct Inner {
     /// Jira und GitHub, wie konfiguriert (ob sie laufen, hängt noch vom Schlüssel ab).
     /// Wird beim Speichern im Einrichtungsassistenten ausgetauscht (ohne Neustart).
     pub(crate) quellen: RwLock<Arc<Quellen>>,
-    /// Der LiteLLM-Proxy, ebenfalls austauschbar.
-    pub(crate) litellm: RwLock<Option<LitellmKonfig>>,
+    /// Anbieter und Endpunkt des Agenten, ebenfalls austauschbar.
+    pub(crate) agent_wahl: RwLock<AgentWahl>,
     /// Lesen, Ändern und Schreiben von `config.toml` gehen nacheinander.
     pub(crate) konfig_sperre: Mutex<()>,
     /// Schreibzugriffe nach außen und das Übernehmen eines Abgleichs gehen nacheinander.
@@ -184,7 +191,7 @@ impl AppState {
                 anmeldungen: crate::oauth::neue_anmeldungen(),
                 auffrischen: tokio::sync::Mutex::new(()),
                 quellen: RwLock::new(Arc::new(quellen)),
-                litellm: RwLock::new(einstellungen.litellm.clone()),
+                agent_wahl: RwLock::new(einstellungen.agent.clone()),
                 konfig_sperre: Mutex::new(()),
                 sperre: tokio::sync::Mutex::new(()),
                 geschrieben: AtomicU64::new(0),
@@ -204,16 +211,16 @@ impl AppState {
         }
     }
 
-    /// Der LiteLLM-Proxy, wie zuletzt konfiguriert.
-    pub(crate) fn litellm(&self) -> Option<LitellmKonfig> {
-        match self.inner.litellm.read() {
+    /// Anbieter und Endpunkt des Agenten, wie zuletzt konfiguriert.
+    pub(crate) fn agent_wahl(&self) -> AgentWahl {
+        match self.inner.agent_wahl.read() {
             Ok(l) => l.clone(),
             Err(vergiftet) => vergiftet.into_inner().clone(),
         }
     }
 
     /// Übernimmt eine neu geschriebene Konfiguration ohne Neustart: Quellen, OAuth-Apps und
-    /// LiteLLM. Port, Datenbank, Abgleich-Takt und Container-Wahl bleiben, wie sie sind.
+    /// Agent-Endpunkt. Port, Datenbank, Abgleich-Takt und Container-Wahl bleiben, wie sie sind.
     pub(crate) fn konfig_anwenden(&self, c: &Config) {
         let alt = self.quellen();
         let neu = Quellen {
@@ -228,9 +235,13 @@ impl AppState {
             Ok(mut q) => *q = Arc::new(neu),
             Err(v) => *v.into_inner() = Arc::new(neu),
         }
-        match self.inner.litellm.write() {
-            Ok(mut l) => *l = c.litellm.clone(),
-            Err(v) => *v.into_inner() = c.litellm.clone(),
+        let wahl = AgentWahl {
+            anbieter: c.anbieter,
+            endpunkt: c.endpunkt.clone(),
+        };
+        match self.inner.agent_wahl.write() {
+            Ok(mut l) => *l = wahl,
+            Err(v) => *v.into_inner() = wahl,
         }
     }
 
@@ -299,8 +310,8 @@ pub struct Health {
     pub verbindungen: Verbindungen,
     pub anmeldung: Anmeldung,
     pub abgleich: AbgleichZustand,
-    /// Adresse, Modell und ob ein Key liegt – nie der Key.
-    pub litellm: LitellmStatus,
+    /// Anbieter, Adresse, Modell und ob ein Key liegt – nie der Key.
+    pub endpunkt: EndpunktStatus,
     pub container: ContainerStatus,
     /// Ob der echte Agent loslaufen kann und was fehlt.
     pub agent: AgentStatus,
@@ -343,12 +354,13 @@ impl AppState {
                 .to_string()
         };
         let q = self.quellen();
-        let proxy = self.litellm();
-        let litellm = LitellmStatus {
-            konfiguriert: proxy.is_some(),
-            url: proxy.as_ref().map(|l| l.url.clone()),
-            modell: proxy.as_ref().and_then(|l| l.modell.clone()),
-            key: hat_schluessel(secrets::LITELLM),
+        let wahl = self.agent_wahl();
+        let endpunkt = EndpunktStatus {
+            konfiguriert: wahl.endpunkt.is_some(),
+            anbieter: wahl.anbieter,
+            url: wahl.endpunkt.as_ref().and_then(|e| e.url.clone()),
+            modell: wahl.endpunkt.as_ref().and_then(|e| e.modell.clone()),
+            key: hat_schluessel(secrets::AGENT_KEY) || hat_schluessel(secrets::LITELLM),
         };
         let container = self.container_status();
         let agent = self.agent_status();
@@ -370,7 +382,7 @@ impl AppState {
             },
             verbindungen,
             anmeldung: Anmeldung { github, jira },
-            litellm,
+            endpunkt,
             container,
             agent,
         }
@@ -384,33 +396,83 @@ async fn health(State(state): State<AppState>) -> Result<Json<Health>, StatusCod
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-/// `GET /api/litellm/pruefen`: ruft nur `GET <url>/v1/models` mit dem Key auf und meldet, ob der
-/// Proxy erreichbar ist, den Key annimmt und das Modell anbietet. Nie der Key.
-async fn litellm_pruefen(State(state): State<AppState>) -> Response {
-    let Some(l) = state.litellm() else {
-        return Json(cockpit_core::api::LitellmPruefung {
+/// Der Key des Endpunkts aus dem Schlüsselbund: `agent-key`, ersatzweise das ältere `litellm`.
+/// Blockierend.
+pub(crate) fn agent_key_lesen(
+    secrets: &dyn crate::secrets::SecretStore,
+) -> Result<Option<cockpit_integrations::Secret>, crate::secrets::SecretFehler> {
+    match secrets.get(secrets::AGENT_KEY)? {
+        Some(k) => Ok(Some(k)),
+        None => secrets.get(secrets::LITELLM),
+    }
+}
+
+impl AppState {
+    /// Wohin die Aufrufe an den Endpunkt gehen: die eingetragene Adresse, sonst direkt Anthropic.
+    pub(crate) fn endpunkt_ziel(&self) -> cockpit_integrations::endpunkt::Ziel {
+        let wahl = self.agent_wahl();
+        cockpit_integrations::endpunkt::Ziel::aus(
+            wahl.endpunkt.as_ref().and_then(|e| e.url.as_deref()),
+            self.inner.einstellungen.anthropic_api.as_deref(),
+        )
+    }
+
+    /// Der Key des Endpunkts. `Err` ist schon eine fertige Antwort.
+    async fn endpunkt_key(&self) -> Result<Option<cockpit_integrations::Secret>, Box<Response>> {
+        let secrets = self.inner.secrets.clone();
+        match tokio::task::spawn_blocking(move || agent_key_lesen(secrets.as_ref())).await {
+            Ok(Ok(k)) => Ok(k),
+            Ok(Err(e)) => {
+                tracing::warn!("Key des Agent-Endpunkts nicht lesbar: {e}");
+                Err(Box::new(fehler(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Der Schlüsselbund ist nicht lesbar",
+                )))
+            }
+            Err(_) => Err(Box::new(StatusCode::INTERNAL_SERVER_ERROR.into_response())),
+        }
+    }
+}
+
+/// `GET /api/agent/pruefen` (Alias `/api/litellm/pruefen`): ruft nur `GET <url>/v1/models` mit dem
+/// Key auf und meldet, ob der Endpunkt erreichbar ist, den Key annimmt und das Modell anbietet.
+/// Nie der Key.
+async fn endpunkt_pruefen(State(state): State<AppState>) -> Response {
+    let wahl = state.agent_wahl();
+    let Some(e) = wahl.endpunkt.clone() else {
+        // Ohne Eintrag gibt es nichts zu prüfen (auch nicht „direkt“: erst wählt die Person ein Modell).
+        return Json(cockpit_core::api::EndpunktPruefung {
             hinweis: Some(
-                "Der Proxy ist nicht eingerichtet. Trage url (und modell) unter [litellm] in config.toml ein."
+                "Der Endpunkt ist nicht eingerichtet. Wähle im Schritt „Modell“ Anbieter, Endpunkt und Modell."
                     .into(),
             ),
             ..Default::default()
         })
         .into_response();
     };
-    let secrets = state.inner.secrets.clone();
-    let key = tokio::task::spawn_blocking(move || secrets.get(secrets::LITELLM)).await;
-    let key = match key {
-        Ok(Ok(k)) => k,
-        Ok(Err(e)) => {
-            tracing::warn!("LiteLLM-Key nicht lesbar: {e}");
-            return fehler(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Der Schlüsselbund ist nicht lesbar",
-            );
-        }
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    let key = match state.endpunkt_key().await {
+        Ok(k) => k,
+        Err(antwort) => return *antwort,
     };
-    Json(cockpit_integrations::litellm::pruefen(&l.url, key.as_ref(), l.modell.as_deref()).await)
+    Json(
+        cockpit_integrations::endpunkt::pruefen(
+            &state.endpunkt_ziel(),
+            key.as_ref(),
+            e.modell.as_deref(),
+        )
+        .await,
+    )
+    .into_response()
+}
+
+/// `GET /api/agent/modelle`: die Modell-IDs des Endpunkts (nur IDs, sortiert) für das Drop-down.
+/// Der Key kommt aus dem Schlüsselbund und verlässt das Backend nie.
+async fn agent_modelle(State(state): State<AppState>) -> Response {
+    let key = match state.endpunkt_key().await {
+        Ok(k) => k,
+        Err(antwort) => return *antwort,
+    };
+    Json(cockpit_integrations::endpunkt::modelle_laden(&state.endpunkt_ziel(), key.as_ref()).await)
         .into_response()
 }
 
@@ -432,8 +494,9 @@ async fn agent_image_bauen(State(state): State<AppState>) -> Response {
     }
 }
 
-/// `GET /api/litellm/pruefen/container`: erreicht ein Container den Proxy (Prüfmodus des Images)?
-async fn litellm_pruefen_container(State(state): State<AppState>) -> Response {
+/// `GET /api/agent/pruefen/container` (Alias `/api/litellm/pruefen/container`): erreicht ein
+/// Container den Endpunkt (Prüfmodus des Images)?
+async fn endpunkt_pruefen_container(State(state): State<AppState>) -> Response {
     Json(state.container_pruefen().await).into_response()
 }
 
@@ -562,11 +625,17 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/sync", post(abgleichen))
         .route("/api/events", get(ereignisse))
         .route("/api/jira/projekte", get(jira_projekte))
+        .route("/api/agent/modelle", get(agent_modelle))
+        .route("/api/agent/pruefen", get(endpunkt_pruefen))
+        .route("/api/litellm/pruefen", get(endpunkt_pruefen))
+        .route(
+            "/api/agent/pruefen/container",
+            get(endpunkt_pruefen_container),
+        )
         .route("/api/jira/pruefen", post(crate::einrichtung::jira_pruefen))
-        .route("/api/litellm/pruefen", get(litellm_pruefen))
         .route(
             "/api/litellm/pruefen/container",
-            get(litellm_pruefen_container),
+            get(endpunkt_pruefen_container),
         )
         .route(
             "/api/agent/image",
@@ -607,7 +676,9 @@ mod tests {
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
+    use crate::config::EndpunktKonfig;
     use crate::secrets::MemoryStore;
+    use cockpit_core::api::Anbieter;
 
     fn zustand(secrets: Arc<MemoryStore>) -> AppState {
         let conn = db::open_im_speicher().unwrap();
@@ -1284,16 +1355,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn health_meldet_litellm_ohne_den_key() {
+    async fn health_meldet_den_endpunkt_ohne_den_key() {
         let secrets = Arc::new(MemoryStore::new());
         secrets
-            .set(secrets::LITELLM, &Secret::new("sk-geheim-123456"))
+            .set(secrets::AGENT_KEY, &Secret::new("sk-geheim-123456"))
             .unwrap();
         let e = Einstellungen {
-            litellm: Some(LitellmKonfig {
-                url: "http://localhost:4000".into(),
-                modell: Some("claude-sonnet-5-5".into()),
-            }),
+            agent: AgentWahl {
+                anbieter: Anbieter::ClaudeAgentSdk,
+                endpunkt: Some(EndpunktKonfig {
+                    url: Some("http://localhost:4000".into()),
+                    modell: Some("claude-sonnet-5-5".into()),
+                }),
+            },
             ..leer()
         };
         let conn = db::open_im_speicher().unwrap();
@@ -1301,17 +1375,26 @@ mod tests {
         let (_, body) = hole(app, "/api/health").await;
         assert!(!body.contains("geheim"), "{body}");
         let j = json(&body);
-        assert_eq!(j["litellm"]["konfiguriert"], true);
-        assert_eq!(j["litellm"]["url"], "http://localhost:4000");
-        assert_eq!(j["litellm"]["modell"], "claude-sonnet-5-5");
-        assert_eq!(j["litellm"]["key"], true);
+        assert_eq!(j["endpunkt"]["konfiguriert"], true);
+        assert_eq!(j["endpunkt"]["anbieter"], "claude-agent-sdk");
+        assert_eq!(j["endpunkt"]["url"], "http://localhost:4000");
+        assert_eq!(j["endpunkt"]["modell"], "claude-sonnet-5-5");
+        assert_eq!(j["endpunkt"]["key"], true);
+
+        // Der ältere Schlüsselname `litellm` zählt weiter.
+        let alt = Arc::new(MemoryStore::new());
+        alt.set(secrets::LITELLM, &Secret::new("sk-alt-123456"))
+            .unwrap();
+        let app = router(zustand(alt), PathBuf::from("/x"));
+        let (_, body) = hole(app, "/api/health").await;
+        assert_eq!(json(&body)["endpunkt"]["key"], true);
 
         // Ohne Einstellung: nicht konfiguriert, kein Key.
         let app = router(zustand(Arc::new(MemoryStore::new())), PathBuf::from("/x"));
         let (_, body) = hole(app, "/api/health").await;
         let j = json(&body);
-        assert_eq!(j["litellm"]["konfiguriert"], false);
-        assert_eq!(j["litellm"]["key"], false);
+        assert_eq!(j["endpunkt"]["konfiguriert"], false);
+        assert_eq!(j["endpunkt"]["key"], false);
         assert_eq!(j["container"]["quelle"], "keine");
         assert_eq!(j["container"]["laufzeit"], serde_json::Value::Null);
     }
@@ -1340,12 +1423,21 @@ mod tests {
         assert_eq!(j["container"]["quelle"], "erkannt");
     }
 
-    fn mit_litellm(url: &str, secrets: Arc<MemoryStore>) -> Router {
+    /// `url = None`: direkt beim Anbieter, dann geht der Aufruf an `anthropic_api` (die Attrappe).
+    fn mit_endpunkt(
+        url: Option<&str>,
+        anthropic_api: Option<&str>,
+        secrets: Arc<MemoryStore>,
+    ) -> Router {
         let e = Einstellungen {
-            litellm: Some(LitellmKonfig {
-                url: url.into(),
-                modell: Some("claude-sonnet-5-5".into()),
-            }),
+            agent: AgentWahl {
+                anbieter: Anbieter::ClaudeAgentSdk,
+                endpunkt: Some(EndpunktKonfig {
+                    url: url.map(str::to_string),
+                    modell: Some("claude-sonnet-5-5".into()),
+                }),
+            },
+            anthropic_api: anthropic_api.map(str::to_string),
             ..leer()
         };
         let conn = db::open_im_speicher().unwrap();
@@ -1353,7 +1445,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn litellm_pruefen_meldet_erreichbar_key_und_modell() {
+    async fn pruefen_meldet_erreichbar_key_und_modell_unter_beiden_adressen() {
         use wiremock::matchers::{header, method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
         let proxy = MockServer::start().await;
@@ -1364,25 +1456,32 @@ mod tests {
                 ResponseTemplate::new(200)
                     .set_body_json(serde_json::json!({"data": [{"id": "claude-sonnet-5-5"}]})),
             )
-            .expect(1)
+            .expect(2)
             .mount(&proxy)
             .await;
+        // Der Key liegt unter dem älteren Namen `litellm`.
         let secrets = Arc::new(MemoryStore::new());
         secrets
             .set(secrets::LITELLM, &Secret::new("sk-geheim-123456"))
             .unwrap();
-        let (status, body) = hole(mit_litellm(&proxy.uri(), secrets), "/api/litellm/pruefen").await;
-        assert_eq!(status, StatusCode::OK);
-        assert!(!body.contains("geheim"), "{body}");
-        let j = json(&body);
-        assert_eq!(j["konfiguriert"], true);
-        assert_eq!(j["erreichbar"], true);
-        assert_eq!(j["key_ok"], true);
-        assert_eq!(j["modell_vorhanden"], true);
+        for pfad in ["/api/agent/pruefen", "/api/litellm/pruefen"] {
+            let (status, body) = hole(
+                mit_endpunkt(Some(&proxy.uri()), None, secrets.clone()),
+                pfad,
+            )
+            .await;
+            assert_eq!(status, StatusCode::OK);
+            assert!(!body.contains("geheim"), "{body}");
+            let j = json(&body);
+            assert_eq!(j["konfiguriert"], true, "{pfad}");
+            assert_eq!(j["erreichbar"], true);
+            assert_eq!(j["key_ok"], true);
+            assert_eq!(j["modell_vorhanden"], true);
+        }
     }
 
     #[tokio::test]
-    async fn litellm_pruefen_ohne_key_ruft_den_proxy_nicht_auf() {
+    async fn pruefen_ohne_key_ruft_den_endpunkt_nicht_auf() {
         use wiremock::{Mock, MockServer, ResponseTemplate};
         let proxy = MockServer::start().await;
         Mock::given(wiremock::matchers::any())
@@ -1391,31 +1490,145 @@ mod tests {
             .mount(&proxy)
             .await;
         let (_, body) = hole(
-            mit_litellm(&proxy.uri(), Arc::new(MemoryStore::new())),
-            "/api/litellm/pruefen",
+            mit_endpunkt(Some(&proxy.uri()), None, Arc::new(MemoryStore::new())),
+            "/api/agent/pruefen",
         )
         .await;
         let j = json(&body);
         assert_eq!(j["konfiguriert"], true);
         assert_eq!(j["key_ok"], false);
-        assert!(j["hinweis"].as_str().unwrap().contains("litellm"));
+        assert!(j["hinweis"].as_str().unwrap().contains("agent-key"));
     }
 
     #[tokio::test]
-    async fn litellm_pruefen_ohne_einstellung_und_von_fremden_hosts() {
+    async fn pruefen_ohne_einstellung_und_von_fremden_hosts() {
         let app = router(zustand(Arc::new(MemoryStore::new())), PathBuf::from("/x"));
-        let (status, body) = hole(app.clone(), "/api/litellm/pruefen").await;
-        assert_eq!(status, StatusCode::OK);
-        let j = json(&body);
-        assert_eq!(j["konfiguriert"], false);
-        assert!(j["hinweis"].as_str().unwrap().contains("[litellm]"));
-        let req = Request::builder()
-            .uri("/api/litellm/pruefen")
-            .header("host", "boese.example")
-            .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 50000))))
-            .body(Body::empty())
+        for pfad in ["/api/agent/pruefen", "/api/litellm/pruefen"] {
+            let (status, body) = hole(app.clone(), pfad).await;
+            assert_eq!(status, StatusCode::OK);
+            let j = json(&body);
+            assert_eq!(j["konfiguriert"], false);
+            assert!(j["hinweis"].as_str().unwrap().contains("Modell"));
+        }
+        for pfad in ["/api/agent/modelle", "/api/litellm/pruefen"] {
+            let req = Request::builder()
+                .uri(pfad)
+                .header("host", "boese.example")
+                .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 50000))))
+                .body(Body::empty())
+                .unwrap();
+            assert_eq!(sende(app.clone(), req).await.0, StatusCode::FORBIDDEN);
+        }
+    }
+
+    #[tokio::test]
+    async fn modellliste_vom_proxy_mit_bearer_und_ohne_den_key() {
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let proxy = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .and(header("authorization", "Bearer sk-geheim-123456"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(
+                serde_json::json!({"data": [{"id": "gpt-x"}, {"id": "claude-b"}, {"id": "claude-a"}]}),
+            ))
+            .expect(1)
+            .mount(&proxy)
+            .await;
+        let secrets = Arc::new(MemoryStore::new());
+        secrets
+            .set(secrets::AGENT_KEY, &Secret::new("sk-geheim-123456"))
             .unwrap();
-        assert_eq!(sende(app, req).await.0, StatusCode::FORBIDDEN);
+        let (status, body) = hole(
+            mit_endpunkt(Some(&proxy.uri()), None, secrets),
+            "/api/agent/modelle",
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(!body.contains("geheim"), "{body}");
+        let j = json(&body);
+        assert_eq!(j["geladen"], true);
+        assert_eq!(
+            j["modelle"],
+            serde_json::json!(["claude-a", "claude-b", "gpt-x"])
+        );
+    }
+
+    #[tokio::test]
+    async fn modellliste_direkt_nimmt_x_api_key() {
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let anthropic = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .and(header("x-api-key", "sk-ant-geheim"))
+            .and(header("anthropic-version", "2023-06-01"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({"data": [{"id": "claude-opus-5-5"}]})),
+            )
+            .expect(1)
+            .mount(&anthropic)
+            .await;
+        let secrets = Arc::new(MemoryStore::new());
+        secrets
+            .set(secrets::AGENT_KEY, &Secret::new("sk-ant-geheim"))
+            .unwrap();
+        let (_, body) = hole(
+            mit_endpunkt(None, Some(&anthropic.uri()), secrets),
+            "/api/agent/modelle",
+        )
+        .await;
+        assert!(!body.contains("geheim"), "{body}");
+        assert_eq!(
+            json(&body)["modelle"],
+            serde_json::json!(["claude-opus-5-5"])
+        );
+    }
+
+    #[tokio::test]
+    async fn modellliste_meldet_abgelehnten_key_und_fehlenden_key_in_klartext() {
+        use wiremock::matchers::any;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let proxy = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(401))
+            .expect(1)
+            .mount(&proxy)
+            .await;
+        let secrets = Arc::new(MemoryStore::new());
+        secrets
+            .set(secrets::AGENT_KEY, &Secret::new("sk-falsch-1"))
+            .unwrap();
+        let (_, body) = hole(
+            mit_endpunkt(Some(&proxy.uri()), None, secrets),
+            "/api/agent/modelle",
+        )
+        .await;
+        let j = json(&body);
+        assert_eq!(j["geladen"], false);
+        assert_eq!(j["erreichbar"], true);
+        assert!(j["hinweis"].as_str().unwrap().contains("lehnt den Key ab"));
+        assert!(!body.contains("falsch"), "{body}");
+
+        // Ohne Key wird nichts aufgerufen.
+        let still = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&still)
+            .await;
+        let (_, body) = hole(
+            mit_endpunkt(Some(&still.uri()), None, Arc::new(MemoryStore::new())),
+            "/api/agent/modelle",
+        )
+        .await;
+        assert!(
+            json(&body)["hinweis"]
+                .as_str()
+                .unwrap()
+                .contains("kein Key")
+        );
     }
 
     #[tokio::test]
