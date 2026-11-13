@@ -31,10 +31,10 @@ jobs:
 
       - name: Format
         run: cargo fmt --all --check
-      # Die Server-Crates laufen nur nativ und kompilieren nicht für WebAssembly.
+      # The server crates only run natively and do not compile for WebAssembly.
       - name: Clippy (Wasm)
         run: cargo clippy --workspace --exclude cockpit-server --exclude cockpit-integrations --all-targets --target wasm32-unknown-unknown -- -D warnings
-      - name: Clippy (Server, nativ)
+      - name: Clippy (server, native)
         run: cargo clippy -p cockpit-server -p cockpit-integrations --all-targets -- -D warnings
       - name: Tests
         run: cargo test --workspace
@@ -50,7 +50,7 @@ jobs:
         run: trunk build --release
         working-directory: apps/cockpit
 
-  # Der Läufer des Agenten (Node/TypeScript). Die Tests brauchen weder Netz noch das echte SDK.
+  # The runner of the agent (Node/TypeScript). The tests need neither network nor the real SDK.
   laeufer:
     runs-on: ubuntu-latest
     steps:
@@ -58,6 +58,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Tests des Läufers
+      - name: Runner tests
         run: node --disable-warning=ExperimentalWarning --test test/*.test.ts
         working-directory: apps/agent/runner

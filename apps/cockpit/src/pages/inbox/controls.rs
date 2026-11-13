@@ -1,14 +1,14 @@
 use super::*;
 
-/// Auswahl des Jira-Projekts. Die Liste kommt von Jira (mit Namen), dazu die
-/// Projekte der Tickets, die schon da sind. Ohne Projekte bleibt sie
-/// weg. Die Wahl ist eine Action: Der Server gleicht danach gleich ab.
+/// Choice of the Jira project. The list comes from Jira (with names), plus the
+/// projects of the tickets that are already there. Without projects it stays
+/// away. The choice is an action: the server syncs right afterwards.
 pub(super) fn project_picker(store: Store) -> impl IntoView {
     let remote = RwSignal::new(Vec::<cockpit_core::api::JiraProject>::new());
     leptos::task::spawn_local(async move {
         match server::fetch_jira_projects().await {
             Ok(r) => remote.set(r.projects),
-            // Ist der Server nicht erreichbar, sagt das schon der Hinweis oben.
+            // If the server is not reachable, the notice above already says so.
             Err(CallError::Unreachable) => {}
             Err(e) => store.notify(format!("Jira-Projekte nicht geladen: {}", e.message())),
         }
@@ -66,18 +66,18 @@ pub(super) fn project_picker(store: Store) -> impl IntoView {
     }
 }
 
-/// Ein Schalter für eine Regel. Der Zustand liegt im Workspace und ändert sich nur per Action;
-/// der Schalter spiegelt ihn.
+/// A switch for a rule. The state lies in the workspace and only changes by action;
+/// the switch mirrors it.
 pub(super) fn rule_switch(store: Store, rule: Rule) -> impl IntoView {
     let on = RwSignal::new(store.ws.with_untracked(|w| w.rules.enabled(rule)));
-    // Workspace → Schalter (z. B. nach dem Zurücksetzen der Demo).
+    // Workspace → switch (e.g. after resetting the demo).
     Effect::new(move |_| {
         let enabled = store.ws.with(|w| w.rules.enabled(rule));
         if on.get_untracked() != enabled {
             on.set(enabled);
         }
     });
-    // Schalter → Workspace. Der erste Lauf ändert nichts.
+    // Switch → workspace. The first run changes nothing.
     Effect::new(move |previous: Option<()>| {
         let enabled = on.get();
         if previous.is_some() {
@@ -94,8 +94,8 @@ pub(super) fn rule_switch(store: Store, rule: Rule) -> impl IntoView {
     }
 }
 
-/// Der Schalter „Status folgt dem Pull Request“. Wie bei den Regeln liegt der Zustand im
-/// Workspace und ändert sich nur per Action.
+/// The switch "Status folgt dem Pull Request". As with the rules the state lies in the
+/// workspace and only changes by action.
 pub(super) fn status_follow_switch(store: Store) -> impl IntoView {
     let on = RwSignal::new(store.ws.with_untracked(|w| !w.pr_status_off));
     Effect::new(move |_| {
@@ -123,7 +123,7 @@ pub(super) fn status_follow_switch(store: Store) -> impl IntoView {
     }
 }
 
-/// Ist die Liste durch Suche oder Quelle eingeschränkt?
+/// Is the list narrowed by search or source?
 pub(super) fn is_narrowed(query: &str, source: SourceFilter, filter: &InboxFilter) -> bool {
     !query.trim().is_empty() || source != SourceFilter::All || !filter.is_default()
 }
@@ -132,9 +132,9 @@ pub(super) fn some_if_set(value: String) -> Option<String> {
     (!value.is_empty()).then_some(value)
 }
 
-/// Eine Auswahl der Filterleiste. Der leere Wert heißt „alle“, `all` ist seine Beschriftung.
-/// Ein gewählter Wert, der nicht mehr vorkommt (etwa nach einem Abgleich), bleibt in der
-/// Liste, damit die Anzeige zum Filter passt.
+/// A choice of the filter bar. The empty value means "all", `all` is its label.
+/// A chosen value that no longer occurs (e.g. after a sync) stays in the
+/// list so that the display matches the filter.
 pub(super) fn filter_select(
     aria_label: &'static str,
     all: &'static str,

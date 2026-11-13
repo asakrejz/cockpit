@@ -1,8 +1,8 @@
 //! Registry aller Stories.
 //!
-//! Eine *Story* ist die Präsentation eines Bausteins im Playground.
-//! Der Baustein selbst lebt im Crate unter `crates/` und weiß nichts
-//! vom Playground – so bleibt er wiederverwendbar.
+//! A *story* is the presentation of a building block in the playground.
+//! The building block itself lives in the crate under `crates/` and knows nothing
+//! about the playground – so it stays reusable.
 
 mod app_blocks;
 mod button;
@@ -21,21 +21,21 @@ mod phone;
 use leptos::prelude::AnyView;
 
 pub struct Story {
-    /// Eindeutige ID, erscheint in der URL (`#id`).
+    /// Unique ID, appears in the URL (`#id`).
     pub id: &'static str,
-    /// Name des Reiters.
+    /// Name of the tab.
     pub title: &'static str,
-    /// Überschrift in der Navigation.
+    /// Heading in the navigation.
     pub group: &'static str,
     pub description: &'static str,
-    /// Klassen und Attribute, um die es geht (Kurzreferenz).
+    /// Classes and attributes that it is about (short reference).
     pub api: &'static str,
-    /// Rendert die Story.
+    /// Renders the story.
     pub render: fn() -> AnyView,
 }
 
-/// 👉 Neue Stories hier eintragen – die Reihenfolge bestimmt die Navigation.
-/// Stories derselben Gruppe stehen direkt hintereinander.
+/// 👉 Register new stories here – the order determines the navigation.
+/// Stories of the same group follow each other directly.
 pub static STORIES: &[Story] = &[
     foundations::STORY,
     button::STORY,
@@ -55,7 +55,7 @@ pub fn find(id: &str) -> Option<&'static Story> {
     STORIES.iter().find(|s| s.id == id)
 }
 
-/// Stories nach Gruppen für die Navigation.
+/// Stories by groups for the navigation.
 pub fn groups() -> Vec<(&'static str, Vec<&'static Story>)> {
     let mut groups: Vec<(&'static str, Vec<&'static Story>)> = Vec::new();
     for story in STORIES {

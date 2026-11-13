@@ -1,12 +1,12 @@
-//! Rückkehr von der Anmeldung per OAuth: Das Backend leitet nach `/` um und hängt Ergebnis und
-//! Meldung an die Adresse (`?oauth=ok|fehler&dienst=…&meldung=…`). Die Meldung enthält nie einen
-//! Schlüssel. Hier wird sie angezeigt und die Adresse aufgeräumt.
+//! Return from the OAuth sign-in: the backend redirects to `/` and appends result and
+//! message to the address (`?oauth=ok|error&service=…&message=…`). The message never contains a
+//! key. Here it is displayed and the address is tidied up.
 
 use leptos::prelude::*;
 
 use crate::store::Store;
 
-/// Ergebnis aus der Abfrage einer Adresse: `(ok, meldung)`.
+/// Result from the query of an address: `(ok, message)`.
 pub fn parse(search: &str) -> Option<(bool, String)> {
     let mut ok = None;
     let mut message = String::new();
@@ -14,7 +14,7 @@ pub fn parse(search: &str) -> Option<(bool, String)> {
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
         match key {
             "oauth" => ok = Some(value == "ok"),
-            "meldung" => message = decode(value),
+            "message" => message = decode(value),
             _ => {}
         }
     }
@@ -32,7 +32,7 @@ pub fn parse(search: &str) -> Option<(bool, String)> {
     })
 }
 
-/// Prozentkodierung rückgängig machen (UTF-8). Unlesbares bleibt stehen.
+/// Undo percent encoding (UTF-8). Unreadable parts stay as they are.
 fn decode(value: &str) -> String {
     let bytes = value.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
@@ -61,7 +61,7 @@ fn decode(value: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-/// Zeigt das Ergebnis und entfernt die Abfrage aus der Adresse, damit ein Neuladen es nicht wiederholt.
+/// Shows the result and removes the query from the address so that a reload does not repeat it.
 pub fn announce(store: Store) {
     let Ok(search) = window().location().search() else {
         return;
@@ -86,16 +86,16 @@ mod tests {
     #[test]
     fn reads_success_and_error() {
         assert_eq!(
-            parse("?oauth=ok&dienst=github&meldung=Mit%20GitHub%20angemeldet"),
+            parse("?oauth=ok&service=github&message=Mit%20GitHub%20angemeldet"),
             Some((true, "Mit GitHub angemeldet".into()))
         );
         assert_eq!(
-            parse("?oauth=fehler&dienst=atlassian&meldung=Site%20%C3%A4%20nicht+frei"),
+            parse("?oauth=error&service=atlassian&message=Site%20%C3%A4%20nicht+frei"),
             Some((false, "Site ä nicht frei".into()))
         );
         assert_eq!(parse("?oauth=ok"), Some((true, "Angemeldet".into())));
         assert_eq!(
-            parse("?oauth=fehler"),
+            parse("?oauth=error"),
             Some((false, "Die Anmeldung ist fehlgeschlagen".into()))
         );
     }
@@ -108,7 +108,7 @@ mod tests {
 
     #[test]
     fn survives_broken_encoding() {
-        assert_eq!(parse("?oauth=ok&meldung=100%").unwrap().1, "100%");
-        assert_eq!(parse("?oauth=ok&meldung=%zz").unwrap().1, "%zz");
+        assert_eq!(parse("?oauth=ok&message=100%").unwrap().1, "100%");
+        assert_eq!(parse("?oauth=ok&message=%zz").unwrap().1, "%zz");
     }
 }

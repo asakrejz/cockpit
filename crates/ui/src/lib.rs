@@ -1,7 +1,7 @@
-//! UI-Bausteine nach dem Design "Baukasten" (iOS 26 / Liquid Glass).
+//! UI building blocks following the design "Baukasten" (iOS 26 / Liquid Glass).
 //!
-//! Das Crate ist eine dünne Leptos-Schicht über den CSS-Klassen aus
-//! `components.css`. Die API spiegelt die SwiftUI-Modifier des Designs:
+//! The crate is a thin Leptos layer over the CSS classes from
+//! `components.css`. The API mirrors the SwiftUI modifiers of the design:
 //!
 //! | SwiftUI                    | Rust                                   | CSS                              |
 //! |----------------------------|----------------------------------------|----------------------------------|
@@ -9,8 +9,8 @@
 //! | `.controlSize(.large)`     | `size=ControlSize::Large`              | `data-control-size="large"`      |
 //! | `role: .destructive`       | `destructive=true`                     | `data-role="destructive"`        |
 //!
-//! Die Werte (Farben, Abstände, Radien …) kommen ausschließlich aus den
-//! Design-Tokens (`crates/ui/tokens.css` im Workspace). Einbinden:
+//! The values (colors, spacing, radii …) come exclusively from the
+//! design tokens (`crates/ui/tokens.css` in the workspace). Including it:
 //!
 //! ```html
 //! <link data-trunk rel="css" href="crates/ui/tokens.css" />
@@ -18,7 +18,7 @@
 //! <link data-trunk rel="css" href="crates/ui/extras.css" />
 //! ```
 //!
-//! Alle Komponenten müssen innerhalb von [`Root`] stehen (setzt Theme, Tint, Kontrast).
+//! All components must be inside [`Root`] (sets theme, tint, contrast).
 
 mod button;
 mod card;
@@ -58,7 +58,7 @@ pub use status::*;
 pub use text::*;
 pub use thread::*;
 
-/// Eindeutige IDs, um `<label for=…>` mit seinem Feld zu verbinden.
+/// Unique IDs to connect `<label for=…>` with its field.
 pub(crate) fn next_id(prefix: &str) -> String {
     use std::sync::atomic::{AtomicU32, Ordering};
     static COUNTER: AtomicU32 = AtomicU32::new(0);
@@ -85,7 +85,7 @@ mod tests {
         assert!(all_unique(MediaRatio::ALL.map(MediaRatio::id)));
     }
 
-    /// Standardwerte lassen ihr Attribut weg – das CSS definiert dafür keine Regel.
+    /// Default values omit their attribute – the CSS defines no rule for them.
     #[test]
     fn defaults_omit_their_attribute() {
         assert_eq!(ControlSize::default().attr(), None);
@@ -96,12 +96,12 @@ mod tests {
         assert_eq!(Contrast::High.attr(), Some("high"));
     }
 
-    /// Die IDs müssen zu den Selektoren in `components.css` passen.
+    /// The IDs must match the selectors in `components.css`.
     #[test]
     fn ids_match_css_selectors() {
         let css = include_str!("../components.css");
         for style in ButtonStyle::ALL {
-            // `bordered` ist der Standard und hat keine eigene Regel.
+            // `bordered` is the default and has no rule of its own.
             if style != ButtonStyle::Bordered {
                 assert!(
                     css.contains(&format!("data-style=\"{}\"", style.id())),

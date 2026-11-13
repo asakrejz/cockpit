@@ -1,8 +1,8 @@
 name: Release
 
-# Baut bei einem Tag wie v0.1.0 ein fertiges Archiv für macOS (Apple Silicon): Server und App in
-# einem Ordner, startbar per Doppelklick auf „Cockpit starten.command“ – ohne Rust und Trunk.
-# Die Datei ist nicht signiert; macOS fragt beim ersten Öffnen (Rechtsklick › Öffnen).
+# On a tag like v0.1.0, builds a ready-made archive for macOS (Apple Silicon): server and app in
+# one folder, started by double-clicking `start-cockpit.command` – without Rust and Trunk.
+# The file is not signed; macOS asks on the first open (right-click › Open).
 on:
   push:
     tags: ["v*"]
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  archiv:
+  archive:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,34 +24,34 @@ jobs:
         with:
           version: latest
 
-      - name: App bauen
+      - name: Build the app
         run: trunk build --release
         working-directory: apps/cockpit
-      - name: Server bauen
+      - name: Build the server
         run: cargo build --release -p cockpit-server
 
-      - name: Archiv zusammenstellen
+      - name: Assemble the archive
         run: |
           name="cockpit-${GITHUB_REF_NAME}-macos-arm64"
           mkdir -p "$name/apps/cockpit"
           cp target/release/cockpit-server "$name/"
           cp -R apps/cockpit/dist "$name/apps/cockpit/dist"
-          # Containerfile und Läufer des Agenten (ohne node_modules): „Image bauen“ braucht sie.
+          # Containerfile and runner of the agent (without node_modules): "Build image" needs them.
           mkdir -p "$name/apps/agent/runner"
           cp apps/agent/Containerfile apps/agent/README.md "$name/apps/agent/"
           cp -R apps/agent/runner/package.json apps/agent/runner/package-lock.json apps/agent/runner/src "$name/apps/agent/runner/"
-          cp "Cockpit starten.command" "$name/"
+          cp start-cockpit.command "$name/"
           cp .env.example "$name/"
-          cp README.md "$name/LIESMICH.md"
-          chmod +x "$name/cockpit-server" "$name/Cockpit starten.command"
-          # `ditto` behält die Rechte (ausführbar) bei.
+          cp README.md "$name/README.md"
+          chmod +x "$name/cockpit-server" "$name/start-cockpit.command"
+          # `ditto` keeps the permissions (executable).
           ditto -c -k --keepParent "$name" "$name.zip"
           echo "ARCHIV=$name.zip" >> "$GITHUB_ENV"
 
-      - name: Release veröffentlichen
+      - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$GITHUB_REF_NAME" "$ARCHIV" \
             --title "Cockpit $GITHUB_REF_NAME" \
-            --notes "Fertiges Archiv für macOS (Apple Silicon). Entpacken, dann Rechtsklick auf „Cockpit starten.command“ › Öffnen. Anleitung: LIESMICH.md im Archiv, Abschnitt „Schnellstart für Einsteiger“."
+            --notes "Fertiges Archiv für macOS (Apple Silicon). Entpacken, dann Rechtsklick auf „start-cockpit.command“ › Öffnen. Anleitung: README.md im Archiv, Abschnitt „Schnellstart für Einsteiger“."

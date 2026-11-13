@@ -276,7 +276,7 @@ impl Action {
 /// Who triggered the action.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Actor {
-    #[serde(rename = "Du")]
+    #[serde(alias = "Du")]
     User,
     Agent,
     System,

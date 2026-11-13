@@ -1,6 +1,6 @@
 use super::*;
 
-/// Das Detail zum gewählten Eintrag.
+/// The detail of the chosen entry.
 pub(super) fn detail(
     store: Store,
     item: Item,
@@ -16,7 +16,7 @@ pub(super) fn detail(
         .as_ref()
         .map(|pr| Route::Review(Some(pr.number)).hash());
 
-    // Tickets zeigen ihren Status zum Umschalten, Pull Requests den Stand der Checks.
+    // Tickets show their status for switching, pull requests the state of the checks.
     let state = if is_ticket {
         view! {
             <SegmentedPicker
@@ -59,7 +59,7 @@ pub(super) fn detail(
         .into_any(),
     };
 
-    // Die wichtigste Aktion: Agent beauftragen – oder, wenn es schon einen Pull Request gibt, prüfen.
+    // The most important action: commission the agent – or, if there is already a pull request, review.
     let primary = match (&review_href, is_ticket) {
         (Some(href), _) => view! {
             <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large href=href.clone()>
@@ -81,7 +81,7 @@ pub(super) fn detail(
         (None, false) => ().into_any(),
     };
 
-    // Ticket bearbeiten: Titel und Beschreibung, Zuweisung, Priorität.
+    // Edit ticket: title and description, assignee, priority.
     let initial = StoredValue::new((item.title.clone(), item.description.clone()));
     let start = move |_| {
         let (title, description) = initial.get_value();
@@ -95,7 +95,7 @@ pub(super) fn detail(
             title: edit.title.get_untracked(),
             description: edit.description.get_untracked(),
         });
-        // „Es ändert sich nichts“ ist kein Grund, im Bearbeiten-Modus zu bleiben.
+        // "Nothing changes" is no reason to stay in edit mode.
         if saved.is_ok() || matches!(saved, Err(cockpit_core::ActionError::Unchanged)) {
             edit.on.set(false);
         }
@@ -189,7 +189,7 @@ pub(super) fn detail(
         }
     });
 
-    // Verknüpfung: am Ticket der Pull Request (lösen oder von Hand verknüpfen), am Pull Request das Ticket.
+    // Link: at the ticket the pull request (release or link by hand), at the pull request the ticket.
     let link_actions = if is_ticket {
         match item.pr.as_ref() {
             Some(_) => view! {
@@ -277,7 +277,7 @@ pub(super) fn detail(
         })
         .collect_view();
 
-    // Zurückstellen: vier Möglichkeiten; ist der Eintrag schon zurückgestellt, steht dort wie lange.
+    // Snooze: four options; if the entry is already snoozed, it shows for how long.
     let snoozed = store.ws.with_untracked(|w| w.snooze_of(&item.id).cloned());
     let snooze_row = match snoozed {
         Some(snooze) => view! {

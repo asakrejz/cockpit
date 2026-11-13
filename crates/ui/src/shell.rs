@@ -1,4 +1,4 @@
-//! App-Gerüst nach `NavigationSplitView`: Glas-Sidebar und zwei Panes.
+//! App scaffold after `NavigationSplitView`: glass sidebar and two panes.
 
 use leptos::{ev, prelude::*};
 
@@ -6,27 +6,27 @@ use crate::{Icon, icons};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SplitLayout {
-    /// Sidebar · schmale Liste · breites Detail.
+    /// Sidebar · narrow list · wide detail.
     #[default]
     ListDetail,
-    /// Sidebar · breiter Inhalt · schmale Spalte rechts.
+    /// Sidebar · wide content · narrow column on the right.
     DetailWide,
 }
 
-/// Drei Spalten. Unter 1100 px stapeln sie sich.
+/// Three columns. Below 1100 px they stack.
 #[component]
 pub fn SplitView(#[prop(optional)] layout: SplitLayout, children: Children) -> impl IntoView {
     let layout = (layout == SplitLayout::DetailWide).then_some("detail-wide");
     view! { <div class="ui-splitview" data-layout=layout>{children()}</div> }
 }
 
-/// Sidebar. Kinder: [`SidebarBrand`], [`SidebarSection`] mit [`SidebarItem`]s, `Spacer`.
+/// Sidebar. Children: [`SidebarBrand`], [`SidebarSection`] with [`SidebarItem`]s, `Spacer`.
 #[component]
 pub fn Sidebar(#[prop(into)] label: String, children: Children) -> impl IntoView {
     view! { <nav class="ui-sidebar" aria-label=label>{children()}</nav> }
 }
 
-/// Logo und Name oben in der Sidebar.
+/// Logo and name at the top of the sidebar.
 #[component]
 pub fn SidebarBrand(#[prop(into)] href: String, children: Children) -> impl IntoView {
     view! {
@@ -39,7 +39,7 @@ pub fn SidebarBrand(#[prop(into)] href: String, children: Children) -> impl Into
     }
 }
 
-/// Gruppe von Einträgen, optional mit kleiner Überschrift.
+/// Group of entries, optionally with a small heading.
 #[component]
 pub fn SidebarSection(
     #[prop(optional, into)] label: Option<String>,
@@ -53,19 +53,19 @@ pub fn SidebarSection(
     }
 }
 
-/// Eintrag der Sidebar: Icon, Beschriftung und rechts ein Zähler oder beliebiger Inhalt.
+/// Entry of the sidebar: icon, label and on the right a counter or any content.
 #[component]
 pub fn SidebarItem(
     #[prop(into)] href: String,
     #[prop(into)] label: Signal<String>,
-    /// SVG-Pfad aus [`icons`].
+    /// SVG path from [`icons`].
     #[prop(optional)]
     icon: Option<&'static str>,
     #[prop(into, default = false.into())] current: Signal<bool>,
-    /// Kurzer Text rechts, z. B. `"3"` oder `"2 aktiv"`.
+    /// Short text on the right, e.g. `"3"` or `"2 aktiv"`.
     #[prop(optional, into)]
     count: Option<Signal<String>>,
-    /// Beliebiger Inhalt rechts (z. B. ein `Status`). Hat Vorrang vor `count`.
+    /// Any content on the right (e.g. a `Status`). Takes precedence over `count`.
     #[prop(optional)]
     trailing: Option<AnyView>,
     #[prop(optional, into)] on_click: Option<Callback<ev::MouseEvent>>,
@@ -97,19 +97,19 @@ pub fn SidebarItem(
     }
 }
 
-/// Fläche in einer Spalte des [`SplitView`].
+/// Surface in a column of the [`SplitView`].
 #[component]
 pub fn Pane(#[prop(into)] label: String, children: Children) -> impl IntoView {
     view! { <section class="ui-pane" aria-label=label>{children()}</section> }
 }
 
-/// Kopf eines Panes (Titel, Filter, Status).
+/// Head of a pane (title, filter, status).
 #[component]
 pub fn PaneHeader(children: Children) -> impl IntoView {
     view! { <div class="ui-pane__header">{children()}</div> }
 }
 
-/// Inhalt eines Panes.
+/// Content of a pane.
 #[component]
 pub fn PaneBody(children: Children) -> impl IntoView {
     view! { <div class="ui-pane__body">{children()}</div> }

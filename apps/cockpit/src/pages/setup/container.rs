@@ -1,4 +1,4 @@
-//! Schritt 1: Läuft Docker oder Podman? Der Agent arbeitet später in einem Container.
+//! Step 1: is Docker or Podman running? The agent later works in a container.
 
 use std::time::Duration;
 
@@ -7,21 +7,21 @@ use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use super::felder::{Abschnitt, Einleitung, Extern, Kontext};
+use super::fields::{Context, Extern, Intro, Section};
 use crate::server::{self, CallError};
 use crate::store::Store;
 
-/// Fragt den Stand des Image-Baus ab und wiederholt das, solange er läuft.
-fn bau_beobachten(bau: RwSignal<Option<ImageBuild>>, store: Store) {
+/// Asks for the state of the image build and repeats that as long as it runs.
+fn build_watch(build: RwSignal<Option<ImageBuild>>, store: Store) {
     spawn_local(async move {
         if let Ok(b) = server::fetch_image().await {
-            let weiter = b.running;
-            if bau.try_set(Some(b)).is_some() {
+            let next_step = b.running;
+            if build.try_set(Some(b)).is_some() {
                 return;
             }
-            if weiter {
+            if next_step {
                 set_timeout(
-                    move || bau_beobachten(bau, store),
+                    move || build_watch(build, store),
                     Duration::from_millis(1500),
                 );
             } else {
@@ -32,7 +32,7 @@ fn bau_beobachten(bau: RwSignal<Option<ImageBuild>>, store: Store) {
 }
 
 #[component]
-pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
+pub fn ContainerStep(ctx: Context) -> impl IntoView {
     let status = move || {
         ctx.store
             .health
@@ -61,44 +61,44 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
         }) => format!("{l} ist installiert, läuft aber nicht"),
         Some(_) => "Noch nichts gefunden".to_string(),
     };
-    let bau = RwSignal::new(None::<ImageBuild>);
-    let bau_fehler = RwSignal::new(None::<String>);
-    bau_beobachten(bau, ctx.store);
-    let bauen = move |_| {
-        bau_fehler.set(None);
+    let build = RwSignal::new(None::<ImageBuild>);
+    let build_error = RwSignal::new(None::<String>);
+    build_watch(build, ctx.store);
+    let start_build = move |_| {
+        build_error.set(None);
         spawn_local(async move {
-            match server::post_image_bauen().await {
+            match server::post_image_build().await {
                 Ok(b) => {
-                    bau.set(Some(b));
-                    bau_beobachten(bau, ctx.store);
+                    build.set(Some(b));
+                    build_watch(build, ctx.store);
                 }
-                Err(CallError::Unreachable) => bau_fehler.set(Some(
+                Err(CallError::Unreachable) => build_error.set(Some(
                     "Cockpit antwortet gerade nicht. Läuft das Startfenster noch?".into(),
                 )),
-                Err(e) => bau_fehler.set(Some(e.message())),
+                Err(e) => build_error.set(Some(e.message())),
             }
         });
     };
-    let bau_laeuft = move || bau.with(|b| b.as_ref().is_some_and(|b| b.running));
+    let build_running = move || build.with(|b| b.as_ref().is_some_and(|b| b.running));
     let image_da = move || {
         ctx.store
             .health
             .with(|h| h.as_ref().is_some_and(|h| h.agent.image))
     };
-    let engine_laeuft = move || status().is_some_and(|s| s.runtime.is_some() && s.engine_running);
-    let fehlt = move || status().is_some_and(|s| s.runtime.is_none());
-    let steht_nicht = move || status().is_some_and(|s| s.runtime.is_some() && !s.engine_running);
+    let engine_running = move || status().is_some_and(|s| s.runtime.is_some() && s.engine_running);
+    let missing = move || status().is_some_and(|s| s.runtime.is_none());
+    let stands_not = move || status().is_some_and(|s| s.runtime.is_some() && !s.engine_running);
 
     view! {
         <VStack spacing="12px">
-            <Einleitung title="Container-Programm">
+            <Intro title="Container-Programm">
                 <p>
                     "Cockpit lässt seinen Agenten später in einem „Container“ arbeiten – das ist ein abgeschlossener Arbeitsraum auf deinem Rechner. So kann der Agent Code ausprobieren, ohne an deinen Dateien etwas zu verändern."
                 </p>
                 <p>
                     "Dafür braucht es ein kostenloses Programm, das solche Container startet. Du brauchst es erst, wenn der Agent wirklich arbeitet – du kannst diesen Schritt also auch überspringen."
                 </p>
-            </Einleitung>
+            </Intro>
             <Card>
                 <CardBody css="gap: 12px">
                     <HStack css="justify-content: space-between">
@@ -108,7 +108,7 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
                     {move || {
                         status()
                             .and_then(|s| s.hint)
-                            .map(|h| view! { <p class="ui-hinweis" role="status">{h}</p> })
+                            .map(|h| view! { <p class="ui-hint" role="status">{h}</p> })
                     }}
                     <HStack spacing="12px">
                         <Button on_click=move |_| ctx.laden()>"Erneut prüfen"</Button>
@@ -116,10 +116,10 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
                 </CardBody>
             </Card>
             {move || {
-                engine_laeuft()
+                engine_running()
                     .then(|| {
                         view! {
-                            <Abschnitt title="Agent-Image">
+                            <Section title="Agent-Image">
                                 <p class="t-subheadline t-secondary">
                                     "Der Agent arbeitet in einem Container aus einem eigenen „Image“. Das baust du einmal hier – es lädt dabei Programme aus dem Internet und dauert einige Minuten. Bei einer neuen Cockpit-Version baust du es erneut."
                                 </p>
@@ -128,7 +128,7 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
                                         if image_da() { StatusTone::Green } else { StatusTone::Orange }
                                     })>
                                         {move || {
-                                            if bau_laeuft() {
+                                            if build_running() {
                                                 "Wird gebaut …"
                                             } else if image_da() {
                                                 "Image ist gebaut"
@@ -139,40 +139,40 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
                                     </Status>
                                     <Button
                                         variant=ButtonStyle::GlassProminent
-                                        disabled=Signal::derive(bau_laeuft)
-                                        on_click=bauen
+                                        disabled=Signal::derive(build_running)
+                                        on_click=start_build
                                     >
                                         {move || if image_da() { "Neu bauen" } else { "Image bauen" }}
                                     </Button>
                                 </HStack>
                                 {move || {
-                                    bau_fehler
+                                    build_error
                                         .get()
-                                        .map(|m| view! { <p class="ui-hinweis" role="alert">{m}</p> })
+                                        .map(|m| view! { <p class="ui-hint" role="alert">{m}</p> })
                                 }}
                                 {move || {
-                                    bau.get()
+                                    build.get()
                                         .and_then(|b| b.error)
-                                        .map(|m| view! { <p class="ui-hinweis" role="alert">{m}</p> })
+                                        .map(|m| view! { <p class="ui-hint" role="alert">{m}</p> })
                                 }}
                                 {move || {
-                                    bau.get()
+                                    build.get()
                                         .filter(|b| !b.lines.is_empty())
                                         .map(|b| {
                                             let text = b.lines.join("\n");
                                             view! { <Log text=Signal::derive(move || text.clone()) /> }
                                         })
                                 }}
-                            </Abschnitt>
+                            </Section>
                         }
                     })
             }}
             {move || {
-                steht_nicht()
+                stands_not()
                     .then(|| {
                         view! {
-                            <Abschnitt title="Das Programm ist da, aber nicht gestartet">
-                                <ol class="ui-anleitung">
+                            <Section title="Das Programm ist da, aber nicht gestartet">
+                                <ol class="ui-instructions">
                                     <li>
                                         "Öffne „Rancher Desktop“ (oder Podman Desktop) aus dem Programme-Ordner und warte, bis oben „läuft“ oder ein grüner Punkt steht – das kann eine Minute dauern."
                                     </li>
@@ -181,16 +181,16 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
                                     </li>
                                     <li>"Klicke danach hier auf „Erneut prüfen“."</li>
                                 </ol>
-                            </Abschnitt>
+                            </Section>
                         }
                     })
             }}
             {move || {
-                fehlt()
+                missing()
                     .then(|| {
                         view! {
-                            <Abschnitt title="Option A: Rancher Desktop (empfohlen für Einsteiger)">
-                                <ol class="ui-anleitung">
+                            <Section title="Option A: Rancher Desktop (empfohlen für Einsteiger)">
+                                <ol class="ui-instructions">
                                     <li>
                                         "Lade das Programm herunter: "
                                         <Extern href="https://rancherdesktop.io/">"rancherdesktop.io"</Extern>
@@ -206,9 +206,9 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
                                         "Warte, bis Rancher Desktop fertig gestartet ist, und klicke oben auf „Erneut prüfen“."
                                     </li>
                                 </ol>
-                            </Abschnitt>
-                            <Abschnitt title="Option B: Podman">
-                                <ol class="ui-anleitung">
+                            </Section>
+                            <Section title="Option B: Podman">
+                                <ol class="ui-instructions">
                                     <li>
                                         "Installiere Podman nach der Anleitung auf "
                                         <Extern href="https://podman.io/docs/installation">
@@ -223,7 +223,7 @@ pub fn ContainerSchritt(ctx: Kontext) -> impl IntoView {
                                     </li>
                                     <li>"Klicke danach hier auf „Erneut prüfen“."</li>
                                 </ol>
-                            </Abschnitt>
+                            </Section>
                         }
                     })
             }}

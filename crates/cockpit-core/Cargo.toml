@@ -4,9 +4,9 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-# Schlank gehalten: reine Fachlogik, die nativ getestet wird und im Browser läuft.
-# Einzige Abhängigkeiten sind `serde` und `serde_json` – nur für das Speichern des
-# Workspace im Modul `persist`. Ein späteres Backend kann dasselbe Crate verwenden.
+# Kept lean: pure domain logic that is tested natively and runs in the browser.
+# The only dependencies are `serde` and `serde_json` – only for saving the
+# workspace in the module `persist`. A later backend can use the same crate.
 [dependencies]
 serde = { workspace = true }
 serde_json = { workspace = true }

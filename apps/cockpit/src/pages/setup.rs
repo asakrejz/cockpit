@@ -1,52 +1,52 @@
-//! Einrichten: ein geführter Assistent in fünf Schritten – Container, Jira, GitHub, Modellzugang
-//! und eine Zusammenfassung. Jeder Schritt lässt sich überspringen und später nachholen.
+//! Setup: a guided assistant in five steps – container, Jira, GitHub, model access
+//! and a summary. Every step can be skipped and caught up on later.
 //!
-//! Schlüssel (Client-Secrets, Tokens, der Key des Modell-Endpunkts) kommen in Passwortfelder und gehen einmal
-//! an den lokalen Server, der sie in der .env-Datei ablegt. Der Browser speichert sie nirgends
-//! (kein `localStorage`, keine Adresse), der Server schickt sie nie zurück. Die Regeln dazu
-//! stehen in `cockpit_core::setup`, das Schreiben von `config.toml` im Server.
+//! Keys (client secrets, tokens, the key of the model endpoint) go into password fields and go once
+//! to the local server, which stores them in the .env file. The browser stores them nowhere
+//! (no `localStorage`, no address), the server never sends them back. The rules for this
+//! are in `cockpit_core::setup`, writing `config.toml` is in the server.
 
 mod container;
-mod felder;
-mod fertig;
+mod done;
+mod fields;
 mod github;
 mod jira;
-mod modell;
+mod model;
 
 use cockpit_core::setup::Step;
 use feature_ui::*;
 use leptos::prelude::*;
 
 use crate::store::use_store;
-use container::ContainerSchritt;
-use felder::Kontext;
-use fertig::FertigSchritt;
-use github::GitHubSchritt;
-use jira::JiraSchritt;
-use modell::ModellSchritt;
+use container::ContainerStep;
+use done::DoneStep;
+use fields::Context;
+use github::GitHubStep;
+use jira::JiraStep;
+use model::ModelStep;
 
-/// Beschriftungen der Fortschrittsanzeige, in der Reihenfolge von [`Schritt::ALLE`].
-const NAMEN: &[&str] = &["Container", "Jira", "GitHub", "Modell", "Fertig"];
+/// Labels of the progress display, in the order of [`Step::ALL`].
+const NAMES: &[&str] = &["Container", "Jira", "GitHub", "Modell", "Fertig"];
 
 #[component]
 pub fn SetupPage() -> impl IntoView {
     let store = use_store();
-    // Jeder Besuch fragt neu: Zwischen zwei Besuchen kann sich viel getan haben.
-    let ctx = Kontext::neu(store);
-    let schritt = RwSignal::new(Step::Container);
-    let index = Signal::derive(move || schritt.get().index());
+    // Every visit asks anew: a lot can have happened between two visits.
+    let ctx = Context::create(store);
+    let step = RwSignal::new(Step::Container);
+    let index = Signal::derive(move || step.get().index());
 
-    let weiter = move |_| {
-        if let Some(n) = schritt.get_untracked().next() {
-            schritt.set(n);
+    let next_step = move |_| {
+        if let Some(n) = step.get_untracked().next() {
+            step.set(n);
         }
     };
-    let zurueck = move |_| {
-        if let Some(v) = schritt.get_untracked().previous() {
-            schritt.set(v);
+    let back = move |_| {
+        if let Some(v) = step.get_untracked().previous() {
+            step.set(v);
         }
     };
-    let springen = Callback::new(move |s: Step| schritt.set(s));
+    let jump = Callback::new(move |s: Step| step.set(s));
 
     view! {
         <div class="ck-setup">
@@ -66,36 +66,36 @@ pub fn SetupPage() -> impl IntoView {
                         </p>
                     </VStack>
 
-                    <Steps labels=NAMEN current=index />
+                    <Steps labels=NAMES current=index />
 
-                    {move || match schritt.get() {
-                        Step::Container => view! { <ContainerSchritt ctx=ctx /> }.into_any(),
-                        Step::Jira => view! { <JiraSchritt ctx=ctx /> }.into_any(),
-                        Step::GitHub => view! { <GitHubSchritt ctx=ctx /> }.into_any(),
-                        Step::Model => view! { <ModellSchritt ctx=ctx /> }.into_any(),
+                    {move || match step.get() {
+                        Step::Container => view! { <ContainerStep ctx=ctx /> }.into_any(),
+                        Step::Jira => view! { <JiraStep ctx=ctx /> }.into_any(),
+                        Step::GitHub => view! { <GitHubStep ctx=ctx /> }.into_any(),
+                        Step::Model => view! { <ModelStep ctx=ctx /> }.into_any(),
                         Step::Done => {
-                            view! { <FertigSchritt ctx=ctx zu_schritt=springen /> }.into_any()
+                            view! { <DoneStep ctx=ctx to_step=jump /> }.into_any()
                         }
                     }}
 
                     <HStack css="justify-content: space-between; flex-wrap: wrap">
                         <Button
-                            disabled=Signal::derive(move || schritt.get().previous().is_none())
-                            on_click=zurueck
+                            disabled=Signal::derive(move || step.get().previous().is_none())
+                            on_click=back
                         >
                             "Zurück"
                         </Button>
                         {move || {
-                            schritt
+                            step
                                 .get()
                                 .next()
                                 .map(|_| {
                                     view! {
                                         <HStack spacing="12px">
-                                            <Button variant=ButtonStyle::Borderless on_click=weiter>
+                                            <Button variant=ButtonStyle::Borderless on_click=next_step>
                                                 "Überspringen"
                                             </Button>
-                                            <Button variant=ButtonStyle::GlassProminent on_click=weiter>
+                                            <Button variant=ButtonStyle::GlassProminent on_click=next_step>
                                                 "Weiter"
                                             </Button>
                                         </HStack>

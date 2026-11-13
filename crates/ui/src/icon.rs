@@ -1,8 +1,8 @@
 use leptos::prelude::*;
 
-/// Ein Strich-Icon (24×24-Raster, `currentColor`) aus einem SVG-Pfad.
+/// A line icon (24×24 grid, `currentColor`) from an SVG path.
 ///
-/// Fertige Pfade stehen in [`icons`].
+/// Ready-made paths are in [`icons`].
 #[component]
 pub fn Icon(
     #[prop(into)] path: String,
@@ -26,7 +26,7 @@ pub fn Icon(
     }
 }
 
-/// SVG-Pfade für `<Icon path=… />`.
+/// SVG paths for `<Icon path=… />`.
 pub mod icons {
     pub const PLUS: &str = "M12 5v14M5 12h14";
     pub const MINUS: &str = "M5 12h14";
@@ -35,7 +35,7 @@ pub mod icons {
     pub const ARROW_RIGHT: &str = "M5 12h14M13 6l6 6-6 6";
     pub const CHEVRON_LEFT: &str = "M15 6l-6 6 6 6";
     pub const CHEVRON_RIGHT: &str = "M9 6l6 6-6 6";
-    /// Dicker Chevron für Listenzeilen (mit `stroke=3.0` verwenden).
+    /// Thick chevron for list rows (use with `stroke=3.0`).
     pub const CHEVRON_ROW: &str = "M9 5l7 7-7 7";
     pub const SEARCH: &str = "M18 11a7 7 0 1 1-14 0 7 7 0 0 1 14 0zM20 20l-3.5-3.5";
     pub const SHARE: &str = "M12 3v12M7 8l5-5 5 5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5";
@@ -56,7 +56,7 @@ pub mod icons {
     pub const CHART: &str = "M5 20V11M12 20V4M19 20v-6";
     pub const GIT_PR: &str = "M6 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 9v12M18 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 15V9a3 3 0 0 0-3-3h-3";
     pub const GIT_BRANCH: &str = "M6 3v12M6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 9a9 9 0 0 1-9 9";
-    /// Zwei Funken – das Zeichen für den Agenten.
+    /// Two sparks – the sign for the agent.
     pub const SPARKLES: &str = "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z";
     pub const SPARKLE: &str = "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z";
     pub const SLIDERS: &str = "M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M16 4v4M10 10v4M18 16v4";
@@ -65,6 +65,6 @@ pub mod icons {
         "M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z";
     pub const ALERT: &str = "M12 8v5M12 16.5h.01M10.3 3.9L2.5 17.5a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z";
     pub const ASSIGN: &str = "M16 20v-1a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v1M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM19 8v6M22 11h-6";
-    /// Vier Kacheln – Marken-Platzhalter für die Navbar.
+    /// Four tiles – brand placeholder for the navbar.
     pub const BRAND: &str = "M3 5.5A2.5 2.5 0 0 1 5.5 3h3A2.5 2.5 0 0 1 11 5.5v3A2.5 2.5 0 0 1 8.5 11h-3A2.5 2.5 0 0 1 3 8.5zM21 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM11 17a4 4 0 1 1-8 0 4 4 0 0 1 8 0zM13 15.5a2.5 2.5 0 0 1 2.5-2.5h3a2.5 2.5 0 0 1 2.5 2.5v3a2.5 2.5 0 0 1-2.5 2.5h-3a2.5 2.5 0 0 1-2.5-2.5z";
 }

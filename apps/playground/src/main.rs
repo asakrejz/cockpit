@@ -1,6 +1,6 @@
-//! Die Playground-App: Navigation mit einem Eintrag pro Story und eine Bühne,
-//! auf der die gewählte Story gerendert wird. Die Hülle benutzt selbst die
-//! Design-Tokens und die UI-Komponenten.
+//! The playground app: navigation with one entry per story and a stage
+//! on which the chosen story is rendered. The shell itself uses the
+//! design tokens and the UI components.
 
 mod stories;
 
@@ -9,18 +9,18 @@ use leptos::prelude::*;
 use stories::{STORIES, Story};
 
 fn main() {
-    // Rust-Panics landen lesbar in der Browser-Konsole.
+    // Rust panics end up readable in the browser console.
     console_error_panic_hook::set_once();
     leptos::mount::mount_to_body(App);
 }
 
-/// Liest die Story-ID aus der URL, z. B. `#button` → `"button"`.
+/// Reads the story ID from the URL, e.g. `#button` → `"button"`.
 fn story_from_hash() -> &'static Story {
     let hash = window().location().hash().unwrap_or_default();
     stories::find(hash.trim_start_matches('#')).unwrap_or(&STORIES[0])
 }
 
-/// Startet im Dunkelmodus, wenn das System ihn nutzt.
+/// Starts in dark mode if the system uses it.
 fn system_theme() -> &'static str {
     let dark = window()
         .match_media("(prefers-color-scheme: dark)")
@@ -36,14 +36,14 @@ const THEMES: &[(&str, &str)] = &[("light", "Hell"), ("dark", "Dunkel")];
 fn App() -> impl IntoView {
     let (current, set_current) = signal(story_from_hash());
 
-    // Die URL ist die "Quelle der Wahrheit": Links ändern nur den Hash, wir reagieren
-    // darauf. So funktionieren auch Zurück-Button und Bookmarks.
+    // The URL is the "source of truth": links only change the hash, we react
+    // to it. That way the back button and bookmarks work too.
     let handle = window_event_listener(leptos::ev::hashchange, move |_| {
         set_current.set(story_from_hash());
     });
     on_cleanup(move || handle.remove());
 
-    // Erscheinungsbild – die Tokens lösen sich am `Root` neu auf.
+    // Appearance – the tokens resolve anew at the `Root`.
     let theme_id = RwSignal::new(system_theme());
     let tint_id = RwSignal::new(Tint::Blue.id());
     let high_contrast = RwSignal::new(false);

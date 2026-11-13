@@ -160,7 +160,7 @@ fn old_name_litellm_reads_agent_key() {
     assert_eq!(value(&s, LITELLM).as_deref(), Some("dummy-agent"));
     assert_eq!(variable_for(LITELLM), variable_for(AGENT_KEY));
     // The fallback of the backend still finds the key.
-    let found = crate::app::agent_key_lesen(&s).unwrap().unwrap();
+    let found = crate::app::agent_key_read(&s).unwrap().unwrap();
     assert_eq!(found.expose(), "dummy-agent");
 }
 

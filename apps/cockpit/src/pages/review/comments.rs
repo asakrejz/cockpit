@@ -1,7 +1,7 @@
 use super::*;
 
-/// Review-Kommentare umsetzen: offene Kommentare auswählen und den Agenten beauftragen.
-/// Dazu der Stand eines laufenden Folgeauftrags und das, was schon umgesetzt wurde.
+/// Implement review comments: choose open comments and commission the agent.
+/// Plus the state of a running follow-up job and what has already been implemented.
 pub(super) fn comments_section(store: Store, r: &Review, panel: Panel) -> impl IntoView + use<> {
     let number = r.number;
     let merged = r.merged.is_some();
@@ -115,7 +115,7 @@ pub(super) fn comments_section(store: Store, r: &Review, panel: Panel) -> impl I
                     comments: chosen,
                     options,
                 });
-                // Der Plan liegt zur Freigabe auf der Agent-Seite.
+                // The plan is waiting for approval on the agent page.
                 if started.is_ok() {
                     crate::store::navigate(&Route::Agent(Some(format!("review-{number}"))));
                 }

@@ -1,9 +1,9 @@
-//! Container-Laufzeit erkennen (Docker oder Podman), nur über die Kommandozeile.
+//! Detect the container runtime (Docker or Podman), only via the command line.
 //!
-//! Regeln (siehe „Container“ in `docs/ROADMAP.md`): Das Backend ruft `docker` oder `podman` als
-//! Prozess auf, nie den Socket. Gewählt wird in dieser Reihenfolge: `COCKPIT_CONTAINER`,
-//! `[agent] container` in `config.toml`, sonst erst `podman`, dann `docker` im `PATH`. Ob die
-//! Engine läuft, zeigt `<cli> info`. Hier wird nichts gebaut oder gestartet.
+//! Rules (see "Container" in `docs/ROADMAP.md`): the backend calls `docker` or `podman` as a
+//! process, never the socket. The choice is made in this order: `COCKPIT_CONTAINER`,
+//! `[agent] container` in `config.toml`, otherwise first `podman`, then `docker` in the `PATH`. Whether the
+//! engine runs is shown by `<cli> info`. Nothing is built or started here.
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -13,83 +13,83 @@ use std::time::{Duration, Instant};
 
 use cockpit_core::api::ContainerStatus;
 
-/// So lange darf `<cli> info` dauern, bevor es als „läuft nicht“ gilt.
-const INFO_ZEIT: Duration = Duration::from_secs(8);
-/// So lange gilt ein Ergebnis, bevor `/api/health` neu fragt (`info` kann Sekunden dauern).
-const GUELTIG: Duration = Duration::from_secs(10);
-/// Reihenfolge der Suche ohne ausdrückliche Wahl.
-const SUCHE: [&str; 2] = ["podman", "docker"];
+/// This long `<cli> info` may take before it counts as "not running".
+const INFO_TIME: Duration = Duration::from_secs(8);
+/// This long a result applies before `/api/health` asks again (`info` can take seconds).
+const VALID: Duration = Duration::from_secs(10);
+/// Order of the search without an explicit choice.
+const SEARCH: [&str; 2] = ["podman", "docker"];
 
-/// Die Wahl aus Umgebung und Datei; die Umgebung geht vor.
-fn gewaehlt(konfig: Option<&str>, env: Option<&str>) -> Option<(String, &'static str)> {
-    env.map(|l| (l.to_string(), "umgebung"))
-        .or_else(|| konfig.map(|l| (l.to_string(), "konfiguration")))
+/// The choice from environment and file; the environment goes first.
+fn chosen(config: Option<&str>, env: Option<&str>) -> Option<(String, &'static str)> {
+    env.map(|l| (l.to_string(), "env"))
+        .or_else(|| config.map(|l| (l.to_string(), "config")))
 }
 
-fn nicht_gefunden(cli: &str) -> String {
+fn not_found(cli: &str) -> String {
     format!(
         "„{cli}“ steht nicht im PATH. Installiere es (Docker: Rancher Desktop mit Engine „dockerd (moby)“; Podman: brew install podman) oder wähle die andere Laufzeit."
     )
 }
 
-fn nicht_gestartet(cli: &str) -> String {
+fn not_started(cli: &str) -> String {
     match cli {
         "podman" => "„podman info“ schlägt fehl. Starte die Maschine mit „podman machine start“.".into(),
         _ => "„docker info“ schlägt fehl. Starte Rancher Desktop und stelle die Engine auf „dockerd (moby)“ (nicht „containerd“).".into(),
     }
 }
 
-/// Die Entscheidung als reine Funktion: `vorhanden(cli)` sagt, ob das Programm im `PATH` liegt,
-/// `laeuft(cli)`, ob `<cli> info` gelingt.
-pub fn waehle(
-    konfig: Option<&str>,
+/// The decision as a pure function: `present(cli)` says whether the program is in the `PATH`,
+/// `running(cli)` whether `<cli> info` succeeds.
+pub fn choose(
+    config: Option<&str>,
     env: Option<&str>,
-    vorhanden: impl Fn(&str) -> bool,
-    laeuft: impl Fn(&str) -> bool,
+    present: impl Fn(&str) -> bool,
+    running: impl Fn(&str) -> bool,
 ) -> ContainerStatus {
-    if let Some((cli, quelle)) = gewaehlt(konfig, env) {
-        if !vorhanden(&cli) {
+    if let Some((cli, source)) = chosen(config, env) {
+        if !present(&cli) {
             return ContainerStatus {
-                hint: Some(nicht_gefunden(&cli)),
+                hint: Some(not_found(&cli)),
                 runtime: Some(cli),
                 engine_running: false,
-                source: quelle.into(),
+                source: source.into(),
             };
         }
-        let engine_laeuft = laeuft(&cli);
+        let engine_running = running(&cli);
         return ContainerStatus {
-            hint: (!engine_laeuft).then(|| nicht_gestartet(&cli)),
+            hint: (!engine_running).then(|| not_started(&cli)),
             runtime: Some(cli),
-            engine_running: engine_laeuft,
-            source: quelle.into(),
+            engine_running,
+            source: source.into(),
         };
     }
-    let mut erste = None;
-    for cli in SUCHE {
-        if !vorhanden(cli) {
+    let mut first = None;
+    for cli in SEARCH {
+        if !present(cli) {
             continue;
         }
-        if laeuft(cli) {
+        if running(cli) {
             return ContainerStatus {
                 runtime: Some(cli.into()),
                 engine_running: true,
-                source: "erkannt".into(),
+                source: "detected".into(),
                 hint: None,
             };
         }
-        erste.get_or_insert(cli);
+        first.get_or_insert(cli);
     }
-    match erste {
+    match first {
         Some(cli) => ContainerStatus {
             runtime: Some(cli.into()),
             engine_running: false,
-            source: "erkannt".into(),
-            hint: Some(nicht_gestartet(cli)),
+            source: "detected".into(),
+            hint: Some(not_started(cli)),
         },
         None => ContainerStatus {
             runtime: None,
             engine_running: false,
-            source: "keine".into(),
+            source: "none".into(),
             hint: Some(
                 "Weder podman noch docker im PATH. Installiere Rancher Desktop (Engine „dockerd (moby)“) oder Podman."
                     .into(),
@@ -98,30 +98,29 @@ pub fn waehle(
     }
 }
 
-/// Sucht ein ausführbares Programm in den Ordnern von `path`.
-pub fn im_pfad(name: &str, path: &OsStr) -> Option<PathBuf> {
+/// Searches an executable program in the folders of `path`.
+pub fn in_path(name: &str, path: &OsStr) -> Option<PathBuf> {
     std::env::split_paths(path)
-        .map(|ordner| ordner.join(name))
-        .find(|datei| ausfuehrbar(datei))
+        .map(|dir| dir.join(name))
+        .find(|file| executable(file))
 }
 
 #[cfg(unix)]
-fn ausfuehrbar(datei: &std::path::Path) -> bool {
+fn executable(file: &std::path::Path) -> bool {
     use std::os::unix::fs::PermissionsExt;
-    datei
-        .metadata()
+    file.metadata()
         .is_ok_and(|m| m.is_file() && m.permissions().mode() & 0o111 != 0)
 }
 
 #[cfg(not(unix))]
-fn ausfuehrbar(datei: &std::path::Path) -> bool {
-    datei.is_file()
+fn executable(file: &std::path::Path) -> bool {
+    file.is_file()
 }
 
-/// `<programm> info` ohne Ausgabe; gelingt, wenn es mit Status 0 endet. Nach `INFO_ZEIT` wird
-/// der Prozess beendet. Blockierend.
-fn info_gelingt(programm: &std::path::Path) -> bool {
-    let Ok(mut kind) = Command::new(programm)
+/// `<program> info` without output; succeeds if it ends with status 0. After `INFO_TIME` the
+/// process is ended. Blocking.
+fn info_succeeds(program: &std::path::Path) -> bool {
+    let Ok(mut kind) = Command::new(program)
         .arg("info")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
@@ -134,7 +133,7 @@ fn info_gelingt(programm: &std::path::Path) -> bool {
     loop {
         match kind.try_wait() {
             Ok(Some(status)) => return status.success(),
-            Ok(None) if start.elapsed() < INFO_ZEIT => {
+            Ok(None) if start.elapsed() < INFO_TIME => {
                 std::thread::sleep(Duration::from_millis(50));
             }
             _ => {
@@ -146,34 +145,34 @@ fn info_gelingt(programm: &std::path::Path) -> bool {
     }
 }
 
-/// Erkennt die Laufzeit mit echten Prozessaufrufen. Blockierend.
-pub fn erkennen(konfig: Option<&str>, env: Option<&str>, path: &OsStr) -> ContainerStatus {
-    waehle(
-        konfig,
+/// Detects the runtime with real process calls. Blocking.
+pub fn detect(config: Option<&str>, env: Option<&str>, path: &OsStr) -> ContainerStatus {
+    choose(
+        config,
         env,
-        |cli| im_pfad(cli, path).is_some(),
-        |cli| im_pfad(cli, path).is_some_and(|p| info_gelingt(&p)),
+        |cli| in_path(cli, path).is_some(),
+        |cli| in_path(cli, path).is_some_and(|p| info_succeeds(&p)),
     )
 }
 
-/// Merkt sich das Ergebnis kurz, damit `/api/health` nicht bei jedem Aufruf `info` startet.
+/// Remembers the result briefly so that `/api/health` does not start `info` on every call.
 #[derive(Default)]
-pub struct Zwischenspeicher {
-    stand: Mutex<Option<(Instant, ContainerStatus)>>,
+pub struct Cache {
+    snapshot: Mutex<Option<(Instant, ContainerStatus)>>,
 }
 
-impl Zwischenspeicher {
-    /// Das gemerkte Ergebnis oder ein frisches. Blockierend.
-    pub fn holen(&self, frisch: impl FnOnce() -> ContainerStatus) -> ContainerStatus {
-        let mut stand = self.stand.lock().unwrap_or_else(|e| e.into_inner());
-        if let Some((zeit, status)) = stand.as_ref()
-            && zeit.elapsed() < GUELTIG
+impl Cache {
+    /// The remembered result or a fresh one. Blocking.
+    pub fn fetch(&self, fresh: impl FnOnce() -> ContainerStatus) -> ContainerStatus {
+        let mut snapshot = self.snapshot.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some((time, status)) = snapshot.as_ref()
+            && time.elapsed() < VALID
         {
             return status.clone();
         }
-        let neu = frisch();
-        *stand = Some((Instant::now(), neu.clone()));
-        neu
+        let updated = fresh();
+        *snapshot = Some((Instant::now(), updated.clone()));
+        updated
     }
 }
 
@@ -181,115 +180,107 @@ impl Zwischenspeicher {
 mod tests {
     use super::*;
 
-    fn alle(_: &str) -> bool {
+    fn all_ok(_: &str) -> bool {
         true
     }
-    fn keine(_: &str) -> bool {
+    fn no(_: &str) -> bool {
         false
     }
 
     #[test]
-    fn ohne_wahl_kommt_podman_vor_docker() {
-        let s = waehle(None, None, alle, alle);
+    fn without_choice_comes_podman_before_docker() {
+        let s = choose(None, None, all_ok, all_ok);
         assert_eq!(s.runtime.as_deref(), Some("podman"));
         assert!(s.engine_running && s.hint.is_none());
-        assert_eq!(s.source, "erkannt");
+        assert_eq!(s.source, "detected");
     }
 
     #[test]
-    fn laeuft_podman_nicht_wird_docker_genommen() {
-        let s = waehle(None, None, alle, |cli| cli == "docker");
+    fn running_podman_not_is_docker_taken() {
+        let s = choose(None, None, all_ok, |cli| cli == "docker");
         assert_eq!(s.runtime.as_deref(), Some("docker"));
         assert!(s.engine_running);
-        let s = waehle(None, None, |cli| cli == "docker", alle);
+        let s = choose(None, None, |cli| cli == "docker", all_ok);
         assert_eq!(s.runtime.as_deref(), Some("docker"));
     }
 
     #[test]
-    fn vorhanden_aber_ohne_engine_gibt_einen_hinweis() {
-        let s = waehle(None, None, alle, keine);
+    fn present_but_without_engine_gives_a_hint() {
+        let s = choose(None, None, all_ok, no);
         assert_eq!(s.runtime.as_deref(), Some("podman"), "die erste gefundene");
         assert!(!s.engine_running);
         assert!(s.hint.unwrap().contains("podman machine start"));
-        let s = waehle(None, None, |c| c == "docker", keine);
+        let s = choose(None, None, |c| c == "docker", no);
         assert!(s.hint.unwrap().contains("dockerd (moby)"));
     }
 
     #[test]
-    fn ohne_beides_gibt_es_keine_laufzeit() {
-        let s = waehle(None, None, keine, keine);
+    fn without_both_gives_it_no_runtime() {
+        let s = choose(None, None, no, no);
         assert_eq!(s.runtime, None);
-        assert_eq!(s.source, "keine");
+        assert_eq!(s.source, "none");
         assert!(s.hint.unwrap().contains("Weder podman noch docker"));
     }
 
     #[test]
-    fn ausdrueckliche_wahl_geht_vor_und_umgebung_vor_datei() {
-        let s = waehle(Some("podman"), Some("docker"), alle, alle);
+    fn explicit_choice_goes_before_and_env_before_file() {
+        let s = choose(Some("podman"), Some("docker"), all_ok, all_ok);
         assert_eq!(s.runtime.as_deref(), Some("docker"));
-        assert_eq!(s.source, "umgebung");
-        let s = waehle(Some("docker"), None, alle, alle);
+        assert_eq!(s.source, "env");
+        let s = choose(Some("docker"), None, all_ok, all_ok);
         assert_eq!(s.runtime.as_deref(), Some("docker"));
-        assert_eq!(s.source, "konfiguration");
-        // Gewählt heißt gewählt: Es wird nicht auf die andere Laufzeit ausgewichen.
-        let s = waehle(Some("docker"), None, alle, |cli| cli == "podman");
+        assert_eq!(s.source, "config");
+        // Chosen means chosen: it does not fall back to the other runtime.
+        let s = choose(Some("docker"), None, all_ok, |cli| cli == "podman");
         assert_eq!(s.runtime.as_deref(), Some("docker"));
         assert!(!s.engine_running);
-        let s = waehle(Some("docker"), None, |cli| cli == "podman", alle);
+        let s = choose(Some("docker"), None, |cli| cli == "podman", all_ok);
         assert!(s.hint.unwrap().contains("nicht im PATH"));
     }
 
     #[cfg(unix)]
-    mod prozess {
+    mod process {
         use super::*;
         use std::os::unix::fs::PermissionsExt;
 
-        fn programm(ordner: &std::path::Path, name: &str, skript: &str) {
-            let datei = ordner.join(name);
-            std::fs::write(&datei, format!("#!/bin/sh\n{skript}\n")).unwrap();
-            std::fs::set_permissions(&datei, std::fs::Permissions::from_mode(0o755)).unwrap();
+        fn program(dir: &std::path::Path, name: &str, script: &str) {
+            let file = dir.join(name);
+            std::fs::write(&file, format!("#!/bin/sh\n{script}\n")).unwrap();
+            std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
 
         #[test]
-        fn ruft_info_auf_und_wertet_den_status() {
-            let ordner = tempfile::tempdir().unwrap();
-            programm(
-                ordner.path(),
-                "podman",
-                "[ \"$1\" = info ] && exit 1; exit 2",
-            );
-            programm(
-                ordner.path(),
-                "docker",
-                "[ \"$1\" = info ] && exit 0; exit 2",
-            );
-            let s = erkennen(None, None, ordner.path().as_os_str());
+        fn calls_info_on_and_evaluates_the_status() {
+            let dir = tempfile::tempdir().unwrap();
+            program(dir.path(), "podman", "[ \"$1\" = info ] && exit 1; exit 2");
+            program(dir.path(), "docker", "[ \"$1\" = info ] && exit 0; exit 2");
+            let s = detect(None, None, dir.path().as_os_str());
             assert_eq!(s.runtime.as_deref(), Some("docker"));
             assert!(s.engine_running);
-            let s = erkennen(Some("podman"), None, ordner.path().as_os_str());
+            let s = detect(Some("podman"), None, dir.path().as_os_str());
             assert_eq!(s.runtime.as_deref(), Some("podman"));
             assert!(!s.engine_running);
         }
 
         #[test]
-        fn eine_datei_ohne_ausfuehrrecht_zaehlt_nicht() {
-            let ordner = tempfile::tempdir().unwrap();
-            std::fs::write(ordner.path().join("docker"), "#!/bin/sh\nexit 0\n").unwrap();
-            let s = erkennen(None, None, ordner.path().as_os_str());
+        fn a_file_without_exec_permission_counts_not() {
+            let dir = tempfile::tempdir().unwrap();
+            std::fs::write(dir.path().join("docker"), "#!/bin/sh\nexit 0\n").unwrap();
+            let s = detect(None, None, dir.path().as_os_str());
             assert_eq!(s.runtime, None);
         }
     }
 
     #[test]
-    fn zwischenspeicher_fragt_nur_einmal() {
-        let speicher = Zwischenspeicher::default();
-        let mut zaehler = 0;
+    fn cache_asks_only_once() {
+        let store = Cache::default();
+        let mut counter = 0;
         for _ in 0..3 {
-            speicher.holen(|| {
-                zaehler += 1;
-                waehle(None, None, keine, keine)
+            store.fetch(|| {
+                counter += 1;
+                choose(None, None, no, no)
             });
         }
-        assert_eq!(zaehler, 1);
+        assert_eq!(counter, 1);
     }
 }

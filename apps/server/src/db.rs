@@ -1,12 +1,12 @@
-//! SQLite im Nutzerverzeichnis, mit einfacher Migration über eine Versionstabelle.
+//! SQLite in the user directory, with simple migration via a version table.
 
 use std::path::Path;
 
 use rusqlite::{Connection, params};
 
-/// Migrationen in der Reihenfolge ihrer Version (1, 2, …). **Nie ändern, nur anhängen.**
-const MIGRATIONEN: &[&str] = &[
-    // 1: Einstellungen und Verbindungen – ohne Schlüssel.
+/// Migrations in the order of their version (1, 2, …). **Never change, only append.**
+const MIGRATIONS: &[&str] = &[
+    // 1: settings and connections – without keys.
     "CREATE TABLE settings (
          key   TEXT PRIMARY KEY,
          value TEXT NOT NULL
@@ -17,7 +17,7 @@ const MIGRATIONEN: &[&str] = &[
          account    TEXT,               -- Jira: E-Mail; GitHub: später der Login
          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
      );",
-    // 2: Der Workspace des Server-Modus als eine Zeile (JSON im Format von `cockpit_core::persist`).
+    // 2: the workspace of the server mode as one row (JSON in the format of `cockpit_core::persist`).
     "CREATE TABLE workspace (
          id         INTEGER PRIMARY KEY CHECK (id = 1),
          revision   INTEGER NOT NULL,
@@ -26,76 +26,76 @@ const MIGRATIONEN: &[&str] = &[
      );",
 ];
 
-/// Die Version, auf die [`migrate`] die Datenbank bringt.
-pub const AKTUELLE_VERSION: u32 = MIGRATIONEN.len() as u32;
+/// The version to which [`migrate`] brings the database.
+pub const CURRENT_VERSION: u32 = MIGRATIONS.len() as u32;
 
 #[derive(Debug)]
-pub enum DbFehler {
+pub enum DbError {
     Sqlite(rusqlite::Error),
     Io(std::io::Error),
-    /// Die Datei stammt von einer neueren Version des Programms.
-    ZuNeu {
-        datei: u32,
-        programm: u32,
+    /// The file comes from a newer version of the program.
+    TooNew {
+        file: u32,
+        program: u32,
     },
 }
 
-impl std::fmt::Display for DbFehler {
+impl std::fmt::Display for DbError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DbFehler::Sqlite(e) => write!(f, "Datenbankfehler: {e}"),
-            DbFehler::Io(e) => write!(f, "Datenbankordner nicht anlegbar: {e}"),
-            DbFehler::ZuNeu { datei, programm } => write!(
+            DbError::Sqlite(e) => write!(f, "Datenbankfehler: {e}"),
+            DbError::Io(e) => write!(f, "Datenbankordner nicht anlegbar: {e}"),
+            DbError::TooNew { file, program } => write!(
                 f,
-                "Die Datenbank hat Version {datei}, dieses Programm kennt nur Version {programm}. Bitte aktualisieren"
+                "Die Datenbank hat Version {file}, dieses Programm kennt nur Version {program}. Bitte aktualisieren"
             ),
         }
     }
 }
 
-impl std::error::Error for DbFehler {}
+impl std::error::Error for DbError {}
 
-impl From<rusqlite::Error> for DbFehler {
+impl From<rusqlite::Error> for DbError {
     fn from(e: rusqlite::Error) -> Self {
-        DbFehler::Sqlite(e)
+        DbError::Sqlite(e)
     }
 }
 
-/// Öffnet (und legt bei Bedarf an) die Datenbank und migriert sie.
-pub fn open(pfad: &Path) -> Result<Connection, DbFehler> {
-    if let Some(ordner) = pfad.parent().filter(|p| !p.as_os_str().is_empty()) {
-        std::fs::create_dir_all(ordner).map_err(DbFehler::Io)?;
+/// Opens (and creates if needed) the database and migrates it.
+pub fn open(path: &Path) -> Result<Connection, DbError> {
+    if let Some(dir) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
+        std::fs::create_dir_all(dir).map_err(DbError::Io)?;
     }
-    let mut conn = Connection::open(pfad)?;
+    let mut conn = Connection::open(path)?;
     migrate(&mut conn)?;
     Ok(conn)
 }
 
-/// Flüchtige Datenbank für Tests.
+/// Volatile database for tests.
 #[cfg(test)]
-pub fn open_im_speicher() -> Result<Connection, DbFehler> {
+pub fn open_in_memory() -> Result<Connection, DbError> {
     let mut conn = Connection::open_in_memory()?;
     migrate(&mut conn)?;
     Ok(conn)
 }
 
-pub fn version(conn: &Connection) -> Result<u32, DbFehler> {
+pub fn version(conn: &Connection) -> Result<u32, DbError> {
     conn.execute_batch("CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)")?;
     let v: Option<u32> =
         conn.query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))?;
     Ok(v.unwrap_or(0))
 }
 
-/// Wendet fehlende Migrationen an, jede in einer eigenen Transaktion. Mehrfach aufrufbar.
-pub fn migrate(conn: &mut Connection) -> Result<u32, DbFehler> {
-    let aktuell = version(conn)?;
-    if aktuell > AKTUELLE_VERSION {
-        return Err(DbFehler::ZuNeu {
-            datei: aktuell,
-            programm: AKTUELLE_VERSION,
+/// Applies missing migrations, each in its own transaction. Can be called repeatedly.
+pub fn migrate(conn: &mut Connection) -> Result<u32, DbError> {
+    let current = version(conn)?;
+    if current > CURRENT_VERSION {
+        return Err(DbError::TooNew {
+            file: current,
+            program: CURRENT_VERSION,
         });
     }
-    for (i, sql) in MIGRATIONEN.iter().enumerate().skip(aktuell as usize) {
+    for (i, sql) in MIGRATIONS.iter().enumerate().skip(current as usize) {
         let tx = conn.transaction()?;
         tx.execute_batch(sql)?;
         tx.execute(
@@ -107,13 +107,13 @@ pub fn migrate(conn: &mut Connection) -> Result<u32, DbFehler> {
     version(conn)
 }
 
-/// Legt eine Verbindung an oder aktualisiert sie (ohne Schlüssel).
-pub fn verbindung_setzen(
+/// Creates a connection or updates it (without a key).
+pub fn connection_set(
     conn: &Connection,
     name: &str,
     base_url: &str,
     account: Option<&str>,
-) -> Result<(), DbFehler> {
+) -> Result<(), DbError> {
     conn.execute(
         "INSERT INTO connections (name, base_url, account) VALUES (?1, ?2, ?3)
          ON CONFLICT(name) DO UPDATE SET base_url = ?2, account = ?3, updated_at = CURRENT_TIMESTAMP",
@@ -122,8 +122,8 @@ pub fn verbindung_setzen(
     Ok(())
 }
 
-/// Der gespeicherte Workspace des Server-Modus (JSON mit Revision), falls es einen gibt.
-pub fn workspace_laden(conn: &Connection) -> Result<Option<String>, DbFehler> {
+/// The stored workspace of the server mode (JSON with revision), if there is one.
+pub fn workspace_laden(conn: &Connection) -> Result<Option<String>, DbError> {
     match conn.query_row("SELECT json FROM workspace WHERE id = 1", [], |r| r.get(0)) {
         Ok(json) => Ok(Some(json)),
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -131,8 +131,8 @@ pub fn workspace_laden(conn: &Connection) -> Result<Option<String>, DbFehler> {
     }
 }
 
-/// Ersetzt den gespeicherten Workspace.
-pub fn workspace_speichern(conn: &Connection, revision: u64, json: &str) -> Result<(), DbFehler> {
+/// Replaces the stored workspace.
+pub fn workspace_save(conn: &Connection, revision: u64, json: &str) -> Result<(), DbError> {
     conn.execute(
         "INSERT INTO workspace (id, revision, json) VALUES (1, ?1, ?2)
          ON CONFLICT(id) DO UPDATE SET revision = ?1, json = ?2, updated_at = CURRENT_TIMESTAMP",
@@ -141,16 +141,16 @@ pub fn workspace_speichern(conn: &Connection, revision: u64, json: &str) -> Resu
     Ok(())
 }
 
-/// Namen aller gespeicherten Verbindungen.
-pub fn verbindungen(conn: &Connection) -> Result<Vec<String>, DbFehler> {
+/// Names of all stored connections.
+pub fn connections(conn: &Connection) -> Result<Vec<String>, DbError> {
     let mut stmt = conn.prepare("SELECT name FROM connections ORDER BY name")?;
-    let namen = stmt
+    let names = stmt
         .query_map([], |r| r.get(0))?
         .collect::<Result<Vec<String>, _>>()?;
-    Ok(namen)
+    Ok(names)
 }
 
-pub fn einstellung_setzen(conn: &Connection, key: &str, value: &str) -> Result<(), DbFehler> {
+pub fn setting_set(conn: &Connection, key: &str, value: &str) -> Result<(), DbError> {
     conn.execute(
         "INSERT INTO settings (key, value) VALUES (?1, ?2)
          ON CONFLICT(key) DO UPDATE SET value = ?2",
@@ -159,12 +159,12 @@ pub fn einstellung_setzen(conn: &Connection, key: &str, value: &str) -> Result<(
     Ok(())
 }
 
-pub fn einstellung_loeschen(conn: &Connection, key: &str) -> Result<(), DbFehler> {
+pub fn setting_delete(conn: &Connection, key: &str) -> Result<(), DbError> {
     conn.execute("DELETE FROM settings WHERE key = ?1", params![key])?;
     Ok(())
 }
 
-pub fn einstellung(conn: &Connection, key: &str) -> Result<Option<String>, DbFehler> {
+pub fn setting(conn: &Connection, key: &str) -> Result<Option<String>, DbError> {
     match conn.query_row(
         "SELECT value FROM settings WHERE key = ?1",
         params![key],
@@ -181,11 +181,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn workspace_wird_ersetzt_nicht_vermehrt() {
-        let conn = open_im_speicher().unwrap();
+    fn workspace_is_replaces_not_multiplied() {
+        let conn = open_in_memory().unwrap();
         assert_eq!(workspace_laden(&conn).unwrap(), None);
-        workspace_speichern(&conn, 1, "eins").unwrap();
-        workspace_speichern(&conn, 2, "zwei").unwrap();
+        workspace_save(&conn, 1, "eins").unwrap();
+        workspace_save(&conn, 2, "zwei").unwrap();
         assert_eq!(workspace_laden(&conn).unwrap().as_deref(), Some("zwei"));
         let n: u32 = conn
             .query_row("SELECT COUNT(*) FROM workspace", [], |r| r.get(0))
@@ -194,50 +194,47 @@ mod tests {
     }
 
     #[test]
-    fn frische_datenbank_wird_migriert() {
-        let conn = open_im_speicher().unwrap();
-        assert_eq!(version(&conn).unwrap(), AKTUELLE_VERSION);
+    fn fresh_database_is_migrated() {
+        let conn = open_in_memory().unwrap();
+        assert_eq!(version(&conn).unwrap(), CURRENT_VERSION);
         // Tabellen existieren.
-        assert_eq!(verbindungen(&conn).unwrap(), Vec::<String>::new());
-        assert_eq!(einstellung(&conn, "x").unwrap(), None);
+        assert_eq!(connections(&conn).unwrap(), Vec::<String>::new());
+        assert_eq!(setting(&conn, "x").unwrap(), None);
     }
 
     #[test]
-    fn migration_ist_wiederholbar() {
-        let mut conn = open_im_speicher().unwrap();
-        einstellung_setzen(&conn, "thema", "dunkel").unwrap();
-        assert_eq!(migrate(&mut conn).unwrap(), AKTUELLE_VERSION);
-        assert_eq!(migrate(&mut conn).unwrap(), AKTUELLE_VERSION);
-        // Daten bleiben erhalten, die Versionstabelle hat genau einen Eintrag je Version.
-        assert_eq!(
-            einstellung(&conn, "thema").unwrap().as_deref(),
-            Some("dunkel")
-        );
+    fn migration_is_repeatable() {
+        let mut conn = open_in_memory().unwrap();
+        setting_set(&conn, "thema", "dunkel").unwrap();
+        assert_eq!(migrate(&mut conn).unwrap(), CURRENT_VERSION);
+        assert_eq!(migrate(&mut conn).unwrap(), CURRENT_VERSION);
+        // Data is kept, the version table has exactly one entry per version.
+        assert_eq!(setting(&conn, "thema").unwrap().as_deref(), Some("dunkel"));
         let n: u32 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(n, AKTUELLE_VERSION);
+        assert_eq!(n, CURRENT_VERSION);
     }
 
     #[test]
-    fn neuere_datenbank_wird_nicht_angefasst() {
+    fn newer_database_is_not_touched() {
         let mut conn = Connection::open_in_memory().unwrap();
         version(&conn).unwrap();
         conn.execute(
             "INSERT INTO schema_version (version) VALUES (?1)",
-            params![AKTUELLE_VERSION + 1],
+            params![CURRENT_VERSION + 1],
         )
         .unwrap();
-        assert!(matches!(migrate(&mut conn), Err(DbFehler::ZuNeu { .. })));
+        assert!(matches!(migrate(&mut conn), Err(DbError::TooNew { .. })));
     }
 
     #[test]
-    fn verbindungen_und_einstellungen() {
-        let conn = open_im_speicher().unwrap();
-        verbindung_setzen(&conn, "jira", "https://a.atlassian.net", Some("a@b.de")).unwrap();
-        verbindung_setzen(&conn, "github", "https://api.github.com", None).unwrap();
-        verbindung_setzen(&conn, "jira", "https://b.atlassian.net", Some("c@d.de")).unwrap();
-        assert_eq!(verbindungen(&conn).unwrap(), vec!["github", "jira"]);
+    fn connections_and_settings() {
+        let conn = open_in_memory().unwrap();
+        connection_set(&conn, "jira", "https://a.atlassian.net", Some("a@b.de")).unwrap();
+        connection_set(&conn, "github", "https://api.github.com", None).unwrap();
+        connection_set(&conn, "jira", "https://b.atlassian.net", Some("c@d.de")).unwrap();
+        assert_eq!(connections(&conn).unwrap(), vec!["github", "jira"]);
         let url: String = conn
             .query_row(
                 "SELECT base_url FROM connections WHERE name = 'jira'",
@@ -246,20 +243,20 @@ mod tests {
             )
             .unwrap();
         assert_eq!(url, "https://b.atlassian.net");
-        einstellung_setzen(&conn, "k", "1").unwrap();
-        einstellung_setzen(&conn, "k", "2").unwrap();
-        assert_eq!(einstellung(&conn, "k").unwrap().as_deref(), Some("2"));
+        setting_set(&conn, "k", "1").unwrap();
+        setting_set(&conn, "k", "2").unwrap();
+        assert_eq!(setting(&conn, "k").unwrap().as_deref(), Some("2"));
     }
 
     #[test]
-    fn datei_wird_samt_ordner_angelegt() {
+    fn file_is_with_dir_created() {
         let tmp = tempfile::tempdir().unwrap();
-        let pfad = tmp.path().join("unter/ordner/cockpit.db");
+        let path = tmp.path().join("unter/ordner/cockpit.db");
         {
-            let conn = open(&pfad).unwrap();
-            einstellung_setzen(&conn, "a", "b").unwrap();
+            let conn = open(&path).unwrap();
+            setting_set(&conn, "a", "b").unwrap();
         }
-        let conn = open(&pfad).unwrap();
-        assert_eq!(einstellung(&conn, "a").unwrap().as_deref(), Some("b"));
+        let conn = open(&path).unwrap();
+        assert_eq!(setting(&conn, "a").unwrap().as_deref(), Some("b"));
     }
 }

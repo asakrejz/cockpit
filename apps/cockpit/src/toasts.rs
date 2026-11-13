@@ -1,5 +1,5 @@
-//! Kleine Hinweise (Toasts) für Benachrichtigungen, solange der Tab im Vordergrund ist.
-//! Sie liegen unten rechts, verschwinden nach einigen Sekunden und führen per Link zum Ziel.
+//! Small notices (toasts) for notifications while the tab is in the foreground.
+//! They sit at the bottom right, disappear after a few seconds and lead to the target by a link.
 
 use feature_ui::*;
 use leptos::prelude::*;

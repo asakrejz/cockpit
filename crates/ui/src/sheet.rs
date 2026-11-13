@@ -2,10 +2,10 @@ use leptos::prelude::*;
 
 use crate::{Button, ButtonShape, ButtonStyle, ControlSize, Icon, icons};
 
-/// Schwebendes Sheet mit Abdunklung. Füllt den nächsten positionierten
-/// Vorfahren (`position: relative/absolute`), z. B. einen Phone-Rahmen.
+/// Floating sheet with dimming. Fills the nearest positioned
+/// ancestor (`position: relative/absolute`), e.g. a phone frame.
 ///
-/// Das „✕“ schließt ohne, das „✓“ schließt mit Aufruf von `on_confirm`.
+/// The "✕" closes without, the "✓" closes calling `on_confirm`.
 #[component]
 pub fn Sheet(
     open: RwSignal<bool>,

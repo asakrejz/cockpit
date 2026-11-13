@@ -178,7 +178,7 @@ fn summary_explains_in_plain_words() {
     assert!(z[2].text.contains("Client-Secret"));
 
     // Both there, only signing in missing: open with instructions.
-    s.setup.key = vec![KeyResponse {
+    s.setup.keys = vec![KeyResponse {
         name: "github-oauth".into(),
         set: true,
     }];
@@ -241,7 +241,7 @@ fn summary_asks_for_the_image_when_the_real_agent_needs_it() {
     s.container.engine_running = true;
     // Simulated or unknown: green as before.
     assert_eq!(summary(&s)[0].tone, Tone::Good);
-    s.agent.mode = "echt".into();
+    s.agent.mode = "real".into();
     let z = &summary(&s)[0];
     assert_eq!(z.tone, Tone::Open);
     assert!(z.text.contains("Image bauen"));

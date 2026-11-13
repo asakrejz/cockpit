@@ -581,3 +581,16 @@ fn a_plan_report_outside_the_approval_is_ignored() {
         .is_none()
     );
 }
+
+#[test]
+fn the_older_german_actor_name_is_still_read_and_the_new_one_written() {
+    use crate::Actor;
+    for old in ["\"Du\"", "\"User\""] {
+        let s: Speaker = serde_json::from_str(old).unwrap();
+        assert_eq!(s, Speaker::User, "{old}");
+        let a: Actor = serde_json::from_str(old).unwrap();
+        assert_eq!(a, Actor::User, "{old}");
+    }
+    assert_eq!(serde_json::to_string(&Speaker::User).unwrap(), "\"User\"");
+    assert_eq!(serde_json::to_string(&Actor::User).unwrap(), "\"User\"");
+}

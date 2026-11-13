@@ -1,15 +1,15 @@
 use super::*;
 
 #[test]
-fn namen_und_branches_werden_streng_geprueft() {
+fn names_and_branches_are_streng_checked() {
     assert!(repo_name_ok("firma/app"));
     assert!(repo_name_ok("a.b/c_d-e"));
-    for schlecht in ["app", "a/b/c", "../x", "a/..", "a /b", "a/b;rm", "/b", "a/"] {
-        assert!(!repo_name_ok(schlecht), "{schlecht}");
+    for bad in ["app", "a/b/c", "../x", "a/..", "a /b", "a/b;rm", "/b", "a/"] {
+        assert!(!repo_name_ok(bad), "{bad}");
     }
     assert!(branch_ok("claude/BAU-142-fokus-ring"));
     assert!(branch_ok("claude/a/b"));
-    for schlecht in [
+    for bad in [
         "main",
         "master",
         "claude",
@@ -23,32 +23,32 @@ fn namen_und_branches_werden_streng_geprueft() {
         "claude/a;b",
         "claude/-f",
     ] {
-        // `-f` beginnt nicht mit `-`, weil „claude/“ davor steht; erlaubt, aber harmlos.
-        if schlecht == "claude/-f" {
+        // `-f` does not start with `-` because "claude/" comes before it; allowed, but harmless.
+        if bad == "claude/-f" {
             continue;
         }
-        assert!(!branch_ok(schlecht), "{schlecht}");
+        assert!(!branch_ok(bad), "{bad}");
     }
 }
 
 #[test]
-fn adressen() {
+fn addresses() {
     assert_eq!(
-        basis_aus_api("https://api.github.com/"),
+        base_from_api("https://api.github.com/"),
         "https://github.com"
     );
     assert_eq!(
-        basis_aus_api("https://ghe.example/api/v3"),
+        base_from_api("https://ghe.example/api/v3"),
         "https://ghe.example"
     );
     assert_eq!(
-        klon_url("https://github.com/", "firma/app"),
+        clone_url("https://github.com/", "firma/app"),
         "https://github.com/firma/app.git"
     );
 }
 
 #[test]
-fn base64_stimmt() {
+fn base_64_matches() {
     assert_eq!(base64(b""), "");
     assert_eq!(base64(b"f"), "Zg==");
     assert_eq!(base64(b"fo"), "Zm8=");
@@ -57,31 +57,31 @@ fn base64_stimmt() {
 }
 
 #[test]
-fn das_token_geht_nur_an_https_und_nur_ueber_die_umgebung() {
+fn the_token_goes_only_at_https_and_only_via_the_env() {
     let t = Secret::new("ghp_geheim");
-    assert!(auth_umgebung("file:///tmp/x.git", Some(&t)).is_empty());
-    assert!(auth_umgebung("http://github.com/x.git", Some(&t)).is_empty());
-    assert!(auth_umgebung("https://github.com/x.git", None).is_empty());
-    let env = auth_umgebung("https://github.com/x.git", Some(&t));
+    assert!(auth_env("file:///tmp/x.git", Some(&t)).is_empty());
+    assert!(auth_env("http://github.com/x.git", Some(&t)).is_empty());
+    assert!(auth_env("https://github.com/x.git", None).is_empty());
+    let env = auth_env("https://github.com/x.git", Some(&t));
     assert_eq!(env.len(), 3);
     assert!(env[2].1.starts_with("Authorization: Basic "));
     assert!(!env[2].1.contains("ghp_geheim"), "nur base64-kodiert");
 }
 
 #[test]
-fn fehlertexte_enthalten_kein_token() {
+fn error_texts_contained_no_token() {
     let t = "ghp_geheim123";
     let b = base64(format!("x-access-token:{t}").as_bytes());
     let text = format!("fatal: https://x-access-token:{t}@github.com und {b}");
-    let s = schwaerzen(&text, &[t]);
+    let s = redact(&text, &[t]);
     assert!(!s.contains(t) && !s.contains(&b), "{s}");
 }
 
-/// Ein Remote mit einem Commit auf `main`, ein Klon-Ordner und ein Ordner für den Export.
-struct Aufbau {
+/// A remote with a commit on `main`, a clone folder and a folder for the export.
+struct Layout {
     _tmp: tempfile::TempDir,
     remote: std::path::PathBuf,
-    klon: std::path::PathBuf,
+    clone: std::path::PathBuf,
     export: std::path::PathBuf,
     url: String,
 }
@@ -105,22 +105,22 @@ fn g(cwd: &Path, args: &[&str]) -> String {
     String::from_utf8_lossy(&out.stdout).into_owned()
 }
 
-fn aufbau() -> Aufbau {
+fn layout() -> Layout {
     let tmp = tempfile::tempdir().unwrap();
     let remote = tmp.path().join("remote.git");
-    let quelle = tmp.path().join("quelle");
-    std::fs::create_dir_all(&quelle).unwrap();
-    g(&quelle, &["init", "--quiet", "-b", "main"]);
-    std::fs::write(quelle.join("README.md"), "hallo\n").unwrap();
-    g(&quelle, &["add", "-A"]);
-    g(&quelle, &["commit", "--quiet", "-m", "Anfang"]);
+    let source = tmp.path().join("quelle");
+    std::fs::create_dir_all(&source).unwrap();
+    g(&source, &["init", "--quiet", "-b", "main"]);
+    std::fs::write(source.join("README.md"), "hallo\n").unwrap();
+    g(&source, &["add", "-A"]);
+    g(&source, &["commit", "--quiet", "-m", "Anfang"]);
     g(
         tmp.path(),
         &["clone", "--quiet", "--bare", "quelle", "remote.git"],
     );
-    Aufbau {
+    Layout {
         url: format!("file://{}", remote.display()),
-        klon: tmp.path().join("klon"),
+        clone: tmp.path().join("klon"),
         export: tmp.path().join("export.git"),
         remote,
         _tmp: tmp,
@@ -137,42 +137,42 @@ fn heads(remote: &Path) -> Vec<String> {
     .collect()
 }
 
-/// Spielt den Container nach: ändert Dateien im Klon und committet.
-fn agent_arbeitet(klon: &Path, datei: &str) {
-    let pfad = klon.join(datei);
-    std::fs::create_dir_all(pfad.parent().unwrap()).unwrap();
-    std::fs::write(&pfad, "neu\n").unwrap();
-    g(klon, &["add", "-A"]);
-    g(klon, &["commit", "--quiet", "-m", "Agent"]);
+/// Imitates the container: changes files in the clone and commits.
+fn agent_works(clone: &Path, file: &str) {
+    let path = clone.join(file);
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(&path, "neu\n").unwrap();
+    g(clone, &["add", "-A"]);
+    g(clone, &["commit", "--quiet", "-m", "Agent"]);
 }
 
 #[test]
-fn klonen_arbeiten_pruefen_pushen_nur_auf_claude_branches() {
-    let a = aufbau();
-    let basis = klonen(&a.url, &a.klon, None, "main", "claude/BAU-1-x").unwrap();
-    assert_eq!(basis.len(), 40);
+fn clone_work_check_push_only_on_claude_branches() {
+    let a = layout();
+    let base = clone(&a.url, &a.clone, None, "main", "claude/BAU-1-x").unwrap();
+    assert_eq!(base.len(), 40);
     assert_eq!(
-        g(&a.klon, &["rev-parse", "--abbrev-ref", "HEAD"]).trim(),
+        g(&a.clone, &["rev-parse", "--abbrev-ref", "HEAD"]).trim(),
         "claude/BAU-1-x"
     );
-    assert_eq!(g(&a.klon, &["remote"]).trim(), "", "kein Remote im Klon");
-    agent_arbeitet(&a.klon, "src/neu.rs");
-    let v = veroeffentlichen(
-        &a.klon,
+    assert_eq!(g(&a.clone, &["remote"]).trim(), "", "kein Remote im Klon");
+    agent_works(&a.clone, "src/neu.rs");
+    let v = publish(
+        &a.clone,
         &a.export,
         "claude/BAU-1-x",
-        &basis,
+        &base,
         &a.url,
         None,
         &RepoRules::default(),
     )
     .unwrap();
-    assert_eq!(v.dateien, ["src/neu.rs"]);
+    assert_eq!(v.files, ["src/neu.rs"]);
     let mut h = heads(&a.remote);
     h.sort();
     assert_eq!(h, ["claude/BAU-1-x", "main"]);
-    // main im Remote ist unberührt.
-    assert_eq!(g(&a.remote, &["rev-parse", "main"]).trim(), basis);
+    // main in the remote is untouched.
+    assert_eq!(g(&a.remote, &["rev-parse", "main"]).trim(), base);
     assert_eq!(
         g(&a.remote, &["rev-parse", "claude/BAU-1-x"]).trim(),
         v.commit
@@ -180,17 +180,17 @@ fn klonen_arbeiten_pruefen_pushen_nur_auf_claude_branches() {
 }
 
 #[test]
-fn der_hauptbranch_wird_nie_angelegt_oder_gepusht() {
-    let a = aufbau();
-    assert!(klonen(&a.url, &a.klon, None, "main", "main").is_err());
-    let basis = klonen(&a.url, &a.klon, None, "main", "claude/x").unwrap();
-    agent_arbeitet(&a.klon, "a.txt");
+fn the_main_branch_is_never_created_or_pushed() {
+    let a = layout();
+    assert!(clone(&a.url, &a.clone, None, "main", "main").is_err());
+    let base = clone(&a.url, &a.clone, None, "main", "claude/x").unwrap();
+    agent_works(&a.clone, "a.txt");
     for b in ["main", "master", "agent/x", "refs/heads/main"] {
-        let e = veroeffentlichen(
-            &a.klon,
+        let e = publish(
+            &a.clone,
             &a.export,
             b,
-            &basis,
+            &base,
             &a.url,
             None,
             &RepoRules::default(),
@@ -201,31 +201,28 @@ fn der_hauptbranch_wird_nie_angelegt_oder_gepusht() {
 }
 
 #[test]
-fn regeln_des_repos_verhindern_den_push() {
-    let a = aufbau();
-    let basis = klonen(&a.url, &a.klon, None, "main", "claude/r").unwrap();
-    agent_arbeitet(&a.klon, "Cargo.lock");
-    let regeln = RepoRules {
+fn rules_the_repos_prevent_the_push() {
+    let a = layout();
+    let base = clone(&a.url, &a.clone, None, "main", "claude/r").unwrap();
+    agent_works(&a.clone, "Cargo.lock");
+    let rules = RepoRules {
         forbidden_paths: vec!["*.lock".into()],
         ..RepoRules::default()
     };
-    let e = veroeffentlichen(
-        &a.klon, &a.export, "claude/r", &basis, &a.url, None, &regeln,
-    )
-    .unwrap_err();
+    let e = publish(&a.clone, &a.export, "claude/r", &base, &a.url, None, &rules).unwrap_err();
     assert!(e.contains("verstoßen gegen die Regeln"), "{e}");
     assert_eq!(heads(&a.remote), ["main"]);
 }
 
 #[test]
-fn ohne_commit_und_mit_fremdem_verlauf_wird_nicht_gepusht() {
-    let a = aufbau();
-    let basis = klonen(&a.url, &a.klon, None, "main", "claude/leer").unwrap();
-    let e = veroeffentlichen(
-        &a.klon,
+fn without_commit_and_with_foreign_history_is_not_pushed() {
+    let a = layout();
+    let base = clone(&a.url, &a.clone, None, "main", "claude/leer").unwrap();
+    let e = publish(
+        &a.clone,
         &a.export,
         "claude/leer",
-        &basis,
+        &base,
         &a.url,
         None,
         &RepoRules::default(),
@@ -233,19 +230,19 @@ fn ohne_commit_und_mit_fremdem_verlauf_wird_nicht_gepusht() {
     .unwrap_err();
     assert!(e.contains("nichts committet"), "{e}");
 
-    // Umgeschriebener Verlauf: ein Branch ohne den Ausgangsstand.
-    let b = aufbau();
-    let basis = klonen(&b.url, &b.klon, None, "main", "claude/fremd").unwrap();
+    // Rewritten history: a branch without the starting state.
+    let b = layout();
+    let base = clone(&b.url, &b.clone, None, "main", "claude/fremd").unwrap();
     g(
-        &b.klon,
+        &b.clone,
         &["checkout", "--quiet", "--orphan", "claude/fremd2"],
     );
-    agent_arbeitet(&b.klon, "x.txt");
-    let e = veroeffentlichen(
-        &b.klon,
+    agent_works(&b.clone, "x.txt");
+    let e = publish(
+        &b.clone,
         &b.export,
         "claude/fremd2",
-        &basis,
+        &base,
         &b.url,
         None,
         &RepoRules::default(),
@@ -257,33 +254,33 @@ fn ohne_commit_und_mit_fremdem_verlauf_wird_nicht_gepusht() {
 
 #[cfg(unix)]
 #[test]
-fn ein_manipulierter_klon_fuehrt_auf_dem_rechner_nichts_aus() {
+fn a_tampered_clone_leads_on_the_machine_nothing_out() {
     use std::os::unix::fs::PermissionsExt;
-    let a = aufbau();
-    let basis = klonen(&a.url, &a.klon, None, "main", "claude/boese").unwrap();
-    let marke = a.klon.parent().unwrap().join("ausgefuehrt");
-    // Hooks und Befehle in der Konfiguration, wie sie ein Agent in .git ablegen könnte.
+    let a = layout();
+    let base = clone(&a.url, &a.clone, None, "main", "claude/boese").unwrap();
+    let mark = a.clone.parent().unwrap().join("ausgefuehrt");
+    // Hooks and commands in the configuration, as an agent could put them in .git.
     for hook in [
         "pre-push",
         "post-commit",
         "reference-transaction",
         "pre-commit",
     ] {
-        let p = a.klon.join(".git/hooks").join(hook);
-        std::fs::write(&p, format!("#!/bin/sh\ntouch {}\n", marke.display())).unwrap();
+        let p = a.clone.join(".git/hooks").join(hook);
+        std::fs::write(&p, format!("#!/bin/sh\ntouch {}\n", mark.display())).unwrap();
         std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
-    let mut konfig = std::fs::read_to_string(a.klon.join(".git/config")).unwrap();
-    konfig.push_str(&format!(
+    let mut config = std::fs::read_to_string(a.clone.join(".git/config")).unwrap();
+    config.push_str(&format!(
         "[core]\n\tfsmonitor = touch {m}\n\tsshCommand = touch {m}\n[credential]\n\thelper = !touch {m}\n",
-        m = marke.display()
+        m = mark.display()
     ));
-    std::fs::write(a.klon.join(".git/config"), konfig).unwrap();
-    std::fs::write(a.klon.join("x.txt"), "x").unwrap();
-    // Der „Agent“ committet an den Hooks vorbei (sonst liefe der Hook im Test selbst).
-    g(&a.klon, &["add", "-A"]);
+    std::fs::write(a.clone.join(".git/config"), config).unwrap();
+    std::fs::write(a.clone.join("x.txt"), "x").unwrap();
+    // The "agent" commits past the hooks (otherwise the hook would run in the test itself).
+    g(&a.clone, &["add", "-A"]);
     g(
-        &a.klon,
+        &a.clone,
         &[
             "-c",
             "core.hooksPath=/dev/null",
@@ -296,32 +293,32 @@ fn ein_manipulierter_klon_fuehrt_auf_dem_rechner_nichts_aus() {
             "x",
         ],
     );
-    let _ = std::fs::remove_file(&marke);
-    veroeffentlichen(
-        &a.klon,
+    let _ = std::fs::remove_file(&mark);
+    publish(
+        &a.clone,
         &a.export,
         "claude/boese",
-        &basis,
+        &base,
         &a.url,
         None,
         &RepoRules::default(),
     )
     .unwrap();
-    assert!(!marke.exists(), "im Klon darf nichts ausgeführt werden");
+    assert!(!mark.exists(), "im Klon darf nichts ausgeführt werden");
     assert_eq!(heads(&a.remote).len(), 2);
 }
 
 #[test]
-fn klonen_scheitert_in_klartext() {
-    let a = aufbau();
-    let e = klonen(
+fn clone_fails_in_plain_text() {
+    let a = layout();
+    let e = clone(
         "file:///gibt/es/nicht.git",
-        &a.klon,
+        &a.clone,
         None,
         "main",
         "claude/x",
     )
     .unwrap_err();
     assert!(!e.is_empty());
-    assert!(klonen(&a.url, &a.klon, None, "--evil", "claude/x").is_err());
+    assert!(clone(&a.url, &a.clone, None, "--evil", "claude/x").is_err());
 }

@@ -1,5 +1,5 @@
-//! Pull-Request-Review: in der Mitte der Diff, rechts die Kommentare, die der Agent
-//! vorbereitet hat. Gesendet wird erst, wenn über jeden Vorschlag entschieden ist.
+//! Pull request review: in the middle the diff, on the right the comments that the agent
+//! prepared. Sending only happens once every suggestion has been decided.
 
 use std::time::Duration;
 
@@ -17,13 +17,13 @@ use crate::{
     view,
 };
 
-/// So lange „liest“ der Demo-Agent einen Pull Request.
+/// The demo agent "reads" a pull request for this long.
 const REVIEW_TIME: Duration = Duration::from_millis(1200);
 
 #[component]
 pub fn ReviewPage(number: Option<u32>) -> impl IntoView {
     let store = use_store();
-    // Ohne Nummer: das erste Review, das noch nicht gesendet ist.
+    // Without a number: the first review that has not been sent yet.
     let number = number.or_else(|| {
         store.ws.with_untracked(|w| {
             w.reviews
@@ -35,7 +35,7 @@ pub fn ReviewPage(number: Option<u32>) -> impl IntoView {
     });
     let review = Memo::new(move |_| number.and_then(|n| store.ws.with(|w| w.review(n).cloned())));
 
-    // Zustand der Zeilenkommentare im Diff.
+    // State of the line comments in the diff.
     let lines = LineUi {
         open: RwSignal::new(None),
         draft: RwSignal::new(String::new()),
@@ -47,7 +47,7 @@ pub fn ReviewPage(number: Option<u32>) -> impl IntoView {
         edit_code: RwSignal::new(String::new()),
     };
 
-    // Zustand der rechten Spalte. Er überlebt, wenn sich das Review ändert.
+    // State of the right column. It survives when the review changes.
     let panel = Panel {
         own_comment: RwSignal::new(String::new()),
         editing: RwSignal::new(None),
@@ -101,35 +101,35 @@ pub fn ReviewPage(number: Option<u32>) -> impl IntoView {
     }
 }
 
-/// Eingaben der rechten Spalte.
+/// Inputs of the right column.
 #[derive(Clone, Copy)]
 struct Panel {
     own_comment: RwSignal<String>,
-    /// ID des Vorschlags, dessen Text gerade bearbeitet wird.
+    /// ID of the suggestion whose text is being edited right now.
     editing: RwSignal<Option<String>>,
     edit_text: RwSignal<String>,
     agent_reading: RwSignal<bool>,
-    /// Gewählte Merge-Methode (ID aus `MergeMethod::OPTIONS`).
+    /// Chosen merge method (ID from `MergeMethod::OPTIONS`).
     merge_method: RwSignal<&'static str>,
-    /// Name des Checks, dessen Log aufgeklappt ist.
+    /// Name of the check whose log is expanded.
     open_check: RwSignal<Option<String>>,
-    /// IDs der Kommentare, die der Agent nicht umsetzen soll. Standard: alle offenen.
+    /// IDs of the comments that the agent should not implement. Default: all open ones.
     deselected: RwSignal<Vec<String>>,
 }
 
-/// Eingaben der Zeilenkommentare im Diff.
+/// Inputs of the line comments in the diff.
 #[derive(Clone, Copy)]
 struct LineUi {
-    /// Datei und Position der Zeile, an der gerade ein Kommentar entsteht.
+    /// File and position of the line at which a comment is being written right now.
     open: RwSignal<Option<(String, usize)>>,
     draft: RwSignal<String>,
-    /// ID des eigenen Kommentars, der gerade bearbeitet wird.
+    /// ID of the own comment that is being edited right now.
     editing: RwSignal<Option<String>>,
     edit_text: RwSignal<String>,
-    /// Schlägt der neue Kommentar eine Änderung vor? Dann steht der Ersatz in `code`.
+    /// Does the new comment suggest a change? Then the replacement is in `code`.
     suggest: RwSignal<bool>,
     code: RwSignal<String>,
-    /// Dasselbe für den Kommentar, der gerade bearbeitet wird.
+    /// The same for the comment that is being edited right now.
     edit_suggest: RwSignal<bool>,
     edit_code: RwSignal<String>,
 }

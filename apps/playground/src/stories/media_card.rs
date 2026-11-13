@@ -15,7 +15,7 @@ pub const STORY: Story = Story {
     render,
 };
 
-/// Beispielbild als SVG-Data-URI (kein Netzwerk nötig). `#` muss als `%23` kodiert werden.
+/// Sample image as an SVG data URI (no network needed). `#` has to be encoded as `%23`.
 const SAMPLE: &str = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='640' height='360' viewBox='0 0 640 360' preserveAspectRatio='none'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='%23ff9500'/><stop offset='1' stop-color='%23af52de'/></linearGradient></defs><rect width='100%25' height='100%25' fill='url(%23g)'/><circle cx='320' cy='180' r='90' fill='white' fill-opacity='0.85'/></svg>";
 
 fn render() -> AnyView {

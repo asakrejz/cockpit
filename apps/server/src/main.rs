@@ -1,35 +1,35 @@
-//! Cockpit-Backend: lokaler Dienst für eine Person.
+//! Cockpit backend: local service for one person.
 //!
-//! * lauscht nur auf `127.0.0.1`
-//! * liefert die gebaute Web-App aus und beantwortet `/api/…`
-//! * hält Daten (SQLite) und Schlüssel (`.env`-Datei im Projektordner) – Schlüssel verlassen das Backend nie
+//! * listens only on `127.0.0.1`
+//! * serves the built web app and answers `/api/…`
+//! * holds data (SQLite) and keys (`.env` file in the project folder) – keys never leave the backend
 //!
 //! ```text
-//! cockpit-server                                 starten
-//! cockpit-server token setzen <name>             Schlüssel von der Standardeingabe ablegen
-//! cockpit-server token loeschen <name>           Schlüssel entfernen
-//! cockpit-server token uebernehmen               alte Einträge aus dem Schlüsselbund in die .env kopieren
+//! cockpit-server                                 start
+//! cockpit-server token setzen <name>             store a key from standard input
+//! cockpit-server token loeschen <name>           remove a key
+//! cockpit-server token uebernehmen               copy old keychain entries into the .env file
 //! ```
 //!
-//! `<name>`: `github`, `jira` (API-Token), `github-oauth` und `atlassian-oauth` (Client-Secret
-//! der OAuth-Apps) sowie `agent-key` (Key des Agent-Endpunkts; `litellm` gilt als älterer Name). Die Tokens der Anmeldung legt das Backend selbst ab.
+//! `<name>`: `github`, `jira` (API token), `github-oauth` and `atlassian-oauth` (client secret
+//! of the OAuth apps) as well as `agent-key` (key of the agent endpoint; `litellm` counts as an older name). The tokens of the sign-in are stored by the backend itself.
 //!
 //! ```text
 //! ```
 
-mod abgleich;
-mod agent_betrieb;
+mod access;
 mod agent_git;
-mod agent_lauf;
+mod agent_ops;
+mod agent_run;
 mod app;
 mod config;
 mod container;
 mod db;
-mod einrichtung;
 mod live;
 mod oauth;
 mod secrets;
-mod zugang;
+mod setup;
+mod sync;
 
 use std::io::Read;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -50,18 +50,18 @@ async fn main() -> ExitCode {
         .init();
 
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let ergebnis = match args
+    let result = match args
         .iter()
         .map(String::as_str)
         .collect::<Vec<_>>()
         .as_slice()
     {
-        [] => starten().await,
-        ["token", aktion, name] => token(aktion, name),
-        ["token", "uebernehmen"] => uebernehmen(),
+        [] => start().await,
+        ["token", action, name] => token(action, name),
+        ["token", "uebernehmen"] => take_over_keychain(),
         _ => Err("Aufruf: cockpit-server [token setzen|loeschen <github|jira|github-oauth|atlassian-oauth|agent-key|litellm>]".into()),
     };
-    match ergebnis {
+    match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(m) => {
             tracing::error!("{m}");
@@ -70,8 +70,8 @@ async fn main() -> ExitCode {
     }
 }
 
-/// Namen, die sich per `token` setzen lassen.
-const NAMEN: &[&str] = &[
+/// Names that can be set via `token`.
+const NAMES: &[&str] = &[
     secrets::GITHUB,
     secrets::JIRA,
     secrets::GITHUB_OAUTH,
@@ -80,23 +80,23 @@ const NAMEN: &[&str] = &[
     secrets::LITELLM,
 ];
 
-/// Legt einen Schlüssel ab oder löscht ihn. Der Wert kommt von der Standardeingabe, damit er
-/// weder in der Prozessliste noch in der Shell-Historie landet.
-fn token(aktion: &str, name: &str) -> Result<(), String> {
-    if !NAMEN.contains(&name) {
+/// Stores a key or deletes it. The value comes from standard input so that it ends up
+/// neither in the process list nor in the shell history.
+fn token(action: &str, name: &str) -> Result<(), String> {
+    if !NAMES.contains(&name) {
         return Err(format!(
             "Unbekannter Name „{name}“, erlaubt sind {}",
-            NAMEN.join(", ")
+            NAMES.join(", ")
         ));
     }
     let store = EnvFileStore::from_environment();
-    match aktion {
+    match action {
         "setzen" => {
-            let mut eingabe = String::new();
+            let mut input = String::new();
             std::io::stdin()
-                .read_to_string(&mut eingabe)
+                .read_to_string(&mut input)
                 .map_err(|e| format!("Eingabe nicht lesbar: {e}"))?;
-            let wert = eingabe.trim();
+            let wert = input.trim();
             if wert.is_empty() {
                 return Err("Kein Schlüssel auf der Standardeingabe".into());
             }
@@ -112,19 +112,19 @@ fn token(aktion: &str, name: &str) -> Result<(), String> {
             Ok(())
         }
         _ => Err(format!(
-            "Unbekannte Aktion „{aktion}“, erlaubt sind setzen und loeschen"
+            "Unbekannte Aktion „{action}“, erlaubt sind setzen und loeschen"
         )),
     }
 }
 
-/// Übernimmt Schlüssel aus dem Schlüsselbund des Systems in die `.env`-Datei. Nur auf
-/// ausdrücklichen Aufruf (`cockpit-server token uebernehmen`): liest den Schlüsselbund, löscht
-/// dort nichts und überschreibt in der Datei nichts, was schon einen Wert hat.
-fn uebernehmen() -> Result<(), String> {
-    let ziel = EnvFileStore::from_environment();
-    let bericht = secrets::take_over(&KeyringStore, &ziel).map_err(|e| e.to_string())?;
-    for (name, ergebnis) in bericht {
-        let text = match ergebnis {
+/// Copies keys from the system keychain into the `.env` file. Only on explicit call
+/// (`cockpit-server token uebernehmen`): reads the keychain, deletes nothing there and does not
+/// overwrite anything in the file that already has a value.
+fn take_over_keychain() -> Result<(), String> {
+    let target = EnvFileStore::from_environment();
+    let report = secrets::take_over(&KeyringStore, &target).map_err(|e| e.to_string())?;
+    for (name, outcome) in report {
+        let text = match outcome {
             secrets::Takeover::Taken => "übernommen",
             secrets::Takeover::AlreadyPresent => "hat schon einen Wert, unverändert",
             secrets::Takeover::NotFound => "nicht im Schlüsselbund",
@@ -133,12 +133,12 @@ fn uebernehmen() -> Result<(), String> {
     }
     tracing::info!(
         "Fertig. Die Einträge im Schlüsselbund bleiben bestehen; die Datei ist {}",
-        ziel.path().display()
+        target.path().display()
     );
     Ok(())
 }
 
-async fn starten() -> Result<(), String> {
+async fn start() -> Result<(), String> {
     let config = Config::laden().map_err(|e| e.to_string())?;
     let store = Arc::new(EnvFileStore::from_environment());
     tracing::info!("Schlüssel liegen in der Datei {}", store.path().display());
@@ -150,7 +150,7 @@ async fn starten() -> Result<(), String> {
     tracing::info!(
         "Datenbank: {} (Version {})",
         config.db.display(),
-        db::AKTUELLE_VERSION
+        db::CURRENT_VERSION
     );
 
     if !config.dist.join("index.html").is_file() {
@@ -160,30 +160,30 @@ async fn starten() -> Result<(), String> {
         );
     }
 
-    let state = app::AppState::neu(
+    let state = app::AppState::create(
         conn,
         store,
         config.port,
-        abgleich::Quellen::aus(&config),
-        app::Einstellungen::aus(&config),
+        sync::Sources::from_config(&config),
+        app::Settings::from_config(&config),
     );
-    // Adressen und Konten aus der Konfiguration in die Datenbank übernehmen (ohne Schlüssel).
-    state.verbindungen_uebernehmen(&config)?;
+    // Take over addresses and accounts from the configuration into the database (without keys).
+    state.connections_adopt(&config)?;
     let router = app::router(state.clone(), config.dist.clone());
 
-    // Nur lokal erreichbar – bewusst nicht einstellbar.
-    let adresse = SocketAddr::from((Ipv4Addr::LOCALHOST, config.port));
-    let listener = tokio::net::TcpListener::bind(adresse)
+    // Only reachable locally – deliberately not configurable.
+    let address = SocketAddr::from((Ipv4Addr::LOCALHOST, config.port));
+    let listener = tokio::net::TcpListener::bind(address)
         .await
         .map_err(|e| format!("Port {} nicht verfügbar: {e}", config.port))?;
-    tracing::info!("Cockpit läuft auf http://{adresse}");
+    tracing::info!("Cockpit läuft auf http://{address}");
 
-    // Im Server-Modus läuft der Takt des simulierten Agenten hier, nicht im Browser.
-    app::agent_takt_starten(state.clone());
-    // Jira und GitHub: regelmäßig abgleichen. Ohne Quelle oder Schlüssel passiert nichts.
-    abgleich::abgleich_starten(state);
+    // In server mode the tick of the simulated agent runs here, not in the browser.
+    app::agent_takt_start(state.clone());
+    // Jira and GitHub: sync regularly. Without a source or key nothing happens.
+    sync::sync_start(state);
 
-    // Die Adresse der Gegenstelle braucht `zugang`, um Fremde abzuweisen.
+    // The address of the peer is needed by `access` to turn away strangers.
     axum::serve(
         listener,
         router.into_make_service_with_connect_info::<SocketAddr>(),

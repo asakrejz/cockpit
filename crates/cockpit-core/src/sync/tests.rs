@@ -405,7 +405,7 @@ fn failed_source_keeps_its_data_and_reports_the_problem() {
     assert!(ws.item("abc-1").is_some(), "nichts geht verloren");
     let state = ws.sync.state_of(Source::Jira).unwrap();
     assert_eq!(state.problem, Some(Problem::Unauthorized));
-    assert_eq!(state.id(), "nicht-angemeldet");
+    assert_eq!(state.id(), "unauthorized");
     assert_eq!(state.last_ok_ms, Some(T));
     assert_eq!(state.last_try_ms, T + 5);
     assert_eq!(changes.len(), 1);

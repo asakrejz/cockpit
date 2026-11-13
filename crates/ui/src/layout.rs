@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-/// Zusätzliche Inline-Styles optional anhängen.
+/// Optionally append additional inline styles.
 fn style_of(parts: &[Option<String>]) -> Option<String> {
     let joined: String = parts.iter().flatten().map(|p| format!("{p};")).collect();
     (!joined.is_empty()).then_some(joined)
@@ -12,7 +12,7 @@ pub fn VStack(
     /// Abstand, z. B. `"12px"` (Standard: `--sys-space-stack`).
     #[prop(optional, into)]
     spacing: Option<String>,
-    /// Zusätzliches CSS, z. B. `"align-items:center"`.
+    /// Additional CSS, e.g. `"align-items:center"`.
     #[prop(optional, into)]
     css: Option<String>,
     children: Children,
@@ -21,7 +21,7 @@ pub fn VStack(
     view! { <div class="ui-vstack" style=style>{children()}</div> }
 }
 
-/// Horizontaler Stapel (`HStack`), bricht bei Platzmangel um.
+/// Horizontal stack (`HStack`), wraps when there is not enough room.
 #[component]
 pub fn HStack(
     #[prop(optional, into)] spacing: Option<String>,
@@ -32,19 +32,19 @@ pub fn HStack(
     view! { <div class="ui-hstack" style=style>{children()}</div> }
 }
 
-/// Übereinanderliegende Ebenen (`ZStack`) – Kinder teilen sich eine Grid-Zelle.
+/// Layers on top of each other (`ZStack`) – children share one grid cell.
 #[component]
 pub fn ZStack(#[prop(optional, into)] css: Option<String>, children: Children) -> impl IntoView {
     view! { <div class="ui-zstack" style=css>{children()}</div> }
 }
 
-/// Füllt freien Platz in einem `HStack`.
+/// Fills free space in an `HStack`.
 #[component]
 pub fn Spacer() -> impl IntoView {
     view! { <div class="ui-spacer"></div> }
 }
 
-/// Raster mit `cols` Spalten (fällt unter 1024 px auf 2, unter 640 px auf 1).
+/// Grid with `cols` columns (falls to 2 below 1024 px, to 1 below 640 px).
 #[component]
 pub fn Grid(
     #[prop(default = 3)] cols: u8,
@@ -58,13 +58,13 @@ pub fn Grid(
     view! { <div class="ui-grid" style=style>{children()}</div> }
 }
 
-/// Zwei Spalten, z. B. Text + Bild. Stapelt sich auf Tablet und Phone.
+/// Two columns, e.g. text + image. Stacks on tablet and phone.
 #[component]
 pub fn Split(children: Children) -> impl IntoView {
     view! { <div class="ui-split">{children()}</div> }
 }
 
-/// Zentrierter Inhaltsbereich mit maximaler Breite.
+/// Centered content area with a maximum width.
 #[component]
 pub fn Container(
     /// Schmale, gut lesbare Breite.
@@ -85,7 +85,7 @@ pub enum SectionTone {
     Secondary,
 }
 
-/// Abschnitt einer Webseite mit großem vertikalem Abstand.
+/// Section of a web page with large vertical spacing.
 #[component]
 pub fn PageSection(
     #[prop(optional)] tone: SectionTone,
@@ -105,7 +105,7 @@ pub fn PageSection(
     }
 }
 
-/// Glas-Fläche (Liquid Glass). Braucht Inhalt dahinter, um zu wirken.
+/// Glass surface (Liquid Glass). Needs content behind it to take effect.
 #[component]
 pub fn Glass(#[prop(optional, into)] css: Option<String>, children: Children) -> impl IntoView {
     view! { <div class="ui-glass" style=css>{children()}</div> }

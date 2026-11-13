@@ -145,11 +145,11 @@ impl SourceState {
     pub fn id(&self) -> &'static str {
         match &self.problem {
             None => "ok",
-            Some(Problem::Unauthorized) => "nicht-angemeldet",
-            Some(Problem::NoPermission) => "keine-berechtigung",
-            Some(Problem::RateLimited { .. }) => "kontingent",
+            Some(Problem::Unauthorized) => "unauthorized",
+            Some(Problem::NoPermission) => "no_permission",
+            Some(Problem::RateLimited { .. }) => "quota",
             Some(Problem::Offline) => "offline",
-            Some(Problem::Other(_)) => "fehler",
+            Some(Problem::Other(_)) => "error",
         }
     }
 }

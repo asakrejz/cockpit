@@ -1,7 +1,7 @@
-/* Rust-Erweiterungen zum Design (components.css bleibt 1:1 wie im Design,
-   damit es sich bei Design-Änderungen einfach ersetzen lässt). */
+/* Rust extensions to the design (components.css stays 1:1 as in the design,
+   so that it is easy to replace when the design changes). */
 
-/* Für Screenreader sichtbar, optisch versteckt (z. B. Labels von Suchfeldern). */
+/* Visible to screen readers, visually hidden (e.g. labels of search fields). */
 .ui-sr-only {
   position: absolute;
   width: 1px;
@@ -11,7 +11,7 @@
   white-space: nowrap;
 }
 
-/* Sheet-Overlay: füllt den nächsten positionierten Vorfahren (z. B. den Phone-Rahmen). */
+/* Sheet overlay: fills the nearest positioned ancestor (e.g. the phone frame). */
 .ui-sheet-overlay {
   position: absolute;
   inset: 0;
@@ -22,12 +22,12 @@
   background: var(--sys-color-overlay, rgb(0 0 0 / 0.35));
 }
 
-/* Das Karussell blendet Seiten außerhalb des Sichtbereichs für Tastatur/Screenreader aus. */
+/* The carousel hides pages outside the visible area from keyboard/screen reader. */
 .ui-pager__page[aria-hidden="true"] { visibility: hidden; transition: visibility 0s linear var(--sys-motion-duration, 0.35s); }
 
-/* Korrektur zum Design: `data-role="destructive"` setzt dort nur --sys-color-tint.
-   Die Button-Farben (--comp-button-*) sind aber schon am Theme-Element aufgelöst und
-   bleiben deshalb in der Akzentfarbe. Hier werden sie für den Button neu abgeleitet. */
+/* Correction to the design: `data-role="destructive"` only sets --sys-color-tint there.
+   The button colors (--comp-button-*) are already resolved at the theme element and
+   therefore stay in the accent color. Here they are derived anew for the button. */
 .ui-button[data-role="destructive"] {
   --comp-button-prominent-bg: var(--sys-color-destructive);
   --comp-button-bordered-fg: var(--sys-color-destructive);
@@ -35,7 +35,7 @@
 }
 .ui-button[data-role="destructive"][data-style="borderless"] { color: var(--sys-color-destructive); }
 
-/* Diff: auswählbare Zeilen (echte Buttons) und Inhalt unter einer Zeile. */
+/* Diff: selectable lines (real buttons) and content under a line. */
 .ui-diff__line--select {
   box-sizing: border-box;
   width: 100%;
@@ -56,7 +56,7 @@
     inset 0 0 0 999px color-mix(in oklab, var(--sys-color-tint) 14%, transparent);
 }
 .ui-diff__line--select:focus-visible { outline: none; box-shadow: var(--sys-focus-ring); position: relative; }
-/* Der Inhalt unter einer Zeile bleibt beim seitlichen Scrollen im Bild. */
+/* The content under a line stays in view when scrolling sideways. */
 .ui-diff__below {
   position: sticky;
   left: 0;
@@ -66,7 +66,7 @@
   font: var(--sys-type-subheadline, 15px/20px var(--sys-font));
 }
 .ui-diff__below > * { margin: 6px 14px; }
-/* Kommentar unter einer Zeile. */
+/* Comment under a line. */
 .ui-diff__note {
   display: flex;
   flex-direction: column;
@@ -77,7 +77,7 @@
   color: var(--sys-color-label);
 }
 
-/* Filterleiste der Inbox: Auswahlen und Zurücksetzen brechen um, nichts scrollt seitlich. */
+/* Filter bar of the inbox: selections and reset wrap, nothing scrolls sideways. */
 .ck-filters {
   display: flex;
   flex-wrap: wrap;
@@ -88,7 +88,7 @@
 .ck-filters .ui-select-field { max-width: 100%; }
 .ck-filters .ui-select { max-width: 100%; text-overflow: ellipsis; }
 
-/* Auswahlliste (`Select`): natives <select> im Look des Textfelds, Pfeil rechts. */
+/* Selection list (`Select`): native <select> in the look of the text field, arrow on the right. */
 .ui-select-field { display: inline-flex; }
 .ui-select {
   appearance: none;
@@ -109,8 +109,8 @@
 }
 .ui-select:disabled { cursor: default; opacity: 0.5; }
 
-/* Einrichtungsassistent: nummerierte Anleitung, kopierbare Werte und Abhak-Liste. */
-.ui-anleitung {
+/* Setup assistant: numbered instructions, copyable values and tick list. */
+.ui-instructions {
   display: flex;
   flex-direction: column;
   gap: var(--ref-space-12);
@@ -119,7 +119,7 @@
   list-style: none;
   counter-reset: anleitung;
 }
-.ui-anleitung > li {
+.ui-instructions > li {
   position: relative;
   min-width: 0;
   padding-inline-start: calc(var(--ref-space-16) * 2);
@@ -127,7 +127,7 @@
   color: var(--sys-color-label);
   counter-increment: anleitung;
 }
-.ui-anleitung > li::before {
+.ui-instructions > li::before {
   content: counter(anleitung);
   position: absolute;
   inset-inline-start: 0;
@@ -143,18 +143,18 @@
   font: var(--sys-type-footnote);
   font-weight: 600;
 }
-.ui-anleitung code,
-.ui-kopie__text {
+.ui-instructions code,
+.ui-copy__text {
   font-family: var(--sys-font-mono);
   font-size: 0.9em;
   overflow-wrap: anywhere;
 }
-.ui-anleitung code {
+.ui-instructions code {
   padding: 1px var(--ref-space-4);
   border-radius: var(--ref-radius-6);
   background: var(--sys-color-tertiary-fill);
 }
-.ui-kopie {
+.ui-copy {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -165,11 +165,11 @@
   border-radius: var(--ref-radius-12, 12px);
   background: var(--sys-color-tertiary-grouped-background);
 }
-.ui-kopie__text { flex: 1 1 12em; min-width: 0; color: var(--sys-color-label); user-select: all; }
-.ui-haken-liste { display: flex; flex-direction: column; gap: var(--ref-space-4); margin: var(--ref-space-4) 0 0; padding: 0; list-style: none; }
-.ui-haken-liste > li { display: flex; flex-wrap: wrap; gap: var(--ref-space-4) var(--ref-space-8); align-items: baseline; font: var(--sys-type-footnote); }
-.ui-haken-liste__recht { color: var(--sys-color-secondary-label); }
-.ui-hinweis {
+.ui-copy__text { flex: 1 1 12em; min-width: 0; color: var(--sys-color-label); user-select: all; }
+.ui-checklist { display: flex; flex-direction: column; gap: var(--ref-space-4); margin: var(--ref-space-4) 0 0; padding: 0; list-style: none; }
+.ui-checklist > li { display: flex; flex-wrap: wrap; gap: var(--ref-space-4) var(--ref-space-8); align-items: baseline; font: var(--sys-type-footnote); }
+.ui-checklist__permission { color: var(--sys-color-secondary-label); }
+.ui-hint {
   margin: 0;
   padding: var(--ref-space-8) var(--ref-space-12);
   border-radius: var(--ref-radius-12, 12px);
@@ -178,17 +178,17 @@
   font: var(--sys-type-footnote);
 }
 
-/* Einrichtungsassistent: eingeklappter Bereich „Erweitert“. */
-.ui-erweitert {
+/* Setup assistant: collapsed area "Erweitert". */
+.ui-advanced {
   display: flex;
   flex-direction: column;
   gap: var(--ref-space-12);
   min-width: 0;
 }
-.ui-erweitert > summary {
+.ui-advanced > summary {
   cursor: pointer;
   padding: var(--ref-space-8) var(--ref-space-4);
   color: var(--sys-color-secondary-label);
   font: var(--sys-type-subheadline);
 }
-.ui-erweitert[open] > summary { color: var(--sys-color-label); margin-bottom: var(--ref-space-8); }
+.ui-advanced[open] > summary { color: var(--sys-color-label); margin-bottom: var(--ref-space-8); }

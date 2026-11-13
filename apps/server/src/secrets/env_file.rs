@@ -27,7 +27,7 @@ use cockpit_integrations::Secret;
 
 use super::{
     AGENT_KEY, ATLASSIAN_OAUTH, ATLASSIAN_OAUTH_TOKENS, GITHUB, GITHUB_OAUTH, GITHUB_OAUTH_TOKENS,
-    JIRA, LITELLM, SecretFehler, SecretStore,
+    JIRA, LITELLM, SecretError, SecretStore,
 };
 
 /// Variable that points the server to a different file (tests, operation).
@@ -104,15 +104,15 @@ impl EnvFileStore {
         super::env_check::check_and_fix(&self.path)
     }
 
-    fn variable(name: &str) -> Result<&'static str, SecretFehler> {
-        variable_for(name).ok_or_else(|| SecretFehler(format!("Unbekannter Name „{name}“")))
+    fn variable(name: &str) -> Result<&'static str, SecretError> {
+        variable_for(name).ok_or_else(|| SecretError(format!("Unbekannter Name „{name}“")))
     }
 
-    fn read_text(&self) -> Result<String, SecretFehler> {
+    fn read_text(&self) -> Result<String, SecretError> {
         match std::fs::read_to_string(&self.path) {
             Ok(t) => Ok(t),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
-            Err(e) => Err(SecretFehler(format!(
+            Err(e) => Err(SecretError(format!(
                 "Datei {} nicht lesbar ({})",
                 self.path.display(),
                 e.kind()
@@ -121,9 +121,9 @@ impl EnvFileStore {
     }
 
     /// Writes `text` atomically with mode 600.
-    fn write_text(&self, text: &str) -> Result<(), SecretFehler> {
+    fn write_text(&self, text: &str) -> Result<(), SecretError> {
         let fail = |what: &str, e: std::io::Error| {
-            SecretFehler(format!(
+            SecretError(format!(
                 "Datei {} nicht beschreibbar ({what}: {})",
                 self.path.display(),
                 e.kind()
@@ -180,7 +180,7 @@ pub fn default_path(env: impl Fn(&str) -> Option<String>) -> PathBuf {
 }
 
 impl SecretStore for EnvFileStore {
-    fn get(&self, name: &str) -> Result<Option<Secret>, SecretFehler> {
+    fn get(&self, name: &str) -> Result<Option<Secret>, SecretError> {
         let var = Self::variable(name)?;
         if let Some(v) = (self.env)(var).filter(|v| !v.is_empty()) {
             return Ok(Some(Secret::new(v)));
@@ -191,14 +191,14 @@ impl SecretStore for EnvFileStore {
             .map(Secret::new))
     }
 
-    fn set(&self, name: &str, value: &Secret) -> Result<(), SecretFehler> {
+    fn set(&self, name: &str, value: &Secret) -> Result<(), SecretError> {
         let var = Self::variable(name)?;
         let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let text = replace(&self.read_text()?, var, Some(value.expose()));
         self.write_text(&text)
     }
 
-    fn delete(&self, name: &str) -> Result<(), SecretFehler> {
+    fn delete(&self, name: &str) -> Result<(), SecretError> {
         let var = Self::variable(name)?;
         let _guard = self.write_lock.lock().unwrap_or_else(|e| e.into_inner());
         let old = self.read_text()?;
@@ -337,7 +337,7 @@ pub enum Takeover {
 pub fn take_over(
     source: &dyn SecretStore,
     target: &dyn SecretStore,
-) -> Result<Vec<(&'static str, Takeover)>, SecretFehler> {
+) -> Result<Vec<(&'static str, Takeover)>, SecretError> {
     let mut report = Vec::new();
     for (name, _) in VARIABLES {
         if target.has(name)? {

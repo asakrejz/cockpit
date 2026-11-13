@@ -1,5 +1,5 @@
-//! Protokoll: was wann von wem geändert wurde, neueste Einträge zuerst.
-//! Die Einträge schreibt `Workspace::apply` in `cockpit-core`; hier wird nur angezeigt.
+//! Log: what was changed when and by whom, newest entries first.
+//! The entries are written by `Workspace::apply` in `cockpit-core`; here they are only displayed.
 
 use cockpit_core::{Actor, LogEntry, Target};
 use feature_ui::*;
@@ -12,7 +12,7 @@ use crate::{
     store::{Store, use_store},
 };
 
-/// Filter nach Urheber. „alle“ zeigt alles.
+/// Filter by author. "alle" shows everything.
 const ACTORS: &[(&str, &str)] = &[
     ("alle", "Alle"),
     ("du", "Du"),
@@ -20,7 +20,7 @@ const ACTORS: &[(&str, &str)] = &[
     ("system", "System"),
 ];
 
-/// Zeitpunkt in der Sprache des Nutzers, z. B. „11.11.2026, 14:03:22“.
+/// Time in the user's language, e.g. "11.11.2026, 14:03:22".
 fn when(at_ms: u64) -> String {
     let date = js_sys::Date::new(&JsValue::from_f64(at_ms as f64));
     date.to_locale_string("de-DE", &JsValue::UNDEFINED).into()
@@ -34,7 +34,7 @@ fn badge(actor: Actor) -> BadgeVariant {
     }
 }
 
-/// Der Weg zum betroffenen Eintrag, Review oder Lauf – falls es ihn noch gibt.
+/// The way to the affected entry, review or run – if it still exists.
 fn link(store: Store, target: Option<Target>) -> AnyView {
     let Some(target) = target else {
         return ().into_any();
@@ -114,7 +114,7 @@ fn empty_state(filtered: bool) -> impl IntoView {
 #[component]
 pub fn LogPage() -> impl IntoView {
     let store = use_store();
-    // Der Filter gehört nur dieser Seite.
+    // The filter belongs only to this page.
     let actor = RwSignal::new("alle");
     let entries = Memo::new(move |_| {
         let who = Actor::from_id(actor.get());

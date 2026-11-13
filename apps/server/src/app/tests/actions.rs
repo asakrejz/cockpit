@@ -3,8 +3,8 @@ use super::*;
 // ---------- GET /api/workspace ----------
 
 #[tokio::test]
-async fn workspace_startet_mit_den_demo_daten() {
-    let (status, body) = hole(app_ohne_dist(), "/api/workspace").await;
+async fn workspace_starts_with_the_demo_data() {
+    let (status, body) = hole(app_without_dist(), "/api/workspace").await;
     assert_eq!(status, StatusCode::OK);
     let (ws, revision) = cockpit_core::persist::load_with_revision(&body).unwrap();
     assert_eq!(ws, cockpit_core::demo::workspace());
@@ -14,48 +14,47 @@ async fn workspace_startet_mit_den_demo_daten() {
 // ---------- POST /api/actions ----------
 
 #[tokio::test]
-async fn aktion_aendert_den_stand_und_zaehlt_die_revision() {
-    let state = zustand(Arc::new(MemoryStore::new()));
+async fn action_changes_the_state_and_counts_the_revision() {
+    let state = state(Arc::new(MemoryStore::new()));
     let app = || router(state.clone(), PathBuf::from("/x"));
-    let id = erste_id();
+    let id = first_id();
 
-    let (status, body) = schicke(app(), &mark_done(&id)).await;
+    let (status, body) = send(app(), &mark_done(&id)).await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    let antwort = json(&body);
-    assert_eq!(antwort["revision"], 1);
-    assert_eq!(antwort["protokolliert"], 1);
-    assert!(!antwort["zusammenfassung"].as_str().unwrap().is_empty());
+    let answer = json(&body);
+    assert_eq!(answer["revision"], 1);
+    assert_eq!(answer["logged"], 1);
+    assert!(!answer["summary"].as_str().unwrap().is_empty());
 
     let (_, body) = hole(app(), "/api/workspace").await;
     let (ws, revision) = cockpit_core::persist::load_with_revision(&body).unwrap();
     assert_eq!(revision, 1);
     assert!(ws.item(&id).unwrap().read);
-    // Der Server wendet als „Du“ an, mit seiner Uhr.
-    let letzter = ws.log.last().unwrap();
-    assert_eq!(letzter.actor, Actor::User);
-    assert!(letzter.at_ms > 1_600_000_000_000);
+    // The server applies as "Du", with its clock.
+    let last = ws.log.last().unwrap();
+    assert_eq!(last.actor, Actor::User);
+    assert!(last.at_ms > 1_600_000_000_000);
 }
 
 #[tokio::test]
-async fn regelverstoss_ist_422_mit_deutscher_meldung_und_aendert_nichts() {
-    let state = zustand(Arc::new(MemoryStore::new()));
+async fn rule_violation_is_422_with_german_message_and_changes_nothing() {
+    let state = state(Arc::new(MemoryStore::new()));
     let app = || router(state.clone(), PathBuf::from("/x"));
-    let vorher = hole(app(), "/api/workspace").await.1;
+    let before = hole(app(), "/api/workspace").await.1;
 
-    let (status, body) =
-        schicke(app(), r#"{"action":{"MarkDone":{"item":"gibt-es-nicht"}}}"#).await;
+    let (status, body) = send(app(), r#"{"action":{"MarkDone":{"item":"gibt-es-nicht"}}}"#).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     assert!(
-        json(&body)["fehler"]
+        json(&body)["error"]
             .as_str()
             .unwrap()
             .contains("gibt es nicht")
     );
-    assert_eq!(hole(app(), "/api/workspace").await.1, vorher);
+    assert_eq!(hole(app(), "/api/workspace").await.1, before);
 }
 
 #[tokio::test]
-async fn review_senden_mit_offenen_vorschlaegen_ist_4xx() {
+async fn review_send_with_open_suggestions_is_4_xx() {
     let ws = cockpit_core::demo::workspace();
     let number = ws
         .reviews
@@ -64,44 +63,39 @@ async fn review_senden_mit_offenen_vorschlaegen_ist_4xx() {
         .expect("Beispieldaten haben ein Review mit offenen Vorschlägen")
         .number;
     let body = format!(r#"{{"action":{{"SendReview":{{"review":{number},"comment":""}}}}}}"#);
-    let (status, antwort) = schicke(app_ohne_dist(), &body).await;
+    let (status, answer) = send(app_without_dist(), &body).await;
     assert!(status.is_client_error(), "{status}");
     assert!(
-        json(&antwort)["fehler"]
+        json(&answer)["error"]
             .as_str()
             .is_some_and(|m| !m.is_empty())
     );
 }
 
 #[tokio::test]
-async fn mergen_nur_mit_erfuellten_bedingungen() {
-    // Über die API kommt jede Aktion als „Du“. Dass ein Agent nie merged, prüft
-    // `Workspace::apply` selbst (Actor); hier greifen die Bedingungen fürs Mergen.
+async fn merging_only_with_met_conditions() {
+    // Via the API every action comes as "Du". That an agent never merges is checked by
+    // `Workspace::apply` itself (actor); here the conditions for merging apply.
     let body = r#"{"action":{"MergePr":{"review":87,"method":"Squash"}}}"#;
-    let (status, antwort) = schicke(app_ohne_dist(), body).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{antwort}");
-    assert!(!json(&antwort)["fehler"].as_str().unwrap().is_empty());
-    // Formen, die es nicht gibt, bleiben 400.
+    let (status, answer) = send(app_without_dist(), body).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{answer}");
+    assert!(!json(&answer)["error"].as_str().unwrap().is_empty());
+    // Shapes that do not exist stay 400.
     for body in [
         r#"{"action":{"Merge":{"review":87}}}"#,
         r#"{"action":"MergePullRequest"}"#,
     ] {
-        let (status, antwort) = schicke(app_ohne_dist(), body).await;
+        let (status, answer) = send(app_without_dist(), body).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
-        assert!(
-            json(&antwort)["fehler"]
-                .as_str()
-                .unwrap()
-                .contains("Aktion")
-        );
+        assert!(json(&answer)["error"].as_str().unwrap().contains("Aktion"));
     }
 }
 
 #[tokio::test]
-async fn kaputter_body_ist_400() {
+async fn broken_body_is_400() {
     for body in ["", "kein json", "{}", r#"{"action":"GibtEsNicht"}"#] {
-        let (status, antwort) = schicke(app_ohne_dist(), body).await;
+        let (status, answer) = send(app_without_dist(), body).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{body:?}");
-        assert!(antwort.contains("fehler"));
+        assert!(answer.contains("error"));
     }
 }

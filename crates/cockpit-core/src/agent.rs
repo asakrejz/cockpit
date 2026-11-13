@@ -91,7 +91,7 @@ pub enum RunKind {
     Diagnose {
         /// Number of the pull request.
         review: u32,
-        /// Name des Checks.
+        /// Name of the check.
         check: String,
     },
 }
@@ -188,7 +188,7 @@ pub struct ReportEffect {
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Speaker {
     Agent,
-    #[serde(rename = "Du")]
+    #[serde(alias = "Du")]
     User,
 }
 

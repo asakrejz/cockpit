@@ -1,7 +1,7 @@
-//! Ablage der Schlüssel. Sie liegen in der `.env`-Datei im Projektordner (`EnvFileStore`, nie
-//! committen), nie in der Datenbank, nie in der Konfigurationsdatei. `Secret` zeigt sich in
-//! `Debug` nur als `Secret(***)`. Der Schlüsselbund des Systems (`KeyringStore`) wird nur noch
-//! für die einmalige, ausdrückliche Übernahme alter Einträge gelesen.
+//! Storage of the keys. They are in the `.env` file in the project folder (`EnvFileStore`, never
+//! commit it), never in the database, never in the configuration file. `Secret` only shows as
+//! `Secret(***)` in `Debug`. The system keychain (`KeyringStore`) is only read for the one-time,
+//! explicit takeover of old entries.
 
 mod env_check;
 mod env_file;
@@ -16,42 +16,42 @@ use std::sync::Mutex;
 
 use cockpit_integrations::Secret;
 
-/// Name des Eintrags im Schlüsselbund.
-const DIENST: &str = "cockpit";
+/// Name of the entry in the keychain.
+const SERVICE: &str = "cockpit";
 
-/// Namen der Schlüssel, die das Backend kennt.
+/// Names of the keys that the backend knows.
 pub const GITHUB: &str = "github";
 pub const JIRA: &str = "jira";
-/// Client-Secrets der OAuth-Apps (`token setzen github-oauth|atlassian-oauth`).
+/// Client secrets of the OAuth apps (`token setzen github-oauth|atlassian-oauth`).
 pub const GITHUB_OAUTH: &str = "github-oauth";
 pub const ATLASSIAN_OAUTH: &str = "atlassian-oauth";
-/// Key für den Endpunkt des Agenten (`token setzen agent-key`); geht nur beim Start an den Agent-Container.
+/// Key for the endpoint of the agent (`token setzen agent-key`); only goes to the agent container at start.
 pub const AGENT_KEY: &str = "agent-key";
-/// Der ältere Name desselben Keys (bis #31 `litellm`); wird weiter gelesen, wenn `agent-key` fehlt.
+/// The older name of the same key (until #31 `litellm`); is still read if `agent-key` is missing.
 pub const LITELLM: &str = "litellm";
-/// Access- und Refresh-Token nach der Anmeldung (ein Eintrag je Dienst, vom Backend gesetzt).
+/// Access and refresh token after the sign-in (one entry per service, set by the backend).
 pub const GITHUB_OAUTH_TOKENS: &str = "github-oauth-token";
 pub const ATLASSIAN_OAUTH_TOKENS: &str = "atlassian-oauth-token";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SecretFehler(pub String);
+pub struct SecretError(pub String);
 
-impl std::fmt::Display for SecretFehler {
+impl std::fmt::Display for SecretError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Schlüsselablage: {}", self.0)
     }
 }
 
-impl std::error::Error for SecretFehler {}
+impl std::error::Error for SecretError {}
 
 pub trait SecretStore: Send + Sync {
-    /// `Ok(None)`, wenn es keinen Schlüssel dieses Namens gibt.
-    fn get(&self, name: &str) -> Result<Option<Secret>, SecretFehler>;
-    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretFehler>;
-    /// Löschen eines nicht vorhandenen Schlüssels ist kein Fehler.
-    fn delete(&self, name: &str) -> Result<(), SecretFehler>;
+    /// `Ok(None)` if there is no key with this name.
+    fn get(&self, name: &str) -> Result<Option<Secret>, SecretError>;
+    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretError>;
+    /// Deleting a key that does not exist is no error.
+    fn delete(&self, name: &str) -> Result<(), SecretError>;
 
-    fn has(&self, name: &str) -> Result<bool, SecretFehler> {
+    fn has(&self, name: &str) -> Result<bool, SecretError> {
         Ok(self.get(name)?.is_some())
     }
 
@@ -61,46 +61,46 @@ pub trait SecretStore: Send + Sync {
     }
 }
 
-/// Schlüsselbund des Systems (macOS Keychain, Windows Credential Manager, Secret Service
-/// unter Linux).
+/// Keychain of the system (macOS Keychain, Windows Credential Manager, Secret Service
+/// on Linux).
 #[derive(Debug, Default)]
 pub struct KeyringStore;
 
 impl KeyringStore {
-    fn eintrag(name: &str) -> Result<keyring::Entry, SecretFehler> {
-        keyring::Entry::new(DIENST, name).map_err(fehler)
+    fn entry(name: &str) -> Result<keyring::Entry, SecretError> {
+        keyring::Entry::new(SERVICE, name).map_err(error)
     }
 }
 
-/// Die Fehlermeldung des Schlüsselbunds enthält nie den Wert.
-fn fehler(e: keyring::Error) -> SecretFehler {
-    SecretFehler(e.to_string())
+/// The error message of the keychain never contains the value.
+fn error(e: keyring::Error) -> SecretError {
+    SecretError(e.to_string())
 }
 
 impl SecretStore for KeyringStore {
-    fn get(&self, name: &str) -> Result<Option<Secret>, SecretFehler> {
-        match Self::eintrag(name)?.get_password() {
+    fn get(&self, name: &str) -> Result<Option<Secret>, SecretError> {
+        match Self::entry(name)?.get_password() {
             Ok(w) => Ok(Some(Secret::new(w))),
             Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(fehler(e)),
+            Err(e) => Err(error(e)),
         }
     }
 
-    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretFehler> {
-        Self::eintrag(name)?
+    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretError> {
+        Self::entry(name)?
             .set_password(wert.expose())
-            .map_err(fehler)
+            .map_err(error)
     }
 
-    fn delete(&self, name: &str) -> Result<(), SecretFehler> {
-        match Self::eintrag(name)?.delete_credential() {
+    fn delete(&self, name: &str) -> Result<(), SecretError> {
+        match Self::entry(name)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(fehler(e)),
+            Err(e) => Err(error(e)),
         }
     }
 }
 
-/// Nur im Speicher – für Tests.
+/// In memory only – for tests.
 #[cfg(test)]
 #[derive(Default)]
 pub struct MemoryStore(Mutex<HashMap<String, Secret>>);
@@ -108,14 +108,14 @@ pub struct MemoryStore(Mutex<HashMap<String, Secret>>);
 #[cfg(test)]
 impl std::fmt::Debug for MemoryStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Nur die Namen, nie die Werte.
-        let namen: Vec<String> = self
+        // Only the names, never the values.
+        let names: Vec<String> = self
             .0
             .lock()
             .map(|m| m.keys().cloned().collect())
             .unwrap_or_default();
         f.debug_struct("MemoryStore")
-            .field("namen", &namen)
+            .field("namen", &names)
             .finish()
     }
 }
@@ -129,11 +129,11 @@ impl MemoryStore {
 
 #[cfg(test)]
 impl SecretStore for MemoryStore {
-    fn get(&self, name: &str) -> Result<Option<Secret>, SecretFehler> {
+    fn get(&self, name: &str) -> Result<Option<Secret>, SecretError> {
         Ok(self.0.lock().expect("Sperre vergiftet").get(name).cloned())
     }
 
-    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretFehler> {
+    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretError> {
         self.0
             .lock()
             .expect("Sperre vergiftet")
@@ -141,7 +141,7 @@ impl SecretStore for MemoryStore {
         Ok(())
     }
 
-    fn delete(&self, name: &str) -> Result<(), SecretFehler> {
+    fn delete(&self, name: &str) -> Result<(), SecretError> {
         self.0.lock().expect("Sperre vergiftet").remove(name);
         Ok(())
     }
@@ -152,7 +152,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn setzen_lesen_loeschen() {
+    fn set_read_delete() {
         let s = MemoryStore::new();
         assert_eq!(s.get(GITHUB).unwrap(), None);
         assert!(!s.has(GITHUB).unwrap());
@@ -163,17 +163,17 @@ mod tests {
         s.set(GITHUB, &Secret::new("ghp_b")).unwrap();
         assert_eq!(s.get(GITHUB).unwrap().unwrap().expose(), "ghp_b");
         s.delete(GITHUB).unwrap();
-        s.delete(GITHUB).unwrap(); // zweites Löschen ist kein Fehler
+        s.delete(GITHUB).unwrap(); // a second delete is no error
         assert_eq!(s.get(GITHUB).unwrap(), None);
         assert!(s.has(JIRA).unwrap());
     }
 
     #[test]
-    fn debug_zeigt_keine_werte() {
+    fn debug_shows_no_values() {
         let s = MemoryStore::new();
         s.set(GITHUB, &Secret::new("ghp_geheim")).unwrap();
-        let ausgabe = format!("{s:?} {:?}", s.get(GITHUB).unwrap());
-        assert!(!ausgabe.contains("ghp_geheim"), "{ausgabe}");
-        assert!(ausgabe.contains("github"));
+        let output = format!("{s:?} {:?}", s.get(GITHUB).unwrap());
+        assert!(!output.contains("ghp_geheim"), "{output}");
+        assert!(output.contains("github"));
     }
 }

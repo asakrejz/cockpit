@@ -1,6 +1,6 @@
 use super::*;
 
-/// Erstes Element, das zum Selektor passt.
+/// First element that matches the selector.
 pub(super) fn query_html(selector: &str) -> Option<HtmlElement> {
     document()
         .query_selector(selector)
@@ -9,7 +9,7 @@ pub(super) fn query_html(selector: &str) -> Option<HtmlElement> {
         .and_then(|el| el.dyn_into().ok())
 }
 
-/// Setzt den Fokus auf ein Eingabefeld und markiert dessen Inhalt.
+/// Sets the focus on an input field and selects its content.
 pub(super) fn focus_field(selector: &str) {
     if let Some(el) = query_html(selector) {
         let _ = el.focus();
@@ -19,7 +19,7 @@ pub(super) fn focus_field(selector: &str) {
     }
 }
 
-/// Tippt der Nutzer gerade in ein Eingabefeld? Dann gehören die Tasten dem Feld.
+/// Is the user typing in an input field right now? Then the keys belong to the field.
 pub(super) fn is_typing(event: &KeyboardEvent) -> bool {
     event
         .target()
@@ -30,9 +30,9 @@ pub(super) fn is_typing(event: &KeyboardEvent) -> bool {
         })
 }
 
-/// Ein Tastendruck in der Inbox: ↑/↓ und j/k wechseln den Eintrag, `e` erledigt ihn,
-/// `r` springt ins Antwortfeld, `s` zu den Möglichkeiten zum Zurückstellen, `u` holt einen
-/// zurückgestellten Eintrag zurück, `/` springt in die Suche.
+/// A key press in the inbox: ↑/↓ and j/k change the entry, `e` marks it done,
+/// `r` jumps to the reply field, `s` to the snooze options, `u` brings back a
+/// snoozed entry, `/` jumps to the search.
 pub(super) fn on_key(
     store: Store,
     items: Memo<Vec<Item>>,
@@ -43,7 +43,7 @@ pub(super) fn on_key(
         return;
     }
     if is_typing(&event) {
-        // Escape verlässt das Feld und gibt die Kürzel wieder frei.
+        // Escape leaves the field and releases the shortcuts again.
         if event.key() == "Escape"
             && let Some(el) = event
                 .target()

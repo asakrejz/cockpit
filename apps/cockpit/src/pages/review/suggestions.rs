@@ -1,6 +1,6 @@
 use super::*;
 
-/// Rechts: Vorschläge des Agenten, eigener Kommentar, Urteil und Senden.
+/// Right: suggestions of the agent, own comment, verdict and sending.
 pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView {
     let number = r.number;
     let undecided = r.undecided();
@@ -18,7 +18,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
         set_timeout(
             move || {
                 let _ = store.dispatch(Action::RequestAgentReview { review: number });
-                // Die Seite kann inzwischen verlassen worden sein.
+                // The page may have been left in the meantime.
                 let _ = panel.agent_reading.try_set(false);
             },
             REVIEW_TIME,
@@ -134,7 +134,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
     }
 }
 
-/// Ein Vorschlag: freigeben, ablehnen, bearbeiten – oder die Entscheidung zurücknehmen.
+/// A suggestion: approve, reject, edit – or take the decision back.
 pub(super) fn suggestion(store: Store, number: u32, s: Suggestion, panel: Panel) -> impl IntoView {
     let id = StoredValue::new(s.id.clone());
     let text = StoredValue::new(s.text.clone());

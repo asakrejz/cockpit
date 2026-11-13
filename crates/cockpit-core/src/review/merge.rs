@@ -67,7 +67,7 @@ impl MergeBlocker {
 
 /// The conditions for merging as a pure function: checks green, review sent and
 /// not „Changes“. Empty = allowed. If the pull request is merged, that is the only
-/// Grund.
+/// Reason.
 pub fn merge_blockers(
     checks: Checks,
     review_sent: bool,

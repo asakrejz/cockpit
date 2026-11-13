@@ -1,9 +1,9 @@
-//! Kleine Helfer, die mehrere Stories brauchen.
+//! Small helpers that several stories need.
 
 use feature_ui::*;
 use leptos::prelude::*;
 
-/// Abschnitt einer Story mit Überschrift und Kurzreferenz.
+/// Section of a story with a heading and a short reference.
 #[component]
 pub fn Section(
     #[prop(into)] title: String,
@@ -30,12 +30,12 @@ pub fn Section(
     }
 }
 
-/// Sucht einen Wert anhand seiner ID (für Segmented-Picker, die IDs speichern).
+/// Finds a value by its ID (for segmented pickers that store IDs).
 pub fn find_by_id<T: Copy>(all: &[T], id: &str, id_of: fn(T) -> &'static str) -> Option<T> {
     all.iter().copied().find(|&item| id_of(item) == id)
 }
 
-/// Kleine Beschriftung in Monospace, z. B. ein Token- oder Attributname.
+/// Small label in monospace, e.g. a token or attribute name.
 #[component]
 pub fn Token(children: Children) -> impl IntoView {
     view! { <span class="doc-token">{children()}</span> }

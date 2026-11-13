@@ -1,6 +1,6 @@
-//! Zustand des Abgleichs mit Jira und GitHub je Quelle, dazu „Jetzt abgleichen“.
-//! Die Daten stehen im Workspace (`sync`), der Abgleich läuft im
-//! Backend. Hier steht kein Schlüssel.
+//! State of the sync with Jira and GitHub per source, plus "Jetzt abgleichen".
+//! The data is in the workspace (`sync`), the sync runs in the
+//! backend. No key is here.
 
 use cockpit_core::{Source, SourceState};
 use feature_ui::*;
@@ -10,7 +10,7 @@ use leptos::task::spawn_local;
 use crate::server::{self, CallError};
 use crate::store::{now_ms, use_store};
 
-/// „vor 5 Min.“ – grob genug für eine Statuszeile.
+/// "vor 5 Min." – coarse enough for a status line.
 fn ago(then_ms: u64, now: u64) -> String {
     let s = now.saturating_sub(then_ms) / 1000;
     match s {
@@ -50,7 +50,7 @@ pub fn SyncStatus() -> impl IntoView {
                 Ok(r) if !r.active => store.notify(
                     "Keine Quelle verbunden – richte Jira oder GitHub unter „Einrichten“ ein",
                 ),
-                Ok(_) => {} // Der Stand kommt über den Ereignisstrom.
+                Ok(_) => {} // The state comes through the event stream.
                 Err(CallError::Unreachable) => store.notify("Der Server ist nicht erreichbar"),
                 Err(e) => store.notify(e.message()),
             }

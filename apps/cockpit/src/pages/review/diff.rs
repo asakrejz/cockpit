@@ -1,6 +1,6 @@
 use super::*;
 
-/// Vorher/Nachher eines Änderungsvorschlags als kleiner Diff.
+/// Before/after of a suggested change as a small diff.
 pub(super) fn suggestion_view(diff: &SuggestionDiff) -> impl IntoView {
     let mut rows = vec![DiffRow {
         no: diff.no,
@@ -15,7 +15,7 @@ pub(super) fn suggestion_view(diff: &SuggestionDiff) -> impl IntoView {
     view! { <Diff rows=rows label="Änderungsvorschlag" /> }
 }
 
-/// Schalter und Feld für den Ersatz-Code. Beim Einschalten steht die alte Zeile darin.
+/// Switch and field for the replacement code. When switching on, the old line is in it.
 pub(super) fn suggestion_editor(
     on: RwSignal<bool>,
     code: RwSignal<String>,
@@ -53,7 +53,7 @@ pub(super) fn suggestion_editor(
     }
 }
 
-/// Inhalt unter einer Diff-Zeile: eigene Kommentare und, bei Auswahl, das Eingabefeld.
+/// Content under a diff line: own comments and, when selected, the input field.
 pub(super) fn line_notes(
     store: Store,
     r: &Review,
@@ -75,10 +75,10 @@ pub(super) fn line_notes(
         .map(|c| {
             let (id, text) = (StoredValue::new(c.id.clone()), StoredValue::new(c.text.clone()));
             let code = StoredValue::new(c.suggestion.clone());
-            // Ein umgesetzter Vorschlag steht schon im Diff, der Vorher/Nachher entfällt.
+            // An implemented suggestion is already in the diff, the before/after is dropped.
             let diff = r.suggestion_diff(c).filter(|_| c.is_open());
             let original = original.clone();
-            // Fremde Kommentare lassen sich nicht ändern, erledigte auch nicht.
+            // Comments by others cannot be changed, finished ones neither.
             let (own, open) = (c.is_own(), c.is_open());
             let resolved = c.resolved.clone();
             let author = c
@@ -114,7 +114,7 @@ pub(super) fn line_notes(
                                                 text: new_text,
                                                 suggestion,
                                             });
-                                            // Bei einem Fehler (z. B. Ersatz = alte Zeile) bleibt das Feld offen.
+                                            // On an error (e.g. replacement = old line) the field stays open.
                                             if saved.is_ok() {
                                                 ui.editing.set(None);
                                             }
@@ -255,10 +255,10 @@ pub(super) fn line_notes(
     .into_any()
 }
 
-/// Mitte: Kopf des Pull Requests und der Diff.
+/// Middle: head of the pull request and the diff.
 pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi) -> impl IntoView {
     let ticket = r.ticket_key.clone().map(|key| {
-        // Liegt das Ticket in der Inbox, führt der Link dorthin.
+        // If the ticket is in the inbox, the link leads there.
         let id = store
             .ws
             .with_untracked(|w| w.item_by_key(&key).map(|i| i.id.clone()));
@@ -295,7 +295,7 @@ pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi) -> impl IntoView {
                         .map(|(_, i)| *i)
                 })
             });
-            // Nach dem Senden ist nichts mehr zu kommentieren; die Kommentare bleiben sichtbar.
+            // After sending there is nothing left to comment on; the comments stay visible.
             let on_select = (!sent).then(|| {
                 Callback::new(move |index: usize| {
                     ui.editing.set(None);

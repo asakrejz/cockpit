@@ -7,7 +7,7 @@ use crate::api::{
 };
 use crate::connections::{AuthKind, ServiceStatus};
 
-/// The names under which the backend stores keys in the keychain (`PUT /api/schluessel/{name}`).
+/// The names under which the backend stores keys in the .env file (`PUT /api/secrets/{name}`).
 pub const KEY_NAMES: &[&str] = &[
     "github-oauth",
     "atlassian-oauth",
@@ -122,7 +122,7 @@ pub fn key_name_allowed(name: &str) -> bool {
     KEY_NAMES.contains(&name)
 }
 
-/// Whether `name` is a token that „Trennen“ may delete from the keychain. Client secrets and
+/// Whether `name` is a token that „Trennen“ may delete from the .env file. Client secrets and
 /// the model key do not belong to it.
 pub fn key_deletable(name: &str) -> bool {
     matches!(name, "jira" | "github")
@@ -564,7 +564,7 @@ pub fn summary(s: &Snapshot) -> Vec<Line> {
     let e = &s.setup;
     let container = match (&s.container.runtime, s.container.engine_running) {
         // If the real agent runs, one step is still missing without an image.
-        (Some(l), true) if s.agent.mode == "echt" && !s.agent.image => (
+        (Some(l), true) if s.agent.mode == "real" && !s.agent.image => (
             Tone::Open,
             format!(
                 "{l} läuft. Das Agent-Image ist noch nicht gebaut – klicke im Schritt „Container“ auf „Image bauen“."
