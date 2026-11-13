@@ -79,8 +79,12 @@ impl World {
         self.tmp.path().join("git/firma/app.git")
     }
     fn branches(&self) -> Vec<String> {
+        self.branches_of("app")
+    }
+    /// Branches of the bare remote `firma/<name>`.
+    fn branches_of(&self, name: &str) -> Vec<String> {
         let out = std::process::Command::new("git")
-            .current_dir(self.remote())
+            .current_dir(self.tmp.path().join(format!("git/firma/{name}.git")))
             .args(["for-each-ref", "--format=%(refname:short)", "refs/heads"])
             .output()
             .unwrap();
@@ -167,6 +171,11 @@ fn welt(set_up: bool) -> World {
         tmp.path(),
         &["clone", "--quiet", "--bare", "source", "git/firma/app.git"],
     );
+    // A second repo of the same shape, for the tests with several repos.
+    sh(
+        tmp.path(),
+        &["clone", "--quiet", "--bare", "source", "git/firma/web.git"],
+    );
 
     let agent_dir = tmp.path().join("agent");
     std::fs::create_dir_all(&agent_dir).unwrap();
@@ -225,6 +234,25 @@ printf '%s\n' \
 exit 0
 "#
     )
+}
+
+/// A state like `world`, but with these repos for the agent (and this default).
+fn with_repos(w: &World, repos: Vec<cockpit_core::AgentRepo>, default: Option<&str>) -> AppState {
+    let e = Settings {
+        agent_repos: repos,
+        agent_repo: default.map(str::to_string),
+        ..w.state.inner.settings.clone()
+    };
+    let conn = crate::db::open(&w.tmp.path().join("repos.db")).unwrap();
+    let state = AppState::create(
+        conn,
+        w.secrets.clone(),
+        8787,
+        crate::sync::Sources::default(),
+        e,
+    );
+    state.inner.live.set_state_for_test(demo::workspace());
+    state
 }
 
 /// A state like `world`, but with a different choice of provider and endpoint.
