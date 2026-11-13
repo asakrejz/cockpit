@@ -27,7 +27,7 @@ fn Checkmark(area: &'static str, level: &'static str) -> impl IntoView {
     let an = RwSignal::new(false);
     view! {
         <li>
-            <label style="display: inline-flex; gap: 8px; align-items: baseline; cursor: pointer">
+            <label class="ck-check">
                 <input type="checkbox" prop:checked=move || an.get() on:change=move |_| an.update(|a| *a = !*a) />
                 <span style:text-decoration=move || an.get().then_some("line-through")>
                     <strong>{area}</strong>

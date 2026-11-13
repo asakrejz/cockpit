@@ -159,7 +159,7 @@ impl AppState {
         match crate::app::agent_key_read(self.inner.secrets.as_ref()) {
             Ok(k) => k.filter(|s| !s.is_empty()),
             Err(e) => {
-                tracing::warn!("Key des Agent-Endpunkts nicht lesbar: {e}");
+                tracing::warn!("Agent endpoint key not readable: {e}");
                 None
             }
         }

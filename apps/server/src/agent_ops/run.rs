@@ -26,15 +26,15 @@ pub(super) async fn run_task(
     match end {
         End::Quiet => {}
         End::Error(reason) => {
-            tracing::warn!("Lauf {key} endet mit Fehler: {reason}");
+            tracing::warn!("Run {key} ends with error: {reason}");
             lock(&state.inner.agent.failed).insert(key.clone(), Instant::now());
             if let Err(e) = state.report(&key, AgentReport::Failed { reason }).await {
-                tracing::debug!("Fehler des Laufs {key} nicht mehr zu melden: {e:?}");
+                tracing::debug!("Error of run {key} can no longer be reported: {e:?}");
             }
         }
         End::Done(summary) => {
             if let Err(e) = state.report(&key, AgentReport::Done { summary }).await {
-                tracing::debug!("Ergebnis des Laufs {key} nicht mehr zu melden: {e:?}");
+                tracing::debug!("Result of run {key} can no longer be reported: {e:?}");
             }
         }
     }
@@ -71,7 +71,7 @@ pub(super) async fn apply(state: &AppState, key: &str, r: AgentReport) -> Applic
         Err(Error::Action(ActionError::NothingToDo)) => Application::Rejected,
         Err(Error::Action(_)) => Application::Rejected,
         Err(Error::Save(m)) => {
-            tracing::warn!("Meldung nicht gesichert: {m}");
+            tracing::warn!("Message not saved: {m}");
             Application::Error
         }
     }
@@ -341,7 +341,7 @@ pub(super) async fn run_run(
         }
     }
     if discarded > 0 {
-        tracing::warn!("Lauf {key}: {discarded} unbrauchbare Zeilen des Containers verworfen");
+        tracing::warn!("Run {key}: {discarded} unusable container lines discarded");
     }
     drop(stdin);
 

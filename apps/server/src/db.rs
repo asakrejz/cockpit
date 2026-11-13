@@ -43,11 +43,11 @@ pub enum DbError {
 impl std::fmt::Display for DbError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DbError::Sqlite(e) => write!(f, "Datenbankfehler: {e}"),
-            DbError::Io(e) => write!(f, "Datenbankordner nicht anlegbar: {e}"),
+            DbError::Sqlite(e) => write!(f, "Database error: {e}"),
+            DbError::Io(e) => write!(f, "Cannot create database folder: {e}"),
             DbError::TooNew { file, program } => write!(
                 f,
-                "Die Datenbank hat Version {file}, dieses Programm kennt nur Version {program}. Bitte aktualisieren"
+                "The database has version {file}, this program only knows version {program}. Please update"
             ),
         }
     }

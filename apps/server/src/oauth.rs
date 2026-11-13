@@ -97,7 +97,7 @@ impl AppState {
         match self.inner.secrets.get(secret_name(d)) {
             Ok(s) => s.filter(|s| !s.is_empty()),
             Err(e) => {
-                tracing::warn!("Client-Secret für {} nicht lesbar: {e}", d.id());
+                tracing::warn!("Client secret for {} not readable: {e}", d.id());
                 None
             }
         }
@@ -109,13 +109,13 @@ impl AppState {
             Ok(Some(t)) => {
                 let tokens = Tokens::from_text(t.expose());
                 if tokens.is_none() {
-                    tracing::warn!("Gespeicherte Tokens für {} sind unlesbar", d.id());
+                    tracing::warn!("Stored tokens for {} are unreadable", d.id());
                 }
                 tokens
             }
             Ok(None) => None,
             Err(e) => {
-                tracing::warn!("Tokens für {} nicht lesbar: {e}", d.id());
+                tracing::warn!("Tokens for {} not readable: {e}", d.id());
                 None
             }
         }
@@ -130,14 +130,14 @@ impl AppState {
 
     fn oauth_tokens_delete(&self, d: Service) {
         if let Err(e) = self.inner.secrets.delete(tokens_name(d)) {
-            tracing::warn!("Tokens für {} nicht löschbar: {e}", d.id());
+            tracing::warn!("Tokens for {} could not be deleted: {e}", d.id());
         }
         if d == Service::Atlassian
             && let Ok(conn) = self.inner.db.lock()
         {
             for k in [SITE_ID, SITE_NAME] {
                 if let Err(e) = db::setting_delete(&conn, k) {
-                    tracing::warn!("Einstellung {k} nicht löschbar: {e}");
+                    tracing::warn!("Setting {k} could not be deleted: {e}");
                 }
             }
         }
@@ -330,7 +330,7 @@ impl AppState {
         let s = self.clone();
         tokio::spawn(async move {
             if let Err(e) = s.sync().await {
-                tracing::warn!("Abgleich nach der Anmeldung: {e:?}");
+                tracing::warn!("Sync after sign-in: {e:?}");
             }
         });
         Ok(match name {
@@ -414,7 +414,7 @@ impl AppState {
             return;
         }
         let (Some(secret), Some(client_id)) = (secret, self.oauth_config_id(d)) else {
-            tracing::warn!("{}: Client-Secret fehlt, Tokens nicht aufgefrischt", d.id());
+            tracing::warn!("{}: client secret missing, tokens not refreshed", d.id());
             return;
         };
         let uri = redirect_uri(d, self.inner.port);
@@ -429,7 +429,7 @@ impl AppState {
             Ok(updated) => {
                 let _ = tokio::task::spawn_blocking(move || {
                     if let Err(e) = s.oauth_tokens_set(d, &updated) {
-                        tracing::warn!("{}: neue Tokens nicht ablegbar: {e}", d.id());
+                        tracing::warn!("{}: new tokens could not be stored: {e}", d.id());
                     }
                 })
                 .await;
@@ -443,7 +443,7 @@ impl AppState {
                 tracing::warn!("{}: Auffrischen abgelehnt ({f}) – getrennt", d.id());
                 let _ = tokio::task::spawn_blocking(move || s.oauth_tokens_delete(d)).await;
             }
-            Err(f) => tracing::warn!("{}: Auffrischen nicht möglich: {f}", d.id()),
+            Err(f) => tracing::warn!("{}: refresh failed: {f}", d.id()),
         }
     }
 }

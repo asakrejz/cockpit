@@ -420,7 +420,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     view! {
         <SplitView layout=SplitLayout::DetailWide>
             <AppSidebar>
-                <SidebarSection label="Agenten-Läufe">{runs}</SidebarSection>
+                <SidebarSection label="Agenten-Läufe" role=SectionRole::Picker>{runs}</SidebarSection>
             </AppSidebar>
 
             <Show

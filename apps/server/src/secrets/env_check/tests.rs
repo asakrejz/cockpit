@@ -117,10 +117,7 @@ fn loose_permissions_are_reported_and_fixed_at_startup() {
         0o644
     );
     let notes = check_and_fix(&path);
-    assert!(
-        notes.iter().any(|m| m.contains("auf 600 gesetzt")),
-        "{notes:?}"
-    );
+    assert!(notes.iter().any(|m| m.contains("set to 600")), "{notes:?}");
     assert_eq!(
         std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
         0o600

@@ -89,7 +89,7 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
     view! {
         <SplitView layout=SplitLayout::DetailWide>
             <AppSidebar>
-                <SidebarSection label="Reviews">{list}</SidebarSection>
+                <SidebarSection label="Reviews" role=SectionRole::Picker>{list}</SidebarSection>
             </AppSidebar>
             {move || match review.get() {
                 Some(r) => view! { {diff_pane(store, r.clone(), lines)} {agent_pane(store, r, panel)} }.into_any(),

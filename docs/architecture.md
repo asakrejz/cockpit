@@ -240,6 +240,32 @@ Which events notify is derived purely from comparing the workspace before and af
 (`SetNotifyChannel`, `SetQuietHours`). Email and Slack are prepared only; addresses and webhook URLs never live in the
 browser.
 
+## Narrow screens (phone and tablet)
+
+The interface is usable from about 360 px width. The CSS lives in `crates/ui/extras.css` (building blocks) and
+`apps/cockpit/style.css` (Cockpit specifics), only with existing tokens; the `viewport` meta tag is set and fixed
+elements respect `env(safe-area-inset-*)`.
+
+| Breakpoint | What changes |
+| --- | --- |
+| `max-width: 1100px` | Phone and tablet layout. The three columns of `SplitView` stack, the sidebar dissolves (`display: contents`) and the fixed `BottomNav` takes over the navigation. |
+| `max-width: 1100px` or `pointer: coarse` | Touch sizes: buttons, segmented pickers, selects, steppers and sidebar entries are at least 44 px (`--sys-size-hit`), selectable diff lines 34 px. |
+| above 1100px | Desktop layout, unchanged: sidebar, list and detail side by side. |
+
+- **Navigation:** all 11 entries of the sidebar exist a second time as `BottomNav` (a bar at the bottom edge that scrolls
+  sideways; the current page is scrolled into view). Sidebar groups carry a `SectionRole`: `Primary` (the navigation,
+  hidden when narrow because the bar shows it), `Picker` (selects the item of a page, e.g. a pull request or an agent
+  run; a chip strip above the content) and `Default` (rules, connections; a card below the content).
+- **List and detail as two levels:** the inbox passes `detail_open` to `SplitView`; narrow screens show either the list or
+  the detail (tapping a row opens it, "‹ Zur Liste" goes back). Wide screens always show both. Review and agent show
+  their panes one below the other.
+- **Shortcuts:** the key hints of the inbox are hidden when narrow; every shortcut has a button (done, reply, snooze,
+  bring back, search).
+- **Wide content scrolls inside its box:** the diff (`.ui-diff`), logs, the filter bar and the bottom bar scroll
+  sideways inside their container, never the page. Segmented pickers wrap; status texts wrap.
+- **Checked in the browser pane** at 375×812 and 768×1024 on every page (no horizontal page scroll, no console
+  errors). Not checked: real devices (touch behaviour, notch, on-screen keyboard).
+
 ## Working with several agents
 
 When work is split between sub-agents: one agent per task with its own PR; the model is Sonnet (`claude-sonnet-5-5`);

@@ -73,7 +73,7 @@ impl AppState {
         if let Some(cli) = self.cli_path(&status).filter(|_| status.engine_running) {
             let n = container_labels_remove(&cli);
             if n > 0 {
-                tracing::info!("{n} Container eines früheren Starts entfernt");
+                tracing::info!("{n} containers from an earlier start removed");
             }
         }
         let ws = self.inner.live.copy();
@@ -97,7 +97,7 @@ impl AppState {
                             reason: reason.into(),
                         },
                     ) {
-                        tracing::warn!("Lauf {key} nicht als abgebrochen markiert: {e:?}");
+                        tracing::warn!("Run {key} not marked as aborted: {e:?}");
                     }
                 }
                 _ => {}
