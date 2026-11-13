@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { decide, globFits, relative } from "../src/richtlinie.ts";
+import { decide, globFits, repoRelative } from "../src/policy.ts";
 
-const r = { wurzel: "/work", allowed: [], forbidden: ["*.lock", ".github/", "styles/*.css"] };
+const r = { root: "/work", allowed: [], forbidden: ["*.lock", ".github/", "styles/*.css"] };
 
 test("Muster wie in cockpit-core", () => {
   assert.ok(globFits("*.lock", "Cargo.lock"));
@@ -23,7 +23,7 @@ test("Schreiben nur im Repo, nicht in .git und nicht auf verbotene Pfade", () =>
   assert.equal(decide(r, "Edit", { file_path: "/work/.git/config" }).behavior, "deny");
   const d = decide(r, "Edit", { file_path: "/work/Cargo.lock" });
   assert.equal(d.behavior, "deny");
-  assert.match(d.message ?? "", /forbidden/);
+  assert.match(d.message ?? "", /verboten/);
 });
 
 test("erlaubte Pfade schränken ein", () => {
@@ -54,8 +54,8 @@ test("Lesen außerhalb des Repos und unbekannte Werkzeuge werden abgelehnt", () 
 });
 
 test("relativ löst Pfade auf", () => {
-  assert.equal(relative("/work", "/work/a/b"), "a/b");
-  assert.equal(relative("/work", "a/b"), "a/b");
-  assert.equal(relative("/work", "/work"), null);
-  assert.equal(relative("/work", "/workx/a"), null);
+  assert.equal(repoRelative("/work", "/work/a/b"), "a/b");
+  assert.equal(repoRelative("/work", "a/b"), "a/b");
+  assert.equal(repoRelative("/work", "/work"), null);
+  assert.equal(repoRelative("/work", "/workx/a"), null);
 });

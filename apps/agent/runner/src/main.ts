@@ -1,15 +1,15 @@
 // Einstieg des Läufers im Container. Alles Geheime kommt über die Umgebung (ANTHROPIC_MODEL und
 // entweder ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN für einen Proxy oder ANTHROPIC_API_KEY direkt
-// bei Anthropic), der Auftrag aus einer Datei. COCKPIT_ANBIETER wählt den Adapter (src/adapter/).
+// bei Anthropic), der Auftrag aus einer Datei. COCKPIT_PROVIDER wählt den Adapter (src/adapter/).
 // Auf stdout stehen ausschließlich JSON-Zeilen (siehe ereignis.ts), Diagnose auf stderr.
 
 import { createInterface } from "node:readline";
-import { readJob } from "./auftrag.ts";
-import { stdoutSink } from "./ereignis.ts";
+import { readJob } from "./job.ts";
+import { stdoutSink } from "./event.ts";
 import { gitRun } from "./git.ts";
 import { chooseAdapter } from "./adapter/index.ts";
-import type { Input } from "./adapter/schnittstelle.ts";
-import { checkEndpoint } from "./pruefung.ts";
+import type { Input } from "./adapter/interface.ts";
+import { checkEndpoint } from "./check.ts";
 
 process.umask(0); // das Backend soll den Klon nach dem Lauf lesen und löschen können
 
@@ -33,7 +33,7 @@ function stdinInput(): Input {
 
 async function main(): Promise<number> {
   const sink = stdoutSink();
-  const path = process.env.COCKPIT_JOB ?? "/auftrag/auftrag.json";
+  const path = process.env.COCKPIT_JOB ?? "/job/job.json";
   let job;
   try {
     job = readJob(path);
@@ -53,7 +53,7 @@ async function main(): Promise<number> {
     sink,
     git: gitRun,
     input: stdinInput(),
-    wurzel: process.env.COCKPIT_WURZEL ?? "/work",
+    root: process.env.COCKPIT_ROOT ?? "/work",
     now: () => Date.now(),
     env: process.env,
   });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { checkEndpoint } from "../src/pruefung.ts";
-import { collector } from "./hilfen.ts";
+import { checkEndpoint } from "../src/check.ts";
+import { collector } from "./helpers.ts";
 
 test("erreichbar mit gültigem Key", async () => {
   const s = collector();
@@ -42,7 +42,7 @@ test("nicht erreichbar nennt den Grund", async () => {
 test("ohne Adresse", async () => {
   const s = collector();
   assert.equal(await checkEndpoint({}, s.sink, async () => ({ status: 200 })), 1);
-  assert.match((s.e[0] as any).hint, /neither eine Endpoint-Address still ein Anthropic-Key/);
+  assert.match((s.e[0] as any).hint, /weder eine Endpunkt-Adresse noch ein Anthropic-Key/);
 });
 
 test("direkt bei Anthropic: x-api-key und Version, kein Bearer", async () => {
@@ -57,7 +57,7 @@ test("direkt bei Anthropic: x-api-key und Version, kein Bearer", async () => {
   assert.equal(called[0].headers["x-api-key"], "sk-ant-geheim");
   assert.equal(called[0].headers["anthropic-version"], "2023-06-01");
   assert.equal(called[0].headers.authorization, undefined);
-  assert.match((s.e[0] as any).hint, /Anthropic answers/);
+  assert.match((s.e[0] as any).hint, /Anthropic antwortet/);
   assert.ok(!JSON.stringify(s.e).includes("geheim"), "der Key steht nie in der Ausgabe");
 });
 
@@ -69,7 +69,7 @@ test("direkt: abgelehnter Key und nicht erreichbar", async () => {
   await checkEndpoint({ ANTHROPIC_API_KEY: "x" }, t.sink, async () => {
     throw Object.assign(new Error("fetch failed"), { cause: { code: "ENOTFOUND" } });
   });
-  assert.match((t.e[0] as any).hint, /Anthropic not \(ENOTFOUND\)|Anthropic not/);
+  assert.match((t.e[0] as any).hint, /Anthropic nicht \(ENOTFOUND\)|Anthropic nicht/);
 });
 
 test("mit Adresse gewinnt der Endpunkt, auch wenn ein API-Key in der Umgebung steht", async () => {

@@ -1,4 +1,4 @@
-// Der Auftrag, den das Backend in eine Datei schreibt (`/auftrag/auftrag.json`, schreibgeschützt
+// Der Auftrag, den das Backend in eine Datei schreibt (`/job/job.json`, schreibgeschützt
 // eingebunden). Er enthält nie Geheimnisse – Adresse, Key und Modell kommen über die Umgebung.
 
 import { readFileSync } from "node:fs";

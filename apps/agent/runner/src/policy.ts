@@ -7,13 +7,13 @@ import { isAbsolute, relative, resolve } from "node:path";
 /** `*` = beliebig innerhalb eines Ordnernamens, `?` = ein Zeichen, `**` = beliebig viele Ordner;
  * ein Muster ohne `/` gilt in jedem Ordner, ein `/` am Ende meint den ganzen Ordner
  * (gleiche Regeln wie `glob_match` in cockpit-core). */
-export function globFits(muster: string, path: string): boolean {
-  let m = muster.trim().replace(/^\.\//, "").replace(/^\//, "");
+export function globFits(pattern: string, path: string): boolean {
+  let m = pattern.trim().replace(/^\.\//, "").replace(/^\//, "");
   if (!m) return false;
   if (m.endsWith("/")) m += "**";
   if (!m.includes("/")) m = `**/${m}`;
   const p = path.trim().replace(/^\.\//, "").replace(/^\//, "");
-  const segs = m.split("/");
+  const segments = m.split("/");
   const parts = p.split("/");
   const name = (mu: string, n: string): boolean => {
     const re = new RegExp(
@@ -22,12 +22,12 @@ export function globFits(muster: string, path: string): boolean {
     return re.test(n);
   };
   const rec = (i: number, j: number): boolean => {
-    if (i === segs.length) return j === parts.length;
-    if (segs[i] === "**") {
+    if (i === segments.length) return j === parts.length;
+    if (segments[i] === "**") {
       for (let skip = 0; j + skip <= parts.length; skip++) if (rec(i + 1, j + skip)) return true;
       return false;
     }
-    return j < parts.length && name(segs[i], parts[j]) && rec(i + 1, j + 1);
+    return j < parts.length && name(segments[i], parts[j]) && rec(i + 1, j + 1);
   };
   return rec(0, 0);
 }
@@ -38,7 +38,7 @@ export interface Decision {
 }
 
 export interface Policy {
-  wurzel: string;
+  root: string;
   allowed: string[];
   forbidden: string[];
 }
@@ -46,9 +46,9 @@ export interface Policy {
 const Writing = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 
 /** Pfad relativ zum Repo, oder `null`, wenn er außerhalb liegt. */
-export function relative(wurzel: string, path: string): string | null {
-  const abs = isAbsolute(path) ? resolve(path) : resolve(wurzel, path);
-  const rel = relative(resolve(wurzel), abs);
+export function repoRelative(root: string, path: string): string | null {
+  const abs = isAbsolute(path) ? resolve(path) : resolve(root, path);
+  const rel = relative(resolve(root), abs);
   if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return null;
   return rel.split("\\").join("/");
 }
@@ -67,8 +67,8 @@ const FORBIDDEN_COMMANDS: [RegExp, string][] = [
 export function decide(r: Policy, tool: string, input: Record<string, unknown>): Decision {
   if (Writing.has(tool)) {
     const raw = String(input.file_path ?? input.notebook_path ?? input.path ?? "");
-    const rel = relative(r.wurzel, raw);
-    if (rel === null) return { behavior: "deny", message: `Außerhalb von ${r.wurzel} darf der Agent nichts ändern.` };
+    const rel = repoRelative(r.root, raw);
+    if (rel === null) return { behavior: "deny", message: `Außerhalb von ${r.root} darf der Agent nichts ändern.` };
     if (rel === ".git" || rel.startsWith(".git/")) {
       return { behavior: "deny", message: "Das .git-Verzeichnis fasst der Agent nicht an." };
     }
@@ -89,8 +89,8 @@ export function decide(r: Policy, tool: string, input: Record<string, unknown>):
   }
   if (tool === "Read" || tool === "Glob" || tool === "Grep" || tool === "LS") {
     const raw = input.file_path ?? input.path;
-    if (typeof raw === "string" && raw !== "" && relative(r.wurzel, raw) === null && resolve(raw) !== resolve(r.wurzel)) {
-      return { behavior: "deny", message: `Außerhalb von ${r.wurzel} liest der Agent nichts.` };
+    if (typeof raw === "string" && raw !== "" && repoRelative(r.root, raw) === null && resolve(raw) !== resolve(r.root)) {
+      return { behavior: "deny", message: `Außerhalb von ${r.root} liest der Agent nichts.` };
     }
     return { behavior: "allow" };
   }

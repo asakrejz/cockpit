@@ -1,6 +1,6 @@
 # Image des Cockpit-Agenten. Baut mit Docker und Podman gleich:
-#   docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:1 apps/agent
-#   podman build -f apps/agent/Containerfile -t localhost/cockpit-agent:1 apps/agent
+#   docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:2 apps/agent
+#   podman build -f apps/agent/Containerfile -t localhost/cockpit-agent:2 apps/agent
 # (das Backend macht das per „Image bauen“ im Einrichtungsassistenten).
 # Bewusst ohne BuildKit-Sonderfunktionen (kein „# syntax=“, kein „RUN --mount“) und mit voll
 # benanntem Basis-Image, weil Podman Kurznamen nicht ohne Weiteres auflöst.
@@ -11,7 +11,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     # Das eingebundene Repo gehört auf dem Host einer anderen Kennung als dem Läufer.
     && git config --system --add safe.directory /work \
-    && mkdir -p /work /auftrag && chown node:node /work
+    && mkdir -p /work /job && chown node:node /work
 
 WORKDIR /opt/runner
 COPY runner/package.json runner/package-lock.json ./
@@ -22,9 +22,9 @@ COPY runner/src ./src
 USER node
 WORKDIR /work
 ENV HOME=/home/node \
-    COCKPIT_AUFTRAG=/auftrag/auftrag.json \
-    COCKPIT_WURZEL=/work \
-    COCKPIT_ANBIETER=claude-agent-sdk \
+    COCKPIT_JOB=/job/job.json \
+    COCKPIT_ROOT=/work \
+    COCKPIT_PROVIDER=claude-agent-sdk \
     NODE_ENV=production
 
 ENTRYPOINT ["node", "--disable-warning=ExperimentalWarning", "/opt/runner/src/main.ts"]

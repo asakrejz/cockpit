@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { run, planAusAnswer } from "../src/adapter/claude-agent-sdk.ts";
+import { run, planFromAnswer } from "../src/adapter/claude-agent-sdk.ts";
 import type { Run } from "../src/git.ts";
-import { assistant, job, input, resultOk, collector, sdkFake } from "./hilfen.ts";
+import { assistant, job, input, resultOk, collector, sdkFake } from "./helpers.ts";
 
 /** Ein Git, das nichts ausführt und festgelegte Antworten gibt. */
 function gitFake(opt: { branch?: string; status?: string } = {}) {
   const calls: string[][] = [];
   const git: Run = async (args) => {
     calls.push(args);
-    if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return `${opt.branch ?? "claude/Build-142-fokus-ring"}\n`;
+    if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return `${opt.branch ?? "claude/BAU-142-fokus-ring"}\n`;
     if (args[0] === "status") return opt.status ?? "";
     if (args[0] === "rev-parse") return "abc1234\n";
     return "";
@@ -21,7 +21,7 @@ const env = { ANTHROPIC_MODEL: "claude-sonnet-5-5", ANTHROPIC_BASE_URL: "https:/
 
 function deps(sdk: ReturnType<typeof sdkFake>, s: ReturnType<typeof collector>, g = gitFake(), ein = input()) {
   let t = 0;
-  return { sdk, sink: s.sink, git: g.git, input: ein, wurzel: "/work", now: () => (t += 1000), env };
+  return { sdk, sink: s.sink, git: g.git, input: ein, root: "/work", now: () => (t += 1000), env };
 }
 
 test("Umsetzen: Schritte mit Verbrauch, Dateien, Commit und Ergebnis", async () => {
@@ -72,8 +72,8 @@ test("Plan: nur lesen, Plan aus dem JSON-Block", async () => {
 });
 
 test("Plan ohne JSON: die Antwort wird zur Zusammenfassung", () => {
-  assert.deepEqual(planAusAnswer("Ich ändere den Ring."), { summary: "Ich ändere den Ring.", files: [], steps: [] });
-  assert.equal(planAusAnswer("```json\n{kaputt\n```").summary.length > 0, true);
+  assert.deepEqual(planFromAnswer("Ich ändere den Ring."), { summary: "Ich ändere den Ring.", files: [], steps: [] });
+  assert.equal(planFromAnswer("```json\n{kaputt\n```").summary.length > 0, true);
 });
 
 test("Optionen: Modell überall gesetzt, kein Anthropic-Dienst, keine Projekteinstellungen", async () => {
@@ -112,14 +112,14 @@ test("Eine Ausnahme des SDK wird zu einem Fehler in Klartext", async () => {
   sdk.query = () => (async function* () { throw new Error("Verbindung abgewiesen"); })() as never;
   const s = collector();
   assert.equal(await run(job(), deps(sdk, s)), 1);
-  assert.match((s.e.at(-1) as any).text, /Das SDK reports: Connection rejected/);
+  assert.match((s.e.at(-1) as any).text, /Das SDK meldet: Verbindung abgewiesen/);
 });
 
 test("Ohne Änderung kein Ergebnis", async () => {
   const sdk = sdkFake([resultOk("nichts zu tun")]);
   const s = collector();
   assert.equal(await run(job(), deps(sdk, s, gitFake({ status: "" }))), 1);
-  assert.match((s.e.at(-1) as any).text, /nothing geändert/);
+  assert.match((s.e.at(-1) as any).text, /nichts geändert/);
 });
 
 test("Falscher Branch im Klon: Fehler statt Commit", async () => {
@@ -127,7 +127,7 @@ test("Falscher Branch im Klon: Fehler statt Commit", async () => {
   const s = collector();
   const g = gitFake({ branch: "main", status: " M a\0" });
   assert.equal(await run(job(), deps(sdk, s, g)), 1);
-  assert.match((s.e.at(-1) as any).text, /stands auf „main“/);
+  assert.match((s.e.at(-1) as any).text, /steht auf „main“/);
   assert.ok(!g.calls.some((a) => a.includes("commit")));
 });
 
@@ -160,12 +160,12 @@ test("Zeitlimit im Container bricht ab und sagt es", async () => {
   const s = collector();
   const code = await run(job({ max_seconds: 1 }), deps(sdk, s));
   assert.equal(code, 1);
-  assert.match((s.e.at(-1) as any).text, /Timeout/);
+  assert.match((s.e.at(-1) as any).text, /Zeitlimit/);
 });
 
 test("Ohne Modell läuft nichts los", async () => {
   const s = collector();
   const d = deps(sdkFake([]), s);
   assert.equal(await run(job(), { ...d, env: {} }), 1);
-  assert.match((s.e[0] as any).text, /no Model/);
+  assert.match((s.e[0] as any).text, /kein Modell/);
 });

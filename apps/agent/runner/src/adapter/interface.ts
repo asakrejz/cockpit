@@ -3,8 +3,8 @@
 // als JSON-Zeilen-Ereignisse (siehe ereignis.ts und apps/agent/README.md). Alles, was ein Werkzeug
 // anders macht, bleibt im Adapter; das Backend sieht immer dieselben Ereignisformen.
 
-import type { Job } from "../auftrag.ts";
-import type { Sink } from "../ereignis.ts";
+import type { Job } from "../job.ts";
+import type { Sink } from "../event.ts";
 import type { Run } from "../git.ts";
 
 /** Zeilen von stdin: Antworten und Hinweise des Nutzers. */
@@ -21,7 +21,7 @@ export interface AdapterEnv {
   /** Antworten und Hinweise des Nutzers von stdin. */
   input: Input;
   /** Arbeitsverzeichnis im Container. */
-  wurzel: string;
+  root: string;
   now: () => number;
   /** Die Umgebungsvariablen des Containers (Modell, Endpunkt, Key). Nie ausgeben. */
   env: Record<string, string | undefined>;

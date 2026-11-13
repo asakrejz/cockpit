@@ -1,13 +1,13 @@
-import type { Event } from "../src/ereignis.ts";
-import { type Job, checkJob } from "../src/auftrag.ts";
+import type { Event } from "../src/event.ts";
+import { type Job, checkJob } from "../src/job.ts";
 import type { Input, QueryOptions, Sdk, SdkMessage } from "../src/adapter/claude-agent-sdk.ts";
 
-export function job(teil: Record<string, unknown> = {}): Job {
+export function job(part: Record<string, unknown> = {}): Job {
   return checkJob({
     mode: "implement",
     ticket: { key: "BAU-142", title: "Fokus-Ring fehlt", description: "Der Toggle zeigt keinen Fokus.", comments: ["Bitte auch Tastatur"] },
     branch: "claude/BAU-142-fokus-ring",
-    ...teil,
+    ...part,
   });
 }
 

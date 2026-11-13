@@ -1,11 +1,11 @@
 // Adapter „claude-agent-sdk“: der Ablauf eines Laufs mit dem Claude Agent SDK. Das SDK, die Zeilen von stdin, Git und die Uhr kommen von außen
 // (`Abhaengigkeiten`), damit der Ablauf ohne Netz und ohne SDK getestet werden kann.
 
-import { type Job, tasksText, systemText } from "../auftrag.ts";
-import { type Sink, truncate } from "../ereignis.ts";
+import { type Job, tasksText, systemText } from "../job.ts";
+import { type Sink, truncate } from "../event.ts";
 import { type Run, record } from "../git.ts";
-import { type Policy, decide } from "../richtlinie.ts";
-import type { Adapter, Input } from "./schnittstelle.ts";
+import { type Policy, decide } from "../policy.ts";
+import type { Adapter, Input } from "./interface.ts";
 
 export type { Input };
 
@@ -45,7 +45,7 @@ export interface Dependencies {
   git: Run;
   input: Input;
   /** Arbeitsverzeichnis im Container. */
-  wurzel: string;
+  root: string;
   now: () => number;
   env: Record<string, string | undefined>;
 }
@@ -97,7 +97,7 @@ export function describe(name: string, input: Record<string, any>): { title: str
 }
 
 /** Zieht den Plan (JSON-Block) aus der Antwort des Modells; ohne Block wird die Antwort zur Zusammenfassung. */
-export function planAusAnswer(text: string): { summary: string; files: string[]; steps: string[] } {
+export function planFromAnswer(text: string): { summary: string; files: string[]; steps: string[] } {
   const block = /```json\s*([\s\S]*?)```/i.exec(text)?.[1] ?? /(\{[\s\S]*\})/.exec(text)?.[1];
   if (block) {
     try {
@@ -129,9 +129,9 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
   const plan = a.mode === "plan";
   const input = new Queue<unknown>();
   const cancel = new AbortController();
-  const frist = setTimeout(() => cancel.abort(), a.max_seconds * 1000);
+  const deadline = setTimeout(() => cancel.abort(), a.max_seconds * 1000);
   const policy: Policy = {
-    wurzel: d.wurzel,
+    root: d.root,
     allowed: a.rules.allowed_paths,
     forbidden: a.rules.forbidden_paths,
   };
@@ -164,7 +164,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
   };
 
   const options: QueryOptions = {
-    cwd: d.wurzel,
+    cwd: d.root,
     model: model,
     systemPrompt: systemText(a),
     permissionMode: plan ? "plan" : "default",
@@ -207,7 +207,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
             first = false;
             if (Writer.has(String(b.name))) {
               const p = String(b.input?.file_path ?? "");
-              const rel = p.startsWith(`${d.wurzel}/`) ? p.slice(d.wurzel.length + 1) : p;
+              const rel = p.startsWith(`${d.root}/`) ? p.slice(d.root.length + 1) : p;
               if (rel && !changed.has(rel)) {
                 changed.add(rel);
                 d.sink({ t: "files", files: [...changed] });
@@ -222,7 +222,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
         }
       } else if (m.type === "result") {
         if (m.subtype === "success" && !m.is_error) endText = m.result ?? endText;
-        else error = (m.errors ?? []).join("; ") || `Das Modell hat den Lauf mit „${m.subtype ?? "Error"}“ beendet.`;
+        else error = (m.errors ?? []).join("; ") || `Das Modell hat den Lauf mit „${m.subtype ?? "Fehler"}“ beendet.`;
         input.close();
       }
     }
@@ -231,7 +231,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
       ? `Das Zeitlimit von ${Math.round(a.max_seconds / 60)} Minuten im Container ist überschritten.`
       : `Das SDK meldet: ${(e as Error).message}`;
   } finally {
-    clearTimeout(frist);
+    clearTimeout(deadline);
     input.close();
     answers.close();
   }
@@ -242,12 +242,12 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
     return 1;
   }
   if (plan) {
-    const p = planAusAnswer(endText);
+    const p = planFromAnswer(endText);
     d.sink({ t: "plan", summary: p.summary, files: p.files, steps: p.steps });
     return 0;
   }
   try {
-    const f = await record(d.git, d.wurzel, a.branch, `${a.ticket.key}: ${a.ticket.title}\n\nUmgesetzt vom Cockpit-Agenten.`);
+    const f = await record(d.git, d.root, a.branch, `${a.ticket.key}: ${a.ticket.title}\n\nUmgesetzt vom Cockpit-Agenten.`);
     if (!f) {
       d.sink({ t: "error", text: "Der Agent hat nichts geändert, es gibt nichts zu pushen." });
       return 1;
@@ -262,7 +262,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
 }
 
 /** Lädt das echte SDK (erst im Container; die Tests geben eine Attrappe mit). */
-export async function ladeSdk(): Promise<Sdk> {
+export async function loadSdk(): Promise<Sdk> {
   const m: any = await import("@anthropic-ai/claude-agent-sdk");
   const { z } = await import("zod");
   return {
@@ -285,8 +285,8 @@ export async function ladeSdk(): Promise<Sdk> {
   };
 }
 
-/** Der Adapter für `COCKPIT_ANBIETER=claude-agent-sdk`. `sdk` lädt das SDK erst bei Bedarf. */
-export function claudeAgentSdk(sdk: () => Promise<Sdk> = ladeSdk): Adapter {
+/** Der Adapter für `COCKPIT_PROVIDER=claude-agent-sdk`. `sdk` lädt das SDK erst bei Bedarf. */
+export function claudeAgentSdk(sdk: () => Promise<Sdk> = loadSdk): Adapter {
   return {
     name: "claude-agent-sdk",
     async run(job, d) {

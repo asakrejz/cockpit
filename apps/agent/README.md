@@ -11,7 +11,7 @@ Verzeichnis enthält das Image:
 
 Jedes Agenten-Werkzeug ist ein Adapter in `runner/src/adapter/` mit der gemeinsamen Schnittstelle aus
 `schnittstelle.ts`: Auftrag rein (plus Senke, Git, stdin-Eingang, Umgebung), JSON-Zeilen-Ereignisse raus
-(Tabelle unten), Exit-Code als Ergebnis. `COCKPIT_ANBIETER` (Standard `claude-agent-sdk`; im Image gesetzt) wählt den
+(Tabelle unten), Exit-Code als Ergebnis. `COCKPIT_PROVIDER` (Standard `claude-agent-sdk`; im Image gesetzt) wählt den
 Adapter; unbekannte und noch nicht umgesetzte Namen ergeben ein `fehler`-Ereignis in Klartext.
 
 | Adapter | Stand | Werkzeug |

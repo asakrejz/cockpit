@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { MAX_TEXT, stdoutSink, line } from "../src/ereignis.ts";
+import { MAX_TEXT, stdoutSink, line } from "../src/event.ts";
 
 test("eine Zeile enthält keinen Zeilenumbruch und ist gültiges JSON", () => {
   const z = line({ t: "error", text: "a\nb\r\nc" });
