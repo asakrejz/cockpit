@@ -36,6 +36,11 @@ impl Workspace {
         options: AgentOptions,
     ) -> Result<(), AgentError> {
         let mut run = self.run(ticket_key).ok_or(AgentError::UnknownTicket)?;
+        // The repo the user (or the backend, by the routing rules) chose wins over the default.
+        if let Some(repo) = options.repo.clone().filter(|r| !r.is_empty()) {
+            run.rules = self.rules_for(&repo);
+            run.repo = repo;
+        }
         // Follow-up jobs start via the review, not via a ticket.
         if run.is_followup() {
             return Err(AgentError::UnknownTicket);
@@ -80,7 +85,7 @@ impl Workspace {
             .iter()
             .find(|r| r.key() == key)
             .map(|r| r.ticket_key.clone())?;
-        self.items.iter_mut().find(|i| i.key == item_key)
+        self.items.iter_mut().find(|i| i.matches_run_key(&item_key))
     }
 
     pub(super) fn clear_agent_note(&mut self, key: &str) {

@@ -14,7 +14,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use cockpit_core::api::{AgentStatus, ContainerCheck, ContainerStatus, ImageBuild};
-use cockpit_core::{Action, ActionError, Actor, AgentReport, RunKind, RunState, Workspace};
+use cockpit_core::{
+    Action, ActionError, Actor, AgentRepos, AgentReport, RepoChoice, RunKind, RunState, Workspace,
+};
 use cockpit_integrations::Secret;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
@@ -90,7 +92,6 @@ struct Access {
     endpoint_url: Option<String>,
     key: Secret,
     model: String,
-    repo: String,
     git_base: String,
     github: Secret,
 }
@@ -164,15 +165,71 @@ impl AppState {
         }
     }
 
-    fn repo_name(&self) -> Result<String, String> {
-        let q = self.sources();
-        let github: Vec<String> = q
+    /// The repos the agent may work in, with the routing rules and the default.
+    pub(crate) fn agent_repos(&self) -> AgentRepos {
+        let cfg = match self.inner.agent_repo_config.read() {
+            Ok(c) => c.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        };
+        let github: Vec<String> = self
+            .sources()
             .github
             .as_ref()
             .map(|g| g.repos.clone())
             .unwrap_or_default();
-        agent_run::repo_choose(self.inner.settings.agent_repo.as_deref(), &github)
-            .map(str::to_string)
+        agent_run::repos_effective(&cfg.repos, cfg.default.as_deref(), &github)
+    }
+
+    /// The repos as configured, without the fallback to the sync repos (for the assistant).
+    pub(crate) fn agent_repos_config(&self) -> AgentRepos {
+        let cfg = match self.inner.agent_repo_config.read() {
+            Ok(c) => c.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        };
+        AgentRepos {
+            repos: cfg.repos,
+            default: cfg.default,
+        }
+    }
+
+    /// Settles the repo of a start before it is applied: the user's choice if it is one of
+    /// the configured repos, otherwise the one the routing rules name for the ticket's Jira
+    /// project, otherwise the default. In real mode a start without any repo is rejected with
+    /// the reason; the simulation keeps its own default. Everything else passes unchanged.
+    pub(crate) fn agent_route(&self, action: Action) -> Result<Action, String> {
+        let Action::StartAgent { ticket, mut options } = action else {
+            return Ok(action);
+        };
+        let repos = self.agent_repos();
+        if let Some(chosen) = options.repo.clone().filter(|r| !r.is_empty()) {
+            if !repos.allows(&chosen) {
+                return Err(format!(
+                    "Das Repo „{chosen}“ ist für den Agenten nicht freigegeben. Trage es unter „Einrichten“ › „GitHub“ ein."
+                ));
+            }
+        } else {
+            let ws = self.inner.live.copy();
+            let project = ws
+                .item_by_key(&ticket)
+                .and_then(cockpit_core::Item::project)
+                .map(str::to_string);
+            match repos.choose(project.as_deref()) {
+                RepoChoice::Rule(r) | RepoChoice::Default(r) => {
+                    options.base_branch = repos.base_branch(&r);
+                    options.repo = Some(r);
+                }
+                RepoChoice::None if self.agent_real() => {
+                    return Err(match project {
+                        Some(p) => format!(
+                            "Für das Jira-Projekt {p} ist kein Repo zugeordnet und es gibt kein Standard-Repo. Wähle vor dem Start ein Repo aus."
+                        ),
+                        None => "Es gibt kein Standard-Repo. Wähle vor dem Start ein Repo aus.".into(),
+                    });
+                }
+                RepoChoice::None => {}
+            }
+        }
+        Ok(Action::StartAgent { ticket, options })
     }
 
     /// The state of the agent for `/api/health`. Blocking.
@@ -183,17 +240,26 @@ impl AppState {
             .filter(|_| container.engine_running)
             .is_some_and(|cli| self.image_present(&cli));
         let choice = self.agent_choice();
-        let repo = self.repo_name();
+        let repos = self.agent_repos();
+        let repo = repos
+            .repos
+            .first()
+            .map(|r| r.repo.as_str())
+            .ok_or_else(|| agent_run::NO_REPO.to_string());
         let v = Prerequisites {
             container: &container,
             image,
             provider: choice.provider,
             model: choice.endpoint.as_ref().is_some_and(|e| e.model.is_some()),
             key: self.agent_key().is_some(),
-            repo: repo.as_deref().map_err(Clone::clone),
+            repo,
             github_access: self.github_access().is_some(),
         };
-        agent_run::status(self.agent_real(), &v)
+        let mut status = agent_run::status(self.agent_real(), &v);
+        // The interface preselects the repo with the same rules the backend applies.
+        status.repo = repos.default.clone();
+        status.repos = repos;
+        status
     }
 
     /// Everything for a run, or the list of what is missing. Blocking.
@@ -227,7 +293,6 @@ impl AppState {
             model: endpoint
                 .model
                 .ok_or_else(|| vec!["Der Modellname fehlt.".to_string()])?,
-            repo: st.repo.ok_or_else(|| vec!["Das Repo fehlt.".to_string()])?,
             git_base: self
                 .inner
                 .settings

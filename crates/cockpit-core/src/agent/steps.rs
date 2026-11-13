@@ -12,16 +12,16 @@ impl AgentRun {
         let texts = match &self.kind {
             RunKind::Implement => self.implement_texts(),
             RunKind::AddressReview { review, comments } => {
-                self.address_texts(*review, comments.len())
+                self.address_texts(review, comments.len())
             }
-            RunKind::Diagnose { review, check } => self.diagnose_texts(*review, check),
+            RunKind::Diagnose { review, check } => self.diagnose_texts(review, check),
         };
         self.build_steps(texts)
     }
 
     pub(super) fn address_texts(
         &self,
-        review: u32,
+        review: &PrKey,
         comments: usize,
     ) -> [(&'static str, String); STEPS] {
         let o = &self.options;
@@ -29,7 +29,7 @@ impl AgentRun {
             (
                 "Kommentare gelesen",
                 format!(
-                    "{} aus Review #{review} ausgewertet",
+                    "{} aus Review {review} ausgewertet",
                     plural_comments(comments)
                 ),
             ),
@@ -61,14 +61,14 @@ impl AgentRun {
 
     pub(super) fn diagnose_texts(
         &self,
-        review: u32,
+        review: &PrKey,
         check: &str,
     ) -> [(&'static str, String); STEPS] {
         let code = self.diagnosis.as_ref().is_none_or(Diagnosis::changes_code);
         [
             (
                 "Log gelesen",
-                format!("Check „{check}“ von #{review}: Ausgabe ausgewertet"),
+                format!("Check „{check}“ von {review}: Ausgabe ausgewertet"),
             ),
             (
                 "Ursache eingegrenzt",

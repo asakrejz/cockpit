@@ -22,7 +22,7 @@ fn linking_by_hand_connects_both_sides() {
     fails(
         &mut w,
         link("bau150", 87),
-        ActionError::Link(LinkError::TicketHasPr(85)),
+        ActionError::Link(LinkError::TicketHasPr(PrKey::new("asakrejz/rust-playground", 85))),
     );
     fails(
         &mut w,
@@ -32,7 +32,7 @@ fn linking_by_hand_connects_both_sides() {
     fails(
         &mut w,
         link("bau142", 999),
-        ActionError::Link(LinkError::UnknownPr(999)),
+        ActionError::Link(LinkError::UnknownPr(999.into())),
     );
     fails(&mut w, link("pr87", 85), ActionError::NotATicket);
     fails(
@@ -48,7 +48,7 @@ fn unlinking_removes_both_sides_and_the_branch_it_brought() {
     w.pr_status_off = true;
     ok(&mut w, link("bau150", 85), 1);
     let applied = ok(&mut w, unlink("bau150"), 1);
-    assert_eq!(applied.summary, "Verknüpfung von BAU-150 mit #85 gelöst");
+    assert_eq!(applied.summary, "Verknüpfung von BAU-150 mit asakrejz/rust-playground#85 gelöst");
     let ticket = w.item("bau150").unwrap();
     assert_eq!((ticket.pr.clone(), ticket.branch.clone()), (None, None));
     assert_eq!(w.review(85).unwrap().ticket_key, None);
@@ -74,9 +74,12 @@ fn the_branch_or_title_links_automatically() {
     let mut w = ws();
     w.pr_status_off = true;
     name_pr85(&mut w, "feature/bau-150-sheet", "Sheet");
-    assert_eq!(w.auto_links(), [("bau150".to_string(), 85)]);
+    assert_eq!(
+        w.auto_links(),
+        [("bau150".to_string(), w.review(85).unwrap().key())]
+    );
     let applied = ok(&mut w, Action::AutoLinkPrs, 1);
-    assert_eq!(applied.summary, "BAU-150 automatisch mit #85 verknüpft");
+    assert_eq!(applied.summary, "BAU-150 automatisch mit asakrejz/rust-playground#85 verknüpft");
     let entry = w.log.last().unwrap();
     assert_eq!(
         entry.actor,
@@ -132,7 +135,10 @@ fn a_link_removed_by_hand_is_not_set_again() {
     name_pr85(&mut w, "feature/bau-150-sheet", "Sheet");
     ok(&mut w, Action::AutoLinkPrs, 1);
     ok(&mut w, unlink("bau150"), 1);
-    assert_eq!(w.unlinked, [(85, "BAU-150".to_string())]);
+    assert_eq!(
+        w.unlinked,
+        [(w.review(85).unwrap().key(), "BAU-150".to_string())]
+    );
     fails(&mut w, Action::AutoLinkPrs, ActionError::NothingToDo);
     // Linking by hand still works and lifts the lock.
     ok(&mut w, link("bau150", 85), 1);

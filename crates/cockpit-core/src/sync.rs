@@ -22,7 +22,7 @@ use serde::{Deserialize, Serialize};
 use crate::action::Target;
 use crate::agent::AgentRun;
 use crate::demo;
-use crate::model::{Checks, Item, Source, TicketStatus};
+use crate::model::{Checks, Item, PrKey, Source, TicketStatus};
 use crate::review::{FileDiff, LineComment, Review};
 use crate::workspace::Workspace;
 
@@ -71,8 +71,8 @@ pub struct Loaded {
     pub warnings: Vec<String>,
 }
 
-/// Which repo a pull request belongs to. The model knows reviews only by number;
-/// for write access the backend needs the repo.
+/// Which repo a pull request belongs to (and its last known commit). Reviews carry the
+/// repo themselves; the link is what the backend needs for write access.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PrLink {
     pub number: u32,
@@ -81,6 +81,12 @@ pub struct PrLink {
     /// Last known commit of the branch (saves the diff on the next fetch).
     #[serde(default)]
     pub head_sha: String,
+}
+
+impl PrLink {
+    pub fn key(&self) -> PrKey {
+        PrKey::new(&self.repo, self.number)
+    }
 }
 
 // ---------- State per source ----------
@@ -180,8 +186,10 @@ impl SyncState {
         self.items.iter().any(|i| i == item_id)
     }
 
-    pub fn pr(&self, number: u32) -> Option<&PrLink> {
-        self.prs.iter().find(|p| p.number == number)
+    /// The link of a pull request; a plain number finds the first with that number.
+    pub fn pr(&self, key: impl Into<PrKey>) -> Option<&PrLink> {
+        let key = key.into();
+        self.prs.iter().find(|p| key.matches(&p.repo, p.number))
     }
 
     /// Until when does the sync of this source pause because of the quota?
@@ -247,16 +255,16 @@ pub enum Change {
     },
     ChecksChanged {
         id: String,
-        number: u32,
+        number: PrKey,
         to: Checks,
     },
     ChangesRequested {
         id: String,
-        number: u32,
+        number: PrKey,
     },
     /// An own, not yet sent comment no longer fits the diff after new commits.
     DraftDropped {
-        number: u32,
+        number: PrKey,
         place: String,
         text: String,
     },
@@ -287,17 +295,17 @@ impl Change {
                 )
             }
             Change::ChecksChanged { number, to, .. } => {
-                format!("Checks für #{number}: {}", to.label())
+                format!("Checks für {number}: {}", to.label())
             }
             Change::ChangesRequested { number, .. } => {
-                format!("Änderungen angefordert in #{number}")
+                format!("Änderungen angefordert in {number}")
             }
             Change::DraftDropped {
                 number,
                 place,
                 text,
             } => format!(
-                "Dein Entwurf an {place} in #{number} passt nicht mehr zum geänderten Diff und entfällt: „{text}“"
+                "Dein Entwurf an {place} in {number} passt nicht mehr zum geänderten Diff und entfällt: „{text}“"
             ),
             Change::SourceProblem { source, problem } => {
                 format!("{}: {}", source.label(), problem.text())
@@ -315,7 +323,7 @@ impl Change {
             | Change::StatusChanged { id, .. }
             | Change::ChecksChanged { id, .. }
             | Change::ChangesRequested { id, .. } => Some(Target::Item(id.clone())),
-            Change::DraftDropped { number, .. } => Some(Target::Review(*number)),
+            Change::DraftDropped { number, .. } => Some(Target::Review(number.clone())),
             Change::SourceProblem { .. } | Change::SourceRecovered { .. } | Change::Summary(_) => {
                 None
             }
@@ -377,7 +385,7 @@ fn drop_demo(ws: &mut Workspace) {
     ws.items
         .retain(|i| !demo.items.iter().any(|d| d.id == i.id) || ws.sync.is_synced(&i.id));
     ws.reviews.retain(|r| {
-        ws.sync.pr(r.number).is_some() || !demo.reviews.iter().any(|d| d.number == r.number)
+        ws.sync.pr(r.key()).is_some() || !demo.reviews.iter().any(|d| d.key() == r.key())
     });
     ws.runs
         .retain(|r| !demo.runs.iter().any(|d: &AgentRun| d == r));
@@ -505,7 +513,7 @@ fn merge_item(old: Item, remote: &Item, changes: &mut Vec<Change>) -> Item {
         if new.checks != prev.checks {
             changes.push(Change::ChecksChanged {
                 id: item.id.clone(),
-                number: new.number,
+                number: new.key(),
                 to: new.checks,
             });
             bump = true;
@@ -513,7 +521,7 @@ fn merge_item(old: Item, remote: &Item, changes: &mut Vec<Change>) -> Item {
         if new.changes_requested && !prev.changes_requested {
             changes.push(Change::ChangesRequested {
                 id: item.id.clone(),
-                number: new.number,
+                number: new.key(),
             });
             bump = true;
         }
@@ -532,7 +540,7 @@ fn merge_reviews(ws: &mut Workspace, loaded: &Loaded, changes: &mut Vec<Change>)
     let mut kept = Vec::with_capacity(old.len());
     let mut by_number: Vec<Review> = Vec::new();
     for review in old {
-        if ws.sync.pr(review.number).is_some() {
+        if ws.sync.pr(review.key()).is_some() {
             by_number.push(review);
         } else {
             kept.push(review);
@@ -541,12 +549,12 @@ fn merge_reviews(ws: &mut Workspace, loaded: &Loaded, changes: &mut Vec<Change>)
     // Reviews that no longer exist on GitHub disappear (only linked ones).
     let mut merged: Vec<Review> = Vec::new();
     for r in &loaded.reviews {
-        let previous = by_number.iter().position(|o| o.number == r.number);
+        let previous = by_number.iter().position(|o| o.key().same(&r.key()));
         let review = match previous {
             Some(i) => merge_review(by_number.remove(i), r, changes),
             None => {
                 // Number already taken locally (example or simulation): the service wins.
-                kept.retain(|k| k.number != r.number);
+                kept.retain(|k| !k.key().same(&r.key()));
                 r.clone()
             }
         };
@@ -614,7 +622,7 @@ fn carry_drafts(
                 ..draft.clone()
             }),
             None => changes.push(Change::DraftDropped {
-                number: old.number,
+                number: old.key(),
                 place: match line {
                     Some(l) => format!("{}, Zeile {}", draft.file, l.no),
                     None => draft.file.clone(),

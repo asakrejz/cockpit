@@ -4,7 +4,9 @@
 //! If a source fails, its state in the workspace stays unchanged; the error becomes the
 //! [`Problem`] of the source. The fetch itself writes nothing.
 
-use cockpit_core::{Loaded, Outcome, PrLink, Remote, Review, Source, SourceData, Workspace};
+use cockpit_core::{
+    Loaded, Outcome, PrKey, PrLink, Remote, Review, Source, SourceData, Workspace,
+};
 
 use crate::Error;
 use crate::github::{
@@ -49,6 +51,7 @@ impl Services {
                 .as_ref()
                 .map(|g| g.repos.clone())
                 .unwrap_or_default(),
+            routing: cockpit_core::AgentRepos::default(),
         }
     }
 
@@ -141,14 +144,6 @@ pub async fn github_load(
             if seen.iter().any(|(r, n)| r == repo && *n == nr) {
                 continue;
             }
-            // The model knows reviews only by number: equal numbers from other repos
-            // cannot be told apart.
-            if let Some((other, _)) = seen.iter().find(|(_, n)| *n == nr) {
-                out.warnings.push(format!(
-                    "#{nr} aus {repo} ausgelassen: die Nummer gehört schon zu {other}"
-                ));
-                continue;
-            }
             seen.push((repo.clone(), nr));
             match pull_load(client, repo, nr, relation, &me, known, now_s).await {
                 Ok((item, review, link)) => {
@@ -182,11 +177,13 @@ async fn pull_load(
     let lines = client.line_comments(repo, nr).await?;
 
     // The diff only changes with a new commit.
+    let key = PrKey::new(repo, nr);
     let unchanged = known
         .sync
-        .pr(nr)
+        .pr(&key)
         .filter(|l| l.repo == repo && l.head_sha == pull.head.sha)
-        .and_then(|_| known.review(nr));
+        .and_then(|_| known.review(&key))
+        .filter(|r| r.repo == repo || r.repo.is_empty());
     let files = match unchanged {
         Some(_) => Vec::new(),
         None => client.files(repo, nr).await?,
@@ -200,6 +197,7 @@ async fn pull_load(
         pr.changes_requested = changes_requested(&verdicts, me);
     }
     let mut review = pull_to_review(&pull, &files, checks);
+    review.repo = repo.to_string();
     if let Some(old) = unchanged {
         review.files = old.files.clone();
     }

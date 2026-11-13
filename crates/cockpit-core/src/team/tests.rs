@@ -124,12 +124,12 @@ fn stuck_entries_name_reason_and_target() {
     let failed = by_key("#85");
     assert_eq!(failed.who.name, "Mira");
     assert!(failed.reason.contains("Mira"));
-    assert_eq!(failed.review, Some(85));
+    assert_eq!(failed.review.as_ref().map(|k| k.number), Some(85));
 
     let agent = by_key("BAU-138");
     assert_eq!(agent.who, Person::me());
     assert!(agent.reason.contains("#91"));
-    assert_eq!(agent.review, Some(91));
+    assert_eq!(agent.review.as_ref().map(|k| k.number), Some(91));
 
     let review = by_key("#87");
     assert!(review.reason.starts_with("Jonas wartet"));

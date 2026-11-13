@@ -4,7 +4,7 @@ use super::*;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ActionError {
     UnknownItem(String),
-    UnknownReview(u32),
+    UnknownReview(PrKey),
     UnknownSuggestion(String),
     UnknownComment(String),
     /// No ticket with this key.
@@ -23,7 +23,7 @@ pub enum ActionError {
     /// No check with this name.
     UnknownCheck(String),
     /// The pull request is merged and can no longer be changed.
-    Merged(u32),
+    Merged(PrKey),
     /// Linking ticket and pull request is not possible.
     Link(LinkError),
     /// This person does not exist in the team.
@@ -51,7 +51,7 @@ impl ActionError {
     pub fn message(&self) -> String {
         match self {
             ActionError::UnknownItem(id) => format!("Eintrag „{id}“ gibt es nicht"),
-            ActionError::UnknownReview(n) => format!("Review #{n} gibt es nicht"),
+            ActionError::UnknownReview(n) => format!("Review {n} gibt es nicht"),
             ActionError::UnknownSuggestion(id) => format!("Vorschlag „{id}“ gibt es nicht"),
             ActionError::UnknownComment(id) => format!("Kommentar „{id}“ gibt es nicht"),
             ActionError::UnknownTicket(key) => format!("Ticket „{key}“ gibt es nicht"),
@@ -108,7 +108,7 @@ impl ActionError {
             ActionError::Link(LinkError::PrHasTicket(key)) => {
                 format!("Der Pull Request gehört schon zu {key}")
             }
-            ActionError::Merged(n) => format!("#{n} ist schon gemergt und bleibt, wie es ist"),
+            ActionError::Merged(n) => format!("{n} ist schon gemergt und bleibt, wie es ist"),
             ActionError::MergeNotAllowed(actor) => format!(
                 "Nur du darfst mergen – {} nicht",
                 match actor {

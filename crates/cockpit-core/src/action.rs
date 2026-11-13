@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::agent::{AgentOptions, AgentReport, AgentRun, RunKind, STEPS};
 use crate::attention::Rule;
 use crate::demo;
-use crate::model::{Checks, Item, Person, Priority, TicketStatus};
+use crate::model::{Checks, Item, Person, PrKey, Priority, TicketStatus};
 use crate::notify::{Channel, NotifyReason, QuietHours};
 use crate::review::{Decision, MergeBlocker, MergeMethod, SendError, Verdict};
 use crate::rules::{PathViolation, RepoRules};
@@ -82,7 +82,7 @@ pub enum Action {
     /// Link the ticket (`item`) with a pull request (`pr`).
     LinkPr {
         item: String,
-        pr: u32,
+        pr: PrKey,
     },
     /// Remove the link of a ticket. The automation does not set it again.
     UnlinkPr {
@@ -92,7 +92,7 @@ pub enum Action {
     AutoLinkPrs,
     /// Request a review for the pull request.
     RequestReview {
-        review: u32,
+        review: PrKey,
     },
     /// The tick: bring the status of linked tickets in line with the pull request.
     SyncTicketStatus,
@@ -107,18 +107,18 @@ pub enum Action {
     },
     // Review
     Decide {
-        review: u32,
+        review: PrKey,
         suggestion: String,
         decision: Option<Decision>,
     },
     EditSuggestion {
-        review: u32,
+        review: PrKey,
         suggestion: String,
         text: String,
     },
     /// Own comment on a diff line, optionally with replacement code for the line.
     AddLineComment {
-        review: u32,
+        review: PrKey,
         file: String,
         line: usize,
         text: String,
@@ -127,37 +127,37 @@ pub enum Action {
     },
     /// Replaces text and suggestion; without `suggestion` the suggestion is dropped.
     EditLineComment {
-        review: u32,
+        review: PrKey,
         comment: String,
         text: String,
         #[serde(default)]
         suggestion: Option<String>,
     },
     DeleteLineComment {
-        review: u32,
+        review: PrKey,
         comment: String,
     },
     SetVerdict {
-        review: u32,
+        review: PrKey,
         verdict: Verdict,
     },
     RequestAgentReview {
-        review: u32,
+        review: PrKey,
     },
     SendReview {
-        review: u32,
+        review: PrKey,
         comment: String,
     },
     /// Restarts a failed check (`check` is its name).
     RestartCheck {
-        review: u32,
+        review: PrKey,
         check: String,
     },
     /// The tick of the checks: every running one advances one step.
     AdvanceChecks,
     /// Merges the pull request. Only `Actor::User` may do that.
     MergePr {
-        review: u32,
+        review: PrKey,
         method: MergeMethod,
     },
     // Agent (`ticket` is the key, e.g. `BAU-142`)
@@ -205,14 +205,14 @@ pub enum Action {
     /// Follow-up job: the agent implements comments of a review (IDs of the line comments)
     /// and pushes to the pull request's branch. The run is then called `review-<number>`.
     AddressReview {
-        review: u32,
+        review: PrKey,
         comments: Vec<String>,
         options: AgentOptions,
     },
     /// Follow-up job: the agent investigates a red check and presents a diagnosis.
     /// The run is then called `check-<number>-<check>`.
     InvestigateCheck {
-        review: u32,
+        review: PrKey,
         check: String,
     },
     /// Adopts the fix of the diagnosis (`run` is the key of the run): the agent pushes it
@@ -311,8 +311,8 @@ impl Actor {
 pub enum Target {
     /// An inbox entry (internal ID).
     Item(String),
-    /// A review (number of the pull request).
-    Review(u32),
+    /// A review (the pull request; old logs hold the plain number).
+    Review(PrKey),
     /// The run of an agent (ticket key).
     Run(String),
     /// The settings (notifications).
@@ -418,17 +418,17 @@ impl Workspace {
             .ok_or_else(|| ActionError::UnknownItem(id.to_string()))
     }
 
-    fn need_review(&self, number: u32) -> Result<(), ActionError> {
+    fn need_review(&self, number: &PrKey) -> Result<(), ActionError> {
         self.review(number)
             .map(|_| ())
-            .ok_or(ActionError::UnknownReview(number))
+            .ok_or_else(|| ActionError::UnknownReview(number.clone()))
     }
 
     /// Like `need_review`, but a merged pull request can no longer be changed.
-    fn need_open_review(&self, number: u32) -> Result<(), ActionError> {
+    fn need_open_review(&self, number: &PrKey) -> Result<(), ActionError> {
         match self.review(number) {
-            None => Err(ActionError::UnknownReview(number)),
-            Some(r) if r.merged.is_some() => Err(ActionError::Merged(number)),
+            None => Err(ActionError::UnknownReview(number.clone())),
+            Some(r) if r.merged.is_some() => Err(ActionError::Merged(r.key())),
             Some(_) => Ok(()),
         }
     }

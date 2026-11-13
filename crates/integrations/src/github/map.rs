@@ -61,6 +61,7 @@ pub fn pull_to_item(repo: &str, pull: &Pull, checks: Checks, relation: Relation,
         branch: Some(pull.head.name.clone()),
         pr: Some(PrRef {
             number: pull.number,
+            repo: repo.to_string(),
             draft: pull.draft,
             checks,
             changes_requested: false,
@@ -90,6 +91,8 @@ pub fn pull_to_review(pull: &Pull, files: &[PullFile], checks: Checks) -> Review
     let ticket_key = text::ticket_key(&pull.head.name).or_else(|| text::ticket_key(&pull.title));
     Review {
         number: pull.number,
+        // The caller knows the repo (a pull request does not name its own).
+        repo: String::new(),
         title: pull.title.clone(),
         description: pull.body.clone().unwrap_or_default(),
         author: text::person(&pull.user.login),

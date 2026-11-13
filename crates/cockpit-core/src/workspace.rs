@@ -50,11 +50,11 @@ fn short_sha(seed: &str) -> String {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LinkError {
     /// There is no review (no pull request) with this number.
-    UnknownPr(u32),
+    UnknownPr(PrKey),
     /// The ticket is already attached to this pull request.
     Same,
-    /// The ticket already has a different pull request (number).
-    TicketHasPr(u32),
+    /// The ticket already has a different pull request.
+    TicketHasPr(PrKey),
     /// The pull request already belongs to a different ticket (key).
     PrHasTicket(String),
 }
@@ -65,7 +65,7 @@ pub struct StatusChange {
     /// Internal ID of the ticket.
     pub item: String,
     pub key: String,
-    pub pr: u32,
+    pub pr: PrKey,
     pub from: TicketStatus,
     pub to: TicketStatus,
 }
@@ -103,7 +103,7 @@ pub struct Workspace {
     /// Links resolved by hand `(pull request, ticket key)`: the automation
     /// does not set them again.
     #[serde(default)]
-    pub unlinked: Vec<(u32, String)>,
+    pub unlinked: Vec<(PrKey, String)>,
     /// Is the checkmark „status follows the pull request“ off? The switch-off is stored:
     /// that way the automation applies immediately in old states.
     #[serde(default)]
@@ -141,6 +141,12 @@ impl Workspace {
 
     pub fn item_by_key(&self, key: &str) -> Option<&Item> {
         self.items.iter().find(|i| i.key == key)
+    }
+
+    /// The entry a run hangs on (see [`Item::matches_run_key`]).
+    pub fn item_of_run(&self, run_ticket_key: &str) -> Option<&Item> {
+        self.item_by_key(run_ticket_key)
+            .or_else(|| self.items.iter().find(|i| i.matches_run_key(run_ticket_key)))
     }
 
     fn item_mut(&mut self, id: &str) -> Option<&mut Item> {
@@ -328,12 +334,18 @@ impl Workspace {
         self.rules.set(rule, enabled)
     }
 
-    pub fn review(&self, number: u32) -> Option<&Review> {
-        self.reviews.iter().find(|r| r.number == number)
+    /// The review of a pull request. A plain number (no repo) finds the first review with
+    /// that number; use a full [`PrKey`] wherever two repos can be involved.
+    pub fn review(&self, key: impl Into<PrKey>) -> Option<&Review> {
+        let key = key.into();
+        self.reviews.iter().find(|r| key.matches(&r.repo, r.number))
     }
 
-    fn review_mut(&mut self, number: u32) -> Option<&mut Review> {
-        self.reviews.iter_mut().find(|r| r.number == number)
+    fn review_mut(&mut self, key: impl Into<PrKey>) -> Option<&mut Review> {
+        let key = key.into();
+        self.reviews
+            .iter_mut()
+            .find(|r| key.matches(&r.repo, r.number))
     }
 
     /// Reviews that are not sent yet.
@@ -366,6 +378,7 @@ impl Workspace {
 mod agents;
 mod followups;
 mod limits;
+mod repos;
 mod review;
 #[cfg(test)]
 mod tests;

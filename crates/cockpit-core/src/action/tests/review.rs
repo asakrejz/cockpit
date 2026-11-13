@@ -12,7 +12,7 @@ fn merging_is_refused_until_every_condition_holds() {
     ok(
         &mut w,
         Action::SetVerdict {
-            review: 87,
+            review: 87.into(),
             verdict: Verdict::RequestChanges,
         },
         1,
@@ -32,7 +32,7 @@ fn merging_is_refused_until_every_condition_holds() {
     fails(
         &mut w,
         merge(1, MergeMethod::Merge),
-        ActionError::UnknownReview(1),
+        ActionError::UnknownReview(1.into()),
     );
 }
 
@@ -185,7 +185,7 @@ fn merging_marks_the_pull_request_and_finishes_the_ticket() {
     ok(
         &mut w,
         Action::SendReview {
-            review: 91,
+            review: 91.into(),
             comment: String::new(),
         },
         1,
@@ -198,7 +198,7 @@ fn merging_marks_the_pull_request_and_finishes_the_ticket() {
     assert_eq!(entry.target, Some(Target::Item("bau138".into())));
     assert_eq!(
         entry.text,
-        "Status von BAU-138 automatisch auf „Fertig“ gesetzt – #91 ist gemergt"
+        "Status von BAU-138 automatisch auf „Fertig“ gesetzt – asakrejz/rust-playground#91 ist gemergt"
     );
     assert_eq!(w.review(91).unwrap().merged, Some(MergeMethod::Rebase));
     let ticket = w.item("bau138").unwrap();
@@ -217,10 +217,10 @@ fn merging_marks_the_pull_request_and_finishes_the_ticket() {
     fails(
         &mut w,
         Action::SetVerdict {
-            review: 91,
+            review: 91.into(),
             verdict: Verdict::Approve,
         },
-        ActionError::Merged(91),
+        ActionError::Merged(PrKey::new("asakrejz/rust-playground", 91)),
     );
 }
 
@@ -240,7 +240,7 @@ fn merging_a_pull_request_without_ticket_marks_its_entry() {
     let entry = w.log.last().unwrap();
     assert_eq!(
         (entry.actor, &entry.target),
-        (Actor::User, &Some(Target::Review(87)))
+        (Actor::User, &Some(Target::Review(87.into())))
     );
 }
 
@@ -251,7 +251,7 @@ fn a_failed_check_can_be_restarted_and_turns_green_after_a_few_ticks() {
     fails(
         &mut w,
         Action::RestartCheck {
-            review: 85,
+            review: 85.into(),
             check: "Build".into(),
         },
         ActionError::NothingToDo,
@@ -259,7 +259,7 @@ fn a_failed_check_can_be_restarted_and_turns_green_after_a_few_ticks() {
     fails(
         &mut w,
         Action::RestartCheck {
-            review: 85,
+            review: 85.into(),
             check: "Gibt es nicht".into(),
         },
         ActionError::UnknownCheck("Gibt es nicht".into()),
@@ -268,7 +268,7 @@ fn a_failed_check_can_be_restarted_and_turns_green_after_a_few_ticks() {
     ok(
         &mut w,
         Action::RestartCheck {
-            review: 85,
+            review: 85.into(),
             check: "Tests (Browser)".into(),
         },
         1,
@@ -278,7 +278,7 @@ fn a_failed_check_can_be_restarted_and_turns_green_after_a_few_ticks() {
         ok(&mut w, Action::AdvanceChecks, 0);
     }
     let applied = ok(&mut w, Action::AdvanceChecks, 1);
-    assert_eq!(applied.summary, "Check „Tests (Browser)“ in #85 bestanden");
+    assert_eq!(applied.summary, "Check „Tests (Browser)“ in asakrejz/rust-playground#85 bestanden");
     assert_eq!(w.log.last().unwrap().actor, Actor::System);
     assert_eq!(w.running_checks(), 0);
     // The lint error is real: the overall state stays red.
@@ -288,7 +288,7 @@ fn a_failed_check_can_be_restarted_and_turns_green_after_a_few_ticks() {
     ok(
         &mut w,
         Action::RestartCheck {
-            review: 85,
+            review: 85.into(),
             check: "Lint".into(),
         },
         1,
@@ -314,7 +314,7 @@ fn green_checks_flow_into_the_inbox_entry() {
         ok(
             &mut w,
             Action::RestartCheck {
-                review: 85,
+                review: 85.into(),
                 check: check.into(),
             },
             1,
@@ -343,7 +343,7 @@ fn line_comment_suggestions_go_through_the_actions() {
     ok(
         &mut w,
         Action::AddLineComment {
-            review: 87,
+            review: 87.into(),
             file: file.clone(),
             line: 5,
             text: String::new(),
@@ -363,7 +363,7 @@ fn line_comment_suggestions_go_through_the_actions() {
     fails(
         &mut w,
         Action::EditLineComment {
-            review: 87,
+            review: 87.into(),
             comment: comment.id.clone(),
             text: String::new(),
             suggestion: None,
@@ -373,7 +373,7 @@ fn line_comment_suggestions_go_through_the_actions() {
     ok(
         &mut w,
         Action::EditLineComment {
-            review: 87,
+            review: 87.into(),
             comment: comment.id.clone(),
             text: "Besser so".into(),
             suggestion: None,
@@ -388,7 +388,7 @@ fn new_actions_survive_json_and_old_ones_still_parse() {
     for a in [
         merge(87, MergeMethod::Squash),
         Action::RestartCheck {
-            review: 85,
+            review: 85.into(),
             check: "Lint".into(),
         },
         Action::AdvanceChecks,

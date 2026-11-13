@@ -31,6 +31,15 @@ impl Relation {
     }
 }
 
+/// What a key may do in a repo (see [`GitHubClient::repo_access`]).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RepoAccess {
+    pub default_branch: String,
+    pub archived: bool,
+    /// `None` if the service does not say.
+    pub can_push: Option<bool>,
+}
+
 /// At most this many pull requests per relation are loaded per fetch.
 const MAX_PRS: usize = 30;
 /// Pages of 100 for files and comments (GitHub delivers at most 3000 files).
@@ -257,6 +266,17 @@ impl GitHubClient {
         self.send(&branch_request(repo, name, &r#ref.object.sha))
             .await
             .map(|_| ())
+    }
+
+    /// Read-only look at a repo: does it exist, may the key holder see it and push to it?
+    /// Changes nothing.
+    pub async fn repo_access(&self, repo: &str) -> Result<RepoAccess, Error> {
+        let r: Repo = self.lies_json(self.get(&format!("/repos/{repo}"))).await?;
+        Ok(RepoAccess {
+            default_branch: r.default_branch,
+            archived: r.archived,
+            can_push: r.permissions.map(|p| p.push),
+        })
     }
 
     /// Re-requests the check with this name on the current commit of the pull request.

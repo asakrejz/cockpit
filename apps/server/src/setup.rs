@@ -385,6 +385,7 @@ impl AppState {
                 .as_ref()
                 .map(|g| g.repos.clone())
                 .unwrap_or_default(),
+            agent_repos: self.agent_repos_config(),
             provider: choice.provider,
             endpoint_url: choice.endpoint.as_ref().and_then(|e| e.url.clone()),
             endpoint_model: choice.endpoint.and_then(|e| e.model),

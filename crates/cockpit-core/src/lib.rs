@@ -35,6 +35,7 @@ pub mod link;
 pub mod model;
 pub mod notify;
 pub mod persist;
+pub mod repos;
 pub mod review;
 pub mod rules;
 pub mod search;
@@ -62,6 +63,7 @@ pub use review::{
     MergeBlocker, MergeMethod, Review, SendError, Suggestion, SuggestionDiff, Verdict,
     merge_blockers,
 };
+pub use repos::{AgentRepo, AgentRepos, RepoChoice};
 pub use rules::{DEMO_REPO, PathViolation, RepoRules, ViolationKind, glob_match};
 pub use search::InboxFilter;
 pub use sync::{

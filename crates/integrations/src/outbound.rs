@@ -10,7 +10,7 @@
 //! The rule „only you may merge“ is checked by `Workspace::apply` and runs **before** the call.
 
 use cockpit_core::{
-    Action, Decision, LineKind, MergeMethod, Review, TicketStatus, Verdict, Workspace,
+    Action, Decision, LineKind, MergeMethod, PrKey, Review, TicketStatus, Verdict, Workspace,
 };
 use serde_json::{Value, json};
 
@@ -22,8 +22,11 @@ use crate::jira::{status_from, text_to_adf};
 pub struct Targets {
     pub github: bool,
     pub jira: bool,
-    /// Configured GitHub repos (`owner/name`); the first one receives a branch for a Jira ticket.
+    /// Configured GitHub repos (`owner/name`). A branch for a Jira ticket goes to the repo the
+    /// routing rules name for its project, otherwise to the first one.
     pub repos: Vec<String>,
+    /// Which repo a ticket belongs to (see [`cockpit_core::AgentRepos`]).
+    pub routing: cockpit_core::AgentRepos,
 }
 
 /// What has to be done at the service.
@@ -112,12 +115,13 @@ pub fn plane(
     action: &Action,
     targets: &Targets,
 ) -> Result<Option<Outbound>, PlanError> {
-    let repo_of_pr = |number: u32| -> Option<(String, String)> {
+    // `(repo, head commit, number)` of a synced pull request.
+    let repo_of_pr = |key: &PrKey| -> Option<(String, String, u32)> {
         before
             .sync
-            .pr(number)
+            .pr(key)
             .filter(|_| targets.github)
-            .map(|l| (l.repo.clone(), l.head_sha.clone()))
+            .map(|l| (l.repo.clone(), l.head_sha.clone(), l.number))
     };
     Ok(match action {
         Action::Reply { item, text } => {
@@ -134,9 +138,9 @@ pub fn plane(
                     text,
                 }),
                 (cockpit_core::Source::GitHub, Some(pr)) => {
-                    repo_of_pr(pr.number).map(|(repo, _)| Outbound::GitHubComment {
+                    repo_of_pr(&pr.key()).map(|(repo, _, number)| Outbound::GitHubComment {
                         repo,
-                        number: pr.number,
+                        number,
                         text,
                     })
                 }
@@ -161,7 +165,13 @@ pub fn plane(
             if !(i.source == cockpit_core::Source::Jira && targets.github) {
                 return Ok(None);
             }
-            let Some(repo) = targets.repos.first() else {
+            // The repo of the ticket's project if the rules name one that is synced.
+            let routed = targets
+                .routing
+                .choose(i.project())
+                .repo()
+                .and_then(|r| targets.repos.iter().find(|c| c.as_str() == r));
+            let Some(repo) = routed.or_else(|| targets.repos.first()) else {
                 return Err(PlanError(
                     "Für Branches ist kein GitHub-Repo konfiguriert".into(),
                 ));
@@ -176,27 +186,28 @@ pub fn plane(
             })
         }
         Action::SendReview { review, comment } => {
-            let (Some(r), Some((repo, sha))) = (before.review(*review), repo_of_pr(*review)) else {
+            let (Some(r), Some((repo, sha, number))) = (before.review(review), repo_of_pr(review))
+            else {
                 return Ok(None);
             };
             Some(Outbound::GitHubReview {
                 repo,
-                number: *review,
+                number,
                 review: review_data(r, comment, &sha),
             })
         }
         Action::MergePr { review, method } => {
-            repo_of_pr(*review).map(|(repo, sha)| Outbound::GitHubMerge {
+            repo_of_pr(review).map(|(repo, sha, number)| Outbound::GitHubMerge {
                 repo,
-                number: *review,
+                number,
                 method: *method,
                 sha,
             })
         }
         Action::RestartCheck { review, check } => {
-            repo_of_pr(*review).map(|(repo, _)| Outbound::GitHubRecheck {
+            repo_of_pr(review).map(|(repo, _, number)| Outbound::GitHubRecheck {
                 repo,
-                number: *review,
+                number,
                 check: check.clone(),
             })
         }

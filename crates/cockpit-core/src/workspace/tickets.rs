@@ -111,21 +111,26 @@ impl Workspace {
     // ---------- Link ticket and pull request ----------
 
     /// The ticket that belongs to this pull request (via the review).
-    pub fn ticket_of_pr(&self, number: u32) -> Option<&Item> {
+    pub fn ticket_of_pr(&self, number: impl Into<PrKey>) -> Option<&Item> {
         let key = self.review(number)?.ticket_key.as_deref()?;
         self.item_by_key(key).filter(|i| i.is_ticket())
     }
 
     /// The copy of the pull request for a ticket: the entry from the inbox, otherwise from the review.
-    pub(super) fn pr_ref_of(&self, number: u32) -> Option<PrRef> {
+    pub(super) fn pr_ref_of(&self, number: impl Into<PrKey>) -> Option<PrRef> {
+        let key = number.into();
         let from_item = self
             .items
             .iter()
             .filter(|i| i.kind == Kind::PullRequest)
-            .find_map(|i| i.pr.clone().filter(|p| p.number == number));
+            .find_map(|i| {
+                i.pr.clone()
+                    .filter(|p| key.matches(&p.repo, p.number))
+            });
         from_item.or_else(|| {
-            self.review(number).map(|r| PrRef {
-                number,
+            self.review(&key).map(|r| PrRef {
+                number: r.number,
+                repo: r.repo.clone(),
                 draft: false,
                 checks: r.checks,
                 changes_requested: false,
@@ -137,55 +142,61 @@ impl Workspace {
 
     /// Links a ticket with a pull request. The ticket gets the pull request (and,
     /// if it has none yet, the branch), the review gets the ticket.
-    pub fn link_pr(&mut self, ticket_id: &str, number: u32) -> Result<(), LinkError> {
+    pub fn link_pr(
+        &mut self,
+        ticket_id: &str,
+        number: impl Into<PrKey>,
+    ) -> Result<(), LinkError> {
+        let number = number.into();
         let key = self
             .item(ticket_id)
             .map(|i| i.key.clone())
             .unwrap_or_default();
-        let review = self.review(number).ok_or(LinkError::UnknownPr(number))?;
+        let review = self
+            .review(&number)
+            .ok_or_else(|| LinkError::UnknownPr(number.clone()))?;
         let branch = review.branch.clone();
-        if let Some(other) = self.ticket_of_pr(number).map(|t| t.key.clone()) {
+        let number = review.key();
+        if let Some(other) = self.ticket_of_pr(&number).map(|t| t.key.clone()) {
             return Err(if other == key {
                 LinkError::Same
             } else {
                 LinkError::PrHasTicket(other)
             });
         }
-        let current = self
-            .item(ticket_id)
-            .and_then(|i| i.pr.as_ref().map(|p| p.number));
+        let current = self.item(ticket_id).and_then(|i| i.pr.as_ref().map(PrRef::key));
         if let Some(n) = current {
             // If the ticket already points to this pull request, only the other side is missing.
-            if n != number
+            if !n.same(&number)
                 && self
-                    .review(n)
+                    .review(&n)
                     .is_some_and(|r| r.ticket_key.as_deref() == Some(&key))
             {
                 return Err(LinkError::TicketHasPr(n));
             }
         }
-        let pr = self.pr_ref_of(number);
+        let pr = self.pr_ref_of(&number);
         if let Some(item) = self.item_mut(ticket_id) {
             item.pr = pr;
             if item.branch.is_none() && !branch.is_empty() {
                 item.branch = Some(branch);
             }
         }
-        if let Some(review) = self.review_mut(number) {
+        if let Some(review) = self.review_mut(&number) {
             review.ticket_key = Some(key.clone());
         }
-        self.unlinked.retain(|(n, k)| !(*n == number && *k == key));
+        self.unlinked.retain(|(n, k)| !(n.same(&number) && *k == key));
         Ok(())
     }
 
-    /// Removes the link of a ticket. Returns the number of the pull request.
+    /// Removes the link of a ticket. Returns the pull request.
     /// The automation does not link the same pair again.
-    pub fn unlink_pr(&mut self, ticket_id: &str) -> Option<u32> {
+    pub fn unlink_pr(&mut self, ticket_id: &str) -> Option<PrKey> {
         let item = self.item(ticket_id).filter(|i| i.is_ticket())?;
-        let (key, number) = (item.key.clone(), item.pr.as_ref()?.number);
-        let review_branch = self.review(number).map(|r| r.branch.clone());
+        let (key, number) = (item.key.clone(), item.pr.as_ref()?.key());
+        let review_branch = self.review(&number).map(|r| r.branch.clone());
         if let Some(review) = self
-            .review_mut(number)
+            .review_mut(&number)
             .filter(|r| r.ticket_key.as_deref() == Some(&key))
         {
             review.ticket_key = None;
@@ -197,8 +208,8 @@ impl Workspace {
             }
         }
         self.status_seen.retain(|(k, _)| *k != key);
-        if !self.unlinked.contains(&(number, key.clone())) {
-            self.unlinked.push((number, key));
+        if !self.unlinked.iter().any(|(n, k)| n.same(&number) && *k == key) {
+            self.unlinked.push((number.clone(), key));
         }
         Some(number)
     }
@@ -207,36 +218,39 @@ impl Workspace {
     /// A pull request qualifies as long as no existing ticket belongs to it and
     /// branch or title name the key of a ticket without a pull request. Pairs
     /// resolved by hand stay resolved.
-    pub fn auto_links(&self) -> Vec<(String, u32)> {
+    pub fn auto_links(&self) -> Vec<(String, PrKey)> {
         let mut taken: Vec<&str> = Vec::new();
         let mut links = Vec::new();
         for review in self
             .reviews
             .iter()
-            .filter(|r| self.ticket_of_pr(r.number).is_none())
+            .filter(|r| self.ticket_of_pr(r.key()).is_none())
         {
             let free = self.items.iter().filter(|i| {
                 i.is_ticket()
                     && i.pr.is_none()
                     && !taken.contains(&i.key.as_str())
-                    && !self.unlinked.contains(&(review.number, i.key.clone()))
+                    && !self
+                        .unlinked
+                        .iter()
+                        .any(|(n, k)| n.same(&review.key()) && *k == i.key)
             });
             let known = free.clone().map(|i| i.key.as_str());
             if let Some(key) = crate::link::find_ticket(&[&review.branch, &review.title], known)
                 && let Some(ticket) = free.clone().find(|i| i.key == key)
             {
                 taken.push(&ticket.key);
-                links.push((ticket.id.clone(), review.number));
+                links.push((ticket.id.clone(), review.key()));
             }
         }
         links
     }
 
     /// Links what `auto_links` finds. Returns `(ticket ID, key, pull request)`.
-    pub fn auto_link(&mut self) -> Vec<(String, String, u32)> {
+    pub fn auto_link(&mut self) -> Vec<(String, String, PrKey)> {
         let mut done = Vec::new();
         for (id, number) in self.auto_links() {
-            if self.link_pr(&id, number).is_ok() {
+            if self.link_pr(&id, &number).is_ok() {
                 let key = self.item(&id).map(|i| i.key.clone()).unwrap_or_default();
                 done.push((id, key, number));
             }
@@ -247,7 +261,7 @@ impl Workspace {
     // ---------- Status follows the pull request ----------
 
     /// Linked tickets with the status their pull request suggests: `(index, pull request, target)`.
-    pub(super) fn linked_targets(&self) -> Vec<(usize, u32, TicketStatus)> {
+    pub(super) fn linked_targets(&self) -> Vec<(usize, PrKey, TicketStatus)> {
         self.items
             .iter()
             .enumerate()
@@ -255,9 +269,9 @@ impl Workspace {
             .filter_map(|(at, i)| {
                 let pr = i.pr.as_ref()?;
                 let is_linked = self
-                    .review(pr.number)
+                    .review(pr.key())
                     .is_some_and(|r| r.ticket_key.as_deref() == Some(i.key.as_str()));
-                is_linked.then(|| (at, pr.number, pr.target_status()))
+                is_linked.then(|| (at, pr.key(), pr.target_status()))
             })
             .collect()
     }

@@ -57,8 +57,10 @@ pub struct Settings {
     pub dev_port: Option<u16>,
     /// The `config.toml` into which the setup assistant writes.
     pub config_path: Option<PathBuf>,
-    /// `[agent] repo`: the repo in which the agent works.
+    /// `[agent] repo`: the default repo in which the agent works.
     pub agent_repo: Option<String>,
+    /// `[[agent.repos]]`: the repos the agent may work in.
+    pub agent_repos: Vec<cockpit_core::AgentRepo>,
     /// Folder with Containerfile and runner of the agent.
     pub agent_dir: Option<PathBuf>,
     /// Base address for cloning instead of GitHub (tests only).
@@ -84,6 +86,7 @@ impl Settings {
             dev_port: config.dev_port,
             config_path: config.config_path.clone(),
             agent_repo: config.agent_repo.clone(),
+            agent_repos: config.agent_repos.clone(),
             agent_dir: Some(agent_dir_find(config)),
             git_base: config.git_base.clone(),
             data_dir: config.db.parent().map(PathBuf::from),
@@ -104,6 +107,13 @@ fn agent_dir_find(config: &Config) -> PathBuf {
         return next_to_dist;
     }
     PathBuf::from("apps/agent")
+}
+
+/// What the configuration says about the repos of the agent.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct RepoConfig {
+    pub repos: Vec<cockpit_core::AgentRepo>,
+    pub default: Option<String>,
 }
 
 /// Shared state of the handlers. Cloning is cheap.
@@ -127,6 +137,8 @@ pub(crate) struct Inner {
     pub(crate) sources: RwLock<Arc<Sources>>,
     /// Provider and endpoint of the agent, also replaceable.
     pub(crate) agent_choice: RwLock<AgentChoice>,
+    /// The repos of the agent (`[[agent.repos]]`, `[agent] repo`), also replaceable.
+    pub(crate) agent_repo_config: RwLock<RepoConfig>,
     /// Reading, changing and writing `config.toml` go one after another.
     pub(crate) config_lock: Mutex<()>,
     /// Writes to the outside and taking over a sync go one after another.
@@ -192,6 +204,10 @@ impl AppState {
                 refresh: tokio::sync::Mutex::new(()),
                 sources: RwLock::new(Arc::new(sources)),
                 agent_choice: RwLock::new(settings.agent.clone()),
+                agent_repo_config: RwLock::new(RepoConfig {
+                    repos: settings.agent_repos.clone(),
+                    default: settings.agent_repo.clone(),
+                }),
                 config_lock: Mutex::new(()),
                 lock: tokio::sync::Mutex::new(()),
                 written: AtomicU64::new(0),
@@ -242,6 +258,14 @@ impl AppState {
         match self.inner.agent_choice.write() {
             Ok(mut l) => *l = choice,
             Err(v) => *v.into_inner() = choice,
+        }
+        let repos = RepoConfig {
+            repos: c.agent_repos.clone(),
+            default: c.agent_repo.clone(),
+        };
+        match self.inner.agent_repo_config.write() {
+            Ok(mut l) => *l = repos,
+            Err(v) => *v.into_inner() = repos,
         }
     }
 

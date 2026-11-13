@@ -34,7 +34,7 @@ fn every_action_variant_is_applied_and_logged() {
     ok(
         &mut w,
         Action::Decide {
-            review: 87,
+            review: 87.into(),
             suggestion: "a".into(),
             decision: Some(Decision::Approved),
         },
@@ -43,7 +43,7 @@ fn every_action_variant_is_applied_and_logged() {
     ok(
         &mut w,
         Action::EditSuggestion {
-            review: 87,
+            review: 87.into(),
             suggestion: "a".into(),
             text: "Anders".into(),
         },
@@ -52,7 +52,7 @@ fn every_action_variant_is_applied_and_logged() {
     ok(
         &mut w,
         Action::AddLineComment {
-            review: 87,
+            review: 87.into(),
             file,
             line: 0,
             text: "Warum?".into(),
@@ -64,7 +64,7 @@ fn every_action_variant_is_applied_and_logged() {
     ok(
         &mut w,
         Action::EditLineComment {
-            review: 87,
+            review: 87.into(),
             comment: comment.clone(),
             text: "Wieso?".into(),
             suggestion: None,
@@ -74,7 +74,7 @@ fn every_action_variant_is_applied_and_logged() {
     ok(
         &mut w,
         Action::DeleteLineComment {
-            review: 87,
+            review: 87.into(),
             comment,
         },
         1,
@@ -82,19 +82,19 @@ fn every_action_variant_is_applied_and_logged() {
     ok(
         &mut w,
         Action::SetVerdict {
-            review: 87,
+            review: 87.into(),
             verdict: Verdict::Approve,
         },
         1,
     );
-    ok(&mut w, Action::RequestAgentReview { review: 85 }, 2);
+    ok(&mut w, Action::RequestAgentReview { review: 85.into() }, 2);
     for s in ["b", "c"] {
         w.decide(87, s, Some(Decision::Declined));
     }
     ok(
         &mut w,
         Action::SendReview {
-            review: 87,
+            review: 87.into(),
             comment: String::new(),
         },
         1,
@@ -261,16 +261,16 @@ fn failures_are_returned_and_leave_no_entry() {
     fails(
         &mut w,
         Action::Decide {
-            review: 1,
+            review: 1.into(),
             suggestion: "a".into(),
             decision: None,
         },
-        ActionError::UnknownReview(1),
+        ActionError::UnknownReview(1.into()),
     );
     fails(
         &mut w,
         Action::Decide {
-            review: 87,
+            review: 87.into(),
             suggestion: "zzz".into(),
             decision: None,
         },
@@ -279,7 +279,7 @@ fn failures_are_returned_and_leave_no_entry() {
     fails(
         &mut w,
         Action::AddLineComment {
-            review: 87,
+            review: 87.into(),
             file: "nope.css".into(),
             line: 0,
             text: "x".into(),
@@ -290,7 +290,7 @@ fn failures_are_returned_and_leave_no_entry() {
     fails(
         &mut w,
         Action::DeleteLineComment {
-            review: 87,
+            review: 87.into(),
             comment: "c9".into(),
         },
         ActionError::UnknownComment("c9".into()),
@@ -298,7 +298,7 @@ fn failures_are_returned_and_leave_no_entry() {
     fails(
         &mut w,
         Action::SendReview {
-            review: 87,
+            review: 87.into(),
             comment: String::new(),
         },
         ActionError::Send(SendError::Undecided(3)),
@@ -306,10 +306,10 @@ fn failures_are_returned_and_leave_no_entry() {
     fails(
         &mut w,
         Action::SendReview {
-            review: 1,
+            review: 1.into(),
             comment: String::new(),
         },
-        ActionError::UnknownReview(1),
+        ActionError::UnknownReview(1.into()),
     );
     fails(
         &mut w,
@@ -400,11 +400,11 @@ fn agent_steps_from_the_tick_are_logged_as_agent() {
             "BAU-142: Der Agent hat eine Frage und wartet auf deine Antwort",
             "BAU-142: Änderungen umgesetzt",
             "BAU-142: Tests ausgeführt",
-            "BAU-142: Pull Request #92 als Entwurf erstellt",
+            "BAU-142: Pull Request asakrejz/rust-playground#92 als Entwurf erstellt",
         ]
     );
     let last = w.log.last().unwrap();
-    assert_eq!(last.target, Some(Target::Review(92)));
+    assert_eq!(last.target, Some(Target::Review(PrKey::new(crate::DEMO_REPO, 92))));
     assert_eq!(w.log[1].target, Some(Target::Run("BAU-142".into())));
     assert_eq!(
         w.log_entries(Some(Actor::User)).len(),
@@ -428,7 +428,7 @@ fn the_two_rules_still_hold() {
     assert_eq!(
         w.apply(
             Action::SendReview {
-                review: 87,
+                review: 87.into(),
                 comment: String::new()
             },
             Actor::User,
@@ -574,7 +574,7 @@ fn notification_settings_survive_save_and_load() {
 #[test]
 fn actions_roundtrip_as_json() {
     let action = Action::Decide {
-        review: 87,
+        review: 87.into(),
         suggestion: "a".into(),
         decision: Some(Decision::Declined),
     };
@@ -604,7 +604,7 @@ fn the_log_survives_save_and_load() {
     )
     .unwrap();
     w.apply(
-        Action::RequestAgentReview { review: 85 },
+        Action::RequestAgentReview { review: 85.into() },
         Actor::User,
         T + 1,
     )

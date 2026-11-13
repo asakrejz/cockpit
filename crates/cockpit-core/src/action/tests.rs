@@ -76,7 +76,7 @@ fn run_to_end(w: &mut Workspace) {
 
 fn address(review: u32, ids: &[&str], options: AgentOptions) -> Action {
     Action::AddressReview {
-        review,
+        review: review.into(),
         comments: ids.iter().map(|s| s.to_string()).collect(),
         options,
     }
@@ -86,7 +86,7 @@ fn investigate_85(w: &mut Workspace, check: &str) {
     ok(
         w,
         Action::InvestigateCheck {
-            review: 85,
+            review: 85.into(),
             check: check.into(),
         },
         1,
@@ -134,7 +134,7 @@ fn rules(f: impl FnOnce(&mut RepoRules)) -> Action {
 fn link(item: &str, pr: u32) -> Action {
     Action::LinkPr {
         item: item.into(),
-        pr,
+        pr: pr.into(),
     }
 }
 
@@ -174,7 +174,7 @@ fn ready_87(w: &mut Workspace) {
         ok(
             w,
             Action::Decide {
-                review: 87,
+                review: 87.into(),
                 suggestion: id.into(),
                 decision: Some(Decision::Declined),
             },
@@ -184,7 +184,7 @@ fn ready_87(w: &mut Workspace) {
     ok(
         w,
         Action::SendReview {
-            review: 87,
+            review: 87.into(),
             comment: String::new(),
         },
         1,
@@ -192,7 +192,7 @@ fn ready_87(w: &mut Workspace) {
 }
 
 fn merge(review: u32, method: MergeMethod) -> Action {
-    Action::MergePr { review, method }
+    Action::MergePr { review: review.into(), method }
 }
 
 // ---------- Edit tickets ----------
@@ -221,6 +221,7 @@ mod follow_ups;
 mod limits;
 mod pull_requests;
 mod real_agent;
+mod repos;
 mod review;
 mod status_sync;
 mod tickets;

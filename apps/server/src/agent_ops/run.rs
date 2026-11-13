@@ -105,6 +105,27 @@ pub(super) async fn run_run(
         }
         Err(_) => return End::Error("Interner Fehler beim Vorbereiten des Laufs.".into()),
     };
+    // The repo this run works in: the one it was started for; runs of an old state without
+    // repo (or with the placeholder repo of the sample data) use the default.
+    let repos = state.agent_repos();
+    let repo = if run.repo.is_empty() || run.repo == cockpit_core::DEMO_REPO {
+        repos.default.clone()
+    } else {
+        Some(run.repo.clone())
+    };
+    let Some(repo) = repo else {
+        return End::Error(
+            "Für diesen Lauf ist kein Repo festgelegt. Starte ihn neu und wähle ein Repo aus."
+                .into(),
+        );
+    };
+    if !repos.allows(&repo) {
+        return End::Error(format!(
+            "Das Repo „{repo}“ ist für den Agenten nicht (mehr) freigegeben. Trage es unter „Einrichten“ › „GitHub“ ein."
+        ));
+    }
+    let mut run = run;
+    run.repo.clone_from(&repo);
     let secret = [
         access.key.expose().to_string(),
         access.github.expose().to_string(),
@@ -115,7 +136,7 @@ pub(super) async fn run_run(
     let base_dir = state.agent_dir().join("runs").join(agent_run::run_dir(key));
     let clone = base_dir.join(if mode == Mode::Plan { "plan" } else { "run" });
     let base_file = base_dir.join("base");
-    let url = agent_git::clone_url(&access.git_base, &access.repo);
+    let url = agent_git::clone_url(&access.git_base, &repo);
 
     // Clone: fresh, unless a halted run is resumed.
     let present = mode == Mode::Implement && clone.join(".git").is_dir() && base_file.is_file();
@@ -148,7 +169,7 @@ pub(super) async fn run_run(
             Ok(Err(m)) => {
                 return End::Error(format!(
                     "Das Klonen von {} ist fehlgeschlagen: {}",
-                    access.repo,
+                    repo,
                     agent_git::redact(&m, &secret_refs)
                 ));
             }
