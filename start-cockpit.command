@@ -13,7 +13,7 @@ cd "$(dirname "$0")" || exit 1
 
 wait_for_key() {
   echo
-  read -r -n 1 -s -p "Drücke eine Taste, um das Fenster zu schließen …"
+  read -r -n 1 -s -p "Press any key to close the window ..."
   echo
 }
 
@@ -33,21 +33,21 @@ elif [ -x ./cockpit-server ]; then
       sleep 1
     done
   ) &
-  echo "Cockpit läuft. Zum Beenden: dieses Fenster schließen oder Ctrl-C."
+  echo "Cockpit is running. To quit: close this window or press Ctrl-C."
   ./cockpit-server
   code=$?
 else
-  echo "Hier fehlt scripts/start.sh oder cockpit-server."
-  echo "Liegt diese Datei im Ordner des Cockpit-Repos (oder des entpackten Archivs)?"
+  echo "scripts/start.sh or cockpit-server is missing here."
+  echo "Is this file in the folder of the Cockpit repo (or of the unpacked archive)?"
   code=1
 fi
 
 echo
 if [ "$code" -ne 0 ]; then
-  echo "Cockpit wurde mit einem Fehler beendet (Code $code). Lies die Meldungen oben oder"
-  echo "die Anleitung „Schnellstart für Einsteiger“ in der README."
+  echo "Cockpit exited with an error (code $code). Read the messages above or"
+  echo "the \"Quick start for beginners\" guide in the README."
 else
-  echo "Cockpit wurde beendet."
+  echo "Cockpit has exited."
 fi
 wait_for_key
 exit "$code"

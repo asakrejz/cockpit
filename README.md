@@ -272,7 +272,7 @@ Trunk sends `Host` without the port and keeps the `Origin` of the dev page; the 
 
 1. Run `scripts/start.sh` once by hand so that everything is built.
 2. Copy the template to `~/Library/LaunchAgents/de.cockpit.server.plist` and replace the placeholders
-   `/PFAD/ZUM/REPO` (the repo folder) and `/Users/BENUTZER` (your home directory); see the comment in the file.
+   `/PATH/TO/REPO` (the repo folder) and `/Users/YOUR_USER` (your home directory); see the comment in the file.
 3. Load: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist`,
    unload: `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist`.
    The log is at `~/Library/Logs/cockpit-server.log`.

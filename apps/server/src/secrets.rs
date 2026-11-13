@@ -38,7 +38,7 @@ pub struct SecretError(pub String);
 
 impl std::fmt::Display for SecretError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Schlüsselablage: {}", self.0)
+        write!(f, "Key storage: {}", self.0)
     }
 }
 

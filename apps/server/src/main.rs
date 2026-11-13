@@ -59,7 +59,7 @@ async fn main() -> ExitCode {
         ["token", action, name] => token(action, name),
         ["token", "import" | "uebernehmen"] => take_over_keychain(),
         _ => Err(
-            "Aufruf: cockpit-server [token set|delete <github|jira|github-oauth|atlassian-oauth|agent-key>] | [token import]"
+            "Usage: cockpit-server [token set|delete <github|jira|github-oauth|atlassian-oauth|agent-key>] | [token import]"
                 .into(),
         ),
     };
@@ -87,7 +87,7 @@ const NAMES: &[&str] = &[
 fn token(action: &str, name: &str) -> Result<(), String> {
     if !NAMES.contains(&name) {
         return Err(format!(
-            "Unbekannter Name „{name}“, erlaubt sind {}",
+            "Unknown name \"{name}\", allowed: {}",
             NAMES.join(", ")
         ));
     }
@@ -97,24 +97,24 @@ fn token(action: &str, name: &str) -> Result<(), String> {
             let mut input = String::new();
             std::io::stdin()
                 .read_to_string(&mut input)
-                .map_err(|e| format!("Eingabe nicht lesbar: {e}"))?;
+                .map_err(|e| format!("Could not read standard input: {e}"))?;
             let value = input.trim();
             if value.is_empty() {
-                return Err("Kein Schlüssel auf der Standardeingabe".into());
+                return Err("No key on standard input".into());
             }
             store
                 .set(name, &Secret::new(value))
                 .map_err(|e| e.to_string())?;
-            tracing::info!("Schlüssel für {name} abgelegt");
+            tracing::info!("Key for {name} stored");
             Ok(())
         }
         "delete" | "loeschen" => {
             store.delete(name).map_err(|e| e.to_string())?;
-            tracing::info!("Schlüssel für {name} gelöscht");
+            tracing::info!("Key for {name} deleted");
             Ok(())
         }
         _ => Err(format!(
-            "Unbekannte Aktion „{action}“, erlaubt sind set und delete"
+            "Unknown action \"{action}\", allowed: set and delete"
         )),
     }
 }
@@ -127,14 +127,14 @@ fn take_over_keychain() -> Result<(), String> {
     let report = secrets::take_over(&KeyringStore, &target).map_err(|e| e.to_string())?;
     for (name, outcome) in report {
         let text = match outcome {
-            secrets::Takeover::Taken => "übernommen",
-            secrets::Takeover::AlreadyPresent => "hat schon einen Wert, unverändert",
-            secrets::Takeover::NotFound => "nicht im Schlüsselbund",
+            secrets::Takeover::Taken => "imported",
+            secrets::Takeover::AlreadyPresent => "already has a value, left unchanged",
+            secrets::Takeover::NotFound => "not in the keychain",
         };
         tracing::info!("{name}: {text}");
     }
     tracing::info!(
-        "Fertig. Die Einträge im Schlüsselbund bleiben bestehen; die Datei ist {}",
+        "Done. The keychain entries remain; the file is {}",
         target.path().display()
     );
     Ok(())
@@ -143,21 +143,21 @@ fn take_over_keychain() -> Result<(), String> {
 async fn start() -> Result<(), String> {
     let config = Config::load().map_err(|e| e.to_string())?;
     let store = Arc::new(EnvFileStore::from_environment());
-    tracing::info!("Schlüssel liegen in der Datei {}", store.path().display());
+    tracing::info!("Keys are stored in the file {}", store.path().display());
     for warning in store.check_at_startup() {
         tracing::warn!("{warning}");
     }
 
     let conn = db::open(&config.db).map_err(|e| e.to_string())?;
     tracing::info!(
-        "Datenbank: {} (Version {})",
+        "Database: {} (version {})",
         config.db.display(),
         db::CURRENT_VERSION
     );
 
     if !config.dist.join("index.html").is_file() {
         tracing::warn!(
-            "Keine Web-App unter {} – zuerst `cd apps/cockpit && trunk build`, oder COCKPIT_DIST setzen",
+            "No web app at {} - first run `cd apps/cockpit && trunk build`, or set COCKPIT_DIST",
             config.dist.display()
         );
     }
@@ -177,8 +177,8 @@ async fn start() -> Result<(), String> {
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, config.port));
     let listener = tokio::net::TcpListener::bind(address)
         .await
-        .map_err(|e| format!("Port {} nicht verfügbar: {e}", config.port))?;
-    tracing::info!("Cockpit läuft auf http://{address}");
+        .map_err(|e| format!("Port {} not available: {e}", config.port))?;
+    tracing::info!("Cockpit running at http://{address}");
 
     // In server mode the tick of the simulated agent runs here, not in the browser.
     app::agent_tick_start(state.clone());
@@ -192,8 +192,8 @@ async fn start() -> Result<(), String> {
     )
     .with_graceful_shutdown(async {
         let _ = tokio::signal::ctrl_c().await;
-        tracing::info!("Beende …");
+        tracing::info!("Shutting down ...");
     })
     .await
-    .map_err(|e| format!("Server beendet mit Fehler: {e}"))
+    .map_err(|e| format!("Server exited with error: {e}"))
 }

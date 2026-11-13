@@ -318,7 +318,7 @@ impl AppState {
             Ok(t) => t,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
             Err(e) => {
-                tracing::warn!("config.toml nicht lesbar: {e}");
+                tracing::warn!("config.toml not readable: {e}");
                 return Err((
                     StatusCode::INTERNAL_SERVER_ERROR,
                     format!("Die Datei {} lässt sich nicht lesen.", path.display()),
@@ -330,7 +330,7 @@ impl AppState {
         let before = self.sources();
         if updated != alt {
             atomic_write(&path, &updated).map_err(|e| {
-                tracing::warn!("config.toml nicht geschrieben: {e}");
+                tracing::warn!("config.toml not written: {e}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     format!(
@@ -344,7 +344,7 @@ impl AppState {
         self.connections_adopt(&config)
             .map_err(|m| (StatusCode::INTERNAL_SERVER_ERROR, m))?;
         self.config_apply(&config);
-        tracing::info!("config.toml aktualisiert und angewendet");
+        tracing::info!("config.toml updated and applied");
 
         // Another app means: the old tokens belong to the old app.
         let other_app = |alt: Option<&String>, updated: Option<&String>| {
@@ -446,11 +446,11 @@ pub async fn key(
     let result = tokio::task::spawn_blocking(move || secrets.set(&n, &Secret::new(value))).await;
     match result {
         Ok(Ok(())) => {
-            tracing::info!("Schlüssel für {name} abgelegt");
+            tracing::info!("Key for {name} stored");
             Json(KeyResponse { name, set: true }).into_response()
         }
         Ok(Err(e)) => {
-            tracing::warn!("Schlüssel für {name} nicht abgelegt: {e}");
+            tracing::warn!("Key for {name} not stored: {e}");
             error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Die .env-Datei im Projektordner ließ sich nicht beschreiben. Prüfe die Rechte von Ordner und Datei.",
@@ -473,11 +473,11 @@ pub async fn key_delete(State(state): State<AppState>, UrlPath(name): UrlPath<St
     let n = name.clone();
     match tokio::task::spawn_blocking(move || secrets.delete(&n)).await {
         Ok(Ok(())) => {
-            tracing::info!("Schlüssel für {name} gelöscht");
+            tracing::info!("Key for {name} deleted");
             Json(KeyResponse { name, set: false }).into_response()
         }
         Ok(Err(e)) => {
-            tracing::warn!("Schlüssel für {name} nicht gelöscht: {e}");
+            tracing::warn!("Key for {name} not deleted: {e}");
             error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Die .env-Datei im Projektordner ließ sich nicht beschreiben. Prüfe die Rechte von Ordner und Datei.",
@@ -530,7 +530,7 @@ impl AppState {
         match client.my_name().await {
             Ok(name) => check(JiraCause::Ok, Some(name)),
             Err(e) => {
-                tracing::warn!("Jira-Verbindungstest: {e}");
+                tracing::warn!("Jira connection test: {e}");
                 check(jira_cause(&e), None)
             }
         }
