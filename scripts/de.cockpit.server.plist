@@ -5,12 +5,12 @@
 
   1. Copy this file to ~/Library/LaunchAgents/de.cockpit.server.plist.
   2. Replace the two placeholders:
-       /PFAD/ZUM/REPO    the folder of this repo (absolute, without ~)
-       /Users/BENUTZER   your home directory (for the log file and PATH)
+       /PATH/TO/REPO   the folder of this repo (absolute, without ~)
+       /Users/YOUR_USER   your home directory (for the log file and PATH)
   3. Run `scripts/start.sh` once by hand so that server and app are built.
   4. Load:   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist
      Unload: launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist
-  The log is in /Users/BENUTZER/Library/Logs/cockpit-server.log.
+  The log is in /Users/YOUR_USER/Library/Logs/cockpit-server.log.
 
   Own settings (COCKPIT_PORT, COCKPIT_DB, COCKPIT_SEED, …) belong in the file config.toml or
   below in EnvironmentVariables. Keys never belong here: they are in the `.env` file in the project folder (WorkingDirectory must be the repo)
@@ -27,16 +27,16 @@
   <key>ProgramArguments</key>
   <array>
     <string>/bin/bash</string>
-    <string>/PFAD/ZUM/REPO/scripts/start.sh</string>
+    <string>/PATH/TO/REPO/scripts/start.sh</string>
   </array>
 
   <key>WorkingDirectory</key>
-  <string>/PFAD/ZUM/REPO</string>
+  <string>/PATH/TO/REPO</string>
 
   <key>EnvironmentVariables</key>
   <dict>
     <key>PATH</key>
-    <string>/opt/homebrew/bin:/usr/local/bin:/Users/BENUTZER/.cargo/bin:/usr/bin:/bin</string>
+    <string>/opt/homebrew/bin:/usr/local/bin:/Users/YOUR_USER/.cargo/bin:/usr/bin:/bin</string>
   </dict>
 
   <!-- Start at login. If the server ends with an error, launchd does not restart it. -->
@@ -46,8 +46,8 @@
   <false/>
 
   <key>StandardOutPath</key>
-  <string>/Users/BENUTZER/Library/Logs/cockpit-server.log</string>
+  <string>/Users/YOUR_USER/Library/Logs/cockpit-server.log</string>
   <key>StandardErrorPath</key>
-  <string>/Users/BENUTZER/Library/Logs/cockpit-server.log</string>
+  <string>/Users/YOUR_USER/Library/Logs/cockpit-server.log</string>
 </dict>
 </plist>

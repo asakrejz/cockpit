@@ -192,10 +192,10 @@ impl std::fmt::Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ConfigError::Read(p, e) => {
-                write!(f, "Konfigurationsdatei {} nicht lesbar: {e}", p.display())
+                write!(f, "Configuration file {} not readable: {e}", p.display())
             }
-            ConfigError::Toml(m) => write!(f, "Konfigurationsdatei fehlerhaft: {m}"),
-            ConfigError::Wert(m) => write!(f, "Ungültiger Wert: {m}"),
+            ConfigError::Toml(m) => write!(f, "Configuration file invalid: {m}"),
+            ConfigError::Wert(m) => write!(f, "Invalid value: {m}"),
         }
     }
 }

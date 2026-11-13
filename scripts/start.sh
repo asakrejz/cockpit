@@ -26,7 +26,7 @@ for arg in "$@"; do
       exit 0
       ;;
     *)
-      echo "Unbekannte Option: $arg (erlaubt: --open, --release, --help)" >&2
+      echo "Unknown option: $arg (allowed: --open, --release, --help)" >&2
       exit 2
       ;;
   esac
@@ -36,11 +36,11 @@ done
 export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.cargo/bin"
 
 missing() {
-  echo "„$1“ fehlt. $2" >&2
+  echo "\"$1\" is missing. $2" >&2
   exit 1
 }
-command -v cargo > /dev/null || missing cargo "Rust ist noch nicht installiert. Anleitung und Befehl: https://rustup.rs (dauert etwa 5 Minuten). Danach das Terminal-Fenster schließen und das Skript neu starten."
-command -v trunk > /dev/null || missing trunk "Trunk ist noch nicht installiert. Mit Homebrew: brew install trunk – oder: cargo install trunk --locked (dauert etwa 5 bis 10 Minuten)."
+command -v cargo > /dev/null || missing cargo "Rust is not installed yet. Instructions and command: https://rustup.rs (takes about 5 minutes). Afterwards close the terminal window and start the script again."
+command -v trunk > /dev/null || missing trunk "Trunk is not installed yet. With Homebrew: brew install trunk - or: cargo install trunk --locked (takes about 5 to 10 minutes)."
 
 # The app is outdated if it is missing or any source is newer than the result.
 app_outdated() {
@@ -52,10 +52,10 @@ app_outdated() {
 }
 
 if app_outdated; then
-  echo "Baue die App nach apps/cockpit/dist …"
+  echo "Building the app into apps/cockpit/dist ..."
   (cd apps/cockpit && trunk build --release)
 else
-  echo "App in apps/cockpit/dist ist aktuell."
+  echo "App in apps/cockpit/dist is up to date."
 fi
 
 port="${COCKPIT_PORT:-8787}"
@@ -72,5 +72,5 @@ if [ "$open_browser" = 1 ]; then
   ) &
 fi
 
-echo "Starte den Server (Ctrl-C beendet ihn). Port: COCKPIT_PORT, sonst config.toml, sonst 8787 …"
+echo "Starting the server (Ctrl-C stops it). Port: COCKPIT_PORT, else config.toml, else 8787 ..."
 exec cargo run ${profile[@]+"${profile[@]}"} -p cockpit-server

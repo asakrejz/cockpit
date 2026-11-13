@@ -324,7 +324,7 @@ impl AppState {
     fn health(&self) -> Health {
         let names = match self.inner.db.lock() {
             Ok(conn) => db::connections(&conn).unwrap_or_else(|e| {
-                tracing::warn!("Verbindungen konnten nicht gelesen werden: {e}");
+                tracing::warn!("Could not read connections: {e}");
                 Vec::new()
             }),
             Err(_) => Vec::new(),
@@ -333,7 +333,7 @@ impl AppState {
         let set_up = |name: &str| {
             names.iter().any(|n| n == name)
                 && self.inner.secrets.has(name).unwrap_or_else(|e| {
-                    tracing::warn!("Schlüssel „{name}“ nicht prüfbar: {e}");
+                    tracing::warn!("Could not check key \"{name}\": {e}");
                     false
                 })
         };
@@ -425,7 +425,7 @@ impl AppState {
         match tokio::task::spawn_blocking(move || agent_key_read(secrets.as_ref())).await {
             Ok(Ok(k)) => Ok(k),
             Ok(Err(e)) => {
-                tracing::warn!("Key des Agent-Endpunkts nicht lesbar: {e}");
+                tracing::warn!("Agent endpoint key not readable: {e}");
                 Err(Box::new(error(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Die .env-Datei im Projektordner ist nicht lesbar",
@@ -550,7 +550,7 @@ async fn action(State(state): State<AppState>, body: Bytes) -> Response {
                 let s = state.clone();
                 tokio::spawn(async move {
                     if let Err(e) = s.sync().await {
-                        tracing::warn!("Abgleich nach Projektwechsel: {e:?}");
+                        tracing::warn!("Sync after project change: {e:?}");
                     }
                 });
             }
@@ -584,7 +584,7 @@ fn action_error(e: ActionFailure) -> Response {
         // The service has rejected or is not reachable.
         ActionFailure::Service(m) => error(StatusCode::BAD_GATEWAY, m),
         ActionFailure::Save(m) => {
-            tracing::error!("Workspace nicht gesichert: {m}");
+            tracing::error!("Workspace not saved: {m}");
             error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Der Stand konnte nicht gespeichert werden",
