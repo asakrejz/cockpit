@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use cockpit_core::api::{AgentStatus, ContainerStatus, Provider};
-use cockpit_core::{AgentRepo, AgentReport, AgentRepos, AgentRun, RunKind, RunState, Workspace};
+use cockpit_core::{AgentRepo, AgentReport, AgentRepos, AgentRun, RunState, Workspace};
 use cockpit_integrations::github::followup;
 use serde::Deserialize;
 use serde_json::{Value, json};
