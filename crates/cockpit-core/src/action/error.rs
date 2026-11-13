@@ -44,6 +44,12 @@ pub enum ActionError {
     MergeBlocked(Vec<MergeBlocker>),
     /// This action comes only from the agent in the container.
     AgentOnly,
+    /// Only you may trigger this (not the agent, not the system).
+    UserOnly(Actor),
+    /// The run has no pushed branch yet that could get a pull request.
+    PullRequestNotReady,
+    /// The run already has its pull request (number).
+    PullRequestExists(u32),
 }
 
 impl ActionError {
@@ -75,6 +81,10 @@ impl ActionError {
             }
             ActionError::Agent(AgentError::NoComments) => {
                 "Wähle mindestens einen offenen Kommentar aus".into()
+            }
+            ActionError::Agent(AgentError::NotAgentBranch) => {
+                "Der Branch dieses Pull Requests beginnt nicht mit „claude/“ – dort arbeitet der Agent nicht weiter"
+                    .into()
             }
             ActionError::Agent(AgentError::CheckNotFailed) => {
                 "Untersuchen lässt sich nur ein roter Check".into()
@@ -121,6 +131,21 @@ impl ActionError {
                 "Das macht nur das System – der Abgleich läuft im Server".into()
             }
             ActionError::AgentOnly => "Das meldet nur der Agent aus seinem Container".into(),
+            ActionError::UserOnly(actor) => format!(
+                "Das darfst nur du auslösen – {} nicht",
+                match actor {
+                    Actor::Agent => "der Agent",
+                    Actor::System => "das System",
+                    Actor::User => "du",
+                }
+            ),
+            ActionError::PullRequestNotReady => {
+                "Einen Pull Request gibt es erst, wenn der Agent fertig ist und seinen Branch gepusht hat"
+                    .into()
+            }
+            ActionError::PullRequestExists(n) => {
+                format!("Zu diesem Lauf gehört schon der Pull Request #{n}")
+            }
             ActionError::MergeBlocked(blockers) => {
                 let reasons: Vec<&str> = blockers.iter().map(|b| b.reason()).collect();
                 format!("Mergen geht noch nicht: {}", reasons.join(" "))

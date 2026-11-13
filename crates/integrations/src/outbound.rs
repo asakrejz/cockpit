@@ -404,6 +404,24 @@ pub fn branch_request(repo: &str, name: &str, sha: &str) -> Request {
     }
 }
 
+pub fn pull_request_request(
+    repo: &str,
+    head: &str,
+    base: &str,
+    title: &str,
+    body: &str,
+    draft: bool,
+) -> Request {
+    Request {
+        method: "POST",
+        path: format!("/repos/{repo}/pulls"),
+        body: Some(json!({
+            "title": title, "head": head, "base": base, "body": body, "draft": draft,
+            "maintainer_can_modify": false,
+        })),
+    }
+}
+
 pub fn check_again_request(repo: &str, check_id: u64) -> Request {
     Request {
         method: "POST",

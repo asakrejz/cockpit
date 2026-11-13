@@ -231,3 +231,51 @@ fn old_log_entries_with_a_number_still_load() {
     .unwrap();
     assert_eq!(entry.target, Some(Target::Review(87.into())));
 }
+
+#[test]
+fn real_followups_on_equal_numbers_are_separate_runs_in_their_repos() {
+    let mut w = two();
+    for r in &mut w.reviews {
+        if r.number == 87 {
+            r.branch = format!("claude/x-{}", r.repo.replace('/', "-"));
+        }
+    }
+    for key in [first(), second()] {
+        ok(
+            &mut w,
+            Action::AddressReviewThreads {
+                review: key,
+                options: direct(),
+            },
+            1,
+        );
+    }
+    let keys: Vec<String> = w.runs.iter().map(AgentRun::key).collect();
+    assert!(
+        keys.contains(&"threads-asakrejz~rust-playground-87".to_string()),
+        "{keys:?}"
+    );
+    assert!(
+        keys.contains(&"threads-asakrejz~design-tokens-87".to_string()),
+        "{keys:?}"
+    );
+    // Each run works in its own repo and on its own branch.
+    for run in w.runs.iter().filter(|r| r.is_followup()) {
+        assert_eq!(run.pr_key().unwrap().repo, run.repo);
+        assert!(run.target_branch.ends_with(&run.repo.replace('/', "-")));
+    }
+    // The log entries point at the right review.
+    let targets: Vec<_> = w.log.iter().filter_map(|e| e.target.clone()).collect();
+    assert!(
+        targets.contains(&Target::Review(first())) && targets.contains(&Target::Review(second()))
+    );
+    // A second job on the same pull request is refused, on the other repo's one it is not.
+    fails(
+        &mut w,
+        Action::AddressReviewThreads {
+            review: second(),
+            options: direct(),
+        },
+        ActionError::Agent(crate::workspace::AgentError::AlreadyRunning),
+    );
+}

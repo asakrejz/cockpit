@@ -10,7 +10,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::agent::{AgentOptions, AgentReport, AgentRun, RunKind, STEPS};
+use crate::agent::{AgentOptions, AgentReport, AgentRun, PullRequestRef, RunKind, STEPS};
 use crate::attention::Rule;
 use crate::demo;
 use crate::model::{Checks, Item, Person, PrKey, Priority, TicketStatus};
@@ -224,6 +224,30 @@ pub enum Action {
     DiscardFix {
         run: String,
     },
+    /// Follow-up job of the **real** agent: implement the review comments (threads) of the
+    /// pull request. The backend reads them from GitHub; the agent continues on the same `claude/…`
+    /// branch. The run is then called `threads-<number>`.
+    AddressReviewThreads {
+        review: PrKey,
+        options: AgentOptions,
+    },
+    /// Follow-up job of the **real** agent: fix the red checks of the pull request (names and a
+    /// shortened log excerpt go to the agent). The run is then called `fixes-<number>`.
+    FixFailedChecks {
+        review: PrKey,
+        options: AgentOptions,
+    },
+    /// Creates the pull request for the pushed branch of a finished real run – only on your explicit
+    /// approval, with the title and text you saw in the preview. `pull` is filled in by the backend
+    /// after GitHub has created the pull request (or found the existing one); a value sent by the
+    /// browser is dropped.
+    CreatePullRequest {
+        run: String,
+        title: String,
+        body: String,
+        #[serde(default)]
+        pull: Option<PullRequestRef>,
+    },
     /// Resumes a stopped run after the limit that stopped it has been raised by `extra`:
     /// cents for budgets, minutes for the time limit. With `0` it continues if the
     /// limit is no longer reached at all by now (e.g. after changing the setting).
@@ -270,6 +294,17 @@ impl Action {
     /// Actions that only the agent (container, via the backend) may trigger.
     pub fn agent_only(&self) -> bool {
         matches!(self, Action::ReportAgent { .. })
+    }
+
+    /// Actions with an effect on GitHub or on the agent's work that only you may trigger – neither
+    /// the agent nor the system.
+    pub fn user_only(&self) -> bool {
+        matches!(
+            self,
+            Action::AddressReviewThreads { .. }
+                | Action::FixFailedChecks { .. }
+                | Action::CreatePullRequest { .. }
+        )
     }
 }
 
@@ -369,6 +404,9 @@ impl Workspace {
         // Merging is the user's business: the layer already checks this, not only the UI.
         if matches!(action, Action::MergePr { .. }) && actor != Actor::User {
             return Err(ActionError::MergeNotAllowed(actor));
+        }
+        if action.user_only() && actor != Actor::User {
+            return Err(ActionError::UserOnly(actor));
         }
         if action.system_only() && actor != Actor::System {
             return Err(ActionError::SystemOnly);
@@ -480,6 +518,9 @@ impl Workspace {
             | Action::InvestigateCheck { .. }
             | Action::ApplyFix { .. }
             | Action::DiscardFix { .. }
+            | Action::AddressReviewThreads { .. }
+            | Action::FixFailedChecks { .. }
+            | Action::CreatePullRequest { .. }
             | Action::ResumeStopped { .. } => self.perform_agent(action, at_ms),
             Action::SetNotifyChannel { .. }
             | Action::SetQuietHours { .. }

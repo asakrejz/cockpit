@@ -1,6 +1,6 @@
 # Image of the Cockpit agent. Builds the same with Docker and Podman:
-#   docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:2 apps/agent
-#   podman build -f apps/agent/Containerfile -t localhost/cockpit-agent:2 apps/agent
+#   docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:4 apps/agent
+#   podman build -f apps/agent/Containerfile -t localhost/cockpit-agent:4 apps/agent
 # (the backend does that via "Image bauen" in the setup assistant).
 # Deliberately without BuildKit special features (no "# syntax=", no "RUN --mount") and with a fully
 # named base image, because Podman does not resolve short names without further ado.

@@ -1,7 +1,7 @@
 // Adapter "claude-agent-sdk": the course of a run with the Claude Agent SDK. The SDK, the lines from stdin, Git and the clock come from outside
 // (`Dependencies`), so that the course can be tested without network and without the SDK.
 
-import { type Job, tasksText, systemText } from "../job.ts";
+import { type Job, tasksText, systemText, commitMessage } from "../job.ts";
 import { type Sink, truncate } from "../event.ts";
 import { type Run, record } from "../git.ts";
 import { type Policy, decide } from "../policy.ts";
@@ -247,7 +247,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
     return 0;
   }
   try {
-    const f = await record(d.git, d.root, a.branch, `${a.ticket.key}: ${a.ticket.title}\n\nUmgesetzt vom Cockpit-Agenten.`);
+    const f = await record(d.git, d.root, a.branch, commitMessage(a));
     if (!f) {
       d.sink({ t: "error", text: "Der Agent hat nichts geändert, es gibt nichts zu pushen." });
       return 1;

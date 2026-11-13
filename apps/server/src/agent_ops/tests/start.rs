@@ -30,7 +30,7 @@ async fn without_setup_starts_no_run_and_the_message_says_where() {
         "{error}"
     );
     assert!(w.run().is_idle(), "es wurde nichts gestartet");
-    // Follow-up jobs do not exist yet with the real agent.
+    // The simulated follow-up jobs (own comments, diagnosis) do not exist with the real agent.
     let f = w
         .action(Action::InvestigateCheck {
             review: 85.into(),
@@ -38,7 +38,7 @@ async fn without_setup_starts_no_run_and_the_message_says_where() {
         })
         .await
         .unwrap_err();
-    assert!(f.contains("noch nicht mit dem echten Agenten"), "{f}");
+    assert!(f.contains("mit dem echten Agenten nicht"), "{f}");
 }
 
 #[tokio::test]
@@ -115,7 +115,7 @@ async fn a_run_from_the_approval_until_to_push() {
         ":/work ",
         ":/job:ro",
         "-e ANTHROPIC_AUTH_TOKEN",
-        "localhost/cockpit-agent:2",
+        "localhost/cockpit-agent:4",
     ] {
         assert!(run_line.contains(muss), "{muss} fehlt: {run_line}");
     }

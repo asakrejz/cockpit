@@ -100,6 +100,34 @@ pub enum RunKind {
         /// Name of the check.
         check: String,
     },
+    /// Follow-up job of the **real** agent on the branch of an existing pull request: the
+    /// backend reads the inputs (review threads, failed checks) from GitHub when the run starts and
+    /// hands them to the container. The agent continues on the same `claude/…` branch; the backend
+    /// pushes the new commits (never a force-push).
+    Followup {
+        /// The pull request (repo and number).
+        review: PrKey,
+        task: FollowupTask,
+    },
+}
+
+/// What a real follow-up job does.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub enum FollowupTask {
+    /// Implement the review comments of the pull request.
+    ReviewThreads,
+    /// Fix red checks (names of the checks that were red when the job was commissioned).
+    FailedChecks { checks: Vec<String> },
+}
+
+impl FollowupTask {
+    /// Id used in the job file and in run keys.
+    pub fn id(&self) -> &'static str {
+        match self {
+            FollowupTask::ReviewThreads => "review_comments",
+            FollowupTask::FailedChecks { .. } => "failed_checks",
+        }
+    }
 }
 
 impl RunKind {
@@ -107,15 +135,32 @@ impl RunKind {
     pub fn review(&self) -> Option<PrKey> {
         match self {
             RunKind::Implement => None,
-            RunKind::AddressReview { review, .. } | RunKind::Diagnose { review, .. } => {
-                Some(review.clone())
-            }
+            RunKind::AddressReview { review, .. }
+            | RunKind::Diagnose { review, .. }
+            | RunKind::Followup { review, .. } => Some(review.clone()),
         }
+    }
+
+    /// Does the real agent run this job in a container (as opposed to the simulation)?
+    pub fn runs_in_container(&self) -> bool {
+        matches!(self, RunKind::Implement | RunKind::Followup { .. })
     }
 }
 
 /// After this many completed steps the investigation presents the diagnosis.
 const DIAGNOSED_AT: usize = 3;
+
+/// A pull request on GitHub that belongs to the branch of a run.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct PullRequestRef {
+    pub number: u32,
+    /// Web address of the pull request.
+    #[serde(default)]
+    pub url: String,
+    /// It already existed for the branch (nothing was created, it was only linked).
+    #[serde(default)]
+    pub existed: bool,
+}
 
 /// A follow-up question of the agent, optionally with proposed answers.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
@@ -344,6 +389,10 @@ pub struct AgentRun {
     /// The agent's result, when it is done.
     #[serde(default)]
     pub summary: String,
+    /// The pull request that was created (or found) for the branch of this run, after you
+    /// approved it. `None` until then.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pull_request: Option<PullRequestRef>,
 }
 
 impl AgentRun {
@@ -375,6 +424,7 @@ impl AgentRun {
             agent_plan: None,
             ended: None,
             summary: String::new(),
+            pull_request: None,
         }
     }
 
@@ -400,6 +450,10 @@ impl AgentRun {
             RunKind::Diagnose { review, check } => {
                 format!("check-{}-{}", review.slug(), slug(check, 24))
             }
+            RunKind::Followup { review, task } => match task {
+                FollowupTask::ReviewThreads => format!("threads-{}", review.slug()),
+                FollowupTask::FailedChecks { .. } => format!("fixes-{}", review.slug()),
+            },
         }
     }
 
@@ -415,6 +469,10 @@ impl AgentRun {
             RunKind::Implement => self.ticket_key.clone(),
             RunKind::AddressReview { review, .. } => format!("Kommentare in {review}"),
             RunKind::Diagnose { review, check } => format!("Check „{check}“ in {review}"),
+            RunKind::Followup { review, task } => match task {
+                FollowupTask::ReviewThreads => format!("Review-Kommentare in {review}"),
+                FollowupTask::FailedChecks { .. } => format!("Rote Checks in {review}"),
+            },
         }
     }
 

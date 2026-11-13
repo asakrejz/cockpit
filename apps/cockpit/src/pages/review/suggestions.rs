@@ -128,7 +128,11 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                         })}
                 </div>
 
-                {comments_section(store, &r, panel)}
+                {if store.agent_real() {
+                    followup_section(store, &r).into_any()
+                } else {
+                    comments_section(store, &r, panel).into_any()
+                }}
                 {checks_section(store, &r, panel)}
                 {merge_section(store, &r, panel)}
             </PaneBody>

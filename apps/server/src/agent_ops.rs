@@ -15,7 +15,8 @@ use std::time::{Duration, Instant};
 
 use cockpit_core::api::{AgentStatus, ContainerCheck, ContainerStatus, ImageBuild};
 use cockpit_core::{
-    Action, ActionError, Actor, AgentReport, AgentRepos, RepoChoice, RunKind, RunState, Workspace,
+    Action, ActionError, Actor, AgentReport, AgentRepos, FollowupTask, RepoChoice, RunKind,
+    RunState, Workspace,
 };
 use cockpit_integrations::Secret;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -180,6 +181,30 @@ impl AppState {
         agent_run::repos_effective(&cfg.repos, cfg.default.as_deref(), &github)
     }
 
+    /// The repo a run works in: the one it was started for, or the default for runs of an
+    /// old state without repo (or with the placeholder repo of the sample data). Always one
+    /// of the configured repos; otherwise the plain-text reason.
+    pub(crate) fn run_repo(&self, run: &cockpit_core::AgentRun) -> Result<String, String> {
+        let repos = self.agent_repos();
+        let repo = if run.repo.is_empty() || run.repo == cockpit_core::DEMO_REPO {
+            repos.default.clone()
+        } else {
+            Some(run.repo.clone())
+        };
+        let Some(repo) = repo else {
+            return Err(
+                "Für diesen Lauf ist kein Repo festgelegt. Starte ihn neu und wähle ein Repo aus."
+                    .into(),
+            );
+        };
+        if !repos.allows(&repo) {
+            return Err(format!(
+                "Das Repo „{repo}“ ist für den Agenten nicht (mehr) freigegeben. Trage es unter „Einrichten“ › „GitHub“ ein."
+            ));
+        }
+        Ok(repo)
+    }
+
     /// The repos as configured, without the fallback to the sync repos (for the assistant).
     pub(crate) fn agent_repos_config(&self) -> AgentRepos {
         let cfg = match self.inner.agent_repo_config.read() {
@@ -330,14 +355,27 @@ impl AppState {
     }
 
     /// Rejections before applying an action in real mode: runs only start when everything
-    /// is set up, and follow-up jobs do not exist yet. `None` if nothing speaks against it.
-    /// Blockierend.
+    /// is set up, and the simulated follow-up jobs do not exist with the real agent. `None` if nothing
+    /// speaks against it. Blocking.
     pub(crate) fn agent_lock(&self, action: &Action) -> Option<String> {
         if !self.agent_real() {
-            return None;
+            // The follow-up jobs and the pull request belong to the real agent.
+            return matches!(
+                action,
+                Action::AddressReviewThreads { .. }
+                    | Action::FixFailedChecks { .. }
+                    | Action::CreatePullRequest { .. }
+            )
+            .then(|| {
+                "Das gibt es nur mit dem echten Agenten. Im Demo-Modus laufen die Folgeaufträge als Simulation direkt am Review."
+                    .to_string()
+            });
         }
         match action {
-            Action::StartAgent { .. } | Action::ResumeStopped { .. } => {
+            Action::StartAgent { .. }
+            | Action::ResumeStopped { .. }
+            | Action::AddressReviewThreads { .. }
+            | Action::FixFailedChecks { .. } => {
                 let st = self.agent_status();
                 (!st.ready).then(|| {
                     format!(
@@ -358,7 +396,7 @@ impl AppState {
             }
             Action::AddressReview { .. } | Action::InvestigateCheck { .. } | Action::ApplyFix { .. } => {
                 Some(
-                    "Folgeaufträge (Kommentare umsetzen, Checks untersuchen) laufen noch nicht mit dem echten Agenten. Setze die Änderungen vorerst selbst um."
+                    "Diesen Folgeauftrag gibt es mit dem echten Agenten nicht. Nutze am Review „Review-Kommentare umsetzen“ oder „Rote Checks beheben“."
                         .to_string(),
                 )
             }

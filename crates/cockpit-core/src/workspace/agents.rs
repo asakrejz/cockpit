@@ -306,14 +306,38 @@ impl Workspace {
         Some(effect)
     }
 
-    /// The real agent is done: the branch is on GitHub. The agent does not create a
-    /// pull request – you do that; so there is no review yet.
+    /// The real agent is done: the new commits are on the branch on GitHub. The pull request is only
+    /// created after your approval (`Action::CreatePullRequest`); a follow-up job continues on
+    /// the branch of an existing pull request.
     pub(super) fn finish_real(&mut self, run: &AgentRun) {
         let branch = run.branch();
+        if let Some(number) = run.kind.review() {
+            let what = match &run.kind {
+                RunKind::Followup {
+                    task: FollowupTask::FailedChecks { .. },
+                    ..
+                } => "Der Agent hat die roten Checks bearbeitet",
+                _ => "Der Agent hat die Review-Kommentare bearbeitet",
+            };
+            if let Some(item) = self.pr_item_mut(number) {
+                item.agent_note = Some(format!(
+                    "{what} – neue Commits sind auf {branch} gepusht, bitte prüfen"
+                ));
+                item.reason = ReasonKind::AgentFinished;
+                item.reason_text = format!("Agent fertig · neue Commits auf {branch}");
+                item.time = "gerade eben".into();
+                item.read = false;
+            }
+            return;
+        }
+        // The pull request number of a real run is only known once GitHub has created it.
+        if let Some(slot) = self.runs.iter_mut().find(|r| r.key() == run.key()) {
+            slot.pr_number = None;
+        }
         if let Some(item) = self.items.iter_mut().find(|i| i.key == run.ticket_key) {
             item.branch = Some(branch.clone());
             item.agent_note = Some(format!(
-                "Vom Agenten umgesetzt – Branch {branch} ist gepusht, den Pull Request legst du an"
+                "Vom Agenten umgesetzt – Branch {branch} ist gepusht, den Pull Request legst du mit einem Klick an"
             ));
             item.reason = ReasonKind::AgentFinished;
             item.reason_text = format!("Agent fertig · Branch {branch} gepusht");
@@ -321,4 +345,80 @@ impl Workspace {
             item.read = false;
         }
     }
+
+    // ---------- Pull request for the branch of a finished real run ----------
+
+    /// Title and text the pull request would get, for the preview. `None` if the run does not exist.
+    pub fn pull_request_draft(&self, run_key: &str) -> Option<PullRequestDraft> {
+        let run = self.runs.iter().find(|r| r.key() == run_key)?;
+        let files: Vec<String> = run
+            .files
+            .iter()
+            .take(20)
+            .map(|f| format!("- `{f}`"))
+            .collect();
+        let mut body = format!("## Was\n{}\n", run.summary.trim());
+        body.push_str(&format!(
+            "\n## Ticket\n{}: {}\n",
+            run.ticket_key, run.ticket_title
+        ));
+        if !files.is_empty() {
+            body.push_str(&format!(
+                "\n## Geänderte Dateien ({})\n{}\n",
+                run.files.len(),
+                files.join("\n")
+            ));
+        }
+        body.push_str("\n---\nVom Cockpit-Agenten umgesetzt. Gemergt wird von Hand.\n");
+        Some(PullRequestDraft {
+            title: format!("{}: {}", run.ticket_key, run.ticket_title),
+            body,
+            head: run.branch(),
+            base: run.options.base_branch.clone(),
+        })
+    }
+
+    /// May a pull request be created for this run? The run must be a finished real run
+    /// (the backend pushed its branch before reporting it done) without a pull request.
+    pub fn check_pull_request(&self, run_key: &str) -> Result<(), ActionError> {
+        let run = self
+            .runs
+            .iter()
+            .find(|r| r.key() == run_key)
+            .ok_or(ActionError::NothingToDo)?;
+        if run.kind != RunKind::Implement || !run.real || !run.is_done() {
+            return Err(ActionError::PullRequestNotReady);
+        }
+        if let Some(p) = &run.pull_request {
+            return Err(ActionError::PullRequestExists(p.number));
+        }
+        Ok(())
+    }
+
+    /// GitHub has created the pull request (or the existing one was found): book it on the run.
+    pub(crate) fn pull_request_created(&mut self, run_key: &str, pull: PullRequestRef) {
+        let Some(run) = self.runs.iter_mut().find(|r| r.key() == run_key) else {
+            return;
+        };
+        run.pr_number = Some(pull.number);
+        let ticket = run.ticket_key.clone();
+        let number = pull.number;
+        run.pull_request = Some(pull);
+        if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket) {
+            item.agent_note = Some(format!(
+                "Pull Request #{number} ist angelegt – bitte prüfen"
+            ));
+        }
+    }
+}
+
+/// Title and text of a pull request that is about to be created.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PullRequestDraft {
+    pub title: String,
+    pub body: String,
+    /// The branch of the agent.
+    pub head: String,
+    /// The branch the pull request goes against.
+    pub base: String,
 }

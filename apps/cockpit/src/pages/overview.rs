@@ -172,15 +172,11 @@ fn member_row(m: Member, selected: bool, chosen: RwSignal<String>) -> impl IntoV
 /// No entry is stuck: that is good news and should look like it.
 fn empty_state() -> impl IntoView {
     view! {
-        <div class="ck-empty-state">
-            <span class="ck-empty-state__icon" aria-hidden="true">
-                <Icon path=icons::CHECK size=22 stroke=2.4 />
-            </span>
-            <p class="t-headline">"Nichts hängt."</p>
-            <p class="t-subheadline t-secondary">
-                "Keine fehlgeschlagenen Checks, keine wartenden Reviews und kein Ticket ohne Branch."
-            </p>
-        </div>
+        <EmptyState
+            title="Nichts hängt"
+            text="Keine fehlgeschlagenen Checks, keine wartenden Reviews und kein Ticket ohne Branch."
+            icon=icons::CHECK
+        />
     }
 }
 

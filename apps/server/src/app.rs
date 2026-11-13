@@ -341,6 +341,20 @@ pub struct SyncState {
     pub github: String,
     pub jira: String,
     pub interval_s: u64,
+    /// Per source that was fetched at least once: what went wrong and since when. Contains
+    /// no key and no service message, only the kind of problem and times.
+    pub details: Vec<SourceDetail>,
+}
+
+/// Timing of one source: `since_ms` (problem lasts since), `retry_at_ms` (rate limit: when the
+/// sync asks again), `last_ok_ms` (last good fetch). All milliseconds since 1970.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct SourceDetail {
+    pub source: &'static str,
+    pub status: String,
+    pub since_ms: Option<u64>,
+    pub retry_at_ms: Option<u64>,
+    pub last_ok_ms: Option<u64>,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -420,6 +434,24 @@ impl AppState {
                     cockpit_core::Source::Jira,
                 ),
                 interval_s: q.interval.as_secs(),
+                details: ws
+                    .sync
+                    .sources
+                    .iter()
+                    .map(|st| SourceDetail {
+                        source: match st.source {
+                            cockpit_core::Source::Jira => "jira",
+                            cockpit_core::Source::GitHub => "github",
+                        },
+                        status: st.id().to_string(),
+                        since_ms: st.since_ms,
+                        retry_at_ms: match st.problem {
+                            Some(cockpit_core::Problem::RateLimited { until_ms }) => until_ms,
+                            _ => None,
+                        },
+                        last_ok_ms: st.last_ok_ms,
+                    })
+                    .collect(),
             },
             connections,
             sign_in: SignIn { github, jira },
@@ -540,6 +572,21 @@ async fn agent_image_build(State(state): State<AppState>) -> Response {
 /// container reach the endpoint (check mode of the image)?
 async fn endpoint_check_container(State(state): State<AppState>) -> Response {
     Json(state.container_check().await).into_response()
+}
+
+/// `GET /api/agent/pull-request?run=<key>`: preview of the pull request for the branch of a
+/// finished real run. Creates nothing.
+async fn pull_request_preview(
+    State(state): State<AppState>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    let Some(run) = q.get("run").filter(|r| !r.is_empty()) else {
+        return error(StatusCode::BAD_REQUEST, "Es fehlt der Lauf (run)");
+    };
+    match state.pull_request_preview(run).await {
+        Ok(p) => Json(p).into_response(),
+        Err(e) => action_error(e),
+    }
 }
 
 async fn api_unknown() -> (StatusCode, Json<serde_json::Value>) {
@@ -669,6 +716,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/jira/projects", get(jira_projects))
         .route("/api/agent/models", get(agent_models))
         .route("/api/agent/check", get(endpoint_check))
+        .route("/api/agent/pull-request", get(pull_request_preview))
         .route("/api/agent/check/container", get(endpoint_check_container))
         .route("/api/jira/check", post(crate::setup::jira_check))
         .route("/api/github/repos/check", post(crate::setup::repos_check))

@@ -16,13 +16,15 @@
 //!   response [`KeyResponse`] (only „set“, never the value)
 //! * `GET /api/agent/image` / `POST /api/agent/image`: state or start of „build image“, [`ImageBuild`]
 //! * `GET /api/agent/check/container`: the same check from a container, [`ContainerCheck`]
+//! * `GET /api/agent/pull-request?run=<key>`: title and text of the pull request that would be created for the
+//!   branch of a finished real run, and the one that already exists for it, [`PullRequestPreview`]
 //! * `GET /api/health`: under `agent` an [`AgentStatus`], under `endpoint` an [`EndpointStatus`], under `container` a [`ContainerStatus`]
 //!
 //! Both sides use these types so that the shapes do not drift apart.
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Action, AgentRepo, AgentRepos, LogEntry};
+use crate::{Action, AgentRepo, AgentRepos, LogEntry, PullRequestRef};
 
 /// Body of `POST /api/actions`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -226,7 +228,7 @@ pub struct AgentStatus {
     /// The agent image is built (`image inspect`).
     #[serde(default)]
     pub image: bool,
-    /// Name of the image, e.g. `localhost/cockpit-agent:2`.
+    /// Name of the image, e.g. `localhost/cockpit-agent:4`.
     #[serde(default)]
     pub image_name: String,
     /// The default repo of the agent (`owner/name`), if there is one.
@@ -528,3 +530,28 @@ pub struct ServerEvent {
 
 #[cfg(test)]
 mod tests;
+
+/// Preview of the pull request for the branch of a finished real run
+/// (`GET /api/agent/pull-request?run=<key>`). Nothing is created by asking for it.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct PullRequestPreview {
+    /// `owner/name`
+    #[serde(default)]
+    pub repo: String,
+    /// The branch of the agent.
+    #[serde(default)]
+    pub head: String,
+    /// The branch the pull request goes against (from the configuration of the run).
+    #[serde(default)]
+    pub base: String,
+    #[serde(default)]
+    pub title: String,
+    #[serde(default)]
+    pub body: String,
+    /// It would be created as a draft (the option of the run). Making it „ready“ is up to you on GitHub.
+    #[serde(default)]
+    pub draft: bool,
+    /// GitHub already has an open pull request for the branch: it is linked instead of creating one.
+    #[serde(default)]
+    pub existing: Option<PullRequestRef>,
+}

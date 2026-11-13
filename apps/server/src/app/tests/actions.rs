@@ -99,3 +99,25 @@ async fn broken_body_is_400() {
         assert!(answer.contains("error"));
     }
 }
+
+#[tokio::test]
+async fn pull_request_preview_needs_a_run_and_creates_nothing() {
+    let app = app_without_dist();
+    let (status, body) = hole(app.clone(), "/api/agent/pull-request").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    let (status, body) = hole(app, "/api/agent/pull-request?run=gibt-es-nicht").await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(json(&body)["error"].as_str().unwrap().contains("Lauf"));
+}
+
+#[tokio::test]
+async fn followups_and_pull_request_are_refused_over_http_without_setup_or_run() {
+    let app = app_without_dist();
+    for a in [
+        r#"{"action":{"AddressReviewThreads":{"review":85,"options":{}}}}"#,
+        r#"{"action":{"CreatePullRequest":{"run":"BAU-142","title":"t","body":""}}}"#,
+    ] {
+        let (status, body) = send(app.clone(), a).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{a}: {body}");
+    }
+}

@@ -224,6 +224,7 @@ mod follow_ups;
 mod limits;
 mod pull_requests;
 mod real_agent;
+mod real_followups;
 mod repos;
 mod review;
 mod status_sync;

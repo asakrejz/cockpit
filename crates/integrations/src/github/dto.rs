@@ -85,6 +85,11 @@ pub struct IssueComment {
 /// `GET /repos/{owner}/{repo}/pulls/{number}/comments` (comments on diff lines)
 #[derive(Debug, Clone, Deserialize)]
 pub struct ReviewComment {
+    #[serde(default)]
+    pub id: u64,
+    /// The comment this one answers (threads hang on their first comment).
+    #[serde(default)]
+    pub in_reply_to_id: Option<u64>,
     pub user: User,
     #[serde(default)]
     pub body: Option<String>,
@@ -145,6 +150,34 @@ pub struct CheckOutput {
     pub title: Option<String>,
     #[serde(default)]
     pub summary: Option<String>,
+    #[serde(default)]
+    pub text: Option<String>,
+}
+
+/// `GET /repos/{owner}/{repo}/check-runs/{id}/annotations`
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct Annotation {
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub start_line: u32,
+    /// `notice`, `warning`, `failure`
+    #[serde(default)]
+    pub annotation_level: String,
+    #[serde(default)]
+    pub message: String,
+}
+
+/// `GET /repos/{owner}/{repo}/pulls?head=…` and `POST /repos/{owner}/{repo}/pulls`
+#[derive(Debug, Clone, Deserialize)]
+pub struct PullSummary {
+    pub number: u32,
+    #[serde(default)]
+    pub html_url: String,
+    #[serde(default)]
+    pub state: String,
+    #[serde(default)]
+    pub head: Option<GitRef>,
 }
 
 /// `GET /repos/{owner}/{repo}/pulls/{number}/reviews`

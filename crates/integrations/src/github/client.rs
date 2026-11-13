@@ -5,9 +5,10 @@ use cockpit_core::Item;
 use serde::de::DeserializeOwned;
 
 use super::dto::{
-    CheckRun, CheckRuns, GitRefResponse, IssueComment, Pull, PullFile, PullReview, Repo,
-    ReviewComment, SearchItem, SearchResult, User,
+    Annotation, CheckRun, CheckRuns, GitRefResponse, IssueComment, Pull, PullFile, PullReview,
+    PullSummary, Repo, ReviewComment, SearchItem, SearchResult, User,
 };
+use super::followup::{self, FailedCheck, ReviewInput};
 use super::map;
 use crate::http::{base_url, client, send};
 use crate::outbound::{Outbound, Request, branch_request, check_again_request};
@@ -238,7 +239,93 @@ impl GitHubClient {
     }
 }
 
+// ---------- Inputs for follow-up jobs (read only) ----------
+
+impl GitHubClient {
+    /// Review threads and review texts of a pull request – the input for „implement review
+    /// comments“. Only reads.
+    pub async fn review_input(&self, repo: &str, nr: u32) -> Result<ReviewInput, Error> {
+        let lines = self.line_comments(repo, nr).await?;
+        let reviews = self.reviews(repo, nr).await?;
+        Ok(ReviewInput {
+            threads: followup::threads(&lines),
+            notes: followup::notes(&reviews),
+        })
+    }
+
+    /// The red checks on the current commit of the pull request with a shortened excerpt of their
+    /// output and annotations – the input for „fix red checks“. Only reads. The annotations are
+    /// optional: if GitHub does not deliver them, the output alone counts.
+    pub async fn failed_checks(&self, repo: &str, nr: u32) -> Result<Vec<FailedCheck>, Error> {
+        let pull = self.pull(repo, nr).await?;
+        let runs = self.check_runs(repo, &pull.head.sha).await?;
+        let mut out = Vec::new();
+        for run in runs
+            .iter()
+            .filter(|r| followup::is_failed(r))
+            .take(followup::MAX_CHECKS)
+        {
+            let annotations: Vec<Annotation> = self
+                .lies_json(
+                    self.get(&format!("/repos/{repo}/check-runs/{}/annotations", run.id))
+                        .query(&[("per_page", "50")]),
+                )
+                .await
+                .unwrap_or_default();
+            out.push(FailedCheck {
+                name: run.name.clone(),
+                excerpt: followup::excerpt(run, &annotations),
+            });
+        }
+        Ok(out)
+    }
+
+    /// The open pull request whose branch is `branch` in the same repo, if there is one.
+    pub async fn pull_for_branch(
+        &self,
+        repo: &str,
+        branch: &str,
+    ) -> Result<Option<PullSummary>, Error> {
+        let owner = repo.split('/').next().unwrap_or_default();
+        let list: Vec<PullSummary> = self
+            .lies_json(self.get(&format!("/repos/{repo}/pulls")).query(&[
+                ("head", format!("{owner}:{branch}").as_str()),
+                ("state", "open"),
+                ("per_page", "5"),
+            ]))
+            .await?;
+        // The filter of GitHub is exact; the check protects against a differently behaving server.
+        Ok(list.into_iter().find(|p| {
+            p.head
+                .as_ref()
+                .is_none_or(|h| h.name == branch || h.name.is_empty())
+        }))
+    }
+}
+
 // ---------- Writing ----------
+
+impl GitHubClient {
+    /// Creates a pull request from `head` against `base`. **Only after your approval** – the
+    /// caller has to look for an existing one first ([`GitHubClient::pull_for_branch`]).
+    /// Neither merges nor changes anything else.
+    pub async fn pull_create(
+        &self,
+        repo: &str,
+        head: &str,
+        base: &str,
+        title: &str,
+        body: &str,
+        draft: bool,
+    ) -> Result<PullSummary, Error> {
+        let text = self
+            .send(&crate::outbound::pull_request_request(
+                repo, head, base, title, body, draft,
+            ))
+            .await?;
+        serde_json::from_str(&text).map_err(|e| Error::Response(e.to_string()))
+    }
+}
 
 impl GitHubClient {
     /// Executes an outbound call. GitHub variants only; Jira is the Jira client's business.

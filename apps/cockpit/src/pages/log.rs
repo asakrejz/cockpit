@@ -97,17 +97,23 @@ fn entry_row(store: Store, e: LogEntry) -> impl IntoView {
     }
 }
 
-fn empty_state(filtered: bool) -> impl IntoView {
+fn empty_state(filtered: bool, actor: RwSignal<&'static str>) -> impl IntoView {
     let text = if filtered {
         "Von diesem Urheber gibt es noch keine Einträge."
     } else {
         "Sobald du etwas änderst oder der Agent arbeitet, steht es hier."
     };
     view! {
-        <div class="ck-empty-state">
-            <p class="t-headline">"Noch nichts protokolliert."</p>
-            <p class="t-subheadline t-secondary">{text}</p>
-        </div>
+        <EmptyState title="Noch nichts protokolliert" text=text icon=icons::LIBRARY>
+            {filtered
+                .then(|| {
+                    view! {
+                        <Button size=ControlSize::Small on_click=move |_| actor.set("all")>
+                            "Alle Urheber zeigen"
+                        </Button>
+                    }
+                })}
+        </EmptyState>
     }
 }
 
@@ -147,7 +153,7 @@ pub fn LogPage() -> impl IntoView {
                     {move || {
                         let list = entries.get();
                         if list.is_empty() {
-                            empty_state(actor.get() != "all").into_any()
+                            empty_state(actor.get() != "all", actor).into_any()
                         } else {
                             view! {
                                 <ul class="ck-stuck-list">

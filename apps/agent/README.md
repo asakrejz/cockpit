@@ -9,7 +9,7 @@ The Cockpit agent runs in its own container per run (Docker or Podman). This dir
 Build by hand (the backend does the same through "Image bauen" in the setup assistant):
 
 ```bash
-docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:2 apps/agent   # or: podman build …
+docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:4 apps/agent   # or: podman build …
 ```
 
 Rules for the `Containerfile` (they hold for Docker and Podman alike): a fully qualified base image, no BuildKit
@@ -54,6 +54,15 @@ from the person's shell ends up in the container.
 | `error` | `text` | abort with a reason |
 
 Lines arriving on stdin: `{"t":"answer","text":…}` and `{"t":"hint","text":…}`.
+
+## Follow-up jobs
+
+For a follow-up job on an existing pull request (image tag `:3`) `job.json` carries `followup`:
+`{kind: "review_comments" | "failed_checks", pull_request, threads: [{path, line, comments: [{author, text}]}],
+notes: [{author, state, text}], checks: [{name, excerpt}]}`; `branch` is the existing `claude/…` branch, already
+checked out in `/work`. The runner puts the texts into the prompt as data of third parties, limits them again
+(`LIMITS` in `job.ts`) and commits with a message that names the task. Everything else (events, no push, rules) is
+unchanged; old jobs without `followup` work as before.
 
 ## Rules in the container
 

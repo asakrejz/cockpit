@@ -26,7 +26,7 @@ impl CallError {
     pub fn message(&self) -> String {
         match self {
             CallError::Rejected(m) => m.clone(),
-            CallError::Unreachable => "Der Server ist nicht erreichbar".into(),
+            CallError::Unreachable => cockpit_core::notice::SERVER_UNREACHABLE_TITLE.into(),
         }
     }
 }
@@ -34,12 +34,11 @@ impl CallError {
 /// The message from an error response, otherwise a general one.
 async fn rejection(resp: gloo_net::http::Response) -> CallError {
     let status = resp.status();
-    let message = resp
-        .json::<ErrorBody>()
-        .await
-        .map(|e| e.error)
-        .unwrap_or_else(|_| format!("Der Server antwortet mit Fehler {status}"));
-    CallError::Rejected(message)
+    let server_message = resp.json::<ErrorBody>().await.map(|e| e.error).ok();
+    CallError::Rejected(cockpit_core::notice::http_failure_text(
+        status,
+        server_message.as_deref(),
+    ))
 }
 
 /// Loads the current state including the revision.
@@ -96,6 +95,24 @@ pub async fn fetch_jira_projects() -> Result<JiraProjectsResponse, CallError> {
         return Err(rejection(resp).await);
     }
     resp.json::<JiraProjectsResponse>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Preview of the pull request for the branch of a finished real run
+/// (`GET /api/agent/pull-request?run=…`). Creates nothing.
+pub async fn fetch_pull_request_preview(
+    run: &str,
+) -> Result<cockpit_core::api::PullRequestPreview, CallError> {
+    let resp = Request::get("/api/agent/pull-request")
+        .query([("run", run)])
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<cockpit_core::api::PullRequestPreview>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }

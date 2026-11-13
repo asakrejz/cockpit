@@ -260,6 +260,51 @@ impl Workspace {
                     format!("Diagnose für {label} verworfen, am Branch ändert sich nichts"),
                 )])
             }
+            Action::AddressReviewThreads { review, options } => {
+                self.need_open_review(&review)?;
+                self.address_review_threads(&review, options)
+                    .map_err(agent_error)?;
+                Ok(vec![Note::new(
+                    Target::Review(review.clone()),
+                    format!("Agent beauftragt, die Review-Kommentare in {review} umzusetzen"),
+                )])
+            }
+            Action::FixFailedChecks { review, options } => {
+                self.need_open_review(&review)?;
+                self.fix_failed_checks(&review, options)
+                    .map_err(agent_error)?;
+                Ok(vec![Note::new(
+                    Target::Review(review.clone()),
+                    format!("Agent beauftragt, die roten Checks in {review} zu beheben"),
+                )])
+            }
+            Action::CreatePullRequest {
+                run,
+                title,
+                body,
+                pull,
+            } => {
+                self.check_pull_request(&run)?;
+                if title.trim().is_empty()
+                    || title.chars().count() > 256
+                    || body.chars().count() > 60_000
+                {
+                    return Err(ActionError::InvalidInput);
+                }
+                // Without the answer of GitHub nothing is booked (the backend fills it in).
+                let pull = pull.ok_or(ActionError::InvalidInput)?;
+                let label = self.label_of(&run);
+                let n = pull.number;
+                let text = if pull.existed {
+                    format!(
+                        "Pull Request #{n} für {label} gab es schon – verlinkt, nichts neu angelegt"
+                    )
+                } else {
+                    format!("Pull Request #{n} für {label} angelegt")
+                };
+                self.pull_request_created(&run, pull);
+                Ok(vec![Note::new(Target::Run(run), text)])
+            }
             Action::ResumeStopped { run, extra } => {
                 let reason = self
                     .resume_stopped(&run, extra, at_ms)

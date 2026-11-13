@@ -110,9 +110,11 @@ impl Problem {
     pub fn text(&self) -> String {
         match self {
             Problem::Unauthorized => {
-                "Token abgelaufen oder ungültig – neu setzen mit „cockpit-server token set“".into()
+                "Token abgelehnt – abgelaufen oder widerrufen. Unter „Einrichten“ erneuern".into()
             }
-            Problem::NoPermission => "Dem Token fehlt eine Berechtigung".into(),
+            Problem::NoPermission => {
+                "Dem Token fehlt eine Berechtigung – unter „Einrichten“ prüfen, was er darf".into()
+            }
             Problem::RateLimited { until_ms: Some(_) } => {
                 "Kontingent aufgebraucht – der Abgleich pausiert".into()
             }
@@ -136,6 +138,10 @@ pub struct SourceState {
     /// Last attempt.
     #[serde(default)]
     pub last_try_ms: u64,
+    /// Since when the current problem lasts (milliseconds since 1970); `None` while all is well.
+    /// Stays while the same kind of problem repeats, so "seit 10 Min." is stable.
+    #[serde(default)]
+    pub since_ms: Option<u64>,
     /// Hints from the last successful fetch.
     #[serde(default)]
     pub warnings: Vec<String>,
@@ -200,7 +206,7 @@ impl SyncState {
         }
     }
 
-    fn set_state(
+    pub(crate) fn set_state(
         &mut self,
         source: Source,
         problem: Option<Problem>,
@@ -215,6 +221,7 @@ impl SyncState {
                     problem: None,
                     last_ok_ms: None,
                     last_try_ms: now_ms,
+                    since_ms: None,
                     warnings: Vec::new(),
                 });
                 self.sources.last_mut().expect("just inserted")
@@ -225,6 +232,15 @@ impl SyncState {
             entry.last_ok_ms = Some(now_ms);
             entry.warnings = warn.iter().take(MAX_WARNINGS).cloned().collect();
         }
+        entry.since_ms = match (&problem, &entry.problem) {
+            (None, _) => None,
+            (Some(new), Some(old))
+                if std::mem::discriminant(new) == std::mem::discriminant(old) =>
+            {
+                entry.since_ms.or(Some(now_ms))
+            }
+            (Some(_), _) => Some(now_ms),
+        };
         entry.problem = problem;
     }
 }

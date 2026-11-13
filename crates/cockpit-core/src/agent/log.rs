@@ -125,6 +125,9 @@ impl AgentRun {
                 (RunKind::Diagnose { review, check }, _) => {
                     self.diagnose_log(&mut lines, step, review, check);
                 }
+                (RunKind::Followup { review, .. }, _) => {
+                    self.address_log(&mut lines, step, review, 0);
+                }
                 (RunKind::Implement, 0) => {
                     let comments = match self.comments {
                         1 => "1 Kommentar".to_string(),

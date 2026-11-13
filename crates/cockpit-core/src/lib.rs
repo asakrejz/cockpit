@@ -9,6 +9,7 @@
 //! * [`setup`]: steps, inputs and summary of the setup assistant
 //! * [`link`]: link ticket and pull request via the ticket key
 //! * [`search`]: search and filter of the inbox
+//! * [`notice`]: plain-language banners for sources that are not healthy, and failure texts
 //! * [`notify`]: events for notifications, channels and quiet hours
 //! * [`usage`]: consumption, costs, limits and the ledger of the agents
 //! * [`rules`]: rules per repository (paths, required tests, instructions)
@@ -33,6 +34,7 @@ pub mod demo;
 pub mod diagnosis;
 pub mod link;
 pub mod model;
+pub mod notice;
 pub mod notify;
 pub mod persist;
 pub mod repos;
@@ -48,13 +50,15 @@ pub mod workspace;
 
 pub use action::{Action, ActionError, Actor, Applied, LogEntry, MAX_LOG, Target};
 pub use agent::{
-    AgentOptions, AgentPlan, AgentReport, AgentRun, MessageKind, Plan, Question, ReportEffect,
-    RunKind, RunMessage, RunState, Speaker, Step, StepState, Tick,
+    AgentOptions, AgentPlan, AgentReport, AgentRun, FollowupTask, MessageKind, Plan,
+    PullRequestRef, Question, ReportEffect, RunKind, RunMessage, RunState, Speaker, Step,
+    StepState, Tick,
 };
 pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::{AuthKind, Connections, ServiceStatus};
 pub use diagnosis::{Diagnosis, Fix};
 pub use model::*;
+pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};
 pub use notify::{
     Channel, Channels, Delivery, Event as NotifyEvent, NotifyReason, NotifySettings, QuietHours,
 };
@@ -71,4 +75,6 @@ pub use sync::{
 };
 pub use team::{CAPACITY, LoadLevel, Member, Stuck, StuckKind, state_label};
 pub use usage::{AgentLimits, Charge, Pricing, StopReason, Usage};
-pub use workspace::{AgentError, LinkError, ResumeError, StatusChange, Workspace};
+pub use workspace::{
+    AgentError, LinkError, PullRequestDraft, ResumeError, StatusChange, Workspace,
+};

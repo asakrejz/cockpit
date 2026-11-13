@@ -5,6 +5,7 @@
 
 mod banner;
 mod first_run;
+mod gate;
 mod notify;
 mod oauth_card;
 mod oauth_result;
@@ -70,7 +71,11 @@ fn App() -> impl IntoView {
     view! {
         <Root theme=system_theme() class="ck-root">
             <ServerBanner />
-            {move || match store.route.get() {
+            {move || {
+                if !store.loaded.get() {
+                    return view! { <gate::Gate /> }.into_any();
+                }
+                match store.route.get() {
                 Route::Setup => view! { <SetupPage /> }.into_any(),
                 Route::Inbox(filter) => view! { <InboxPage filter=filter /> }.into_any(),
                 Route::Overview => view! { <OverviewPage /> }.into_any(),
@@ -79,6 +84,7 @@ fn App() -> impl IntoView {
                 Route::Limits => view! { <LimitsPage /> }.into_any(),
                 Route::Review(number) => view! { <ReviewPage number=number /> }.into_any(),
                 Route::Agent(ticket) => view! { <AgentPage ticket=ticket /> }.into_any(),
+                }
             }}
             <toasts::Toasts />
         </Root>

@@ -327,3 +327,55 @@
   .ui-segmented { border-radius: var(--ref-radius-20); }
   .ui-segmented button { padding-inline: var(--ref-space-12); }
 }
+
+/* States: empty, error, banner, skeleton (crates/ui/src/state.rs). Tokens only. */
+.ui-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ref-space-8);
+  padding: var(--ref-space-20);
+  text-align: center;
+  border-radius: var(--ref-radius-12);
+  background: var(--sys-color-tertiary-grouped-background);
+}
+.ui-state__icon {
+  display: inline-flex;
+  padding: var(--ref-space-8);
+  border-radius: var(--ref-radius-full);
+  color: var(--sys-color-secondary-label);
+  background: var(--sys-color-fill);
+}
+.ui-state[data-kind="error"] .ui-state__icon { color: var(--sys-color-red); }
+.ui-state__title, .ui-state__text { margin: 0; max-width: 46ch; }
+.ui-state__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--ref-space-8); margin-top: var(--ref-space-4); }
+
+.ui-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ref-space-8) var(--ref-space-16);
+  padding: var(--ref-space-8) var(--ref-space-16);
+  border-radius: var(--ref-radius-12);
+  color: var(--sys-color-label);
+  background: var(--sys-color-tertiary-grouped-background);
+  box-shadow: inset 3px 0 0 var(--sys-color-blue);
+}
+.ui-banner[data-tone="warning"] { box-shadow: inset 3px 0 0 var(--sys-color-orange); }
+.ui-banner[data-tone="error"] { box-shadow: inset 3px 0 0 var(--sys-color-red); }
+.ui-banner__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 240px; }
+.ui-banner__actions { display: flex; flex-wrap: wrap; gap: var(--ref-space-8); }
+
+.ui-skeleton { display: flex; flex-direction: column; gap: var(--ref-space-12); padding: var(--ref-space-12) var(--ref-space-20); }
+.ui-skeleton__row {
+  display: block;
+  height: 1.1em;
+  border-radius: var(--ref-radius-8);
+  background: linear-gradient(90deg, var(--sys-color-fill), var(--sys-color-tertiary-grouped-background), var(--sys-color-fill));
+  background-size: 200% 100%;
+  animation: ui-skeleton-shimmer 1.4s linear infinite;
+}
+.ui-skeleton__row[data-short] { width: 60%; }
+@keyframes ui-skeleton-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .ui-skeleton__row { animation: none; } }
