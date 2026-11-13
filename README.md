@@ -311,6 +311,15 @@ in Browser-Speicher, Adresse, Datenbank, `config.toml` oder Log.
 meldet sich im Browser an; im Assistenten steht das eingeklappt unter „Erweitert: Mit OAuth statt Token“, die Schritte
 stehen weiter unten („Anmeldung per OAuth“). Ist beides da, geht OAuth vor dem Token.
 
+**Token oder OAuth?** Je Dienst gilt ein Weg, nicht beide: Ist eine OAuth-Anmeldung da, geht sie vor dem Token.
+
+| Dienst | Im Assistenten | Nur außerhalb des Assistenten |
+|---|---|---|
+| Jira | API-Token (Standard) oder OAuth (eingeklappt unter „Erweitert“) | – |
+| GitHub | GitHub App (OAuth) | persönlicher Token: `token setzen github` oder `GITHUB_TOKEN` in der `.env` |
+
+Wer OAuth nutzt, lässt `JIRA_TOKEN` und `GITHUB_TOKEN` in der `.env` leer.
+
 ### Mit echten Diensten verbinden
 
 **Der bequeme Weg ist der Assistent:** Die Seite „Einrichten“ führt durch Container, Jira, GitHub und den Modellzugang
