@@ -57,6 +57,101 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
         parts.join(" · ")
     });
 
+    // The entries exist twice: in the sidebar (wide screens) and in the bottom bar (up to 1100 px).
+    let main_items = move || {
+        view! {
+            <SidebarItem
+                href=Route::Inbox(Filter::All).hash()
+                label="Aufmerksamkeit"
+                icon=icons::BELL
+                count=count(Filter::All)
+                current=on(Route::Inbox(Filter::All))
+            />
+            <SidebarItem
+                href=Route::Inbox(Filter::Mine).hash()
+                label="Meine Aufgaben"
+                icon=icons::TASKS
+                count=count(Filter::Mine)
+                current=on(Route::Inbox(Filter::Mine))
+            />
+            <SidebarItem
+                href=Route::Inbox(Filter::Team).hash()
+                label="Team"
+                icon=icons::USERS
+                count=count(Filter::Team)
+                current=on(Route::Inbox(Filter::Team))
+            />
+            <SidebarItem
+                href=Route::Inbox(Filter::Snoozed).hash()
+                label="Zurückgestellt"
+                icon=icons::MOON
+                count=snoozed
+                current=on(Route::Inbox(Filter::Snoozed))
+            />
+            <SidebarItem
+                href=Route::Overview.hash()
+                label="Übersicht"
+                icon=icons::CHART
+                count=stuck
+                current=on(Route::Overview)
+            />
+            <SidebarItem
+                href=Route::Review(None).hash()
+                label="Pull Requests"
+                icon=icons::GIT_PR
+                count=reviews
+                current=Signal::derive(move || matches!(store.route.get(), Route::Review(_)))
+            />
+            <SidebarItem
+                href=Route::Agent(None).hash()
+                label="Agenten"
+                icon=icons::SPARKLES
+                count=agents
+                current=Signal::derive(move || matches!(store.route.get(), Route::Agent(_)))
+            />
+            <SidebarItem
+                href=Route::Log.hash()
+                label="Protokoll"
+                icon=icons::LIBRARY
+                current=on(Route::Log)
+            />
+        }
+    };
+    let more_items = move || {
+        view! {
+            <SidebarItem
+                href=Route::Limits.hash()
+                label="Grenzen & Regeln"
+                icon=icons::SETTINGS
+                current=on(Route::Limits)
+            />
+            <SidebarItem
+                href=Route::Notifications.hash()
+                label="Benachrichtigungen"
+                icon=icons::BELL
+                current=on(Route::Notifications)
+            />
+            <SidebarItem href=Route::Setup.hash() label="Einrichten" icon=icons::SLIDERS />
+        }
+    };
+
+    // After every navigation start at the top (the browser keeps the old scroll position on
+    // hash changes) and keep the current page in the sideways-scrolling bar in view.
+    Effect::new(move |_| {
+        store.route.track();
+        window().scroll_to_with_x_and_y(0.0, 0.0);
+        request_animation_frame(|| {
+            if let Ok(Some(item)) =
+                document().query_selector(".ui-bottomnav [aria-current=\"page\"]")
+            {
+                let options = web_sys::ScrollIntoViewOptions::new();
+                options.set_block(web_sys::ScrollLogicalPosition::Nearest);
+                options.set_inline(web_sys::ScrollLogicalPosition::Center);
+                item.scroll_into_view_with_scroll_into_view_options(&options);
+            }
+        });
+    });
+
     view! {
         <Sidebar label="Bereiche">
             <SidebarBrand href="#/">
@@ -65,80 +160,11 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
                     <Badge variant=BadgeVariant::Neutral>"Lokal"</Badge>
                 </span>
             </SidebarBrand>
-            <SidebarSection>
-                <SidebarItem
-                    href=Route::Inbox(Filter::All).hash()
-                    label="Aufmerksamkeit"
-                    icon=icons::BELL
-                    count=count(Filter::All)
-                    current=on(Route::Inbox(Filter::All))
-                />
-                <SidebarItem
-                    href=Route::Inbox(Filter::Mine).hash()
-                    label="Meine Aufgaben"
-                    icon=icons::TASKS
-                    count=count(Filter::Mine)
-                    current=on(Route::Inbox(Filter::Mine))
-                />
-                <SidebarItem
-                    href=Route::Inbox(Filter::Team).hash()
-                    label="Team"
-                    icon=icons::USERS
-                    count=count(Filter::Team)
-                    current=on(Route::Inbox(Filter::Team))
-                />
-                <SidebarItem
-                    href=Route::Inbox(Filter::Snoozed).hash()
-                    label="Zurückgestellt"
-                    icon=icons::MOON
-                    count=snoozed
-                    current=on(Route::Inbox(Filter::Snoozed))
-                />
-                <SidebarItem
-                    href=Route::Overview.hash()
-                    label="Übersicht"
-                    icon=icons::CHART
-                    count=stuck
-                    current=on(Route::Overview)
-                />
-                <SidebarItem
-                    href=Route::Review(None).hash()
-                    label="Pull Requests"
-                    icon=icons::GIT_PR
-                    count=reviews
-                    current=Signal::derive(move || matches!(store.route.get(), Route::Review(_)))
-                />
-                <SidebarItem
-                    href=Route::Agent(None).hash()
-                    label="Agenten"
-                    icon=icons::SPARKLES
-                    count=agents
-                    current=Signal::derive(move || matches!(store.route.get(), Route::Agent(_)))
-                />
-                <SidebarItem
-                    href=Route::Log.hash()
-                    label="Protokoll"
-                    icon=icons::LIBRARY
-                    current=on(Route::Log)
-                />
-            </SidebarSection>
+            <SidebarSection role=SectionRole::Primary>{main_items()}</SidebarSection>
             {children()}
             <Spacer />
-            <SidebarSection>
-                <SidebarItem
-                    href=Route::Limits.hash()
-                    label="Grenzen & Regeln"
-                    icon=icons::SETTINGS
-                    current=on(Route::Limits)
-                />
-                <SidebarItem
-                    href=Route::Notifications.hash()
-                    label="Benachrichtigungen"
-                    icon=icons::BELL
-                    current=on(Route::Notifications)
-                />
-                <SidebarItem href=Route::Setup.hash() label="Einrichten" icon=icons::SLIDERS />
-            </SidebarSection>
+            <SidebarSection role=SectionRole::Primary>{more_items()}</SidebarSection>
         </Sidebar>
+        <BottomNav label="Hauptnavigation">{main_items()}{more_items()}</BottomNav>
     }
 }

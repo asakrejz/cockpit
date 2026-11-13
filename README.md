@@ -707,8 +707,9 @@ Not built yet (everything below is open; nothing here has been verified against 
   [apps/agent/README.md](apps/agent/README.md)); then pass `COCKPIT_PROVIDER` on.
 - **Webhooks / live update:** open decision between a tunnel (webhooks) and polling every 2 minutes; the default
   stays polling.
-- **Error and empty states** (expired token, rate limit, offline, backend unreachable) across all pages, and a
-  **mobile view** (navigation at the bottom, list and detail as separate levels).
+- **Error and empty states** (expired token, rate limit, offline, backend unreachable) across all pages.
+  The mobile view (navigation at the bottom, inbox list and detail as separate levels) exists; see
+  [Narrow screens](docs/architecture.md#narrow-screens-phone-and-tablet). Still untested on real devices.
 - Verification with a **real container and a real model** (`#[ignore]` tests with `COCKPIT_CONTAINER=docker|podman`),
   and a first run of the **release workflow**.
 - Smaller known gaps: restarting a check through the API may need a GitHub App instead of a token; Jira status
