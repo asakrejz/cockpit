@@ -4,5 +4,5 @@
 .env
 .env.*
 
-# Läufer des Agenten (npm install im Image)
+# Runner of the agent (npm install in the image)
 /apps/agent/runner/node_modules

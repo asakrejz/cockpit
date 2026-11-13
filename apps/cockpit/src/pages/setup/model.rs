@@ -223,7 +223,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         .not_implemented()
                         .map(|m| {
                             view! {
-                                <p class="ui-hinweis" role="status">
+                                <p class="ui-hint" role="status">
                                     {m}
                                     " Du kannst es schon eintragen; Läufe starten erst, wenn es umgesetzt ist."
                                 </p>
@@ -301,7 +301,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                 {move || {
                     list_hint
                         .get()
-                        .map(|m| view! { <p class="ui-hinweis" role="status">{m}</p> })
+                        .map(|m| view! { <p class="ui-hint" role="status">{m}</p> })
                 }}
                 <Select
                     label="Modell"
@@ -317,7 +317,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                 />
                 {move || {
                     model_hint(&list.get(), &model.get())
-                        .map(|m| view! { <p class="ui-hinweis" role="status">{m}</p> })
+                        .map(|m| view! { <p class="ui-hint" role="status">{m}</p> })
                 }}
                 <TextField
                     label="Modellname von Hand"
@@ -359,7 +359,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                 {move || {
                     test_error
                         .get()
-                        .map(|m| view! { <p class="ui-hinweis" role="alert">{m}</p> })
+                        .map(|m| view! { <p class="ui-hint" role="alert">{m}</p> })
                 }}
                 {move || {
                     ctx.check
@@ -396,7 +396,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                 {move || {
                     c_error
                         .get()
-                        .map(|m| view! { <p class="ui-hinweis" role="alert">{m}</p> })
+                        .map(|m| view! { <p class="ui-hint" role="alert">{m}</p> })
                 }}
                 {move || {
                     ctx.container_check

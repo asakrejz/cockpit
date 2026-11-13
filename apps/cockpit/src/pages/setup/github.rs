@@ -32,7 +32,7 @@ fn Checkmark(area: &'static str, level: &'static str) -> impl IntoView {
                     <strong>{area}</strong>
                 </span>
             </label>
-            <span class="ui-haken-liste__recht">{level}</span>
+            <span class="ui-checklist__permission">{level}</span>
         </li>
     }
 }
@@ -98,7 +98,7 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
                 </p>
             </Intro>
             <Section title="1. GitHub App anlegen">
-                <ol class="ui-anleitung">
+                <ol class="ui-instructions">
                     <li>
                         "Öffne "
                         <Extern href="https://github.com/settings/apps/new">"github.com/settings/apps/new"</Extern>
@@ -116,7 +116,7 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
                     </li>
                     <li>
                         "Öffne unter „Permissions“ den Bereich „Repository permissions“ und stelle diese Rechte ein (Haken setzen, was du schon erledigt hast):"
-                        <ul class="ui-haken-liste">
+                        <ul class="ui-checklist">
                             {PERMISSIONS
                                 .iter()
                                 .map(|&(b, s)| view! { <Checkmark area=b level=s /> })
@@ -129,7 +129,7 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
                 </ol>
             </Section>
             <Section title="2. Client ID und Client-Secret eintragen">
-                <ol class="ui-anleitung">
+                <ol class="ui-instructions">
                     <li>
                         "Oben auf der Seite deiner neuen App steht die „Client ID“ (sie beginnt oft mit „Iv“). Trage sie hier ein."
                     </li>
@@ -152,7 +152,7 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
                 />
             </Section>
             <Section title="3. App installieren – sonst sieht Cockpit keine Repos">
-                <ol class="ui-anleitung">
+                <ol class="ui-instructions">
                     <li>"Klicke links auf der Seite deiner App auf „Install App“ und dann bei deinem Konto auf „Install“."</li>
                     <li>
                         "Wähle „Only select repositories“ und hake die Repos an, die Cockpit sehen soll. Dann „Install“."

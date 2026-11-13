@@ -60,7 +60,7 @@ pub fn Message(feedback: Feedback) -> impl IntoView {
                 .map(|(gut, text)| {
                     view! {
                         <p
-                            class="ui-hinweis"
+                            class="ui-hint"
                             role=if gut { "status" } else { "alert" }
                             style=(!gut).then_some("color: var(--sys-color-red)")
                         >
@@ -211,9 +211,9 @@ pub fn CopyField(
         }
     };
     view! {
-        <div class="ui-kopie">
+        <div class="ui-copy">
             <span class="t-footnote t-secondary">{label}</span>
-            <code class="ui-kopie__text">{move || text.get()}</code>
+            <code class="ui-copy__text">{move || text.get()}</code>
             <Button size=ControlSize::Small on_click=click>"Kopieren"</Button>
         </div>
     }

@@ -108,7 +108,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                     {move || {
                         status()
                             .and_then(|s| s.hint)
-                            .map(|h| view! { <p class="ui-hinweis" role="status">{h}</p> })
+                            .map(|h| view! { <p class="ui-hint" role="status">{h}</p> })
                     }}
                     <HStack spacing="12px">
                         <Button on_click=move |_| ctx.laden()>"Erneut prüfen"</Button>
@@ -148,12 +148,12 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                                 {move || {
                                     build_error
                                         .get()
-                                        .map(|m| view! { <p class="ui-hinweis" role="alert">{m}</p> })
+                                        .map(|m| view! { <p class="ui-hint" role="alert">{m}</p> })
                                 }}
                                 {move || {
                                     build.get()
                                         .and_then(|b| b.error)
-                                        .map(|m| view! { <p class="ui-hinweis" role="alert">{m}</p> })
+                                        .map(|m| view! { <p class="ui-hint" role="alert">{m}</p> })
                                 }}
                                 {move || {
                                     build.get()
@@ -172,7 +172,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                     .then(|| {
                         view! {
                             <Section title="Das Programm ist da, aber nicht gestartet">
-                                <ol class="ui-anleitung">
+                                <ol class="ui-instructions">
                                     <li>
                                         "Öffne „Rancher Desktop“ (oder Podman Desktop) aus dem Programme-Ordner und warte, bis oben „läuft“ oder ein grüner Punkt steht – das kann eine Minute dauern."
                                     </li>
@@ -190,7 +190,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                     .then(|| {
                         view! {
                             <Section title="Option A: Rancher Desktop (empfohlen für Einsteiger)">
-                                <ol class="ui-anleitung">
+                                <ol class="ui-instructions">
                                     <li>
                                         "Lade das Programm herunter: "
                                         <Extern href="https://rancherdesktop.io/">"rancherdesktop.io"</Extern>
@@ -208,7 +208,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                                 </ol>
                             </Section>
                             <Section title="Option B: Podman">
-                                <ol class="ui-anleitung">
+                                <ol class="ui-instructions">
                                     <li>
                                         "Installiere Podman nach der Anleitung auf "
                                         <Extern href="https://podman.io/docs/installation">

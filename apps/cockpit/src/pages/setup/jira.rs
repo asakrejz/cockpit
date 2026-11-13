@@ -59,7 +59,7 @@ pub fn JiraStep(ctx: Context) -> impl IntoView {
                 (result.with(|e| e.as_ref().is_some_and(|e| e.ok)) || per_token())
                     .then(|| view! { <JiraProjectChoice ctx=ctx /> })
             }}
-            <details class="ui-erweitert" open=oauth_active>
+            <details class="ui-advanced" open=oauth_active>
                 <summary>"Erweitert: Mit OAuth statt Token"</summary>
                 <VStack spacing="12px">
                     <Intro title="Mit Atlassian-App (OAuth)">
@@ -140,7 +140,7 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
 
     view! {
         <Section title="1. App in der Atlassian-Entwicklerkonsole anlegen">
-            <ol class="ui-anleitung">
+            <ol class="ui-instructions">
                 <li>
                     "Öffne "
                     <Extern href="https://developer.atlassian.com/console/myapps/">
@@ -156,10 +156,10 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                 </li>
                 <li>
                     "Öffne bei „Classic scopes“ „Edit Scopes“, hake diese drei Rechte an und speichere:"
-                    <ul class="ui-haken-liste">
-                        <li><code>"read:jira-work"</code><span class="ui-haken-liste__recht">"Tickets lesen"</span></li>
-                        <li><code>"write:jira-work"</code><span class="ui-haken-liste__recht">"Tickets kommentieren und Status ändern"</span></li>
-                        <li><code>"read:jira-user"</code><span class="ui-haken-liste__recht">"Namen von Personen lesen"</span></li>
+                    <ul class="ui-checklist">
+                        <li><code>"read:jira-work"</code><span class="ui-checklist__permission">"Tickets lesen"</span></li>
+                        <li><code>"write:jira-work"</code><span class="ui-checklist__permission">"Tickets kommentieren und Status ändern"</span></li>
+                        <li><code>"read:jira-user"</code><span class="ui-checklist__permission">"Namen von Personen lesen"</span></li>
                     </ul>
                 </li>
                 <li>
@@ -307,11 +307,11 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
             />
             {move || match site_read.get() {
                 Ok(s) if !s.is_empty() => {
-                    view! { <p class="ui-hinweis">"Cockpit verwendet: " <code>{s}</code></p> }.into_any()
+                    view! { <p class="ui-hint">"Cockpit verwendet: " <code>{s}</code></p> }.into_any()
                 }
                 Ok(_) => ().into_any(),
                 Err(m) => {
-                    view! { <p class="ui-hinweis" role="alert" style="color: var(--sys-color-red)">{m}</p> }
+                    view! { <p class="ui-hint" role="alert" style="color: var(--sys-color-red)">{m}</p> }
                         .into_any()
                 }
             }}
@@ -326,7 +326,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
             />
         </Section>
         <Section title="3. Token erstellen">
-            <ol class="ui-anleitung">
+            <ol class="ui-instructions">
                 <li>
                     "Klicke auf „Token-Seite öffnen“ und melde dich bei Atlassian an. Die Seite geht in einem neuen Tab auf."
                     <HStack spacing="12px" css="margin-top: 8px">
@@ -371,7 +371,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                     .map(|p| {
                         view! {
                             <p
-                                class="ui-hinweis"
+                                class="ui-hint"
                                 role=if p.ok { "status" } else { "alert" }
                                 style=(!p.ok).then_some("color: var(--sys-color-red)")
                             >
@@ -449,7 +449,7 @@ fn JiraProjectChoice(ctx: Context) -> impl IntoView {
                 (loaded.get() && projects.with(|p| p.is_empty()) && back.with(|r| r.is_none()))
                     .then(|| {
                         view! {
-                            <p class="ui-hinweis">
+                            <p class="ui-hint">
                                 "Jira zeigt für dieses Konto keine Projekte. Du kannst „Alle Projekte“ lassen."
                             </p>
                         }
