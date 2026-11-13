@@ -17,6 +17,7 @@ mod media_card;
 mod navigation;
 mod pager;
 mod phone;
+mod states;
 
 use leptos::prelude::AnyView;
 
@@ -49,6 +50,7 @@ pub static STORIES: &[Story] = &[
     layout::STORY,
     phone::STORY,
     app_blocks::STORY,
+    states::STORY,
 ];
 
 pub fn find(id: &str) -> Option<&'static Story> {

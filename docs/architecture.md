@@ -131,7 +131,12 @@ stay empty and nothing is lost.
 - Per source there is a state (`/api/health` › `sync`, in the app under "Abgleich"): `ok`, `unauthorized` (401, token
   expired), `no_permission` (403), `quota` (rate limit: the source pauses until the time from
   `Retry-After`/`X-RateLimit-Reset`), `offline`, `error`; plus `off` (not set up or no key) and `waiting` (no fetch
-  yet). On an error the last data of the source stays.
+  yet). On an error the last data of the source stays. Each source state also carries `since_ms` (since when the
+  problem lasts; unchanged while the same kind of problem repeats, cleared on recovery); `/api/health` › `sync` ›
+  `details[]` lists `{source, status, since_ms, retry_at_ms, last_ok_ms}` per fetched source (no keys, no service
+  messages). `since_ms` is `#[serde(default)]`, so older snapshots stay valid.
+- A 5xx or a timeout is a source problem (`error` / `offline`), not an error of the sync call: `POST /api/sync` still
+  answers 200. A source in `quota` with a known time is not queried at all until then.
 - The number of a pull request is the key of a review in the model. Pull requests with the same number from two repos
   are separate inbox entries (the ID contains the repo), but reviews and the `PrLink` assignment still hang on the
   number, so two repos with the same number share one place there.
@@ -151,6 +156,24 @@ workspace (also "only you may merge", "review only after deciding on every sugge
 
 All other actions, and every entry that came from a seed, stay local. The action `SyncRemote` may only be triggered by
 the backend; `POST /api/actions` rejects it.
+
+## Empty, loading and error states
+
+The browser decides what to show from three things it already has: the link to the server (`Link`: connecting,
+online, offline, plus `navigator.onLine`), whether the first workspace has arrived (`Store::loaded`), and
+`workspace.sync.sources` (per source: problem, `since_ms`, last success).
+
+- `apps/cockpit/src/gate.rs`: before the first state arrives, placeholder rows or "server not reachable" with retry.
+- `store.rs`: when the event stream or a fetch fails the store marks the link offline and retries with a back-off
+  (`cockpit_core::notice::reconnect_delay_s`); the browser's `online` event retries at once. Nothing is lost: the
+  last workspace stays on screen.
+- `apps/cockpit/src/banner.rs`: link banners and one banner per source with a problem, built by
+  `cockpit_core::notice::source_notices` (pure, tested). The cause decides the action: token rejected or no permission →
+  "Einrichten", rate limit with time → wait (says when), otherwise "Jetzt abgleichen".
+- `cockpit_core::notice::http_failure_text` turns a failed request to the local backend (by HTTP status plus the
+  backend's own German message) into the notice text; pages never build error strings themselves.
+- UI blocks: `EmptyState`, `ErrorState` (`role="alert"`), `StatusBanner` (`alert` for errors, `status` otherwise) and
+  `Skeleton` (`aria-busy`) in `crates/ui/src/state.rs`, styled in `extras.css` with design tokens only.
 
 ## Agent behaviour
 
