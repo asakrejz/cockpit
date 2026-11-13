@@ -14,6 +14,7 @@ use crate::{
     server::{self, CallError},
     sidebar::AppSidebar,
     store::{Store, navigate, now_ms, use_store, utc_offset_min},
+    sync_status::sync_now,
     view,
 };
 
@@ -62,6 +63,24 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
         draft.set(String::new());
     });
 
+    // Narrow screens show list and detail as two levels; this says which one is on.
+    let detail_open = RwSignal::new(false);
+    Effect::new(move |previous: Option<bool>| {
+        let open = detail_open.get();
+        if previous.is_some() {
+            request_animation_frame(move || {
+                if open {
+                    window().scroll_to_with_x_and_y(0.0, 0.0);
+                } else if let Some(row) = query_html(".ck-inbox [aria-pressed=\"true\"]") {
+                    let options = ScrollIntoViewOptions::new();
+                    options.set_block(ScrollLogicalPosition::Center);
+                    row.scroll_into_view_with_scroll_into_view_options(&options);
+                }
+            });
+        }
+        open
+    });
+
     // Edit mode of a ticket: draft of title and description. With every change
     // of the entry it ends; a draft does not carry over to another ticket.
     let edit = Edit {
@@ -92,6 +111,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
         });
     });
 
+    let syncing = RwSignal::new(false);
     let (title, empty) = match filter {
         Filter::All => ("Aufmerksamkeit", "Nichts wartet auf dich."),
         Filter::Mine => ("Meine Aufgaben", "Du hast gerade keine Aufgaben."),
@@ -111,7 +131,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
     };
 
     view! {
-        <SplitView>
+        <SplitView detail_open=detail_open>
             <AppSidebar>
                 <SidebarSection label="Regeln">
                     {Rule::ALL.into_iter().map(|rule| rule_switch(store, rule)).collect_view()}
@@ -231,37 +251,83 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                                 label.set(String::new());
                             };
                             view! {
-                                <li class="ck-empty ui-vstack">
-                                    <p class="t-subheadline t-secondary">
-                                        "Keine Treffer. Passe Suche, Quelle oder Filter an."
-                                    </p>
-                                    <Button size=ControlSize::Small on_click=reset>
-                                        "Alles zurücksetzen"
-                                    </Button>
+                                <li class="ck-empty">
+                                    <EmptyState
+                                        title="Keine Treffer"
+                                        text="Zu Suche und Filtern passt kein Eintrag."
+                                        icon=icons::SEARCH
+                                    >
+                                        <Button size=ControlSize::Small on_click=reset>
+                                            "Filter zurücksetzen"
+                                        </Button>
+                                    </EmptyState>
                                 </li>
                             }
                                 .into_any()
                         } else if list.is_empty() && store.ws.with(|w| w.items.is_empty()) {
                             // A fresh workspace: nothing connected or synced yet.
+                            let connected = store.conn.with(|c| c.jira || c.github);
+                            if connected {
+                                view! {
+                                    <li class="ck-empty">
+                                        <EmptyState
+                                            title="Noch keine Tickets oder Pull Requests"
+                                            text="Jira oder GitHub ist verbunden, hat aber noch nichts geliefert. Gleiche jetzt ab oder prüfe unter „Einrichten“, welches Projekt und welche Repos gelten."
+                                            icon=icons::TASKS
+                                        >
+                                            <Button
+                                                size=ControlSize::Small
+                                                variant=ButtonStyle::GlassProminent
+                                                disabled=Signal::derive(move || syncing.get())
+                                                on_click=move |_| sync_now(store, syncing)
+                                            >
+                                                "Jetzt abgleichen"
+                                            </Button>
+                                            <Button size=ControlSize::Small href=Route::Setup.hash()>
+                                                "Einrichten"
+                                            </Button>
+                                        </EmptyState>
+                                    </li>
+                                }
+                                    .into_any()
+                            } else {
+                                view! {
+                                    <li class="ck-empty">
+                                        <EmptyState
+                                            title="Noch keine Tickets"
+                                            text="Verbinde Jira und GitHub unter „Einrichten“, dann erscheinen Tickets und Pull Requests hier."
+                                            icon=icons::TASKS
+                                        >
+                                            <Button
+                                                size=ControlSize::Small
+                                                variant=ButtonStyle::GlassProminent
+                                                href=Route::Setup.hash()
+                                            >
+                                                "Einrichten"
+                                            </Button>
+                                        </EmptyState>
+                                    </li>
+                                }
+                                    .into_any()
+                            }
+                        } else if list.is_empty() {
+                            let hint = if matches!(filter, Filter::Snoozed) {
+                                "Mit „s“ stellst du einen Eintrag zurück; er kommt zur gewählten Zeit wieder."
+                            } else {
+                                "Neue Einträge erscheinen hier, sobald Jira oder GitHub etwas melden."
+                            };
                             view! {
-                                <li class="ck-empty ui-vstack">
-                                    <p class="t-subheadline t-secondary">
-                                        "Noch keine Tickets oder Pull Requests. Verbinde Jira und GitHub unter „Einrichten“, dann erscheinen sie hier."
-                                    </p>
-                                    <Button size=ControlSize::Small href=Route::Setup.hash()>
-                                        "Einrichten"
-                                    </Button>
+                                <li class="ck-empty">
+                                    <EmptyState title=empty text=hint icon=icons::CHECK />
                                 </li>
                             }
                                 .into_any()
-                        } else if list.is_empty() {
-                            view! { <li class="ck-empty t-subheadline t-secondary">{empty}</li> }.into_any()
                         } else {
                             let active = current.get().map(|i| i.id);
                             list.into_iter()
                                 .map(|item| {
                                     let selected = active.as_deref() == Some(item.id.as_str());
-                                    row(store, item, selected)
+                                    row(store, item, selected, detail_open)
                                 })
                                 .collect_view()
                                 .into_any()
@@ -279,13 +345,19 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
             </Pane>
 
             <Pane label="Details">
+                <div class="ck-back">
+                    <Button on_click=move |_| detail_open.set(false)>"‹ Zur Liste"</Button>
+                </div>
                 {move || match current.get() {
                     Some(item) => detail(store, item, items, draft, edit).into_any(),
                     None => {
                         view! {
-                            <PaneHeader>
-                                <p class="t-subheadline t-secondary">"Kein Eintrag gewählt."</p>
-                            </PaneHeader>
+                            <PaneBody>
+                                <EmptyState
+                                    title="Kein Eintrag gewählt"
+                                    text="Wähle links ein Ticket oder einen Pull Request, dann siehst du hier Details und kannst antworten."
+                                />
+                            </PaneBody>
                         }
                             .into_any()
                     }

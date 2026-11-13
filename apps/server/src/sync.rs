@@ -156,7 +156,7 @@ impl AppState {
         match self.inner.secrets.get(name) {
             Ok(t) => t.filter(|t| !t.is_empty()),
             Err(e) => {
-                tracing::warn!("Schlüssel „{name}“ nicht lesbar: {e}");
+                tracing::warn!("Key \"{name}\" not readable: {e}");
                 None
             }
         }
@@ -255,7 +255,7 @@ impl AppState {
                 Ok(None) => {}
                 Ok(Some(call)) => {
                     services.execute(&call).await.map_err(|e| {
-                        tracing::warn!("{}: Aufruf gescheitert: {e}", call.service());
+                        tracing::warn!("{}: call failed: {e}", call.service());
                         ActionFailure::Service(format!(
                             "{} hat die Aktion nicht ausgeführt: {e}. Es wurde nichts geändert.",
                             call.service()
@@ -341,10 +341,10 @@ pub fn sync_start(state: AppState) {
             ticker.tick().await;
             match state.sync().await {
                 Ok(a) if a.logged > 0 => {
-                    tracing::info!("Abgleich: {} neue Einträge im Protokoll", a.logged)
+                    tracing::info!("Sync: {} new entries in the log", a.logged)
                 }
                 Ok(_) => {}
-                Err(e) => tracing::warn!("Abgleich nicht übernommen: {e:?}"),
+                Err(e) => tracing::warn!("Sync result not applied: {e:?}"),
             }
         }
     });

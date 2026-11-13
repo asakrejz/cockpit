@@ -382,7 +382,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     view! {
         <SplitView layout=SplitLayout::DetailWide>
             <AppSidebar>
-                <SidebarSection label="Agenten-Läufe">{runs}</SidebarSection>
+                <SidebarSection label="Agenten-Läufe" role=SectionRole::Picker>{runs}</SidebarSection>
             </AppSidebar>
 
             <Show
@@ -390,17 +390,21 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                 fallback=|| {
                     view! {
                         <Pane label="Agent-Auftrag">
-                            <PaneHeader>
-                                <h1 class="t-title1 t-bold">"Kein Ticket für den Agenten"</h1>
-                                <p class="t-subheadline t-secondary">
-                                    "Agenten setzen Jira-Tickets um. Wähle im Dashboard ein Ticket und beauftrage den Agenten dort."
-                                </p>
-                                <div class="ui-hstack">
-                                    <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large href="#/">
-                                        "Zum Dashboard"
+                            <PaneBody>
+                                <EmptyState
+                                    title="Noch kein Agent-Lauf"
+                                    text="Agenten setzen Jira-Tickets um. Wähle im Posteingang ein Ticket und beauftrage den Agenten dort; sein Lauf erscheint dann hier."
+                                    icon=icons::SPARKLES
+                                >
+                                    <Button
+                                        variant=ButtonStyle::GlassProminent
+                                        size=ControlSize::Small
+                                        href="#/"
+                                    >
+                                        "Zum Posteingang"
                                     </Button>
-                                </div>
-                            </PaneHeader>
+                                </EmptyState>
+                            </PaneBody>
                         </Pane>
                     }
                 }
@@ -578,9 +582,15 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                 .and_then(|r| r.ended)
                                 .map(|text| {
                                     view! {
-                                        <p class="t-footnote ck-problem" role="alert">
-                                            "Der letzte Lauf endete ohne Ergebnis: " {text}
-                                        </p>
+                                        <StatusBanner
+                                            tone=BannerTone::Error
+                                            title="Der letzte Lauf endete ohne Ergebnis"
+                                            text=text
+                                        >
+                                            <Button size=ControlSize::Small href=Route::Setup.hash()>
+                                                "Einrichtung prüfen"
+                                            </Button>
+                                        </StatusBanner>
                                     }
                                 })
                         }}

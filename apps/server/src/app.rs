@@ -301,6 +301,20 @@ pub struct SyncState {
     pub github: String,
     pub jira: String,
     pub interval_s: u64,
+    /// Per source that was fetched at least once: what went wrong and since when. Contains
+    /// no key and no service message, only the kind of problem and times.
+    pub details: Vec<SourceDetail>,
+}
+
+/// Timing of one source: `since_ms` (problem lasts since), `retry_at_ms` (rate limit: when the
+/// sync asks again), `last_ok_ms` (last good fetch). All milliseconds since 1970.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct SourceDetail {
+    pub source: &'static str,
+    pub status: String,
+    pub since_ms: Option<u64>,
+    pub retry_at_ms: Option<u64>,
+    pub last_ok_ms: Option<u64>,
 }
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
@@ -324,7 +338,7 @@ impl AppState {
     fn health(&self) -> Health {
         let names = match self.inner.db.lock() {
             Ok(conn) => db::connections(&conn).unwrap_or_else(|e| {
-                tracing::warn!("Verbindungen konnten nicht gelesen werden: {e}");
+                tracing::warn!("Could not read connections: {e}");
                 Vec::new()
             }),
             Err(_) => Vec::new(),
@@ -333,7 +347,7 @@ impl AppState {
         let set_up = |name: &str| {
             names.iter().any(|n| n == name)
                 && self.inner.secrets.has(name).unwrap_or_else(|e| {
-                    tracing::warn!("Schlüssel „{name}“ nicht prüfbar: {e}");
+                    tracing::warn!("Could not check key \"{name}\": {e}");
                     false
                 })
         };
@@ -380,6 +394,24 @@ impl AppState {
                     cockpit_core::Source::Jira,
                 ),
                 interval_s: q.interval.as_secs(),
+                details: ws
+                    .sync
+                    .sources
+                    .iter()
+                    .map(|st| SourceDetail {
+                        source: match st.source {
+                            cockpit_core::Source::Jira => "jira",
+                            cockpit_core::Source::GitHub => "github",
+                        },
+                        status: st.id().to_string(),
+                        since_ms: st.since_ms,
+                        retry_at_ms: match st.problem {
+                            Some(cockpit_core::Problem::RateLimited { until_ms }) => until_ms,
+                            _ => None,
+                        },
+                        last_ok_ms: st.last_ok_ms,
+                    })
+                    .collect(),
             },
             connections,
             sign_in: SignIn { github, jira },
@@ -425,7 +457,7 @@ impl AppState {
         match tokio::task::spawn_blocking(move || agent_key_read(secrets.as_ref())).await {
             Ok(Ok(k)) => Ok(k),
             Ok(Err(e)) => {
-                tracing::warn!("Key des Agent-Endpunkts nicht lesbar: {e}");
+                tracing::warn!("Agent endpoint key not readable: {e}");
                 Err(Box::new(error(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Die .env-Datei im Projektordner ist nicht lesbar",
@@ -565,7 +597,7 @@ async fn action(State(state): State<AppState>, body: Bytes) -> Response {
                 let s = state.clone();
                 tokio::spawn(async move {
                     if let Err(e) = s.sync().await {
-                        tracing::warn!("Abgleich nach Projektwechsel: {e:?}");
+                        tracing::warn!("Sync after project change: {e:?}");
                     }
                 });
             }
@@ -599,7 +631,7 @@ fn action_error(e: ActionFailure) -> Response {
         // The service has rejected or is not reachable.
         ActionFailure::Service(m) => error(StatusCode::BAD_GATEWAY, m),
         ActionFailure::Save(m) => {
-            tracing::error!("Workspace nicht gesichert: {m}");
+            tracing::error!("Workspace not saved: {m}");
             error(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Der Stand konnte nicht gespeichert werden",

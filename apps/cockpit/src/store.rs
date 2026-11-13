@@ -45,6 +45,14 @@ pub enum Link {
 #[derive(Clone, Copy)]
 pub struct Store {
     pub link: RwSignal<Link>,
+    /// The first state of the server has arrived. Until then pages show a loading or error state
+    /// instead of an empty workspace.
+    pub loaded: RwSignal<bool>,
+    /// The browser itself has no network (`navigator.onLine`).
+    pub browser_online: RwSignal<bool>,
+    /// Failed reconnect attempts in a row (drives the back-off).
+    attempts: StoredValue<u32>,
+    retry_pending: StoredValue<bool>,
     /// Short notice, e.g. when the server rejects an action. Disappears by itself.
     pub notice: RwSignal<Option<String>>,
     /// Last revision taken over from the server and whether a state is loaded already.
@@ -75,6 +83,10 @@ impl Store {
         let ws = Workspace::default();
         let store = Store {
             link: RwSignal::new(Link::Connecting),
+            loaded: RwSignal::new(false),
+            browser_online: RwSignal::new(window().navigator().on_line()),
+            attempts: StoredValue::new(0),
+            retry_pending: StoredValue::new(false),
             notice: RwSignal::new(None),
             revision: StoredValue::new(None),
             loading: StoredValue::new(false),
@@ -91,6 +103,7 @@ impl Store {
             now: RwSignal::new(now_ms()),
         };
         store.connect();
+        store.watch_network();
         store
     }
 
@@ -99,6 +112,61 @@ impl Store {
     pub fn agent_real(&self) -> bool {
         self.health
             .with(|h| h.as_ref().is_some_and(|h| h.agent.mode == "real"))
+    }
+
+    /// Follows the network of the browser; coming back online reconnects at once.
+    fn watch_network(&self) {
+        let store = *self;
+        window_event_listener(leptos::ev::offline, move |_| {
+            store.browser_online.set(false)
+        });
+        window_event_listener(leptos::ev::online, move |_| {
+            store.browser_online.set(true);
+            if store.link.get_untracked() != Link::Online {
+                store.attempts.set_value(0);
+                store.connect();
+            }
+        });
+    }
+
+    /// The server is not reachable: say so and try again by itself, with growing pauses.
+    fn lost(&self) {
+        let store = *self;
+        store.link.set(Link::Offline);
+        if store.retry_pending.get_value() {
+            return; // A retry is already planned.
+        }
+        store.retry_pending.set_value(true);
+        let attempt = store.attempts.get_value();
+        store.attempts.set_value(attempt + 1);
+        let wait = Duration::from_secs(u64::from(cockpit_core::notice::reconnect_delay_s(attempt)));
+        set_timeout(
+            move || {
+                store.retry_pending.set_value(false);
+                if store.link.try_get_untracked() == Some(Link::Offline) {
+                    store.reconnect();
+                }
+            },
+            wait,
+        );
+    }
+
+    /// A quiet attempt: keeps the "offline" banner until it works (no flicker to "connecting").
+    fn reconnect(&self) {
+        let store = *self;
+        store.events.set_value(None);
+        let events = Events::open(
+            move || store.refresh(),
+            move |event| {
+                if store.revision.get_value() != Some(event.revision) {
+                    store.refresh();
+                }
+            },
+            move || store.lost(),
+        );
+        store.events.set_value(events);
+        store.refresh();
+        store.refresh_health();
     }
 
     /// Briefly shows a notice (error of the server).
@@ -135,9 +203,7 @@ impl Store {
                     store.refresh();
                 }
             },
-            move || {
-                store.link.set(Link::Offline);
-            },
+            move || store.lost(),
         );
         store.events.set_value(events);
         store.refresh();
@@ -173,6 +239,8 @@ impl Store {
                 match result {
                     Ok((ws, revision)) => {
                         store.link.set(Link::Online);
+                        store.loaded.set(true);
+                        store.attempts.set_value(0);
                         let previous = store.revision.get_value();
                         if previous != Some(revision) {
                             store.revision.set_value(Some(revision));
@@ -180,9 +248,9 @@ impl Store {
                             store.adopt(ws, previous.is_some());
                         }
                     }
-                    Err(CallError::Unreachable) => store.link.set(Link::Offline),
+                    Err(CallError::Unreachable) => store.lost(),
                     Err(e) => {
-                        store.link.set(Link::Offline);
+                        store.lost();
                         store.notify(e.message());
                     }
                 }
@@ -221,7 +289,7 @@ impl Store {
                     }
                 }
                 Err(CallError::Unreachable) => {
-                    store.link.set(Link::Offline);
+                    store.lost();
                     store.notify("Der Server ist nicht erreichbar – die Änderung ging nicht durch");
                 }
                 Err(e) => store.notify(e.message()),

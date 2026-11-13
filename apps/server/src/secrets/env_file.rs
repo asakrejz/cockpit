@@ -105,7 +105,7 @@ impl EnvFileStore {
     }
 
     fn variable(name: &str) -> Result<&'static str, SecretError> {
-        variable_for(name).ok_or_else(|| SecretError(format!("Unbekannter Name „{name}“")))
+        variable_for(name).ok_or_else(|| SecretError(format!("Unknown name \"{name}\"")))
     }
 
     fn read_text(&self) -> Result<String, SecretError> {
@@ -113,7 +113,7 @@ impl EnvFileStore {
             Ok(t) => Ok(t),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
             Err(e) => Err(SecretError(format!(
-                "Datei {} nicht lesbar ({})",
+                "File {} not readable ({})",
                 self.path.display(),
                 e.kind()
             ))),
@@ -124,7 +124,7 @@ impl EnvFileStore {
     fn write_text(&self, text: &str) -> Result<(), SecretError> {
         let fail = |what: &str, e: std::io::Error| {
             SecretError(format!(
-                "Datei {} nicht beschreibbar ({what}: {})",
+                "File {} not writable ({what}: {})",
                 self.path.display(),
                 e.kind()
             ))

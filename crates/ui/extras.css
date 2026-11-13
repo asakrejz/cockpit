@@ -192,3 +192,190 @@
   font: var(--sys-type-subheadline);
 }
 .ui-advanced[open] > summary { color: var(--sys-color-label); margin-bottom: var(--ref-space-8); }
+
+/* Label of a sidebar entry: one line, ends with "…". */
+.ui-sidebar__label-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Segmented picker: never wider than its container; if the options do not fit they wrap. */
+.ui-segmented { max-width: 100%; flex-wrap: wrap; }
+
+/* ---------------------------------------------------------------------
+   Narrow screens (phone and tablet, up to 1100 px)
+
+   The three columns of the SplitView stack. The sidebar dissolves (`display: contents`):
+   - brand: on top,
+   - groups with data-role="picker": scrollable strip above the content,
+   - the panes (content),
+   - all other groups (rules, connections): below the content,
+   - groups with data-role="primary": hidden, the fixed BottomNav shows the same entries.
+   --------------------------------------------------------------------- */
+.ui-bottomnav { display: none; }
+
+@media (max-width: 1100px) {
+  .ui-splitview {
+    gap: var(--ref-space-12);
+    padding-block: max(var(--ref-space-12), env(safe-area-inset-top))
+      calc(var(--comp-tabbar-height) + var(--ref-space-24) + env(safe-area-inset-bottom));
+    padding-inline: max(var(--ref-space-12), env(safe-area-inset-left), env(safe-area-inset-right));
+  }
+  .ui-sidebar { display: contents; }
+  .ui-sidebar > .ui-spacer,
+  .ui-sidebar > [data-role="primary"] { display: none; }
+  .ui-sidebar__brand { order: 0; min-height: var(--sys-size-hit); }
+  .ui-sidebar > [data-role="picker"] { order: 1; min-width: 0; }
+  .ui-splitview > .ui-pane { order: 2; }
+  .ui-sidebar > div:not([data-role]) {
+    order: 3;
+    min-width: 0;
+    padding: var(--ref-space-12) var(--ref-space-8);
+    border-radius: var(--sys-radius-container);
+    background: var(--sys-color-secondary-grouped-background);
+  }
+
+  /* Picker: one row of chips that scrolls sideways. */
+  .ui-sidebar > [data-role="picker"] .ui-sidebar__nav {
+    flex-direction: row;
+    gap: var(--ref-space-8);
+    overflow-x: auto;
+    padding-bottom: var(--ref-space-4);
+    scrollbar-width: none;
+  }
+  .ui-sidebar > [data-role="picker"] .ui-sidebar__nav::-webkit-scrollbar { display: none; }
+  .ui-sidebar > [data-role="picker"] .ui-sidebar__nav > li { flex: none; max-width: 240px; }
+  .ui-sidebar > [data-role="picker"] .ui-sidebar__item {
+    background: var(--sys-color-secondary-grouped-background);
+    border-radius: var(--ref-radius-full);
+  }
+  .ui-sidebar > [data-role="picker"] .ui-sidebar__item[aria-current="page"] { background: var(--sys-color-tint-fill); }
+
+  .ui-pane__header { padding: var(--ref-space-16) var(--ref-space-16) var(--ref-space-12); }
+  .ui-pane__body { padding: 0 var(--ref-space-16) var(--ref-space-16); }
+
+  /* Bottom bar. */
+  .ui-bottomnav {
+    display: block;
+    position: fixed;
+    z-index: var(--ref-z-nav);
+    inset-inline: 0;
+    inset-block-end: 0;
+    padding: var(--ref-space-4) max(var(--ref-space-8), env(safe-area-inset-right))
+      calc(var(--ref-space-4) + env(safe-area-inset-bottom)) max(var(--ref-space-8), env(safe-area-inset-left));
+    background: var(--sys-glass-bg);
+    -webkit-backdrop-filter: var(--sys-glass-filter);
+    backdrop-filter: var(--sys-glass-filter);
+    box-shadow: 0 -0.5px 0 var(--sys-color-separator);
+  }
+  .ui-bottomnav__list {
+    display: flex;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+  }
+  .ui-bottomnav__list::-webkit-scrollbar { display: none; }
+  .ui-bottomnav__list > li { flex: none; scroll-snap-align: center; }
+  .ui-bottomnav .ui-sidebar__item {
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    width: auto;
+    min-width: 68px;
+    min-height: 52px;
+    padding: var(--ref-space-4) var(--ref-space-8);
+    font: var(--sys-type-caption2);
+    text-align: center;
+  }
+  .ui-bottomnav .ui-sidebar__count { display: none; }
+  .ui-bottomnav .ui-sidebar__label-text { overflow: visible; }
+}
+
+/* Touch: input controls get a thumb-sized area (44 px, `--sys-size-hit`). */
+@media (max-width: 1100px), (pointer: coarse) {
+  .ui-segmented button,
+  .ui-select[data-size="small"],
+  .ui-sidebar__item,
+  .ui-advanced > summary { min-height: var(--sys-size-hit); }
+  .ui-button:not([data-control-size="mini"]) { min-height: var(--sys-size-hit); min-width: var(--sys-size-hit); }
+  .ui-button[data-control-size="small"] { height: var(--sys-size-hit); }
+  .ui-stepper { height: var(--sys-size-hit); }
+  .ui-stepper button { height: var(--sys-size-hit); }
+}
+
+/* Two levels (SplitView with `detail_open`): list or detail, never both. */
+@media (max-width: 1100px) {
+  .ui-splitview[data-level="list"] > .ui-pane:nth-of-type(2),
+  .ui-splitview[data-level="detail"] > .ui-pane:nth-of-type(1),
+  .ui-splitview[data-level="detail"] > .ui-sidebar > div:not([data-role]) { display: none; }
+}
+
+/* Touch: selectable diff lines are comfortable to hit (the diff scrolls sideways inside its box). */
+@media (max-width: 1100px), (pointer: coarse) {
+  .ui-diff__line--select { min-height: 34px; align-items: center; }
+}
+
+/* Long status texts wrap instead of being cut off. */
+@media (max-width: 1100px) {
+  .ui-status { white-space: normal; }
+  .ui-status::before { flex: none; }
+}
+
+/* Narrow: tighter segmented pickers (fewer wrapped rows), and rounded corners that suit two rows. */
+@media (max-width: 640px) {
+  .ui-segmented { border-radius: var(--ref-radius-20); }
+  .ui-segmented button { padding-inline: var(--ref-space-12); }
+}
+
+/* States: empty, error, banner, skeleton (crates/ui/src/state.rs). Tokens only. */
+.ui-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ref-space-8);
+  padding: var(--ref-space-20);
+  text-align: center;
+  border-radius: var(--ref-radius-12);
+  background: var(--sys-color-tertiary-grouped-background);
+}
+.ui-state__icon {
+  display: inline-flex;
+  padding: var(--ref-space-8);
+  border-radius: var(--ref-radius-full);
+  color: var(--sys-color-secondary-label);
+  background: var(--sys-color-fill);
+}
+.ui-state[data-kind="error"] .ui-state__icon { color: var(--sys-color-red); }
+.ui-state__title, .ui-state__text { margin: 0; max-width: 46ch; }
+.ui-state__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--ref-space-8); margin-top: var(--ref-space-4); }
+
+.ui-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ref-space-8) var(--ref-space-16);
+  padding: var(--ref-space-8) var(--ref-space-16);
+  border-radius: var(--ref-radius-12);
+  color: var(--sys-color-label);
+  background: var(--sys-color-tertiary-grouped-background);
+  box-shadow: inset 3px 0 0 var(--sys-color-blue);
+}
+.ui-banner[data-tone="warning"] { box-shadow: inset 3px 0 0 var(--sys-color-orange); }
+.ui-banner[data-tone="error"] { box-shadow: inset 3px 0 0 var(--sys-color-red); }
+.ui-banner__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 240px; }
+.ui-banner__actions { display: flex; flex-wrap: wrap; gap: var(--ref-space-8); }
+
+.ui-skeleton { display: flex; flex-direction: column; gap: var(--ref-space-12); padding: var(--ref-space-12) var(--ref-space-20); }
+.ui-skeleton__row {
+  display: block;
+  height: 1.1em;
+  border-radius: var(--ref-radius-8);
+  background: linear-gradient(90deg, var(--sys-color-fill), var(--sys-color-tertiary-grouped-background), var(--sys-color-fill));
+  background-size: 200% 100%;
+  animation: ui-skeleton-shimmer 1.4s linear infinite;
+}
+.ui-skeleton__row[data-short] { width: 60%; }
+@keyframes ui-skeleton-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+@media (prefers-reduced-motion: reduce) { .ui-skeleton__row { animation: none; } }

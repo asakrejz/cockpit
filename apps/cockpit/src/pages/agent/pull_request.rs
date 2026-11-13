@@ -71,7 +71,7 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
                                 {if p.existed { "gab es schon, verlinkt" } else { "angelegt" }}
                             </span>
                         </div>
-                        <div class="ui-hstack" style="--spacing: 12px">
+                        <div class="ui-hstack" style="--spacing: 12px; flex-wrap: wrap">
                             {(!p.url.is_empty())
                                 .then(|| {
                                     view! {
@@ -109,7 +109,7 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
                         <p class="t-subheadline">
                             {format!("Zu diesem Branch gibt es schon den Pull Request #{}. Es wird kein zweiter angelegt – er wird nur verknüpft.", e.number)}
                         </p>
-                        <div class="ui-hstack" style="--spacing: 8px">
+                        <div class="ui-hstack" style="--spacing: 8px; flex-wrap: wrap">
                             <Button
                                 variant=ButtonStyle::GlassProminent
                                 size=ControlSize::Large
@@ -127,13 +127,13 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
                 .into_any(),
                 None => view! {
                     <div class="ui-vstack" style="--spacing: 10px">
-                        <p class="t-footnote t-secondary">{route}</p>
+                        <p class="t-footnote t-secondary" style="overflow-wrap: anywhere">{route}</p>
                         <TextField label="Titel" value=title />
                         <Textarea value=body label="Beschreibung" min_height="160px" />
                         <p class="t-footnote t-secondary">
                             "Das ist die Vorschau. Erst mit deinem Klick legt das Cockpit den Pull Request bei GitHub an. Gemergt wird nie automatisch."
                         </p>
-                        <div class="ui-hstack" style="--spacing: 8px">
+                        <div class="ui-hstack" style="--spacing: 8px; flex-wrap: wrap">
                             <Button
                                 variant=ButtonStyle::GlassProminent
                                 size=ControlSize::Large
@@ -181,7 +181,19 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
                     {move || {
                         problem
                             .get()
-                            .map(|t| view! { <p class="t-footnote ck-problem" role="alert">{t}</p> })
+                            .map(|t| {
+                                view! {
+                                    <StatusBanner
+                                        tone=BannerTone::Error
+                                        title="Die Vorschau lässt sich nicht laden"
+                                        text=t
+                                    >
+                                        <Button size=ControlSize::Small on_click=open_preview>
+                                            "Erneut versuchen"
+                                        </Button>
+                                    </StatusBanner>
+                                }
+                            })
                     }}
                 </div>
             }

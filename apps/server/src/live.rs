@@ -51,14 +51,14 @@ impl Live {
             Seed::Demo => demo::workspace(),
         };
         let stored = db::load_workspace(conn).unwrap_or_else(|e| {
-            tracing::warn!("Gespeicherter Workspace nicht lesbar: {e}");
+            tracing::warn!("Stored workspace not readable: {e}");
             None
         });
         let (ws, revision) = match stored.as_deref().map(persist::load_with_revision) {
             Some(Ok(snapshot)) => snapshot,
             Some(Err(e)) => {
                 tracing::warn!(
-                    "Gespeicherter Workspace passt nicht ({e:?}), starte mit dem Seed ({seed:?})"
+                    "Stored workspace does not fit ({e:?}), starting with the seed ({seed:?})"
                 );
                 (start(), 0)
             }
@@ -155,7 +155,7 @@ impl Live {
         for (action, actor) in steps {
             match self.apply(db, action, actor, at_ms) {
                 Ok(_) | Err(Error::Action(_)) => {}
-                Err(Error::Save(m)) => tracing::warn!("Takt nicht gesichert: {m}"),
+                Err(Error::Save(m)) => tracing::warn!("Tick not saved: {m}"),
             }
         }
     }

@@ -26,7 +26,7 @@ impl CallError {
     pub fn message(&self) -> String {
         match self {
             CallError::Rejected(m) => m.clone(),
-            CallError::Unreachable => "Der Server ist nicht erreichbar".into(),
+            CallError::Unreachable => cockpit_core::notice::SERVER_UNREACHABLE_TITLE.into(),
         }
     }
 }
@@ -34,12 +34,11 @@ impl CallError {
 /// The message from an error response, otherwise a general one.
 async fn rejection(resp: gloo_net::http::Response) -> CallError {
     let status = resp.status();
-    let message = resp
-        .json::<ErrorBody>()
-        .await
-        .map(|e| e.error)
-        .unwrap_or_else(|_| format!("Der Server antwortet mit Fehler {status}"));
-    CallError::Rejected(message)
+    let server_message = resp.json::<ErrorBody>().await.map(|e| e.error).ok();
+    CallError::Rejected(cockpit_core::notice::http_failure_text(
+        status,
+        server_message.as_deref(),
+    ))
 }
 
 /// Loads the current state including the revision.
