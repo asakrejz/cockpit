@@ -441,7 +441,7 @@ pub fn multi_repo_workspace() -> Workspace {
             checks: Checks::Passed,
             changes_requested: false,
             merged: false,
-            review_requested: false,
+            review_requested: true,
         }),
         ..item(
             "pr87-tokens",
@@ -449,7 +449,7 @@ pub fn multi_repo_workspace() -> Workspace {
             "#87",
             "Tokens: Kontrast im Dark Mode",
             "Hebt den Kontrast der Fokus-Tokens im Dark Mode an. Gleiche Nummer wie #87 im anderen Repo, aber ein eigener Pull Request.",
-            (ReasonKind::Comment, "Neuer Kommentar von Mira"),
+            (ReasonKind::ReviewRequested, "Review angefragt von Mira"),
             "vor 5 Std.",
             mira(),
         )
