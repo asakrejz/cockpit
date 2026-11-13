@@ -94,7 +94,7 @@ pub(super) fn rule_switch(store: Store, rule: Rule) -> impl IntoView {
     }
 }
 
-/// The switch "Status folgt dem Pull Request". As with the rules the state lies in the
+/// The switch "Status follows the pull request". As with the rules the state lies in the
 /// workspace and only changes by action.
 pub(super) fn status_follow_switch(store: Store) -> impl IntoView {
     let on = RwSignal::new(store.ws.with_untracked(|w| !w.pr_status_off));

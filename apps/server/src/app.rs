@@ -33,7 +33,7 @@ use cockpit_core::{AuthKind, ServiceStatus};
 use cockpit_integrations::oauth::Service;
 
 /// This often the simulated agent takes a step (as in the demo mode of the app).
-pub const AGENT_TAKT: Duration = Duration::from_millis(2200);
+pub const AGENT_TICK: Duration = Duration::from_millis(2200);
 /// This often a sign of life comes on the event connection.
 const KEEP_ALIVE: Duration = Duration::from_secs(15);
 
@@ -94,7 +94,7 @@ impl Settings {
 
 /// The folder `agent` with Containerfile and runner: `[agent] dir` or `COCKPIT_AGENT_DIR`, otherwise
 /// next to the built app (`<dist>/../../agent`, so it lies in the repo and in the release archive),
-/// sonst `./apps/agent`.
+/// otherwise `./apps/agent`.
 fn agent_dir_find(config: &Config) -> PathBuf {
     if let Some(d) = &config.agent_dir {
         return d.clone();
@@ -181,7 +181,7 @@ impl AppState {
         sources: Sources,
         settings: Settings,
     ) -> Self {
-        let live = Live::laden(&db, settings.seed);
+        let live = Live::load(&db, settings.seed);
         Self {
             inner: Arc::new(Inner {
                 db: Mutex::new(db),
@@ -247,10 +247,10 @@ impl AppState {
 
     /// A tick of the tasks in the background. The simulated agent only joins in if the server
     /// runs with the seed `demo`; otherwise the real agent works in containers. Blocking.
-    pub fn takt(&self) {
+    pub fn tick(&self) {
         self.inner
             .live
-            .takt(&self.inner.db, now_ms(), !self.agent_real());
+            .tick(&self.inner.db, now_ms(), !self.agent_real());
     }
 }
 
@@ -262,18 +262,18 @@ pub(crate) fn now_ms() -> u64 {
 
 /// Starts the background work of the agent in the server: in mode "real" the watcher for the
 /// containers, with the seed `demo` the tick of the simulated agent (instead of in the browser).
-pub fn agent_takt_start(state: AppState) {
+pub fn agent_tick_start(state: AppState) {
     if state.agent_real() {
         crate::agent_ops::watcher_start(state);
         return;
     }
     tokio::spawn(async move {
-        let mut takt = tokio::time::interval(AGENT_TAKT);
-        takt.tick().await; // the first tick comes immediately
+        let mut ticker = tokio::time::interval(AGENT_TICK);
+        ticker.tick().await; // the first tick comes immediately
         loop {
-            takt.tick().await;
+            ticker.tick().await;
             let state = state.clone();
-            let _ = tokio::task::spawn_blocking(move || state.takt()).await;
+            let _ = tokio::task::spawn_blocking(move || state.tick()).await;
         }
     });
 }
@@ -315,7 +315,7 @@ pub struct Health {
     pub container: ContainerStatus,
     /// Whether the real agent can start and what is missing.
     pub agent: AgentStatus,
-    /// Wo die `.env`-Datei mit den Schlüsseln liegt und was daran zu warnen ist – nie ein Wert.
+    /// Where the `.env` file with the keys lives and what to warn about – never a value.
     pub env_file: Option<secrets::EnvFileStatus>,
 }
 

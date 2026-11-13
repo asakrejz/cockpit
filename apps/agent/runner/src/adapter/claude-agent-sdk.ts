@@ -155,7 +155,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
     }
   })();
 
-  const ask_user = async (text: string, suggestions: string[]): Promise<string> => {
+  const askUser = async (text: string, suggestions: string[]): Promise<string> => {
     d.sink({ t: "question", text, suggestions });
     const it = answers[Symbol.asyncIterator]();
     const r = await it.next();
@@ -168,7 +168,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
     model: model,
     systemPrompt: systemText(a),
     permissionMode: plan ? "plan" : "default",
-    allowedTools: plan ? ["Read", "Glob", "Grep"] : ["Read", "Glob", "Grep", "Write", "Edit", "MultiEdit", "Bash", "mcp__cockpit__rueckfrage"],
+    allowedTools: plan ? ["Read", "Glob", "Grep"] : ["Read", "Glob", "Grep", "Write", "Edit", "MultiEdit", "Bash", "mcp__cockpit__ask_user"],
     settingSources: [],
     maxTurns: plan ? 25 : 120,
     env: {
@@ -184,7 +184,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
       const e = decide(policy, name, input);
       return e.behavior === "allow" ? { behavior: "allow", updatedInput: input } : { behavior: "deny", message: e.message };
     },
-    ...(plan ? {} : { mcpServers: { cockpit: d.sdk.askUserServer(ask_user) } }),
+    ...(plan ? {} : { mcpServers: { cockpit: d.sdk.askUserServer(askUser) } }),
   };
 
   input.push(user_message(tasksText(a)));

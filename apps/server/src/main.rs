@@ -6,16 +6,15 @@
 //!
 //! ```text
 //! cockpit-server                                 start
-//! cockpit-server token setzen <name>             store a key from standard input
-//! cockpit-server token loeschen <name>           remove a key
-//! cockpit-server token uebernehmen               copy old keychain entries into the .env file
+//! cockpit-server token set <name>                store a key from standard input
+//! cockpit-server token delete <name>             remove a key
+//! cockpit-server token import                    copy old keychain entries into the .env file
 //! ```
+//!
+//! The older German spellings `setzen`, `loeschen` and `uebernehmen` are still accepted.
 //!
 //! `<name>`: `github`, `jira` (API token), `github-oauth` and `atlassian-oauth` (client secret
 //! of the OAuth apps) as well as `agent-key` (key of the agent endpoint; `litellm` counts as an older name). The tokens of the sign-in are stored by the backend itself.
-//!
-//! ```text
-//! ```
 
 mod access;
 mod agent_git;
@@ -58,8 +57,11 @@ async fn main() -> ExitCode {
     {
         [] => start().await,
         ["token", action, name] => token(action, name),
-        ["token", "uebernehmen"] => take_over_keychain(),
-        _ => Err("Aufruf: cockpit-server [token setzen|loeschen <github|jira|github-oauth|atlassian-oauth|agent-key|litellm>]".into()),
+        ["token", "import" | "uebernehmen"] => take_over_keychain(),
+        _ => Err(
+            "Aufruf: cockpit-server [token set|delete <github|jira|github-oauth|atlassian-oauth|agent-key>] | [token import]"
+                .into(),
+        ),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -91,34 +93,34 @@ fn token(action: &str, name: &str) -> Result<(), String> {
     }
     let store = EnvFileStore::from_environment();
     match action {
-        "setzen" => {
+        "set" | "setzen" => {
             let mut input = String::new();
             std::io::stdin()
                 .read_to_string(&mut input)
                 .map_err(|e| format!("Eingabe nicht lesbar: {e}"))?;
-            let wert = input.trim();
-            if wert.is_empty() {
+            let value = input.trim();
+            if value.is_empty() {
                 return Err("Kein Schlüssel auf der Standardeingabe".into());
             }
             store
-                .set(name, &Secret::new(wert))
+                .set(name, &Secret::new(value))
                 .map_err(|e| e.to_string())?;
             tracing::info!("Schlüssel für {name} abgelegt");
             Ok(())
         }
-        "loeschen" => {
+        "delete" | "loeschen" => {
             store.delete(name).map_err(|e| e.to_string())?;
             tracing::info!("Schlüssel für {name} gelöscht");
             Ok(())
         }
         _ => Err(format!(
-            "Unbekannte Aktion „{action}“, erlaubt sind setzen und loeschen"
+            "Unbekannte Aktion „{action}“, erlaubt sind set und delete"
         )),
     }
 }
 
 /// Copies keys from the system keychain into the `.env` file. Only on explicit call
-/// (`cockpit-server token uebernehmen`): reads the keychain, deletes nothing there and does not
+/// (`cockpit-server token import`): reads the keychain, deletes nothing there and does not
 /// overwrite anything in the file that already has a value.
 fn take_over_keychain() -> Result<(), String> {
     let target = EnvFileStore::from_environment();
@@ -139,11 +141,11 @@ fn take_over_keychain() -> Result<(), String> {
 }
 
 async fn start() -> Result<(), String> {
-    let config = Config::laden().map_err(|e| e.to_string())?;
+    let config = Config::load().map_err(|e| e.to_string())?;
     let store = Arc::new(EnvFileStore::from_environment());
     tracing::info!("Schlüssel liegen in der Datei {}", store.path().display());
-    for warnung in store.check_at_startup() {
-        tracing::warn!("{warnung}");
+    for warning in store.check_at_startup() {
+        tracing::warn!("{warning}");
     }
 
     let conn = db::open(&config.db).map_err(|e| e.to_string())?;
@@ -155,7 +157,7 @@ async fn start() -> Result<(), String> {
 
     if !config.dist.join("index.html").is_file() {
         tracing::warn!(
-            "Keine Web-App unter {} – zuerst `cd cockpit && trunk build`, oder COCKPIT_DIST setzen",
+            "Keine Web-App unter {} – zuerst `cd apps/cockpit && trunk build`, oder COCKPIT_DIST setzen",
             config.dist.display()
         );
     }
@@ -179,7 +181,7 @@ async fn start() -> Result<(), String> {
     tracing::info!("Cockpit läuft auf http://{address}");
 
     // In server mode the tick of the simulated agent runs here, not in the browser.
-    app::agent_takt_start(state.clone());
+    app::agent_tick_start(state.clone());
     // Jira and GitHub: sync regularly. Without a source or key nothing happens.
     sync::sync_start(state);
 

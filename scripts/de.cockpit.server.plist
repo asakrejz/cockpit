@@ -14,7 +14,7 @@
 
   Own settings (COCKPIT_PORT, COCKPIT_DB, COCKPIT_SEED, …) belong in the file config.toml or
   below in EnvironmentVariables. Keys never belong here: they are in the `.env` file in the project folder (WorkingDirectory must be the repo)
-  (`cockpit-server token setzen …`).
+  (`cockpit-server token set …`).
 
   The label `de.cockpit.server` stays unchanged on purpose: an already loaded agent keeps working
   and `launchctl bootout` still finds it.

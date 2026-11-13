@@ -92,7 +92,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
     };
     // "Modelle laden": first save tool and address (the server asks the saved
     // endpoint with the key from the .env file), then fetch the list.
-    let laden = move |_| {
+    let load_models = move |_| {
         list_loads.set(true);
         list_hint.set(None);
         let change = ConfigChange {
@@ -111,7 +111,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                 list_loads.set(false);
                 return;
             }
-            ctx.laden();
+            ctx.reload();
             match server::fetch_models().await {
                 Ok(l) if l.loaded => {
                     list_hint.set(Some(format!("{} Modelle geladen.", l.models.len())));
@@ -183,7 +183,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
             o.push((String::new(), "– Modell wählen –".into()));
         }
         o.extend(model_selection(&l, &chosen).into_iter().map(|m| {
-            // "Nicht in der Liste" only applies if there is a list at all.
+            // "Not in the list" only applies if there is a list at all.
             let text = if m.unknown && !l.is_empty() {
                 format!("{} (nicht in der Liste)", m.id)
             } else {
@@ -283,7 +283,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                             list_loads.get() || !key_set()
                                 || (art.get().needs_address() && url.with(|u| u.trim().is_empty()))
                         })
-                        on_click=laden
+                        on_click=load_models
                     >
                         {move || if list_loads.get() { "Lade …" } else { "Modelle laden" }}
                     </Button>

@@ -1,5 +1,5 @@
 //! Wire/persistence compatibility: the saved JSON must stay byte-identical across renames
-//! of Rust identifiers. `wire_*.json` are the current snapshots (phase 3 writes `"User"` where
+//! of Rust identifiers. `wire_*.json` are the current snapshots (they write `"User"` where
 //! the older versions wrote `"Du"`); `legacy_*.json` are the snapshots written before the English
 //! renaming and must keep loading (the old names are read through `serde(alias)`).
 //! Regenerate `wire_*` with `BLESS=1 cargo test -p cockpit-core --test wire_compat` only on purpose.

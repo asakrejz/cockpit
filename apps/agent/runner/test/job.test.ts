@@ -29,7 +29,7 @@ test("task text per mode", () => {
   assert.match(tasksText(job({ mode: "plan", plan_notes: ["Auch Tests"] })), /nur lesen[\s\S]*Auch Tests/);
   const u = tasksText(job({ plan: { summary: "Ring", files: [], steps: ["a"] }, earlier: ["Datei gelesen"] }));
   assert.match(u, /Freigegebener Plan: Ring/);
-  assert.match(u, /rueckfrage/);
+  assert.match(u, /ask_user/);
   assert.match(u, /Datei gelesen/);
   assert.match(tasksText(job({ run_tests: false })), /keine Tests/);
 });

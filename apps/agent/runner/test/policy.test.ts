@@ -50,7 +50,7 @@ test("reading outside the repo and unknown tools are rejected", () => {
   assert.equal(decide(r, "Read", { file_path: "/work/src/a.rs" }).behavior, "allow");
   assert.equal(decide(r, "Read", { file_path: "/home/node/.ssh/id" }).behavior, "deny");
   assert.equal(decide(r, "WebFetch", { url: "https://x" }).behavior, "deny");
-  assert.equal(decide(r, "mcp__cockpit__rueckfrage", {}).behavior, "allow");
+  assert.equal(decide(r, "mcp__cockpit__ask_user", {}).behavior, "allow");
 });
 
 test("repoRelative resolves paths", () => {

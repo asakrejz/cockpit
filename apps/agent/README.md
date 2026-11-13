@@ -1,59 +1,69 @@
-# Agent-Image
+# Agent image
 
-Der Agent des Cockpits läuft pro Lauf in einem eigenen Container (Docker oder Podman). Dieses
-Verzeichnis enthält das Image:
+The Cockpit agent runs in its own container per run (Docker or Podman). This directory holds the image:
 
-- `Containerfile` – Node 24, Git, der Läufer; läuft als Nutzer `node` (nicht root).
-- `runner/` – der Läufer (TypeScript, ohne Build-Schritt: Node führt `.ts` direkt aus). Er liest den
-  Auftrag aus `/job/job.json` und führt ihn mit einem **Adapter** aus (siehe unten).
+- `Containerfile`: Node 24, Git and the runner; runs as the user `node` (not root).
+- `runner/`: the runner (TypeScript, no build step: Node executes `.ts` directly). It reads the job from
+  `/job/job.json` and executes it with an **adapter** (see below).
 
-## Adapter
+Build by hand (the backend does the same through "Image bauen" in the setup assistant):
 
-Jedes Agenten-Werkzeug ist ein Adapter in `runner/src/adapter/` mit der gemeinsamen Schnittstelle aus
-`interface.ts`: Auftrag rein (plus Senke, Git, stdin-Eingang, Umgebung), JSON-Zeilen-Ereignisse raus
-(Tabelle unten), Exit-Code als Ergebnis. `COCKPIT_PROVIDER` (Standard `claude-agent-sdk`; im Image gesetzt) wählt den
-Adapter; unbekannte und noch nicht umgesetzte Namen ergeben ein `error`-Ereignis in Klartext.
+```bash
+docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:2 apps/agent   # or: podman build …
+```
 
-| Adapter | Stand | Werkzeug |
-|---------|-------|----------|
-| `claude-agent-sdk` | umgesetzt (`adapter/claude-agent-sdk.ts`) | Claude Agent SDK; Modell über `ANTHROPIC_MODEL` |
-| `claude-code` | **offen** | `claude -p --output-format stream-json`: dessen Zeilen (Assistant-Nachrichten, Tool-Aufrufe, Ergebnis mit Verbrauch) nur in die Ereignisse unten übersetzen |
-| `codex` | **offen** | `codex exec --json`: dessen Ereignisse (Nachrichten, Befehle, Dateiänderungen, Verbrauch) in dieselben Ereignisse übersetzen |
+Rules for the `Containerfile` (they hold for Docker and Podman alike): a fully qualified base image, no BuildKit
+features (`# syntax=`, `RUN --mount`), the runner never works as root. See "Container rules" in
+[../../docs/architecture.md](../../docs/architecture.md#container-rules).
 
-Ein neuer Adapter muss nichts am Backend ändern: gleiche Ereignisformen, gleiche Regeln (kein Push, nur in `/work`
-schreiben, `git` zum Festhalten über `git.ts`).
+## Adapters
 
-## Endpunkt in der Umgebung
+Every agent tool is an adapter in `runner/src/adapter/` with the shared interface from `interface.ts`: job in (plus a
+sink, Git, a stdin input and the environment), JSON-line events out (table below), exit code as the result.
+`COCKPIT_PROVIDER` (default `claude-agent-sdk`; set in the image) selects the adapter; unknown and not yet implemented
+names produce an `error` event in plain language.
 
-Das Backend gibt die Werte nur per `-e NAME` an den Container (nie in der Argumentliste). Mit Endpunkt-Adresse
-(Proxy wie LiteLLM, anderer kompatibler Endpunkt): `ANTHROPIC_BASE_URL` und `ANTHROPIC_AUTH_TOKEN` (Bearer). Ohne Adresse
-(direkt bei Anthropic): `ANTHROPIC_API_KEY` (`x-api-key`). Dazu immer `ANTHROPIC_MODEL`. Nicht benutzte Namen entfernt das
-Backend aus der geerbten Umgebung, damit kein Key aus der Shell der Person im Container landet.
+| Adapter | State | Tool |
+|---------|-------|------|
+| `claude-agent-sdk` | implemented (`adapter/claude-agent-sdk.ts`) | Claude Agent SDK; model through `ANTHROPIC_MODEL` |
+| `claude-code` | **open** | `claude -p --output-format stream-json`: only translate its lines (assistant messages, tool calls, result with usage) into the events below |
+| `codex` | **open** | `codex exec --json`: translate its events (messages, commands, file changes, usage) into the same events |
 
-## Ereignisse (stdout, eine JSON-Zeile je Ereignis)
+A new adapter does not need to change anything in the backend: same event shapes, same rules (no push, write only to
+`/work`, commit through `git.ts`).
 
-| `t` | Felder | Bedeutung |
-|-----|--------|-----------|
-| `plan` | `summary`, `files`, `steps` | Plan (Modus `plan`) |
-| `step` | `title`, `text`, `tokens_in`, `tokens_out`, `ms` | ein Arbeitsschritt mit Verbrauch |
-| `files` | `files` | bisher geänderte Dateien |
-| `question` | `text`, `suggestions` | Rückfrage; der Läufer wartet auf `answer` auf stdin |
-| `hints_arrived` | – | ein Hinweis des Nutzers ist beim Agenten |
-| `result` | `text`, `branch`, `commit` | fertig; der Commit liegt auf dem Branch im Klon |
-| `check` | `reachable`, `key_ok`, `hint` | Ergebnis des Prüfmodus |
-| `error` | `text` | Abbruch mit Grund |
+## Endpoint in the environment
 
-Auf stdin kommen Zeilen `{"t":"answer","text":…}` und `{"t":"hint","text":…}`.
+The backend passes the values to the container only as `-e NAME` (never in the argument list). With an endpoint
+address (a proxy such as LiteLLM, another compatible endpoint): `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN`
+(bearer). Without an address (directly at Anthropic): `ANTHROPIC_API_KEY` (`x-api-key`). Always also
+`ANTHROPIC_MODEL`. Names that are not used are removed by the backend from the inherited environment so that no key
+from the person's shell ends up in the container.
 
-## Regeln im Container
+## Events (stdout, one JSON line per event)
 
-Der Container hat **kein GitHub-Token**: Er kann nicht pushen. Er committet auf einen Branch
-`claude/<ticket>-…` im eingebundenen Klon; geprüft und gepusht wird danach vom Backend (Pfad-Regeln
-des Repos, nie der Hauptbranch, nie ein Merge). `canUseTool` im Läufer sperrt zusätzlich Schreiben
-außerhalb von `/work`, `.git`, verbotene Pfade und Befehle wie `git push`, `curl`.
+| `t` | Fields | Meaning |
+|-----|--------|---------|
+| `plan` | `summary`, `files`, `steps` | plan (mode `plan`) |
+| `step` | `title`, `text`, `tokens_in`, `tokens_out`, `ms` | a work step with usage |
+| `files` | `files` | files changed so far |
+| `question` | `text`, `suggestions` | question; the runner waits for `answer` on stdin |
+| `hints_arrived` | none | a hint from the user reached the agent |
+| `result` | `text`, `branch`, `commit` | done; the commit is on the branch in the clone |
+| `check` | `reachable`, `key_ok`, `hint` | result of the check mode |
+| `error` | `text` | abort with a reason |
+
+Lines arriving on stdin: `{"t":"answer","text":…}` and `{"t":"hint","text":…}`.
+
+## Rules in the container
+
+The container has **no GitHub token**: it cannot push. It commits to a branch `claude/<ticket>-…` in the mounted
+clone; the backend checks and pushes afterwards (path rules of the repo, never the main branch, never a merge).
+`canUseTool` in the runner additionally blocks writing outside `/work`, `.git`, forbidden paths and commands such as
+`git push` and `curl`. The agent asks questions through the tool `ask_user`.
 
 ## Tests
 
 ```bash
-cd apps/agent/runner && npm install && npm test   # Node ≥ 22.18, ohne Netz, das SDK ist eine Attrappe
+cd apps/agent/runner && npm install && npm test   # Node >= 22.18, no network, the SDK is a stand-in
 ```

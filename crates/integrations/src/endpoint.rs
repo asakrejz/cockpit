@@ -62,7 +62,7 @@ impl Target {
     }
 
     fn key_advice(&self) -> &'static str {
-        "Speichere den richtigen Key im Assistenten (Schritt „Modell“) oder im Terminal: cockpit-server token setzen agent-key"
+        "Speichere den richtigen Key im Assistenten (Schritt „Modell“) oder im Terminal: cockpit-server token set agent-key"
     }
 }
 

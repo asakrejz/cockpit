@@ -437,13 +437,13 @@ pub async fn key(
     let Ok(input) = serde_json::from_slice::<KeyInput>(&body) else {
         return error(StatusCode::BAD_REQUEST, "Die Eingabe ist nicht lesbar");
     };
-    let wert = match key_verify(&input.value) {
+    let value = match key_verify(&input.value) {
         Ok(w) => w,
         Err(m) => return error(StatusCode::UNPROCESSABLE_ENTITY, m),
     };
     let secrets = state.inner.secrets.clone();
     let n = name.clone();
-    let result = tokio::task::spawn_blocking(move || secrets.set(&n, &Secret::new(wert))).await;
+    let result = tokio::task::spawn_blocking(move || secrets.set(&n, &Secret::new(value))).await;
     match result {
         Ok(Ok(())) => {
             tracing::info!("Schlüssel für {name} abgelegt");

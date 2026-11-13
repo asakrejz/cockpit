@@ -31,7 +31,7 @@ use crate::container;
 use crate::live::Error;
 
 /// This often the watcher compares runs and containers.
-pub const WATCHER_TAKT: Duration = Duration::from_secs(1);
+pub const WATCHER_TICK: Duration = Duration::from_secs(1);
 /// This long "image present?" applies without a new question.
 const IMAGE_VALID: Duration = Duration::from_secs(5);
 /// After an error the watcher does not restart the same run for this long.

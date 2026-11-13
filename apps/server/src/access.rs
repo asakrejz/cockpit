@@ -129,8 +129,8 @@ mod tests {
 
     fn head(pairs: &[(&'static str, &'static str)]) -> HeaderMap {
         let mut k = HeaderMap::new();
-        for (name, wert) in pairs {
-            k.insert(*name, HeaderValue::from_static(wert));
+        for (name, value) in pairs {
+            k.insert(*name, HeaderValue::from_static(value));
         }
         k
     }

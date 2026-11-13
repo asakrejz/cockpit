@@ -57,7 +57,7 @@ pub struct SyncResponse {
 pub struct JiraProject {
     /// Key, e.g. `BAU`.
     pub key: String,
-    /// Name, z. B. „Baukasten“.
+    /// Name, e.g. „Baukasten“.
     #[serde(default)]
     pub name: String,
 }

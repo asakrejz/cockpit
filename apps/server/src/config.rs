@@ -22,7 +22,7 @@
 //! ```
 //!
 //! Sign-in via OAuth (instead of an API token), only client IDs – the secrets are in the
-//! .env file (`cockpit-server token setzen github-oauth|atlassian-oauth`):
+//! .env file (`cockpit-server token set github-oauth|atlassian-oauth`):
 //!
 //! ```toml
 //! [github_oauth]
@@ -36,7 +36,7 @@
 //! With `[atlassian]` `[jira]` needs neither `site` nor `email` (only `projects`/`jql`).
 //!
 //! Agent provider and endpoint (only address and model name – the key is in the .env file,
-//! `cockpit-server token setzen agent-key`), container runtime and seed:
+//! `cockpit-server token set agent-key`), container runtime and seed:
 //!
 //! ```toml
 //! seed = "demo"                        # sample data, only if no state has been stored yet
@@ -58,7 +58,7 @@
 //! The assistant writes the new format.
 //!
 //! A source only syncs if it is set up here **and** its key is in the
-//! .env file (`cockpit-server token setzen <github|jira>`). Without a source the
+//! .env file (`cockpit-server token set <github|jira>`). Without a source the
 //! workspace stays empty (or shows the sample data if the seed `demo` is chosen).
 //!
 //! Umgebungsvariablen: `COCKPIT_PORT`, `COCKPIT_DIST`, `COCKPIT_DB`, `COCKPIT_CONFIG`
@@ -534,7 +534,7 @@ impl Config {
 
     /// Loads the file (`COCKPIT_CONFIG` or default path; if it is missing the
     /// defaults apply) and puts the environment variables on top.
-    pub fn laden() -> Result<Self, ConfigError> {
+    pub fn load() -> Result<Self, ConfigError> {
         let env = |k: &str| std::env::var(k).ok();
         let (path, explicit) = match env("COCKPIT_CONFIG").filter(|s| !s.is_empty()) {
             Some(p) => (Some(PathBuf::from(p)), true),

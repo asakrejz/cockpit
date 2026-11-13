@@ -45,12 +45,12 @@ impl Live {
     /// Loads the stored state; without (or with an unreadable) state the server starts with
     /// the seed: by default an empty workspace, with `Seed::Demo` the sample data.
     /// A stored state always goes before the seed.
-    pub fn laden(conn: &Connection, seed: Seed) -> Self {
+    pub fn load(conn: &Connection, seed: Seed) -> Self {
         let start = || match seed {
             Seed::Empty => Workspace::default(),
             Seed::Demo => demo::workspace(),
         };
-        let stored = db::workspace_laden(conn).unwrap_or_else(|e| {
+        let stored = db::load_workspace(conn).unwrap_or_else(|e| {
             tracing::warn!("Gespeicherter Workspace nicht lesbar: {e}");
             None
         });
@@ -125,7 +125,7 @@ impl Live {
     /// and expired snoozes come back to the inbox, pull requests with a ticket key
     /// in branch or title are linked, and the status of linked tickets follows the pull request. If there is nothing to do, nothing happens
     /// (and there is no revision).
-    pub fn takt(&self, db: &Mutex<Connection>, at_ms: u64, agents_simulate: bool) {
+    pub fn tick(&self, db: &Mutex<Connection>, at_ms: u64, agents_simulate: bool) {
         let (agents, checks, wake, link, status) = {
             let snapshot = lock(&self.snapshot);
             (

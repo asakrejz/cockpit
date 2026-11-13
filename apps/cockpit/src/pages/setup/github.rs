@@ -178,8 +178,8 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
                 </p>
                 <OAuthCard
                     service=Service::GitHub
-                    on_connected=move |_| ctx.laden()
-                    on_disconnected=move |_| ctx.laden()
+                    on_connected=move |_| ctx.reload()
+                    on_disconnected=move |_| ctx.reload()
                 />
             </Section>
         </VStack>

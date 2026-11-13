@@ -12,7 +12,7 @@ pub enum AuthKind {
     /// Not connected.
     #[default]
     None,
-    /// API token or personal access token (`cockpit-server token setzen`).
+    /// API token or personal access token (`cockpit-server token set`).
     Token,
     /// Sign-in in the browser via OAuth.
     OAuth,

@@ -1,640 +1,588 @@
-# Rust Playground
+# Cockpit
 
-Ein Lernprojekt: **Web-Bausteine in Rust, kompiliert zu WebAssembly.** Jeder Baustein
-bekommt im Playground einen eigenen Reiter, ähnlich wie bei Storybook. So lernst du Rust
-an kleinen, sichtbaren Beispielen und baust nebenbei eine Bibliothek, die du in anderen
-Projekten wiederverwenden kannst.
+Cockpit is a local dashboard that brings **Jira, GitHub and coding agents** together in one place:
+an inbox of tickets and pull requests that need your attention, a review page with a diff, and an agent
+that implements a ticket in a container and hands you a branch to review. It runs on your own computer, for
+one person. Credentials never leave your machine.
 
-Im Repo liegen zwei Apps, die sich die Bausteine teilen:
+The repository also contains the **Playground**, a Storybook-like page that shows every UI building block
+on its own. Cockpit is the main application; the Playground is where the component library is developed
+and learned.
 
-- **Playground** (`apps/playground/`): zeigt jeden Baustein einzeln.
-- **Cockpit** (`apps/cockpit/`): ein Dashboard für Jira, GitHub und Agenten, gebaut aus denselben Bausteinen. Es braucht den lokalen Server (`apps/server/`), der Daten und Schlüssel hält.
+- UI: [Leptos](https://leptos.dev) (Rust compiled to WebAssembly, runs entirely in the browser)
+- Build tool: [Trunk](https://trunkrs.dev) (Rust → WASM → ready-made page)
+- Backend: axum + SQLite (`apps/server`, binary `cockpit-server`)
+- Look: the design "Baukasten" (iOS 26 / Liquid Glass), driven by design tokens
+- Visible UI texts are German; code, naming and documentation are English.
 
-Technik:
+Contents: [Quick start](#quick-start) · [Quick start for beginners](#quick-start-for-beginners) ·
+[Setting up the agent](#setting-up-the-agent) · [Running the backend](#running-the-backend) ·
+[Connecting real services](#connecting-real-services) · [Architecture](#architecture) ·
+[Commands and checks](#commands-and-checks) · [Security model](#security-model) ·
+[Container rules](#container-rules) · [The Cockpit app](#the-cockpit-app) ·
+[The component library](#the-component-library-feature-ui) · [Roadmap / Open work](#roadmap--open-work)
 
-- UI-Framework: [Leptos](https://leptos.dev) (läuft komplett im Browser)
-- Build-Tool: [Trunk](https://trunkrs.dev) (Rust → WASM → fertige Seite)
-- Aussehen: Design **„Baukasten"** (iOS 26 / Liquid Glass), gesteuert über Design-Tokens
+More depth: [docs/architecture.md](docs/architecture.md) (decisions, API, sync, agent runs) and
+[docs/security.md](docs/security.md) (credentials, request checks, agent sandbox).
 
-## Schnellstart
+## Quick start
 
-Wer ohne Programmierkenntnisse einsteigt, liest zuerst „Schnellstart für Einsteiger“ unten.
+For developers who already have a terminal and Rust. Everyone else: see the next section.
 
 ```bash
-# einmalig
-rustup target add wasm32-unknown-unknown   # passiert dank rust-toolchain.toml auch automatisch
-cargo install trunk --locked                # oder: brew install trunk
+# once
+rustup target add wasm32-unknown-unknown   # also happens automatically through rust-toolchain.toml
+cargo install trunk --locked                # or: brew install trunk
 
-scripts/start.sh --open             # Cockpit (oder Doppelklick auf „start-cockpit.command“): App bauen (falls nötig), Server starten, Browser öffnen
-(cd apps/playground && trunk serve --open)   # Playground auf http://localhost:8080
-cargo test                          # Tests laufen nativ, ohne Browser
-(cd apps/playground && trunk build --release)   # fertige Playground-Seite nach apps/playground/dist
+scripts/start.sh --open                     # build the app if needed, start the server, open the browser
+(cd apps/playground && trunk serve --open)  # Playground on http://localhost:8080
+cargo test                                  # tests run natively, no browser needed
 ```
 
-Beim Lernen hilft: im Ordner `apps/playground` `trunk serve` laufen lassen, eine Datei ändern, Speichern – der Browser
-lädt neu, und der Compiler sagt dir sofort, was nicht passt.
+`scripts/start.sh` (bash, macOS) checks that `cargo` and `trunk` exist, builds `apps/cockpit` into
+`apps/cockpit/dist` when the output is missing or a source is newer, and starts `cockpit-server` on
+`http://127.0.0.1:8787`. It installs nothing. `--release` builds the server as a release build. Without the
+script: `(cd apps/cockpit && trunk build) && cargo run -p cockpit-server`.
 
-## Schnellstart für Einsteiger
+While learning, run `trunk serve` in `apps/playground`, change a file and save: the browser reloads and the
+compiler tells you immediately what does not fit.
 
-Für alle, die noch nie ein Terminal benutzt haben. Du brauchst etwa **eine Stunde**, davon das meiste Warten auf
-Downloads. Gebraucht werden ein Mac (Apple Silicon oder Intel) und eine Internetverbindung. Vorgebaute Archive gibt es
-unter „Releases“ im Repo (siehe „Fertiges Archiv statt selbst bauen“ weiter unten); diese Anleitung baut selbst.
+## Quick start for beginners
 
-**1. Programme installieren** (einmalig; jeweils den Anweisungen auf der Seite folgen):
+For everyone who has never used a terminal. You need about **one hour**, most of it waiting for downloads, a
+Mac (Apple Silicon or Intel) and an internet connection. Pre-built archives are attached to releases in the
+repository (see "Ready-made archive" below); this guide builds from source.
 
-| Was | Wofür | Wo | Dauer |
-|-----|-------|----|-------|
-| **Rust** (über „rustup“) | übersetzt Cockpit | [rustup.rs](https://rustup.rs) – dort steht ein Befehl, den du ins Terminal einfügst (Programme › Dienstprogramme › Terminal) | 5–10 Min. |
-| **Trunk** | baut die Oberfläche | im Terminal `cargo install trunk --locked` (nach Rust) oder mit [Homebrew](https://brew.sh) `brew install trunk` | 5–10 Min. |
-| **Rancher Desktop** *oder* **Podman** | Container für den Agenten (erst später nötig) | [rancherdesktop.io](https://rancherdesktop.io) – beim ersten Start die Engine „dockerd (moby)“ wählen; oder [podman.io](https://podman.io/docs/installation) | 10 Min. |
-| **Git** | holt den Code | meldet sich beim ersten Aufruf von selbst, sonst im Terminal `xcode-select --install` | 5–10 Min. |
+**1. Install the programs** (once; follow the instructions on each page):
 
-**2. Cockpit holen.** Im Terminal (Befehle einzeln einfügen und mit Enter bestätigen):
+| What | What for | Where | Time |
+|------|----------|-------|------|
+| **Rust** (via "rustup") | compiles Cockpit | [rustup.rs](https://rustup.rs): paste the one command shown there into the Terminal (Applications › Utilities › Terminal) | 5–10 min |
+| **Trunk** | builds the UI | in the Terminal: `cargo install trunk --locked` (after Rust), or with [Homebrew](https://brew.sh) `brew install trunk` | 5–10 min |
+| **Rancher Desktop** *or* **Podman** | container runtime for the agent (only needed later) | [rancherdesktop.io](https://rancherdesktop.io) (on first start choose the engine "dockerd (moby)"), or [podman.io](https://podman.io/docs/installation) | 10 min |
+| **Git** | fetches the code | asks for itself on first use, otherwise run `xcode-select --install` in the Terminal | 5–10 min |
+
+**2. Get Cockpit.** In the Terminal, one command at a time, confirming each with Enter:
 
 ```bash
 git clone https://github.com/asakrejz/rust-playground.git ~/Documents/Web/rust-playground
 ```
 
-Das Repo ist privat: Du brauchst dafür Zugriff und musst dich bei GitHub anmelden (Git fragt danach, oder du nimmst die
-Adresse von der Seite des Repos unter „Code“).
+The repository is private: you need access and have to sign in to GitHub (Git asks for it).
 
-**3. Starten per Doppelklick.** Öffne im Finder den Ordner `Documents/Web/rust-playground` und doppelklicke auf
-**`start-cockpit.command`**. Beim ersten Mal fragt macOS, ob du die Datei öffnen willst (Rechtsklick › „Öffnen“ › noch
-einmal „Öffnen“). Ein Terminal-Fenster geht auf, baut die App (beim ersten Mal 5–15 Minuten, danach Sekunden) und
-öffnet den Browser auf `http://127.0.0.1:8787`. Schließe das Fenster, um Cockpit zu beenden.
+**3. Start with a double-click.** In Finder open `Documents/Web/rust-playground` and double-click
+**`start-cockpit.command`**. The first time macOS asks whether you want to open the file (right-click › "Open" ›
+"Open" again). A Terminal window opens, builds the app (5–15 minutes the first time, seconds afterwards) and
+opens the browser at `http://127.0.0.1:8787`. Close the window to quit Cockpit.
 
-**4. Dem Assistenten folgen.** Beim ersten Start öffnet sich die Seite **„Einrichten“** von selbst; später erreichst du sie
-über „Einrichten“ in der Seitenleiste. Sie führt dich in fünf Schritten (Container, Jira, GitHub, Modellzugang,
-Zusammenfassung) und erklärt jeden Klick. Jeden Schritt kannst du überspringen und später nachholen.
+**4. Follow the assistant.** On first start the page **"Einrichten"** (setup) opens by itself; later it is in the
+sidebar. It guides you through five steps (container, Jira, GitHub, model access, summary) and explains every
+click. You can skip any step and come back later.
 
-**Was nur du tun kannst** – das lässt sich nicht automatisieren, der Assistent führt dich aber Schritt für Schritt hindurch:
+**What only you can do** (it cannot be automated; the assistant walks you through each step):
 
-- **Atlassian-Konto und API-Token.** Du brauchst Zugriff auf eure Jira-Site. Der einfache Weg ist ein **API-Token**: Du
-  erzeugst ihn selbst unter [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens) („Token
-  erstellen“, Namen vergeben, Ablaufdatum wählen, kopieren) und trägst Site, E-Mail und Token im Assistenten ein. Nur wenn
-  du lieber eine Anmeldung im Browser willst, legst du in der
-  [Atlassian-Entwicklerkonsole](https://developer.atlassian.com/console/myapps/) eine eigene OAuth-App an (unter
-  „Erweitert“). Jede Person legt ihre **eigene** App an, denn das Client-Secret ist nicht teilbar.
-- **GitHub App.** Du legst in deinem GitHub-Konto (oder eurer Organisation) eine eigene GitHub App an und installierst sie
-  auf den Repos. Auch hier gilt: eigene App, eigenes Secret.
-- **Zugang zu einem Modell.** Entweder ein API-Key von Anthropic (direkt) oder Adresse und Key eines Proxys wie LiteLLM,
-  den dein Team betreibt (dann auch den Modellnamen, der sich aber im Assistenten aus einer Liste wählen lässt). Ohne
-  Zugang läuft Cockpit weiter, der echte Agent aber noch nicht.
-- **Container-Programm** installieren und starten (siehe Tabelle oben).
+- **Atlassian account and API token.** You need access to your Jira site. The easy way is an **API token**: create
+  it yourself at [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens) ("Create API
+  token", pick a name and an expiry date, copy) and enter site, email and token in the assistant. Only if you
+  prefer signing in in the browser, create your own OAuth app in the
+  [Atlassian developer console](https://developer.atlassian.com/console/myapps/) (under "Erweitert"). Every person
+  creates their **own** app because the client secret cannot be shared.
+- **GitHub App.** Create your own GitHub App in your account (or organisation) and install it on the repos.
+  Again: your own app, your own secret.
+- **Access to a model.** Either an Anthropic API key (direct), or the address and key of a proxy such as LiteLLM
+  that your team runs. Without access Cockpit keeps working, but the real agent does not.
+- **Container runtime:** install and start it (table above).
 
-Schlüssel (Client-Secrets, Tokens, Key des Modell-Endpunkts) tippst oder fügst du in die Passwortfelder des Assistenten ein. Sie gehen
-nur an den Server auf deinem Rechner, der sie in der **`.env`-Datei im Projektordner** ablegt – nicht in den Browser-Speicher, nicht in eine
-Datei. Wer lieber im Terminal arbeitet, nimmt `cockpit-server token setzen <name>` (siehe „Backend starten“).
+Keys (client secrets, tokens, the key of the model endpoint) are typed or pasted into the password fields of the
+assistant. They go only to the server on your computer, which stores them in the **`.env` file in the project
+folder**; never in browser storage, never in a tracked file. If you prefer the terminal, use
+`cockpit-server token set <name>` (see [Credentials: the `.env` file](#credentials-the-env-file)).
 
-**Fertiges Archiv statt selbst bauen.** Bei jedem Versions-Tag (`v…`) baut `.github/workflows/release.yml` ein Archiv für
-macOS (Apple Silicon): `cockpit-server`, `apps/cockpit/dist` und `start-cockpit.command` in einem Ordner, ohne Rust und Trunk.
-Entpacken, Rechtsklick auf `start-cockpit.command` › „Öffnen“. Die Programme sind nicht signiert, deshalb die
-Rückfrage von macOS. Intel-Macs, Windows und Linux bauen selbst (Schritte oben). Der Workflow ist noch nie gelaufen
-(es gab noch kein Tag); beim ersten Tag prüfen, ob das Archiv startet.
+**Ready-made archive instead of building yourself.** For every version tag (`v…`) `.github/workflows/release.yml`
+builds an archive for macOS (Apple Silicon) with `cockpit-server`, `apps/cockpit/dist`, the agent image sources
+and `start-cockpit.command` in one folder, no Rust or Trunk needed. Unzip, right-click `start-cockpit.command` ›
+"Open". The programs are not signed, hence the macOS prompt. Intel Macs, Windows and Linux build themselves
+(steps above). The workflow has never run yet (there was no tag); check that the archive starts on the first tag.
 
-## Den Agenten einrichten
+## Setting up the agent
 
-Der Agent setzt ein Ticket in einem **Container** um (Claude Agent SDK, ein Container pro Lauf). Einrichten, einmalig:
+The agent implements a ticket in a **container** (Claude Agent SDK, one container per run). One-time setup:
 
-1. **Container-Laufzeit starten:** Rancher Desktop mit der Engine „dockerd (moby)“ (nicht „containerd“) *oder* Podman
-   (`podman machine start`). Der Assistent („Einrichten“ › „Container“) zeigt, ob sie läuft.
-2. **Image bauen:** dort auf „Image bauen“ klicken (oder `POST /api/agent/image`). Der Bau lädt Pakete aus dem Internet und
-   dauert einige Minuten; Fortschritt und Fehler stehen in Klartext darunter. `/api/health` meldet unter `agent`, ob das Image
-   da ist (`image inspect`). Von Hand: `docker build -f agent/Containerfile -t localhost/cockpit-agent:2 agent` (bzw. `podman`).
-3. **Agent-Anbieter und Endpunkt:** Im Schritt „Modell“ wählst du das Werkzeug (Claude Agent SDK; Claude Code und Codex
-   stehen als „bald“ da), den Endpunkt (direkt bei Anthropic, eigener Proxy wie LiteLLM, anderer kompatibler Endpunkt),
-   legst den Key ab (`.env`, Name `agent-key`, Variable `AGENT_KEY`) und wählst das Modell aus der Liste, die „Modelle laden“ beim
-   Endpunkt abfragt (Freitext als Ausweg). „Aus dem Container testen“ prüft, ob ein Container den Endpunkt erreicht.
-   Liegt der Proxy nur im **VPN**, kennt die
-   Container-Maschine von Rancher Desktop bzw. Podman die VPN-Route oder den Namen womöglich nicht: Dann meldet der Test
-   „Dein Mac erreicht den Proxy, der Container aber nicht“ – VPN zuerst verbinden und Rancher Desktop bzw. die
-   Podman-Maschine neu starten.
-4. **GitHub verbinden und das Repo festlegen:** Der Agent klont über das Backend. Ist in `[github] repos` genau ein Repo,
-   gilt es; sonst `[agent] repo = "owner/name"` in `config.toml`. Der Ordner `apps/agent/` wird neben `apps/cockpit/dist` gesucht
-   (`[agent] dir` bzw. `COCKPIT_AGENT_DIR` überschreibt).
+1. **Start a container runtime:** Rancher Desktop with the engine "dockerd (moby)" (not "containerd") *or* Podman
+   (`podman machine start`). The assistant ("Einrichten" › "Container") shows whether it runs.
+2. **Build the image:** click "Image bauen" there (or `POST /api/agent/image`). The build downloads packages and
+   takes a few minutes; progress and errors appear below in plain text. `/api/health` reports under `agent`
+   whether the image exists (`image inspect`). By hand:
+   `docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:2 apps/agent` (or `podman`).
+3. **Provider and endpoint:** in the "Modell" step choose the tool (Claude Agent SDK; Claude Code and Codex are
+   shown as "soon"), the endpoint (directly at Anthropic, your own proxy such as LiteLLM, or another compatible
+   endpoint), store the key (`.env`, name `agent-key`, variable `AGENT_KEY`) and pick the model from the list that
+   "Modelle laden" fetches from the endpoint (free text as a fallback). "Aus dem Container testen" checks that a
+   container can reach the endpoint. If the proxy is only reachable over a **VPN**, the container machine of
+   Rancher Desktop or Podman may not know the VPN route or name; the test then says that your Mac reaches the
+   proxy but the container does not. Connect the VPN first and restart Rancher Desktop or the Podman machine.
+4. **Connect GitHub and name the repo:** the agent clones through the backend. If `[github] repos` has exactly one
+   repo it is used; otherwise set `[agent] repo = "owner/name"` in `config.toml`. The folder `apps/agent/` is
+   looked up next to `apps/cockpit/dist` (`[agent] dir` or `COCKPIT_AGENT_DIR` overrides).
 
-Ist etwas nicht eingerichtet, startet kein Lauf; die Meldung sagt in Klartext, was fehlt und wo im Assistenten man es holt.
+If something is not set up, no run starts; the message says in plain language what is missing and where in the
+assistant to fix it.
 
-**Ablauf eines Laufs.** „Agent starten“ legt (auf Wunsch) erst einen Plan vor: ein kurzer Container im Lesemodus. Nach deiner
-Freigabe klont das Backend das Repo frisch, legt den Branch `claude/<ticket>-…` an und startet den Container (`run --rm`,
-Label `cockpit.lauf=<schlüssel>`, `--add-host cockpit-host:host-gateway`, Repo per `-v <klon>:/work`, Läufer ohne Root;
-Adresse, Key und Modell nur als `-e NAME`, die Werte stehen in der Umgebung des Prozesses, nie in der Argumentliste oder im
-Log). Plan, Rückfragen, Verbrauch und Protokoll kommen als JSON-Zeilen aus dem Container (`agent/README.md`) und werden als
-Aktionen des Agenten angewendet; Kosten rechnet `cockpit-core` mit den Preisen aus „Grenzen & Regeln“. Antworten und
-Hinweise gehen über stdin zurück, „Pausieren“ ist `pause`/`unpause`.
+**Anatomy of a run.** "Agent starten" first (optionally) presents a plan from a short read-only container. After
+your approval the backend clones the repo fresh, creates the branch `claude/<ticket>-…` and starts the container
+(`run --rm`, label `cockpit.run=<key>`, `--add-host cockpit-host:host-gateway`, repo mounted as `-v <clone>:/work`,
+runner without root; address, key and model only as `-e NAME`, so the values are in the process environment and
+never in the argument list or the log). Plan, questions, usage and log arrive as JSON lines from the container
+([apps/agent/README.md](apps/agent/README.md)) and are applied as actions of the agent; `cockpit-core` computes
+costs from the prices in "Grenzen & Regeln". Answers and hints go back over stdin; "Pausieren" is
+`pause`/`unpause`.
 
-**Was der Agent darf – und nie darf.**
+What the agent may and may never do is listed under [Security model](#security-model).
 
-- Er hat **kein GitHub-Token** und kann nicht pushen. Er committet auf `claude/<ticket>-…`; das Backend prüft den Branch in
-  einem frischen Bare-Repo (nie im Klon, den der Container beschrieben hat), gegen die Pfad-Regeln des Repos, und pusht
-  ihn dann. **Nie** der Hauptbranch, **nie** ein Force-Push, **nie** ein Merge. Den Pull Request legst du selbst an.
-- Kommentare und Reviews des Agenten gehen erst nach deiner Freigabe raus.
-- Er schreibt nur in `/work`; `canUseTool` im Läufer sperrt `.git`, verbotene Pfade, `git push`, Netzwerkbefehle.
-- Grenzen (Budget pro Lauf und Monat, Zeitlimit, parallele Läufe) gelten wie bisher; bei Erreichen wird der Container
-  beendet (`rm -f`), der Lauf wartet angehalten auf dich (der Klon bleibt zum Fortsetzen).
-- Abbruch, Zeitlimit, Fehler im Container und ein Neustart des Servers (verwaiste Container werden per Label entfernt, Läufe als
-  abgebrochen markiert) stehen in Klartext im Protokoll und am Lauf.
+## Running the backend
 
-**Noch offen:** Folgeaufträge (Review-Kommentare umsetzen, roten Check untersuchen) laufen nur simuliert; der Pull Request
-wird nicht automatisch angelegt; das Ticket wird nur über das Repo aus der Einstellung zugeordnet; Prüfung mit echten
-Containern und echtem Modell steht aus (siehe `docs/ROADMAP.md`).
-
-## Backend starten
-
-Das Backend (`server/`, Binary `cockpit-server`) ist ein lokaler Dienst für eine Person. Es lauscht nur
-auf `127.0.0.1`, liefert die gebaute Cockpit-App aus und hält Daten (SQLite) und Schlüssel
-(`.env`-Datei im Projektordner) – Schlüssel verlassen das Backend nie. **Die App läuft nur mit dem Server**: Es gibt
-keinen Modus ohne Backend mehr.
+The backend (`apps/server`, binary `cockpit-server`) is a local service for one person. It listens only on
+`127.0.0.1`, serves the built Cockpit app and holds data (SQLite) and keys (`.env` file in the project folder);
+keys never leave the backend. **The app only works with the server**: there is no mode without a backend.
 
 ```bash
-scripts/start.sh                # bauen (falls nötig) und starten: http://127.0.0.1:8787
-scripts/start.sh --open         # zusätzlich den Browser öffnen
-curl localhost:8787/api/health  # {"status":"ok","version":"…","connections":{…},"sync":{…},"endpoint":{…},"container":{…}}
+scripts/start.sh                # build if needed and start: http://127.0.0.1:8787
+scripts/start.sh --open         # additionally open the browser
+curl localhost:8787/api/health  # {"status":"ok","version":"…","connections":{…},"sync":{…},"endpoint":{…},"container":{…},…}
 ```
 
-`scripts/start.sh` (bash, macOS) prüft `cargo` und `trunk`, baut `apps/cockpit` nach `apps/cockpit/dist`, wenn die Ausgabe fehlt
-oder eine Quelle neuer ist, und startet `cockpit-server`. Es installiert nichts. Mit `--release` baut es den Server
-als Release-Build. Ohne das Skript: `(cd apps/cockpit && trunk build) && cargo run -p cockpit-server`. **Ohne Terminal** startet ein Doppelklick auf
-`start-cockpit.command` dasselbe (`--open`) und zeigt Fehler in lesbarem Deutsch.
+Without a terminal, a double-click on `start-cockpit.command` does the same (`--open`) and shows errors in plain
+language.
 
-
-**Beim ersten Start ist alles leer.** Der Server beginnt mit einem leeren Workspace; die Seite „Einrichten“ zeigt je Dienst
-den Stand und den nächsten Schritt. Beispieldaten gibt es nur auf ausdrücklichen Wunsch: `COCKPIT_SEED=demo` (oder
-`seed = "demo"` in `config.toml`) lädt sie, **aber nur, wenn noch kein Stand gespeichert ist** – ein vorhandener Stand
-(auch ein leerer, mit Aktionen veränderter) geht vor. Für einen frischen Seed eine neue Datenbank nehmen
-(`COCKPIT_DB=/pfad/zur/neuen.db`).
+**Everything is empty on first start.** The server begins with an empty workspace; the "Einrichten" page shows
+the state and next step per service. Sample data exists only on request: `COCKPIT_SEED=demo` (or
+`seed = "demo"` in `config.toml`) loads it, **but only if no state has been stored yet**; an existing state (even
+an empty one changed by actions) wins. For a fresh seed use a new database (`COCKPIT_DB=/path/to/new.db`).
+Sample data (`crates/cockpit-core/src/demo.rs`) otherwise serves as test data and for the Playground stories.
 
 ```bash
-COCKPIT_SEED=demo COCKPIT_DB=/tmp/cockpit-demo.db scripts/start.sh --open   # Beispieldaten, eigene Datenbank
+COCKPIT_SEED=demo COCKPIT_DB=/tmp/cockpit-demo.db scripts/start.sh --open   # sample data, own database
 ```
 
-Konfiguration (alles optional): Datei `config.toml` im Konfigurationsverzeichnis (`~/.config/cockpit/`
-unter Linux, `~/Library/Application Support/cockpit/` unter macOS), darüber Umgebungsvariablen `COCKPIT_PORT` (8787),
-`COCKPIT_DIST` (`apps/cockpit/dist`), `COCKPIT_DB` (Datenverzeichnis des Nutzers, `cockpit/cockpit.db`), `COCKPIT_CONFIG`
-(Pfad der Datei), `COCKPIT_SEED` (`empty` oder `demo` (`leer` gilt weiter)) und `COCKPIT_CONTAINER` (`docker` oder `podman`).
+### Configuration
+
+Everything is optional. The file `config.toml` lives in the configuration directory
+(`~/.config/cockpit/` on Linux, `~/Library/Application Support/cockpit/` on macOS). Environment variables override
+the file:
+
+| Variable | Meaning (default) |
+|----------|-------------------|
+| `COCKPIT_PORT` | port (8787) |
+| `COCKPIT_DIST` | built app (`apps/cockpit/dist`) |
+| `COCKPIT_DB` | SQLite file (`cockpit/cockpit.db` in the user's data directory) |
+| `COCKPIT_CONFIG` | path of `config.toml` |
+| `COCKPIT_ENV_FILE` | path of the `.env` file (`.env` in the working directory) |
+| `COCKPIT_SEED` | `empty` or `demo` |
+| `COCKPIT_CONTAINER` | `docker` or `podman` |
+| `COCKPIT_AGENT_DIR` | folder with `Containerfile` and runner |
+| `COCKPIT_GIT_BASE` | git base for clones (tests, local remotes) |
+| `COCKPIT_DEV_PORT` | allow the `trunk serve` port (environment only, see below) |
 
 ```toml
 port = 8787
-seed = "empty"                    # oder "demo", siehe oben
-[github]                          # api_url ist optional
+seed = "empty"                    # or "demo", see above
+interval_s = 120                  # sync interval, default 2 minutes, at least 30
+
+[github]
+repos = ["acme/app", "acme/web"]  # owner/name, several allowed; api_url only for GitHub Enterprise
 [jira]
-site = "https://firma.atlassian.net"
-email = "ich@firma.example"
+site = "https://acme.atlassian.net"
+email = "me@acme.example"
 [agent]
-provider = "claude-agent-sdk"        # umgesetzt; "claude-code" und "codex" sind bekannt, aber noch nicht umgesetzt
-container = "podman"              # oder "docker"; ohne Angabe wird erkannt
-[agent.endpoint]                  # Modellzugang, siehe „Einrichten“ unten
-url = "https://litellm.example"   # leer oder weglassen = direkt bei Anthropic
+provider = "claude-agent-sdk"     # implemented; "claude-code" and "codex" are known but not implemented
+container = "podman"              # or "docker"; detected when omitted
+[agent.endpoint]                  # model access, see "Setting up the agent"
+url = "https://litellm.example"   # empty or omitted = directly at Anthropic
 model = "claude-sonnet-5-5"
 ```
 
-Ältere Dateien mit `[litellm] url/model` und dem Schlüssel `litellm` werden weiter gelesen (Alias für `[agent.endpoint]`
-und `agent-key`); der Assistent schreibt beim Speichern das neue Format und übernimmt dabei die alten Werte.
-Auch die älteren deutschen Namen werden weiter gelesen: `intervall_s` (jetzt `interval_s`), `[agent] anbieter` (`provider`),
-`[agent.endpunkt]` mit `modell` (`[agent.endpoint]` mit `model`), `COCKPIT_GIT_BASIS` (`COCKPIT_GIT_BASE`) und der Seed `leer`.
+Older files keep working: `[litellm] url/model` and the key `litellm` are read as aliases for
+`[agent.endpoint]` and `agent-key` (the assistant writes the new format when saving). The older German names
+`intervall_s`, `[agent] anbieter`, `[agent.endpunkt]` with `modell`, `COCKPIT_GIT_BASIS` and the seed `leer` are
+read as well.
 
-Schlüssel stehen nie in der Datei. Sie kommen über die Standardeingabe in die `.env`-Datei:
-`echo "$TOKEN" | cargo run -p cockpit-server -- token setzen github` (oder `jira`, `github-oauth`, `atlassian-oauth`,
-`agent-key`; `token loeschen <name>` entfernt sie).
-`/api/health` meldet je Verbindung nur ja/nein. Die Server-Crates (`server/`, `crates/integrations`)
-laufen nur nativ; für Wasm schließt die CI sie aus (siehe `docs/ROADMAP.md`).
+### Credentials: the `.env` file
 
-### Zugangsdaten: die `.env`-Datei
+All keys (Jira token, GitHub token, key of the agent endpoint, client secrets, sign-in tokens) live in a `.env`
+file in the project folder. The risk of a file inside the repository folder was a deliberate choice. **It is never
+committed**: `.gitignore` excludes `.env` and `.env.*`; only `.env.example` (dummy values only) belongs in the repo.
 
-Alle Schlüssel (Jira-Token, GitHub-Token, Key des Agent-Endpunkts, Client-Secrets, Tokens der Anmeldung) liegen in einer
-`.env`-Datei im Projektordner (Entscheidung vom 13.11.2026; das Risiko einer Datei im Repo-Ordner ist bewusst gewählt).
-**Sie wird nie committet**: `.gitignore` schließt `.env` und `.env.*` aus, nur `.env.example` (nur Dummy-Werte) gehört ins Repo.
+- **Create:** the assistant and `cockpit-server token set <name>` create the file when needed (mode `600`). By
+  hand: `cp .env.example .env` and fill in the values.
+- **Location:** `.env` in the server's working directory (the repo folder; `scripts/start.sh` and
+  `start-cockpit.command` change into it). `COCKPIT_ENV_FILE=/path/to/file` redirects it (operation, tests). The
+  assistant shows the path in the last step.
+- **Format:** `NAME=value`, comments with `#`, other lines are preserved on write. Values with special
+  characters go in single quotes. The sign-in token blobs are compact one-line JSON (`'{"access":"…"}'`). Writing is
+  atomic (temporary file, then rename).
+- **Precedence:** a real environment variable of the same name wins over the file. A value set that way cannot be
+  overwritten or deleted in the assistant.
+- **Variables:**
 
-- **Anlegen:** Der Assistent und `cockpit-server token setzen <name>` legen die Datei bei Bedarf an (Rechte `600`).
-  Von Hand: `cp .env.example .env` und die Werte eintragen.
-- **Ort:** `.env` im Arbeitsverzeichnis des Servers (der Repo-Ordner; `scripts/start.sh` und `start-cockpit.command` wechseln
-  dorthin). `COCKPIT_ENV_FILE=/pfad/zur/datei` biegt den Ort um (Betrieb, Tests). Der Assistent zeigt den Pfad im letzten Schritt.
-- **Format:** `NAME=wert`, Kommentare mit `#`, andere Zeilen bleiben beim Schreiben erhalten. Werte mit Sonderzeichen stehen in
-  einfachen Anführungszeichen. Die Token-Blobs der Anmeldung sind kompaktes JSON in einer Zeile (`'{"access":"…"}'`, kein base64).
-  Schreiben ist atomar (temporäre Datei, dann umbenennen).
-- **Vorrang:** Eine echte Umgebungsvariable gleichen Namens gilt vor der Datei. Ein Wert, der so gesetzt ist, lässt sich im
-  Assistenten nicht überschreiben oder löschen.
-- **Variablen:**
-
-  | Name im Backend | Variable in der `.env` |
+  | Name in the backend | Variable in `.env` |
   |---|---|
   | `jira` | `JIRA_TOKEN` |
   | `github` | `GITHUB_TOKEN` |
-  | `agent-key` (älter: `litellm`) | `AGENT_KEY` |
+  | `agent-key` (older: `litellm`) | `AGENT_KEY` |
   | `github-oauth` | `GITHUB_OAUTH_CLIENT_SECRET` |
   | `atlassian-oauth` | `ATLASSIAN_OAUTH_CLIENT_SECRET` |
-  | Tokens der GitHub-Anmeldung (vom Backend) | `GITHUB_OAUTH_TOKENS` |
-  | Tokens der Atlassian-Anmeldung (vom Backend) | `ATLASSIAN_OAUTH_TOKENS` |
+  | tokens of the GitHub sign-in (written by the backend) | `GITHUB_OAUTH_TOKENS` |
+  | tokens of the Atlassian sign-in (written by the backend) | `ATLASSIAN_OAUTH_TOKENS` |
 
-- **Sicherheitsnetz:** Beim Start und in `/api/health` (`env_datei`, sichtbar im letzten Schritt des Assistenten) warnt der
-  Server, wenn Git die `.env` verfolgt, `.gitignore` sie nicht abdeckt oder die Rechte lockerer als `600` sind (beim Start
-  werden sie auf `600` gesetzt). Die CI schlägt fehl, wenn irgendeine `.env*`-Datei (außer `.env.example`) verfolgt wird.
-  Wurde je eine echte `.env` committet: Schlüssel sofort tauschen, `git rm --cached .env`.
-- **Container:** Die `.env` kommt nie ins Image oder in den Container (`apps/agent/.dockerignore`); der Agent bekommt Werte nur
-  als `-e NAME` vom Backend.
-- **Alte Einträge aus dem Schlüsselbund** (vor dem 13.11.2026): `cargo run -p cockpit-server -- token uebernehmen` kopiert sie
-  einmalig in die `.env`. Das liest nur den Schlüsselbund, löscht dort nichts, überschreibt nichts und läuft nie von selbst.
+- **Safety net:** at start and in `/api/health` (`env_file`, visible in the last assistant step) the server warns
+  when Git tracks the `.env`, `.gitignore` does not cover it, or the permissions are looser than `600` (at start they
+  are set to `600`). CI fails when any `.env*` file other than `.env.example` is tracked. If a real `.env` was ever
+  committed: rotate the keys immediately and run `git rm --cached .env`.
+- **Container:** the `.env` never enters the image or container (`apps/agent/.dockerignore`); the agent receives
+  values only as `-e NAME` from the backend.
 
-### Entwickeln mit `trunk serve`
-
-`apps/cockpit/Trunk.toml` leitet `/api` an `http://127.0.0.1:8787` weiter (`[[proxy]]`). Server und Entwicklungsserver zusammen:
+Terminal commands (the value always comes from standard input, never from the command line):
 
 ```bash
-COCKPIT_DEV_PORT=8081 COCKPIT_SEED=demo cargo run -p cockpit-server   # Terminal 1
-(cd apps/cockpit && trunk serve --open)                                    # Terminal 2, http://localhost:8081
+echo "$TOKEN" | cargo run -p cockpit-server -- token set github     # or jira, github-oauth, atlassian-oauth, agent-key
+cargo run -p cockpit-server -- token delete github                  # remove a key
+cargo run -p cockpit-server -- token import                         # copy old keychain entries into .env, once
 ```
 
-Trunk schickt `Host` ohne Port und lässt den `Origin` der Entwicklungsseite stehen; beides lässt der Server nur zu, wenn
-`COCKPIT_DEV_PORT` gesetzt ist (nur als Umgebungsvariable, nie in der Datei). Ohne sie gilt die strenge Prüfung unten.
+`token import` reads the system keychain (where keys lived before 2026-11-13), deletes nothing there, overwrites
+nothing that already has a value and never runs by itself. The older spellings `setzen`, `loeschen` and
+`uebernehmen` are still accepted.
 
-### Beim Login starten (launchd, macOS)
+### Developing with `trunk serve`
 
-`scripts/de.cockpit.server.plist` ist eine Vorlage für einen LaunchAgent. **Es wird nichts automatisch installiert.**
+`apps/cockpit/Trunk.toml` forwards `/api` to `http://127.0.0.1:8787` (`[[proxy]]`). Server and dev server together:
 
-1. Einmal `scripts/start.sh` von Hand ausführen, damit alles gebaut ist.
-2. Vorlage nach `~/Library/LaunchAgents/de.cockpit.server.plist` kopieren und die Platzhalter `/PFAD/ZUM/REPO` und
-   `/Users/BENUTZER` ersetzen (siehe Kommentar in der Datei).
-3. Laden: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist`
-   · Entladen: `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist`.
-   Das Log steht in `~/Library/Logs/cockpit-server.log`.
+```bash
+COCKPIT_DEV_PORT=8081 COCKPIT_SEED=demo cargo run -p cockpit-server   # terminal 1
+(cd apps/cockpit && trunk serve --open)                               # terminal 2, http://localhost:8081
+```
 
-### Wie App und Server zusammenarbeiten
+Trunk sends `Host` without the port and keeps the `Origin` of the dev page; the server allows both only when
+`COCKPIT_DEV_PORT` is set (environment variable only, never in the file). Without it the strict check in
+[docs/security.md](docs/security.md) applies.
 
-Das Backend hält den `Workspace` (SQLite, Migration 2) und wendet jede Aktion selbst an; der Takt des simulierten
-Agenten läuft ebenfalls dort. Im Browser liegt nichts (kein `localStorage`). Die App lädt den Stand, schickt Aktionen
-und hört auf Änderungen:
+### Start at login (launchd, macOS)
 
-| Route | Zweck |
-|-------|-------|
-| `GET /api/workspace` | Stand als JSON (Form von `cockpit_core::persist`, dazu `revision`) |
-| `POST /api/actions` | Body `{"action": <Action>}`; wendet sie als „Du“ an. Antwort `{revision, summary, logged}`; eine abgelehnte Aktion ist `422` (unbekannte Form `400`) mit `{"error": "…"}` |
-| `POST /api/sync` | „Jetzt abgleichen“ mit Jira und GitHub. Antwort `{active, revision, logged}`; `active: false`, wenn keine Quelle eingerichtet ist |
-| `GET /api/events` | Server-Sent Events: erst die aktuelle Revision, dann je Aktion ein Ereignis mit neuer Revision und den neuen Protokolleinträgen, dazu Keep-Alive |
-| `GET /api/jira/projects` | Jira-Projekte für die Auswahl in der Inbox: `{active, projects: [{key, name}]}`; `active: false` ohne Jira oder Token |
+`scripts/de.cockpit.server.plist` is a template for a LaunchAgent. **Nothing is installed automatically.**
 
-| `GET /api/agent/image` / `POST /api/agent/image` | Stand von „Image bauen“ `{running, present, error, lines}` bzw. Bau im Hintergrund starten |
-| `GET /api/agent/check/container` | Dieselbe Prüfung aus einem Container: `{checked, mac_reached, container_reached, key_ok, hint}` |
-| `GET /api/agent/check` | Verbindungstest zum Endpunkt: `{configured, reachable, key_ok, model_present, hint}` (siehe „Einrichten“) |
-| `GET /api/agent/models` | Die Modell-IDs des Endpunkts für das Drop-down: `{loaded, reachable, key_ok, models, hint}`; nur IDs, sortiert (Claude-Modelle zuerst), höchstens 200. Der Key bleibt im Backend |
-| `GET /api/setup` | Was der Assistent vorbelegt: Jira-Site/E-Mail/Projekte, Client-IDs, Repos, Anbieter, Endpunkt-Adresse und Modell, die beiden Callback-Adressen und je Schlüssel nur `{name, set}` |
-| `PUT /api/config` | Schreibt Client-IDs, Jira, Repos sowie Agent-Anbieter und Endpunkt in `config.toml` (siehe „Einrichten in der App“). Antwort `{stored, takes_effect_immediately, hint}`; ungültige Eingaben sind `422` mit Klartext |
-| `PUT /api/secrets/{name}` | Legt einen Schlüssel in der `.env` ab. Body `{"value": "…"}`, nur `github-oauth`, `atlassian-oauth`, `agent-key` (ältere Schreibweise `litellm`), `jira`, `github`. Antwort `{name, set}` – nie der Wert |
-| `DELETE /api/secrets/{name}` | „Trennen“ für Tokens: löscht `jira` oder `github` aus der `.env` (andere Namen: `404`). Antwort `{name, set: false}` |
-| `POST /api/jira/check` | Verbindungstest für Jira per API-Token, nur lesend (`GET /rest/api/3/myself`): `{ok, cause, message, name}`, `cause` = `ok`, `details`, `address`, `token`, `permission`, `reachable`, `sonst`. Nie der Token |
+1. Run `scripts/start.sh` once by hand so that everything is built.
+2. Copy the template to `~/Library/LaunchAgents/de.cockpit.server.plist` and replace the placeholders
+   `/PFAD/ZUM/REPO` (the repo folder) and `/Users/BENUTZER` (your home directory); see the comment in the file.
+3. Load: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist`,
+   unload: `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist`.
+   The log is at `~/Library/Logs/cockpit-server.log`.
 
-Ist der Server nicht erreichbar (nicht gestartet, anderer Port), zeigt die App oben einen Hinweis mit „Erneut versuchen“;
-die Seiten bleiben leer, es geht nichts verloren.
+## Connecting real services
 
-Alle Routen unter `/api` prüfen die Gegenstelle (nur Loopback) und den `Host`-Header (`127.0.0.1:<port>` oder
-`localhost:<port>`, gegen DNS-Rebinding). Schreibende Anfragen brauchen zusätzlich `Content-Type: application/json`
-und einen fehlenden oder eigenen `Origin`. Das gilt auch für `PUT /api/config` und `PUT /api/secrets/{name}`.
+**The easy way is the assistant:** the "Einrichten" page walks through container, Jira, GitHub and model access.
+It writes client IDs, Jira site, repos, agent provider and endpoint into `config.toml` and stores keys in `.env`,
+without you touching a file or the terminal. **The terminal route stays available** as an alternative (edit
+`config.toml`, run `cockpit-server token set <name>`); both lead to the same result and can be mixed.
 
-### Jira verbinden
+Without setup the workspace stays empty. As soon as **a source is configured and its token is in `.env`**, the
+backend syncs: tickets, pull requests, comments, checks and diffs come from the services; the (unchanged)
+sample data of a seed disappears at the first successful fetch. A source without configuration or token stays off.
+What is synced and which actions go out is described in [docs/architecture.md](docs/architecture.md).
 
-**Standard: API-Token (drei Angaben).** In der App unter „Einrichten“ › „Jira“ trägst du ein: (1) die Adresse deiner
-Jira-Site (`firma.atlassian.net`; auch eine kopierte Adresse mit `https://` und Pfad wird verstanden), (2) die
-E-Mail-Adresse deines Atlassian-Kontos, (3) den Token. „Token-Seite öffnen“ führt in einem neuen Tab zu
-`https://id.atlassian.com/manage-profile/security/api-tokens`: „Token erstellen“, Namen vergeben, Ablaufdatum wählen,
-kopieren und in das Passwortfeld einfügen. Der Token geht über `PUT /api/secrets/jira` in die `.env`, Site und
-E-Mail über `PUT /api/config` in die `config.toml`. Danach prüft „Verbindung prüfen“ (`POST /api/jira/check`,
-nur lesend: `GET /rest/api/3/myself`), ob „Jira antwortet und dich kennt“, und nennt sonst im Klartext die Ursache
-(Adresse falsch, Token abgelehnt, keine Berechtigung, nicht erreichbar). Nach dem Test schlägt der Assistent die
-Jira-Projekte zur Auswahl vor (oder „Alle Projekte“), wie das Drop-down in der Inbox. In der Zusammenfassung steht, ob die
-Anmeldung „mit API-Token“ oder „mit OAuth“ läuft; „Token erneuern“ führt zurück in den Schritt, „Trennen“ löscht den Token
-in der `.env` (`DELETE /api/secrets/jira`).
+### Jira
 
-**Sicherheit.** Der Token hat die Rechte deines Atlassian-Kontos. Solange Cockpit nur lesen soll, nimm ein Konto oder eine
-Rolle ohne Schreibrechte; ein kurzes Ablaufdatum begrenzt den Schaden. Der Token liegt nur in der `.env` und kommt nie
-in Browser-Speicher, Adresse, Datenbank, `config.toml` oder Log.
+**Default: API token (three entries).** In the app under "Einrichten" › "Jira" enter (1) the address of your Jira
+site (`acme.atlassian.net`; a pasted address with `https://` and a path is understood), (2) the email of your
+Atlassian account, (3) the token. "Token-Seite öffnen" opens `https://id.atlassian.com/manage-profile/security/api-tokens`
+in a new tab: create a token, pick a name and expiry, copy and paste it into the password field. The token goes to
+`PUT /api/secrets/jira` (into `.env`), site and email to `PUT /api/config` (into `config.toml`). "Verbindung prüfen"
+(`POST /api/jira/check`, read only: `GET /rest/api/3/myself`) then tests whether "Jira antwortet und dich kennt"
+and otherwise names the cause in plain language (wrong address, token rejected, no permission, unreachable). Afterwards the
+assistant suggests the Jira projects to choose from (or "Alle Projekte"), like the drop-down in the inbox. The
+summary shows whether the sign-in is "mit API-Token" or "mit OAuth"; "Token erneuern" returns to the step and
+"Trennen" deletes the token from `.env` (`DELETE /api/secrets/jira`).
 
-**Alternative: OAuth.** Wer keinen Token will, legt in der Atlassian-Entwicklerkonsole eine eigene OAuth-App an und
-meldet sich im Browser an; im Assistenten steht das eingeklappt unter „Erweitert: Mit OAuth statt Token“, die Schritte
-stehen weiter unten („Anmeldung per OAuth“). Ist beides da, geht OAuth vor dem Token.
+**Security.** The token has the rights of your Atlassian account. As long as Cockpit should only read, use an
+account or role without write permissions; a short expiry limits the damage. The token lives only in `.env` and never
+in browser storage, URL, database, `config.toml` or log.
 
-### Mit echten Diensten verbinden
+**Choosing a project.** If the Jira site has several projects (boards), pick one in the inbox drop-down "Jira-Projekt".
+The list comes from Jira (`GET /api/jira/projects`, behind it `GET /rest/api/3/project/search`: all projects your token
+may see) plus the projects of the tickets already present. The choice is the action `SelectJiraProject` and is
+stored. With a project selected the inbox shows only its tickets (pull requests stay visible, they belong to no
+project); the sync fetches **all open tickets of the project** (`project = KEY AND statusCategory != Done`), not only
+yours (what is neither assigned to nor watched by you appears under "Team" with "Im Projekt"); and the choice takes
+precedence over `projects` and `jql` from `config.toml`. "Alle Projekte" restores those. After a change the server
+syncs immediately.
 
-**Der bequeme Weg ist der Assistent:** Die Seite „Einrichten“ führt durch Container, Jira, GitHub und den Modellzugang
-(siehe „Einrichten in der App“ weiter unten). Er schreibt Client-IDs, Jira-Site, Repos sowie Agent-Anbieter und Endpunkt selbst in die
-`config.toml` und legt Schlüssel in der `.env` ab – ohne dass du Datei oder Terminal anfasst. **Der Terminal-Weg bleibt
-als Alternative** und ist unten beschrieben: `config.toml` von Hand bearbeiten und `cockpit-server token setzen <name>`.
-Beides führt zum selben Ergebnis und lässt sich mischen.
-
-Ohne Einrichtung bleibt der Workspace leer (oder zeigt die Beispieldaten, wenn du `COCKPIT_SEED=demo` gewählt hast).
-Sobald **eine Quelle eingerichtet ist und ihr Token in der `.env` liegt**, gleicht das Backend ab: Tickets, Pull
-Requests, Kommentare, Checks und Diffs kommen von den Diensten; die (unveränderten) Beispieldaten eines Seeds verschwinden
-beim ersten erfolgreichen Abruf. Eine Quelle ohne Konfiguration oder ohne Token bleibt aus.
-
-**Der Terminal-Weg (Alternative zum Assistenten).**
-
-**1. Konfiguration** (`config.toml`, siehe oben; keine Schlüssel in der Datei):
+**Terminal route.** `config.toml`:
 
 ```toml
-interval_s = 120                        # Abfrage-Intervall, Standard 2 Minuten, mindestens 30
-
-[github]
-repos = ["firma/app", "firma/web"]       # owner/name, mehrere möglich
-# api_url = "https://github.firma.example/api/v3"   # nur bei GitHub Enterprise
-
 [jira]
-site = "https://firma.atlassian.net"
-email = "ich@firma.example"
-projects = ["BAU", "WEB"]                # optional: mir zugewiesen oder beobachtet, offen, nur in diesen Projekten
-# jql = "project = BAU AND labels = cockpit ORDER BY updated DESC"   # optional: eigene Abfrage statt der Projekte
+site = "https://acme.atlassian.net"
+email = "me@acme.example"
+projects = ["BAU", "WEB"]          # optional: assigned to me or watched, open, only in these projects
+# jql = "project = BAU AND labels = cockpit ORDER BY updated DESC"   # optional: own query instead of the projects
 ```
 
-Ohne `projects` und `jql` holt Jira alle mir zugewiesenen oder von mir beobachteten offenen Tickets. Bei GitHub
-kommen Pull Requests der angegebenen Repos, bei denen ein Review von mir angefragt ist oder die mir gehören.
+Without `projects` and `jql` Jira returns all open tickets assigned to or watched by you. For GitHub the pull
+requests of the listed repos come in where a review of you is requested or that belong to you.
 
-**Projekt wählen.** Hat die Jira-Site mehrere Projekte (Boards), wählst du in der Inbox oben im Drop-down „Jira-Projekt“
-eines aus. Die Liste kommt von Jira (`GET /api/jira/projects`, dahinter `GET /rest/api/3/project/search`: alle
-Projekte, die dein Token sehen darf) und enthält dazu die Projekte der Tickets, die schon da sind. Die Wahl ist
-die Aktion `SelectJiraProject` und bleibt gespeichert. Ist ein Projekt gewählt,
+### GitHub
 
-- zeigt die Inbox nur dessen Tickets (Pull Requests bleiben sichtbar, sie gehören zu keinem Projekt),
-- holt der Abgleich **alle offenen Tickets des Projekts** (`project = KEY AND statusCategory != Done`), nicht nur
-  deine. Was weder dir zugewiesen noch von dir beobachtet ist, steht mit „Im Projekt“ unter „Team“,
-- hat sie Vorrang vor `projects` und `jql` aus `config.toml`. Mit „Alle Projekte“ gelten wieder diese.
+The token (`echo "$GITHUB_TOKEN" | cargo run -p cockpit-server -- token set github`) is read anew on every use, so a
+new token works without restart.
 
-Nach einem Wechsel gleicht der Server sofort ab.
+| Service | Token | Rights |
+|---------|-------|--------|
+| GitHub | *fine-grained personal access token*, limited to the configured repos | repository permissions **Contents** (read and write: create a branch), **Pull requests** (read and write: read, send a review, merge), **Checks** (read and write: read check status, re-request a check), **Issues** (read and write: comments), **Metadata** (read, automatic) |
+| Jira | *API token* of the Atlassian account | the account needs "Browse projects", "Add comments" and "Edit issues / Transition issues" in the projects; sign-in with the email from the configuration |
 
-**Filter der Inbox.** Neben dem Jira-Projekt filtert die Kopfzeile der Inbox nach **Repo**, **Person** (Besitzer),
-**Status** und **Label**; jede Auswahl steht auf „Alle“, bis du etwas wählst, die Filter gelten zusammen (UND), und
-„Filter zurücksetzen“ stellt alles zurück. Die Wahl gehört nur der Seite (wie Suchtext und Quelle) und wird nicht
-gespeichert; die Anzahl der Treffer steht für Screenreader im Status. Die Logik steckt in `cockpit_core::InboxFilter`
-(`crates/cockpit-core/src/search.rs`); die Auswahlwerte liefern `Workspace::item_repos()`, `owners()` und `labels()`.
+### OAuth (alternative to tokens)
 
-- **Repo:** Pull Requests tragen ihr Repo (`owner/name`, `Item::repo`); Tickets haben keines und fallen bei einer Repo-Wahl heraus.
-- **Status:** Tickets zählen mit ihrem Status, Pull Requests mit dem, den sie nahelegen (gemergt → Fertig, Review angefragt → Review, sonst In Arbeit).
-- **Label:** `Item::labels` kommt vom Dienst (Jira `fields.labels`, GitHub-Labels des Pull Requests) und wird bei jedem Abgleich ersetzt; Groß-/Kleinschreibung zählt beim Filtern nicht.
-- Gleiche Pull-Request-Nummern aus zwei Repos sind in der Inbox getrennte Einträge (die ID enthält das Repo). Die Reviews und die Zuordnung `PrLink` hängen weiter an der Nummer – zwei Repos mit derselben Nummer teilen sich dort einen Platz.
+Instead of a token you sign in in the browser. Tokens and client secret live only in the backend's `.env`, never in
+browser, repo, database or log. In the assistant this is folded under "Erweitert: Mit OAuth statt Token". If both
+exist, OAuth wins over the token.
 
-**2. Token setzen** (von der Standardeingabe in die `.env`-Datei, nie in Datei, Datenbank, Log oder Browser):
-
-```bash
-echo "$GITHUB_TOKEN" | cargo run -p cockpit-server -- token setzen github
-echo "$JIRA_TOKEN"   | cargo run -p cockpit-server -- token setzen jira
-```
-
-Das Backend liest den Token bei jedem Gebrauch neu; ein neu gesetzter Token wirkt ohne Neustart.
-
-**3. Welche Rechte die Tokens brauchen**
-
-| Dienst | Token | Rechte |
-|--------|-------|--------|
-| GitHub | *fine-grained personal access token*, auf die konfigurierten Repos beschränkt | Repository-Rechte **Contents** (Read and write: Branch anlegen), **Pull requests** (Read and write: lesen, Review senden, mergen), **Checks** (Read and write: Check-Status lesen, Check neu anfordern), **Issues** (Read and write: Kommentare), **Metadata** (Read, automatisch) |
-| Jira | *API-Token* des Atlassian-Kontos (id.atlassian.com › Sicherheit › API-Token) | Das Konto braucht in den Projekten „Projekte durchsuchen“, „Kommentare hinzufügen“ und „Vorgänge bearbeiten/Transitionen ausführen“. Anmeldung mit der E-Mail aus der Konfiguration |
-
-**Anmeldung per OAuth (Alternative zum Token).** Statt eines Tokens meldest du dich im Browser an; Tokens und
-Client-Secret liegen nur im `.env`-Datei des Backends, nie im Browser, Repo, in der Datenbank oder im Log.
-
-1. *Apps registrieren.* GitHub: eine **GitHub App** (Callback `http://127.0.0.1:8787/api/oauth/github/callback`,
-   „Expire user authorization tokens“ an, Repository-Rechte wie in der Tabelle unten, App auf den Repos installieren).
-   Atlassian: eine **OAuth-2.0-(3LO)-App** (Callback `http://localhost:8787/api/oauth/atlassian/callback`, Jira-Rechte
-   `read:jira-work`, `write:jira-work`, `read:jira-user`). Atlassian-Apps sind *resource-level*: Der Zugriff gilt nur für
-   die Site, die du bei der Zustimmung wählst.
-2. *Client-ID in die `config.toml`* (ist nicht geheim; mit `[atlassian]` braucht `[jira]` weder `site` noch `email`):
+1. *Register the apps.* GitHub: a **GitHub App** (callback `http://127.0.0.1:8787/api/oauth/github/callback`, "Expire
+   user authorization tokens" on, repository permissions as in the table above, install the app on the repos).
+   Atlassian: an **OAuth 2.0 (3LO) app** (callback `http://localhost:8787/api/oauth/atlassian/callback`, Jira scopes
+   `read:jira-work`, `write:jira-work`, `read:jira-user`). Atlassian apps are *resource-level*: access applies only
+   to the site you choose when you consent.
+2. *Client ID into `config.toml`* (not secret; with `[atlassian]`, `[jira]` needs neither `site` nor `email`):
 
    ```toml
    [github]
-   repos = ["firma/app"]            # die Repos braucht der Abgleich weiterhin
+   repos = ["acme/app"]             # the sync still needs the repos
 
    [github_oauth]
    client_id = "Iv23…"
 
    [atlassian]
    client_id = "7dNimh…"
-   # site = "firma"                 # nur nötig, wenn du mehrere Sites freigibst (Name, Adresse oder Id)
+   # site = "acme"                  # only needed when you grant several sites (name, address or id)
    ```
 
-3. *Client-Secret in die `.env`* (Standardeingabe, wie bei den Token):
+3. *Client secret into `.env`* (standard input, like the tokens):
 
    ```bash
-   echo "$GITHUB_CLIENT_SECRET"    | cargo run -p cockpit-server -- token setzen github-oauth
-   echo "$ATLASSIAN_CLIENT_SECRET" | cargo run -p cockpit-server -- token setzen atlassian-oauth
+   echo "$GITHUB_CLIENT_SECRET"    | cargo run -p cockpit-server -- token set github-oauth
+   echo "$ATLASSIAN_CLIENT_SECRET" | cargo run -p cockpit-server -- token set atlassian-oauth
    ```
 
-4. *Anmelden.* In der App unter „Einrichten“ erscheint beim Jira- und beim GitHub-Schritt „Mit Atlassian
-   anmelden“ bzw. „Mit GitHub anmelden“. Der Knopf öffnet `GET /api/oauth/{atlassian|github}/start` und leitet zum
-   Dienst weiter (mit `state`, einmalig und 10 Minuten gültig, und PKCE). Nach der Zustimmung ruft der Dienst
-   `GET /api/oauth/{service}/callback` auf; das Backend prüft `state`, tauscht den `code` gegen die Tokens und leitet nach
-   `/` um, wo ein Hinweis Erfolg oder den Fehler nennt. Der Callback ist eine Navigation des Browsers: Loopback- und
-   Host-Prüfung gelten weiter, einen JSON-Content-Type verlangt er nicht.
-   - *Atlassian:* danach fragt das Backend `accessible-resources` ab. Genau eine Site wird automatisch gewählt, bei
-     mehreren muss `site` in der Konfiguration stehen (sonst nennt die Fehlermeldung die Möglichkeiten). Jira läuft dann über
-     `https://api.atlassian.com/ex/jira/<cloudId>`; die gewählte Site (Id und Name, nicht geheim) steht in der Datenbank.
-   - *GitHub:* das Nutzer-Token läuft ab (GitHub App); das Backend frischt es vor dem Ablauf mit dem Refresh-Token auf.
-     Atlassian dreht das Refresh-Token bei jeder Auffrischung; auch das speichert das Backend.
-   - Ist ein OAuth-Zugang da, geht er vor einem API-Token (`token setzen github|jira`); die Token-Wege bleiben
-     unverändert. Nach dem Trennen gilt wieder das Token.
-5. *Trennen.* „Trennen“ in der App oder `POST /api/oauth/{service}/revoke` löscht die Tokens in der `.env`. Bei
-   GitHub widerruft das Backend das Token zusätzlich beim Dienst (`DELETE /applications/{client_id}/token`). Atlassian
-   bietet dafür keinen Aufruf; den Zugriff entziehst du unter id.atlassian.com/manage-profile/apps (die App weist
-   darauf hin). Gelöscht wird immer, auch wenn der Dienst nicht antwortet. Das Client-Secret bleibt.
-6. *Wenn es nicht mehr geht.* Ein abgelaufener oder widerrufener Zugriff zeigt „nicht angemeldet“ (`Problem::Unauthorized`)
-   in der Quelle. Lehnt der Dienst das Auffrischen ab, löscht das Backend die Tokens: Der Dienst gilt als getrennt und
-   du meldest dich neu an. Netzwerkfehler oder Störungen des Dienstes lassen die Tokens stehen.
+4. *Sign in.* Under "Einrichten", the Jira and GitHub steps show "Mit Atlassian anmelden" / "Mit GitHub anmelden".
+   The button opens `GET /api/oauth/{atlassian|github}/start` and redirects to the service (with a one-time `state`
+   valid for 10 minutes, and PKCE). After consent the service calls `GET /api/oauth/{service}/callback`; the backend
+   checks `state`, exchanges the `code` for tokens and redirects to `/` with a notice of success or the error. The
+   callback is a browser navigation: loopback and host checks still apply, a JSON content type is not required.
+   - *Atlassian:* the backend then queries `accessible-resources`. Exactly one site is chosen automatically; with
+     several, `site` must be set in the configuration (the error message lists the options). Jira then runs through
+     `https://api.atlassian.com/ex/jira/<cloudId>`; the chosen site (id and name, not secret) is stored in the database.
+   - *GitHub:* the user token expires (GitHub App); the backend refreshes it before expiry with the refresh token.
+     Atlassian rotates the refresh token on every refresh; the backend stores that too.
+5. *Disconnect.* "Trennen" in the app or `POST /api/oauth/{service}/revoke` deletes the tokens in `.env`. For GitHub
+   the backend also revokes the token at the service (`DELETE /applications/{client_id}/token`). Atlassian offers no
+   call for that; revoke access at id.atlassian.com/manage-profile/apps (the app points there). The tokens are always
+   deleted, even if the service does not answer. The client secret stays.
+6. *When it stops working.* An expired or revoked access shows "not signed in" (`Problem::Unauthorized`) at the source.
+   If the service rejects the refresh, the backend deletes the tokens: the service counts as disconnected and you sign
+   in again. Network errors or service outages keep the tokens.
 
-`GET /api/health` meldet unter `sign_in.github` und `sign_in.jira` je `connected`, `kind` (`oauth`, `token` oder
-`none`), `oauth_moeglich` (App eingerichtet und Secret da) und bei Atlassian die `site`. `cockpit-core::Connections`
-trägt dieselbe Art (`github_auth`, `jira_auth`); sie wird nicht im Browser gespeichert.
+`GET /api/health` reports under `sign_in.github` and `sign_in.jira` `connected`, `kind` (`oauth`, `token` or `none`),
+`oauth_possible` (app set up and secret present) and, for Atlassian, the `site`.
 
-**Nicht gegen die echten Dienste geprüft.** Austausch, Auffrischen, Widerruf und die Site-Wahl sind nur gegen
-nachgebaute Antworten getestet (`cargo test`). Offen bis zum ersten echten Durchlauf: ob Atlassian `code_verifier`
-bei einer Web-App mit Client-Secret akzeptiert (sonst entfällt er dort), ob die GitHub App PKCE annimmt, und die
-Installations-Weiterleitung von GitHub (`installation_id`, `setup_action`): Ohne `state` aus unserem Start lehnt das
-Backend sie ab; die App ist schon installiert, die Anmeldung beginnt immer in Cockpit.
+**Not verified against the real services.** Token exchange, refresh, revocation and site choice are only tested
+against recorded or mocked responses (`cargo test`). Open until the first real run: whether Atlassian accepts
+`code_verifier` for a web app with a client secret (otherwise it is dropped there), whether the GitHub App accepts
+PKCE, and GitHub's installation redirect (`installation_id`, `setup_action`): without a `state` from our start the
+backend rejects it; the app is already installed, sign-in always begins in Cockpit.
 
-**Einrichten in der App.** Die Seite „Einrichten“ (`#/setup`) ist ein geführter Assistent in fünf Schritten mit
-Fortschrittsanzeige (Container, Jira, GitHub, Modell, Fertig). Sie erscheint beim ersten Start von selbst, wenn noch nichts
-eingerichtet ist (einmal je Browser; der Browser merkt sich nur diesen Hinweis), und ist jederzeit über „Einrichten“ in der
-Seitenleiste erreichbar. Jeder Schritt lässt sich überspringen; die Zusammenfassung nennt in Klartext, was läuft (Haken),
-was offen ist und was zu prüfen ist, mit „Ansehen“ zum passenden Schritt. Die Texte setzen kein Vorwissen voraus.
+### The setup assistant in detail
 
-- *Container.* Erkennt Docker oder Podman; fehlt beides, erklärt der Schritt, was ein Container ist, und verweist auf
-  Rancher Desktop (Engine **„dockerd (moby)“**) bzw. Podman. „Erneut prüfen“ fragt neu.
-- *Jira.* Standard ist der **API-Token** in drei Schritten (Site, E-Mail, Token erstellen und einfügen), dann
-  Verbindungstest und Projektwahl (siehe „Jira verbinden“). Die **Atlassian-App** (OAuth) bleibt als Alternative unter
-  „Erweitert: Mit OAuth statt Token“ eingeklappt, mit Anleitung durch die Entwicklerkonsole (App anlegen,
-  Resource-level, Jira API hinzufügen, Classic scopes `read:jira-work`, `write:jira-work`, `read:jira-user`, Callback-URL mit
-  „Kopieren“-Knopf, Client-ID und Secret eintragen, dann „Mit Atlassian anmelden“).
-- *GitHub.* Anleitung für eine **GitHub App** mit Abhak-Liste der Berechtigungen (Contents, Pull requests, Issues, Checks
-  Read & write; Commit statuses und Metadata Read-only), Callback-URL zum Kopieren, Client-ID und Secret, Hinweis „Install
-  App“ und die Repos, dann „Mit GitHub anmelden“.
-- *Modellzugang.* Adresse, Modellname, Key und der Verbindungstest (siehe unten).
+The page "Einrichten" (`#/setup`) is a guided assistant in five steps with a progress indicator (Container, Jira,
+GitHub, Modell, Fertig). It appears by itself on first start when nothing is set up (once per browser; the browser
+remembers only this hint) and is always reachable via "Einrichten" in the sidebar. Every step can be skipped; the
+summary says in plain language what works (check mark), what is open and what to verify, with "Ansehen" leading to
+the right step. The texts assume no prior knowledge.
 
-**Wie Eingaben ankommen.** Nicht geheime Werte (Client-IDs, Jira-Site, E-Mail, Projekte, Repos, Endpunkt-Adresse und
--Modell) schickt die Seite an `PUT /api/config`. Der Server ändert die `config.toml` **atomar** (Nachbardatei,
-dann umbenennen; bestehende Kommentare, Reihenfolge und andere Werte bleiben, neue Dateien sind nur für dich lesbar) und
-prüft das Ergebnis **wie beim Start** (`Config::aus`): Ist es ungültig, bleibt die Datei, wie sie war, und die Antwort
-nennt den Grund in Klartext. Eingaben werden vereinheitlicht (`firma` → `https://firma.atlassian.net`, GitHub-Adressen →
-`owner/name`, Projekte in Großbuchstaben, `localhost:4000` → `http://localhost:4000`). Alles gilt **ohne Neustart**
-(Quellen, OAuth-Apps und der Agent-Endpunkt werden im laufenden Server ausgetauscht); nur der Takt des Abgleichs und der Port
-bleiben bis zum Neustart. Ändert sich die Client-ID einer App, rät die Antwort, sich neu anzumelden.
+- *Container.* Detects Docker or Podman; if neither exists, the step explains what a container is and points to
+  Rancher Desktop (engine **"dockerd (moby)"**) or Podman. "Erneut prüfen" asks again.
+- *Jira.* API token in three steps, connection test and project choice (above). The Atlassian OAuth app is folded
+  away under "Erweitert", with a walkthrough of the developer console.
+- *GitHub.* Instructions for a **GitHub App** with a checklist of permissions (Contents, Pull requests, Issues,
+  Checks read & write; Commit statuses and Metadata read-only), callback URL to copy, client ID and secret, a hint
+  to "Install App" and the repos, then "Mit GitHub anmelden".
+- *Modell.* Provider, endpoint address, model, key and connection test.
 
-**Wie Schlüssel ankommen.** Client-Secrets, Tokens und der Key des Endpunkts kommen in Passwortfelder
-(`autocomplete="off"`) und gehen einmal an `PUT /api/secrets/{name}` auf der Loopback-Verbindung. Der Server legt sie im
-`.env`-Datei ab. Der Wert steht nur im Feld und in dieser einen Anfrage: nicht in `localStorage`, nicht in der Adresse,
-nicht im Log, nicht in Fehlermeldungen und nie in einer Antwort (die sagt nur `gesetzt`); das Feld wird sofort nach dem
-Absenden geleert. Erlaubt sind nur die Namen `github-oauth`, `atlassian-oauth`, `agent-key`, `litellm` (älterer Name), `jira` und `github`. Die beiden
-neuen `PUT`-Routen unterliegen derselben Loopback-, Host-, Origin- und Content-Type-Prüfung wie alle Routen unter `/api`.
+**How inputs arrive.** Non-secret values (client IDs, Jira site, email, projects, repos, endpoint address and model)
+go to `PUT /api/config`. The server changes `config.toml` **atomically** (neighbour file, then rename; existing
+comments, order and other values stay, new files are readable only by you) and validates the result **as at start**
+(`Config::parse`): if invalid, the file stays as it was and the answer names the reason in plain language. Inputs are
+normalised (`acme` → `https://acme.atlassian.net`, GitHub URLs → `owner/name`, projects uppercased, `localhost:4000` →
+`http://localhost:4000`). Everything takes effect **without restart** (sources, OAuth apps and the agent endpoint are
+swapped in the running server); only the sync interval and the port wait for a restart. If the client ID of an app
+changes, the answer advises signing in again.
 
-Die Abschnitte „Modellzugang“ und „Container“ im Einzelnen:
+**How keys arrive.** Client secrets, tokens and the endpoint key go into password fields (`autocomplete="off"`) and
+are sent once to `PUT /api/secrets/{name}` over the loopback connection; the server stores them in `.env`. See
+[docs/security.md](docs/security.md) for the guarantees.
 
-- *Agent-Anbieter und Endpunkt.* `[agent] provider` wählt das Werkzeug im Container: `claude-agent-sdk` läuft; `claude-code`
-  und `codex` sind bekannte Werte, die in Klartext „noch nicht umgesetzt“ melden (der Assistent zeigt sie als „bald“).
-  `[agent.endpoint]` sagt, wohin die Modellanfragen gehen: mit `url` an einen Anthropic-kompatiblen Endpunkt (LiteLLM,
-  anderer Proxy; im Container `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`), ohne `url` direkt zu Anthropic (im Container
-  `ANTHROPIC_API_KEY`). `modell` ist der Name, wie der Endpunkt ihn anbietet. Der Key liegt nur in der `.env`
-  (`agent-key`): `echo "$KEY" | cargo run -p cockpit-server -- token setzen agent-key`; die Werte gehen nur per `-e NAME` an
-  den Container. `/api/health` meldet unter `endpoint` Anbieter, Adresse, Modell und ob ein Key liegt (nie den Key).
-  „Modelle laden“ ruft `GET /api/agent/models`; das Backend fragt dann `GET <url>/v1/models` (Proxy: `Authorization: Bearer`;
-  direkt: `https://api.anthropic.com/v1/models` mit `x-api-key` und `anthropic-version`), ohne Weiterleitungen, mit
-  Zeitlimit und Größengrenze, und liefert nur die IDs. „Verbindung testen“ ruft `GET /api/agent/check` und meldet
-  *erreichbar*, *Key angenommen* und *Modell vorhanden*, bei Fehlern mit Hinweis. Ohne Key ruft es den Endpunkt nicht auf.
-- *Container-Laufzeit.* Der Agent läuft später in einem Container, mit Docker (Rancher Desktop, Engine „dockerd (moby)“)
-  oder Podman. Das Backend wählt: `COCKPIT_CONTAINER`, sonst `[agent] container`, sonst sucht es erst `podman`, dann
-  `docker` im `PATH` und prüft mit `<laufzeit> info`, ob die Engine läuft (nur als Prozessaufruf, nie über den Socket; das Ergebnis
-  wird 10 Sekunden gemerkt). `/api/health` meldet unter `container` `runtime`, `engine_running`, `source`
-  (`umgebung`, `konfiguration`, `erkannt`, `keine`) und einen `hinweis`. Das Agent-Image baust du im Schritt
-  „Container“ mit „Image bauen“ (siehe „Den Agenten einrichten“).
+**Model provider and endpoint.** `[agent] provider` picks the tool in the container: `claude-agent-sdk` runs;
+`claude-code` and `codex` are known values that report "not implemented yet" in plain text (the assistant shows them
+as "bald"). `[agent.endpoint]` says where model requests go: with `url` to an Anthropic-compatible endpoint
+(LiteLLM, another proxy; in the container `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`), without `url` directly to
+Anthropic (in the container `ANTHROPIC_API_KEY`); `model` is the name as the endpoint offers it. "Modelle laden" calls
+`GET /api/agent/models`; the backend then queries `GET <url>/v1/models` (proxy: `Authorization: Bearer`; direct:
+`https://api.anthropic.com/v1/models` with `x-api-key` and `anthropic-version`) without following redirects, with a
+timeout and a size limit, and returns only the IDs. "Verbindung testen" calls `GET /api/agent/check` and reports
+*reachable*, *key accepted* and *model present*, with a hint on errors. Without a key it does not call the endpoint.
+`/api/health` reports under `endpoint` provider, address, model and whether a key exists (never the key).
 
-**Was abgeglichen wird.** Das Backend fragt im Takt (und bei `POST /api/sync`, in der App unter „Einrichten“ ›
-Übersicht › Abgleich › „Jetzt abgleichen“) beide Dienste ab und führt das Ergebnis über die Aktion `SyncRemote`
-(Urheber „System“) mit dem Workspace zusammen – als reine Funktion in `cockpit_core::sync::merge`:
+**Container runtime.** The backend chooses: `COCKPIT_CONTAINER`, else `[agent] container`, else it looks for
+`podman`, then `docker` in the `PATH` and checks with `<runtime> info` whether the engine runs (a process call, never
+the socket; the result is cached for 10 seconds). `/api/health` reports under `container` `runtime`, `engine_running`,
+`source` (`env`, `config`, `detected`, `none`) and a `hint`.
 
-- Neue Einträge kommen dazu, entfernte verschwinden. Lokaler Zustand bleibt: gelesen/erledigt, Zurückstellungen,
-  Agent-Läufe und -Hinweise, Vorschläge und Entscheidungen im Review, eigene noch nicht gesendete Zeilenkommentare
-  (sie wandern mit ihrer Zeile, wenn sich der Diff verschiebt), Urteil und „gesendet“.
-- Neue Kommentare, Status-, Check- und Review-Änderungen von außen stehen mit Urheber „System“ im Protokoll und
-  lösen die Benachrichtigungen aus. `@dein-Login` in Kommentaren zählt als Erwähnung.
-- Pro Quelle gibt es einen Zustand (`/api/health` › `sync`, in der App unter „Abgleich“): `ok`,
-  `nicht-angemeldet` (401, Token abgelaufen), `keine-berechtigung` (403), `kontingent` (Rate-Limit: die Quelle
-  pausiert bis zum Zeitpunkt aus `Retry-After`/`X-RateLimit-Reset`), `offline`, `fehler`. Bei einem Fehler bleiben
-  die letzten Daten der Quelle stehen.
-- Die Nummer eines Pull Requests ist im Modell der Schlüssel eines Reviews. Haben zwei Repos dieselbe Nummer,
-  steht nur der erste im Cockpit (Hinweis beim Zustand der Quelle).
+## Architecture
 
-**Was nach außen geht.** Im Server-Modus gehen diese Aktionen erst an den Dienst; **erst wenn er bestätigt, wird die
-Aktion lokal angewendet**. Schlägt der Aufruf fehl, kommt eine deutsche Meldung (Status 502) und nichts ändert sich.
-Die Regeln des Workspace (auch „nur Du darfst mergen“, „Review erst nach Entscheidung über jeden Vorschlag“)
-gelten vor jedem Aufruf.
-
-| Aktion | Aufruf |
-|--------|--------|
-| `Reply` | Jira: Kommentar (`POST /rest/api/3/issue/{key}/comment`, ADF) · GitHub: `POST /repos/{repo}/issues/{n}/comments` |
-| `SetStatus` | Jira: passende Transition zum Ziel-Status suchen (`GET …/transitions`), dann `POST …/transitions` |
-| `CreateBranch` | GitHub: Ref vom Standard-Branch des **ersten** konfigurierten Repos (`POST /repos/{repo}/git/refs`) |
-| `SendReview` | `POST /repos/{repo}/pulls/{n}/reviews` mit Urteil, Text, freigegebenen Vorschlägen und eigenen Zeilenkommentaren als Positionskommentare (`suggestion`-Blöcke inklusive), gebunden an den gesehenen Commit |
-| `MergePr` | `PUT /repos/{repo}/pulls/{n}/merge` mit Methode und gesehenem Commit (neuer Push → GitHub lehnt ab) |
-| `RestartCheck` | `POST /repos/{repo}/check-runs/{id}/rerequest` |
-
-Alle anderen Aktionen – und alle Einträge, die aus den Beispieldaten stammen – bleiben lokal. Die Aktion
-`SyncRemote` darf nur das Backend auslösen; `POST /api/actions` lehnt sie ab.
-
-## Lernpfad
-
-Die Konzepte bauen aufeinander auf. Jeder Schritt nennt die Stelle im Code, an der du es
-siehst, und die Story im Playground, in der es sichtbar wird.
-
-| # | Konzept | Im Code | Im Playground |
-|---|---------|---------|---------------|
-| 1 | **Komponenten und Props**: eine Funktion mit `#[component]`, Parameter sind Props | `crates/ui/src/text.rs` (`Text`) | Foundations |
-| 2 | **Enums statt Strings**: `enum`, `impl`, `#[derive(Default)]`, `#[default]`, `const ALL` | `crates/ui/src/button.rs` (`ButtonStyle`) | Button |
-| 3 | **`Option` und `then_some`**: ein Attribut nur manchmal setzen | `button.rs`, Funktion `attr()` und `data-role` | Button |
-| 4 | **Children**: Inhalt an eine Komponente übergeben | `crates/ui/src/layout.rs` (`VStack`) | Stacks & Grids |
-| 5 | **Signals**: reaktiver Zustand, `RwSignal`, `.get()` / `.set()` | `crates/ui/src/controls.rs` (`Toggle`) | Toggle · Picker · … |
-| 6 | **Closures mit `move`**: warum Signals in `move \|\| …` stehen | überall, z. B. `data-role=role` in `button.rs` | Button |
-| 7 | **Abgeleitete Signals**: `Signal::derive` | `apps/playground/src/stories/button.rs` | Button (Live-Controls) |
-| 8 | **Callbacks**: Ereignisse nach oben melden | `button.rs` (`on_click`) | Button |
-| 9 | **Listen rendern**: Iteratoren und `collect_view()` | `controls.rs` (`Segmented`) | Toggle · Picker · … |
-| 10 | **Bedingt rendern**: `<Show>` und `match` mit `.into_any()` | `sheet.rs`, `list.rs` (`ListRow`) | iPhone-Beispiel |
-| 11 | **`'static` und Konstanten**: `&'static [(&str, &str)]`, `const`, `static` | `controls.rs`, `apps/playground/src/stories/mod.rs` | alle |
-| 12 | **Funktionszeiger**: `render: fn() -> AnyView` in einer Registry | `apps/playground/src/stories/mod.rs` (`Story`) | die Navigation selbst |
-| 13 | **`Option` und `Result` verketten**: `.ok().flatten().is_some_and(…)` | `apps/playground/src/main.rs` (`system_theme`) | Hell/Dunkel-Schalter |
-| 14 | **Ereignisse aus dem Browser**: `window_event_listener`, Aufräumen mit `on_cleanup` | `apps/playground/src/main.rs` | Navigation per URL (`#button`) |
-| 15 | **Globaler Zähler**: `AtomicU32` für eindeutige IDs | `crates/ui/src/field.rs` | TextField & Search |
-| 16 | **Tests**: `#[cfg(test)]`, `include_str!` liest das CSS zur Compile-Zeit | `crates/ui/src/lib.rs` | `cargo test` |
-| 17 | **Logik ohne UI**: `struct`, `impl`, `Result`, Zustandsmaschine, viele Tests | `crates/cockpit-core/src/agent.rs`, `workspace.rs` | Cockpit |
-| 18 | **Gemeinsamer Zustand**: ein `Copy`-Store im Kontext, `Memo`, `Effect` | `apps/cockpit/src/store.rs`, `apps/cockpit/src/pages/inbox.rs` | Cockpit |
-| 19 | **Workspace und Crates**: gemeinsame Versionen, ein Crate pro Baustein | `Cargo.toml`, `crates/ui/Cargo.toml` | – |
-
-Gute Übung für jeden Schritt: Ändere etwas absichtlich falsch (z. B. `ButtonStyle::Glas`
-statt `Glass`) und lies die Compiler-Meldung. Rust erklärt Fehler meist sehr genau.
-
-## Projektstruktur
+```
+Browser (apps/cockpit, WASM)            Backend (apps/server)
+┌──────────────────────────┐   HTTP    ┌────────────────────────────────┐
+│ Pages → store.dispatch   │ ────────▶ │ POST /api/actions              │──▶ GitHub, Jira
+│ Workspace (signal)       │ ◀──────── │ GET  /api/workspace (snapshot) │──▶ Agent (container)
+│                          │ ◀── SSE ─ │ GET  /api/events (changes)     │◀── polling (webhooks: open)
+└──────────────────────────┘           │ SQLite · keys in .env          │
+                                        └────────────────────────────────┘
+          both use  crates/cockpit-core  (model, rules, Action)
+```
 
 ```
 .
-├── Cargo.toml                  # Workspace: gemeinsame Versionen & Mitglieder
-├── apps/                       # alles, was man startet
-│   ├── cockpit/                # die Hauptanwendung: Oberfläche (WASM), eigenes index.html und Trunk.toml
-│   │   └── src/
-│   │       ├── main.rs         # Start, Routing, Takt der Agenten
-│   │       ├── route.rs        # Seiten und ihre Adressen (#/review/87)
-│   │       ├── store.rs        # gemeinsamer Zustand
-│   │       └── pages/          # Einrichten, Inbox, Review, Agent
-│   ├── server/                 # Backend des Cockpits: axum, SQLite, Schlüsselablage
-│   ├── agent/                  # Container-Image und Läufer des Agenten (Node/TypeScript)
-│   └── playground/             # die Spielwiese: zeigt jeden Baustein einzeln (eigenes Trunk.toml)
-│       ├── index.html          # bindet WASM und CSS ein
-│       ├── style.css           # Layout der Hülle (nur Tokens, keine festen Farben)
-│       └── src/
-│           ├── main.rs         # Navigation, Theme-Schalter, aktive Story
-│           └── stories/        # eine Datei pro Story + Registry in mod.rs
-├── crates/                     # Bibliotheken
-│   ├── cockpit-core/           # Fachlogik des Cockpits – ohne UI, mit Tests
-│   ├── integrations/           # GitHub- und Jira-Clients (lesen, schreiben, abgleichen), nativ
-│   └── ui/                     # Komponentenbibliothek (Crate `feature-ui`), von Cockpit und Playground genutzt
-│       ├── tokens.css          # Design-Tokens, für das ganze Projekt
-│       ├── components.css      # Komponenten-CSS, 1:1 aus dem Design
-│       ├── extras.css          # Ergänzungen und Korrekturen zum Design
-│       └── src/                # Leptos-Komponenten, eine Datei pro Gruppe
-├── scripts/                    # start.sh (App bauen, Server starten), launchd-Vorlage
-└── docs/                       # Übergabe und Fahrplan
+├── Cargo.toml                  # workspace: shared versions and members
+├── apps/                       # everything you start
+│   ├── cockpit/                # the main application: UI (WASM), own index.html and Trunk.toml
+│   │   └── src/                # main.rs (start, routing, agent tick), route.rs, store.rs, pages/
+│   ├── server/                 # backend: axum, SQLite, key storage (binary cockpit-server)
+│   ├── agent/                  # container image and runner of the agent (Node/TypeScript)
+│   └── playground/             # the playground: shows every building block on its own (own Trunk.toml)
+├── crates/                     # libraries
+│   ├── cockpit-core/           # domain logic of the cockpit: no UI, no network, with tests
+│   ├── integrations/           # GitHub and Jira clients (read, write, sync), native only
+│   └── ui/                     # component library (crate `feature-ui`) plus tokens.css, components.css, extras.css
+├── scripts/                    # start.sh (build app, start server), launchd template
+├── docs/                       # architecture.md, security.md
+└── start-cockpit.command       # double-click start for macOS
 ```
 
-`apps/` enthält die Programme, `crates/` die Bibliotheken, die sie teilen. Das Cockpit ist die
-Hauptanwendung; Playground und `crates/ui` sind die Spielwiese für die Komponenten.
+Principles (details in [docs/architecture.md](docs/architecture.md)):
 
-### Baustein und Story
+1. **`cockpit-core` is the single source of truth.** Model and rules live there, without UI and network, with
+   tests. Browser and backend use the same crate.
+2. **Every change is an `Action`.** The UI calls `store.dispatch(action)`; the backend applies it through
+   `Workspace::apply`, additionally triggers the effect at GitHub or Jira and writes it to the log. The browser holds
+   nothing of it.
+3. **Two rules are non-negotiable:** comments and reviews of the agent leave only after your approval. The agent
+   never merges and never writes to the main branch.
+4. **Every step stays runnable.** After every change the Playground and the Cockpit build, and the Cockpit runs with
+   the server, with an empty start and with `COCKPIT_SEED=demo`.
 
-| Begriff      | Wo?                         | Kennt den Playground? |
-|--------------|-----------------------------|-----------------------|
-| **Baustein** | `crates/<name>/` (Crate)   | nein, daher wiederverwendbar |
-| **Story**    | `apps/playground/src/stories/<name>.rs` | ja, zeigt den Baustein mit Beispielwerten |
+The server crates (`apps/server`, `crates/integrations`) compile natively only; CI excludes them from the Wasm
+build.
 
-Ein Baustein-Crate hängt nur von `leptos` ab. In einem anderen Projekt bindest du ihn
-per Pfad ein:
+## Commands and checks
 
-```toml
-[dependencies]
-feature-ui = { path = "../rust-playground/crates/ui" }
+Run before every PR (CI runs the same):
+
+```bash
+cargo fmt --all --check
+cargo clippy --workspace --exclude cockpit-server --exclude cockpit-integrations \
+  --all-targets --target wasm32-unknown-unknown -- -D warnings
+cargo clippy -p cockpit-server -p cockpit-integrations --all-targets -- -D warnings
+cargo test --workspace
+(cd apps/playground && trunk build) && (cd apps/cockpit && trunk build)
+(cd apps/agent/runner && node --disable-warning=ExperimentalWarning --test test/*.test.ts)   # Node >= 22.18
 ```
 
-Dazu `crates/ui/tokens.css`, `crates/ui/components.css` und `crates/ui/extras.css`
-einbinden, in dieser Reihenfolge.
+Also click through the feature in the browser against the server, once with an empty start
+(`COCKPIT_CONFIG=<empty config.toml> COCKPIT_DB=<new file> cargo run -p cockpit-server`: all pages show empty
+states), once with `COCKPIT_SEED=demo` (fresh `COCKPIT_DB`), and with the server stopped (the notice "nicht erreichbar"
+with "Erneut versuchen"). When trying things out always use your own database and an empty `config.toml`, **never
+against real Jira or GitHub boards**.
 
-## Design-Tokens
+Tests that start real containers are marked `#[ignore]` and run with
+`COCKPIT_CONTAINER=docker cargo test -- --ignored` or `=podman`; a PR names the runtime it was checked with.
 
-`crates/ui/tokens.css` hat drei Ebenen:
+Rules for every PR: one feature, one branch, one PR against `main`; keep it small and do not touch unrelated areas.
+Logic goes into `cockpit-core` with unit tests; the app only wires it up. CSS uses tokens only;
+`crates/ui/tokens.css` and `crates/ui/components.css` come 1:1 from the design and stay unchanged (your own
+additions go into `extras.css`). New fields in persisted types need `#[serde(default)]` so older states stay
+readable. What can only be verified with real credentials is tested against recorded responses and named in the PR as
+"not verified against the real service".
 
-| Ebene      | Präfix    | Inhalt                          | Beispiel |
-|------------|-----------|---------------------------------|----------|
-| Primitive  | `--ref-*` | Rohwerte                        | `--ref-space-16` |
-| Semantisch | `--sys-*` | Rollen, abhängig vom Theme      | `--sys-color-label` |
-| Komponente | `--comp-*`| pro Baustein                    | `--comp-button-height-large` |
+## Security model
 
-Eigenes CSS benutzt nur `--sys-*` (bei Bedarf `--ref-*`). Dann funktionieren Hell/Dunkel,
-Akzentfarbe und „Kontrast erhöhen" automatisch. Alle Werte siehst du in der Story
-**Foundations**, und links unten im Playground stellst du Theme, Akzentfarbe und Kontrast um.
+Full detail: [docs/security.md](docs/security.md). In short:
 
-> **Design aktualisieren:** `tokens.css` und `components.css` sind unverändert aus dem
-> Design übernommen. Bei Änderungen ersetzt du einfach die Dateien. Eigene Ergänzungen
-> gehören in `extras.css`.
+- **Credentials** live only in the backend, in the `.env` file in the project folder (never committed, mode `600`,
+  CI fails on a tracked `.env`), never in the repo, database, logs or browser storage. The setup assistant sends a
+  value once over loopback to `PUT /api/secrets/{name}` (fixed names only, the answer is only "set", the field is
+  cleared at once).
+- **Loopback only.** The server listens on `127.0.0.1`. Every route under `/api` checks the peer (loopback) and the
+  `Host` header (`127.0.0.1:<port>` or `localhost:<port>`, against DNS rebinding); writing requests also need
+  `Content-Type: application/json` and a missing or own `Origin`.
+- **The agent has no GitHub token** and cannot push. It commits to a branch `claude/<ticket>-…`; the backend
+  verifies it in a fresh bare repo against the repo's path rules and pushes it. **Never** the main branch, **never** a
+  force-push, **never** a merge. You create the pull request yourself.
+- Comments and reviews of the agent go out only after your approval; only you may merge.
+- The agent writes only to `/work`; the runner's `canUseTool` blocks `.git`, forbidden paths, `git push` and network
+  commands. Limits (budget per run and month, time limit, parallel runs) stop the container (`rm -f`).
 
-## Bausteine (`feature-ui`)
+## Container rules
 
-Die API spiegelt die SwiftUI-Namen des Designs:
+The agent container must run with **Docker** (for example from Rancher Desktop) **and** with **Podman**. Rules for
+anything that builds or starts containers (details in [docs/architecture.md](docs/architecture.md#container-rules)):
+
+1. **Command line only.** The backend calls `docker` or `podman` as a process, never the Docker socket or a library.
+   Only commands and switches both understand the same way (`build -f`, `run --rm`, `-e`, `-v`, `--network`,
+   `--add-host`, `--user`, `--label`, `ps`, `rm -f`, `image inspect`).
+2. **Runtime selectable:** `[agent] container` or `COCKPIT_CONTAINER`; without either, detection tries `podman`
+   first, then `docker` (checked with `<cli> info`).
+3. **Fully qualified images** (`docker.io/library/node:…`) and a `Containerfile` without BuildKit features
+   (no `RUN --mount`, no `# syntax=`).
+4. **Reach the host** with `--add-host cockpit-host:host-gateway` and `http://cockpit-host:<port>`, not
+   `host.docker.internal` or `host.containers.internal`.
+5. **Secrets only as `-e NAME`**, with the value in the child process environment, never on the command line.
+6. **Label per run** (`cockpit.run=<key>`) so orphaned containers are removed at server start.
+7. **Rancher Desktop** must use the engine "dockerd (moby)"; "containerd" mode (only `nerdctl`) is not supported.
+
+## The Cockpit app
+
+Pages (hash routes):
+
+| Page | Address | What it does |
+|------|---------|--------------|
+| Einrichten | `#/setup` | state and next step per service: sign in to / disconnect Jira and GitHub, check the agent endpoint, detect the container runtime |
+| Aufmerksamkeit | `#/`, `#/mine`, `#/team`, `#/snoozed` | inbox of tickets and pull requests, filtered by switchable rules (mention, review request, blocked PR, overdue ticket, agent done, assigned); snooze; change status, create a branch, reply, assign the agent; edit a ticket; link ticket and PR; search, source filter and project/repo/person/status/label filters; keys `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
+| Review | `#/review/87` | read the diff; select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you) |
+| Übersicht | `#/overview` | open entries and load per person; "Hängt" shows failed checks, waiting reviews, tickets without a branch and agents waiting for you |
+| Benachrichtigungen | `#/notifications` | per occasion choose browser, email and Slack; quiet hours; permission request by button; test notification |
+| Agent | `#/agent/BAU-142` | assignment with options; plan for approval; five-step flow to the pull request; answer questions, send hints, pause; history as a conversation |
+| Grenzen & Regeln | `#/limits` | prices per million tokens, budget per run and month, time limit, parallel runs; per repo allowed/forbidden paths, required tests, instructions and plan requirement; usage today and this month |
+
+Inbox filters: besides the Jira project the header filters by **repo**, **person**, **status** and **label**; each
+selection defaults to "Alle", filters combine with AND, "Filter zurücksetzen" resets them. The choice belongs to the
+page only and is not persisted. The logic is `cockpit_core::InboxFilter` (`crates/cockpit-core/src/search.rs`).
+
+Notifications are derived purely from comparing the workspace before and after an action
+(`crates/cockpit-core/src/notify.rs`). In the **browser** Cockpit never asks for permission by itself, only via the
+button. Email and Slack are only prepared: the choice is stored, sending will go through the backend later.
+
+More about agent behaviour (questions, steering, follow-up jobs, costs, limits, rules per repo) is in
+[docs/architecture.md](docs/architecture.md#agent-behaviour).
+
+## The component library (`feature-ui`)
+
+The crate `crates/ui` mirrors the SwiftUI names of the design:
 
 ```rust
 view! {
@@ -644,113 +592,126 @@ view! {
 }
 ```
 
-| Gruppe     | Komponenten |
-|------------|-------------|
-| Grundlagen | `Root`, `Text`, `Icon`, `Glass` |
-| Layout     | `VStack`, `HStack`, `ZStack`, `Spacer`, `Grid`, `Split`, `Container`, `PageSection` |
-| Controls   | `Button`, `Link`, `Badge`, `Toggle`, `Segmented`, `Slider`, `Stepper` |
-| Eingabe    | `TextField`, `SearchField` |
-| Inhalt     | `List`, `ListSection`, `ListRow`, `ListButtonRow`, `Card`, `CardBody`, `Media` |
+| Group | Components |
+|-------|------------|
+| Basics | `Root`, `Text`, `Icon`, `Glass` |
+| Layout | `VStack`, `HStack`, `ZStack`, `Spacer`, `Grid`, `Split`, `Container`, `PageSection` |
+| Controls | `Button`, `Link`, `Badge`, `Toggle`, `Segmented`, `Slider`, `Stepper` |
+| Input | `TextField`, `SearchField` |
+| Content | `List`, `ListSection`, `ListRow`, `ListButtonRow`, `Card`, `CardBody`, `Media` |
 | Navigation | `Navbar`, `IosNav`, `TabBar`, `Pager`, `Footer` |
-| Overlay    | `Sheet` |
-| App        | `SplitView`, `Sidebar`, `Pane`, `Status`, `Avatar`, `Chip`, `InboxRow`, `CommentBubble`, `Textarea`, `Diff`, `SuggestionCard`, `Timeline`, `Progress`, `Log`, `Steps` |
+| Overlay | `Sheet` |
+| App | `SplitView`, `Sidebar`, `Pane`, `Status`, `Avatar`, `Chip`, `InboxRow`, `CommentBubble`, `Textarea`, `Diff`, `SuggestionCard`, `Timeline`, `Progress`, `Log`, `Steps` |
 
-## Cockpit
+**Building block and story.** A building block lives in `crates/<name>/` (a crate that depends only on `leptos`, hence
+reusable); a story lives in `apps/playground/src/stories/<name>.rs` and shows it with sample values. In another
+project include it by path:
 
-Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Diese Seiten gibt es:
+```toml
+[dependencies]
+feature-ui = { path = "../rust-playground/crates/ui" }
+```
 
-| Seite | Adresse | Was sie kann |
-|-------|---------|--------------|
-| Einrichten | `#/setup` | Je Dienst Stand und nächster Schritt: Jira und GitHub anmelden/trennen, Agent-Endpunkt prüfen, Container-Laufzeit erkennen |
-| Aufmerksamkeit | `#/`, `#/mine`, `#/team`, `#/snoozed` | Inbox aus Tickets und Pull Requests, gefiltert nach einschaltbaren Regeln (Erwähnung, Review-Anfrage, blockierter PR, überfälliges Ticket, Agent fertig, zugewiesen); Zurückstellen (1 Stunde, morgen früh, nächste Woche, bis sich etwas ändert); Status ändern, Branch erstellen, antworten, Agent beauftragen; Ticket bearbeiten (Titel, Beschreibung, Zuweisung, Priorität); Ticket und Pull Request verknüpfen (automatisch über den Schlüssel im Branch oder Titel, `BAU-142`, sonst von Hand oder lösen); „Status folgt dem Pull Request“ (Entwurf/offen → In Arbeit, Review angefragt → Review, gemergt → Fertig, abschaltbar in der Seitenleiste, Urheber im Protokoll: System); Suche und Quellen-Filter; Tasten `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
-| Review | `#/review/87` | Diff lesen; Zeilen auswählen und eigene Kommentare schreiben; Kommentare des Agenten freigeben, ablehnen oder bearbeiten; Review senden |
-| Übersicht | `#/overview` | Pro Person offene Einträge und Auslastung; „Hängt“ zeigt fehlgeschlagene Checks, wartende Reviews, Tickets ohne Branch und Agenten, die auf dich warten |
-| Benachrichtigungen | `#/notifications` | Je Anlass (Review-Anfrage, Erwähnung, Agent wartet, Agent fertig, Agent angehalten, Checks rot, Ticket zugewiesen) Browser, E-Mail und Slack wählen; Ruhezeiten; Erlaubnis des Browsers per Knopf anfragen; Test-Benachrichtigung |
-| Agent | `#/agent/BAU-142` | Auftrag mit Optionen; Plan zur Freigabe (abschaltbar); Ablauf in fünf Schritten bis zum Pull Request; Rückfragen beantworten, Hinweise schicken, pausieren; Verlauf als Gespräch |
-| Grenzen & Regeln | `#/limits` | Preise pro Million Token, Budget pro Lauf und pro Monat, Zeitlimit pro Lauf, höchstens so viele Läufe gleichzeitig; pro Repo erlaubte/verbotene Pfade, Pflicht-Tests, Anweisungen an den Agenten und Plan-Pflicht; Verbrauch heute und diesen Monat |
+and include `crates/ui/tokens.css`, `components.css` and `extras.css`, in this order.
 
-**Agent: Rückfragen und Nachsteuern.** Der Agent kann an einem Schritt anhalten und eine Frage stellen
-(Status „Wartet auf Antwort“, mit vorgeschlagenen Antworten zum Anklicken oder eigenem Text). Die Frage
-zählt als Aufmerksamkeit: Sie steht in der Übersicht unter „Hängt“ (Knopf „Frage beantworten“) und in der
-Sidebar bei „Agenten“. Bei den Beispieldaten fragt der Lauf für **BAU-142** nach dem zweiten Schritt, ob der alte Stil
-entfernt oder als deprecated markiert werden soll. Läuft der Agent, schickst du ihm unter „Nachsteuern“ einen
-Hinweis; er bestätigt ihn beim nächsten Schritt („Hinweis erhalten: …“). „Pausieren“ hält den Lauf an,
-„Fortsetzen“ geht weiter. Alles Gesagte steht im Verlauf neben der Timeline. Die Aktionen heißen
-`AnswerAgent`, `SteerAgent`, `PauseAgent` und `ResumeAgent`.
+**Design tokens.** `crates/ui/tokens.css` has three layers:
 
-**Agent: Folgeaufträge auf einem Pull Request.** Auf der Review-Seite (rechts) gibt es zwei Aufträge:
+| Layer | Prefix | Content | Example |
+|-------|--------|---------|---------|
+| Primitive | `--ref-*` | raw values | `--ref-space-16` |
+| Semantic | `--sys-*` | roles, theme dependent | `--sys-color-label` |
+| Component | `--comp-*` | per building block | `--comp-button-height-large` |
 
-- **Review-Kommentare umsetzen.** Unter „Review-Kommentare umsetzen“ stehen die offenen Zeilenkommentare (eigene und die von Reviewern, auch mit Änderungsvorschlag), standardmäßig alle ausgewählt. „Agent: n Kommentare umsetzen“ startet den Lauf `review-<Nr.>` (`RunKind::AddressReview`) mit eigenen Schritten (Kommentare lesen, Branch auschecken, Änderungen, Tests, Push). Er pusht auf **denselben Branch**, es entsteht **kein neuer Pull Request**. Plan-Freigabe, Rückfragen, Nachsteuern und Pausieren gelten wie beim Ticket-Lauf. Am Ende sind die Kommentare „Erledigt“ (mit Verweis auf den Lauf), Änderungsvorschläge stehen im Diff, der Eintrag meldet den neuen Commit und steht wieder auf „Review angefragt“. Fremde Kommentare gehen nie mit deinem Review hinaus und lassen sich nicht bearbeiten.
-- **Roten Check untersuchen.** Unter jedem roten Check mit Log: „Agent untersuchen lassen“ (Lauf `check-<Nr.>-<Check>`, `RunKind::Diagnose`). Der Agent liest das Log und legt eine **Diagnose** vor: Ursache in einem Satz, Datei und Zeile, Vorschlag als Diff. Bis du entscheidest, bleibt der Branch unberührt. „Fix übernehmen“ pusht den Vorschlag auf den Branch und startet den Check neu, „Verwerfen“ beendet den Lauf. Die Demo erkennt ungenutzte Variablen/Imports (Lint in #85, Fix: Zeile entfernen) und Zeitüberschreitungen (wacklig, nur Neustart).
+Your own CSS uses only `--sys-*` (if needed `--ref-*`); then light/dark, accent colour and "increase contrast" work
+automatically. All values are visible in the story **Foundations**; theme, accent and contrast are switched at the
+bottom left of the Playground. *Updating the design:* `tokens.css` and `components.css` are taken unchanged from the
+design; replace the files on changes. Own additions go into `extras.css`.
 
-Die Aktionen heißen `AddressReview`, `InvestigateCheck`, `ApplyFix` und `DiscardFix`. Eine wartende Diagnose zählt als Aufmerksamkeit (Übersicht „Hängt“: „Diagnose wartet“, Sidebar „wartet“) und löst „Agent wartet“ bzw. „Agent fertig“ aus. Der Agent merged auch hier nie.
-**Agent: Kosten und Grenzen.** Jeder Schritt hat einen Verbrauch (Eingabe-/Ausgabe-Token, Kosten in ganzen Euro-Cent, Laufzeit); er steht an der Timeline, die Summe des Laufs sowie „heute“ und „diesen Monat“ darunter. In der Demo sind die Werte pro Ticket und Schritt fest (`demo::step_tokens`), die Preise sind eine Einstellung; der echte Agent trägt später gemeldete Werte über `AgentRun::record_usage` ein. Erreicht ein Lauf eine Grenze (Budget pro Lauf, Monatsbudget, Zeitlimit), hält er an (`RunState::Stopped(StopReason)`): Die Agent-Seite bietet „Um X erhöhen und fortsetzen“ (`ResumeStopped`) oder „Abbrechen“, der Lauf steht in der Übersicht unter „Hängt“, und es gibt eine Benachrichtigung „Agent angehalten“. Ein neuer Lauf über der Grenze paralleler Läufe **startet nicht** (`ActionError::ParallelLimit`, deutsche Meldung) – es gibt bewusst keine Warteschlange. Tag und Monat zählen nach UTC; abgebrochene Läufe bleiben im Kassenbuch.
+**Add your own story.**
 
-**Agent: Regeln pro Repo.** Pro Repo (Schlüssel: Name, heute nur das Demo-Repo) gelten erlaubte und verbotene Pfade (Glob-Muster, `cockpit_core::rules::glob_match`), Pflicht-Tests, Anweisungen und Plan-Pflicht. Plan und Schritte zeigen die geltenden Regeln. Ein Plan, der verbotene Pfade berührt, lässt sich nicht freigeben (`ActionError::PlanViolatesRules`, mit Begründung); so ein Lauf wartet immer erst mit einem Plan. Pflicht-Tests lassen sich nicht abschalten. Geänderte Regeln gelten für neue Läufe und wartende Pläne. Die Aktionen heißen `SetAgentLimits` und `SetRepoRules`.
-
-Zwei Regeln sind in der Logik verankert und getestet: Ein Review wird erst gesendet, wenn über
-jeden Vorschlag entschieden ist (eigene Zeilenkommentare brauchen keine Freigabe). Der Agent legt vor dem Start einen Plan vor und tut nichts, bis du ihn freigibst (ablehnen oder mit Anmerkung neu anfordern ist möglich). Und der Agent merged nie – sein Ergebnis ist ein Pull Request,
-der auf dein Review wartet.
-
-### Benachrichtigungen
-
-Welche Ereignisse melden, leitet `crates/cockpit-core/src/notify.rs` rein aus dem Vergleich des Workspace vor und nach einer Aktion ab (mit Tests). Die Einstellungen liegen im Workspace und ändern sich über Aktionen (`SetNotifyChannel`, `SetQuietHours`). Im **Browser** fragt Cockpit nie von selbst nach der Erlaubnis, nur über den Knopf unter „Benachrichtigungen“. Ist der Tab im Vordergrund, erscheint ein Hinweis in der App, sonst eine Systemmeldung; ein Klick darauf öffnet das Ziel. In den Ruhezeiten bleibt es still. **E-Mail** und **Slack** sind nur vorbereitet: Die Auswahl wird gespeichert, versendet wird später über das Backend. Adressen und Webhook-URLs liegen nie im Browser.
-
-### Stand: echter Agent im Container, simulierter nur für den Seed
-
-Die Oberfläche und die Abläufe sind vollständig. Der Agent im Server ist ein **echter Lauf im Container** (siehe „Den
-Agenten einrichten“). Nur mit dem Seed `COCKPIT_SEED=demo` (und in Tests) läuft weiterhin der simulierte Agent: ein
-Timer, der die fünf Schritte durchläuft. Beispieldaten
-(`crates/cockpit-core/src/demo.rs`) gibt es nur als Seed (`COCKPIT_SEED=demo`) sowie als Testdaten und für die Stories im
-Playground. Im Einzelnen:
-
-- Einrichten zeigt den Stand der Anbindungen (siehe „Einrichten in der App“); Schlüssel gibst du dort nie ein.
-- Alles, was die App zeigt, liegt im Backend (SQLite) als JSON mit Versionsnummer, siehe
-  `crates/cockpit-core/src/persist.rs`. Passt die Version nicht oder sind die Daten unlesbar, startet der Server mit dem
-  Seed (leer oder Beispieldaten). Neue Felder in den Typen brauchen `#[serde(default)]`, damit ältere Stände lesbar bleiben.
-- Review: Beim Zeilenkommentar lässt sich mit „Änderung vorschlagen“ Ersatz-Code für die Zeile angeben (Vorher/Nachher-Diff,
-  gesendet als `suggestion`-Block). Rechts stehen die Checks des Pull Requests mit Log; rote lassen sich neu starten
-  (bei den Beispieldaten fest hinterlegtes Ergebnis nach ein paar Takten, #85: „Lint“ bleibt rot, „Tests (Browser)“ wird grün).
-  „Mergen“ (Merge/Squash/Rebase) geht nur mit grünen Checks, gesendetem Review und ohne „Änderungen“ – und nur für
-  dich, nie für den Agenten. Bei Beispieldaten wird nur simuliert, nichts geht an GitHub.
-- Die Berechtigungen des Agenten (Branches, Pull Requests, Tests) stehen mit dem echten Agenten im Backend; bis dahin gelten
-  die Standardwerte (Branches, Pull Requests und Tests erlaubt; Kommentare und Reviews nur nach deiner Freigabe, der Agent merged nie).
-
-## Eigene Story hinzufügen
-
-1. Datei `apps/playground/src/stories/mein_baustein.rs` anlegen, Vorlage ist `link_badge.rs`:
+1. Create `apps/playground/src/stories/my_block.rs` (template: `link_badge.rs`):
    ```rust
    use feature_ui::*;
    use leptos::prelude::*;
    use super::{Story, common::Section};
 
    pub const STORY: Story = Story {
-       id: "mein-baustein",       // erscheint in der URL: #mein-baustein
-       title: "Mein Baustein",
-       group: "Controls",         // Überschrift in der Navigation
-       description: "Was zeigt die Story?",
-       api: ".ui-… · data-…",     // Kurzreferenz
+       id: "my-block",            // appears in the URL: #my-block
+       title: "My block",
+       group: "Controls",         // heading in the navigation
+       description: "What does the story show?",
+       api: ".ui-… · data-…",     // short reference
        render,
    };
 
    fn render() -> AnyView {
-       view! { <Section title="Beispiel">{/* … */}</Section> }.into_any()
+       view! { <Section title="Example">{/* … */}</Section> }.into_any()
    }
    ```
-2. In `apps/playground/src/stories/mod.rs` `mod mein_baustein;` ergänzen und `mein_baustein::STORY`
-   in `STORIES` eintragen.
+2. In `apps/playground/src/stories/mod.rs` add `mod my_block;` and register `my_block::STORY` in `STORIES`.
 
-## Eigenen Baustein als neues Crate
+**Add a building block as a new crate.**
 
-1. `cargo new --lib crates/mein-baustein --name feature-mein-baustein`
-2. In dessen `Cargo.toml`: `leptos = { workspace = true }`. Durch `members = [..., "crates/*"]`
-   gehört es automatisch zum Workspace.
-3. Im Root-`Cargo.toml` unter `[workspace.dependencies]` eintragen:
-   `feature-mein-baustein = { path = "crates/mein-baustein" }`, dann in `apps/playground/Cargo.toml` verwenden.
-4. Eigenes CSS in `apps/playground/index.html` per `<link data-trunk rel="css" …>` einbinden, nach den Tokens.
+1. `cargo new --lib crates/my-block --name feature-my-block`
+2. In its `Cargo.toml`: `leptos = { workspace = true }`. Through `members = [..., "crates/*"]` it is part of the
+   workspace automatically.
+3. Register it in the root `Cargo.toml` under `[workspace.dependencies]`:
+   `feature-my-block = { path = "crates/my-block" }`, then use it in `apps/playground/Cargo.toml`.
+4. Include your own CSS in `apps/playground/index.html` with `<link data-trunk rel="css" …>`, after the tokens.
 
-## Schrift
+**Font.** The design uses SF Pro (present on Apple devices) and falls back to **Inter**. `apps/playground/index.html`
+loads Inter from Google Fonts. Without an external connection remove the three `<link>` lines and the system font
+applies.
 
-Das Design nutzt SF Pro (auf Apple-Geräten vorhanden) und fällt sonst auf **Inter** zurück.
-`apps/playground/index.html` lädt Inter von Google Fonts. Ohne externe Verbindung entfernst du die drei
-`<link>`-Zeilen, dann greift der System-Font.
+### Learning path
+
+For learning Rust through this code base: each concept names where you see it and the Playground story that shows it.
+
+| # | Concept | In the code | In the Playground |
+|---|---------|-------------|-------------------|
+| 1 | **Components and props**: a function with `#[component]`, parameters are props | `crates/ui/src/text.rs` (`Text`) | Foundations |
+| 2 | **Enums instead of strings**: `enum`, `impl`, `#[derive(Default)]`, `#[default]`, `const ALL` | `crates/ui/src/button.rs` (`ButtonStyle`) | Button |
+| 3 | **`Option` and `then_some`**: set an attribute only sometimes | `button.rs`, function `attr()` and `data-role` | Button |
+| 4 | **Children**: pass content to a component | `crates/ui/src/layout.rs` (`VStack`) | Stacks & Grids |
+| 5 | **Signals**: reactive state, `RwSignal`, `.get()` / `.set()` | `crates/ui/src/controls.rs` (`Toggle`) | Toggle · Picker · … |
+| 6 | **`move` closures**: why signals sit in `move \|\| …` | everywhere, e.g. `data-role=role` in `button.rs` | Button |
+| 7 | **Derived signals**: `Signal::derive` | `apps/playground/src/stories/button.rs` | Button (live controls) |
+| 8 | **Callbacks**: report events upwards | `button.rs` (`on_click`) | Button |
+| 9 | **Rendering lists**: iterators and `collect_view()` | `controls.rs` (`Segmented`) | Toggle · Picker · … |
+| 10 | **Conditional rendering**: `<Show>` and `match` with `.into_any()` | `sheet.rs`, `list.rs` (`ListRow`) | iPhone example |
+| 11 | **`'static` and constants**: `&'static [(&str, &str)]`, `const`, `static` | `controls.rs`, `apps/playground/src/stories/mod.rs` | all |
+| 12 | **Function pointers**: `render: fn() -> AnyView` in a registry | `apps/playground/src/stories/mod.rs` (`Story`) | the navigation itself |
+| 13 | **Chaining `Option` and `Result`**: `.ok().flatten().is_some_and(…)` | `apps/playground/src/main.rs` (`system_theme`) | light/dark switch |
+| 14 | **Browser events**: `window_event_listener`, cleanup with `on_cleanup` | `apps/playground/src/main.rs` | navigation by URL (`#button`) |
+| 15 | **Global counter**: `AtomicU32` for unique IDs | `crates/ui/src/field.rs` | TextField & Search |
+| 16 | **Tests**: `#[cfg(test)]`, `include_str!` reads the CSS at compile time | `crates/ui/src/lib.rs` | `cargo test` |
+| 17 | **Logic without UI**: `struct`, `impl`, `Result`, state machine, many tests | `crates/cockpit-core/src/agent.rs`, `workspace.rs` | Cockpit |
+| 18 | **Shared state**: a `Copy` store in context, `Memo`, `Effect` | `apps/cockpit/src/store.rs`, `apps/cockpit/src/pages/inbox.rs` | Cockpit |
+| 19 | **Workspace and crates**: shared versions, one crate per building block | `Cargo.toml`, `crates/ui/Cargo.toml` | – |
+
+A good exercise for every step: break something on purpose (for example `ButtonStyle::Glas` instead of `Glass`) and
+read the compiler message. Rust usually explains errors very precisely.
+
+## Roadmap / Open work
+
+Not built yet (everything below is open; nothing here has been verified against the real services either):
+
+- **Follow-up jobs in real agent mode:** implementing review comments and fixing red checks currently run only in
+  the simulation (the real-agent mode answers with a plain-language notice).
+- **Pull request created by the agent automatically:** today the agent pushes a `claude/…` branch and you open the
+  pull request yourself.
+- **Ticket-to-repo mapping for several repos:** today one repo is used (`[agent] repo` or the only entry of
+  `[github] repos`); rules per repo for real repos. Also tell apart equal PR numbers from two repos: the inbox
+  already separates them, but `Review` and `PrLink` still key on the number.
+- **Adapters for Claude Code and Codex** in the runner (`apps/agent/runner/src/adapter/`, see
+  [apps/agent/README.md](apps/agent/README.md)); then pass `COCKPIT_PROVIDER` on.
+- **Webhooks / live update:** open decision between a tunnel (webhooks) and polling every 2 minutes; the default
+  stays polling.
+- **Error and empty states** (expired token, rate limit, offline, backend unreachable) across all pages, and a
+  **mobile view** (navigation at the bottom, list and detail as separate levels).
+- Verification with a **real container and a real model** (`#[ignore]` tests with `COCKPIT_CONTAINER=docker|podman`),
+  and a first run of the **release workflow**.
+- Smaller known gaps: restarting a check through the API may need a GitHub App instead of a token; Jira status
+  changes depend on the project's workflow (only tested against recorded responses); editing tickets, follow-up
+  jobs and limits are not sent outward yet, and the sync overwrites title and description with the service's state
+  (priority and PR link stay local); browser notifications are only tested with a replaced notification API.

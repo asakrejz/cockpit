@@ -104,8 +104,7 @@ impl Problem {
     pub fn text(&self) -> String {
         match self {
             Problem::Unauthorized => {
-                "Token abgelaufen oder ungültig – neu setzen mit „cockpit-server token setzen“"
-                    .into()
+                "Token abgelaufen oder ungültig – neu setzen mit „cockpit-server token set“".into()
             }
             Problem::NoPermission => "Dem Token fehlt eine Berechtigung".into(),
             Problem::RateLimited { until_ms: Some(_) } => {

@@ -109,7 +109,7 @@ pub fn ListRow(
     view! { <li>{row}</li> }
 }
 
-/// Zentrierte Aktionszeile, z. B. „Abmelden“.
+/// Centered action row, e.g. „Abmelden“.
 #[component]
 pub fn ListButtonRow(
     #[prop(into)] title: String,
