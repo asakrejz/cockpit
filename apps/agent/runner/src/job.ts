@@ -1,5 +1,5 @@
-// Der Auftrag, den das Backend in eine Datei schreibt (`/job/job.json`, schreibgeschützt
-// eingebunden). Er enthält nie Geheimnisse – Adresse, Key und Modell kommen über die Umgebung.
+// The job that the backend writes to a file (`/job/job.json`, mounted read-only).
+// It never contains secrets – address, key and model come via the environment.
 
 import { readFileSync } from "node:fs";
 
@@ -17,15 +17,15 @@ export interface Job {
   ticket: { key: string; title: string; description: string; comments: string[] };
   hints: string[];
   plan_notes: string[];
-  /** Der freigegebene Plan (nur im Modus „umsetzen“, wenn es einen gab). */
+  /** The approved plan (only in mode "implement", if there was one). */
   plan: { summary: string; files: string[]; steps: string[] } | null;
-  /** Was bei einem früheren Anlauf schon gesagt wurde (nach einem Fortsetzen). */
+  /** What was already said in an earlier attempt (after a resume). */
   earlier: string[];
   rules: Rules;
   run_tests: boolean;
   branch: string;
   base_branch: string;
-  /** Höchstens so viele Sekunden darf der Läufer arbeiten. */
+  /** The runner may work for at most this many seconds. */
   max_seconds: number;
 }
 
@@ -37,7 +37,7 @@ function texts(w: unknown): string[] {
   return Array.isArray(w) ? w.filter((x) => typeof x === "string") : [];
 }
 
-/** Prüft und ergänzt einen eingelesenen Auftrag; wirft mit deutscher Meldung, wenn er nicht passt. */
+/** Checks and completes a job that was read; throws with a German message if it does not fit. */
 export function checkJob(raw: unknown): Job {
   if (typeof raw !== "object" || raw === null) throw new Error("Der Auftrag ist kein Objekt.");
   const o = raw as Record<string, any>;
@@ -96,7 +96,7 @@ const RULES_TEXT = (r: Rules): string[] => {
   return z;
 };
 
-/** Feste Regeln des Cockpits, unabhängig vom Repo. */
+/** Fixed rules of Cockpit, independent of the repo. */
 export function systemText(a: Job): string {
   return [
     "Du bist der Agent des Cockpits und arbeitest im Verzeichnis /work an einem geklonten Repository.",
@@ -116,7 +116,7 @@ function ticketText(a: Job): string {
   return z.join("\n");
 }
 
-/** Die erste Nachricht an das Modell. */
+/** The first message to the model. */
 export function tasksText(a: Job): string {
   if (a.mode === "plan") {
     const z = [

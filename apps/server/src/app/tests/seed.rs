@@ -83,7 +83,7 @@ async fn health_reports_the_endpoint_without_the_key() {
     assert_eq!(j["endpoint"]["model"], "claude-sonnet-5-5");
     assert_eq!(j["endpoint"]["key"], true);
 
-    // Der ältere Schlüsselname `litellm` zählt weiter.
+    // The older key name `litellm` still counts.
     let alt = Arc::new(MemoryStore::new());
     alt.set(secrets::LITELLM, &Secret::new("sk-alt-123456"))
         .unwrap();
@@ -91,7 +91,7 @@ async fn health_reports_the_endpoint_without_the_key() {
     let (_, body) = hole(app, "/api/health").await;
     assert_eq!(json(&body)["endpoint"]["key"], true);
 
-    // Ohne Einstellung: nicht konfiguriert, kein Key.
+    // Without a setting: not configured, no key.
     let app = router(state(Arc::new(MemoryStore::new())), PathBuf::from("/x"));
     let (_, body) = hole(app, "/api/health").await;
     let j = json(&body);

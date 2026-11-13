@@ -1,9 +1,9 @@
-//! Jira und GitHub im Server: Dienste aus Konfiguration und Schlüsselbund bauen, Aktionen
-//! erst beim Dienst ausführen und dann lokal anwenden, regelmäßig abgleichen.
+//! Jira and GitHub in the server: build services from configuration and keychain, run actions
+//! first at the service and then apply locally, sync regularly.
 //!
-//! Der Kern der Regeln steht in `cockpit-core` (`sync::merge`) und `cockpit-integrations`
-//! (`ausgehend`); hier läuft nur der Ablauf. Ein Schlüssel wird für jeden Gebrauch frisch aus
-//! dem Schlüsselbund gelesen (so wirkt `token setzen` ohne Neustart), nie gespeichert oder geloggt.
+//! The core of the rules is in `cockpit-core` (`sync::merge`) and `cockpit-integrations`
+//! (`outbound`); only the course runs here. A key is read fresh from the keychain for every use
+//! (so `token setzen` works without restart), never stored or logged.
 
 use std::time::Duration;
 
@@ -22,18 +22,18 @@ use crate::config::{
 use crate::live::Error as LiveError;
 use crate::secrets;
 
-/// So oft wird ein veralteter Abruf (während des Abrufs wurde geschrieben) wiederholt.
+/// This often an outdated fetch (a write happened during the fetch) is repeated.
 const RETRIES: usize = 2;
 
-/// Jira und GitHub, wie sie konfiguriert sind.
+/// Jira and GitHub as configured.
 #[derive(Clone, Debug)]
 pub struct Sources {
     pub github: Option<GitHubConfig>,
     pub jira: Option<JiraConfig>,
-    /// Anmeldung per OAuth (nur Client-IDs; die Secrets liegen im Schlüsselbund).
+    /// Sign-in via OAuth (client IDs only; the secrets are in the keychain).
     pub github_oauth: Option<OAuthConfig>,
     pub atlassian: Option<AtlassianConfig>,
-    /// Adressen der OAuth-Dienste (Tests setzen nachgebaute ein).
+    /// Addresses of the OAuth services (tests insert imitations).
     pub endpoints: Endpoints,
     pub interval: Duration,
 }
@@ -63,34 +63,34 @@ impl Sources {
         }
     }
 
-    /// Ist irgendetwas eingerichtet, das (mit Schlüssel) laufen könnte?
+    /// Is anything set up that could run (with a key)?
     fn possible(&self) -> bool {
         self.github.as_ref().is_some_and(|g| !g.repos.is_empty()) || self.jira.is_some()
     }
 }
 
-/// Warum eine Aktion nicht angewendet wurde.
+/// Why an action was not applied.
 #[derive(Debug)]
 pub enum ActionFailure {
-    /// Die Regeln des Workspace lehnen sie ab.
+    /// The rules of the workspace reject it.
     Rule(ActionError),
-    /// Sie lässt sich nicht nach außen abbilden (z. B. kein Repo für Branches).
+    /// It cannot be mapped to the outside (e.g. no repo for branches).
     Plan(String),
-    /// Der Dienst hat den Aufruf abgelehnt oder war nicht erreichbar. Nichts wurde geändert.
+    /// The service rejected the call or was not reachable. Nothing was changed.
     Service(String),
     Save(String),
     Intern,
 }
 
 impl AppState {
-    /// Baut die Dienste, die eingerichtet sind **und** einen Schlüssel haben. Blockierend
-    /// (Schlüsselbund).
+    /// Builds the services that are set up **and** have a key. Blocking
+    /// (keychain).
     pub(crate) fn services_build(&self) -> Services {
         let inner = &self.inner;
         let sources = self.sources();
         let mut services = Services::default();
         if let Some(g) = sources.github.as_ref().filter(|g| !g.repos.is_empty()) {
-            // Die Anmeldung per OAuth geht vor dem Token.
+            // The sign-in via OAuth goes before the token.
             let access = match self.oauth_tokens(Service::GitHub) {
                 Some(t) => Some(t.access),
                 None => self.token(secrets::GITHUB),
@@ -110,7 +110,7 @@ impl AppState {
         if let Some(j) = &sources.jira
             && let Some(client) = self.jira_client()
         {
-            // Ein in der App gewähltes Projekt hat Vorrang vor `projects` und `jql` der Datei.
+            // A project chosen in the app takes precedence over `projects` and `jql` of the file.
             let chosen = inner.live.copy().jira_project;
             let in_project = chosen.is_some();
             let jql = match &chosen {
@@ -131,8 +131,8 @@ impl AppState {
         services
     }
 
-    /// Der Jira-Client: per OAuth (über das Atlassian-Gateway), sonst mit E-Mail und API-Token.
-    /// `None`, wenn Jira nicht eingerichtet ist oder der Zugang fehlt. Blockierend.
+    /// The Jira client: via OAuth (through the Atlassian gateway), otherwise with email and API token.
+    /// `None` if Jira is not set up or the access is missing. Blocking.
     pub(crate) fn jira_client(&self) -> Option<Result<JiraClient, cockpit_integrations::Error>> {
         if let Some(c) = self.jira_oauth_client() {
             return Some(c);
@@ -143,7 +143,7 @@ impl AppState {
         Some(JiraClient::new(&j.site, &j.email, t))
     }
 
-    /// Der Zugang zu GitHub: die Anmeldung per OAuth geht vor dem Token. Blockierend.
+    /// The access to GitHub: the sign-in via OAuth goes before the token. Blocking.
     pub(crate) fn github_access(&self) -> Option<cockpit_integrations::Secret> {
         match self.oauth_tokens(Service::GitHub) {
             Some(t) => Some(t.access),
@@ -151,7 +151,7 @@ impl AppState {
         }
     }
 
-    /// Ein Schlüssel aus dem Schlüsselbund, leer zählt als fehlend. Blockierend.
+    /// A key from the keychain, empty counts as missing. Blocking.
     pub(crate) fn token(&self, name: &str) -> Option<cockpit_integrations::Secret> {
         match self.inner.secrets.get(name) {
             Ok(t) => t.filter(|t| !t.is_empty()),
@@ -162,8 +162,8 @@ impl AppState {
         }
     }
 
-    /// Die Jira-Projekte, die der Schlüssel sehen darf – für die Auswahl in der Inbox.
-    /// Ohne Jira oder Schlüssel: `aktiv: false`.
+    /// The Jira projects that the key may see – for the selection in the inbox.
+    /// Without Jira or key: `active: false`.
     pub async fn jira_projects(&self) -> Result<JiraProjectsResponse, ActionFailure> {
         if self.sources().jira.is_none() {
             return Ok(JiraProjectsResponse::default());
@@ -197,7 +197,7 @@ impl AppState {
         if !self.sources().possible() {
             return Services::default();
         }
-        // Zuerst auffrischen (Netzwerk), dann bauen (Schlüsselbund).
+        // First refresh (network), then build (keychain).
         self.oauth_refresh().await;
         let s = self.clone();
         tokio::task::spawn_blocking(move || s.services_build())
@@ -214,12 +214,12 @@ impl AppState {
         .unwrap_or_else(|_| Err(LiveError::Save("Interner Fehler".into())))
     }
 
-    /// Wendet eine Aktion der Oberfläche an (als „Du“). Wirkt sie nach außen, geht erst der
-    /// Aufruf an den Dienst – **erst wenn er bestätigt, wird sie lokal angewendet**. Scheitert
-    /// er, ändert sich nichts.
+    /// Applies an action of the interface (as "Du"). If it acts to the outside, the
+    /// call to the service goes first – **only when it confirms is it applied locally**. If
+    /// it fails, nothing changes.
     pub async fn action_run(&self, action: Action) -> Result<ActionResponse, ActionFailure> {
         let inner = &self.inner;
-        // Der echte Agent startet nur, wenn alles eingerichtet ist; sonst sagt die Meldung, was fehlt.
+        // The real agent only starts if everything is set up; otherwise the message says what is missing.
         if self.agent_real() {
             let s = self.clone();
             let a = action.clone();
@@ -232,7 +232,7 @@ impl AppState {
         }
         let _lock = inner.lock.lock().await;
 
-        // Probe auf einer Kopie: Die Regeln (auch „nur Du darfst mergen“) gelten vor jedem Aufruf.
+        // Probe on a copy: the rules (also "only Du may merge") apply before every call.
         let before = inner.live.copy();
         let mut afterwards = before.clone();
         afterwards
@@ -270,9 +270,9 @@ impl AppState {
         }
     }
 
-    /// Ein Abgleich: abrufen und als Aktion `SyncRemote` (Urheber System) anwenden. Quellen im
-    /// Kontingent-Limit pausieren. Geschrieben wurde währenddessen? Dann ist der Abruf
-    /// veraltet und wird wiederholt.
+    /// A sync: fetch and apply as the action `SyncRemote` (author system). Pause sources in the
+    /// quota limit. Was something written in the meantime? Then the fetch is
+    /// outdated and is repeated.
     pub async fn sync(&self) -> Result<SyncResponse, ActionFailure> {
         let inner = &self.inner;
         let _only_one = inner.sync.lock().await;
@@ -305,7 +305,7 @@ impl AppState {
             if outdated && attempt < RETRIES {
                 continue;
             }
-            // Beim letzten Versuch übernehmen wir den Abruf trotzdem; der nächste Takt gleicht aus.
+            // On the last attempt we take over the fetch anyway; the next tick evens it out.
             return match self
                 .local_apply(Action::SyncRemote { remote }, Actor::System)
                 .await
@@ -323,7 +323,7 @@ impl AppState {
     }
 }
 
-/// Startet den Abgleich im Takt der Konfiguration (der erste sofort).
+/// Starts the sync at the tick of the configuration (the first immediately).
 pub fn sync_start(state: AppState) {
     let interval = state.sources().interval;
     tokio::spawn(async move {

@@ -2,11 +2,11 @@ use leptos::prelude::*;
 
 use crate::{Icon, icons};
 
-/// Schalter (`Toggle`). Gewöhnlich in einer `ListRow` mit `label=true`.
+/// Switch (`Toggle`). Usually in a `ListRow` with `label=true`.
 #[component]
 pub fn Toggle(
     checked: RwSignal<bool>,
-    /// Zugänglicher Name, wenn kein sichtbares Label in der Nähe steht.
+    /// Accessible name if no visible label is nearby.
     #[prop(optional, into)]
     aria_label: Option<String>,
     #[prop(into, default = false.into())] disabled: Signal<bool>,
@@ -25,9 +25,9 @@ pub fn Toggle(
     }
 }
 
-/// Segmentierter Picker (`Picker` mit `.segmented`).
+/// Segmented picker (`Picker` with `.segmented`).
 ///
-/// `options` sind Paare aus Wert und Beschriftung.
+/// `options` are pairs of value and label.
 #[component]
 pub fn Segmented(
     options: &'static [(&'static str, &'static str)],
@@ -54,17 +54,17 @@ pub fn Segmented(
     }
 }
 
-/// Segmentierter Picker, dessen Wert von außen kommt (z. B. aus einem Datenmodell).
+/// Segmented picker whose value comes from outside (e.g. from a data model).
 ///
-/// Anders als [`Segmented`] schreibt er nicht selbst, sondern meldet die Auswahl über
-/// `on_change`. So bleibt das Modell die einzige Quelle der Wahrheit.
+/// Unlike [`Segmented`] it does not write itself but reports the selection via
+/// `on_change`. That way the model stays the only source of truth.
 #[component]
 pub fn SegmentedPicker(
     options: &'static [(&'static str, &'static str)],
     #[prop(into)] value: Signal<&'static str>,
     #[prop(into)] on_change: Callback<&'static str>,
     #[prop(into)] aria_label: String,
-    /// Füllt die volle Breite; alle Segmente sind gleich breit.
+    /// Fills the full width; all segments are equally wide.
     #[prop(optional)]
     stretch: bool,
 ) -> impl IntoView {
@@ -97,22 +97,22 @@ pub fn SegmentedPicker(
     }
 }
 
-/// Auswahlliste (`Picker` mit `.menu`): ein natives `<select>`, damit Tastatur, Screenreader
-/// und Mobilgeräte sie ohne eigenes Menü bedienen.
+/// Selection list (`Picker` with `.menu`): a native `<select>` so that keyboard, screen reader
+/// and mobile devices operate it without a menu of its own.
 ///
-/// `options` sind Paare aus Wert und Beschriftung und dürfen sich ändern (z. B. wenn sie
-/// vom Server kommen). Wie [`SegmentedPicker`] schreibt sie nicht selbst, sondern meldet
-/// die Auswahl über `on_change`.
+/// `options` are pairs of value and label and may change (e.g. when they
+/// come from the server). Like [`SegmentedPicker`] it does not write itself but reports
+/// the selection via `on_change`.
 #[component]
 pub fn Select(
     #[prop(into)] options: Signal<Vec<(String, String)>>,
     #[prop(into)] value: Signal<String>,
     #[prop(into)] on_change: Callback<String>,
-    /// Sichtbare Beschriftung darüber. Ohne sie braucht es `aria_label`.
+    /// Visible label above. Without it `aria_label` is needed.
     #[prop(optional, into)]
     label: Option<String>,
     #[prop(optional, into)] aria_label: Option<String>,
-    /// Kleiner, für Kopfzeilen und Werkzeugleisten.
+    /// Smaller, for headers and toolbars.
     #[prop(optional)]
     compact: bool,
     #[prop(into, default = false.into())] disabled: Signal<bool>,
@@ -148,7 +148,7 @@ pub fn Select(
     }
 }
 
-/// Fortlaufende Nummer für eindeutige `id`s (Label ↔ Eingabe).
+/// Running number for unique `id`s (label ↔ input).
 fn next_id() -> usize {
     use std::sync::atomic::{AtomicUsize, Ordering};
     static NEXT: AtomicUsize = AtomicUsize::new(0);
@@ -185,7 +185,7 @@ pub fn Slider(
     }
 }
 
-/// Plus/Minus-Zähler (`Stepper`).
+/// Plus/minus counter (`Stepper`).
 #[component]
 pub fn Stepper(
     value: RwSignal<i32>,

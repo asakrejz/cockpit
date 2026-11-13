@@ -2,14 +2,14 @@ use leptos::prelude::*;
 
 use crate::{Button, ButtonShape, ButtonStyle, ControlSize, Icon, icons};
 
-/// Karussell (`TabView` mit `.page`): Glas-Pfeile über dem Inhalt,
-/// Seitenpunkte in einer Glas-Kapsel darunter.
+/// Carousel (`TabView` with `.page`): glass arrows above the content,
+/// page dots in a glass capsule below.
 ///
-/// Jede Seite ist eine eigene View.
+/// Every page is a view of its own.
 #[component]
 pub fn Pager(
     pages: Vec<AnyView>,
-    /// Beschriftung für Screenreader.
+    /// Label for screen readers.
     #[prop(into)]
     label: String,
 ) -> impl IntoView {

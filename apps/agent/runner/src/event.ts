@@ -1,5 +1,5 @@
-// Ereignisse des Läufers: JSON-Zeilen auf stdout. Das Backend liest sie zeilenweise und prüft sie
-// (unbekannte oder zu große Zeilen verwirft es). Geheimnisse gehören nie hinein.
+// Events of the runner: JSON lines on stdout. The backend reads them line by line and checks them
+// (it discards unknown or too large lines). Secrets never belong in them.
 
 export type Event =
   | { t: "plan"; summary: string; files: string[]; steps: string[] }
@@ -11,7 +11,7 @@ export type Event =
   | { t: "check"; reachable: boolean; key_ok: boolean; hint: string }
   | { t: "error"; text: string };
 
-/** Längste Zeichenkette eines Feldes; das Backend verwirft Zeilen über 64 KiB. */
+/** Longest string of a field; the backend discards lines over 64 KiB. */
 export const MAX_TEXT = 2000;
 const MAX_LIST = 200;
 
@@ -24,7 +24,7 @@ function list(values: unknown): string[] {
   return Array.isArray(values) ? values.slice(0, MAX_LIST).map((w) => truncate(String(w), 300)) : [];
 }
 
-/** Macht aus einem Ereignis eine Zeile ohne Zeilenumbruch (JSON escaped sie) und kürzt lange Felder. */
+/** Turns an event into a line without a line break (JSON escapes it) and truncates long fields. */
 export function line(e: Event): string {
   const clean: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(e)) {
@@ -37,7 +37,7 @@ export function line(e: Event): string {
 
 export type Sink = (e: Event) => void;
 
-/** Schreibt Ereignisse auf stdout (eine Zeile je Ereignis). */
+/** Writes events to stdout (one line per event). */
 export function stdoutSink(write: (s: string) => void = (s) => process.stdout.write(s)): Sink {
   return (e) => write(`${line(e)}\n`);
 }

@@ -1,17 +1,17 @@
-//! Git auf dem Rechner des Nutzers für den Agenten: Klonen vor dem Lauf, Prüfen und Pushen danach.
+//! Git on the user's machine for the agent: cloning before the run, checking and pushing after it.
 //!
-//! Der Container bekommt **kein** GitHub-Token. Das Backend klont (frisch, je Lauf), der Container
-//! committet auf einen Branch `claude/…`, und das Backend pusht erst nach seiner Prüfung:
+//! The container gets **no** GitHub token. The backend clones (fresh, per run), the container
+//! commits to a branch `claude/…`, and the backend only pushes after its check:
 //!
-//! * nur Branches mit dem Präfix `claude/` – nie der Hauptbranch, nie ein Force-Push, nie ein Merge,
-//! * der Branch muss auf dem Stand aufbauen, von dem aus geklont wurde,
-//! * die geänderten Dateien müssen zu den Regeln des Repos passen.
+//! * only branches with the prefix `claude/` – never the main branch, never a force push, never a merge,
+//! * the branch must build on the state from which it was cloned,
+//! * the changed files must fit the rules of the repo.
 //!
-//! Der Klon ist nach dem Lauf **nicht vertrauenswürdig** (der Container durfte hineinschreiben, auch
-//! in `.git`). Darum läuft nach dem Lauf kein Git im Klon selbst: Der Branch wird in ein frisches,
-//! leeres Bare-Repo geholt (`git fetch <klon>`), und nur dort wird geprüft und gepusht. Die
-//! Zugangsdaten gehen nur über die Umgebung des Kindprozesses (`GIT_CONFIG_*`), nie über die
-//! Kommandozeile, und nur an `https://`-Adressen.
+//! After the run the clone is **not trustworthy** (the container was allowed to write into it, also
+//! into `.git`). Therefore no Git runs in the clone itself after the run: the branch is fetched into a fresh,
+//! empty bare repo (`git fetch <clone>`), and only there is it checked and pushed. The
+//! credentials only go through the environment of the child process (`GIT_CONFIG_*`), never through the
+//! command line, and only to `https://` addresses.
 
 use std::path::Path;
 use std::process::{Command, Stdio};
@@ -19,10 +19,10 @@ use std::process::{Command, Stdio};
 use cockpit_core::RepoRules;
 use cockpit_integrations::Secret;
 
-/// So viele geänderte Dateien lässt das Backend durch.
+/// This many changed files the backend lets through.
 const MAX_FILES: usize = 500;
 
-/// `owner/name`, wie GitHub es kennt.
+/// `owner/name`, as GitHub knows it.
 pub fn repo_name_ok(repo: &str) -> bool {
     let teil = |t: &str| {
         !t.is_empty()
@@ -35,7 +35,7 @@ pub fn repo_name_ok(repo: &str) -> bool {
         .is_some_and(|(o, n)| teil(o) && teil(n))
 }
 
-/// Nur Branches `claude/…` mit unauffälligen Zeichen. Der Hauptbranch ist damit ausgeschlossen.
+/// Only branches `claude/…` with inconspicuous characters. The main branch is thereby excluded.
 pub fn branch_ok(branch: &str) -> bool {
     branch.starts_with("claude/")
         && branch.len() <= 120
@@ -49,12 +49,12 @@ pub fn branch_ok(branch: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'))
 }
 
-/// Die Adresse zum Klonen: `<basis>/<owner>/<name>.git`.
+/// The address for cloning: `<base>/<owner>/<name>.git`.
 pub fn clone_url(base: &str, repo: &str) -> String {
     format!("{}/{repo}.git", base.trim_end_matches('/'))
 }
 
-/// Die Web-Adresse aus der API-Adresse: `https://api.github.com` → `https://github.com`,
+/// The web address from the API address: `https://api.github.com` → `https://github.com`,
 /// `https://ghe.example/api/v3` → `https://ghe.example`.
 pub fn base_from_api(api_url: &str) -> String {
     let url = api_url.trim().trim_end_matches('/');
@@ -87,8 +87,8 @@ fn base64(bytes: &[u8]) -> String {
     out
 }
 
-/// Umgebungsvariablen für die Anmeldung per HTTPS (`http.extraHeader`). Empty für alles, was nicht
-/// `https://` ist: Das Token geht nie über Klartext-Verbindungen oder an lokale Pfade.
+/// Environment variables for the sign-in via HTTPS (`http.extraHeader`). Empty for everything that is not
+/// `https://`: the token never goes over plain-text connections or to local paths.
 fn auth_env(url: &str, token: Option<&Secret>) -> Vec<(String, String)> {
     let Some(token) = token.filter(|t| !t.is_empty()) else {
         return Vec::new();
@@ -107,7 +107,7 @@ fn auth_env(url: &str, token: Option<&Secret>) -> Vec<(String, String)> {
     ]
 }
 
-/// Entfernt Zugangsdaten aus einem Text (Fehlermeldungen von Git können die Adresse enthalten).
+/// Removes credentials from a text (error messages of Git can contain the address).
 pub fn redact(text: &str, secrets: &[&str]) -> String {
     let mut t = text.to_string();
     for g in secrets.iter().filter(|g| g.len() >= 4) {
@@ -130,7 +130,7 @@ fn git(
         .stderr(Stdio::piped())
         .env("GIT_TERMINAL_PROMPT", "0")
         .env("GIT_ASKPASS", "true")
-        // Keine Hooks, kein Zeitplan, keine Hilfsprogramme aus dem Klon.
+        // No hooks, no schedule, no helper programs from the clone.
         .env("GIT_CONFIG_NOSYSTEM", "1");
     if let Some(c) = cwd {
         cmd.current_dir(c);
@@ -157,9 +157,9 @@ fn git(
     ))
 }
 
-/// Öffnet Rechte im Klon, damit der Nutzer im Container (andere Kennung, bei Podman rootless
-/// andere Zuordnung) schreiben und das Backend danach löschen kann. Der Ordner liegt in einem
-/// Verzeichnis, das nur dem Nutzer gehört.
+/// Opens permissions in the clone so that the user in the container (different id, with Podman rootless
+/// a different mapping) can write and the backend can delete afterwards. The folder is in a
+/// directory that belongs only to the user.
 #[cfg(unix)]
 pub fn permissions_open(dir: &Path) {
     use std::os::unix::fs::PermissionsExt;
@@ -186,8 +186,8 @@ pub fn permissions_open(dir: &Path) {
 #[cfg(not(unix))]
 pub fn permissions_open(_dir: &Path) {}
 
-/// Klont `url` nach `ziel`, legt den Branch an und gibt den Stand zurück, von dem aus er beginnt.
-/// Der Remote wird danach entfernt: Im Klon steht keine Adresse und kein Token.
+/// Clones `url` to `target`, creates the branch and returns the state from which it starts.
+/// The remote is removed afterwards: there is no address and no token in the clone.
 pub fn clone(
     url: &str,
     target: &Path,
@@ -241,15 +241,15 @@ pub fn clone(
     Ok(base)
 }
 
-/// Was nach der Prüfung gepusht wurde.
+/// What was pushed after the check.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Published {
     pub commit: String,
     pub files: Vec<String>,
 }
 
-/// Prüft den Branch aus dem Klon und pusht ihn. Siehe Moduldoku für die Reihenfolge und warum
-/// nie im Klon selbst gearbeitet wird. `export` ist ein leerer Ordner für das Bare-Repo.
+/// Checks the branch from the clone and pushes it. See the module docs for the order and why
+/// nothing is ever worked on in the clone itself. `export` is an empty folder for the bare repo.
 pub fn publish(
     clone: &Path,
     export: &Path,
@@ -282,7 +282,7 @@ pub fn publish(
     let commit = git(&["rev-parse", "--verify", &ref_], Some(export), "", None)?
         .trim()
         .to_string();
-    // Der Branch muss auf dem Ausgangsstand aufbauen (kein umgeschriebener Verlauf, kein fremder).
+    // The branch must build on the starting state (no rewritten history, no foreign one).
     git(
         &["merge-base", "--is-ancestor", base_sha, &commit],
         Some(export),

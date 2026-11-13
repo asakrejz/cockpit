@@ -1,6 +1,6 @@
-//! Schritt 2: Jira verbinden – Standard ist der API-Token (drei einfache Schritte, danach ein
-//! Verbindungstest und die Wahl des Projekts); die Atlassian-App (OAuth) steckt eingeklappt unter
-//! „Erweitert“. Die Regeln (Adresse lesen, Texte) stehen in `cockpit_core::setup`.
+//! Step 2: connect Jira – the default is the API token (three simple steps, then a
+//! connection test and the choice of the project); the Atlassian app (OAuth) sits collapsed under
+//! "Erweitert". The rules (read address, texts) are in `cockpit_core::setup`.
 
 use cockpit_core::Action;
 use cockpit_core::api::{ClientInput, ConfigChange, JiraCheck, JiraInput, JiraProject};
@@ -16,7 +16,7 @@ use super::fields::{
 use crate::oauth_card::{OAuthCard, Service};
 use crate::server::{self, CallError};
 
-/// Füllt ein Feld aus dem Server, solange es noch leer ist (der Nutzer tippt nie dagegen an).
+/// Fills a field from the server as long as it is still empty (the user never types against it).
 fn prefill(field: RwSignal<String>, source: impl Fn() -> String + 'static) {
     Effect::new(move |_| {
         let updated = source();
@@ -28,7 +28,7 @@ fn prefill(field: RwSignal<String>, source: impl Fn() -> String + 'static) {
 
 #[component]
 pub fn JiraStep(ctx: Context) -> impl IntoView {
-    // Das Ergebnis des Verbindungstests; erst danach erscheint die Wahl des Projekts.
+    // The result of the connection test; only after it does the choice of the project appear.
     let result: RwSignal<Option<JiraCheck>> = RwSignal::new(None);
     let per_token = move || {
         ctx.store.health.with(|h| {
@@ -74,7 +74,7 @@ pub fn JiraStep(ctx: Context) -> impl IntoView {
     }
 }
 
-/// Ein Link im Look eines Knopfes, der in einem neuen Tab aufgeht.
+/// A link in the look of a button that opens in a new tab.
 #[component]
 fn ExternButton(#[prop(into)] href: String, children: Children) -> impl IntoView {
     view! {
@@ -225,14 +225,14 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
     let back: Feedback = RwSignal::new(None);
     let running = RwSignal::new(false);
 
-    // Schlägt das Speichern fehl, läuft der Test nicht: den Knopf wieder freigeben.
+    // If saving fails, the test does not run: release the button again.
     Effect::new(move |_| {
         if back.with(|r| r.as_ref().is_some_and(|(gut, _)| !gut)) {
             running.set(false);
         }
     });
 
-    // So versteht Cockpit die Eingabe: gleich unter dem Feld zu sehen.
+    // This is how Cockpit understands the input: visible right below the field.
     let site_read = Signal::derive(move || jira_site_read(&site.get()));
     let connected = move || {
         ctx.store.health.with(|h| {
@@ -267,7 +267,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
             return;
         }
         running.set(true);
-        // Erst Adresse und E-Mail sichern, dann der Test (nur Lesen).
+        // First secure address and email, then the test (read only).
         config_save(
             ctx,
             ConfigChange {
@@ -385,8 +385,8 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
     }
 }
 
-/// Nach dem Test: die Jira-Projekte zur Auswahl („Alle Projekte“ ist möglich). Gewählt wird wie in
-/// der Inbox mit `Action::SelectJiraProject`; die Liste wird nur gelesen.
+/// After the test: the Jira projects to choose from ("Alle Projekte" is possible). Chosen as in
+/// the inbox with `Action::SelectJiraProject`; the list is only read.
 #[component]
 fn JiraProjectChoice(ctx: Context) -> impl IntoView {
     let projects = RwSignal::new(Vec::<JiraProject>::new());

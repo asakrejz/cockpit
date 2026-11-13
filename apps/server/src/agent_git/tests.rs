@@ -23,7 +23,7 @@ fn names_and_branches_are_streng_checked() {
         "claude/a;b",
         "claude/-f",
     ] {
-        // `-f` beginnt nicht mit `-`, weil „claude/“ davor steht; erlaubt, aber harmlos.
+        // `-f` does not start with `-` because "claude/" comes before it; allowed, but harmless.
         if bad == "claude/-f" {
             continue;
         }
@@ -77,7 +77,7 @@ fn error_texts_contained_no_token() {
     assert!(!s.contains(t) && !s.contains(&b), "{s}");
 }
 
-/// Ein Remote mit einem Commit auf `main`, ein Klon-Ordner und ein Ordner für den Export.
+/// A remote with a commit on `main`, a clone folder and a folder for the export.
 struct Layout {
     _tmp: tempfile::TempDir,
     remote: std::path::PathBuf,
@@ -137,7 +137,7 @@ fn heads(remote: &Path) -> Vec<String> {
     .collect()
 }
 
-/// Spielt den Container nach: ändert Dateien im Klon und committet.
+/// Imitates the container: changes files in the clone and commits.
 fn agent_works(clone: &Path, file: &str) {
     let path = clone.join(file);
     std::fs::create_dir_all(path.parent().unwrap()).unwrap();
@@ -171,7 +171,7 @@ fn clone_work_check_push_only_on_claude_branches() {
     let mut h = heads(&a.remote);
     h.sort();
     assert_eq!(h, ["claude/BAU-1-x", "main"]);
-    // main im Remote ist unberührt.
+    // main in the remote is untouched.
     assert_eq!(g(&a.remote, &["rev-parse", "main"]).trim(), base);
     assert_eq!(
         g(&a.remote, &["rev-parse", "claude/BAU-1-x"]).trim(),
@@ -230,7 +230,7 @@ fn without_commit_and_with_foreign_history_is_not_pushed() {
     .unwrap_err();
     assert!(e.contains("nichts committet"), "{e}");
 
-    // Umgeschriebener Verlauf: ein Branch ohne den Ausgangsstand.
+    // Rewritten history: a branch without the starting state.
     let b = layout();
     let base = clone(&b.url, &b.clone, None, "main", "claude/fremd").unwrap();
     g(
@@ -259,7 +259,7 @@ fn a_tampered_clone_leads_on_the_machine_nothing_out() {
     let a = layout();
     let base = clone(&a.url, &a.clone, None, "main", "claude/boese").unwrap();
     let mark = a.clone.parent().unwrap().join("ausgefuehrt");
-    // Hooks und Befehle in der Konfiguration, wie sie ein Agent in .git ablegen könnte.
+    // Hooks and commands in the configuration, as an agent could put them in .git.
     for hook in [
         "pre-push",
         "post-commit",
@@ -277,7 +277,7 @@ fn a_tampered_clone_leads_on_the_machine_nothing_out() {
     ));
     std::fs::write(a.clone.join(".git/config"), config).unwrap();
     std::fs::write(a.clone.join("x.txt"), "x").unwrap();
-    // Der „Agent“ committet an den Hooks vorbei (sonst liefe der Hook im Test selbst).
+    // The "agent" commits past the hooks (otherwise the hook would run in the test itself).
     g(&a.clone, &["add", "-A"]);
     g(
         &a.clone,

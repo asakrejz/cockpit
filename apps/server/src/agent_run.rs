@@ -1,11 +1,11 @@
-//! Der echte Agent, reiner Teil: Protokoll des Läufers, Befehlszeile für `docker`/`podman`, der
-//! Auftrag an den Container, die Voraussetzungen und der Plan, was der Aufpasser als Nächstes tut.
-//! Nichts hier startet einen Prozess oder fasst die Platte an – das macht `agent_betrieb`.
+//! The real agent, pure part: protocol of the runner, command line for `docker`/`podman`, the
+//! job for the container, the prerequisites and the plan of what the watcher does next.
+//! Nothing here starts a process or touches the disk – that is done by `agent_ops`.
 //!
-//! Regeln für Container (siehe „Container“ in `docs/ROADMAP.md`): nur Befehle und Schalter, die
-//! Docker und Podman gleich verstehen; Geheimnisse nur als `-e NAME` (der Wert steht in der
-//! Umgebung des Kindprozesses, nie in der Argumentliste); `--rm`; ein Label je Lauf zum Aufräumen;
-//! `--add-host cockpit-host:host-gateway`, um Dienste auf dem Rechner zu erreichen.
+//! Rules for containers (see "Container" in `docs/ROADMAP.md`): only commands and switches that
+//! Docker and Podman understand the same way; secrets only as `-e NAME` (the value is in the
+//! environment of the child process, never in the argument list); `--rm`; a label per run for cleaning up;
+//! `--add-host cockpit-host:host-gateway` to reach services on the machine.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -15,26 +15,26 @@ use cockpit_core::{AgentReport, AgentRun, RunKind, RunState, Workspace};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-/// Name des Agent-Images (voll benannt, damit Podman es nicht erst im Netz sucht).
+/// Name of the agent image (fully named so that Podman does not first search the network for it).
 pub const IMAGE: &str = "localhost/cockpit-agent:2";
-/// Label, an dem das Backend seine Container wiederfindet und aufräumt.
+/// Label by which the backend finds its containers again and cleans up.
 pub const LABEL: &str = "cockpit.run";
-/// Name, unter dem der Container den Rechner erreicht.
+/// Name under which the container reaches the machine.
 pub const HOST_NAME: &str = "cockpit-host";
-/// Längere Zeilen des Läufers verwirft das Backend.
+/// Longer lines of the runner are discarded by the backend.
 pub const MAX_LINE: usize = 64 * 1024;
 const MAX_TEXT: usize = 2_000;
 const MAX_LIST: usize = 200;
-/// Mehr Tokens oder Zeit meldet kein einzelner Schritt glaubhaft.
+/// No single step credibly reports more tokens or time.
 const MAX_TOKEN: u64 = 50_000_000;
 const MAX_MS: u64 = 3_600_000;
 
-/// Was ein Container tut.
+/// What a container does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mode {
-    /// Nur lesen und einen Plan vorlegen.
+    /// Only read and present a plan.
     Plan,
-    /// Das Ticket umsetzen (nach der Freigabe) und committen.
+    /// Implement the ticket (after approval) and commit.
     Implement,
 }
 
@@ -47,9 +47,9 @@ impl Mode {
     }
 }
 
-// ---------- Protokoll: Zeilen des Läufers ----------
+// ---------- Protocol: lines of the runner ----------
 
-/// Ein Ereignis des Läufers (eine JSON-Zeile auf stdout). Siehe `agent/README.md`.
+/// An event of the runner (a JSON line on stdout). See `agent/README.md`.
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(tag = "t", rename_all = "snake_case")]
 pub enum Event {
@@ -96,7 +96,7 @@ pub enum Event {
     },
 }
 
-/// Warum eine Zeile nicht angenommen wurde.
+/// Why a line was not accepted.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Discarded {
     TooLarge,
@@ -119,8 +119,8 @@ fn list(v: Vec<String>) -> Vec<String> {
         .collect()
 }
 
-/// Liest eine Zeile des Läufers. Zu große, unlesbare oder unbekannte Zeilen werden verworfen;
-/// Texte, Listen und Zahlen sind danach begrenzt. Das Backend vertraut dem Container nicht.
+/// Reads a line of the runner. Too large, unreadable or unknown lines are discarded;
+/// texts, lists and numbers are limited afterwards. The backend does not trust the container.
 pub fn line_read(line: &str) -> Result<Event, Discarded> {
     if line.len() > MAX_LINE {
         return Err(Discarded::TooLarge);
@@ -179,8 +179,8 @@ pub fn line_read(line: &str) -> Result<Event, Discarded> {
     })
 }
 
-/// Was ein Ereignis am Lauf ändert. `None` für Ereignisse, die nicht (oder in diesem Modus nicht)
-/// in den Lauf gehören: Ergebnis und Fehler wertet der Betrieb selbst aus.
+/// What an event changes in the run. `None` for events that do not (or not in this mode)
+/// belong in the run: result and error are evaluated by the operation itself.
 pub fn as_message(e: &Event, mode: Mode) -> Option<AgentReport> {
     match (e, mode) {
         (
@@ -223,24 +223,24 @@ pub fn as_message(e: &Event, mode: Mode) -> Option<AgentReport> {
     }
 }
 
-// ---------- Befehlszeile ----------
+// ---------- Command line ----------
 
-/// Alles, was `docker run` / `podman run` für einen Lauf braucht.
+/// Everything `docker run` / `podman run` needs for a run.
 pub struct RunCommand<'a> {
     pub name: &'a str,
-    /// Wert des Labels `cockpit.run` (der Schlüssel des Laufs).
+    /// Value of the label `cockpit.run` (the key of the run).
     pub run: &'a str,
     pub clone: &'a Path,
-    /// Nur lesen (Plan-Modus): Der Container ändert den Klon nicht.
+    /// Read only (plan mode): the container does not change the clone.
     pub clone_only_read: bool,
     pub job: &'a Path,
-    /// Mit offenem stdin (`-i`) für Antworten und Hinweise.
+    /// With open stdin (`-i`) for answers and hints.
     pub stdin_open: bool,
 }
 
-/// Die Argumente nach `docker`/`podman`. Enthält nie ein Geheimnis: Der Läufer bekommt Adresse,
-/// Key und Modell als `-e NAME` und liest die Werte aus der Umgebung des Kindprozesses
-/// ([`umgebung_fuer_kind`]).
+/// The arguments after `docker`/`podman`. Never contains a secret: the runner gets address,
+/// key and model as `-e NAME` and reads the values from the environment of the child process
+/// ([`env_for_kind`]).
 pub fn run_args(b: &RunCommand) -> Vec<String> {
     let s = |x: &str| x.to_string();
     let mut a = vec![s("run"), s("--rm")];
@@ -278,7 +278,7 @@ pub fn run_args(b: &RunCommand) -> Vec<String> {
     a
 }
 
-/// Die Namen, die `docker run` per `-e NAME` weitergibt (nur der Name, nie ein Wert).
+/// The names that `docker run` passes on via `-e NAME` (only the name, never a value).
 pub const KIND_ENV: [&str; 4] = [
     "ANTHROPIC_BASE_URL",
     "ANTHROPIC_AUTH_TOKEN",
@@ -286,13 +286,13 @@ pub const KIND_ENV: [&str; 4] = [
     "ANTHROPIC_API_KEY",
 ];
 
-/// Die Umgebung des `docker run`-Prozesses: Dort stehen die Werte, die `-e NAME` weitergibt.
-/// `Some` setzt den Wert, `None` entfernt ihn aus der geerbten Umgebung, damit nie ein Key aus der
-/// Shell der Person in den Container wandert.
+/// The environment of the `docker run` process: the values that `-e NAME` passes on are there.
+/// `Some` sets the value, `None` removes it from the inherited environment so that no key from the
+/// person's shell ever travels into the container.
 ///
-/// * Mit Adresse (Proxy wie LiteLLM, anderer kompatibler Endpunkt): `ANTHROPIC_BASE_URL` und
+/// * With an address (proxy such as LiteLLM, another compatible endpoint): `ANTHROPIC_BASE_URL` and
 ///   `ANTHROPIC_AUTH_TOKEN` (Bearer).
-/// * Ohne Adresse (direkt bei Anthropic): `ANTHROPIC_API_KEY` (`x-api-key`), keine Basisadresse.
+/// * Without an address (directly at Anthropic): `ANTHROPIC_API_KEY` (`x-api-key`), no base address.
 pub fn env_for_kind(
     endpoint_url: Option<&str>,
     key: &str,
@@ -310,7 +310,7 @@ pub fn env_for_kind(
     ]
 }
 
-/// Ein Proxy auf dem eigenen Rechner (`localhost`, `127.0.0.1`) heißt im Container `cockpit-host`.
+/// A proxy on the own machine (`localhost`, `127.0.0.1`) is called `cockpit-host` in the container.
 pub fn for_container(url: &str) -> String {
     let url = url.trim().trim_end_matches('/');
     let Some((schema, rest)) = url.split_once("://") else {
@@ -332,7 +332,7 @@ pub fn for_container(url: &str) -> String {
     url.to_string()
 }
 
-/// Ein Name für den Container: nur erlaubte Zeichen, eindeutig durch die Zeit.
+/// A name for the container: only allowed characters, unique through the time.
 pub fn container_name(run: &str, now_ms: u64) -> String {
     let clean: String = run
         .chars()
@@ -348,7 +348,7 @@ pub fn container_name(run: &str, now_ms: u64) -> String {
     format!("cockpit-run-{clean}-{now_ms}")
 }
 
-/// Ein Ordnername für den Lauf (der Schlüssel enthält Zeichen wie `#`).
+/// A folder name for the run (the key contains characters such as `#`).
 pub fn run_dir(run: &str) -> String {
     run.chars()
         .map(|c| {
@@ -361,9 +361,9 @@ pub fn run_dir(run: &str) -> String {
         .collect()
 }
 
-// ---------- Auftrag ----------
+// ---------- Job ----------
 
-/// Der Auftrag als JSON für den Läufer (`/job/job.json`). Enthält keine Geheimnisse.
+/// The job as JSON for the runner (`/job/job.json`). Contains no secrets.
 pub fn job_json(ws: &Workspace, run: &AgentRun, mode: Mode, branch: &str) -> Value {
     let item = ws.item_by_key(&run.ticket_key);
     let comments: Vec<String> = item
@@ -381,7 +381,7 @@ pub fn job_json(ws: &Workspace, run: &AgentRun, mode: Mode, branch: &str) -> Val
     if !run.options.hint.trim().is_empty() {
         hints.push(run.options.hint.trim().to_string());
     }
-    // Hinweise, die der Nutzer während des Laufs gab, und seine Antworten, falls der Lauf neu startet.
+    // Hints that the user gave during the run, and their answers, in case the run restarts.
     let earlier: Vec<String> = run
         .messages
         .iter()
@@ -424,27 +424,27 @@ pub fn job_json(ws: &Workspace, run: &AgentRun, mode: Mode, branch: &str) -> Val
     })
 }
 
-/// Der Auftrag für die Prüfung der Erreichbarkeit.
+/// The job for the reachability check.
 pub fn check_job() -> Value {
     json!({ "mode": "check", "ticket": { "key": "-", "title": "-" } })
 }
 
-// ---------- Voraussetzungen ----------
+// ---------- Prerequisites ----------
 
-/// Was für einen echten Lauf da sein muss.
+/// What has to be there for a real run.
 pub struct Prerequisites<'a> {
     pub container: &'a ContainerStatus,
     pub image: bool,
-    /// Das Werkzeug des Agenten; nur umgesetzte laufen.
+    /// The tool of the agent; only implemented ones run.
     pub provider: Provider,
     pub model: bool,
     pub key: bool,
-    /// Das Repo, in dem der Agent arbeitet; `Err` mit der Erklärung, wenn es nicht eindeutig ist.
+    /// The repo in which the agent works; `Err` with the explanation if it is not unambiguous.
     pub repo: Result<&'a str, String>,
     pub github_access: bool,
 }
 
-/// Je fehlender Voraussetzung ein Satz in Klartext, mit dem Ort im Assistenten („Einrichten“).
+/// One sentence in plain text per missing prerequisite, with the place in the assistant ("Einrichten").
 pub fn missing(v: &Prerequisites) -> Vec<String> {
     let mut f = Vec::new();
     match (&v.container.runtime, v.container.engine_running) {
@@ -491,7 +491,7 @@ pub fn missing(v: &Prerequisites) -> Vec<String> {
     f
 }
 
-/// Das Repo des Agenten: `[agent] repo`, sonst das einzige Repo aus `[github] repos`.
+/// The repo of the agent: `[agent] repo`, otherwise the only repo from `[github] repos`.
 pub fn repo_choose<'a>(agent: Option<&'a str>, github: &'a [String]) -> Result<&'a str, String> {
     if let Some(r) = agent {
         return Ok(r);
@@ -509,7 +509,7 @@ pub fn repo_choose<'a>(agent: Option<&'a str>, github: &'a [String]) -> Result<&
     }
 }
 
-/// Der Status für `/api/health`.
+/// The status for `/api/health`.
 pub fn status(real: bool, v: &Prerequisites) -> AgentStatus {
     if !real {
         return AgentStatus {
@@ -532,23 +532,23 @@ pub fn status(real: bool, v: &Prerequisites) -> AgentStatus {
     }
 }
 
-// ---------- Aufpasser: Was ist als Nächstes zu tun? ----------
+// ---------- Watcher: what is to be done next? ----------
 
-/// Was der Aufpasser über einen laufenden Container weiß.
+/// What the watcher knows about a running container.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Info {
     pub mode: Mode,
     pub paused: bool,
-    /// Der Läufer wartet auf die Antwort des Nutzers.
+    /// The runner waits for the answer of the user.
     pub question_open: bool,
-    /// So viele der wartenden Hinweise sind schon an den Container gegangen.
+    /// This many of the waiting hints have already gone to the container.
     pub hints_sent: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Instruction {
     Start(String, Mode),
-    /// Den Container beenden, ohne den Lauf zu ändern (er wurde abgebrochen, angehalten …).
+    /// End the container without changing the run (it was cancelled, halted …).
     Stop(String),
     Pause(String),
     Resume(String),
@@ -556,8 +556,8 @@ pub enum Instruction {
     Hints(String, Vec<String>),
 }
 
-/// Vergleicht die Läufe des Workspace mit den laufenden Containern. Rein: Wer sie ausführt, ist
-/// der Betrieb. `gesperrt` sind Läufe, die gerade erst gescheitert sind (kein sofortiger Neustart).
+/// Compares the runs of the workspace with the running containers. Pure: whoever executes them is
+/// the operation. `blocked` are runs that have just failed (no immediate restart).
 pub fn plane(
     ws: &Workspace,
     running: &HashMap<String, Info>,
@@ -578,7 +578,7 @@ pub fn plane(
             (None, _) => {}
             (Some(i), state) => {
                 match state {
-                    // Der Plan-Container ist überholt (Plan liegt vor, freigegeben, abgebrochen …).
+                    // The plan container is outdated (plan is ready, approved, cancelled …).
                     RunState::AwaitingApproval if i.mode == Mode::Plan => {
                         if run.agent_plan.is_some() {
                             a.push(Instruction::Stop(key));
@@ -592,7 +592,7 @@ pub fn plane(
                         continue;
                     }
                     RunState::Running | RunState::AwaitingAnswer | RunState::Paused => {}
-                    // Abgebrochen, angehalten (Grenze), fertig, zurückgesetzt …
+                    // Cancelled, halted (limit), done, reset …
                     _ => {
                         a.push(Instruction::Stop(key));
                         continue;
@@ -622,7 +622,7 @@ pub fn plane(
             }
         }
     }
-    // Container ohne Lauf (gelöscht, zurückgesetzt): beenden.
+    // Container without a run (deleted, reset): end it.
     for key in running.keys() {
         if !ws
             .runs

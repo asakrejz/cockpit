@@ -1,4 +1,4 @@
-//! Die Sidebar, die alle Seiten außer dem Einrichten teilen.
+//! The sidebar that all pages except setup share.
 
 use cockpit_core::{Filter, team};
 use feature_ui::*;
@@ -6,7 +6,7 @@ use leptos::prelude::*;
 
 use crate::{route::Route, store::use_store};
 
-/// Navigation der App. Die Kinder bilden den mittleren, seitenabhängigen Abschnitt.
+/// Navigation of the app. The children form the middle, page-dependent section.
 #[component]
 pub fn AppSidebar(children: Children) -> impl IntoView {
     let store = use_store();
@@ -17,7 +17,7 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
             store.ws.with(|w| w.unread(filter, now)).to_string()
         })
     };
-    // Empty, solange nichts zurückgestellt ist.
+    // Empty as long as nothing is snoozed.
     let snoozed = Signal::derive(move || {
         let now = store.now.get();
         match store.ws.with(|w| w.unread(Filter::Snoozed, now)) {
@@ -39,7 +39,7 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
                 w.stopped_agents(),
             )
         });
-        // Angehaltene zählen schon als „wartet“; hier steht nur, wie viele davon eine Grenze traf.
+        // Halted ones already count as "waiting"; here is only how many of them hit a limit.
         let waiting = waiting - stopped;
         let mut parts = Vec::new();
         if running > 0 {

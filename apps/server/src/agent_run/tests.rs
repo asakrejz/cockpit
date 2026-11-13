@@ -25,7 +25,7 @@ fn lines_are_read_truncated_and_unknown_discarded() {
     assert_eq!(line_read(""), Err(Discarded::Unreadable));
     let gross = format!(r#"{{"t":"error","text":"{}"}}"#, "x".repeat(MAX_LINE));
     assert_eq!(line_read(&gross), Err(Discarded::TooLarge));
-    // Übergroße Werte werden begrenzt, nicht übernommen.
+    // Oversized values are limited, not taken over.
     let Ok(Event::Step {
         tokens_in,
         ms,
@@ -92,18 +92,18 @@ fn command_line_without_secrets_and_with_the_shared_switches() {
         assert!(text.contains(muss), "{muss} fehlt in {text}");
     }
     assert_eq!(a.last().unwrap(), IMAGE);
-    // Voll benanntes Image, kein SELinux-Zusatz, kein --user (steht im Containerfile).
+    // Fully named image, no SELinux addition, no --user (it is in the Containerfile).
     assert!(IMAGE.starts_with("localhost/"));
     assert!(
         !text.contains(":Z") && !text.contains("--user") && !text.contains("host.docker.internal")
     );
-    // Nach `-e` steht nur der Name, nie ein `=` mit Wert.
+    // After `-e` there is only the name, never a `=` with a value.
     for (i, x) in a.iter().enumerate() {
         if x == "-e" {
             assert!(!a[i + 1].contains('='), "{}", a[i + 1]);
         }
     }
-    // Die Werte gehören in die Umgebung des Kindprozesses.
+    // The values belong in the environment of the child process.
     let env = env_for_kind(
         Some("http://localhost:4000/"),
         "sk-geheim",
@@ -114,7 +114,7 @@ fn command_line_without_secrets_and_with_the_shared_switches() {
         Some("http://cockpit-host:4000".to_string())
     )));
     assert!(env.contains(&("ANTHROPIC_AUTH_TOKEN", Some("sk-geheim".to_string()))));
-    // Mit Adresse nie ein `ANTHROPIC_API_KEY` aus der Umgebung der Person.
+    // With an address never an `ANTHROPIC_API_KEY` from the person's environment.
     assert!(env.contains(&("ANTHROPIC_API_KEY", None)));
     assert!(!text.contains("sk-geheim"));
     let ro = run_args(&RunCommand {
@@ -135,7 +135,7 @@ fn direct_at_provider_gives_only_the_api_key_further() {
         assert!(env.contains(&("ANTHROPIC_AUTH_TOKEN", None)));
         assert!(env.contains(&("ANTHROPIC_MODEL", Some("claude-opus-5-5".to_string()))));
     }
-    // Jeder Name, den wir setzen oder entfernen, steht auch in der `-e`-Liste.
+    // Every name that we set or remove is also in the `-e` list.
     let names: Vec<&str> = env_for_kind(None, "k", "m")
         .iter()
         .map(|(n, _)| *n)
@@ -222,7 +222,7 @@ fn watcher_starts_plan_and_run_je_after_state() {
         plane(&ws, &HashMap::new(), &[]),
         [Instruction::Start("BAU-142".into(), Mode::Plan)]
     );
-    // Mit laufendem Plan-Container passiert nichts, bis der Plan da ist.
+    // With a running plan container nothing happens until the plan is there.
     assert!(plane(&ws, &running(Mode::Plan), &[]).is_empty());
     ws.report_agent(
         "BAU-142",
@@ -255,7 +255,7 @@ fn watcher_starts_plan_and_run_je_after_state() {
         plane(&ws, &HashMap::new(), &[]),
         [Instruction::Start("BAU-142".into(), Mode::Implement)]
     );
-    // Ein gerade gescheiterter Lauf startet nicht sofort neu.
+    // A run that has just failed does not restart immediately.
     assert!(plane(&ws, &HashMap::new(), &["BAU-142".to_string()]).is_empty());
 }
 
@@ -277,7 +277,7 @@ fn watcher_stops_at_cancel_limit_and_orphaned_containern() {
         plane(&stop, &running(Mode::Implement), &[]),
         [Instruction::Stop("BAU-142".into())]
     );
-    // Grenze erreicht: angehalten.
+    // Limit reached: halted.
     let mut limit = ws.clone();
     let mut l = limit.limits.clone();
     l.run_budget_cents = Some(1);
@@ -299,7 +299,7 @@ fn watcher_stops_at_cancel_limit_and_orphaned_containern() {
         plane(&limit, &running(Mode::Implement), &[]),
         [Instruction::Stop("BAU-142".into())]
     );
-    // Container für einen Lauf, den es nicht gibt.
+    // Container for a run that does not exist.
     let empty = demo::workspace();
     assert_eq!(
         plane(&empty, &running(Mode::Implement), &[]),
@@ -336,7 +336,7 @@ fn watcher_passes_pause_answer_and_hints_further() {
     let mut m = HashMap::from([("BAU-142".to_string(), i)]);
     assert_eq!(plane(&ws, &m, &[]), [Instruction::Resume("BAU-142".into())]);
 
-    // Frage und Antwort.
+    // Question and answer.
     ws.report_agent(
         "BAU-142",
         AgentReport::Question {
@@ -364,7 +364,7 @@ fn watcher_passes_pause_answer_and_hints_further() {
     );
     m.get_mut("BAU-142").unwrap().question_open = false;
 
-    // Hinweise gehen genau einmal raus.
+    // Hints go out exactly once.
     ws.apply(
         Action::SteerAgent {
             run: "BAU-142".into(),
@@ -466,7 +466,7 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         github_access: true,
     });
     assert!(f[0].contains("podman machine start"));
-    // Simuliert: immer bereit.
+    // Simulated: always ready.
     assert!(status(false, &v).ready);
 }
 

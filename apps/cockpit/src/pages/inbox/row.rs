@@ -1,6 +1,6 @@
 use super::*;
 
-/// Eine Zeile der Inbox.
+/// A row of the inbox.
 pub(super) fn row(store: Store, item: Item, selected: bool) -> impl IntoView {
     let id = item.id.clone();
     view! {
@@ -30,7 +30,7 @@ pub(super) fn row(store: Store, item: Item, selected: bool) -> impl IntoView {
     }
 }
 
-/// Icon am Anfang einer Zeile im Abschnitt „Entwicklung“.
+/// Icon at the start of a row in the section "Entwicklung".
 pub(super) fn row_icon(path: &'static str) -> impl IntoView {
     view! {
         <span style="display: inline-flex; flex: none; color: var(--sys-color-secondary-label)">

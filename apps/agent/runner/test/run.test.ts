@@ -4,7 +4,7 @@ import { run, planFromAnswer } from "../src/adapter/claude-agent-sdk.ts";
 import type { Run } from "../src/git.ts";
 import { assistant, job, input, resultOk, collector, sdkFake } from "./helpers.ts";
 
-/** Ein Git, das nichts ausführt und festgelegte Antworten gibt. */
+/** A Git that runs nothing and gives fixed answers. */
 function gitFake(opt: { branch?: string; status?: string } = {}) {
   const calls: string[][] = [];
   const git: Run = async (args) => {
@@ -24,7 +24,7 @@ function deps(sdk: ReturnType<typeof sdkFake>, s: ReturnType<typeof collector>, 
   return { sdk, sink: s.sink, git: g.git, input: ein, root: "/work", now: () => (t += 1000), env };
 }
 
-test("Umsetzen: Schritte mit Verbrauch, Dateien, Commit und Ergebnis", async () => {
+test("implement: steps with usage, files, commit and result", async () => {
   const sdk = sdkFake([
     assistant("m1", [{ type: "tool_use", name: "Read", input: { file_path: "/work/src/ring.rs" } }]),
     assistant("m2", [{ type: "tool_use", name: "Edit", input: { file_path: "/work/src/ring.rs" } }], { input_tokens: 300, output_tokens: 50 }),
@@ -42,12 +42,12 @@ test("Umsetzen: Schritte mit Verbrauch, Dateien, Commit und Ergebnis", async () 
   assert.equal(erg.branch, "claude/BAU-142-fokus-ring");
   assert.equal(erg.commit, "abc1234");
   assert.equal(erg.text, "Fokus-Ring ergänzt.");
-  // Commit ohne Hooks, ohne Push.
+  // Commit without hooks, without push.
   assert.ok(g.calls.some((a) => a.includes("commit") && a.includes("--no-verify")));
   assert.ok(!g.calls.some((a) => a.includes("push")));
 });
 
-test("derselbe Verbrauch einer Nachricht zählt nur einmal", async () => {
+test("the same usage of a message counts only once", async () => {
   const sdk = sdkFake([
     assistant("m1", [{ type: "tool_use", name: "Read", input: { file_path: "a" } }]),
     assistant("m1", [{ type: "tool_use", name: "Grep", input: { pattern: "x" } }]),
@@ -59,7 +59,7 @@ test("derselbe Verbrauch einer Nachricht zählt nur einmal", async () => {
   assert.equal(steps[0].tokens_in + steps[1].tokens_in, 100);
 });
 
-test("Plan: nur lesen, Plan aus dem JSON-Block", async () => {
+test("plan: read only, plan from the JSON block", async () => {
   const answer = 'Hier der Plan:\n```json\n{"summary":"Ring ergänzen","files":["src/ring.rs"],"steps":["Lesen","Ändern"]}\n```';
   const sdk = sdkFake([assistant("m1", [{ type: "text", text: answer }]), resultOk(answer)]);
   const s = collector();
@@ -71,12 +71,12 @@ test("Plan: nur lesen, Plan aus dem JSON-Block", async () => {
   assert.equal(sdk.options?.mcpServers, undefined);
 });
 
-test("Plan ohne JSON: die Antwort wird zur Zusammenfassung", () => {
+test("plan without JSON: the answer becomes the summary", () => {
   assert.deepEqual(planFromAnswer("Ich ändere den Ring."), { summary: "Ich ändere den Ring.", files: [], steps: [] });
   assert.equal(planFromAnswer("```json\n{kaputt\n```").summary.length > 0, true);
 });
 
-test("Optionen: Modell überall gesetzt, kein Anthropic-Dienst, keine Projekteinstellungen", async () => {
+test("options: model set everywhere, no Anthropic service, no project settings", async () => {
   const sdk = sdkFake([resultOk("ok")]);
   const s = collector();
   await run(job(), deps(sdk, s, gitFake({ status: " M a\0" })));
@@ -90,7 +90,7 @@ test("Optionen: Modell überall gesetzt, kein Anthropic-Dienst, keine Projektein
   assert.ok(!JSON.stringify(s.e).includes("streng-geheim"));
 });
 
-test("canUseTool lehnt Push und fremde Pfade ab", async () => {
+test("canUseTool rejects push and foreign paths", async () => {
   const sdk = sdkFake([resultOk("ok")]);
   await run(job({ rules: { forbidden_paths: ["*.lock"] } }), deps(sdk, collector(), gitFake({ status: " M a\0" })));
   const allowed = sdk.options!.canUseTool;
@@ -99,7 +99,7 @@ test("canUseTool lehnt Push und fremde Pfade ab", async () => {
   assert.equal((await allowed("Edit", { file_path: "/work/src/a.rs" })).behavior, "allow");
 });
 
-test("Fehler des Modells wird gemeldet, Exit 1", async () => {
+test("error of the model is reported, exit 1", async () => {
   const sdk = sdkFake([{ type: "result", subtype: "error_max_turns", is_error: true }]);
   const s = collector();
   assert.equal(await run(job(), deps(sdk, s)), 1);
@@ -107,7 +107,7 @@ test("Fehler des Modells wird gemeldet, Exit 1", async () => {
   assert.match((s.e.at(-1) as any).text, /error_max_turns/);
 });
 
-test("Eine Ausnahme des SDK wird zu einem Fehler in Klartext", async () => {
+test("an exception of the SDK becomes an error in plain text", async () => {
   const sdk = sdkFake([]);
   sdk.query = () => (async function* () { throw new Error("Verbindung abgewiesen"); })() as never;
   const s = collector();
@@ -115,14 +115,14 @@ test("Eine Ausnahme des SDK wird zu einem Fehler in Klartext", async () => {
   assert.match((s.e.at(-1) as any).text, /Das SDK meldet: Verbindung abgewiesen/);
 });
 
-test("Ohne Änderung kein Ergebnis", async () => {
+test("without a change no result", async () => {
   const sdk = sdkFake([resultOk("nichts zu tun")]);
   const s = collector();
   assert.equal(await run(job(), deps(sdk, s, gitFake({ status: "" }))), 1);
   assert.match((s.e.at(-1) as any).text, /nichts geändert/);
 });
 
-test("Falscher Branch im Klon: Fehler statt Commit", async () => {
+test("wrong branch in the clone: error instead of commit", async () => {
   const sdk = sdkFake([resultOk("ok")]);
   const s = collector();
   const g = gitFake({ branch: "main", status: " M a\0" });
@@ -131,7 +131,7 @@ test("Falscher Branch im Klon: Fehler statt Commit", async () => {
   assert.ok(!g.calls.some((a) => a.includes("commit")));
 });
 
-test("Rückfrage: Frage geht raus, die Antwort von stdin kommt als Werkzeugergebnis zurück", async () => {
+test("question: the question goes out, the answer from stdin comes back as the tool result", async () => {
   const sdk = sdkFake([{ type: "__frage", result: "Welchen Farbton?" }, resultOk("ok")]);
   const s = collector();
   const code = await run(job(), deps(sdk, s, gitFake({ status: " M a\0" }), input([{ t: "answer", text: "blau" }])));
@@ -141,7 +141,7 @@ test("Rückfrage: Frage geht raus, die Antwort von stdin kommt als Werkzeugergeb
   assert.deepEqual(sdk.ask, ["Welchen Farbton?"]);
 });
 
-test("Hinweis des Nutzers wird bestätigt", async () => {
+test("hint of the user is acknowledged", async () => {
   const sdk = sdkFake([assistant("m1", [{ type: "text", text: "x" }]), resultOk("ok")], async () => {
     await new Promise((r) => setTimeout(r, 30));
   });
@@ -150,7 +150,7 @@ test("Hinweis des Nutzers wird bestätigt", async () => {
   assert.ok(s.e.some((e) => e.t === "hints_arrived"));
 });
 
-test("Zeitlimit im Container bricht ab und sagt es", async () => {
+test("time limit in the container aborts and says so", async () => {
   const sdk = sdkFake([]);
   sdk.query = ({ options }) =>
     (async function* () {
@@ -163,7 +163,7 @@ test("Zeitlimit im Container bricht ab und sagt es", async () => {
   assert.match((s.e.at(-1) as any).text, /Zeitlimit/);
 });
 
-test("Ohne Modell läuft nichts los", async () => {
+test("without a model nothing starts", async () => {
   const s = collector();
   const d = deps(sdkFake([]), s);
   assert.equal(await run(job(), { ...d, env: {} }), 1);

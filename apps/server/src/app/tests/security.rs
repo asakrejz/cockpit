@@ -33,7 +33,7 @@ async fn post_with_foreign_origin_is_403_and_changes_nothing() {
     assert_eq!(status, StatusCode::FORBIDDEN);
     assert_eq!(hole(app(), "/api/workspace").await.1, before);
 
-    // Gleiche Herkunft geht.
+    // The same origin works.
     let req = request("POST", "/api/actions")
         .header("content-type", "application/json")
         .header("origin", "http://localhost:8787")
@@ -74,7 +74,7 @@ async fn foreign_peer_is_403() {
         send_request(app_without_dist(), req).await.0,
         StatusCode::FORBIDDEN
     );
-    // Ohne bekannte Gegenstelle wird abgewiesen, nicht durchgelassen.
+    // Without a known peer it is rejected, not let through.
     let req = Request::get("/api/workspace")
         .header("host", "127.0.0.1:8787")
         .body(Body::empty())

@@ -1,6 +1,6 @@
-//! Schritt 4: Modell – Werkzeug des Agenten, Endpunkt (direkt bei Anthropic, eigener Proxy wie
-//! LiteLLM oder ein anderer kompatibler Endpunkt), Key, Modellname als Drop-down aus der Liste des
-//! Endpunkts und die Verbindungstests. Die Regeln stehen in `cockpit_core::setup`.
+//! Step 4: model – tool of the agent, endpoint (directly at Anthropic, own proxy such as
+//! LiteLLM or another compatible endpoint), key, model name as a drop-down from the list of the
+//! endpoint and the connection tests. The rules are in `cockpit_core::setup`.
 
 use cockpit_core::api::{ConfigChange, EndpointInput, Provider};
 use cockpit_core::setup::{
@@ -13,7 +13,7 @@ use leptos::task::spawn_local;
 use super::fields::{Context, Feedback, Intro, KeyField, Message, Section, config_save};
 use crate::server::{self, CallError};
 
-/// Der Text im Drop-down für ein Werkzeug; die noch nicht umgesetzten stehen als „bald“ da.
+/// The text in the drop-down for a tool; those not implemented yet are shown as "bald".
 fn provider_text(a: Provider) -> String {
     if a.implemented() {
         a.label().to_string()
@@ -32,7 +32,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
     let list = RwSignal::new(Vec::<String>::new());
     let list_loads = RwSignal::new(false);
     let list_hint = RwSignal::new(None::<String>);
-    // Sobald die Person selbst etwas ändert, überschreibt der Stand vom Server ihre Eingabe nicht mehr.
+    // As soon as the person changes something themselves, the state from the server no longer overwrites their input.
     let touched = RwSignal::new(false);
     Effect::new(move |_| {
         let e = ctx.setup.get();
@@ -49,7 +49,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
     let test_running = RwSignal::new(false);
     let test_error = RwSignal::new(None::<String>);
 
-    // Das Modell, das gespeichert wird: von Hand getippt geht der Auswahl vor.
+    // The model that is saved: typed by hand goes before the selection.
     let chosen_model = move || -> Result<String, String> {
         let hand = from_hand.get_untracked();
         if hand.trim().is_empty() {
@@ -60,7 +60,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
     };
     let input = move |model: Option<String>| EndpointInput {
         provider: Some(provider.get_untracked()),
-        // Direkt bei Anthropic: keine Adresse.
+        // Directly at Anthropic: no address.
         url: Some(if art.get_untracked().needs_address() {
             url.get_untracked()
         } else {
@@ -90,8 +90,8 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
         }
         Err(m) => back.set(Some((false, m))),
     };
-    // „Modelle laden“: erst Werkzeug und Adresse speichern (der Server fragt den gespeicherten
-    // Endpunkt mit dem Key aus dem Schlüsselbund), dann die Liste holen.
+    // "Modelle laden": first save tool and address (the server asks the saved
+    // endpoint with the key from the keychain), then fetch the list.
     let laden = move |_| {
         list_loads.set(true);
         list_hint.set(None);
@@ -183,7 +183,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
             o.push((String::new(), "– Modell wählen –".into()));
         }
         o.extend(model_selection(&l, &chosen).into_iter().map(|m| {
-            // „Nicht in der Liste“ gilt nur, wenn es überhaupt eine Liste gibt.
+            // "Nicht in der Liste" only applies if there is a list at all.
             let text = if m.unknown && !l.is_empty() {
                 format!("{} (nicht in der Liste)", m.id)
             } else {

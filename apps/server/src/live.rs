@@ -1,8 +1,8 @@
-//! Der Workspace des Server-Modus: hält den Stand im Speicher, wendet Aktionen an,
-//! sichert ihn in SQLite und meldet jede Änderung an die offenen Ereignis-Verbindungen.
+//! The workspace of the server mode: holds the state in memory, applies actions,
+//! saves it in SQLite and reports every change to the open event connections.
 //!
-//! Der Server kennt die einzelnen [`Action`]-Varianten nicht. Er reicht jede Aktion an
-//! `Workspace::apply` weiter – neue Varianten im Kern laufen deshalb ohne Änderung hier.
+//! The server does not know the individual [`Action`] variants. It passes every action on to
+//! `Workspace::apply` – new variants in the core therefore work here without change.
 
 use std::sync::Mutex;
 
@@ -14,7 +14,7 @@ use tokio::sync::broadcast;
 use crate::config::Seed;
 use crate::db;
 
-/// So viele Ereignisse puffert eine langsame Verbindung, bevor sie neu laden muss.
+/// This many events a slow connection buffers before it has to reload.
 const PUFFER: usize = 64;
 
 pub struct Live {
@@ -27,24 +27,24 @@ struct Snapshot {
     revision: u64,
 }
 
-/// Warum eine Aktion nicht angewendet wurde.
+/// Why an action was not applied.
 #[derive(Debug)]
 pub enum Error {
-    /// Die Regeln des Workspace lehnen sie ab (der Stand bleibt unverändert).
+    /// The rules of the workspace reject it (the state stays unchanged).
     Action(ActionError),
-    /// Der neue Stand ließ sich nicht sichern. Dann wird er auch nicht übernommen.
+    /// The new state could not be saved. Then it is not taken over either.
     Save(String),
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    // Ein abgestürzter Handler soll nicht alle weiteren lahmlegen.
+    // A crashed handler should not paralyze all others.
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 impl Live {
-    /// Lädt den gespeicherten Stand; ohne (oder bei unlesbarem) Stand beginnt der Server mit
-    /// dem Seed: standardmäßig ein leerer Workspace, mit `Seed::Demo` die Beispieldaten.
-    /// Ein gespeicherter Stand geht dem Seed immer vor.
+    /// Loads the stored state; without (or with an unreadable) state the server starts with
+    /// the seed: by default an empty workspace, with `Seed::Demo` the sample data.
+    /// A stored state always goes before the seed.
     pub fn laden(conn: &Connection, seed: Seed) -> Self {
         let start = || match seed {
             Seed::Empty => Workspace::default(),
@@ -70,13 +70,13 @@ impl Live {
         }
     }
 
-    /// Der aktuelle Stand als JSON (Form von `persist`, plus `revision`).
+    /// The current state as JSON (shape of `persist`, plus `revision`).
     pub fn snapshot(&self) -> String {
         let snapshot = lock(&self.snapshot);
         persist::save_with_revision(&snapshot.ws, snapshot.revision)
     }
 
-    /// Eine Kopie des aktuellen Stands (für Proben und den Abgleich).
+    /// A copy of the current state (for probes and the sync).
     pub fn copy(&self) -> Workspace {
         lock(&self.snapshot).ws.clone()
     }
@@ -85,13 +85,13 @@ impl Live {
         lock(&self.snapshot).revision
     }
 
-    /// Ersetzt den Stand (nur für Tests, die Daten brauchen, die keine Aktion herstellt).
+    /// Replaces the state (for tests only that need data that no action produces).
     #[cfg(test)]
     pub fn set_state_for_test(&self, ws: Workspace) {
         lock(&self.snapshot).ws = ws;
     }
 
-    /// Wendet eine Aktion an, sichert den neuen Stand und meldet ihn. Blockierend (SQLite).
+    /// Applies an action, saves the new state and reports it. Blocking (SQLite).
     pub fn apply(
         &self,
         db: &Mutex<Connection>,
@@ -100,7 +100,7 @@ impl Live {
         at_ms: u64,
     ) -> Result<ActionResponse, Error> {
         let mut snapshot = lock(&self.snapshot);
-        // Auf einer Kopie arbeiten: Scheitert die Regel oder das Sichern, bleibt alles wie es war.
+        // Work on a copy: if the rule or the saving fails, everything stays as it was.
         let mut updated = snapshot.ws.clone();
         let applied = updated.apply(action, actor, at_ms).map_err(Error::Action)?;
         let revision = snapshot.revision + 1;
@@ -111,7 +111,7 @@ impl Live {
         let entries = updated.log[updated.log.len() - added..].to_vec();
         snapshot.ws = updated;
         snapshot.revision = revision;
-        // Niemand verbunden ist kein Fehler.
+        // Nobody connected is no error.
         let _ = self.tx.send(ServerEvent { revision, entries });
         Ok(ActionResponse {
             revision,
@@ -120,11 +120,11 @@ impl Live {
         })
     }
 
-    /// Der Takt: Jeder simulierte Agent (nur mit `agenten_simulieren`; echte Läufe melden sich selbst)
-    /// und jeder neu gestartete Check macht einen Schritt,
-    /// und abgelaufene Zurückstellungen kommen zurück in die Inbox, Pull Requests mit Ticket-Schlüssel
-    /// in Branch oder Titel werden verknüpft, und der Status verknüpfter Tickets folgt dem Pull Request. Ist nichts zu tun, passiert nichts
-    /// (und es gibt keine Revision).
+    /// The tick: every simulated agent (only with `simulate_agents`; real runs report themselves)
+    /// and every newly started check takes a step,
+    /// and expired snoozes come back to the inbox, pull requests with a ticket key
+    /// in branch or title are linked, and the status of linked tickets follows the pull request. If there is nothing to do, nothing happens
+    /// (and there is no revision).
     pub fn takt(&self, db: &Mutex<Connection>, at_ms: u64, agents_simulate: bool) {
         let (agents, checks, wake, link, status) = {
             let snapshot = lock(&self.snapshot);
@@ -160,9 +160,9 @@ impl Live {
         }
     }
 
-    /// Meldet an: der Empfänger für kommende Ereignisse und das erste Ereignis mit der
-    /// aktuellen Revision (ohne Einträge). Beides unter derselben Sperre, damit keine
-    /// Änderung dazwischen verloren geht.
+    /// Subscribes: the receiver for coming events and the first event with the
+    /// current revision (without entries). Both under the same lock so that no
+    /// change gets lost in between.
     pub fn subscribe(&self) -> (broadcast::Receiver<ServerEvent>, ServerEvent) {
         let snapshot = lock(&self.snapshot);
         let rx = self.tx.subscribe();

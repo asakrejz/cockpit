@@ -11,7 +11,7 @@ export function job(part: Record<string, unknown> = {}): Job {
   });
 }
 
-/** Ein SDK, das vorbereitete Nachrichten liefert. Es ruft nichts auf. */
+/** An SDK that delivers prepared messages. It calls nothing. */
 export function sdkFake(messages: SdkMessage[], checker?: (o: QueryOptions, prompt: unknown[]) => Promise<void> | void): Sdk & { options?: QueryOptions; ask: string[] } {
   const s: Sdk & { options?: QueryOptions; ask: string[]; questionFn?: (t: string, v: string[]) => Promise<string> } = {
     ask: [],

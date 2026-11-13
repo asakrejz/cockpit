@@ -1,6 +1,6 @@
 use super::*;
 
-// ---------- reine Teile ----------
+// ---------- pure parts ----------
 
 #[test]
 fn container_timeout() {

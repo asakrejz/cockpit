@@ -14,7 +14,7 @@ async fn check_out_the_container_names_vpn_when_only_the_mac_the_proxy_reached()
         .mount(&proxy)
         .await;
     let w = welt(true);
-    // Der Proxy des Tests liegt auf dem Mac; der „Container“ erreicht ihn nicht.
+    // The proxy of the test is on the Mac; the "container" does not reach it.
     let e = Settings {
         agent: AgentChoice {
             provider: Provider::ClaudeAgentSdk,
@@ -52,7 +52,7 @@ exit 1
     let z = calls.lines().find(|z| z.starts_with("run ")).unwrap();
     assert!(z.contains("--rm") && z.contains(":ro"), "{z}");
     assert!(!calls.contains(TOKEN));
-    // Läuft er auch im Container, ist alles gut.
+    // If it also works in the container, everything is fine.
     w.write(
         "scenario-plan.sh",
         "printf '%s\\n' '{\"t\":\"check\",\"reachable\":true,\"key_ok\":true,\"hint\":\"ok\"}'\nexit 0\n",

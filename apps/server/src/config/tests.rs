@@ -89,7 +89,7 @@ fn errors_are_understandable() {
         Config::parse(Some("port = "), no_env),
         Err(ConfigError::Toml(_))
     ));
-    // Tippfehler in der Datei fallen auf, statt still ignoriert zu werden.
+    // Typos in the file stand out instead of being silently ignored.
     assert!(matches!(
         Config::parse(Some("prot = 1"), no_env),
         Err(ConfigError::Toml(_))
@@ -98,7 +98,7 @@ fn errors_are_understandable() {
         Config::parse(Some("port = 0"), no_env),
         Err(ConfigError::Wert(_))
     ));
-    // Jira braucht Adresse und E-Mail.
+    // Jira needs address and email.
     assert!(Config::parse(Some("[jira]\nsite = \"https://x\""), no_env).is_err());
 }
 
@@ -118,11 +118,11 @@ fn oauth_sections() {
         (a.client_id.as_str(), a.site.as_deref()),
         ("atl123", Some("firma"))
     );
-    // [atlassian] allein richtet Jira ein, ohne site und email.
+    // [atlassian] alone sets up Jira, without site and email.
     let j = c.jira.unwrap();
     assert!(j.site.is_empty() && j.email.is_empty() && j.projects.is_empty());
 
-    // Projekte bleiben einstellbar.
+    // Projects stay configurable.
     let toml = "[atlassian]\nclient_id = \"a\"\n[jira]\nprojects = [\"BAU\"]";
     assert_eq!(
         Config::parse(Some(toml), no_env)
@@ -141,7 +141,7 @@ fn oauth_sections() {
             Err(ConfigError::Wert(_))
         ));
     }
-    // Tippfehler im Abschnitt fallen auf (Secrets gehören nicht in die Datei).
+    // Typos in the section stand out (secrets do not belong in the file).
     assert!(matches!(
         Config::parse(
             Some("[atlassian]\nclient_id = \"a\"\nclient_secret = \"x\""),
@@ -197,7 +197,7 @@ fn repo_and_dir_the_agents() {
             "{broken}"
         );
     }
-    // Ohne Angabe nichts.
+    // Nothing without a value.
     let c = Config::parse(None, no_env).unwrap();
     assert_eq!((c.agent_repo, c.agent_dir, c.git_base), (None, None, None));
 }
@@ -241,7 +241,7 @@ fn endpoint_and_container() {
             "{broken}"
         );
     }
-    // Der Key gehört nicht in die Datei.
+    // The key does not belong in the file.
     for with_key in [
         "[agent.endpoint]\nurl = \"http://x\"\nkey = \"abc\"",
         "[litellm]\nurl = \"http://x\"\nkey = \"abc\"",
@@ -262,7 +262,7 @@ fn direct_at_provider_has_no_address() {
     .unwrap();
     let e = c.endpoint.unwrap();
     assert_eq!((e.url, e.model.as_deref()), (None, Some("claude-opus-5-5")));
-    // Leere Adresse = direkt; ganz leerer Abschnitt = nicht eingerichtet.
+    // Empty address = direct; a completely empty section = not set up.
     let c = Config::parse(Some("[agent.endpoint]\nurl = \"\"\nmodel = \"m\""), no_env).unwrap();
     assert_eq!(c.endpoint.unwrap().url, None);
     assert_eq!(

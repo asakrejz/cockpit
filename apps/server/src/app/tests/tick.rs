@@ -6,7 +6,7 @@ use super::*;
 async fn takt_lets_the_agents_work_as_agent() {
     let state = state(Arc::new(MemoryStore::new()));
     let app = || router(state.clone(), PathBuf::from("/x"));
-    // Ohne laufenden Agenten ändert der Takt nichts.
+    // Without a running agent the tick changes nothing.
     let s = state.clone();
     tokio::task::spawn_blocking(move || s.takt()).await.unwrap();
     assert_eq!(state.inner.live.revision(), 0);
@@ -45,7 +45,7 @@ async fn takt_lets_the_agents_work_as_agent() {
 async fn takt_linked_pull_requests_and_leads_the_status_after() {
     let state = state(Arc::new(MemoryStore::new()));
     let app = || router(state.clone(), PathBuf::from("/x"));
-    // Der Branch von #85 nennt BAU-150: Der Takt verknüpft ihn (als System).
+    // The branch of #85 names BAU-150: the tick links it (as system).
     let mut ws = cockpit_core::demo::workspace();
     ws.reviews
         .iter_mut()
@@ -63,7 +63,7 @@ async fn takt_linked_pull_requests_and_leads_the_status_after() {
     );
     assert!(ws.log.iter().all(|e| e.actor == Actor::System));
     assert!(ws.log.len() >= 2, "Verknüpfung und Status: {:?}", ws.log);
-    // Beim zweiten Takt gibt es nichts mehr zu tun.
+    // On the second tick there is nothing left to do.
     let before = state.inner.live.revision();
     let s = state.clone();
     tokio::task::spawn_blocking(move || s.takt()).await.unwrap();
@@ -92,12 +92,12 @@ async fn takt_drives_follow_up_jobs_until_to_diagnose() {
     let run = ws.run("check-85-lint").unwrap();
     assert!(run.is_diagnosed(), "wartet auf deine Entscheidung");
     assert!(run.diagnosis.is_some());
-    // Danach ruht der Takt, bis du den Fix übernimmst.
+    // After that the tick rests until you adopt the fix.
     let before = state.inner.live.revision();
     let s = state.clone();
     tokio::task::spawn_blocking(move || s.takt()).await.unwrap();
     assert_eq!(state.inner.live.revision(), before);
-    // Auch jetzt lässt sich nichts mergen: #85 hat rote Checks.
+    // Even now nothing can be merged: #85 has red checks.
     let merge = serde_json::to_string(&ActionRequest {
         action: cockpit_core::Action::MergePr {
             review: 85,
@@ -126,13 +126,13 @@ async fn tick_brings_snoozed_entries_back() {
     assert_eq!(status, StatusCode::OK, "{body}");
     let before = state.inner.live.revision();
 
-    // Vor Ablauf tut der Takt nichts …
+    // Before it expires the tick does nothing …
     let s = state.clone();
     tokio::task::spawn_blocking(move || s.inner.live.takt(&s.inner.db, bis - 1, true))
         .await
         .unwrap();
     assert_eq!(state.inner.live.revision(), before);
-    // … danach ist der Eintrag zurück, protokolliert als System.
+    // … afterwards the entry is back, logged as system.
     let s = state.clone();
     tokio::task::spawn_blocking(move || s.inner.live.takt(&s.inner.db, bis + 1, true))
         .await

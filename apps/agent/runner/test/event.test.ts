@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MAX_TEXT, stdoutSink, line } from "../src/event.ts";
 
-test("eine Zeile enthält keinen Zeilenumbruch und ist gültiges JSON", () => {
+test("a line contains no line break and is valid JSON", () => {
   const z = line({ t: "error", text: "a\nb\r\nc" });
   assert.ok(!z.includes("\n"));
   assert.deepEqual(JSON.parse(z), { t: "error", text: "a\nb\r\nc" });
 });
 
-test("lange Texte und Listen werden gekürzt, damit die Zeile klein bleibt", () => {
+test("long texts and lists are truncated so that the line stays small", () => {
   const z = line({ t: "plan", summary: "x".repeat(10_000), files: Array.from({ length: 500 }, (_, i) => `f${i}`), steps: [] });
   const j = JSON.parse(z);
   assert.equal(j.summary.length, MAX_TEXT);
@@ -16,7 +16,7 @@ test("lange Texte und Listen werden gekürzt, damit die Zeile klein bleibt", () 
   assert.ok(z.length < 64 * 1024);
 });
 
-test("die Senke schreibt genau eine Zeile je Ereignis", () => {
+test("the sink writes exactly one line per event", () => {
   const out: string[] = [];
   const sink = stdoutSink((s) => out.push(s));
   sink({ t: "hints_arrived" });

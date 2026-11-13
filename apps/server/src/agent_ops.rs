@@ -1,10 +1,10 @@
-//! Der echte Agent, ausführender Teil: Image bauen, Container starten und überwachen, Ereignisse
-//! anwenden, aufräumen. Entscheidungen fallen in `cockpit-core` (Aktionen, Grenzen, Regeln) und in
-//! `agent_lauf` (rein); hier laufen nur die Prozesse.
+//! The real agent, executing part: build the image, start and watch containers, apply
+//! events, clean up. Decisions are made in `cockpit-core` (actions, limits, rules) and in
+//! `agent_run` (pure); here only the processes run.
 //!
-//! Ein Lauf ist ein Container, gestartet mit `docker run` bzw. `podman run` (siehe `agent_lauf`).
-//! Das Backend liest dessen stdout zeilenweise, verwirft Unbrauchbares und wendet den Rest als
-//! `Action::ReportAgent` (Urheber Agent) an. Stoppen heißt `rm -f` auf den Container.
+//! A run is a container started with `docker run` or `podman run` (see `agent_run`).
+//! The backend reads its stdout line by line, discards what is unusable and applies the rest as
+//! `Action::ReportAgent` (author agent). Stopping means `rm -f` on the container.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::OsString;
@@ -30,34 +30,34 @@ use crate::config::Seed;
 use crate::container;
 use crate::live::Error;
 
-/// So oft vergleicht der Aufpasser Läufe und Container.
+/// This often the watcher compares runs and containers.
 pub const WATCHER_TAKT: Duration = Duration::from_secs(1);
-/// So lange gilt „Image vorhanden?“ ohne neue Frage.
+/// This long "image present?" applies without a new question.
 const IMAGE_VALID: Duration = Duration::from_secs(5);
-/// Nach einem Fehler startet der Aufpasser denselben Lauf so lange nicht neu.
+/// After an error the watcher does not restart the same run for this long.
 const LOCK_AFTER_ERROR: Duration = Duration::from_secs(30);
-/// Zeit über das Limit des Laufs hinaus, bevor das Backend den Container selbst beendet.
+/// Time beyond the limit of the run before the backend ends the container itself.
 const GRACE_S: u64 = 120;
-/// Ohne Limit gilt diese Obergrenze für einen Lauf.
+/// Without a limit this upper bound applies for a run.
 const DEFAULT_MAX_S: u64 = 2 * 60 * 60;
-/// So lange darf ein arbeitender Container nichts von sich hören lassen.
+/// This long a working container may not let hear anything from itself.
 const QUIET_LIMIT_S: u64 = 15 * 60;
-/// Dauer der Erreichbarkeitsprüfung im Container.
+/// Duration of the reachability check in the container.
 const CHECK_TIME: Duration = Duration::from_secs(60);
 const MAX_BUILD_LINES: usize = 200;
 
-/// So lange darf der Container höchstens laufen: das Zeitlimit des Laufs (samt Erhöhung) plus
-/// etwas Spielraum, damit zuerst die Grenze in `cockpit-core` greift. Ohne Limit gilt eine Obergrenze.
+/// This long the container may run at most: the time limit of the run (including the raise) plus
+/// some leeway so that the limit in `cockpit-core` takes effect first. Without a limit an upper bound applies.
 pub fn allowed_seconds(run_minutes: Option<u32>, extra_minutes: u64) -> u64 {
     run_minutes.map_or(DEFAULT_MAX_S, |m| {
         (u64::from(m) + extra_minutes).saturating_mul(60)
     }) + GRACE_S
 }
 
-/// Befehle an die Aufgabe eines Laufs.
+/// Commands to the task of a run.
 #[derive(Debug)]
 pub enum RunControl {
-    /// Container beenden, den Lauf nicht anfassen.
+    /// End the container, do not touch the run.
     Stop,
     Pause,
     Resume,
@@ -70,7 +70,7 @@ struct Handle {
     tx: mpsc::UnboundedSender<RunControl>,
 }
 
-/// Zustand des Agenten im Server.
+/// State of the agent in the server.
 #[derive(Default)]
 pub struct Runs {
     running: Mutex<HashMap<String, Handle>>,
@@ -83,10 +83,10 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Alles, was ein Lauf an Zugang braucht (aus Einstellungen und Schlüsselbund).
+/// Everything a run needs in terms of access (from settings and keychain).
 struct Access {
     cli: PathBuf,
-    /// `None` = direkt beim Anbieter.
+    /// `None` = directly at the provider.
     endpoint_url: Option<String>,
     key: Secret,
     model: String,
@@ -96,14 +96,14 @@ struct Access {
 }
 
 enum End {
-    /// Beendet, ohne den Lauf zu ändern (abgebrochen, angehalten).
+    /// Ended without changing the run (cancelled, halted).
     Quiet,
     Error(String),
     Done(String),
 }
 
 impl AppState {
-    /// Läuft der echte Agent (Container) oder die Simulation (Seed `demo`, Tests)?
+    /// Does the real agent (container) run or the simulation (seed `demo`, tests)?
     pub(crate) fn agent_real(&self) -> bool {
         self.inner.settings.seed != Seed::Demo
     }
@@ -117,7 +117,7 @@ impl AppState {
             .unwrap_or_default()
     }
 
-    /// Die Container-Laufzeit, kurz gemerkt. Blockierend.
+    /// The container runtime, remembered briefly. Blocking.
     pub(crate) fn container_status(&self) -> ContainerStatus {
         let e = &self.inner.settings;
         let path = self.search_path();
@@ -130,7 +130,7 @@ impl AppState {
         container::in_path(status.runtime.as_deref()?, &self.search_path())
     }
 
-    /// Gibt es das Agent-Image? (`image inspect`, kurz gemerkt). Blockierend.
+    /// Is there the agent image? (`image inspect`, remembered briefly). Blocking.
     fn image_present(&self, cli: &Path) -> bool {
         let mut c = lock(&self.inner.agent.image);
         if let Some((t, v)) = *c
@@ -153,7 +153,7 @@ impl AppState {
         *lock(&self.inner.agent.image) = None;
     }
 
-    /// Der Key des Endpunkts: `agent-key`, ersatzweise das ältere `litellm`.
+    /// The key of the endpoint: `agent-key`, alternatively the older `litellm`.
     fn agent_key(&self) -> Option<Secret> {
         match crate::app::agent_key_read(self.inner.secrets.as_ref()) {
             Ok(k) => k.filter(|s| !s.is_empty()),
@@ -175,7 +175,7 @@ impl AppState {
             .map(str::to_string)
     }
 
-    /// Der Stand des Agenten für `/api/health`. Blockierend.
+    /// The state of the agent for `/api/health`. Blocking.
     pub(crate) fn agent_status(&self) -> AgentStatus {
         let container = self.container_status();
         let image = self
@@ -196,7 +196,7 @@ impl AppState {
         agent_run::status(self.agent_real(), &v)
     }
 
-    /// Alles für einen Lauf, oder die Liste dessen, was fehlt. Blockierend.
+    /// Everything for a run, or the list of what is missing. Blocking.
     fn access(&self) -> Result<Access, Vec<String>> {
         let st = self.agent_status();
         if !st.ready {
@@ -249,7 +249,7 @@ impl AppState {
             .join("agent")
     }
 
-    /// Der Ordner mit `Containerfile` und Läufer.
+    /// The folder with `Containerfile` and runner.
     fn agent_source(&self) -> PathBuf {
         self.inner
             .settings
@@ -258,8 +258,8 @@ impl AppState {
             .unwrap_or_else(|| PathBuf::from("apps/agent"))
     }
 
-    /// Ablehnungen vor dem Anwenden einer Aktion im echten Modus: Läufe starten nur, wenn alles
-    /// eingerichtet ist, und Folgeaufträge gibt es noch nicht. `None`, wenn nichts dagegen spricht.
+    /// Rejections before applying an action in real mode: runs only start when everything
+    /// is set up, and follow-up jobs do not exist yet. `None` if nothing speaks against it.
     /// Blockierend.
     pub(crate) fn agent_lock(&self, action: &Action) -> Option<String> {
         if !self.agent_real() {
@@ -295,9 +295,9 @@ impl AppState {
         }
     }
 
-    // ---------- Meldungen anwenden ----------
+    // ---------- Applying messages ----------
 
-    /// Wendet eine Meldung des Agenten an. Blockierend.
+    /// Applies a message of the agent. Blocking.
     fn report_blocking(&self, key: &str, report: AgentReport) -> Result<(), Error> {
         self.inner
             .live

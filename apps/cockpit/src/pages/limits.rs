@@ -1,6 +1,6 @@
-//! Einstellungen für die Agenten: Preise und Grenzen (Budget, Zeitlimit, parallele Läufe),
-//! dazu die Regeln pro Repo. Gespeichert wird im Workspace über Aktionen (`SetAgentLimits`,
-//! `SetRepoRules`); was gilt und wie geprüft wird, steht in `cockpit_core::usage` und `::rules`.
+//! Settings for the agents: prices and limits (budget, time limit, parallel runs),
+//! plus the rules per repo. Saved in the workspace through actions (`SetAgentLimits`,
+//! `SetRepoRules`); what applies and how it is checked is in `cockpit_core::usage` and `::rules`.
 
 use cockpit_core::{
     Action, AgentLimits, RepoRules,
@@ -11,14 +11,14 @@ use leptos::prelude::*;
 
 use crate::{sidebar::AppSidebar, store::use_store};
 
-/// Text eines Geldbetrags für ein Eingabefeld: `5,00`, leer = keine Grenze.
+/// Text of an amount of money for an input field: `5,00`, empty = no limit.
 fn money_text(cents: Option<u64>) -> String {
     cents
         .map(|c| format_euro(c).replace(" €", ""))
         .unwrap_or_default()
 }
 
-/// Empty = keine Grenze; sonst ein Betrag in Euro. `None` bei Unsinn.
+/// Empty = no limit; otherwise an amount in euro. `None` for nonsense.
 fn parse_optional_euro(text: &str) -> Option<Option<u64>> {
     if text.trim().is_empty() {
         Some(None)
@@ -48,12 +48,12 @@ fn bad_minutes(t: &str) -> bool {
     parse_optional_minutes(t).is_none() || t.trim() == "0"
 }
 
-/// Eine Zeile pro Eintrag.
+/// One row per entry.
 fn lines(text: &str) -> Vec<String> {
     text.lines().map(str::to_string).collect()
 }
 
-/// Verbrauch heute und in diesem Monat, mit den Grenzen daneben.
+/// Usage today and this month, with the limits next to it.
 #[component]
 fn Spend() -> impl IntoView {
     let store = use_store();
@@ -85,7 +85,7 @@ fn Spend() -> impl IntoView {
     }
 }
 
-/// Preise und Grenzen. Gespeichert wird mit dem Knopf; ungültige Eingaben werden rot markiert.
+/// Prices and limits. Saved with the button; invalid input is marked red.
 #[component]
 fn Limits() -> impl IntoView {
     let store = use_store();
@@ -188,7 +188,7 @@ fn Limits() -> impl IntoView {
     }
 }
 
-/// Regeln eines Repos: Pfade, Pflicht-Tests, Anweisungen, Plan-Freigabe.
+/// Rules of a repo: paths, required tests, instructions, plan approval.
 #[component]
 fn Rules(repo: String) -> impl IntoView {
     let store = use_store();

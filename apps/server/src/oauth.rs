@@ -1,9 +1,9 @@
-//! Anmeldung per OAuth im Backend: Weiterleitung, Callback, Auffrischen, Widerruf.
+//! Sign-in via OAuth in the backend: redirect, callback, refresh, revoke.
 //!
-//! Die Regeln (PKCE, `state`, Austausch, Site-Wahl) stehen in `cockpit_integrations::oauth`;
-//! hier läuft der Ablauf mit Schlüsselbund und Datenbank. Client-Secret und Tokens liegen nur im
-//! Schlüsselbund, nie in der Datenbank, nie im Log, nie im Browser. Der Browser sieht nur
-//! Weiterleitungen und Meldungen.
+//! The rules (PKCE, `state`, exchange, site choice) are in `cockpit_integrations::oauth`;
+//! here the course runs with keychain and database. Client secret and tokens only lie in the
+//! keychain, never in the database, never in the log, never in the browser. The browser only sees
+//! redirects and messages.
 
 use std::collections::HashMap;
 
@@ -44,7 +44,7 @@ fn command(d: Service) -> String {
     format!("cockpit-server token setzen {}", secret_name(d))
 }
 
-/// Die Callback-Adresse, wie sie in der App des Dienstes eingetragen ist. GitHub: `127.0.0.1`,
+/// The callback address as it is entered in the app of the service. GitHub: `127.0.0.1`,
 /// Atlassian: `localhost`.
 pub fn redirect_uri(d: Service, port: u16) -> String {
     let host = match d {
@@ -58,7 +58,7 @@ fn now_s() -> u64 {
     now_ms() / 1000
 }
 
-/// Eine Meldung für die Oberfläche; enthält nie einen Schlüssel.
+/// A message for the interface; never contains a key.
 fn service_error(d: Service, f: &Error) -> String {
     match f {
         Error::NotSignedIn => format!(
@@ -70,7 +70,7 @@ fn service_error(d: Service, f: &Error) -> String {
     }
 }
 
-/// Prozentkodierung für Teile einer Adresse.
+/// Percent encoding for parts of an address.
 fn encoded(text: &str) -> String {
     let mut out = String::new();
     for b in text.bytes() {
@@ -92,7 +92,7 @@ impl AppState {
         }
     }
 
-    /// Das Client-Secret aus dem Schlüsselbund. Blockierend.
+    /// The client secret from the keychain. Blocking.
     fn oauth_client_secret(&self, d: Service) -> Option<Secret> {
         match self.inner.secrets.get(secret_name(d)) {
             Ok(s) => s.filter(|s| !s.is_empty()),
@@ -103,7 +103,7 @@ impl AppState {
         }
     }
 
-    /// Die Tokens aus dem Schlüsselbund. Unlesbares zählt als fehlend. Blockierend.
+    /// The tokens from the keychain. Unreadable counts as missing. Blocking.
     pub(crate) fn oauth_tokens(&self, d: Service) -> Option<Tokens> {
         match self.inner.secrets.get(tokens_name(d)) {
             Ok(Some(t)) => {
@@ -143,7 +143,7 @@ impl AppState {
         }
     }
 
-    /// Die gewählte Atlassian-Site: `(cloudId, Name)`. Blockierend.
+    /// The chosen Atlassian site: `(cloudId, name)`. Blocking.
     pub(crate) fn atlassian_site(&self) -> Option<(String, String)> {
         let conn = self.inner.db.lock().ok()?;
         let id = db::setting(&conn, SITE_ID).ok()??;
@@ -154,7 +154,7 @@ impl AppState {
         Some((id, name))
     }
 
-    /// Ein Jira-Client mit OAuth, falls angemeldet und eine Site gewählt ist. Blockierend.
+    /// A Jira client with OAuth if signed in and a site is chosen. Blocking.
     pub(crate) fn jira_oauth_client(&self) -> Option<Result<JiraClient, Error>> {
         let tokens = self.oauth_tokens(Service::Atlassian)?;
         let (id, _) = self.atlassian_site()?;
@@ -164,7 +164,7 @@ impl AppState {
         )
     }
 
-    /// Verbindungsstatus eines Dienstes für `/api/health`. Blockierend.
+    /// Connection status of a service for `/api/health`. Blocking.
     pub(crate) fn service_status(&self, d: Service, token_present: bool) -> ServiceStatus {
         let oauth_possible =
             self.oauth_config_id(d).is_some() && self.oauth_client_secret(d).is_some();
@@ -190,7 +190,7 @@ impl AppState {
 
     // ───────────── Ablauf ─────────────
 
-    /// Beginnt eine Anmeldung und liefert die Adresse des Dienstes.
+    /// Begins a sign-in and returns the address of the service.
     pub async fn oauth_start(&self, d: Service) -> Result<String, String> {
         let Some(client_id) = self.oauth_config_id(d) else {
             return Err(format!(
@@ -225,7 +225,7 @@ impl AppState {
             .map_err(|e| e.to_string())
     }
 
-    /// Verarbeitet den Callback. `Ok`: eine Erfolgsmeldung, `Err`: eine verständliche Meldung.
+    /// Processes the callback. `Ok`: a success message, `Err`: an understandable message.
     pub async fn oauth_callback(
         &self,
         d: Service,
@@ -233,7 +233,7 @@ impl AppState {
     ) -> Result<String, String> {
         let get = |k: &str| q.get(k).map(String::as_str).filter(|v| !v.is_empty());
         let state = get("state");
-        // Der Nutzer hat abgelehnt oder der Dienst meldet einen Fehler: `state` verbrauchen.
+        // The user declined or the service reports an error: consume `state`.
         if let Some(error) = get("error") {
             if let (Some(st), Ok(mut a)) = (state, self.inner.sign_ins.lock()) {
                 let _ = a.extract(st, d, now_ms());
@@ -288,7 +288,7 @@ impl AppState {
                 service_error(d, &f)
             })?;
 
-        // Atlassian: erst die Site, dann wird gespeichert – kein halber Zustand.
+        // Atlassian: first the site, then it is saved – no half state.
         let site: Option<Site> = if d == Service::Atlassian {
             let wanted = sources.atlassian.as_ref().and_then(|a| a.site.clone());
             let list = oauth::sites(e, &tokens.access).await.map_err(|f| {
@@ -326,7 +326,7 @@ impl AppState {
         .map_err(|_| "Interner Fehler".to_string())??;
         tracing::info!("{}: angemeldet", d.id());
 
-        // Gleich abgleichen; das Ergebnis kommt über den Ereignisstrom.
+        // Sync right away; the result comes through the event stream.
         let s = self.clone();
         tokio::spawn(async move {
             if let Err(e) = s.sync().await {
@@ -339,8 +339,8 @@ impl AppState {
         })
     }
 
-    /// Trennt den Dienst: ruft, wo es das gibt, den Widerruf beim Dienst auf und löscht die Tokens
-    /// im Schlüsselbund. Gelöscht wird immer – auch wenn der Dienst nicht antwortet.
+    /// Disconnects the service: calls, where it exists, the revocation at the service and deletes the tokens
+    /// in the keychain. Deleting always happens – even if the service does not answer.
     pub async fn oauth_revoke(&self, d: Service) -> Result<RevokeResponse, String> {
         let s = self.clone();
         let (tokens, secret) =
@@ -388,9 +388,9 @@ impl AppState {
         Ok(answer)
     }
 
-    /// Frischt Tokens auf, die bald ablaufen. Scheitert das, weil der Dienst das Refresh-Token
-    /// nicht mehr gelten lässt, werden die Tokens gelöscht: Der Dienst gilt als getrennt.
-    /// Netzwerkfehler und Störungen des Dienstes lassen alles, wie es ist.
+    /// Refreshes tokens that expire soon. If that fails because the service no longer accepts the refresh token,
+    /// the tokens are deleted: the service counts as disconnected.
+    /// Network errors and outages of the service leave everything as it is.
     pub async fn oauth_refresh(&self) {
         for d in [Service::GitHub, Service::Atlassian] {
             if self.oauth_config_id(d).is_some() {
@@ -400,8 +400,8 @@ impl AppState {
     }
 
     async fn oauth_refresh_for(&self, d: Service) {
-        // Atlassian dreht das Refresh-Token: Zwei Auffrischungen gleichzeitig würden sich
-        // gegenseitig ungültig machen.
+        // Atlassian rotates the refresh token: two refreshes at the same time would invalidate
+        // each other.
         let _lock = self.inner.refresh.lock().await;
         let s = self.clone();
         let Ok((Some(tokens), secret)) =
@@ -448,7 +448,7 @@ impl AppState {
     }
 }
 
-// ───────────── Routen ─────────────
+// ───────────── Routes ─────────────
 
 fn parse_service(id: &str) -> Result<Service, ()> {
     Service::from_id(id).ok_or(())
@@ -464,8 +464,8 @@ fn unknown_service() -> Response {
         .into_response()
 }
 
-/// Zurück in die App – über die Adresse `127.0.0.1`, damit der gespeicherte Modus des Browsers
-/// gilt, auch wenn der Dienst auf `localhost` zurückgeleitet hat.
+/// Back into the app – via the address `127.0.0.1` so that the stored mode of the browser
+/// applies, even if the service redirected to `localhost`.
 fn back(port: u16, d: Service, result: &Result<String, String>) -> Redirect {
     let base = format!("http://127.0.0.1:{port}/");
     let target = match result {
@@ -483,7 +483,7 @@ fn back(port: u16, d: Service, result: &Result<String, String>) -> Redirect {
     Redirect::to(&target)
 }
 
-/// `GET /api/oauth/{dienst}/start`: leitet zur Anmeldung des Dienstes weiter.
+/// `GET /api/oauth/{service}/start`: redirects to the sign-in of the service.
 pub async fn start(State(state): State<AppState>, Path(service): Path<String>) -> Response {
     let Ok(d) = parse_service(&service) else {
         return unknown_service();
@@ -494,7 +494,7 @@ pub async fn start(State(state): State<AppState>, Path(service): Path<String>) -
     }
 }
 
-/// `GET /api/oauth/{dienst}/callback`: nimmt den Browser nach der Anmeldung entgegen.
+/// `GET /api/oauth/{service}/callback`: receives the browser after the sign-in.
 pub async fn callback(
     State(state): State<AppState>,
     Path(service): Path<String>,
@@ -510,7 +510,7 @@ pub async fn callback(
     back(state.inner.port, d, &result).into_response()
 }
 
-/// `POST /api/oauth/{dienst}/revoke`: trennt den Dienst.
+/// `POST /api/oauth/{service}/revoke`: disconnects the service.
 pub async fn revoke(State(state): State<AppState>, Path(service): Path<String>) -> Response {
     let Ok(d) = parse_service(&service) else {
         return unknown_service();
@@ -525,7 +525,7 @@ pub async fn revoke(State(state): State<AppState>, Path(service): Path<String>) 
     }
 }
 
-/// Zustand für `AppState`: offene Anmeldungen.
+/// State for `AppState`: open sign-ins.
 pub fn new_sign_ins() -> std::sync::Mutex<SignIns> {
     std::sync::Mutex::new(SignIns::default())
 }

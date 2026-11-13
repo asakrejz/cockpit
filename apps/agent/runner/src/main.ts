@@ -1,7 +1,7 @@
-// Einstieg des Läufers im Container. Alles Geheime kommt über die Umgebung (ANTHROPIC_MODEL und
-// entweder ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN für einen Proxy oder ANTHROPIC_API_KEY direkt
-// bei Anthropic), der Auftrag aus einer Datei. COCKPIT_PROVIDER wählt den Adapter (src/adapter/).
-// Auf stdout stehen ausschließlich JSON-Zeilen (siehe ereignis.ts), Diagnose auf stderr.
+// Entry point of the runner in the container. Everything secret comes via the environment (ANTHROPIC_MODEL and
+// either ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN for a proxy or ANTHROPIC_API_KEY directly
+// at Anthropic), the job from a file. COCKPIT_PROVIDER chooses the adapter (src/adapter/).
+// Only JSON lines go to stdout (see event.ts), diagnostics to stderr.
 
 import { createInterface } from "node:readline";
 import { readJob } from "./job.ts";
@@ -11,7 +11,7 @@ import { chooseAdapter } from "./adapter/index.ts";
 import type { Input } from "./adapter/interface.ts";
 import { checkEndpoint } from "./check.ts";
 
-process.umask(0); // das Backend soll den Klon nach dem Lauf lesen und löschen können
+process.umask(0); // the backend should be able to read and delete the clone after the run
 
 function stdinInput(): Input {
   const lines = createInterface({ input: process.stdin })[Symbol.asyncIterator]();
@@ -24,7 +24,7 @@ function stdinInput(): Input {
           const j = JSON.parse(n.value);
           if ((j.t === "answer" || j.t === "hint") && typeof j.text === "string") return { t: j.t, text: j.text };
         } catch {
-          /* unlesbare Zeilen überspringen */
+          /* skip unreadable lines */
         }
       }
     },

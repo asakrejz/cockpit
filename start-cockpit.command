@@ -1,17 +1,17 @@
 #!/bin/bash
-# Doppelklick-Start für macOS: startet Cockpit und öffnet den Browser.
+# Double-click start for macOS: starts Cockpit and opens the browser.
 #
-# * Aus dem geklonten Repo: ruft scripts/start.sh auf (baut die App beim ersten Mal; das dauert
-#   ein paar Minuten).
-# * Aus dem fertigen Archiv (cockpit-server und apps/cockpit/dist liegen neben dieser Datei): startet
-#   direkt, ohne Rust und Trunk.
+# * From the cloned repo: calls scripts/start.sh (builds the app the first time; that takes a
+#   few minutes).
+# * From the ready-made archive (cockpit-server and apps/cockpit/dist next to this file): starts
+#   directly, without Rust and Trunk.
 #
-# Beim ersten Mal fragt macOS eventuell, ob du die Datei öffnen willst: Rechtsklick auf die Datei,
-# „Öffnen“, noch einmal „Öffnen“. Zum Beenden das Fenster schließen oder Ctrl-C drücken.
+# The first time, macOS may ask whether you want to open the file: right-click the file,
+# "Open", "Open" again. To quit, close the window or press Ctrl-C.
 
 cd "$(dirname "$0")" || exit 1
 
-warten() {
+wait_for_key() {
   echo
   read -r -n 1 -s -p "Drücke eine Taste, um das Fenster zu schließen …"
   echo
@@ -21,7 +21,7 @@ if [ -x scripts/start.sh ]; then
   scripts/start.sh --open
   code=$?
 elif [ -x ./cockpit-server ]; then
-  # Ein heruntergeladenes Archiv trägt die Markierung „aus dem Internet“; ohne sie startet der Server.
+  # A downloaded archive carries the "from the internet" mark; without removing it the server does not start.
   xattr -dr com.apple.quarantine . 2> /dev/null
   port="${COCKPIT_PORT:-8787}"
   (
@@ -49,5 +49,5 @@ if [ "$code" -ne 0 ]; then
 else
   echo "Cockpit wurde beendet."
 fi
-warten
+wait_for_key
 exit "$code"

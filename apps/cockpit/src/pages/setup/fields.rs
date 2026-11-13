@@ -1,6 +1,6 @@
-//! Gemeinsame Bausteine der Einrichtungsschritte: Zustand, Schlüsselfeld, Kopierfeld,
-//! Meldungen und das Speichern der Konfiguration. Die Regeln (Prüfung, Normalisierung) stehen in
-//! `cockpit_core::setup`, das Schreiben im Server; hier ist nur Verdrahtung.
+//! Shared building blocks of the setup steps: state, key field, copy field,
+//! messages and saving the configuration. The rules (check, normalization) are in
+//! `cockpit_core::setup`, writing is in the server; here is only wiring.
 
 use cockpit_core::api::{ConfigChange, ContainerCheck, EndpointCheck, Setup};
 use cockpit_core::setup::key_verify;
@@ -12,15 +12,15 @@ use web_sys::wasm_bindgen::JsCast;
 use crate::server::{self, CallError};
 use crate::store::Store;
 
-/// Was alle Schritte teilen. Alles `Copy`, damit es in Rückrufe wandert.
+/// What all steps share. Everything `Copy` so that it moves into callbacks.
 #[derive(Clone, Copy)]
 pub struct Context {
     pub store: Store,
-    /// Die nicht geheimen Werte aus `GET /api/setup`.
+    /// The non-secret values from `GET /api/setup`.
     pub setup: RwSignal<Setup>,
-    /// Ergebnis des letzten Verbindungstests zum Endpunkt.
+    /// Result of the last connection test to the endpoint.
     pub check: RwSignal<Option<EndpointCheck>>,
-    /// Ergebnis der Prüfung „aus dem Container erreichbar“.
+    /// Result of the check "reachable from the container".
     pub container_check: RwSignal<Option<ContainerCheck>>,
 }
 
@@ -36,7 +36,7 @@ impl Context {
         k
     }
 
-    /// Holt Werte und Anmeldestand neu vom Server.
+    /// Fetches values and sign-in state anew from the server.
     pub fn laden(&self) {
         let k = *self;
         k.store.refresh_health();
@@ -48,7 +48,7 @@ impl Context {
     }
 }
 
-/// Eine Rückmeldung unter einem Formular: `true` = gut, `false` = Fehler.
+/// A feedback under a form: `true` = good, `false` = error.
 pub type Feedback = RwSignal<Option<(bool, String)>>;
 
 #[component]
@@ -72,7 +72,7 @@ pub fn Message(feedback: Feedback) -> impl IntoView {
     }
 }
 
-/// Klartext für einen gescheiterten Aufruf.
+/// Plain text for a failed call.
 fn error_text(e: &CallError) -> String {
     match e {
         CallError::Unreachable => {
@@ -83,7 +83,7 @@ fn error_text(e: &CallError) -> String {
     }
 }
 
-/// Schreibt die Änderung in `config.toml` und meldet das Ergebnis. `danach` läuft nur bei Erfolg.
+/// Writes the change to `config.toml` and reports the result. `then` only runs on success.
 pub fn config_save(
     ctx: Context,
     change: ConfigChange,
@@ -112,12 +112,12 @@ pub fn config_save(
     });
 }
 
-/// Passwortfeld für einen Schlüssel. Der Wert steht nur im Feld: nicht in der Adresse, nicht im
-/// Speicher des Browsers, nicht in der Antwort. Nach dem Absenden ist das Feld leer.
+/// Password field for a key. The value is only in the field: not in the address, not in the
+/// memory of the browser, not in the answer. After submitting, the field is empty.
 #[component]
 pub fn KeyField(
     ctx: Context,
-    /// Name im Schlüsselbund (`github-oauth`, `atlassian-oauth`, `agent-key`, `jira`, `github`).
+    /// Name in the keychain (`github-oauth`, `atlassian-oauth`, `agent-key`, `jira`, `github`).
     name: &'static str,
     label: &'static str,
     #[prop(optional)] hint: Option<&'static str>,
@@ -135,7 +135,7 @@ pub fn KeyField(
                 return;
             }
         };
-        // Sofort leeren: Der Wert lebt ab hier nur noch in dieser einen Anfrage.
+        // Clear immediately: from here on the value only lives in this one request.
         wert.set(String::new());
         running.set(true);
         back.set(None);
@@ -182,7 +182,7 @@ pub fn KeyField(
     }
 }
 
-/// Schreibt in die Zwischenablage. `false`, wenn der Browser es nicht erlaubt.
+/// Writes to the clipboard. `false` if the browser does not allow it.
 fn copy(text: &str) -> bool {
     let clipboard = js_sys::Reflect::get(&window().navigator(), &"clipboard".into())
         .ok()
@@ -196,7 +196,7 @@ fn copy(text: &str) -> bool {
         .is_some_and(|f| f.call1(&clipboard, &text.into()).is_ok())
 }
 
-/// Ein Wert zum Abtippen oder Kopieren, mit „Kopieren“-Knopf.
+/// A value to type off or copy, with a "Kopieren" button.
 #[component]
 pub fn CopyField(
     store: Store,
@@ -219,7 +219,7 @@ pub fn CopyField(
     }
 }
 
-/// Ein externer Link, der in einem neuen Tab aufgeht.
+/// An external link that opens in a new tab.
 #[component]
 pub fn Extern(#[prop(into)] href: String, children: Children) -> impl IntoView {
     view! {
@@ -229,7 +229,7 @@ pub fn Extern(#[prop(into)] href: String, children: Children) -> impl IntoView {
     }
 }
 
-/// Überschrift und Erklärung eines Schritts.
+/// Heading and explanation of a step.
 #[component]
 pub fn Intro(title: &'static str, children: Children) -> impl IntoView {
     view! {
@@ -242,7 +242,7 @@ pub fn Intro(title: &'static str, children: Children) -> impl IntoView {
     }
 }
 
-/// Eine Karte mit Überschrift – ein Abschnitt innerhalb eines Schritts.
+/// A card with a heading – a section inside a step.
 #[component]
 pub fn Section(#[prop(into)] title: String, children: Children) -> impl IntoView {
     view! {

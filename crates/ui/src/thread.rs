@@ -1,10 +1,10 @@
-//! Inbox-Zeile, Kommentar-Blase und mehrzeiliges Textfeld.
+//! Inbox row, comment bubble and multi-line text field.
 
 use leptos::prelude::*;
 
 use crate::{Avatar, next_id};
 
-/// Zeile einer Inbox. Der Inhalt kommt als Kinder.
+/// Row of an inbox. The content comes as children.
 #[component]
 pub fn InboxRow(
     #[prop(into)] selected: Signal<bool>,
@@ -25,7 +25,7 @@ pub fn InboxRow(
     }
 }
 
-/// Kommentar-Blase. Eigene Kommentare stehen rechts und in der Akzentfarbe.
+/// Comment bubble. Own comments are on the right and in the accent color.
 #[component]
 pub fn CommentBubble(
     #[prop(into)] who: String,
@@ -33,7 +33,7 @@ pub fn CommentBubble(
     #[prop(into)] time: String,
     #[prop(into)] text: String,
     #[prop(optional)] own: bool,
-    /// Der Kommentar stammt vom Agenten.
+    /// The comment comes from the agent.
     #[prop(optional)]
     agent: bool,
 ) -> impl IntoView {
@@ -48,13 +48,13 @@ pub fn CommentBubble(
     }
 }
 
-/// Mehrzeiliges Textfeld. Das Label ist nur für Screenreader sichtbar.
+/// Multi-line text field. The label is only visible to screen readers.
 #[component]
 pub fn Textarea(
     value: RwSignal<String>,
     #[prop(into)] label: String,
     #[prop(optional, into)] placeholder: Option<String>,
-    /// Mindesthöhe, z. B. `"72px"`.
+    /// Minimum height, e.g. `"72px"`.
     #[prop(optional, into)]
     min_height: Option<String>,
     #[prop(into, default = false.into())] disabled: Signal<bool>,

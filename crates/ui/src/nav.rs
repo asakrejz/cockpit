@@ -2,18 +2,18 @@ use leptos::prelude::*;
 
 use crate::{Icon, icons};
 
-/// Link in der [`Navbar`].
+/// Link in the [`Navbar`].
 #[derive(Clone, Debug)]
 pub struct NavLink {
     pub label: &'static str,
     pub href: &'static str,
-    /// Markiert die aktuelle Seite (`aria-current="page"`).
+    /// Marks the current page (`aria-current="page"`).
     pub current: bool,
 }
 
-/// Schwebende Glas-Navigationsleiste für Webseiten.
+/// Floating glass navigation bar for web pages.
 ///
-/// Die Kinder erscheinen rechts (Aktionen wie Suche oder Kontakt-Button).
+/// The children appear on the right (actions such as search or contact button).
 #[component]
 pub fn Navbar(
     #[prop(into)] brand: String,
@@ -51,8 +51,8 @@ pub fn Navbar(
     }
 }
 
-/// iOS-Navigation mit großem Titel. Die Kinder bilden die obere Leiste
-/// (z. B. Zurück-Button links, Aktionen rechts).
+/// iOS navigation with a large title. The children form the top bar
+/// (e.g. back button on the left, actions on the right).
 #[component]
 pub fn IosNav(#[prop(into)] title: Signal<String>, children: Children) -> impl IntoView {
     view! {
@@ -63,7 +63,7 @@ pub fn IosNav(#[prop(into)] title: Signal<String>, children: Children) -> impl I
     }
 }
 
-/// Eintrag der [`TabBar`].
+/// Entry of the [`TabBar`].
 #[derive(Clone, Copy, Debug)]
 pub struct TabItem {
     pub id: &'static str,
@@ -72,7 +72,7 @@ pub struct TabItem {
     pub icon: &'static str,
 }
 
-/// Schwebende Tab-Leiste (Kapsel). `selected` enthält die ID des aktiven Tabs.
+/// Floating tab bar (capsule). `selected` contains the ID of the active tab.
 #[component]
 pub fn TabBar(items: &'static [TabItem], selected: RwSignal<&'static str>) -> impl IntoView {
     view! {

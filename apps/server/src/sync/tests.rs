@@ -100,7 +100,7 @@ async fn get(s: &MockServer, p: &str, a: ResponseTemplate) {
         .await;
 }
 
-/// GitHub mit einem Pull Request (#7, Review angefragt, Checks grün).
+/// GitHub with a pull request (#7, review requested, checks green).
 async fn github() -> MockServer {
     let s = MockServer::start().await;
     get(&s, "/user", ok(json!({"login": "ich"}))).await;
@@ -166,7 +166,7 @@ fn jira_state(site: &str) -> AppState {
 
 #[tokio::test]
 async fn jira_projects_for_the_selection() {
-    // Ohne Jira: nichts zu wählen, aber kein Fehler.
+    // Without Jira: nothing to choose, but no error.
     let state = state(Sources::default(), false);
     let req = request("GET", "/api/jira/projects")
         .body(Body::empty())
@@ -290,7 +290,7 @@ async fn post_sync_fetches_pull_requests_and_shows_the_state() {
     assert_eq!(h["sync"]["github"], "ok");
     assert_eq!(h["sync"]["jira"], "off");
     assert_eq!(h["sync"]["interval_s"], 120);
-    // Jeder Abruf trug den Schlüssel – und nur dort.
+    // Every fetch carried the key – and only there.
     let requests = g.received_requests().await.unwrap();
     assert!(
         requests
@@ -334,7 +334,7 @@ async fn quota_pauses_the_sync() {
     sync(&state).await;
     assert_eq!(health(&state).await["sync"]["github"], "quota");
     let before = g.received_requests().await.unwrap().len();
-    // Während der Pause fragt der nächste Abgleich gar nicht erst.
+    // During the pause the next sync does not even ask.
     sync(&state).await;
     assert_eq!(g.received_requests().await.unwrap().len(), before);
 }
@@ -401,7 +401,7 @@ async fn fails_the_call_missing_changes_itself_nothing() {
     let (afterwards, rev2) = snapshot(&state).await;
     assert_eq!((before, rev), (afterwards, rev2));
 
-    // Ablehnung (422) bekommt die Meldung des Dienstes.
+    // Rejection (422) gets the message of the service.
     g.reset().await;
     Mock::given(method("POST"))
         .respond_with(
@@ -417,7 +417,7 @@ async fn fails_the_call_missing_changes_itself_nothing() {
 #[tokio::test]
 async fn rules_apply_before_the_call() {
     let g = github().await;
-    // Mergen ohne gesendetes Review: die Regeln lehnen ab, GitHub hört nichts davon.
+    // Merging without a sent review: the rules reject, GitHub hears nothing of it.
     Mock::given(method("PUT"))
         .respond_with(ResponseTemplate::new(200))
         .expect(0)
@@ -437,7 +437,7 @@ async fn rules_apply_before_the_call() {
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
     assert!(body.contains("Mergen geht noch nicht"));
-    // Der Abgleich ist Sache des Systems, nicht der Oberfläche.
+    // The sync is a matter of the system, not of the interface.
     let (status, _) = action(&state, json!({"SyncRemote": {"remote": {}}})).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
@@ -467,7 +467,7 @@ async fn review_and_merge_go_after_github() {
         .await;
     let state = state(sources(&g.uri()), true);
     sync(&state).await;
-    // Diff: Kontext, entfernt, neu, Kontext → Index 2 ist die neue Zeile (Nr. 2).
+    // Diff: context, removed, new, context → index 2 is the new line (no. 2).
     let (s, b) = action(&state, json!({"AddLineComment": {
         "review": 7, "file": "a.rs", "line": 2, "text": "Schöner so", "suggestion": "    neuer();"}})).await;
     assert_eq!(s, StatusCode::OK, "{b}");

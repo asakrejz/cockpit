@@ -16,7 +16,7 @@ async fn state_survives_the_restart() {
         hole(app, "/api/workspace").await.1
     };
 
-    // Neuer Prozess: dieselbe Datei, frischer Zustand.
+    // New process: same file, fresh state.
     let state = AppState::new(db::open(&file).unwrap(), Arc::new(MemoryStore::new()));
     let app = router(state, PathBuf::from("/x"));
     let (_, after_restart) = hole(app.clone(), "/api/workspace").await;
@@ -24,7 +24,7 @@ async fn state_survives_the_restart() {
     let (ws, revision) = cockpit_core::persist::load_with_revision(&after_restart).unwrap();
     assert_eq!(revision, 1);
     assert!(ws.item(&id).unwrap().read);
-    // Und es geht dort weiter, wo es aufgehört hat.
+    // And it continues where it stopped.
     let (_, body) = send(
         app,
         &format!(r#"{{"action":{{"SetStatus":{{"item":"{id}","status":"Review"}}}}}}"#),

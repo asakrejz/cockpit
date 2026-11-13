@@ -28,7 +28,7 @@ pub struct Fix {
 /// What the agent found out about a red check.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Diagnosis {
-    /// Name des Checks.
+    /// Name of the check.
     pub check: String,
     /// The cause in one sentence.
     pub cause: String,

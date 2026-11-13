@@ -1,15 +1,15 @@
 /* =====================================================================
    BAUKASTEN · tokens.css · v0.2 · iOS 26 / SwiftUI · Liquid Glass
-   Drei Ebenen:
-     1. --ref-*   Primitive   Rohwerte (System-Farben in 4 Varianten:
+   Three levels:
+     1. --ref-*   Primitive   raw values (system colors in 4 variants:
                               light · dark · light-hc · dark-hc)
-     2. --sys-*   Semantisch  SwiftUI-Rollen: label, secondaryLabel,
-                              systemBackground, tint, Text Styles …
-     3. --comp-*  Komponente  pro Baustein, liest NUR --sys-*
-   Modi über Attribute (am <html> oder einem beliebigen Container):
+     2. --sys-*   Semantic    SwiftUI roles: label, secondaryLabel,
+                              systemBackground, tint, text styles …
+     3. --comp-*  Component   per building block, reads ONLY --sys-*
+   Modes via attributes (on <html> or any container):
      data-theme="light|dark"      ≙ colorScheme
-     data-contrast="high"         ≙ Kontrast erhöhen (Accessibility)
-   Ohne data-theme folgt :root prefers-color-scheme.
+     data-contrast="high"         ≙ increase contrast (accessibility)
+   Without data-theme :root follows prefers-color-scheme.
    ===================================================================== */
 
 /* ---------- 1. PRIMITIVE ------------------------------------------ */
@@ -48,7 +48,7 @@
   --ref-weight-semibold: 600;
   --ref-weight-bold: 700;
 
-  /* Abstände – Punkte wie in SwiftUI */
+  /* Spacing – points as in SwiftUI */
   --ref-space-0: 0;
   --ref-space-2: 2px;
   --ref-space-4: 4px;
@@ -66,7 +66,7 @@
   --ref-space-80: 80px;
   --ref-space-96: 96px;
 
-  /* Radien (iOS 26: größer, konzentrisch) */
+  /* Radii (iOS 26: larger, concentric) */
   --ref-radius-6: 6px;
   --ref-radius-8: 8px;
   --ref-radius-12: 12px;
@@ -82,7 +82,7 @@
   --ref-shadow-3: 0 12px 40px rgb(0 0 0 / 0.16);
   --ref-shadow-thumb: 0 2px 8px rgb(0 0 0 / 0.14), 0 0 0 0.5px rgb(0 0 0 / 0.04);
 
-  /* Bewegung – SwiftUI-Animationen angenähert */
+  /* Motion – SwiftUI animations approximated */
   --ref-duration-150: 150ms;
   --ref-duration-250: 250ms;
   --ref-duration-350: 350ms;
@@ -92,7 +92,7 @@
   --ref-ease-snappy: cubic-bezier(0.3, 1.15, 0.4, 1);     /* .snappy  */
   --ref-ease-bouncy: cubic-bezier(0.34, 1.5, 0.64, 1);    /* .bouncy  */
 
-  /* Breakpoints (Size Classes) – nur Doku, in Rust spiegeln */
+  /* Breakpoints (size classes) – docs only, mirror in Rust */
   --ref-bp-compact: 640px;
   --ref-bp-regular: 1024px;
   --ref-bp-wide: 1440px;
@@ -108,7 +108,7 @@
 [data-theme] {
   color-scheme: light;
 
-  /* System-Farben (theme-aufgelöst) */
+  /* System colors (theme-resolved) */
   --sys-color-red: var(--ref-red);
   --sys-color-orange: var(--ref-orange);
   --sys-color-yellow: var(--ref-yellow);
@@ -128,7 +128,7 @@
   --sys-color-gray5: var(--ref-gray5);
   --sys-color-gray6: var(--ref-gray6);
 
-  /* Tint (accentColor) – eine Variable, Rest abgeleitet */
+  /* Tint (accentColor) – one variable, the rest derived */
   --sys-color-tint: var(--sys-color-blue);
   --sys-color-tint-pressed: color-mix(in oklab, var(--sys-color-tint), black 15%);
   --sys-color-tint-fill: color-mix(in oklab, var(--sys-color-tint) 15%, transparent);
@@ -168,7 +168,7 @@
   --sys-glass-edge: inset 0 1px 0 rgb(255 255 255 / 0.85), inset 0 0 0 0.5px rgb(255 255 255 / 0.6), inset 0 -1px 1px rgb(0 0 0 / 0.04);
   --sys-glass-shadow: 0 8px 28px rgb(0 0 0 / 0.12), 0 1px 2px rgb(0 0 0 / 0.06);
 
-  /* Material (klassisch, für Flächen hinter Text) */
+  /* Material (classic, for surfaces behind text) */
   --sys-material-ultra-thin: rgb(255 255 255 / 0.35);
   --sys-material-thin: rgb(255 255 255 / 0.55);
   --sys-material-regular: rgb(255 255 255 / 0.72);
@@ -203,13 +203,13 @@
   --sys-tracking-caption1: 0;
   --sys-type-caption2: var(--ref-weight-regular) 11px/13px var(--sys-font);
   --sys-tracking-caption2: 0.07px;
-  /* Web-Erweiterung (kein iOS-Text-Style) */
+  /* Web extension (no iOS text style) */
   --sys-type-display: var(--ref-weight-bold) 56px/60px var(--sys-font-display);
   --sys-tracking-display: -0.6px;
   --sys-type-hero: var(--ref-weight-bold) 80px/84px var(--sys-font-display);
   --sys-tracking-hero: -1.2px;
 
-  /* Abstände & Größen */
+  /* Spacing & sizes */
   --sys-space-stack: var(--ref-space-8);           /* VStack-Standard */
   --sys-space-layout-margin: var(--ref-space-20);  /* readable margins */
   --sys-space-row-x: var(--ref-space-16);
@@ -217,7 +217,7 @@
   --sys-space-section: var(--ref-space-32);        /* List-Sektionen */
   --sys-space-page-section: var(--ref-space-96);   /* Web-Sektionen */
   --sys-space-gutter: var(--ref-space-20);
-  --sys-size-hit: 44px;                            /* min. Trefferfläche */
+  --sys-size-hit: 44px;                            /* min. hit area */
   --sys-size-row: 52px;
   --sys-container-max: 1200px;
   --sys-container-readable: 680px;
@@ -259,7 +259,7 @@
   --comp-button-bordered-fg: var(--sys-color-tint);
   --comp-button-glass-fg: var(--sys-color-label);
 
-  /* Toggle (iOS 26 Maße) */
+  /* Toggle (iOS 26 dimensions) */
   --comp-toggle-width: 64px;
   --comp-toggle-height: 28px;
   --comp-toggle-thumb-w: 38px;
@@ -364,7 +364,7 @@
   --comp-toggle-thumb: var(--ref-white);
 }
 
-/* ---------- KONTRAST ERHÖHEN (Accessibility) ---------------------- */
+/* ---------- INCREASE CONTRAST (accessibility) ---------------------- */
 [data-contrast="high"] {
   --sys-color-red: var(--ref-red-hc);
   --sys-color-orange: var(--ref-orange-hc);
@@ -400,7 +400,7 @@
   --sys-glass-bg: rgb(44 44 48 / 0.92);
 }
 
-/* ---------- Automatisch, wenn kein Attribut gesetzt --------------- */
+/* ---------- Automatic when no attribute is set --------------- */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
     color-scheme: dark;
@@ -424,7 +424,7 @@
   }
 }
 
-/* ---------- Size Classes: Web-Größen skalieren ------------------- */
+/* ---------- Size classes: web sizes scale ------------------- */
 @media (max-width: 1024px) {
   :root, [data-theme] {
     --sys-type-hero: var(--ref-weight-bold) 56px/60px var(--sys-font-display);

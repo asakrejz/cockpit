@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { checkEndpoint } from "../src/check.ts";
 import { collector } from "./helpers.ts";
 
-test("erreichbar mit gültigem Key", async () => {
+test("reachable with a valid key", async () => {
   const s = collector();
   const called: string[] = [];
   const code = await checkEndpoint(
@@ -21,7 +21,7 @@ test("erreichbar mit gültigem Key", async () => {
   assert.ok(!JSON.stringify(s.e).includes("geheim"), "der Key steht nie in der Ausgabe");
 });
 
-test("Key abgelehnt", async () => {
+test("key rejected", async () => {
   const s = collector();
   const code = await checkEndpoint({ ANTHROPIC_BASE_URL: "https://litellm.example", ANTHROPIC_AUTH_TOKEN: "x" }, s.sink, async () => ({ status: 401 }));
   assert.equal(code, 1);
@@ -29,7 +29,7 @@ test("Key abgelehnt", async () => {
   assert.equal((s.e[0] as any).key_ok, false);
 });
 
-test("nicht erreichbar nennt den Grund", async () => {
+test("not reachable names the reason", async () => {
   const s = collector();
   const code = await checkEndpoint({ ANTHROPIC_BASE_URL: "https://litellm.example", ANTHROPIC_AUTH_TOKEN: "x" }, s.sink, async () => {
     throw Object.assign(new Error("fetch failed"), { cause: { code: "ENOTFOUND" } });
@@ -39,13 +39,13 @@ test("nicht erreichbar nennt den Grund", async () => {
   assert.equal((s.e[0] as any).reachable, false);
 });
 
-test("ohne Adresse", async () => {
+test("without an address", async () => {
   const s = collector();
   assert.equal(await checkEndpoint({}, s.sink, async () => ({ status: 200 })), 1);
   assert.match((s.e[0] as any).hint, /weder eine Endpunkt-Adresse noch ein Anthropic-Key/);
 });
 
-test("direkt bei Anthropic: x-api-key und Version, kein Bearer", async () => {
+test("directly at Anthropic: x-api-key and version, no Bearer", async () => {
   const s = collector();
   const called: Array<{ url: string; headers: Record<string, string> }> = [];
   const code = await checkEndpoint({ ANTHROPIC_API_KEY: "sk-ant-geheim" }, s.sink, async (url, init) => {
@@ -61,7 +61,7 @@ test("direkt bei Anthropic: x-api-key und Version, kein Bearer", async () => {
   assert.ok(!JSON.stringify(s.e).includes("geheim"), "der Key steht nie in der Ausgabe");
 });
 
-test("direkt: abgelehnter Key und nicht erreichbar", async () => {
+test("direct: rejected key and not reachable", async () => {
   const s = collector();
   assert.equal(await checkEndpoint({ ANTHROPIC_API_KEY: "x" }, s.sink, async () => ({ status: 401 })), 1);
   assert.equal((s.e[0] as any).key_ok, false);
@@ -72,7 +72,7 @@ test("direkt: abgelehnter Key und nicht erreichbar", async () => {
   assert.match((t.e[0] as any).hint, /Anthropic nicht \(ENOTFOUND\)|Anthropic nicht/);
 });
 
-test("mit Adresse gewinnt der Endpunkt, auch wenn ein API-Key in der Umgebung steht", async () => {
+test("with an address the endpoint wins, even if an API key is in the environment", async () => {
   const s = collector();
   const urls: string[] = [];
   await checkEndpoint({ ANTHROPIC_BASE_URL: "https://litellm.example", ANTHROPIC_AUTH_TOKEN: "t", ANTHROPIC_API_KEY: "k" }, s.sink, async (url, init) => {

@@ -1,5 +1,5 @@
-//! Übersicht: links, wer woran arbeitet und wie voll er ist; rechts, was hängt, und
-//! die Einträge der gewählten Person. Die Regeln dafür stehen in `cockpit_core::team`.
+//! Overview: on the left who works on what and how full they are; on the right what is stuck, and
+//! the entries of the chosen person. The rules for it are in `cockpit_core::team`.
 
 use cockpit_core::{Item, Member, Person, Stuck, StuckKind, Tone, team};
 use feature_ui::*;
@@ -12,7 +12,7 @@ use crate::{
     view,
 };
 
-/// Zeile „1 Offen · 2 In Arbeit“ – nur, was es gibt.
+/// Line "1 Offen · 2 In Arbeit" – only what exists.
 fn counts(m: &Member) -> String {
     let parts: Vec<String> = [
         (m.open, "Offen"),
@@ -77,7 +77,7 @@ pub fn OverviewPage() -> impl IntoView {
     let members = Memo::new(move |_| store.ws.with(team::members));
     let stuck = Memo::new(move |_| store.ws.with(team::stuck));
 
-    // Gewählte Person, nach Namen. Verschwindet sie (nichts mehr offen), gilt „Du“.
+    // Chosen person, by name. If they disappear (nothing open any more), "Du" applies.
     let chosen = RwSignal::new(Person::me().name);
     let current = Memo::new(move |_| {
         let name = chosen.get();
@@ -142,7 +142,7 @@ pub fn OverviewPage() -> impl IntoView {
        }
 }
 
-/// Eine Person in der linken Liste: Zahlen nach Status und die Auslastung.
+/// A person in the left list: numbers by status and the workload.
 fn member_row(m: Member, selected: bool, chosen: RwSignal<String>) -> impl IntoView {
     let name = m.person.name.clone();
     let total = m.total();
@@ -169,7 +169,7 @@ fn member_row(m: Member, selected: bool, chosen: RwSignal<String>) -> impl IntoV
     }
 }
 
-/// Kein Eintrag hängt: das ist eine gute Nachricht und soll auch so aussehen.
+/// No entry is stuck: that is good news and should look like it.
 fn empty_state() -> impl IntoView {
     view! {
         <div class="ck-empty-state">
@@ -184,7 +184,7 @@ fn empty_state() -> impl IntoView {
     }
 }
 
-/// Ein Eintrag, der hängt: Grund, wer dran ist, und der Weg dorthin.
+/// An entry that is stuck: reason, who is on it, and the way there.
 fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
     let id = s.item_id.clone();
     let key = s.key.clone();
@@ -267,7 +267,7 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
     }
 }
 
-/// Die Einträge der gewählten Person.
+/// The entries of the chosen person.
 fn person_items(store: Store, m: Member) -> impl IntoView {
     let items: Vec<Item> = store.ws.with(|w| {
         m.item_ids

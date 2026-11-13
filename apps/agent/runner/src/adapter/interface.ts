@@ -1,35 +1,35 @@
-// Die gemeinsame Schnittstelle der Adapter. Ein Adapter führt einen Auftrag mit einem
-// Agenten-Werkzeug aus (Claude Agent SDK, später Claude Code und Codex) und meldet das Ergebnis
-// als JSON-Zeilen-Ereignisse (siehe ereignis.ts und apps/agent/README.md). Alles, was ein Werkzeug
-// anders macht, bleibt im Adapter; das Backend sieht immer dieselben Ereignisformen.
+// The common interface of the adapters. An adapter runs a job with an
+// agent tool (Claude Agent SDK, later Claude Code and Codex) and reports the result
+// as JSON-line events (see event.ts and apps/agent/README.md). Everything a tool does
+// differently stays in the adapter; the backend always sees the same event shapes.
 
 import type { Job } from "../job.ts";
 import type { Sink } from "../event.ts";
 import type { Run } from "../git.ts";
 
-/** Zeilen von stdin: Antworten und Hinweise des Nutzers. */
+/** Lines from stdin: answers and hints from the user. */
 export interface Input {
   next(): Promise<{ t: string; text: string } | null>;
 }
 
-/** Was jeder Adapter von außen bekommt. Nichts davon ist an ein Werkzeug gebunden. */
+/** What every adapter gets from outside. None of it is tied to one tool. */
 export interface AdapterEnv {
-  /** Hierhin gehören alle Ereignisse. */
+  /** All events belong here. */
   sink: Sink;
-  /** Git im Klon (zum Festhalten der Änderungen auf dem Branch). */
+  /** Git in the clone (to record the changes on the branch). */
   git: Run;
-  /** Antworten und Hinweise des Nutzers von stdin. */
+  /** Answers and hints from the user, from stdin. */
   input: Input;
-  /** Arbeitsverzeichnis im Container. */
+  /** Working directory in the container. */
   root: string;
   now: () => number;
-  /** Die Umgebungsvariablen des Containers (Modell, Endpunkt, Key). Nie ausgeben. */
+  /** The environment variables of the container (model, endpoint, key). Never print. */
   env: Record<string, string | undefined>;
 }
 
 export interface Adapter {
-  /** Die Kennung aus `[agent] anbieter`, z. B. `claude-agent-sdk`. */
+  /** The id from `[agent] provider`, e.g. `claude-agent-sdk`. */
   readonly name: string;
-  /** Führt den Auftrag aus. Rückgabe: Exit-Code (0 = fertig, 2 = Abbruch mit `fehler`-Ereignis). */
+  /** Runs the job. Return value: exit code (0 = done, 2 = abort with an `error` event). */
   run(job: Job, d: AdapterEnv): Promise<number>;
 }

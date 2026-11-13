@@ -4,7 +4,7 @@ import { decide, globFits, repoRelative } from "../src/policy.ts";
 
 const r = { root: "/work", allowed: [], forbidden: ["*.lock", ".github/", "styles/*.css"] };
 
-test("Muster wie in cockpit-core", () => {
+test("patterns as in cockpit-core", () => {
   assert.ok(globFits("*.lock", "Cargo.lock"));
   assert.ok(globFits("*.lock", "a/b/yarn.lock"));
   assert.ok(globFits(".github/", ".github/workflows/ci.yml"));
@@ -15,7 +15,7 @@ test("Muster wie in cockpit-core", () => {
   assert.ok(!globFits("", "x"));
 });
 
-test("Schreiben nur im Repo, nicht in .git und nicht auf verbotene Pfade", () => {
+test("writing only in the repo, not in .git and not to forbidden paths", () => {
   assert.equal(decide(r, "Edit", { file_path: "/work/src/lib.rs" }).behavior, "allow");
   assert.equal(decide(r, "Write", { file_path: "src/neu.rs" }).behavior, "allow");
   assert.equal(decide(r, "Write", { file_path: "/etc/passwd" }).behavior, "deny");
@@ -26,13 +26,13 @@ test("Schreiben nur im Repo, nicht in .git und nicht auf verbotene Pfade", () =>
   assert.match(d.message ?? "", /verboten/);
 });
 
-test("erlaubte Pfade schränken ein", () => {
+test("allowed paths restrict", () => {
   const e = { ...r, allowed: ["src/"] };
   assert.equal(decide(e, "Edit", { file_path: "/work/src/a.rs" }).behavior, "allow");
   assert.equal(decide(e, "Edit", { file_path: "/work/README.md" }).behavior, "deny");
 });
 
-test("Bash: kein Push, kein Netz, kein Hauptbranch, keine Zugangsdaten", () => {
+test("Bash: no push, no network, no main branch, no credentials", () => {
   const ok = (c: string) => decide(r, "Bash", { command: c }).behavior === "allow";
   assert.ok(ok("cargo test"));
   assert.ok(ok("git status && git diff"));
@@ -46,14 +46,14 @@ test("Bash: kein Push, kein Netz, kein Hauptbranch, keine Zugangsdaten", () => {
   assert.ok(!ok("printenv"));
 });
 
-test("Lesen außerhalb des Repos und unbekannte Werkzeuge werden abgelehnt", () => {
+test("reading outside the repo and unknown tools are rejected", () => {
   assert.equal(decide(r, "Read", { file_path: "/work/src/a.rs" }).behavior, "allow");
   assert.equal(decide(r, "Read", { file_path: "/home/node/.ssh/id" }).behavior, "deny");
   assert.equal(decide(r, "WebFetch", { url: "https://x" }).behavior, "deny");
   assert.equal(decide(r, "mcp__cockpit__rueckfrage", {}).behavior, "allow");
 });
 
-test("relativ löst Pfade auf", () => {
+test("repoRelative resolves paths", () => {
   assert.equal(repoRelative("/work", "/work/a/b"), "a/b");
   assert.equal(repoRelative("/work", "a/b"), "a/b");
   assert.equal(repoRelative("/work", "/work"), null);

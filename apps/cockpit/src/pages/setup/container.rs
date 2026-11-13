@@ -1,4 +1,4 @@
-//! Schritt 1: Läuft Docker oder Podman? Der Agent arbeitet später in einem Container.
+//! Step 1: is Docker or Podman running? The agent later works in a container.
 
 use std::time::Duration;
 
@@ -11,7 +11,7 @@ use super::fields::{Context, Extern, Intro, Section};
 use crate::server::{self, CallError};
 use crate::store::Store;
 
-/// Fragt den Stand des Image-Baus ab und wiederholt das, solange er läuft.
+/// Asks for the state of the image build and repeats that as long as it runs.
 fn build_watch(build: RwSignal<Option<ImageBuild>>, store: Store) {
     spawn_local(async move {
         if let Ok(b) = server::fetch_image().await {

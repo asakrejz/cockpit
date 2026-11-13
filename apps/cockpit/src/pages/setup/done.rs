@@ -1,4 +1,4 @@
-//! Schritt 5: Zusammenfassung mit Haken und Klartext.
+//! Step 5: summary with ticks and plain text.
 
 use cockpit_core::AuthKind;
 use cockpit_core::setup::{Snapshot, Step, Tone, summary};
@@ -10,8 +10,8 @@ use super::fields::{Context, Intro};
 use crate::server;
 use crate::sync_status::SyncStatus;
 
-/// „Token erneuern“ und „Trennen“ für Jira. Trennen löscht den Token im Schlüsselbund (bei
-/// OAuth: widerruft die Anmeldung); die Einstellungen bleiben, der Weg zurück ist der Schritt „Jira“.
+/// "Token erneuern" and "Trennen" for Jira. Disconnecting deletes the token in the keychain (with
+/// OAuth: revokes the sign-in); the settings stay, the way back is the step "Jira".
 #[component]
 fn JiraActions(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
     let art = move || {

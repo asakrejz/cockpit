@@ -1,6 +1,6 @@
-//! Der Server-Modus aus Sicht des Browsers: Anfragen an das lokale Backend
-//! (`cockpit-server`) und der Ereignisstrom. Die Formen der Daten stehen in
-//! `cockpit_core::api`. Hier steht kein Schlüssel und es wird keiner gespeichert.
+//! Server mode from the browser's point of view: requests to the local backend
+//! (`cockpit-server`) and the event stream. The shapes of the data are in
+//! `cockpit_core::api`. No key is here and none is stored.
 
 use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
@@ -13,12 +13,12 @@ use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
 use web_sys::wasm_bindgen::{JsCast, closure::Closure};
 
-/// Warum eine Anfrage an den Server nichts ergab.
+/// Why a request to the server gave nothing.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CallError {
-    /// Der Server hat die Anfrage gesehen und abgelehnt – mit Meldung für die Oberfläche.
+    /// The server saw the request and rejected it – with a message for the interface.
     Rejected(String),
-    /// Keine Antwort: Der Server läuft nicht oder ist nicht unter dieser Adresse.
+    /// No answer: the server is not running or is not at this address.
     Unreachable,
 }
 
@@ -31,7 +31,7 @@ impl CallError {
     }
 }
 
-/// Die Meldung aus einer Fehlerantwort, sonst eine allgemeine.
+/// The message from an error response, otherwise a general one.
 async fn rejection(resp: gloo_net::http::Response) -> CallError {
     let status = resp.status();
     let message = resp
@@ -42,7 +42,7 @@ async fn rejection(resp: gloo_net::http::Response) -> CallError {
     CallError::Rejected(message)
 }
 
-/// Lädt den aktuellen Stand samt Revision.
+/// Loads the current state including the revision.
 pub async fn fetch_workspace() -> Result<(Workspace, u64), CallError> {
     let resp = Request::get("/api/workspace")
         .send()
@@ -56,7 +56,7 @@ pub async fn fetch_workspace() -> Result<(Workspace, u64), CallError> {
         .map_err(|_| CallError::Rejected("Der Server schickt einen unlesbaren Stand".into()))
 }
 
-/// Schickt eine Aktion. Der Server wendet sie als „Du“ an.
+/// Sends an action. The server applies it as "Du".
 pub async fn post_action(action: Action) -> Result<ActionResponse, CallError> {
     let request = Request::post("/api/actions")
         .header("Content-Type", "application/json")
@@ -71,7 +71,7 @@ pub async fn post_action(action: Action) -> Result<ActionResponse, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// „Jetzt abgleichen“: stößt den Abgleich mit Jira und GitHub an (`POST /api/sync`).
+/// "Jetzt abgleichen": triggers the sync with Jira and GitHub (`POST /api/sync`).
 pub async fn post_sync() -> Result<SyncResponse, CallError> {
     let request = Request::post("/api/sync")
         .header("Content-Type", "application/json")
@@ -86,7 +86,7 @@ pub async fn post_sync() -> Result<SyncResponse, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Die Jira-Projekte für die Auswahl in der Inbox (`GET /api/jira/projects`).
+/// The Jira projects for the selection in the inbox (`GET /api/jira/projects`).
 pub async fn fetch_jira_projects() -> Result<JiraProjectsResponse, CallError> {
     let resp = Request::get("/api/jira/projects")
         .send()
@@ -100,7 +100,7 @@ pub async fn fetch_jira_projects() -> Result<JiraProjectsResponse, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Offener Ereignisstrom. Beim Schließen (`Drop`) wird die Verbindung beendet.
+/// Open event stream. On closing (`Drop`) the connection is ended.
 pub struct Events {
     source: web_sys::EventSource,
 }
@@ -112,8 +112,8 @@ impl Drop for Events {
 }
 
 impl Events {
-    /// Öffnet `GET /api/events`. Der Browser verbindet nach einem Abbruch selbst neu; dann
-    /// kommt wieder `on_open`.
+    /// Opens `GET /api/events`. After an interruption the browser reconnects itself; then
+    /// `on_open` comes again.
     pub fn open(
         on_open: impl Fn() + 'static,
         on_event: impl Fn(ServerEvent) + 'static,
@@ -135,7 +135,7 @@ impl Events {
         source.set_onopen(Some(open.as_ref().unchecked_ref()));
         source.set_onerror(Some(error.as_ref().unchecked_ref()));
         source.set_onmessage(Some(message.as_ref().unchecked_ref()));
-        // Die Rückrufe leben, solange die Seite offen ist.
+        // The callbacks live as long as the page is open.
         open.forget();
         error.forget();
         message.forget();
@@ -143,7 +143,7 @@ impl Events {
     }
 }
 
-/// Wie `GET /api/health` die Anmeldung je Dienst meldet.
+/// How `GET /api/health` reports the sign-in per service.
 #[derive(Clone, Debug, Default, serde::Deserialize)]
 pub struct Services {
     #[serde(default)]
@@ -152,8 +152,8 @@ pub struct Services {
     pub jira: ServiceStatus,
 }
 
-/// Der Teil von `GET /api/health`, den die Seite „Einrichten“ braucht. Nie ein Schlüssel:
-/// Der Server meldet nur ja/nein.
+/// The part of `GET /api/health` that the page "Einrichten" needs. Never a key:
+/// the server only reports yes/no.
 #[derive(Clone, Debug, Default, serde::Deserialize)]
 pub struct Health {
     #[serde(default)]
@@ -166,7 +166,7 @@ pub struct Health {
     pub agent: AgentStatus,
 }
 
-/// Stand der Anmeldung, des Agent-Endpunkts und der Container-Laufzeit (`GET /api/health`).
+/// State of the sign-in, of the agent endpoint and of the container runtime (`GET /api/health`).
 pub async fn fetch_health() -> Result<Health, CallError> {
     let resp = Request::get("/api/health")
         .send()
@@ -180,12 +180,12 @@ pub async fn fetch_health() -> Result<Health, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Art und Stand der Anmeldung bei GitHub und Jira (`GET /api/health`).
+/// Kind and state of the sign-in at GitHub and Jira (`GET /api/health`).
 pub async fn fetch_services() -> Result<Services, CallError> {
     fetch_health().await.map(|h| h.sign_in)
 }
 
-/// Verbindungstest zum Endpunkt (`GET /api/agent/check`).
+/// Connection test to the endpoint (`GET /api/agent/check`).
 pub async fn fetch_endpoint_check() -> Result<EndpointCheck, CallError> {
     let resp = Request::get("/api/agent/check")
         .send()
@@ -199,7 +199,7 @@ pub async fn fetch_endpoint_check() -> Result<EndpointCheck, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Die Modell-IDs des gespeicherten Endpunkts (`GET /api/agent/models`).
+/// The model IDs of the saved endpoint (`GET /api/agent/models`).
 pub async fn fetch_models() -> Result<ModelList, CallError> {
     let resp = Request::get("/api/agent/models")
         .send()
@@ -213,7 +213,7 @@ pub async fn fetch_models() -> Result<ModelList, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Stand von „Image bauen“ (`GET /api/agent/image`).
+/// State of "Image bauen" (`GET /api/agent/image`).
 pub async fn fetch_image() -> Result<ImageBuild, CallError> {
     let resp = Request::get("/api/agent/image")
         .send()
@@ -227,7 +227,7 @@ pub async fn fetch_image() -> Result<ImageBuild, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Startet „Image bauen“ (`POST /api/agent/image`); der Bau läuft im Server weiter.
+/// Starts "Image bauen" (`POST /api/agent/image`); the build continues in the server.
 pub async fn post_image_build() -> Result<ImageBuild, CallError> {
     let request = Request::post("/api/agent/image")
         .header("Content-Type", "application/json")
@@ -242,7 +242,7 @@ pub async fn post_image_build() -> Result<ImageBuild, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Prüft, ob ein Container den Endpunkt erreicht (`GET /api/agent/check/container`).
+/// Checks whether a container reaches the endpoint (`GET /api/agent/check/container`).
 pub async fn fetch_container_check() -> Result<ContainerCheck, CallError> {
     let resp = Request::get("/api/agent/check/container")
         .send()
@@ -256,8 +256,8 @@ pub async fn fetch_container_check() -> Result<ContainerCheck, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// „Trennen“: widerruft die Anmeldung (`POST /api/oauth/{dienst}/revoke`). `service`:
-/// `github` oder `atlassian`.
+/// "Trennen": revokes the sign-in (`POST /api/oauth/{service}/revoke`). `service`:
+/// `github` or `atlassian`.
 pub async fn post_revoke(service: &str) -> Result<RevokeResponse, CallError> {
     let request = Request::post(&format!("/api/oauth/{service}/revoke"))
         .header("Content-Type", "application/json")
@@ -272,7 +272,7 @@ pub async fn post_revoke(service: &str) -> Result<RevokeResponse, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Die aktuellen, nicht geheimen Werte für den Assistenten (`GET /api/setup`).
+/// The current, non-secret values for the assistant (`GET /api/setup`).
 pub async fn fetch_setup() -> Result<Setup, CallError> {
     let resp = Request::get("/api/setup")
         .send()
@@ -286,7 +286,7 @@ pub async fn fetch_setup() -> Result<Setup, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Schreibt Client-IDs, Jira, Repos oder Anbieter und Endpunkt in `config.toml` (`PUT /api/config`).
+/// Writes client IDs, Jira, repos or provider and endpoint to `config.toml` (`PUT /api/config`).
 pub async fn put_config(change: &ConfigChange) -> Result<ConfigResponse, CallError> {
     let request = Request::put("/api/config")
         .header("Content-Type", "application/json")
@@ -301,9 +301,9 @@ pub async fn put_config(change: &ConfigChange) -> Result<ConfigResponse, CallErr
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Legt einen Schlüssel im Schlüsselbund des Servers ab (`PUT /api/secrets/{name}`). Der Wert
-/// geht nur in den Body dieser Anfrage – nicht in die Adresse, nicht in den Speicher des Browsers.
-/// Die Antwort sagt nur „gesetzt“.
+/// Stores a key in the keychain of the server (`PUT /api/secrets/{name}`). The value
+/// only goes into the body of this request – not into the address, not into the memory of the browser.
+/// The answer only says "set".
 pub async fn put_key(name: &str, wert: String) -> Result<KeyResponse, CallError> {
     let request = Request::put(&format!("/api/secrets/{name}"))
         .header("Content-Type", "application/json")
@@ -318,8 +318,8 @@ pub async fn put_key(name: &str, wert: String) -> Result<KeyResponse, CallError>
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Verbindungstest für Jira per API-Token (`POST /api/jira/check`). Nur Lesen; die Antwort
-/// enthält nie den Token.
+/// Connection test for Jira via API token (`POST /api/jira/check`). Read only; the answer
+/// never contains the token.
 pub async fn post_jira_check() -> Result<JiraCheck, CallError> {
     let request = Request::post("/api/jira/check")
         .header("Content-Type", "application/json")
@@ -334,7 +334,7 @@ pub async fn post_jira_check() -> Result<JiraCheck, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Löscht einen Token aus dem Schlüsselbund (`DELETE /api/secrets/{name}`), „Trennen“.
+/// Deletes a token from the keychain (`DELETE /api/secrets/{name}`), "Trennen".
 pub async fn delete_key(name: &str) -> Result<KeyResponse, CallError> {
     let request = Request::delete(&format!("/api/secrets/{name}"))
         .header("Content-Type", "application/json")

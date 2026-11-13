@@ -28,7 +28,7 @@ web-sys = { workspace = true, features = [
 ] }
 
 js-sys = "0.3"
-# Server-Modus: Anfragen an das lokale Backend (nur die App braucht das)
+# Server mode: requests to the local backend (only the app needs this)
 gloo-net = { version = "0.6", default-features = false, features = ["http", "json"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

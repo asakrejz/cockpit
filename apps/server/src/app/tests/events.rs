@@ -19,7 +19,7 @@ async fn events_report_revision_and_new_entries() {
     assert_eq!(status, StatusCode::OK);
 
     let events = read_events(answer.into_body(), 2).await;
-    // Erst der Stand beim Verbinden, dann die Aktion.
+    // First the state on connecting, then the action.
     assert_eq!(events[0]["revision"], 0);
     assert_eq!(events[0]["entries"], serde_json::json!([]));
     assert_eq!(events[1]["revision"], 1);

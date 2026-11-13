@@ -1,5 +1,5 @@
-// Adapter „claude-agent-sdk“: der Ablauf eines Laufs mit dem Claude Agent SDK. Das SDK, die Zeilen von stdin, Git und die Uhr kommen von außen
-// (`Abhaengigkeiten`), damit der Ablauf ohne Netz und ohne SDK getestet werden kann.
+// Adapter "claude-agent-sdk": the course of a run with the Claude Agent SDK. The SDK, the lines from stdin, Git and the clock come from outside
+// (`Dependencies`), so that the course can be tested without network and without the SDK.
 
 import { type Job, tasksText, systemText } from "../job.ts";
 import { type Sink, truncate } from "../event.ts";
@@ -9,7 +9,7 @@ import type { Adapter, Input } from "./interface.ts";
 
 export type { Input };
 
-/** Eine Nachricht des SDK (nur die Felder, die wir lesen). */
+/** A message from the SDK (only the fields we read). */
 export interface SdkMessage {
   type: string;
   subtype?: string;
@@ -35,7 +35,7 @@ export interface QueryOptions {
 
 export interface Sdk {
   query(p: { prompt: AsyncIterable<unknown>; options: QueryOptions }): AsyncIterable<SdkMessage>;
-  /** Baut den MCP-Server mit dem Werkzeug „rueckfrage“. */
+  /** Builds the MCP server with the tool "ask_user". */
   askUserServer(question: (text: string, suggestions: string[]) => Promise<string>): unknown;
 }
 
@@ -44,13 +44,13 @@ export interface Dependencies {
   sink: Sink;
   git: Run;
   input: Input;
-  /** Arbeitsverzeichnis im Container. */
+  /** Working directory in the container. */
   root: string;
   now: () => number;
   env: Record<string, string | undefined>;
 }
 
-/** Eine Warteschlange, die ein `AsyncIterable` speist (für den Streaming-Eingang des SDK). */
+/** A queue that feeds an `AsyncIterable` (for the streaming input of the SDK). */
 export class Queue<T> {
   private buffer: T[] = [];
   private waiting: Array<(w: IteratorResult<T>) => void> = [];
@@ -81,7 +81,7 @@ function user_message(text: string) {
   return { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null, session_id: "" };
 }
 
-/** Kurzer Satz zu einem Werkzeugaufruf, für den Verlauf im Cockpit. */
+/** Short sentence about a tool call, for the history in Cockpit. */
 export function describe(name: string, input: Record<string, any>): { title: string; text: string } {
   const path = String(input.file_path ?? input.path ?? input.pattern ?? "");
   switch (name) {
@@ -96,7 +96,7 @@ export function describe(name: string, input: Record<string, any>): { title: str
   }
 }
 
-/** Zieht den Plan (JSON-Block) aus der Antwort des Modells; ohne Block wird die Antwort zur Zusammenfassung. */
+/** Pulls the plan (JSON block) out of the model's answer; without a block the answer becomes the summary. */
 export function planFromAnswer(text: string): { summary: string; files: string[]; steps: string[] } {
   const block = /```json\s*([\s\S]*?)```/i.exec(text)?.[1] ?? /(\{[\s\S]*\})/.exec(text)?.[1];
   if (block) {
@@ -105,7 +105,7 @@ export function planFromAnswer(text: string): { summary: string; files: string[]
       const list = (x: unknown) => (Array.isArray(x) ? x.map(String) : []);
       return { summary: String(j.summary ?? ""), files: list(j.files), steps: list(j.steps) };
     } catch {
-      /* fällt unten auf die Antwort zurück */
+      /* falls back to the answer below */
     }
   }
   return { summary: truncate(text.trim(), 600), files: [], steps: [] };
@@ -119,7 +119,7 @@ function usageFrom(m: SdkMessage): { ein: number; aus: number } {
 
 const Writer = new Set(["Write", "Edit", "MultiEdit"]);
 
-/** Führt den Auftrag aus. Gibt den Exit-Code des Prozesses zurück (0 = ein Ergebnis wurde gemeldet). */
+/** Runs the job. Returns the exit code of the process (0 = a result was reported). */
 export async function run(a: Job, d: Dependencies): Promise<number> {
   const model = d.env.ANTHROPIC_MODEL ?? "";
   if (!model) {
@@ -140,9 +140,9 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
   let lastStart = d.now();
 
   const answers = new Queue<string>();
-  // Hinweise des Nutzers: als weitere Nachricht an den laufenden Agenten.
+  // Hints from the user: as a further message to the running agent.
   const hintPump = (async () => {
-    // Antworten holt das Werkzeug „rueckfrage“ selbst; hier werden nur Hinweise weitergereicht.
+    // Answers are fetched by the tool "ask_user" itself; only hints are passed on here.
     for (;;) {
       const z = await d.input.next();
       if (!z) return;
@@ -159,7 +159,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
     d.sink({ t: "question", text, suggestions });
     const it = answers[Symbol.asyncIterator]();
     const r = await it.next();
-    lastStart = d.now(); // Wartezeit auf den Nutzer zählt nicht als Laufzeit
+    lastStart = d.now(); // Time waiting for the user does not count as run time
     return r.done ? "(keine Antwort)" : r.value;
   };
 
@@ -261,7 +261,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
   }
 }
 
-/** Lädt das echte SDK (erst im Container; die Tests geben eine Attrappe mit). */
+/** Loads the real SDK (only in the container; the tests pass a fake). */
 export async function loadSdk(): Promise<Sdk> {
   const m: any = await import("@anthropic-ai/claude-agent-sdk");
   const { z } = await import("zod");
@@ -285,7 +285,7 @@ export async function loadSdk(): Promise<Sdk> {
   };
 }
 
-/** Der Adapter für `COCKPIT_PROVIDER=claude-agent-sdk`. `sdk` lädt das SDK erst bei Bedarf. */
+/** The adapter for `COCKPIT_PROVIDER=claude-agent-sdk`. `sdk` loads the SDK only when needed. */
 export function claudeAgentSdk(sdk: () => Promise<Sdk> = loadSdk): Adapter {
   return {
     name: "claude-agent-sdk",

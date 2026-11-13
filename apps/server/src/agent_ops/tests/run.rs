@@ -11,7 +11,7 @@ exit 0
     );
     w.write("scenario-run.sh", &scenario_ok());
     w.start(true).await;
-    // Solange der Plan erarbeitet wird, lässt er sich nicht freigeben.
+    // As long as the plan is being worked out, it cannot be approved.
     let f = w
         .action(Action::ApprovePlan {
             ticket: "BAU-142".into(),
@@ -32,13 +32,13 @@ exit 0
         w.branches() == ["main"],
         "vor der Freigabe entsteht nichts im Remote"
     );
-    // Der Plan-Container bekommt den Klon nur zum Lesen.
+    // The plan container gets the clone read-only.
     assert!(
         w.log("calls.log")
             .lines()
             .any(|z| z.starts_with("run ") && z.contains(":/work:ro"))
     );
-    // Freigabe: jetzt läuft der Container zum Umsetzen.
+    // Approval: now the container runs to implement.
     w.action(Action::ApprovePlan {
         ticket: "BAU-142".into(),
     })
@@ -91,9 +91,9 @@ exit 137
             .any(|m| m.text.starts_with("Angehalten: Budget pro Lauf erreicht"))
     );
     assert_eq!(w.branches(), ["main"]);
-    // Der Klon bleibt für das Fortsetzen.
+    // The clone stays for resuming.
     assert!(w.state.agent_dir().join("runs/BAU-142/run/.git").exists());
-    // Sie wird nicht erneut gestartet, solange sie angehalten ist.
+    // It is not started again as long as it is halted.
     w.state.watch().await;
     assert!(lock(&w.state.inner.agent.running).is_empty());
 }
@@ -133,7 +133,7 @@ exit 137
 #[tokio::test]
 async fn error_in_container_state_in_plain_text_in_run_and_without_secrets() {
     let w = welt(true);
-    // Der Läufer meldet einen Fehler.
+    // The runner reports an error.
     w.write(
         "scenario-run.sh",
         r#"printf '%s\n' '{"t":"error","text":"Das SDK meldet: Verbindung abgewiesen"}'
@@ -155,7 +155,7 @@ exit 1
     assert!(run.log().contains("Verbindung abgewiesen"));
     assert!(!w.state.agent_dir().join("runs/BAU-142").exists());
 
-    // Der Container stirbt ohne Meldung; seine Fehlerausgabe enthält ein Geheimnis.
+    // The container dies without a message; its error output contains a secret.
     w.write(
         "scenario-run.sh",
         &format!("echo \"boom mit {TOKEN} und {GITHUB}\" >&2\nexit 3\n"),
@@ -317,7 +317,7 @@ async fn pause_and_resume_go_at_the_container() {
 #[tokio::test]
 async fn timeout_ended_the_container_with_plain_text() {
     let mut w = welt(true);
-    // Eigene Einstellungen mit 1 Sekunde Obergrenze.
+    // Own settings with an upper bound of 1 second.
     let e = Settings {
         run_seconds: Some(1),
         ..w.state.inner.settings.clone()

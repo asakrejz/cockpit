@@ -1,28 +1,28 @@
-//! Konfiguration: Standardwerte, darüber die Datei, darüber Umgebungsvariablen.
+//! Configuration: defaults, above them the file, above that environment variables.
 //!
-//! Die Datei (`config.toml` im Konfigurationsverzeichnis des Nutzers, z. B.
-//! `~/.config/cockpit/`) enthält **keine Schlüssel** – nur Adressen und Konten.
+//! The file (`config.toml` in the configuration directory of the user, e.g.
+//! `~/.config/cockpit/`) contains **no keys** – only addresses and accounts.
 //!
 //! ```toml
 //! port = 8787
-//! dist = "/pfad/zu/apps/cockpit/dist"
-//! db = "/pfad/zur/cockpit.db"
+//! dist = "/path/to/apps/cockpit/dist"
+//! db = "/path/to/cockpit.db"
 //!
-//! interval_s = 120                     # Abgleich alle 2 Minuten (mindestens 30); älter: `intervall_s`
+//! interval_s = 120                     # sync every 2 minutes (at least 30); older: `intervall_s`
 //!
 //! [github]
 //! api_url = "https://api.github.com"   # optional
-//! repos = ["firma/app", "firma/web"]   # Repos für den Abgleich (owner/name)
+//! repos = ["firma/app", "firma/web"]   # repos for the sync (owner/name)
 //!
 //! [jira]
 //! site = "https://firma.atlassian.net"
 //! email = "ich@firma.example"
-//! projects = ["BAU", "WEB"]            # optional: nur diese Projekte
-//! jql = "project = BAU AND ..."        # optional: eigene Abfrage statt der Projekte
+//! projects = ["BAU", "WEB"]            # optional: only these projects
+//! jql = "project = BAU AND ..."        # optional: own query instead of the projects
 //! ```
 //!
-//! Anmeldung per OAuth (statt eines API-Tokens), nur Client-IDs – die Secrets liegen im
-//! Schlüsselbund (`cockpit-server token setzen github-oauth|atlassian-oauth`):
+//! Sign-in via OAuth (instead of an API token), only client IDs – the secrets are in the
+//! keychain (`cockpit-server token setzen github-oauth|atlassian-oauth`):
 //!
 //! ```toml
 //! [github_oauth]
@@ -30,41 +30,41 @@
 //!
 //! [atlassian]
 //! client_id = "7dNimh…"                # OAuth-2.0-3LO-App
-//! site = "firma"                       # optional: Name, Adresse oder Id, falls mehrere freigegeben sind
+//! site = "firma"                       # optional: name, address or id, if several are approved
 //! ```
 //!
-//! Mit `[atlassian]` braucht `[jira]` weder `site` noch `email` (nur noch `projects`/`jql`).
+//! With `[atlassian]` `[jira]` needs neither `site` nor `email` (only `projects`/`jql`).
 //!
-//! Agent-Anbieter und Endpunkt (nur Adresse und Modellname – der Key liegt im Schlüsselbund,
-//! `cockpit-server token setzen agent-key`), Container-Laufzeit und Seed:
+//! Agent provider and endpoint (only address and model name – the key is in the keychain,
+//! `cockpit-server token setzen agent-key`), container runtime and seed:
 //!
 //! ```toml
-//! seed = "demo"                        # Beispieldaten, nur wenn noch kein Stand gespeichert ist
+//! seed = "demo"                        # sample data, only if no state has been stored yet
 //!
 //! [agent]
-//! provider = "claude-agent-sdk"        # umgesetzt; "claude-code" und "codex" sind bekannt, aber noch nicht umgesetzt
-//! container = "podman"                 # oder "docker"; ohne Angabe erkennt das Backend die Laufzeit
-//! repo = "firma/app"                   # Repo, in dem der Agent arbeitet (sonst das einzige aus [github] repos)
-//! dir = "/pfad/zu/agent"               # Ordner mit Containerfile und Läufer (sonst ./apps/agent bzw. neben apps/cockpit/dist)
+//! provider = "claude-agent-sdk"        # implemented; "claude-code" and "codex" are known but not implemented yet
+//! container = "podman"                 # or "docker"; without a value the backend detects the runtime
+//! repo = "firma/app"                   # repo in which the agent works (otherwise the only one from [github] repos)
+//! dir = "/path/to/agent"               # folder with Containerfile and runner (otherwise ./apps/agent or next to apps/cockpit/dist)
 //!
 //! [agent.endpoint]
-//! url = "https://litellm.example"      # Proxy oder kompatibler Endpunkt; leer oder weglassen = direkt bei Anthropic
-//! model = "claude-sonnet-5-5"          # Name, wie der Endpunkt ihn anbietet
+//! url = "https://litellm.example"      # proxy or compatible endpoint; empty or omitted = directly at Anthropic
+//! model = "claude-sonnet-5-5"          # name as the endpoint offers it
 //! ```
 //!
-//! Ältere Dateien werden weiter gelesen: `[litellm]` (`url`, `modell`) und der Schlüssel `litellm`
-//! (gleichbedeutend mit `[agent.endpoint]` und `agent-key`), `[agent] anbieter`, `[agent.endpunkt]`
-//! mit `modell` und `intervall_s`; steht beides da, gilt das neue.
-//! Der Assistent schreibt das neue Format.
+//! Older files are still read: `[litellm]` (`url`, `modell`) and the key `litellm`
+//! (equivalent to `[agent.endpoint]` and `agent-key`), `[agent] anbieter`, `[agent.endpunkt]`
+//! with `modell`, and `intervall_s`; if both are present the new one applies.
+//! The assistant writes the new format.
 //!
-//! Eine Quelle gleicht nur ab, wenn sie hier eingerichtet ist **und** ihr Schlüssel im
-//! Schlüsselbund liegt (`cockpit-server token setzen <github|jira>`). Ohne Quelle bleibt der
-//! Workspace leer (oder zeigt die Beispieldaten, wenn der Seed `demo` gewählt ist).
+//! A source only syncs if it is set up here **and** its key is in the
+//! keychain (`cockpit-server token setzen <github|jira>`). Without a source the
+//! workspace stays empty (or shows the sample data if the seed `demo` is chosen).
 //!
 //! Umgebungsvariablen: `COCKPIT_PORT`, `COCKPIT_DIST`, `COCKPIT_DB`, `COCKPIT_CONFIG`
-//! (Pfad der Konfigurationsdatei), `COCKPIT_SEED` (`empty` oder `demo`; `leer` gilt weiter), `COCKPIT_CONTAINER`
-//! (`docker` oder `podman`), `COCKPIT_AGENT_DIR` (Ordner `agent`), `COCKPIT_GIT_BASE` (älter `COCKPIT_GIT_BASIS`; Basisadresse zum Klonen, nur für Tests),
-//! `COCKPIT_DEV_PORT` (Port von `trunk serve`, nur für die Entwicklung).
+//! (path of the configuration file), `COCKPIT_SEED` (`empty` or `demo`; `leer` still applies), `COCKPIT_CONTAINER`
+//! (`docker` or `podman`), `COCKPIT_AGENT_DIR` (folder `agent`), `COCKPIT_GIT_BASE` (older `COCKPIT_GIT_BASIS`; base address for cloning, tests only),
+//! `COCKPIT_DEV_PORT` (port of `trunk serve`, for development only).
 
 use std::path::{Path, PathBuf};
 
@@ -73,54 +73,54 @@ use serde::Deserialize;
 
 pub const DEFAULT_PORT: u16 = 8787;
 pub const DEFAULT_GITHUB_API: &str = "https://api.github.com";
-/// So oft wird abgeglichen, wenn nichts eingestellt ist.
+/// This often a sync happens if nothing is set.
 pub const DEFAULT_INTERVAL_S: u64 = 120;
-/// Kürzer geht nicht: Die Dienste begrenzen die Zahl der Abrufe.
+/// Shorter is not possible: the services limit the number of fetches.
 pub const MIN_INTERVAL_S: u64 = 30;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
     pub port: u16,
-    /// Ordner der gebauten Web-App (`apps/cockpit/dist`).
+    /// Folder of the built web app (`apps/cockpit/dist`).
     pub dist: PathBuf,
     pub db: PathBuf,
     pub github: Option<GitHubConfig>,
     pub jira: Option<JiraConfig>,
     pub github_oauth: Option<OAuthConfig>,
     pub atlassian: Option<AtlassianConfig>,
-    /// Abstand des Abgleichs in Sekunden.
+    /// Interval of the sync in seconds.
     pub interval_s: u64,
-    /// Womit ein Workspace beginnt, der noch nie gespeichert wurde.
+    /// What a workspace that has never been stored starts with.
     pub seed: Seed,
-    /// `[agent] anbieter`: das Werkzeug des Agenten.
+    /// `[agent] provider`: the tool of the agent.
     pub provider: Provider,
-    /// `[agent.endpunkt]` (oder das ältere `[litellm]`).
+    /// `[agent.endpoint]` (or the older `[litellm]`).
     pub endpoint: Option<EndpointConfig>,
-    /// Gewählte Container-Laufzeit (`docker` oder `podman`) aus der Datei; `COCKPIT_CONTAINER`
-    /// steht in [`Config::container_env`].
+    /// Chosen container runtime (`docker` or `podman`) from the file; `COCKPIT_CONTAINER`
+    /// is in [`Config::container_env`].
     pub container: Option<String>,
-    /// Wert von `COCKPIT_CONTAINER`, geht der Datei vor.
+    /// Value of `COCKPIT_CONTAINER`, goes before the file.
     pub container_env: Option<String>,
-    /// `[agent] repo`: das Repo, in dem der Agent arbeitet (`owner/name`).
+    /// `[agent] repo`: the repo in which the agent works (`owner/name`).
     pub agent_repo: Option<String>,
-    /// `[agent] dir` bzw. `COCKPIT_AGENT_DIR`: der Ordner mit Containerfile und Läufer.
+    /// `[agent] dir` or `COCKPIT_AGENT_DIR`: the folder with Containerfile and runner.
     pub agent_dir: Option<PathBuf>,
-    /// `COCKPIT_GIT_BASE`: Basisadresse zum Klonen statt `https://github.com` (für Tests).
+    /// `COCKPIT_GIT_BASE`: base address for cloning instead of `https://github.com` (for tests).
     pub git_base: Option<String>,
-    /// `COCKPIT_DEV_PORT`: Port von `trunk serve` für die Entwicklung (nur Umgebung, nie Datei).
+    /// `COCKPIT_DEV_PORT`: port of `trunk serve` for development (environment only, never file).
     pub dev_port: Option<u16>,
-    /// Die Datei, aus der gelesen wurde (und in die der Einrichtungsassistent schreibt); `None`,
-    /// wenn es kein Konfigurationsverzeichnis gibt.
+    /// The file that was read from (and that the setup assistant writes to); `None`
+    /// if there is no configuration directory.
     pub config_path: Option<PathBuf>,
 }
 
-/// Womit der Server startet, solange noch kein Stand gespeichert ist.
+/// What the server starts with as long as no state has been stored.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Seed {
-    /// Ein leerer Workspace (Standard).
+    /// An empty workspace (default).
     #[default]
     Empty,
-    /// Die Beispieldaten aus `cockpit_core::demo`.
+    /// The sample data from `cockpit_core::demo`.
     Demo,
 }
 
@@ -136,17 +136,17 @@ impl Seed {
     }
 }
 
-/// Das Werkzeug und sein Endpunkt, wie zuletzt konfiguriert (im Betrieb austauschbar).
+/// The tool and its endpoint as last configured (replaceable during operation).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct AgentChoice {
     pub provider: Provider,
     pub endpoint: Option<EndpointConfig>,
 }
 
-/// Der Modell-Endpunkt des Agenten. Der Key liegt im Schlüsselbund, nie hier.
+/// The model endpoint of the agent. The key is in the keychain, never here.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct EndpointConfig {
-    /// Ohne Schrägstrich am Ende, z. B. `http://localhost:4000`; `None` = direkt beim Anbieter.
+    /// Without a slash at the end, e.g. `http://localhost:4000`; `None` = directly at the provider.
     pub url: Option<String>,
     pub model: Option<String>,
 }
@@ -154,25 +154,25 @@ pub struct EndpointConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitHubConfig {
     pub api_url: String,
-    /// `owner/name`; ohne Repos gleicht GitHub nicht ab.
+    /// `owner/name`; without repos GitHub does not sync.
     pub repos: Vec<String>,
 }
 
-/// Die GitHub App für die Anmeldung. Das Client-Secret liegt im Schlüsselbund.
+/// The GitHub App for the sign-in. The client secret is in the keychain.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OAuthConfig {
     pub client_id: String,
 }
 
-/// Die Atlassian-App (OAuth 2.0 3LO). Das Client-Secret liegt im Schlüsselbund.
+/// The Atlassian app (OAuth 2.0 3LO). The client secret is in the keychain.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AtlassianConfig {
     pub client_id: String,
-    /// Welche Site, falls mehrere freigegeben sind (Name, Adresse oder Id).
+    /// Which site, if several are approved (name, address or id).
     pub site: Option<String>,
 }
 
-/// Mit OAuth sind `site` und `email` leer.
+/// With OAuth `site` and `email` are empty.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JiraConfig {
     pub site: String,
@@ -219,7 +219,7 @@ struct File {
     agent: Option<FileAgent>,
 }
 
-/// `[litellm]` (älter) und `[agent.endpunkt]` haben dieselben Felder.
+/// `[litellm]` (older) and `[agent.endpoint]` have the same fields.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct FileEndpoint {
@@ -273,7 +273,7 @@ struct FileJira {
     jql: Option<String>,
 }
 
-/// `docker` oder `podman`, sonst ein Fehler.
+/// `docker` or `podman`, otherwise an error.
 fn runtime(text: &str) -> Result<String, ConfigError> {
     match text.trim().to_lowercase().as_str() {
         l @ ("docker" | "podman") => Ok(l.to_string()),
@@ -283,7 +283,7 @@ fn runtime(text: &str) -> Result<String, ConfigError> {
     }
 }
 
-/// `owner/name` aus Buchstaben, Ziffern, `.`, `-` und `_`.
+/// `owner/name` made of letters, digits, `.`, `-` and `_`.
 fn repo_valid(r: &str) -> bool {
     let teil = |t: &str| {
         !t.is_empty()
@@ -294,7 +294,7 @@ fn repo_valid(r: &str) -> bool {
         .is_some_and(|(o, n)| teil(o) && teil(n) && !n.contains('/'))
 }
 
-/// Standardpfad der Konfigurationsdatei.
+/// Default path of the configuration file.
 pub fn default_config_path() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join("cockpit").join("config.toml"))
 }
@@ -307,7 +307,7 @@ fn default_db_path() -> PathBuf {
 }
 
 impl Config {
-    /// Nur Standardwerte.
+    /// Defaults only.
     pub fn defaults() -> Self {
         Self {
             port: DEFAULT_PORT,
@@ -331,8 +331,8 @@ impl Config {
         }
     }
 
-    /// Standardwerte → Dateiinhalt → Umgebung. `datei` ist der Text der TOML-Datei (falls
-    /// vorhanden), `umgebung` liefert Werte von Umgebungsvariablen.
+    /// Defaults → file content → environment. `file` is the text of the TOML file (if
+    /// present), `env` delivers values of environment variables.
     pub fn parse(
         file: Option<&str>,
         env: impl Fn(&str) -> Option<String>,
@@ -398,7 +398,7 @@ impl Config {
                     .filter(|s| !s.is_empty()),
             });
         }
-        // Mit Atlassian-Anmeldung genügt Jira ohne eigene Angaben.
+        // With Atlassian sign-in Jira is enough without own details.
         let jira = d.jira.or_else(|| {
             c.atlassian.as_ref().map(|_| FileJira {
                 site: String::new(),
@@ -432,7 +432,7 @@ impl Config {
         if let Some(text) = d.seed {
             c.seed = Seed::from_text(&text)?;
         }
-        // Das ältere `[litellm]` gilt, solange `[agent.endpunkt]` fehlt.
+        // The older `[litellm]` applies as long as `[agent.endpoint]` is missing.
         let mut endpoint = d.litellm.map(|l| ("[litellm]", l));
         if let Some(a) = d.agent {
             if let Some(text) = a.provider {
@@ -532,8 +532,8 @@ impl Config {
         Ok(c)
     }
 
-    /// Lädt die Datei (`COCKPIT_CONFIG` oder Standardpfad; fehlt sie, gelten die
-    /// Standardwerte) und legt die Umgebungsvariablen darüber.
+    /// Loads the file (`COCKPIT_CONFIG` or default path; if it is missing the
+    /// defaults apply) and puts the environment variables on top.
     pub fn laden() -> Result<Self, ConfigError> {
         let env = |k: &str| std::env::var(k).ok();
         let (path, explicit) = match env("COCKPIT_CONFIG").filter(|s| !s.is_empty()) {
@@ -555,7 +555,7 @@ impl Config {
     }
 }
 
-/// `Ok(None)`, wenn die Datei nicht existiert.
+/// `Ok(None)` if the file does not exist.
 fn read_optional(p: &Path) -> Result<Option<String>, (PathBuf, std::io::Error)> {
     match std::fs::read_to_string(p) {
         Ok(t) => Ok(Some(t)),

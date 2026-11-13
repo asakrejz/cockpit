@@ -78,7 +78,7 @@ fn snapshot(server: &MockServer, site: Option<&str>, with_secret: bool) -> TestB
 }
 
 async fn call(app: &Router, method: &str, path: &str) -> (StatusCode, String, String) {
-    // Wie die Navigation des Browsers: kein Content-Type, kein Origin.
+    // Like the navigation of the browser: no content type, no origin.
     let req = Request::builder()
         .method(method)
         .uri(path)
@@ -99,7 +99,7 @@ async fn call(app: &Router, method: &str, path: &str) -> (StatusCode, String, St
     (status, ort, String::from_utf8_lossy(&body).into_owned())
 }
 
-/// Ein Wert aus der Abfrage einer Adresse (prozentdekodiert).
+/// A value from the query of an address (percent-decoded).
 fn param(url: &str, name: &str) -> String {
     let query = url
         .split_once('?')
@@ -166,7 +166,7 @@ async fn github_state(p: &TestBench) -> String {
 #[tokio::test]
 async fn start_without_setup_shows_a_understandable_message() {
     let server = MockServer::start().await;
-    // Ohne Client-Secret im Schlüsselbund.
+    // Without a client secret in the keychain.
     let p = snapshot(&server, None, false);
     let (status, ort, _) = call(&p.app, "GET", "/api/oauth/github/start").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
@@ -177,7 +177,7 @@ async fn start_without_setup_shows_a_understandable_message() {
     let message = param(&ort, "message");
     assert!(message.contains("token setzen github-oauth"), "{message}");
 
-    // Ohne Client-ID in der Konfiguration.
+    // Without a client ID in the configuration.
     let p = TestBench {
         state: AppState::new(
             crate::db::open_in_memory().unwrap(),
@@ -189,7 +189,7 @@ async fn start_without_setup_shows_a_understandable_message() {
     let _ = &p.secrets;
     assert!(p.state.oauth_start(Service::Atlassian).await.is_err());
 
-    // Unbekannter Dienst.
+    // Unknown service.
     let p = snapshot(&server, None, true);
     let (status, _, _) = call(&p.app, "GET", "/api/oauth/gitlab/start").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
@@ -218,13 +218,13 @@ async fn github_sign_in_from_start_until_health() {
         "{ort}"
     );
     assert!(ort.ends_with("#/setup"));
-    // Nichts Geheimes in Weiterleitung oder Body.
+    // Nothing secret in redirect or body.
     for text in [&ort, &body] {
         for secret in ["ghu_zugriff_geheim", "ghr_erneuern_geheim", CLIENT_SECRET] {
             assert!(!text.contains(secret));
         }
     }
-    // Tokens liegen im Schlüsselbund.
+    // Tokens are in the keychain.
     let stored = p
         .secrets
         .get(secrets::GITHUB_OAUTH_TOKENS)
@@ -245,10 +245,10 @@ async fn github_sign_in_from_start_until_health() {
 #[tokio::test]
 async fn wrong_and_duplicate_state() {
     let server = MockServer::start().await;
-    token_mock_github(&server, 1).await; // genau ein Austausch
+    token_mock_github(&server, 1).await; // exactly one exchange
     let p = snapshot(&server, None, true);
 
-    // Falscher state: kein Austausch, nichts gespeichert.
+    // Wrong state: no exchange, nothing stored.
     let _ = github_state(&p).await;
     let (_, ort, _) = call(
         &p.app,
@@ -258,7 +258,7 @@ async fn wrong_and_duplicate_state() {
     .await;
     assert!(ort.contains("oauth=error"), "{ort}");
     assert!(param(&ort, "message").contains("unbekannt"));
-    // Ohne state (z. B. Rücksprung der Installation ohne unseren Start).
+    // Without state (e.g. return from the installation without our start).
     let (_, ort, _) = call(
         &p.app,
         "GET",
@@ -274,7 +274,7 @@ async fn wrong_and_duplicate_state() {
             .is_none()
     );
 
-    // Richtig, dann derselbe Callback noch einmal.
+    // Right, then the same callback once more.
     let state = github_state(&p).await;
     let url = format!("/api/oauth/github/callback?code=abc&state={state}");
     assert!(call(&p.app, "GET", &url).await.1.contains("oauth=ok"));
@@ -288,7 +288,7 @@ async fn wrong_and_duplicate_state() {
             .is_some()
     );
 
-    // State von GitHub, Callback von Atlassian.
+    // State from GitHub, callback from Atlassian.
     let state = github_state(&p).await;
     let (_, ort, _) = call(
         &p.app,
@@ -327,7 +327,7 @@ async fn error_the_service_and_cancel() {
             .is_none()
     );
 
-    // Der Nutzer lehnt ab.
+    // The user declines.
     let state = github_state(&p).await;
     let (_, ort, _) = call(
         &p.app,
@@ -339,7 +339,7 @@ async fn error_the_service_and_cancel() {
         param(&ort, "message").contains("abgebrochen oder abgelehnt: The user denied"),
         "{ort}"
     );
-    // Der state ist damit verbraucht.
+    // The state is consumed by that.
     let (_, ort, _) = call(
         &p.app,
         "GET",
@@ -408,7 +408,7 @@ async fn atlassian_a_site_is_automatic_chosen() {
     assert_eq!(h["sign_in"]["jira"]["kind"], "oauth");
     assert_eq!(h["sign_in"]["jira"]["site"], "firma");
     assert_eq!(h["connections"]["jira"], true);
-    // Jira wird über das Gateway angesprochen.
+    // Jira is addressed through the gateway.
     let services = tokio::task::spawn_blocking({
         let s = p.state.clone();
         move || s.services_build()
@@ -437,7 +437,7 @@ async fn atlassian_several_sites_need_a_choice() {
         message.contains("firma") && message.contains("privat"),
         "{message}"
     );
-    // Kein halber Zustand.
+    // No half state.
     assert!(
         p.secrets
             .get(secrets::ATLASSIAN_OAUTH_TOKENS)
@@ -477,7 +477,7 @@ async fn revoke_github_calls_the_service_and_deletes() {
     let a: RevokeResponse = serde_json::from_str(&body).unwrap();
     assert!(a.disconnected && a.at_service, "{body}");
     assert!(!p.secrets.has(secrets::GITHUB_OAUTH_TOKENS).unwrap());
-    // Das Client-Secret bleibt (für die nächste Anmeldung).
+    // The client secret stays (for the next sign-in).
     assert!(p.secrets.has(secrets::GITHUB_OAUTH).unwrap());
     let h = call(&p.app, "GET", "/api/health").await.2;
     let h: serde_json::Value = serde_json::from_str(&h).unwrap();
@@ -524,7 +524,7 @@ async fn revoke_atlassian_deletes_tokens_and_site() {
     assert!(a.hint.unwrap().contains("id.atlassian.com"));
     assert!(!p.secrets.has(secrets::ATLASSIAN_OAUTH_TOKENS).unwrap());
     assert_eq!(p.state.atlassian_site(), None);
-    // Widerruf ohne Anmeldung ist kein Fehler.
+    // Revoking without sign-in is no error.
     assert!(
         p.state
             .oauth_revoke(Service::Atlassian)
@@ -560,9 +560,9 @@ async fn expired_tokens_are_refreshed() {
     let t = p.state.oauth_tokens(Service::GitHub).unwrap();
     assert_eq!(t.access.expose(), "neu_zugriff");
     assert_eq!(t.refresh.unwrap().expose(), "neu_erneuern");
-    // Noch gültig: kein zweiter Aufruf (`expect(1)`).
+    // Still valid: no second call (`expect(1)`).
     p.state.oauth_refresh().await;
-    // Der Client bekommt das neue Token.
+    // The client gets the new token.
     let d = p.state.services_build();
     assert!(d.github.is_some());
 }
@@ -585,7 +585,7 @@ async fn fails_the_refresh_is_the_service_disconnected() {
     assert!(!s.connected);
     assert_eq!(s.kind, AuthKind::None);
 
-    // Ohne Refresh-Token ist der abgelaufene Zugriff nicht zu retten.
+    // Without a refresh token the expired access cannot be saved.
     expired(&p, Service::GitHub, None);
     p.state.oauth_refresh().await;
     assert!(p.state.oauth_tokens(Service::GitHub).is_none());
@@ -626,7 +626,7 @@ async fn oauth_goes_before_the_api_token() {
     let status = p.state.service_status(Service::GitHub, true);
     assert_eq!(status.kind, AuthKind::OAuth);
     assert!(status.oauth_possible);
-    // Nach dem Trennen gilt wieder das Token.
+    // After disconnecting the token applies again.
     p.state.oauth_revoke(Service::GitHub).await.unwrap();
     assert_eq!(
         p.state.service_status(Service::GitHub, true).kind,
@@ -638,7 +638,7 @@ async fn oauth_goes_before_the_api_token() {
 async fn callback_is_a_navigation_but_only_from_this_machine() {
     let server = MockServer::start().await;
     let p = snapshot(&server, None, true);
-    // Navigation des Browsers: GET ohne JSON-Content-Type und ohne Origin.
+    // Navigation of the browser: GET without JSON content type and without origin.
     let req = Request::builder()
         .uri("/api/oauth/github/callback?code=a&state=b")
         .header("host", "localhost:8787")
@@ -648,7 +648,7 @@ async fn callback_is_a_navigation_but_only_from_this_machine() {
         .unwrap();
     let r = p.app.clone().oneshot(req).await.unwrap();
     assert_eq!(r.status(), StatusCode::SEE_OTHER);
-    // Fremder Host (DNS-Rebinding) und fremde Gegenstelle bleiben draußen.
+    // Foreign host (DNS rebinding) and foreign peer stay out.
     for (host, peer) in [
         ("evil.example:8787", [127, 0, 0, 1]),
         ("127.0.0.1:8787", [10, 0, 0, 5]),

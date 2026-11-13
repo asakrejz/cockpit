@@ -1,4 +1,4 @@
-//! Der HTTP-Teil: Routen unter `/api`, dahinter die gebaute Web-App.
+//! The HTTP part: routes under `/api`, behind them the built web app.
 
 use std::convert::Infallible;
 use std::path::PathBuf;
@@ -32,40 +32,40 @@ use cockpit_core::api::{AgentStatus, ContainerStatus, EndpointStatus};
 use cockpit_core::{AuthKind, ServiceStatus};
 use cockpit_integrations::oauth::Service;
 
-/// So oft macht der simulierte Agent einen Schritt (wie im Demo-Modus der App).
+/// This often the simulated agent takes a step (as in the demo mode of the app).
 pub const AGENT_TAKT: Duration = Duration::from_millis(2200);
-/// So oft kommt ein Lebenszeichen auf der Ereignis-Verbindung.
+/// This often a sign of life comes on the event connection.
 const KEEP_ALIVE: Duration = Duration::from_secs(15);
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Einstellungen aus `config.toml` und Umgebung, die nicht Jira oder GitHub betreffen.
+/// Settings from `config.toml` and environment that do not concern Jira or GitHub.
 #[derive(Debug, Clone, Default)]
 pub struct Settings {
     pub seed: Seed,
-    /// `[agent] anbieter` und `[agent.endpunkt]`.
+    /// `[agent] provider` and `[agent.endpoint]`.
     pub agent: AgentChoice,
-    /// Ersatz für `https://api.anthropic.com`, damit Tests nie die echte API erreichen.
+    /// Replacement for `https://api.anthropic.com` so that tests never reach the real API.
     pub anthropic_api: Option<String>,
     /// `[agent] container`.
     pub container: Option<String>,
-    /// `COCKPIT_CONTAINER` (geht der Datei vor).
+    /// `COCKPIT_CONTAINER` (goes before the file).
     pub container_env: Option<String>,
-    /// Wo nach `docker` und `podman` gesucht wird; `None` = `PATH` des Prozesses (Tests setzen es).
+    /// Where to search for `docker` and `podman`; `None` = `PATH` of the process (tests set it).
     pub search_path: Option<std::ffi::OsString>,
-    /// `COCKPIT_DEV_PORT`: der Port von `trunk serve`, dessen Anfragen (Host, Origin) auch gelten.
+    /// `COCKPIT_DEV_PORT`: the port of `trunk serve`, whose requests (host, origin) also apply.
     pub dev_port: Option<u16>,
-    /// Die `config.toml`, in die der Einrichtungsassistent schreibt.
+    /// The `config.toml` into which the setup assistant writes.
     pub config_path: Option<PathBuf>,
-    /// `[agent] repo`: das Repo, in dem der Agent arbeitet.
+    /// `[agent] repo`: the repo in which the agent works.
     pub agent_repo: Option<String>,
-    /// Ordner mit Containerfile und Läufer des Agenten.
+    /// Folder with Containerfile and runner of the agent.
     pub agent_dir: Option<PathBuf>,
-    /// Basisadresse zum Klonen statt GitHub (nur Tests).
+    /// Base address for cloning instead of GitHub (tests only).
     pub git_base: Option<String>,
-    /// Hier legt der Agent Klone und Aufträge ab (neben der Datenbank).
+    /// Here the agent puts clones and jobs (next to the database).
     pub data_dir: Option<PathBuf>,
-    /// Feste Obergrenze in Sekunden für einen Lauf statt der Grenzen des Workspace (nur Tests).
+    /// Fixed upper bound in seconds for a run instead of the limits of the workspace (tests only).
     pub run_seconds: Option<u64>,
 }
 
@@ -92,8 +92,8 @@ impl Settings {
     }
 }
 
-/// Der Ordner `agent` mit Containerfile und Läufer: `[agent] dir` bzw. `COCKPIT_AGENT_DIR`, sonst
-/// neben der gebauten App (`<dist>/../../agent`, so liegt er im Repo und im Release-Archiv),
+/// The folder `agent` with Containerfile and runner: `[agent] dir` or `COCKPIT_AGENT_DIR`, otherwise
+/// next to the built app (`<dist>/../../agent`, so it lies in the repo and in the release archive),
 /// sonst `./apps/agent`.
 fn agent_dir_find(config: &Config) -> PathBuf {
     if let Some(d) = &config.agent_dir {
@@ -106,7 +106,7 @@ fn agent_dir_find(config: &Config) -> PathBuf {
     PathBuf::from("apps/agent")
 }
 
-/// Gemeinsamer Zustand der Handler. Klonen ist billig.
+/// Shared state of the handlers. Cloning is cheap.
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) inner: Arc<Inner>,
@@ -116,47 +116,47 @@ pub(crate) struct Inner {
     pub(crate) db: Mutex<Connection>,
     pub(crate) secrets: Arc<dyn SecretStore>,
     pub(crate) live: Live,
-    /// Der Port, auf dem der Server lauscht – für die Prüfung von `Host` und `Origin`.
+    /// The port on which the server listens – for checking `Host` and `Origin`.
     pub(crate) port: u16,
-    /// Offene OAuth-Anmeldungen (`state` → PKCE-Verifier), nur im Speicher.
+    /// Open OAuth sign-ins (`state` → PKCE verifier), only in memory.
     pub(crate) sign_ins: Mutex<cockpit_integrations::oauth::SignIns>,
-    /// Nur eine Auffrischung der OAuth-Tokens gleichzeitig (Refresh-Tokens drehen sich).
+    /// Only one refresh of the OAuth tokens at a time (refresh tokens rotate).
     pub(crate) refresh: tokio::sync::Mutex<()>,
-    /// Jira und GitHub, wie konfiguriert (ob sie laufen, hängt noch vom Schlüssel ab).
-    /// Wird beim Speichern im Einrichtungsassistenten ausgetauscht (ohne Neustart).
+    /// Jira and GitHub as configured (whether they run still depends on the key).
+    /// Is replaced when saving in the setup assistant (without restart).
     pub(crate) sources: RwLock<Arc<Sources>>,
-    /// Anbieter und Endpunkt des Agenten, ebenfalls austauschbar.
+    /// Provider and endpoint of the agent, also replaceable.
     pub(crate) agent_choice: RwLock<AgentChoice>,
-    /// Lesen, Ändern und Schreiben von `config.toml` gehen nacheinander.
+    /// Reading, changing and writing `config.toml` go one after another.
     pub(crate) config_lock: Mutex<()>,
-    /// Schreibzugriffe nach außen und das Übernehmen eines Abgleichs gehen nacheinander.
+    /// Writes to the outside and taking over a sync go one after another.
     pub(crate) lock: tokio::sync::Mutex<()>,
-    /// Zählt erfolgreiche Schreibzugriffe: Ein Abruf, der währenddessen begann, ist veraltet.
+    /// Counts successful writes: a fetch that began in the meantime is outdated.
     pub(crate) written: AtomicU64,
-    /// Nur ein Abgleich gleichzeitig.
+    /// Only one sync at a time.
     pub(crate) sync: tokio::sync::Mutex<()>,
     pub(crate) settings: Settings,
-    /// Ergebnis der Suche nach der Container-Laufzeit, kurz gemerkt.
+    /// Result of the search for the container runtime, remembered briefly.
     pub(crate) container: Cache,
-    /// Läufe des echten Agenten (Container) und der Bau des Images.
+    /// Runs of the real agent (container) and the build of the image.
     pub(crate) agent: crate::agent_ops::Runs,
 }
 
 impl AppState {
-    /// Wie [`AppState::mit_port`], mit dem Standard-Port (für Tests).
+    /// Like [`AppState::with_port`], with the default port (for tests).
     #[cfg(test)]
     pub fn new(db: Connection, secrets: Arc<dyn SecretStore>) -> Self {
         Self::with_port(db, secrets, crate::config::DEFAULT_PORT)
     }
 
-    /// Lädt dabei den gespeicherten Workspace (sonst die Beispieldaten).
+    /// Loads the stored workspace in the process (otherwise the sample data).
     #[cfg(test)]
     pub fn with_port(db: Connection, secrets: Arc<dyn SecretStore>, port: u16) -> Self {
         Self::with_sources(db, secrets, port, Sources::default())
     }
 
-    /// Wie [`AppState::mit_port`], mit Jira und GitHub für den Abgleich. Die Tests starten mit
-    /// den Beispieldaten, der Server selbst mit leerem Workspace ([`AppState::neu`]).
+    /// Like [`AppState::with_port`], with Jira and GitHub for the sync. The tests start with
+    /// the sample data, the server itself with an empty workspace ([`AppState::create`]).
     #[cfg(test)]
     pub fn with_sources(
         db: Connection,
@@ -166,14 +166,14 @@ impl AppState {
     ) -> Self {
         let settings = Settings {
             seed: Seed::Demo,
-            // Tests suchen nirgends nach Container-Programmen: gleiches Ergebnis auf jedem Rechner.
+            // Tests search nowhere for container programs: same result on every machine.
             search_path: Some(std::ffi::OsString::new()),
             ..Settings::default()
         };
         Self::create(db, secrets, port, sources, settings)
     }
 
-    /// Der Zustand des Servers. Ein gespeicherter Workspace wird geladen, sonst gilt der Seed.
+    /// The state of the server. A stored workspace is loaded, otherwise the seed applies.
     pub fn create(
         db: Connection,
         secrets: Arc<dyn SecretStore>,
@@ -203,7 +203,7 @@ impl AppState {
         }
     }
 
-    /// Jira und GitHub, wie zuletzt konfiguriert.
+    /// Jira and GitHub as last configured.
     pub(crate) fn sources(&self) -> Arc<Sources> {
         match self.inner.sources.read() {
             Ok(q) => q.clone(),
@@ -211,7 +211,7 @@ impl AppState {
         }
     }
 
-    /// Anbieter und Endpunkt des Agenten, wie zuletzt konfiguriert.
+    /// Provider and endpoint of the agent as last configured.
     pub(crate) fn agent_choice(&self) -> AgentChoice {
         match self.inner.agent_choice.read() {
             Ok(l) => l.clone(),
@@ -219,8 +219,8 @@ impl AppState {
         }
     }
 
-    /// Übernimmt eine neu geschriebene Konfiguration ohne Neustart: Quellen, OAuth-Apps und
-    /// Agent-Endpunkt. Port, Datenbank, Abgleich-Takt und Container-Wahl bleiben, wie sie sind.
+    /// Takes over a newly written configuration without restart: sources, OAuth apps and
+    /// agent endpoint. Port, database, sync tick and container choice stay as they are.
     pub(crate) fn config_apply(&self, c: &Config) {
         let alt = self.sources();
         let updated = Sources {
@@ -245,8 +245,8 @@ impl AppState {
         }
     }
 
-    /// Ein Takt der Aufgaben im Hintergrund. Der simulierte Agent macht nur mit, wenn der Server
-    /// mit dem Seed `demo` läuft; sonst arbeitet der echte Agent in Containern. Blockierend.
+    /// A tick of the tasks in the background. The simulated agent only joins in if the server
+    /// runs with the seed `demo`; otherwise the real agent works in containers. Blocking.
     pub fn takt(&self) {
         self.inner
             .live
@@ -260,8 +260,8 @@ pub(crate) fn now_ms() -> u64 {
         .map_or(0, |d| d.as_millis() as u64)
 }
 
-/// Startet die Hintergrundarbeit des Agenten im Server: im Modus „echt“ der Aufpasser für die
-/// Container, mit dem Seed `demo` der Takt des simulierten Agenten (statt im Browser).
+/// Starts the background work of the agent in the server: in mode "real" the watcher for the
+/// containers, with the seed `demo` the tick of the simulated agent (instead of in the browser).
 pub fn agent_takt_start(state: AppState) {
     if state.agent_real() {
         crate::agent_ops::watcher_start(state);
@@ -269,7 +269,7 @@ pub fn agent_takt_start(state: AppState) {
     }
     tokio::spawn(async move {
         let mut takt = tokio::time::interval(AGENT_TAKT);
-        takt.tick().await; // der erste Tick kommt sofort
+        takt.tick().await; // the first tick comes immediately
         loop {
             takt.tick().await;
             let state = state.clone();
@@ -278,24 +278,24 @@ pub fn agent_takt_start(state: AppState) {
     });
 }
 
-/// Ob eine Verbindung eingerichtet ist: Sie steht in der Datenbank **und** ihr Schlüssel
-/// liegt in der Schlüsselablage. Der Schlüssel selbst wird nie gelesen oder ausgegeben.
+/// Whether a connection is set up: it is in the database **and** its key
+/// is in the key store. The key itself is never read or printed.
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Connections {
     pub github: bool,
     pub jira: bool,
 }
 
-/// Art und Stand der Anmeldung je Dienst – für „Mit … anmelden“ und „Trennen“.
+/// Kind and state of the sign-in per service – for "Mit … anmelden" and "Trennen".
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct SignIn {
     pub github: ServiceStatus,
     pub jira: ServiceStatus,
 }
 
-/// Zustand des Abgleichs je Quelle: `aus` (nicht eingerichtet oder ohne Schlüssel), `wartet`
-/// (noch kein Abruf), `ok`, `nicht-angemeldet`, `keine-berechtigung`, `kontingent`,
-/// `offline` oder `fehler`.
+/// State of the sync per source: `off` (not set up or without key), `waiting`
+/// (no fetch yet), `ok`, `unauthorized`, `no_permission`, `quota`,
+/// `offline` or `error`.
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct SyncState {
     pub github: String,
@@ -310,15 +310,15 @@ pub struct Health {
     pub connections: Connections,
     pub sign_in: SignIn,
     pub sync: SyncState,
-    /// Anbieter, Adresse, Modell und ob ein Key liegt – nie der Key.
+    /// Provider, address, model and whether a key is present – never the key.
     pub endpoint: EndpointStatus,
     pub container: ContainerStatus,
-    /// Ob der echte Agent loslaufen kann und was fehlt.
+    /// Whether the real agent can start and what is missing.
     pub agent: AgentStatus,
 }
 
 impl AppState {
-    /// Blockierend (Datenbank, Schlüsselbund) – nicht direkt in einem async-Handler aufrufen.
+    /// Blocking (database, keychain) – do not call directly in an async handler.
     fn health(&self) -> Health {
         let names = match self.inner.db.lock() {
             Ok(conn) => db::connections(&conn).unwrap_or_else(|e| {
@@ -327,7 +327,7 @@ impl AppState {
             }),
             Err(_) => Vec::new(),
         };
-        // Ein Token (Datenbank-Eintrag **und** Schlüssel) oder die Anmeldung per OAuth.
+        // A token (database entry **and** key) or the sign-in via OAuth.
         let set_up = |name: &str| {
             names.iter().any(|n| n == name)
                 && self.inner.secrets.has(name).unwrap_or_else(|e| {
@@ -336,7 +336,7 @@ impl AppState {
                 })
         };
         let github = self.service_status(Service::GitHub, set_up(secrets::GITHUB));
-        // Jira per Token braucht Adresse und E-Mail aus der Konfiguration (Eintrag in der Datenbank).
+        // Jira via token needs address and email from the configuration (entry in the database).
         let jira = self.service_status(Service::Atlassian, set_up(secrets::JIRA));
         let connections = Connections {
             github: github.connected,
@@ -395,7 +395,7 @@ async fn health(State(state): State<AppState>) -> Result<Json<Health>, StatusCod
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-/// Der Key des Endpunkts aus dem Schlüsselbund: `agent-key`, ersatzweise das ältere `litellm`.
+/// The key of the endpoint from the keychain: `agent-key`, alternatively the older `litellm`.
 /// Blockierend.
 pub(crate) fn agent_key_read(
     secrets: &dyn crate::secrets::SecretStore,
@@ -407,7 +407,7 @@ pub(crate) fn agent_key_read(
 }
 
 impl AppState {
-    /// Wohin die Aufrufe an den Endpunkt gehen: die eingetragene Adresse, sonst direkt Anthropic.
+    /// Where the calls to the endpoint go: the entered address, otherwise directly Anthropic.
     pub(crate) fn endpoint_target(&self) -> cockpit_integrations::endpoint::Target {
         let choice = self.agent_choice();
         cockpit_integrations::endpoint::Target::from(
@@ -416,7 +416,7 @@ impl AppState {
         )
     }
 
-    /// Der Key des Endpunkts. `Err` ist schon eine fertige Antwort.
+    /// The key of the endpoint. `Err` is already a finished response.
     async fn endpoint_key(&self) -> Result<Option<cockpit_integrations::Secret>, Box<Response>> {
         let secrets = self.inner.secrets.clone();
         match tokio::task::spawn_blocking(move || agent_key_read(secrets.as_ref())).await {
@@ -433,13 +433,13 @@ impl AppState {
     }
 }
 
-/// `GET /api/agent/check`: ruft nur `GET <url>/v1/models` mit dem
-/// Key auf und meldet, ob der Endpunkt erreichbar ist, den Key annimmt und das Modell anbietet.
-/// Nie der Key.
+/// `GET /api/agent/check`: only calls `GET <url>/v1/models` with the
+/// key and reports whether the endpoint is reachable, accepts the key and offers the model.
+/// Never the key.
 async fn endpoint_check(State(state): State<AppState>) -> Response {
     let choice = state.agent_choice();
     let Some(e) = choice.endpoint.clone() else {
-        // Ohne Eintrag gibt es nichts zu prüfen (auch nicht „direkt“: erst wählt die Person ein Modell).
+        // Without an entry there is nothing to check (not even "direct": first the person chooses a model).
         return Json(cockpit_core::api::EndpointCheck {
             hint: Some(
                 "Der Endpunkt ist nicht eingerichtet. Wähle im Schritt „Modell“ Anbieter, Endpunkt und Modell."
@@ -464,8 +464,8 @@ async fn endpoint_check(State(state): State<AppState>) -> Response {
     .into_response()
 }
 
-/// `GET /api/agent/models`: die Modell-IDs des Endpunkts (nur IDs, sortiert) für das Drop-down.
-/// Der Key kommt aus dem Schlüsselbund und verlässt das Backend nie.
+/// `GET /api/agent/models`: the model IDs of the endpoint (IDs only, sorted) for the drop-down.
+/// The key comes from the keychain and never leaves the backend.
 async fn agent_models(State(state): State<AppState>) -> Response {
     let key = match state.endpoint_key().await {
         Ok(k) => k,
@@ -475,7 +475,7 @@ async fn agent_models(State(state): State<AppState>) -> Response {
         .into_response()
 }
 
-/// `GET /api/agent/image`: Stand von „Image bauen“ (läuft, vorhanden, letzte Zeilen, Fehler).
+/// `GET /api/agent/image`: state of "Image bauen" (running, present, last lines, error).
 async fn agent_image_read(State(state): State<AppState>) -> Response {
     match tokio::task::spawn_blocking(move || state.image_state()).await {
         Ok(b) => Json(b).into_response(),
@@ -483,8 +483,8 @@ async fn agent_image_read(State(state): State<AppState>) -> Response {
     }
 }
 
-/// `POST /api/agent/image`: baut das Agent-Image im Hintergrund (`docker build` bzw. `podman build`).
-/// Der Fortschritt steht in `GET /api/agent/image`.
+/// `POST /api/agent/image`: builds the agent image in the background (`docker build` or `podman build`).
+/// The progress is in `GET /api/agent/image`.
 async fn agent_image_build(State(state): State<AppState>) -> Response {
     match tokio::task::spawn_blocking(move || state.image_build()).await {
         Ok(Ok(b)) => Json(b).into_response(),
@@ -493,8 +493,8 @@ async fn agent_image_build(State(state): State<AppState>) -> Response {
     }
 }
 
-/// `GET /api/agent/check/container`: erreicht ein
-/// Container den Endpunkt (Prüfmodus des Images)?
+/// `GET /api/agent/check/container`: does a
+/// container reach the endpoint (check mode of the image)?
 async fn endpoint_check_container(State(state): State<AppState>) -> Response {
     Json(state.container_check().await).into_response()
 }
@@ -516,7 +516,7 @@ pub(crate) fn error(status: StatusCode, message: impl Into<String>) -> Response 
         .into_response()
 }
 
-/// `GET /api/workspace`: der aktuelle Stand, Form von `cockpit_core::persist` plus `revision`.
+/// `GET /api/workspace`: the current state, shape of `cockpit_core::persist` plus `revision`.
 async fn workspace(State(state): State<AppState>) -> Response {
     (
         [(CONTENT_TYPE, "application/json")],
@@ -525,9 +525,9 @@ async fn workspace(State(state): State<AppState>) -> Response {
         .into_response()
 }
 
-/// `POST /api/actions`: wendet die Aktion als „Du“ mit der Uhrzeit des Servers an. Wirkt sie
-/// nach außen (Jira, GitHub), geht erst der Aufruf an den Dienst; scheitert er, ändert sich
-/// nichts. Den Body lesen wir selbst, damit eine unbekannte Aktion eine deutsche Meldung bekommt.
+/// `POST /api/actions`: applies the action as "Du" with the time of the server. If it acts
+/// to the outside (Jira, GitHub), the call to the service goes first; if it fails, nothing
+/// changes. We read the body ourselves so that an unknown action gets a German message.
 async fn action(State(state): State<AppState>, body: Bytes) -> Response {
     let Ok(request) = serde_json::from_slice::<ActionRequest>(&body) else {
         return error(
@@ -535,8 +535,8 @@ async fn action(State(state): State<AppState>, body: Bytes) -> Response {
             "Die Anfrage ist keine bekannte Aktion",
         );
     };
-    // Ein anderes Jira-Projekt: gleich abgleichen, damit dessen Tickets kommen. Das Ergebnis
-    // erreicht die App über den Ereignisstrom.
+    // Another Jira project: sync right away so that its tickets arrive. The result
+    // reaches the app through the event stream.
     let project_switched = matches!(
         request.action,
         cockpit_core::Action::SelectJiraProject { .. }
@@ -557,7 +557,7 @@ async fn action(State(state): State<AppState>, body: Bytes) -> Response {
     }
 }
 
-/// `POST /api/sync`: „jetzt abgleichen“.
+/// `POST /api/sync`: "jetzt abgleichen".
 async fn sync(State(state): State<AppState>) -> Response {
     match state.sync().await {
         Ok(answer) => Json(answer).into_response(),
@@ -565,7 +565,7 @@ async fn sync(State(state): State<AppState>) -> Response {
     }
 }
 
-/// `GET /api/jira/projects`: die Projekte für die Auswahl in der Inbox.
+/// `GET /api/jira/projects`: the projects for the selection in the inbox.
 async fn jira_projects(State(state): State<AppState>) -> Response {
     match state.jira_projects().await {
         Ok(answer) => Json(answer).into_response(),
@@ -575,10 +575,10 @@ async fn jira_projects(State(state): State<AppState>) -> Response {
 
 fn action_error(e: ActionFailure) -> Response {
     match e {
-        // Alle Ablehnungen der Regeln sind 422 – ohne einzelne Fehler aufzuzählen.
+        // All rejections by the rules are 422 – without listing individual errors.
         ActionFailure::Rule(e) => error(StatusCode::UNPROCESSABLE_ENTITY, e.message()),
         ActionFailure::Plan(m) => error(StatusCode::UNPROCESSABLE_ENTITY, m),
-        // Der Dienst hat abgelehnt oder ist nicht erreichbar.
+        // The service has rejected or is not reachable.
         ActionFailure::Service(m) => error(StatusCode::BAD_GATEWAY, m),
         ActionFailure::Save(m) => {
             tracing::error!("Workspace nicht gesichert: {m}");
@@ -591,8 +591,8 @@ fn action_error(e: ActionFailure) -> Response {
     }
 }
 
-/// `GET /api/events`: Server-Sent Events. Erst die aktuelle Revision, dann ein Ereignis
-/// pro angewendeter Aktion. Wer zu langsam liest, bekommt die aktuelle Revision und lädt neu.
+/// `GET /api/events`: server-sent events. First the current revision, then one event
+/// per applied action. Whoever reads too slowly gets the current revision and reloads.
 async fn events(
     State(state): State<AppState>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
@@ -609,7 +609,7 @@ async fn events(
     Sse::new(strom).keep_alive(KeepAlive::new().interval(KEEP_ALIVE))
 }
 
-/// Baut den Router. `dist` ist der Ordner der gebauten Web-App.
+/// Builds the router. `dist` is the folder of the built web app.
 pub fn router(state: AppState, dist: PathBuf) -> Router {
     let mut ports = vec![state.inner.port];
     ports.extend(state.inner.settings.dev_port);
@@ -642,7 +642,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/oauth/{service}/callback", get(crate::oauth::callback))
         .route("/api/oauth/{service}/revoke", post(crate::oauth::revoke))
         .route("/api/{*rest}", any(api_unknown))
-        // Gilt nur für `/api`, nicht für die Dateien der App.
+        // Applies only to `/api`, not to the files of the app.
         .layer(axum::middleware::from_fn_with_state(
             access,
             access::protect,

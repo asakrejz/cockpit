@@ -26,7 +26,7 @@ fn render() -> AnyView {
     let state = RwSignal::new(SuggestionState::Pending);
     let verdict = RwSignal::new("comment");
     let note = RwSignal::new(String::new());
-    // Diff mit auswählbaren Zeilen: Position der gewählten Zeile.
+    // Diff with selectable lines: position of the chosen line.
     let line = RwSignal::new(None::<usize>);
 
     let timeline_state = move |i: usize| {

@@ -1,8 +1,8 @@
-//! Benachrichtigungen im Browser: Erlaubnis, Systemmeldung und Uhrzeit.
+//! Notifications in the browser: permission, system message and time of day.
 //!
-//! Was gemeldet wird und wann, entscheidet `cockpit_core::notify`. Hier steht nur, was den
-//! Browser braucht (Notification-API, Sichtbarkeit des Tabs, Ortszeit). Gefragt wird nach der
-//! Erlaubnis nie von selbst, sondern nur auf Knopfdruck.
+//! What is reported and when is decided by `cockpit_core::notify`. Only what the
+//! browser needs is here (Notification API, visibility of the tab, local time). The
+//! permission is never asked for on its own, only on a button press.
 
 use cockpit_core::NotifyEvent;
 use leptos::prelude::*;
@@ -13,12 +13,12 @@ use web_sys::{
 
 use crate::{route::Route, store::navigate_hash};
 
-/// Wie es um die Erlaubnis des Browsers steht.
+/// How the browser's permission stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Permission {
-    /// Dieser Browser kennt die Notification-API nicht.
+    /// This browser does not know the Notification API.
     Unsupported,
-    /// Noch nicht gefragt.
+    /// Not asked yet.
     Ask,
     Granted,
     Denied,
@@ -35,7 +35,7 @@ impl Permission {
     }
 }
 
-/// Aktueller Stand. Ohne die API (ältere Browser) heißt es „nicht unterstützt“.
+/// Current state. Without the API (older browsers) it says "not supported".
 pub fn permission() -> Permission {
     let known =
         js_sys::Reflect::has(&window(), &JsValue::from_str("Notification")).unwrap_or(false);
@@ -49,8 +49,8 @@ pub fn permission() -> Permission {
     }
 }
 
-/// Fragt den Browser nach der Erlaubnis. Nur aus einem Klick aufrufen.
-/// `done` bekommt danach den neuen Stand.
+/// Asks the browser for permission. Only call from a click.
+/// `done` then gets the new state.
 pub fn request(done: impl Fn(Permission) + 'static) {
     if permission() != Permission::Ask {
         done(permission());
@@ -59,31 +59,31 @@ pub fn request(done: impl Fn(Permission) + 'static) {
     if let Ok(promise) = Notification::request_permission() {
         let on_answer = Closure::new(move |_answer: JsValue| done(permission()));
         let _ = promise.then(&on_answer);
-        // Der Browser ruft das später auf; die Funktion muss so lange leben.
+        // The browser calls this later; the function has to live that long.
         on_answer.forget();
     }
 }
 
-/// Ist der Tab gerade zu sehen?
+/// Is the tab visible right now?
 pub fn foreground() -> bool {
     document().visibility_state() == VisibilityState::Visible
 }
 
-/// Ortszeit in Minuten seit Mitternacht – für die Ruhezeiten.
+/// Local time in minutes since midnight – for the quiet hours.
 pub fn minute_of_day() -> u16 {
     let now = js_sys::Date::new_0();
     (now.get_hours() * 60 + now.get_minutes()) as u16
 }
 
-/// Zeigt eine Systemmeldung, wenn der Browser es erlaubt. Ein Klick darauf holt den Tab
-/// nach vorn und öffnet das Ziel des Ereignisses.
+/// Shows a system message if the browser allows it. A click on it brings the tab
+/// to the front and opens the target of the event.
 pub fn show_system(event: &NotifyEvent) {
     if permission() != Permission::Granted {
         return;
     }
     let options = NotificationOptions::new();
     options.set_body(&event.text);
-    // Gleiche Ereignisse ersetzen sich, statt sich zu stapeln.
+    // Equal events replace each other instead of piling up.
     options.set_tag(&format!("{}{}", event.reason.id(), event.route));
     let Ok(note) = Notification::new_with_options(&event.title, &options) else {
         return;
@@ -98,7 +98,7 @@ pub fn show_system(event: &NotifyEvent) {
     note.set_onclick(Some(on_click.unchecked_ref()));
 }
 
-/// Die Seite, auf der man alles ausprobieren kann.
+/// The page where you can try everything out.
 pub fn settings_route() -> String {
     Route::Notifications.hash()
 }

@@ -1,14 +1,14 @@
 use super::*;
 
-// ---------- Zeilen lesen (begrenzt) ----------
+// ---------- Reading lines (limited) ----------
 
 pub enum Read {
     Line(String),
     TooLarge,
 }
 
-/// Liest eine Zeile, ohne mehr als `MAX_ZEILE` Byte zu puffern: Eine längere Zeile wird bis zum
-/// Zeilenende überlesen und als verworfen gemeldet. `None` am Ende des Stroms.
+/// Reads a line without buffering more than `MAX_LINE` bytes: a longer line is skipped up to the
+/// line end and reported as discarded. `None` at the end of the stream.
 pub async fn read_line<R: AsyncBufRead + Unpin>(
     r: &mut R,
     buffer: &mut Vec<u8>,

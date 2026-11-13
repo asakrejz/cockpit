@@ -1,5 +1,5 @@
-// Git im geklonten Repo (/work). Der Läufer legt nur den Commit an – gepusht wird nie im Container
-// (er hat keine Zugangsdaten dafür); das macht das Backend nach seiner Prüfung.
+// Git in the cloned repo (/work). The runner only creates the commit – nothing is ever pushed in the container
+// (it has no credentials for that); the backend does that after its check.
 
 import { execFile } from "node:child_process";
 
@@ -20,7 +20,7 @@ export interface Recorded {
   files: string[];
 }
 
-/** Stellt sicher, dass der Branch des Auftrags ausgecheckt ist, und liefert die geänderten Dateien. */
+/** Makes sure the branch of the job is checked out and returns the changed files. */
 export async function changedFiles(git: Run, cwd: string): Promise<string[]> {
   const out = await git(["status", "--porcelain", "-z", "--no-renames", "--untracked-files=all"], cwd);
   return out
@@ -29,7 +29,7 @@ export async function changedFiles(git: Run, cwd: string): Promise<string[]> {
     .map((z) => z.slice(3));
 }
 
-/** Legt einen Commit mit allen Änderungen an. `null`, wenn es nichts zu committen gibt. */
+/** Creates a commit with all changes. `null` if there is nothing to commit. */
 export async function record(
   git: Run,
   cwd: string,

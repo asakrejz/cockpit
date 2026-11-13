@@ -1,6 +1,6 @@
 /* =====================================================================
    BAUKASTEN · components.css · v0.2 · iOS 26 / SwiftUI
-   Liest nur --comp-* / --sys-*. API spiegelt SwiftUI-Modifier:
+   Reads only --comp-* / --sys-*. The API mirrors SwiftUI modifiers:
      .buttonStyle(.glassProminent)  →  data-style="glass-prominent"
      .controlSize(.large)           →  data-control-size="large"
      role: .destructive             →  data-role="destructive"
@@ -61,7 +61,7 @@
   background: var(--comp-button-bordered-bg); color: var(--comp-button-bordered-fg);
   transition: transform var(--sys-motion-bouncy), background-color var(--sys-motion-fade), filter var(--sys-motion-fade), box-shadow var(--sys-motion-fade);
 }
-/* unsichtbare 44-px-Trefferfläche wie in iOS */
+/* invisible 44 px hit area as in iOS */
 .ui-button::after { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: max(100%, var(--sys-size-hit)); min-width: var(--sys-size-hit); transform: translateY(-50%); }
 .ui-button:hover { filter: brightness(0.96); }
 .ui-button:active { transform: scale(0.96); }
@@ -271,7 +271,7 @@ a.ui-list__row:focus-visible, button.ui-list__row:focus-visible { outline: none;
 .ui-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 10px; border-radius: var(--ref-radius-full); background: var(--sys-color-tertiary-fill); font: var(--sys-type-footnote); font-family: var(--sys-font-mono); color: var(--sys-color-label); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ui-chip svg { flex: none; color: var(--sys-color-secondary-label); }
 
-/* ---------- Inbox-Zeile ---------- */
+/* ---------- Inbox row ---------- */
 .ui-inbox-row { position: relative; display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 12px 16px 12px 12px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; transition: background-color var(--sys-motion-fade); }
 .ui-inbox-row:hover { background: var(--sys-color-quaternary-fill); }
 .ui-inbox-row[aria-pressed="true"] { background: var(--sys-color-tint-fill); }
@@ -316,7 +316,7 @@ li + li > .ui-inbox-row::before { content: ""; position: absolute; top: 0; right
 .ui-progress__bar { height: 100%; border-radius: var(--ref-radius-full); background: var(--sys-color-tint); transition: width var(--sys-motion-smooth); }
 .ui-log { margin: 0; padding: 14px 16px; border-radius: var(--ref-radius-16); background: var(--sys-color-tertiary-grouped-background); font: 12px/20px var(--sys-font-mono); color: var(--sys-color-label); white-space: pre-wrap; overflow-x: auto; }
 
-/* ---------- Onboarding-Schritte ---------- */
+/* ---------- Onboarding steps ---------- */
 .ui-steps { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
 .ui-steps__item { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 14px 0 6px; border-radius: var(--ref-radius-full); background: var(--sys-color-tertiary-fill); font: var(--sys-type-subheadline); font-weight: 500; color: var(--sys-color-secondary-label); }
 .ui-steps__no { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--sys-color-fill); color: var(--sys-color-label); font: var(--sys-type-footnote); font-weight: 600; }
@@ -324,7 +324,7 @@ li + li > .ui-inbox-row::before { content: ""; position: absolute; top: 0; right
 .ui-steps__item[aria-current="step"] .ui-steps__no { background: var(--sys-color-tint); color: var(--sys-color-on-tint); }
 .ui-steps__item[data-done] .ui-steps__no { background: var(--sys-color-green); color: #fff; }
 
-/* ---------- Doku-Helfer (nur Canvas) ---------- */
+/* ---------- Docs helpers (canvas only) ---------- */
 .doc-code { display: block; font: var(--sys-type-footnote); font-family: var(--sys-font-mono); line-height: 1.55; background: var(--sys-color-tertiary-fill); color: var(--sys-color-label); border-radius: var(--ref-radius-16); padding: var(--ref-space-16) var(--ref-space-20); white-space: pre; overflow-x: auto; margin: 0; }
 .doc-token { font: var(--sys-type-caption1); font-family: var(--sys-font-mono); color: var(--sys-color-secondary-label); }
 .doc-backdrop { background: radial-gradient(circle at 20% 30%, var(--sys-color-orange) 0 18%, transparent 19%), radial-gradient(circle at 75% 40%, var(--sys-color-blue) 0 22%, transparent 23%), radial-gradient(circle at 45% 85%, var(--sys-color-pink) 0 16%, transparent 17%), var(--sys-color-secondary-background); }

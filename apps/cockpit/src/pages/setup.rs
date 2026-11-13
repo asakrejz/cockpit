@@ -1,10 +1,10 @@
-//! Einrichten: ein geführter Assistent in fünf Schritten – Container, Jira, GitHub, Modellzugang
-//! und eine Zusammenfassung. Jeder Schritt lässt sich überspringen und später nachholen.
+//! Setup: a guided assistant in five steps – container, Jira, GitHub, model access
+//! and a summary. Every step can be skipped and caught up on later.
 //!
-//! Schlüssel (Client-Secrets, Tokens, der Key des Modell-Endpunkts) kommen in Passwortfelder und gehen einmal
-//! an den lokalen Server, der sie im Schlüsselbund ablegt. Der Browser speichert sie nirgends
-//! (kein `localStorage`, keine Adresse), der Server schickt sie nie zurück. Die Regeln dazu
-//! stehen in `cockpit_core::setup`, das Schreiben von `config.toml` im Server.
+//! Keys (client secrets, tokens, the key of the model endpoint) go into password fields and go once
+//! to the local server, which stores them in the keychain. The browser stores them nowhere
+//! (no `localStorage`, no address), the server never sends them back. The rules for this
+//! are in `cockpit_core::setup`, writing `config.toml` is in the server.
 
 mod container;
 mod done;
@@ -25,13 +25,13 @@ use github::GitHubStep;
 use jira::JiraStep;
 use model::ModelStep;
 
-/// Beschriftungen der Fortschrittsanzeige, in der Reihenfolge von [`Schritt::ALLE`].
+/// Labels of the progress display, in the order of [`Step::ALL`].
 const NAMES: &[&str] = &["Container", "Jira", "GitHub", "Modell", "Fertig"];
 
 #[component]
 pub fn SetupPage() -> impl IntoView {
     let store = use_store();
-    // Jeder Besuch fragt neu: Zwischen zwei Besuchen kann sich viel getan haben.
+    // Every visit asks anew: a lot can have happened between two visits.
     let ctx = Context::create(store);
     let step = RwSignal::new(Step::Container);
     let index = Signal::derive(move || step.get().index());

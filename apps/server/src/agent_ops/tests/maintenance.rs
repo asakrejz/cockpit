@@ -10,7 +10,7 @@ async fn restart_cleans_orphaned_container_on_and_marks_runs() {
     w.start(false).await;
     w.wait("Container", |_| w.log("calls.log").contains("run "))
         .await;
-    // „Neustart“: neuer Server-Zustand mit demselben gespeicherten Stand, Container sind weg.
+    // "Restart": new server state with the same stored state, containers are gone.
     let ws = w.ws();
     let conn = crate::db::open(&w.tmp.path().join("neu.db")).unwrap();
     let updated = AppState::create(
@@ -35,7 +35,7 @@ async fn restart_cleans_orphaned_container_on_and_marks_runs() {
     let run = updated.inner.live.copy().run("BAU-142").unwrap();
     assert!(run.is_idle());
     assert!(run.ended.unwrap().contains("Server wurde neu gestartet"));
-    // Den alten Lauf im ersten Zustand beenden.
+    // End the old run in the first state.
     w.action(Action::CancelAgent {
         ticket: "BAU-142".into(),
     })
@@ -85,7 +85,7 @@ async fn build_the_images_with_progress_and_error() {
         "{build}"
     );
 
-    // Fehlschlag mit Rat.
+    // Failure with advice.
     w.write("build.error", "");
     let st = w.state.clone();
     tokio::task::spawn_blocking(move || st.image_build())
@@ -127,7 +127,7 @@ async fn build_without_containerfile_and_without_runtime_says_why() {
         .unwrap()
         .unwrap_err();
     assert!(e.contains("Containerfile fehlt"), "{e}");
-    // Ohne Container-Programm: neuer Zustand (der Zwischenspeicher gilt 10 Sekunden).
+    // Without a container program: new state (the cache applies for 10 seconds).
     let w = welt(true);
     std::fs::remove_file(w.bin().join("docker")).unwrap();
     let st = w.state.clone();

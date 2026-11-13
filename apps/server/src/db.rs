@@ -1,12 +1,12 @@
-//! SQLite im Nutzerverzeichnis, mit einfacher Migration über eine Versionstabelle.
+//! SQLite in the user directory, with simple migration via a version table.
 
 use std::path::Path;
 
 use rusqlite::{Connection, params};
 
-/// Migrationen in der Reihenfolge ihrer Version (1, 2, …). **Nie ändern, nur anhängen.**
+/// Migrations in the order of their version (1, 2, …). **Never change, only append.**
 const MIGRATIONS: &[&str] = &[
-    // 1: Einstellungen und Verbindungen – ohne Schlüssel.
+    // 1: settings and connections – without keys.
     "CREATE TABLE settings (
          key   TEXT PRIMARY KEY,
          value TEXT NOT NULL
@@ -17,7 +17,7 @@ const MIGRATIONS: &[&str] = &[
          account    TEXT,               -- Jira: E-Mail; GitHub: später der Login
          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
      );",
-    // 2: Der Workspace des Server-Modus als eine Zeile (JSON im Format von `cockpit_core::persist`).
+    // 2: the workspace of the server mode as one row (JSON in the format of `cockpit_core::persist`).
     "CREATE TABLE workspace (
          id         INTEGER PRIMARY KEY CHECK (id = 1),
          revision   INTEGER NOT NULL,
@@ -26,14 +26,14 @@ const MIGRATIONS: &[&str] = &[
      );",
 ];
 
-/// Die Version, auf die [`migrate`] die Datenbank bringt.
+/// The version to which [`migrate`] brings the database.
 pub const CURRENT_VERSION: u32 = MIGRATIONS.len() as u32;
 
 #[derive(Debug)]
 pub enum DbError {
     Sqlite(rusqlite::Error),
     Io(std::io::Error),
-    /// Die Datei stammt von einer neueren Version des Programms.
+    /// The file comes from a newer version of the program.
     TooNew {
         file: u32,
         program: u32,
@@ -61,7 +61,7 @@ impl From<rusqlite::Error> for DbError {
     }
 }
 
-/// Öffnet (und legt bei Bedarf an) die Datenbank und migriert sie.
+/// Opens (and creates if needed) the database and migrates it.
 pub fn open(path: &Path) -> Result<Connection, DbError> {
     if let Some(dir) = path.parent().filter(|p| !p.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir).map_err(DbError::Io)?;
@@ -71,7 +71,7 @@ pub fn open(path: &Path) -> Result<Connection, DbError> {
     Ok(conn)
 }
 
-/// Flüchtige Datenbank für Tests.
+/// Volatile database for tests.
 #[cfg(test)]
 pub fn open_in_memory() -> Result<Connection, DbError> {
     let mut conn = Connection::open_in_memory()?;
@@ -86,7 +86,7 @@ pub fn version(conn: &Connection) -> Result<u32, DbError> {
     Ok(v.unwrap_or(0))
 }
 
-/// Wendet fehlende Migrationen an, jede in einer eigenen Transaktion. Mehrfach aufrufbar.
+/// Applies missing migrations, each in its own transaction. Can be called repeatedly.
 pub fn migrate(conn: &mut Connection) -> Result<u32, DbError> {
     let current = version(conn)?;
     if current > CURRENT_VERSION {
@@ -107,7 +107,7 @@ pub fn migrate(conn: &mut Connection) -> Result<u32, DbError> {
     version(conn)
 }
 
-/// Legt eine Verbindung an oder aktualisiert sie (ohne Schlüssel).
+/// Creates a connection or updates it (without a key).
 pub fn connection_set(
     conn: &Connection,
     name: &str,
@@ -122,7 +122,7 @@ pub fn connection_set(
     Ok(())
 }
 
-/// Der gespeicherte Workspace des Server-Modus (JSON mit Revision), falls es einen gibt.
+/// The stored workspace of the server mode (JSON with revision), if there is one.
 pub fn workspace_laden(conn: &Connection) -> Result<Option<String>, DbError> {
     match conn.query_row("SELECT json FROM workspace WHERE id = 1", [], |r| r.get(0)) {
         Ok(json) => Ok(Some(json)),
@@ -131,7 +131,7 @@ pub fn workspace_laden(conn: &Connection) -> Result<Option<String>, DbError> {
     }
 }
 
-/// Ersetzt den gespeicherten Workspace.
+/// Replaces the stored workspace.
 pub fn workspace_save(conn: &Connection, revision: u64, json: &str) -> Result<(), DbError> {
     conn.execute(
         "INSERT INTO workspace (id, revision, json) VALUES (1, ?1, ?2)
@@ -141,7 +141,7 @@ pub fn workspace_save(conn: &Connection, revision: u64, json: &str) -> Result<()
     Ok(())
 }
 
-/// Namen aller gespeicherten Verbindungen.
+/// Names of all stored connections.
 pub fn connections(conn: &Connection) -> Result<Vec<String>, DbError> {
     let mut stmt = conn.prepare("SELECT name FROM connections ORDER BY name")?;
     let names = stmt
@@ -208,7 +208,7 @@ mod tests {
         setting_set(&conn, "thema", "dunkel").unwrap();
         assert_eq!(migrate(&mut conn).unwrap(), CURRENT_VERSION);
         assert_eq!(migrate(&mut conn).unwrap(), CURRENT_VERSION);
-        // Daten bleiben erhalten, die Versionstabelle hat genau einen Eintrag je Version.
+        // Data is kept, the version table has exactly one entry per version.
         assert_eq!(setting(&conn, "thema").unwrap().as_deref(), Some("dunkel"));
         let n: u32 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |r| r.get(0))

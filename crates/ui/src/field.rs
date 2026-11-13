@@ -2,7 +2,7 @@ use leptos::prelude::*;
 
 use crate::{Icon, icons, next_id};
 
-/// Textfeld mit Label und optionalem Hinweis. Mit `error` wird es rot markiert.
+/// Text field with label and optional hint. With `error` it is marked red.
 #[component]
 pub fn TextField(
     #[prop(into)] label: String,
@@ -11,12 +11,12 @@ pub fn TextField(
     /// HTML-`type`, z. B. `"email"`, `"password"`, `"number"`.
     #[prop(default = "text")]
     input_type: &'static str,
-    /// Hinweis oder Fehlermeldung unter dem Feld.
+    /// Hint or error message below the field.
     #[prop(optional, into)]
     hint: Option<String>,
     #[prop(into, default = false.into())] error: Signal<bool>,
     #[prop(into, default = false.into())] disabled: Signal<bool>,
-    /// HTML-`autocomplete`, z. B. `"off"` für Schlüssel: Der Browser merkt sich dann nichts.
+    /// HTML `autocomplete`, e.g. `"off"` for keys: the browser then remembers nothing.
     #[prop(optional)]
     autocomplete: Option<&'static str>,
 ) -> impl IntoView {
@@ -40,7 +40,7 @@ pub fn TextField(
     }
 }
 
-/// Suchfeld mit Lupe.
+/// Search field with magnifier.
 #[component]
 pub fn SearchField(
     value: RwSignal<String>,

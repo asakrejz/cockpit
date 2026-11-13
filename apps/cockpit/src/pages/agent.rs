@@ -1,4 +1,4 @@
-//! Ein Agent setzt ein Ticket um: Auftrag, Ablauf in fünf Schritten und Aktivität.
+//! An agent implements a ticket: job, course in five steps and activity.
 
 use cockpit_core::{
     Action, AgentOptions, MessageKind, RunMessage, Speaker,
@@ -18,7 +18,7 @@ fn step_state(state: cockpit_core::StepState) -> StepState {
     }
 }
 
-/// Eine Zeile des Verlaufs als Sprechblase.
+/// A line of the history as a speech bubble.
 fn bubble(m: RunMessage) -> impl IntoView {
     let own = m.from == Speaker::User;
     let who = match (m.from, m.kind) {
@@ -48,8 +48,8 @@ fn bubble(m: RunMessage) -> impl IntoView {
 pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let store = use_store();
 
-    // Ohne Ticket in der Adresse: ein laufender Agent, sonst das erste Ticket ohne
-    // Pull Request, sonst der letzte Lauf.
+    // Without a ticket in the address: a running agent, otherwise the first ticket without a
+    // pull request, otherwise the last run.
     let key = ticket.or_else(|| {
         store.ws.with_untracked(|w| {
             let running = w.runs.iter().find(|r| r.is_active()).map(|r| r.key());
@@ -62,7 +62,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         })
     });
     let key = StoredValue::new(key.unwrap_or_default());
-    // Der Eintrag zum Lauf: das Ticket, bei Folgeaufträgen der Eintrag mit dem Pull Request.
+    // The entry for the run: the ticket, for follow-up jobs the entry with the pull request.
     let item = Memo::new(move |_| {
         store.ws.with(|w| {
             let key = w
@@ -72,7 +72,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         })
     });
 
-    // Optionen des Auftrags. Läuft der Agent schon, gelten die des Laufs.
+    // Options of the job. If the agent is already running, those of the run apply.
     let saved = store
         .ws
         .with_untracked(|w| w.run(&key.get_value()))
@@ -82,7 +82,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let draft_pr = RwSignal::new(options.draft_pr);
     let hint = RwSignal::new(options.hint);
     let plan_first = RwSignal::new(options.plan_first);
-    // Anmerkung für einen neuen Plan.
+    // Note for a new plan.
     let note = RwSignal::new(String::new());
     let tests_allowed = Signal::derive(move || store.conn.get().may_run_tests);
     let chosen = move || AgentOptions {
@@ -93,7 +93,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         ..Default::default()
     };
 
-    // Der Lauf, wie er jetzt aussieht. Vor dem Start zeigt er schon die gewählten Optionen.
+    // The run as it looks now. Before the start it already shows the chosen options.
     let run = Memo::new(move |_| {
         let mut run = store.ws.with(|w| w.run(&key.get_value()))?;
         if run.is_idle() {
@@ -109,19 +109,19 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let asking = Signal::derive(move || run.get().is_some_and(|r| r.is_asking()));
     let paused = Signal::derive(move || run.get().is_some_and(|r| r.is_paused()));
     let diagnosed = Signal::derive(move || run.get().is_some_and(|r| r.is_diagnosed()));
-    // Folgeaufträge (Review-Kommentare, roter Check) starten auf der Review-Seite.
+    // Follow-up jobs (review comments, red check) start on the review page.
     let followup = Signal::derive(move || run.get().is_some_and(|r| r.is_followup()));
-    // Der Agent arbeitet an den Schritten – dann nimmt er Hinweise an.
+    // The agent works on the steps – then it accepts hints.
     let stopped = Signal::derive(move || run.get().is_some_and(|r| r.is_stopped()));
     let working = Signal::derive(move || {
         running.get() || asking.get() || paused.get() || diagnosed.get() || stopped.get()
     });
-    // Meldung der letzten Aktion, die nicht ging (z. B. Grenze paralleler Läufe, Regelverstoß).
+    // Message of the last action that did not work (e.g. limit of parallel runs, rule violation).
     let problem = RwSignal::new(None::<String>);
     let note_result = move |result: Result<cockpit_core::Applied, cockpit_core::ActionError>| {
         problem.set(result.err().map(|e| e.message()));
     };
-    // Die Regeln des Repos binden den Auftrag: Pflicht-Tests und Plan-Pflicht lassen sich nicht abwählen.
+    // The rules of the repo bind the job: required tests and plan requirement cannot be switched off.
     let rules = Memo::new(move |_| run.get().map(|r| r.rules).unwrap_or_default());
     let violations = Memo::new(move |_| run.get().map(|r| r.violations()).unwrap_or_default());
     let tests_forced = Signal::derive(move || !rules.get().required_tests.is_empty());
@@ -131,7 +131,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let locked = Signal::derive(move || !idle.get());
     let blocked = Signal::derive(move || store.conn.get().agent_blocked());
 
-    // Was die Regeln verlangen, steht schon vor dem Start in den Schaltern.
+    // What the rules demand is already in the switches before the start.
     Effect::new(move |_| {
         if tests_forced.get() {
             run_tests.set(true);
@@ -159,7 +159,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         }));
         note.set(String::new());
     };
-    // Angehaltenen Lauf nach einer Erhöhung der Grenze fortsetzen.
+    // Resume a halted run after the limit was raised.
     let raise = move |extra: u64| {
         note_result(store.dispatch(Action::ResumeStopped {
             run: key.get_value(),
@@ -172,7 +172,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         });
         note.set(String::new());
     };
-    // Antwort auf eine Rückfrage und Hinweis an den laufenden Agenten.
+    // Answer to a question and hint to the running agent.
     let answer = RwSignal::new(String::new());
     let steer = RwSignal::new(String::new());
     let answer_empty = Signal::derive(move || answer.with(|a| a.trim().is_empty()));
@@ -232,7 +232,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         });
     };
 
-    // Läufe für die Sidebar. Das gewählte Ticket steht dabei, auch wenn es noch keinen Lauf hat.
+    // Runs for the sidebar. The chosen ticket is included even if it has no run yet.
     let runs = move || {
         let current = key.get_value();
         let mut rows: Vec<(String, String, &'static str)> = store.ws.with(|w| {
@@ -305,7 +305,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         .collect_view()
     };
 
-    // Gesprächsverlauf: Agent-Meldungen, Fragen, deine Antworten und Hinweise.
+    // Conversation history: agent messages, questions, your answers and hints.
     let history = move || {
         let messages = run.get().map(|r| r.messages).unwrap_or_default();
         if messages.is_empty() {
@@ -335,7 +335,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         }
     };
 
-    // Ergebnis-Karte, sobald der Pull Request steht.
+    // Result card as soon as the pull request exists.
     let result = move || {
         let run = run.get().filter(|r| r.is_done())?;
         let number = run.pr_number?;
@@ -554,7 +554,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                 .get()
                                 .filter(|_| idle.get())
                                 .map(|reason| {
-                                    // Der Server sagt genau, was fehlt und wo man es einrichtet.
+                                    // The server says exactly what is missing and where to set it up.
                                     let exactly = store.health.with(|h| {
                                         h.as_ref()
                                             .map(|h| h.agent.missing.join(" "))
@@ -569,7 +569,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                 })
                         }}
                         {move || {
-                            // Warum der letzte Lauf ohne Ergebnis endete (Fehler, Zeitlimit, Neustart).
+                            // Why the last run ended without a result (error, timeout, restart).
                             run.get()
                                 .filter(|r| r.is_idle())
                                 .and_then(|r| r.ended)
@@ -626,7 +626,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                         }}
 
                         {move || {
-                            // Eine Grenze hat den Lauf angehalten: erhöhen und fortsetzen oder abbrechen.
+                            // A limit has halted the run: raise it and resume, or cancel.
                             let run = run.get().filter(|r| r.is_stopped())?;
                             let reason = run.stop_reason()?;
                             let (limits, month) = store
@@ -816,7 +816,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                         }}
 
                         {move || {
-                            // Verbrauch dieses Laufs und Summen über alle Läufe.
+                            // Usage of this run and totals over all runs.
                             let run = run.get().filter(|r| !r.is_idle())?;
                             let usage = run.usage();
                             let (limits, today, month) = store.ws.with(|w| {
@@ -876,7 +876,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                         </div>
                         <Log text=Signal::derive(move || run.get().map(|r| r.log()).unwrap_or_default()) />
                         {move || {
-                            // Sobald der Agent an den Dateien arbeitet, erscheinen sie hier.
+                            // As soon as the agent works on the files, they appear here.
                             let run = run.get().filter(|r| r.completed >= 2)?;
                             let files = store.ws.with(|w| {
                                 run.pr_number.and_then(|n| w.review(n)).map(|r| r.files.clone())

@@ -30,7 +30,7 @@ async fn action_changes_the_state_and_counts_the_revision() {
     let (ws, revision) = cockpit_core::persist::load_with_revision(&body).unwrap();
     assert_eq!(revision, 1);
     assert!(ws.item(&id).unwrap().read);
-    // Der Server wendet als „Du“ an, mit seiner Uhr.
+    // The server applies as "Du", with its clock.
     let last = ws.log.last().unwrap();
     assert_eq!(last.actor, Actor::User);
     assert!(last.at_ms > 1_600_000_000_000);
@@ -74,13 +74,13 @@ async fn review_send_with_open_suggestions_is_4_xx() {
 
 #[tokio::test]
 async fn merging_only_with_met_conditions() {
-    // Über die API kommt jede Aktion als „Du“. Dass ein Agent nie merged, prüft
-    // `Workspace::apply` selbst (Actor); hier greifen die Bedingungen fürs Mergen.
+    // Via the API every action comes as "Du". That an agent never merges is checked by
+    // `Workspace::apply` itself (actor); here the conditions for merging apply.
     let body = r#"{"action":{"MergePr":{"review":87,"method":"Squash"}}}"#;
     let (status, answer) = send(app_without_dist(), body).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{answer}");
     assert!(!json(&answer)["error"].as_str().unwrap().is_empty());
-    // Formen, die es nicht gibt, bleiben 400.
+    // Shapes that do not exist stay 400.
     for body in [
         r#"{"action":{"Merge":{"review":87}}}"#,
         r#"{"action":"MergePullRequest"}"#,

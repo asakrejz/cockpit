@@ -1,18 +1,18 @@
-// Die Adapter und ihre Auswahl über `COCKPIT_PROVIDER` (Standard: claude-agent-sdk).
+// The adapters and their selection via `COCKPIT_PROVIDER` (default: claude-agent-sdk).
 //
-// Neue Adapter (Claude Code mit `claude -p --output-format stream-json`, Codex mit
-// `codex exec --json`) müssen nur die Ausgabe ihres Werkzeugs in die Ereignisse aus ereignis.ts
-// übersetzen; siehe apps/agent/README.md.
+// New adapters (Claude Code with `claude -p --output-format stream-json`, Codex with
+// `codex exec --json`) only have to translate the output of their tool into the events from event.ts;
+// see apps/agent/README.md.
 
 import { claudeAgentSdk } from "./claude-agent-sdk.ts";
 import type { Adapter } from "./interface.ts";
 
-/** Bekannte, aber noch nicht umgesetzte Werkzeuge. */
+/** Known tools that are not implemented yet. */
 export const NOT_IMPLEMENTED_YET = ["claude-code", "codex"] as const;
 
 export const DEFAULT_PROVIDER = "claude-agent-sdk";
 
-/** Wählt den Adapter; unbekannte und noch nicht umgesetzte Namen ergeben einen Fehler in Klartext. */
+/** Chooses the adapter; unknown and not yet implemented names give an error in plain text. */
 export function chooseAdapter(name: string | undefined, adapter: Record<string, () => Adapter> = { [DEFAULT_PROVIDER]: () => claudeAgentSdk() }): Adapter {
   const n = (name ?? "").trim() || DEFAULT_PROVIDER;
   const build = adapter[n];

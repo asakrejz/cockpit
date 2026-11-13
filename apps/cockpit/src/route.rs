@@ -1,25 +1,25 @@
-//! Seiten und ihre Adressen. Die Adresse steht im Hash der URL (`#/review/87`),
-//! damit Zurück-Button und Lesezeichen funktionieren.
+//! Pages and their addresses. The address is in the hash of the URL (`#/review/87`),
+//! so that the back button and bookmarks work.
 
 use cockpit_core::Filter;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Route {
-    /// Verbindungen einrichten und ändern.
+    /// Set up and change connections.
     Setup,
-    /// Die Inbox mit einem Filter.
+    /// The inbox with a filter.
     Inbox(Filter),
-    /// Team-Übersicht: wer woran arbeitet und was hängt.
+    /// Team overview: who works on what and what is stuck.
     Overview,
-    /// Protokoll aller Änderungen.
+    /// Log of all changes.
     Log,
-    /// Einstellungen für Benachrichtigungen.
+    /// Settings for notifications.
     Notifications,
-    /// Kosten, Grenzen und Regeln pro Repo für die Agenten.
+    /// Costs, limits and rules per repo for the agents.
     Limits,
-    /// Ein Review. Ohne Nummer: das erste offene.
+    /// A review. Without a number: the first open one.
     Review(Option<u32>),
-    /// Ein Agenten-Lauf. Ohne Ticket: ein sinnvoller Vorschlag.
+    /// An agent run. Without a ticket: a sensible suggestion.
     Agent(Option<String>),
 }
 

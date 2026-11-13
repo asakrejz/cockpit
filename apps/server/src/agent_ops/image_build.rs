@@ -1,9 +1,9 @@
 use super::*;
 
 impl AppState {
-    // ---------- Image bauen ----------
+    // ---------- Build image ----------
 
-    /// Der Stand von „Image bauen“. Blockierend.
+    /// The state of "Image bauen". Blocking.
     pub(crate) fn image_state(&self) -> ImageBuild {
         let mut b = lock(&self.inner.agent.build).clone();
         let status = self.container_status();
@@ -14,7 +14,7 @@ impl AppState {
         b
     }
 
-    /// Startet den Bau im Hintergrund. `Err` mit der Erklärung, wenn er nicht starten kann.
+    /// Starts the build in the background. `Err` with the explanation if it cannot start.
     /// Blockierend.
     pub(crate) fn image_build(&self) -> Result<ImageBuild, String> {
         let status = self.container_status();
@@ -53,9 +53,9 @@ impl AppState {
     }
 }
 
-// ---------- Image bauen ----------
+// ---------- Build image ----------
 
-/// Ein Rat zum Fehler beim Bauen, aus den letzten Zeilen.
+/// Advice for the build error, from the last lines.
 pub fn build_hint(lines: &[String]) -> Option<&'static str> {
     let everything = lines.join("\n").to_lowercase();
     let contains = |s: &str| everything.contains(s);

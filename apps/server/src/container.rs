@@ -1,9 +1,9 @@
-//! Container-Laufzeit erkennen (Docker oder Podman), nur über die Kommandozeile.
+//! Detect the container runtime (Docker or Podman), only via the command line.
 //!
-//! Regeln (siehe „Container“ in `docs/ROADMAP.md`): Das Backend ruft `docker` oder `podman` als
-//! Prozess auf, nie den Socket. Gewählt wird in dieser Reihenfolge: `COCKPIT_CONTAINER`,
-//! `[agent] container` in `config.toml`, sonst erst `podman`, dann `docker` im `PATH`. Ob die
-//! Engine läuft, zeigt `<cli> info`. Hier wird nichts gebaut oder gestartet.
+//! Rules (see "Container" in `docs/ROADMAP.md`): the backend calls `docker` or `podman` as a
+//! process, never the socket. The choice is made in this order: `COCKPIT_CONTAINER`,
+//! `[agent] container` in `config.toml`, otherwise first `podman`, then `docker` in the `PATH`. Whether the
+//! engine runs is shown by `<cli> info`. Nothing is built or started here.
 
 use std::ffi::OsStr;
 use std::path::PathBuf;
@@ -13,14 +13,14 @@ use std::time::{Duration, Instant};
 
 use cockpit_core::api::ContainerStatus;
 
-/// So lange darf `<cli> info` dauern, bevor es als „läuft nicht“ gilt.
+/// This long `<cli> info` may take before it counts as "not running".
 const INFO_TIME: Duration = Duration::from_secs(8);
-/// So lange gilt ein Ergebnis, bevor `/api/health` neu fragt (`info` kann Sekunden dauern).
+/// This long a result applies before `/api/health` asks again (`info` can take seconds).
 const VALID: Duration = Duration::from_secs(10);
-/// Reihenfolge der Suche ohne ausdrückliche Wahl.
+/// Order of the search without an explicit choice.
 const SEARCH: [&str; 2] = ["podman", "docker"];
 
-/// Die Wahl aus Umgebung und Datei; die Umgebung geht vor.
+/// The choice from environment and file; the environment goes first.
 fn chosen(config: Option<&str>, env: Option<&str>) -> Option<(String, &'static str)> {
     env.map(|l| (l.to_string(), "env"))
         .or_else(|| config.map(|l| (l.to_string(), "config")))
@@ -39,8 +39,8 @@ fn not_started(cli: &str) -> String {
     }
 }
 
-/// Die Entscheidung als reine Funktion: `vorhanden(cli)` sagt, ob das Programm im `PATH` liegt,
-/// `laeuft(cli)`, ob `<cli> info` gelingt.
+/// The decision as a pure function: `present(cli)` says whether the program is in the `PATH`,
+/// `running(cli)` whether `<cli> info` succeeds.
 pub fn choose(
     config: Option<&str>,
     env: Option<&str>,
@@ -98,7 +98,7 @@ pub fn choose(
     }
 }
 
-/// Sucht ein ausführbares Programm in den Ordnern von `path`.
+/// Searches an executable program in the folders of `path`.
 pub fn in_path(name: &str, path: &OsStr) -> Option<PathBuf> {
     std::env::split_paths(path)
         .map(|dir| dir.join(name))
@@ -117,8 +117,8 @@ fn executable(file: &std::path::Path) -> bool {
     file.is_file()
 }
 
-/// `<programm> info` ohne Ausgabe; gelingt, wenn es mit Status 0 endet. Nach `INFO_ZEIT` wird
-/// der Prozess beendet. Blockierend.
+/// `<program> info` without output; succeeds if it ends with status 0. After `INFO_TIME` the
+/// process is ended. Blocking.
 fn info_succeeds(program: &std::path::Path) -> bool {
     let Ok(mut kind) = Command::new(program)
         .arg("info")
@@ -145,7 +145,7 @@ fn info_succeeds(program: &std::path::Path) -> bool {
     }
 }
 
-/// Erkennt die Laufzeit mit echten Prozessaufrufen. Blockierend.
+/// Detects the runtime with real process calls. Blocking.
 pub fn detect(config: Option<&str>, env: Option<&str>, path: &OsStr) -> ContainerStatus {
     choose(
         config,
@@ -155,14 +155,14 @@ pub fn detect(config: Option<&str>, env: Option<&str>, path: &OsStr) -> Containe
     )
 }
 
-/// Merkt sich das Ergebnis kurz, damit `/api/health` nicht bei jedem Aufruf `info` startet.
+/// Remembers the result briefly so that `/api/health` does not start `info` on every call.
 #[derive(Default)]
 pub struct Cache {
     snapshot: Mutex<Option<(Instant, ContainerStatus)>>,
 }
 
 impl Cache {
-    /// Das gemerkte Ergebnis oder ein frisches. Blockierend.
+    /// The remembered result or a fresh one. Blocking.
     pub fn fetch(&self, fresh: impl FnOnce() -> ContainerStatus) -> ContainerStatus {
         let mut snapshot = self.snapshot.lock().unwrap_or_else(|e| e.into_inner());
         if let Some((time, status)) = snapshot.as_ref()
@@ -230,7 +230,7 @@ mod tests {
         let s = choose(Some("docker"), None, all_ok, all_ok);
         assert_eq!(s.runtime.as_deref(), Some("docker"));
         assert_eq!(s.source, "config");
-        // Gewählt heißt gewählt: Es wird nicht auf die andere Laufzeit ausgewichen.
+        // Chosen means chosen: it does not fall back to the other runtime.
         let s = choose(Some("docker"), None, all_ok, |cli| cli == "podman");
         assert_eq!(s.runtime.as_deref(), Some("docker"));
         assert!(!s.engine_running);

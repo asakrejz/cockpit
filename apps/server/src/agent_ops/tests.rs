@@ -9,11 +9,11 @@ use cockpit_core::{AgentOptions, MessageKind, demo};
 const TOKEN: &str = "sk-test-geheim-123";
 const GITHUB: &str = "ghp_test_geheim_456";
 
-// ---------- mit Attrappe als docker und lokalem Git-Remote ----------
+// ---------- with a fake as docker and a local Git remote ----------
 
-/// `docker` als Shell-Skript. Das Szenario eines Laufs steht in `scenario-plan.sh` bzw.
-/// `scenario-run.sh` (je nachdem, ob der Klon schreibgeschützt eingebunden ist) und wird
-/// im Skript eingelesen; `$clone`, `$name` und `$d` stehen darin zur Verfügung.
+/// `docker` as a shell script. The scenario of a run is in `scenario-plan.sh` or
+/// `scenario-run.sh` (depending on whether the clone is mounted read-only) and is read in by
+/// the script; `$clone`, `$name` and `$d` are available in it.
 const DOCKER: &str = r#"#!/bin/sh
 d="$(dirname "$0")"
 echo "$@" >> "$d/calls.log"
@@ -119,7 +119,7 @@ impl World {
         .await
         .unwrap();
     }
-    /// Lässt den Aufpasser arbeiten, bis `bedingung` gilt (höchstens 15 Sekunden).
+    /// Lets the watcher work until `condition` holds (at most 15 seconds).
     async fn wait(&self, was: &str, condition: impl Fn(&Workspace) -> bool) {
         let end = Instant::now() + Duration::from_secs(15);
         loop {
@@ -145,7 +145,7 @@ impl World {
     }
 }
 
-/// Eine World mit allem eingerichtet. `echt = false` lässt den Container-Teil weg.
+/// A world with everything set up. `real = false` leaves out the container part.
 fn welt(set_up: bool) -> World {
     use std::os::unix::fs::PermissionsExt;
     let tmp = tempfile::tempdir().unwrap();
@@ -155,7 +155,7 @@ fn welt(set_up: bool) -> World {
     std::fs::write(&docker, DOCKER).unwrap();
     std::fs::set_permissions(&docker, std::fs::Permissions::from_mode(0o755)).unwrap();
 
-    // Ein Remote mit `main`.
+    // A remote with `main`.
     let source = tmp.path().join("source");
     std::fs::create_dir_all(&source).unwrap();
     sh(&source, &["init", "--quiet", "-b", "main"]);
@@ -212,7 +212,7 @@ fn welt(set_up: bool) -> World {
 
 const BRANCH: &str = "claude/BAU-142-toggle-fokus-ring-fehlt";
 
-/// Szenario: Der „Container“ ändert eine Datei im Klon, committet und meldet das Ergebnis.
+/// Scenario: the "container" changes a file in the clone, commits and reports the result.
 fn scenario_ok() -> String {
     format!(
         r#"echo neu > "$clone/neu.txt"
@@ -227,7 +227,7 @@ exit 0
     )
 }
 
-/// Ein Zustand wie `welt`, aber mit anderer Wahl von Anbieter und Endpunkt.
+/// A state like `world`, but with a different choice of provider and endpoint.
 fn with_choice(w: &World, choice: AgentChoice) -> AppState {
     let e = Settings {
         agent: choice,

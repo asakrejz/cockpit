@@ -1,5 +1,5 @@
-/* Hülle des Playgrounds. Benutzt ausschließlich Design-Tokens aus crates/ui/tokens.css
-   (keine eigenen Farben oder festen Radien), damit Theme, Tint und Kontrast greifen. */
+/* Shell of the playground. Uses only design tokens from crates/ui/tokens.css
+   (no own colors or fixed radii), so that theme, tint and contrast take effect. */
 
 body { margin: 0; }
 
@@ -65,7 +65,7 @@ body { margin: 0; }
 
 .pg-section { display: flex; flex-direction: column; gap: var(--ref-space-20); }
 
-/* ---------- Hilfsklassen für Stories ---------- */
+/* ---------- Helper classes for stories ---------- */
 
 .pg-narrow { max-width: 28rem; }
 .pg-state { margin: var(--ref-space-12) 0 0; }
@@ -128,7 +128,7 @@ body { margin: 0; }
 .pg-phone__scroll { height: 100%; overflow-y: auto; padding: 20px 16px 120px; }
 .pg-phone__tabs { position: absolute; left: 16px; right: 16px; bottom: 24px; display: flex; gap: 10px; align-items: center; }
 
-/* ---------- Schmale Bildschirme: Sidebar wird zur Leiste oben ---------- */
+/* ---------- Narrow screens: the sidebar becomes a bar at the top ---------- */
 @media (max-width: 860px) {
   .pg { grid-template-columns: minmax(0, 1fr); }
   .pg__sidebar { position: static; height: auto; border-right: 0; border-bottom: 0.5px solid var(--sys-color-separator); }
@@ -139,5 +139,5 @@ body { margin: 0; }
   .pg-type-row, .pg-space-row { grid-template-columns: 1fr; gap: var(--ref-space-4); }
 }
 
-/* Badges in Spalten-Layouts nicht auf volle Breite strecken. */
+/* Do not stretch badges to full width in column layouts. */
 .pg-backdrop > .ui-badge { align-self: flex-start; }

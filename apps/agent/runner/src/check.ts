@@ -1,8 +1,8 @@
-// Prüfmodus: Erreicht der Container den Modell-Endpunkt? Ein einziger Abruf der Modellliste,
-// ohne Modellaufruf und ohne Kosten. Der Key kommt aus der Umgebung und wird nie ausgegeben.
+// Check mode: does the container reach the model endpoint? A single fetch of the model list,
+// without a model call and without cost. The key comes from the environment and is never printed.
 //
-// * Mit ANTHROPIC_BASE_URL (Proxy wie LiteLLM, anderer kompatibler Endpunkt): `Authorization: Bearer`.
-// * Ohne Adresse, mit ANTHROPIC_API_KEY (direkt bei Anthropic): `x-api-key` und `anthropic-version`.
+// * With ANTHROPIC_BASE_URL (proxy such as LiteLLM, another compatible endpoint): `Authorization: Bearer`.
+// * Without an address, with ANTHROPIC_API_KEY (directly at Anthropic): `x-api-key` and `anthropic-version`.
 
 import type { Sink } from "./event.ts";
 

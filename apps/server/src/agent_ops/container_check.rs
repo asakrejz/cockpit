@@ -1,10 +1,10 @@
 use super::*;
 
 impl AppState {
-    // ---------- Erreichbarkeit aus dem Container ----------
+    // ---------- Reachability from the container ----------
 
-    /// Prüft, ob ein Container den Endpunkt erreicht (kurzer Lauf des Images im Prüfmodus,
-    /// `--rm`), und vergleicht mit dem, was der Mac sieht.
+    /// Checks whether a container reaches the endpoint (short run of the image in check mode,
+    /// `--rm`), and compares with what the Mac sees.
     pub(crate) async fn container_check(&self) -> ContainerCheck {
         let s = self.clone();
         let prepared = tokio::task::spawn_blocking(move || {
@@ -77,8 +77,8 @@ impl AppState {
     }
 }
 
-/// Der Hinweis zur Prüfung aus dem Container, mit dem konkreten Rat, wenn der Mac den Proxy
-/// erreicht und der Container nicht (typisch: VPN, DNS der Container-Maschine).
+/// The hint about the check from the container, with the concrete advice if the Mac reaches the proxy
+/// and the container does not (typical: VPN, DNS of the container machine).
 pub fn check_hint(mac: bool, container: bool, key_ok: bool, text: &str) -> String {
     match (mac, container, key_ok) {
         (true, true, true) => "Der Proxy ist auch aus dem Container erreichbar und nimmt den Key an.".into(),
@@ -97,7 +97,7 @@ pub fn check_hint(mac: bool, container: bool, key_ok: bool, text: &str) -> Strin
 
 // ---------- Container-Hilfen ----------
 
-/// Entfernt Container mit dem Label der Läufe (auch beendete). Gibt die Zahl zurück. Blockierend.
+/// Removes containers with the label of the runs (also ended ones). Returns the number. Blocking.
 pub(super) fn container_labels_remove(cli: &Path) -> usize {
     let Ok(out) = std::process::Command::new(cli)
         .args(["ps", "-a", "-q", "--filter", &format!("label={LABEL}")])
@@ -134,7 +134,7 @@ pub(super) async fn cli_still(cli: &Path, args: &[&str]) {
         .await;
 }
 
-/// Beendet und entfernt einen Container.
+/// Ends and removes a container.
 pub(super) async fn container_remove(cli: &Path, name: &str) {
     cli_still(cli, &["rm", "-f", name]).await;
 }
@@ -151,7 +151,7 @@ pub(super) fn check_job_write(dir: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Setzt die Werte, die `-e NAME` weitergibt, und entfernt die nicht benutzten aus der geerbten Umgebung.
+/// Sets the values that `-e NAME` passes on and removes the unused ones from the inherited environment.
 pub(super) fn kind_env(cmd: &mut Command, endpoint_url: Option<&str>, key: &str, model: &str) {
     for (name, wert) in agent_run::env_for_kind(endpoint_url, key, model) {
         match wert {
@@ -216,7 +216,7 @@ pub(super) async fn check_container(
     result
 }
 
-/// Die letzte nicht leere Zeile, ohne Geheimnisse und gekürzt.
+/// The last non-empty line, without secrets and truncated.
 pub(super) fn last_line(text: &str, secret: &[&str]) -> Option<String> {
     text.lines()
         .rev()

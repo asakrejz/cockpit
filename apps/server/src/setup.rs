@@ -1,15 +1,15 @@
-//! Einrichtung per Klick: Routen für den Assistenten in der App.
+//! Setup by click: routes for the assistant in the app.
 //!
-//! * `GET /api/setup`: aktuelle, nicht geheime Werte und welche Schlüssel liegen
-//! * `PUT /api/config`: schreibt Client-IDs, Jira, Repos sowie Agent-Anbieter und Endpunkt in `config.toml`
-//!   (atomar, Kommentare und andere Werte bleiben) und wendet sie ohne Neustart an
-//! * `PUT /api/secrets/{name}`: legt einen Schlüssel im Schlüsselbund ab; `DELETE` löscht einen
-//!   Token (`jira`, `github`) wieder („Trennen“)
-//! * `POST /api/jira/check`: Verbindungstest für Jira per API-Token (nur Lesen)
+//! * `GET /api/setup`: current, non-secret values and which keys are present
+//! * `PUT /api/config`: writes client IDs, Jira, repos as well as agent provider and endpoint to `config.toml`
+//!   (atomically, comments and other values stay) and applies them without restart
+//! * `PUT /api/secrets/{name}`: stores a key in the keychain; `DELETE` deletes a
+//!   token (`jira`, `github`) again ("Trennen")
+//! * `POST /api/jira/check`: connection test for Jira via API token (read only)
 //!
-//! Alle drei laufen hinter der Prüfung aus `zugang` (Loopback, Host, Origin, Content-Type).
-//! Ein Schlüssel kommt nur im Body der Anfrage vor, wird nirgends geloggt und nie zurückgeschickt;
-//! die Antwort sagt nur „gesetzt“.
+//! All three run behind the check from `access` (loopback, host, origin, content type).
+//! A key only occurs in the body of the request, is logged nowhere and never sent back;
+//! the answer only says "set".
 
 use std::io::Write;
 use std::path::Path;
@@ -37,9 +37,9 @@ use crate::db;
 use crate::oauth::redirect_uri;
 use crate::secrets;
 
-/// Setzt `schluessel = wert` in der Tabelle und behält Kommentare der Zeile (davor und dahinter).
+/// Sets `key = value` in the table and keeps comments of the line (before and after).
 fn set(table: &mut dyn toml_edit::TableLike, key: &str, updated: Item) {
-    // Den vorhandenen Eintrag an Ort und Stelle ersetzen: So bleibt der Schlüssel samt Kommentar davor.
+    // Replace the existing entry in place: that way the key keeps its comment in front of it.
     let Some(alt) = table.get_mut(key) else {
         table.insert(key, updated);
         return;
@@ -51,7 +51,7 @@ fn set(table: &mut dyn toml_edit::TableLike, key: &str, updated: Item) {
     }
 }
 
-/// Die Tabelle `[name]`; sie wird angelegt, falls sie fehlt.
+/// The table `[name]`; it is created if it is missing.
 fn table<'a>(
     doc: &'a mut DocumentMut,
     name: &str,
@@ -66,7 +66,7 @@ fn table<'a>(
         })
 }
 
-/// Entfernt eine Tabelle, wenn sie leer ist.
+/// Removes a table if it is empty.
 fn empty_remove(doc: &mut DocumentMut, name: &str) {
     let empty = doc
         .get(name)
@@ -166,8 +166,8 @@ fn endpoint_write(
     Ok(())
 }
 
-/// Wendet die Änderung auf den Text von `config.toml` an. Der Text wird anschließend wie beim
-/// Start geprüft (`Config::parse`); ein Fehler heißt: nichts schreiben.
+/// Applies the change to the text of `config.toml`. The text is then checked as at
+/// start (`Config::parse`); an error means: write nothing.
 pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), String> {
     let mut doc: DocumentMut = text.parse().map_err(|e: toml_edit::TomlError| {
         format!("config.toml ist fehlerhaft: {}", e.message())
@@ -242,10 +242,10 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), String> 
     Ok((updated, config))
 }
 
-/// Schreibt die Datei atomar: erst eine Nachbardatei, dann umbenennen. Eine vorhandene Datei
-/// behält ihre Rechte; eine neue ist nur für den Nutzer lesbar.
+/// Writes the file atomically: first a neighbor file, then rename. An existing file
+/// keeps its permissions; a new one is readable only by the user.
 pub fn atomic_write(path: &Path, text: &str) -> std::io::Result<()> {
-    // Ein Link auf die Datei bleibt ein Link: Wir ersetzen das Ziel.
+    // A link to the file stays a link: we replace the target.
     let path = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
     let dir = path
         .parent()
@@ -279,7 +279,7 @@ pub fn atomic_write(path: &Path, text: &str) -> std::io::Result<()> {
 }
 
 impl AppState {
-    /// Übernimmt die Adressen und Konten aus der Konfiguration in die Datenbank (ohne Schlüssel).
+    /// Takes over the addresses and accounts from the configuration into the database (without keys).
     /// Blockierend.
     pub(crate) fn connections_adopt(&self, config: &Config) -> Result<(), String> {
         let conn = self
@@ -291,7 +291,7 @@ impl AppState {
             db::connection_set(&conn, secrets::GITHUB, &g.api_url, None)
                 .map_err(|e| e.to_string())?;
         }
-        // Mit OAuth hat Jira keine eigene Adresse; die Site wählt die Anmeldung.
+        // With OAuth Jira has no address of its own; the sign-in chooses the site.
         if let Some(j) = config.jira.as_ref().filter(|j| !j.site.is_empty()) {
             db::connection_set(&conn, secrets::JIRA, &j.site, Some(&j.email))
                 .map_err(|e| e.to_string())?;
@@ -299,7 +299,7 @@ impl AppState {
         Ok(())
     }
 
-    /// Ändert `config.toml` und wendet das Ergebnis an. Blockierend.
+    /// Changes `config.toml` and applies the result. Blocking.
     fn config_change(&self, a: &ConfigChange) -> Result<ConfigResponse, (StatusCode, String)> {
         let Some(path) = self.inner.settings.config_path.clone() else {
             return Err((
@@ -346,7 +346,7 @@ impl AppState {
         self.config_apply(&config);
         tracing::info!("config.toml aktualisiert und angewendet");
 
-        // Eine andere App heißt: Die alten Tokens gehören zur alten App.
+        // Another app means: the old tokens belong to the old app.
         let other_app = |alt: Option<&String>, updated: Option<&String>| {
             alt.is_some() && updated.is_some() && alt != updated
         };
@@ -365,7 +365,7 @@ impl AppState {
         })
     }
 
-    /// Die aktuellen, nicht geheimen Werte. Blockierend (Schlüsselbund).
+    /// The current, non-secret values. Blocking (keychain).
     fn setup(&self) -> Setup {
         let q = self.sources();
         let choice = self.agent_choice();
@@ -421,8 +421,8 @@ pub async fn config(State(state): State<AppState>, body: Bytes) -> Response {
     }
 }
 
-/// `PUT /api/secrets/{name}`: legt den Schlüssel im Schlüsselbund ab. Der Wert steht nur im
-/// Body; er wird weder geloggt noch zurückgeschickt, und Fehlermeldungen nennen ihn nie.
+/// `PUT /api/secrets/{name}`: stores the key in the keychain. The value is only in the
+/// body; it is neither logged nor sent back, and error messages never name it.
 pub async fn key(
     State(state): State<AppState>,
     UrlPath(name): UrlPath<String>,
@@ -460,8 +460,8 @@ pub async fn key(
     }
 }
 
-/// `DELETE /api/secrets/{name}`: löscht einen Token aus dem Schlüsselbund („Trennen“). Erlaubt
-/// sind nur die Tokens `jira` und `github`; ein nicht vorhandener Schlüssel ist kein Fehler.
+/// `DELETE /api/secrets/{name}`: deletes a token from the keychain ("Trennen"). Only the tokens
+/// `jira` and `github` are allowed; a key that does not exist is no error.
 pub async fn key_delete(State(state): State<AppState>, UrlPath(name): UrlPath<String>) -> Response {
     if !key_deletable(&name) {
         return error(
@@ -496,12 +496,12 @@ fn check(cause: JiraCause, name: Option<String>) -> JiraCheck {
     }
 }
 
-/// Welche Ursache zu einem Fehler von Jira gehört.
+/// Which cause belongs to an error of Jira.
 fn jira_cause(f: &Error) -> JiraCause {
     match f {
         Error::NotSignedIn => JiraCause::Token,
         Error::NoPermission => JiraCause::Permission,
-        // 404, eine fremde Seite statt Jira (kein JSON) oder eine unbrauchbare Adresse.
+        // 404, a foreign page instead of Jira (no JSON) or an unusable address.
         Error::NotFound | Error::Response(_) | Error::Config(_) => JiraCause::Address,
         Error::Network(_) => JiraCause::Reachable,
         _ => JiraCause::Other,
@@ -509,8 +509,8 @@ fn jira_cause(f: &Error) -> JiraCause {
 }
 
 impl AppState {
-    /// Der Verbindungstest für Jira mit E-Mail und API-Token (nie mit OAuth): Adresse und E-Mail
-    /// aus der Konfiguration, der Token aus dem Schlüsselbund. Nur `GET /rest/api/3/myself`.
+    /// The connection test for Jira with email and API token (never with OAuth): address and email
+    /// from the configuration, the token from the keychain. Only `GET /rest/api/3/myself`.
     pub async fn jira_check(&self) -> JiraCheck {
         let s = self.clone();
         let details = tokio::task::spawn_blocking(move || {
@@ -537,7 +537,7 @@ impl AppState {
     }
 }
 
-/// `POST /api/jira/check`: ohne Body; liest nur.
+/// `POST /api/jira/check`: without a body; only reads.
 pub async fn jira_check(State(state): State<AppState>) -> Response {
     Json(state.jira_check().await).into_response()
 }

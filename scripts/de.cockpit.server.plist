@@ -1,20 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  Vorlage für launchd: startet Cockpit beim Login. Es wird nichts automatisch installiert.
+  Template for launchd: starts Cockpit at login. Nothing is installed automatically.
 
-  1. Diese Datei nach ~/Library/LaunchAgents/de.cockpit.server.plist kopieren.
-  2. Die beiden Platzhalter ersetzen:
-       /PFAD/ZUM/REPO    der Ordner dieses Repos (absolut, ohne ~)
-       /Users/BENUTZER   dein Home-Verzeichnis (für Log-Datei und PATH)
-  3. Einmal von Hand `scripts/start.sh` ausführen, damit Server und App fertig gebaut sind.
-  4. Laden:    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist
-     Entladen: launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist
-  Das Log steht in /Users/BENUTZER/Library/Logs/cockpit-server.log.
+  1. Copy this file to ~/Library/LaunchAgents/de.cockpit.server.plist.
+  2. Replace the two placeholders:
+       /PFAD/ZUM/REPO    the folder of this repo (absolute, without ~)
+       /Users/BENUTZER   your home directory (for the log file and PATH)
+  3. Run `scripts/start.sh` once by hand so that server and app are built.
+  4. Load:   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist
+     Unload: launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/de.cockpit.server.plist
+  The log is in /Users/BENUTZER/Library/Logs/cockpit-server.log.
 
-  Eigene Einstellungen (COCKPIT_PORT, COCKPIT_DB, COCKPIT_SEED, …) gehören in die Datei
-  config.toml oder unten in EnvironmentVariables. Schlüssel gehören nie hierher: Sie liegen im
-  Schlüsselbund (`cockpit-server token setzen …`).
+  Own settings (COCKPIT_PORT, COCKPIT_DB, COCKPIT_SEED, …) belong in the file config.toml or
+  below in EnvironmentVariables. Keys never belong here: they are in the keychain
+  (`cockpit-server token setzen …`).
+
+  The label `de.cockpit.server` stays unchanged on purpose: an already loaded agent keeps working
+  and `launchctl bootout` still finds it.
 -->
 <plist version="1.0">
 <dict>
@@ -36,7 +39,7 @@
     <string>/opt/homebrew/bin:/usr/local/bin:/Users/BENUTZER/.cargo/bin:/usr/bin:/bin</string>
   </dict>
 
-  <!-- Beim Login starten. Beendet sich der Server mit einem Fehler, startet launchd ihn nicht neu. -->
+  <!-- Start at login. If the server ends with an error, launchd does not restart it. -->
   <key>RunAtLoad</key>
   <true/>
   <key>KeepAlive</key>

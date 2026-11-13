@@ -1,17 +1,17 @@
-//! Cockpit-Backend: lokaler Dienst für eine Person.
+//! Cockpit backend: local service for one person.
 //!
-//! * lauscht nur auf `127.0.0.1`
-//! * liefert die gebaute Web-App aus und beantwortet `/api/…`
-//! * hält Daten (SQLite) und Schlüssel (Schlüsselbund) – Schlüssel verlassen das Backend nie
+//! * listens only on `127.0.0.1`
+//! * serves the built web app and answers `/api/…`
+//! * holds data (SQLite) and keys (keychain) – keys never leave the backend
 //!
 //! ```text
-//! cockpit-server                                 starten
-//! cockpit-server token setzen <name>             Schlüssel von der Standardeingabe ablegen
-//! cockpit-server token loeschen <name>           Schlüssel entfernen
+//! cockpit-server                                 start
+//! cockpit-server token setzen <name>             store a key from standard input
+//! cockpit-server token loeschen <name>           remove a key
 //! ```
 //!
-//! `<name>`: `github`, `jira` (API-Token), `github-oauth` und `atlassian-oauth` (Client-Secret
-//! der OAuth-Apps) sowie `agent-key` (Key des Agent-Endpunkts; `litellm` gilt als älterer Name). Die Tokens der Anmeldung legt das Backend selbst ab.
+//! `<name>`: `github`, `jira` (API token), `github-oauth` and `atlassian-oauth` (client secret
+//! of the OAuth apps) as well as `agent-key` (key of the agent endpoint; `litellm` counts as an older name). The tokens of the sign-in are stored by the backend itself.
 //!
 //! ```text
 //! ```
@@ -68,7 +68,7 @@ async fn main() -> ExitCode {
     }
 }
 
-/// Namen, die sich per `token` setzen lassen.
+/// Names that can be set via `token`.
 const NAMES: &[&str] = &[
     secrets::GITHUB,
     secrets::JIRA,
@@ -78,8 +78,8 @@ const NAMES: &[&str] = &[
     secrets::LITELLM,
 ];
 
-/// Legt einen Schlüssel ab oder löscht ihn. Der Wert kommt von der Standardeingabe, damit er
-/// weder in der Prozessliste noch in der Shell-Historie landet.
+/// Stores a key or deletes it. The value comes from standard input so that it ends up
+/// neither in the process list nor in the shell history.
 fn token(action: &str, name: &str) -> Result<(), String> {
     if !NAMES.contains(&name) {
         return Err(format!(
@@ -139,23 +139,23 @@ async fn start() -> Result<(), String> {
         sync::Sources::from_config(&config),
         app::Settings::from_config(&config),
     );
-    // Adressen und Konten aus der Konfiguration in die Datenbank übernehmen (ohne Schlüssel).
+    // Take over addresses and accounts from the configuration into the database (without keys).
     state.connections_adopt(&config)?;
     let router = app::router(state.clone(), config.dist.clone());
 
-    // Nur lokal erreichbar – bewusst nicht einstellbar.
+    // Only reachable locally – deliberately not configurable.
     let address = SocketAddr::from((Ipv4Addr::LOCALHOST, config.port));
     let listener = tokio::net::TcpListener::bind(address)
         .await
         .map_err(|e| format!("Port {} nicht verfügbar: {e}", config.port))?;
     tracing::info!("Cockpit läuft auf http://{address}");
 
-    // Im Server-Modus läuft der Takt des simulierten Agenten hier, nicht im Browser.
+    // In server mode the tick of the simulated agent runs here, not in the browser.
     app::agent_takt_start(state.clone());
-    // Jira und GitHub: regelmäßig abgleichen. Ohne Quelle oder Schlüssel passiert nichts.
+    // Jira and GitHub: sync regularly. Without a source or key nothing happens.
     sync::sync_start(state);
 
-    // Die Adresse der Gegenstelle braucht `zugang`, um Fremde abzuweisen.
+    // The address of the peer is needed by `access` to turn away strangers.
     axum::serve(
         listener,
         router.into_make_service_with_connect_info::<SocketAddr>(),

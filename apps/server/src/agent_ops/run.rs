@@ -1,6 +1,6 @@
 use super::*;
 
-// ---------- Ein Lauf ----------
+// ---------- A run ----------
 
 pub(super) fn job_write(dir: &Path, content: &serde_json::Value) -> std::io::Result<()> {
     std::fs::create_dir_all(dir)?;
@@ -38,7 +38,7 @@ pub(super) async fn run_task(
             }
         }
     }
-    // Aufräumen: Der Klon bleibt nur, solange der Lauf von einer Grenze angehalten wartet.
+    // Clean up: the clone only stays while the run waits halted by a limit.
     let halted = state
         .inner
         .live
@@ -60,7 +60,7 @@ pub(super) async fn run_task(
 
 pub(super) enum Application {
     Ok,
-    /// Der Lauf ist nicht mehr aktiv oder die Meldung passt nicht (mehr).
+    /// The run is no longer active or the message does not (or no longer) fit.
     Rejected,
     Error,
 }
@@ -117,7 +117,7 @@ pub(super) async fn run_run(
     let base_file = base_dir.join("base");
     let url = agent_git::clone_url(&access.git_base, &access.repo);
 
-    // Klon: frisch, außer ein angehaltener Lauf wird fortgesetzt.
+    // Clone: fresh, unless a halted run is resumed.
     let present = mode == Mode::Implement && clone.join(".git").is_dir() && base_file.is_file();
     let base_sha = if present {
         std::fs::read_to_string(&base_file)
@@ -161,7 +161,7 @@ pub(super) async fn run_run(
         return End::Error(format!("Der Auftrag lässt sich nicht schreiben: {e}"));
     }
 
-    // Container starten.
+    // Start the container.
     let name = agent_run::container_name(key, now_ms());
     let args = agent_run::run_args(&RunCommand {
         name: &name,
@@ -230,7 +230,7 @@ pub(super) async fn run_run(
     )
     .await;
 
-    // Zeitlimit des Laufs (Laufzeit des Agenten, ohne Pausen und Wartezeit auf dich).
+    // Time limit of the run (run time of the agent, without pauses and waiting time for you).
     let allowed_s = state
         .inner
         .settings
@@ -278,12 +278,12 @@ pub(super) async fn run_run(
                         Application::Ok => { plan_reported |= is_plan; }
                         Application::Rejected => {
                             if is_question { lock(info).question_open = false; }
-                            // Der Lauf ist nicht mehr aktiv oder wartet nicht mehr darauf.
+                            // The run is no longer active or no longer waits for it.
                             if !run_active(state, key) { quiet = true; break; }
                         }
                         Application::Error => {}
                     }
-                    // Eine Grenze (Budget, Zeit) kann diese Meldung ausgelöst haben.
+                    // A limit (budget, time) may have triggered this message.
                     if !quiet && run_halted_or_gone(state, key) { quiet = true; break; }
                 }
             }
@@ -333,7 +333,7 @@ pub(super) async fn run_run(
         };
     }
 
-    // Der Strom ist zu Ende: Wie hat der Container geendet?
+    // The stream has ended: how did the container end?
     let status = match tokio::time::timeout(Duration::from_secs(30), kind.wait()).await {
         Ok(s) => s.ok(),
         Err(_) => {
@@ -373,7 +373,7 @@ pub(super) async fn run_run(
         ));
     }
 
-    // Prüfen und pushen – das Backend, nicht der Container.
+    // Check and push – the backend, not the container.
     let export = base_dir.join("export.git");
     let (k, e, b, sha, u, t, rules) = (
         clone.clone(),
@@ -409,7 +409,7 @@ pub(super) fn run_active(state: &AppState, key: &str) -> bool {
         .any(|r| r.key() == key && r.is_active())
 }
 
-/// Der Lauf ist nicht mehr aktiv oder wurde von einer Grenze angehalten: Der Container soll enden.
+/// The run is no longer active or was halted by a limit: the container should end.
 pub(super) fn run_halted_or_gone(state: &AppState, key: &str) -> bool {
     !state
         .inner

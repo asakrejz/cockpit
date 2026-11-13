@@ -1,5 +1,5 @@
-//! Beim ersten Start, wenn noch nichts eingerichtet ist, führt Cockpit zum Einrichtungsassistenten.
-//! Gemerkt wird nur, dass er einmal gezeigt wurde (kein Schlüssel, keine Zugangsdaten).
+//! On the first start, when nothing is set up yet, Cockpit leads to the setup assistant.
+//! Only the fact that it was shown once is remembered (no key, no credentials).
 
 use cockpit_core::setup::nothing_set_up;
 use leptos::prelude::*;
@@ -33,8 +33,8 @@ fn remember() {
     }
 }
 
-/// Prüft einmal, sobald der Server geantwortet hat. Greift nur, wenn man auf der Startseite
-/// steht – wer einen Link zu einer anderen Seite öffnet, wird nicht umgeleitet.
+/// Checks once as soon as the server has answered. Only acts if you are on the start page
+/// – whoever opens a link to another page is not redirected.
 pub fn check(store: Store) {
     if already_shown() {
         return;

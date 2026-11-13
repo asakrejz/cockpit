@@ -1,6 +1,6 @@
-//! Gemeinsamer Zustand der App. Liegt als Kontext im Baum; `Store` ist `Copy`,
-//! lässt sich also frei in Closures verwenden. Der Stand gehört dem lokalen Server; der Browser
-//! zeigt ihn, schickt Aktionen und hört auf Änderungen. Im Browser liegt nichts davon.
+//! Shared state of the app. Lies in the tree as context; `Store` is `Copy`,
+//! so it can be used freely in closures. The state belongs to the local server; the browser
+//! shows it, sends actions and listens for changes. Nothing of it is in the browser.
 
 use std::{
     sync::atomic::{AtomicU32, Ordering},
@@ -20,21 +20,21 @@ use crate::{
     route::Route,
 };
 
-/// So lange bleibt ein Hinweis nach einem Fehler sichtbar.
+/// This long a notice stays visible after an error.
 const NOTICE_TIME: Duration = Duration::from_secs(6);
-/// So lange bleibt ein Hinweis in der App stehen.
+/// This long a notice stays in the app.
 const TOAST_TIME: Duration = Duration::from_secs(7);
-/// Mehr Hinweise gleichzeitig wären zu viel.
+/// More notices at the same time would be too much.
 const MAX_TOASTS: usize = 3;
 
-/// Ein kleiner Hinweis in der App (Toast).
+/// A small notice in the app (toast).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Toast {
     pub id: u32,
     pub event: NotifyEvent,
 }
 
-/// Wie es um die Verbindung zum Server steht .
+/// How the connection to the server stands.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Link {
     Connecting,
@@ -45,33 +45,33 @@ pub enum Link {
 #[derive(Clone, Copy)]
 pub struct Store {
     pub link: RwSignal<Link>,
-    /// Kurzer Hinweis, z. B. wenn der Server eine Aktion ablehnt. Verschwindet von selbst.
+    /// Short notice, e.g. when the server rejects an action. Disappears by itself.
     pub notice: RwSignal<Option<String>>,
-    /// Zuletzt übernommene Revision des Servers und ob schon ein Stand geladen ist.
+    /// Last revision taken over from the server and whether a state is loaded already.
     revision: StoredValue<Option<u64>>,
     loading: StoredValue<bool>,
     reload: StoredValue<bool>,
     events: StoredValue<Option<Events>, LocalStorage>,
     pub ws: RwSignal<Workspace>,
-    /// Was das Backend über die Anmeldung bei Jira und GitHub meldet (`GET /api/health`).
+    /// What the backend reports about the sign-in at Jira and GitHub (`GET /api/health`).
     pub conn: RwSignal<Connections>,
-    /// Agent-Endpunkt und Container-Laufzeit, wie das Backend sie meldet; `None` bis zur ersten Antwort.
+    /// Agent endpoint and container runtime as the backend reports them; `None` until the first answer.
     pub health: RwSignal<Option<server::Health>>,
-    /// ID des Eintrags, der in der Inbox gewählt ist.
+    /// ID of the entry that is chosen in the inbox.
     pub selected: RwSignal<String>,
     pub route: RwSignal<Route>,
-    /// Hinweise, die gerade zu sehen sind.
+    /// Notices that are visible right now.
     pub toasts: RwSignal<Vec<Toast>>,
-    /// Erlaubnis für Systemmeldungen des Browsers.
+    /// Permission for system messages of the browser.
     pub permission: RwSignal<Permission>,
-    /// Die Uhrzeit (Millisekunden seit 1970), wie sie der Takt zuletzt gelesen hat. Die
-    /// Regeln für Aufmerksamkeit und Zurückstellen rechnen damit, nicht mit einer eigenen Uhr.
+    /// The time of day (milliseconds since 1970) as the tick last read it. The
+    /// rules for attention and snoozing calculate with it, not with a clock of their own.
     pub now: RwSignal<u64>,
 }
 
 impl Store {
     pub fn new() -> Self {
-        // Der Stand kommt vom Server; bis dahin ist der Workspace leer.
+        // The state comes from the server; until then the workspace is empty.
         let ws = Workspace::default();
         let store = Store {
             link: RwSignal::new(Link::Connecting),
@@ -82,7 +82,7 @@ impl Store {
             events: StoredValue::new_local(None),
             selected: RwSignal::new(first_id(&ws)),
             ws: RwSignal::new(ws),
-            // Ob der Agent bereit ist, Jira und GitHub verbunden sind, meldet das Backend.
+            // Whether the agent is ready and Jira and GitHub are connected is reported by the backend.
             conn: RwSignal::new(Connections::default()),
             health: RwSignal::new(None),
             route: RwSignal::new(Route::parse(&current_hash())),
@@ -94,14 +94,14 @@ impl Store {
         store
     }
 
-    /// Zeigt kurz einen Hinweis (Fehler des Servers).
+    /// Briefly shows a notice (error of the server).
     pub fn notify(&self, text: impl Into<String>) {
         let text = text.into();
         self.notice.set(Some(text.clone()));
         let notice = self.notice;
         set_timeout(
             move || {
-                // Nur wegräumen, was noch dasselbe ist – ein neuerer Hinweis bleibt.
+                // Only clear away what is still the same – a newer notice stays.
                 if notice.try_get_untracked().flatten().as_deref() == Some(text.as_str()) {
                     notice.set(None);
                 }
@@ -110,20 +110,20 @@ impl Store {
         );
     }
 
-    /// Verbindet mit dem Server: lädt den Stand und hört auf Änderungen. Auch für „Erneut versuchen“.
+    /// Connects to the server: loads the state and listens for changes. Also for "Erneut versuchen".
     pub fn connect(&self) {
         let store = *self;
         store.link.set(Link::Connecting);
-        store.events.set_value(None); // schließt eine alte Verbindung
+        store.events.set_value(None); // closes an old connection
         let events = Events::open(
             move || {
-                // Auch nach einem Abbruch: Was inzwischen passiert ist, steht im neuen Stand.
+                // Also after an interruption: what happened in the meantime is in the new state.
                 store.refresh();
             },
             move |event| {
-                // Die Ereignisse tragen die neuen Protokolleinträge; den Stand holen wir
-                // immer ganz. Stimmt die Revision, ist nichts zu tun. Eine Lücke braucht
-                // denselben Weg wie eine einzelne Änderung.
+                // The events carry the new log entries; we always fetch the state
+                // completely. If the revision matches, there is nothing to do. A gap needs
+                // the same way as a single change.
                 if store.revision.get_value() != Some(event.revision) {
                     store.refresh();
                 }
@@ -137,7 +137,7 @@ impl Store {
         store.refresh_health();
     }
 
-    /// Holt Anmeldung, Agent-Endpunkt und Container-Laufzeit vom Server.
+    /// Fetches sign-in, agent endpoint and container runtime from the server.
     pub fn refresh_health(&self) {
         let store = *self;
         spawn_local(async move {
@@ -151,7 +151,7 @@ impl Store {
         });
     }
 
-    /// Lädt den Stand vom Server. Läuft schon ein Laden, wird danach noch einmal geladen.
+    /// Loads the state from the server. If a load is already running, it loads once more afterwards.
     fn refresh(&self) {
         let store = *self;
         if store.loading.get_value() {
@@ -169,7 +169,7 @@ impl Store {
                         let previous = store.revision.get_value();
                         if previous != Some(revision) {
                             store.revision.set_value(Some(revision));
-                            // Beim ersten Laden ist alles „neu“ – das soll nicht klingeln.
+                            // On the first load everything is "new" – that should not ring.
                             store.adopt(ws, previous.is_some());
                         }
                     }
@@ -187,8 +187,8 @@ impl Store {
         });
     }
 
-    /// Übernimmt den Stand des Servers; die Auswahl bleibt, wenn es den Eintrag noch gibt.
-    /// Mit `announce` meldet sie, was sich gegenüber dem bisherigen Stand geändert hat.
+    /// Takes over the state of the server; the selection stays if the entry still exists.
+    /// With `announce` it reports what has changed compared to the previous state.
     fn adopt(&self, ws: Workspace, announce: bool) {
         if announce {
             let before = self.ws.get_untracked();
@@ -201,7 +201,7 @@ impl Store {
         self.ws.set(ws);
     }
 
-    /// Schickt die Aktion an den Server. Angezeigt wird erst der Stand, den der Server meldet.
+    /// Sends the action to the server. Only the state that the server reports is displayed.
     fn send(&self, action: Action) {
         let store = *self;
         spawn_local(async move {
@@ -222,15 +222,15 @@ impl Store {
         });
     }
 
-    /// Der einzige Weg, den Workspace zu ändern: schickt die Aktion als „Du“ an den Server, der
-    /// sie anwendet und protokolliert. Das Ergebnis erscheint über den Ereignisstrom; Fehler als
-    /// Hinweis.
+    /// The only way to change the workspace: sends the action as "Du" to the server, which
+    /// applies and logs it. The result appears through the event stream; errors as a
+    /// notice.
     pub fn dispatch(&self, action: Action) -> Result<Applied, ActionError> {
         self.dispatch_as(action, Actor::User)
     }
 
-    /// Wie [`Store::dispatch`], für Änderungen, die nicht vom Nutzer kommen. Die macht der Server
-    /// selbst (Takt der Agenten, Abgleich); der Browser schickt nur, was „Du“ tust.
+    /// Like [`Store::dispatch`], for changes that do not come from the user. The server does those
+    /// itself (tick of the agents, sync); the browser only sends what "Du" does.
     pub fn dispatch_as(&self, action: Action, actor: Actor) -> Result<Applied, ActionError> {
         if actor == Actor::User {
             self.send(action);
@@ -241,22 +241,22 @@ impl Store {
         })
     }
 
-    /// Leitet aus dem Vorher/Nachher die Ereignisse ab und meldet die für den Browser.
-    /// Läuft nach dem Laden eines neuen Stands.
+    /// Derives the events from the before/after and reports those for the browser.
+    /// Runs after loading a new state.
     fn announce_changes(&self, before: &Workspace, after: &Workspace) {
         let events = notify::events(before, after);
         let deliveries =
             notify::deliveries(&events, &after.notifications, browser::minute_of_day());
         for delivery in deliveries {
-            // E-Mail und Slack versendet später das Backend.
+            // Email and Slack are sent by the backend later.
             if delivery.channel == Channel::Browser {
                 self.announce(delivery.event, false);
             }
         }
     }
 
-    /// Meldet ein Ereignis: im Vordergrund als Hinweis in der App, sonst als Systemmeldung.
-    /// Mit `both` (Test) kommt beides.
+    /// Reports an event: in the foreground as a notice in the app, otherwise as a system message.
+    /// With `both` (test) both come.
     pub fn announce(&self, event: NotifyEvent, both: bool) {
         let visible = browser::foreground();
         if visible || both {
@@ -284,19 +284,19 @@ impl Store {
         let _ = self.toasts.try_update(|list| list.retain(|t| t.id != id));
     }
 
-    /// Wählt einen Eintrag und zeigt ihn in der ungefilterten Inbox.
+    /// Chooses an entry and shows it in the unfiltered inbox.
     pub fn open_item(&self, id: &str) {
         self.selected.set(id.to_string());
         navigate(&Route::Inbox(Filter::All));
     }
 }
 
-/// Die Uhr des Browsers. Nur hier wird sie gelesen; `cockpit-core` bekommt die Zeit übergeben.
+/// The clock of the browser. Only here is it read; `cockpit-core` gets the time passed in.
 pub fn now_ms() -> u64 {
     js_sys::Date::now() as u64
 }
 
-/// Abstand UTC − Ortszeit in Minuten, wie ihn `Date.getTimezoneOffset()` liefert.
+/// Difference UTC − local time in minutes, as `Date.getTimezoneOffset()` returns it.
 pub fn utc_offset_min() -> i32 {
     js_sys::Date::new_0().get_timezone_offset() as i32
 }
@@ -313,12 +313,12 @@ pub fn current_hash() -> String {
     window().location().hash().unwrap_or_default()
 }
 
-/// Wechselt zu einer Adresse wie `#/review/87`.
+/// Switches to an address like `#/review/87`.
 pub fn navigate_hash(hash: &str) {
     let _ = window().location().set_hash(hash);
 }
 
-/// Wechselt die Seite über die Adresse. Die App reagiert auf `hashchange`.
+/// Switches the page via the address. The app reacts to `hashchange`.
 pub fn navigate(route: &Route) {
     let _ = window().location().set_hash(&route.hash());
 }

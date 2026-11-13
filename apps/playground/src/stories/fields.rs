@@ -17,7 +17,7 @@ fn render() -> AnyView {
     let name = RwSignal::new(String::new());
     let mail = RwSignal::new(String::new());
     let zip = RwSignal::new("1234".to_string());
-    // Die PLZ ist ungültig, solange sie nicht aus genau fünf Ziffern besteht.
+    // The postal code is invalid as long as it does not consist of exactly five digits.
     let zip_invalid = Signal::derive(move || {
         let v = zip.get();
         v.len() != 5 || !v.chars().all(|c| c.is_ascii_digit())

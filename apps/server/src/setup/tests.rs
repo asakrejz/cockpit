@@ -66,7 +66,7 @@ fn change_puts_sections_in_a_empty_file_at() {
     let l = c.endpoint.unwrap();
     assert_eq!(l.url.as_deref(), Some("http://localhost:4000"));
     assert_eq!(l.model.as_deref(), Some("claude-sonnet-5-5"));
-    // Das neue Format, kein `[litellm]`.
+    // The new format, no `[litellm]`.
     assert!(
         updated.contains("[agent.endpoint]") && !updated.contains("litellm"),
         "{updated}"
@@ -75,14 +75,14 @@ fn change_puts_sections_in_a_empty_file_at() {
         updated.contains("provider = \"claude-agent-sdk\""),
         "{updated}"
     );
-    // Ergebnis ist wieder lesbar wie beim Start.
+    // The result is readable again as at start.
     assert!(Config::parse(Some(&updated), |_| None).is_ok());
 }
 
 #[test]
 fn change_adopts_a_older_litellm_and_keeps_agent_values() {
     let alt = "[litellm]\nurl = \"http://a:1\"\nmodell = \"altes-modell\"\n[agent]\ncontainer = \"podman\" # meins\nrepo = \"firma/app\"\n";
-    // Nur das Modell ändern: die alte Adresse bleibt, `[litellm]` wandert.
+    // Only change the model: the old address stays, `[litellm]` moves.
     let a = ConfigChange {
         endpoint: Some(EndpointInput {
             model: Some("neues-modell".into()),
@@ -142,7 +142,7 @@ fn change_switches_on_direct_without_address() {
     assert!(!updated.contains("url"), "{updated}");
     let e = c.endpoint.unwrap();
     assert_eq!((e.url, e.model.as_deref()), (None, Some("claude-opus-5-5")));
-    // Ein noch nicht umgesetztes Werkzeug lässt sich eintragen.
+    // A tool that is not implemented yet can be entered.
     let a = ConfigChange {
         endpoint: Some(EndpointInput {
             provider: Some(Provider::Codex),
@@ -174,7 +174,7 @@ fn change_removes_with_empty_evaluate() {
 
 #[test]
 fn change_checks_like_the_start() {
-    // Jira ohne OAuth braucht Site und E-Mail.
+    // Jira without OAuth needs site and email.
     let only_projects = ConfigChange {
         jira: Some(JiraInput {
             projects: Some(vec!["BAU".into()]),
@@ -221,7 +221,7 @@ fn change_checks_like_the_start() {
     ] {
         assert!(change("", &bad).is_err(), "{bad:?}");
     }
-    // Eine kaputte Datei wird nicht überschrieben.
+    // A broken file is not overwritten.
     assert!(change("port = [", &change_github(&["a/b"])).is_err());
 }
 
@@ -327,7 +327,7 @@ async fn key_lands_in_keychain_and_comes_never_back() {
         p.secrets.get("github-oauth").unwrap().unwrap().expose(),
         "test-wert-123"
     );
-    // Weder die Einrichtung noch die Gesundheitsmeldung zeigen den Wert.
+    // Neither the setup nor the health report show the value.
     let e = get(&p.app, "/api/setup").await;
     assert!(!e.to_string().contains("test-wert-123"));
     let flag = |n: &str| {
@@ -393,7 +393,7 @@ async fn new_routes_have_same_checks_like_all_api_routes() {
         let (status, _) = send_request(&p.app, b.body(Body::from(wert)).unwrap()).await;
         assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
-    // Fremde Herkunft, fremder Host, fremde Gegenstelle.
+    // Foreign origin, foreign host, foreign peer.
     let (status, _) = send_request(
         &p.app,
         request("PUT", "/api/secrets/litellm")
@@ -467,7 +467,7 @@ async fn the_agent_key_goes_in_the_keychain_and_never_back() {
 #[tokio::test]
 async fn config_writes_the_file_and_takes_effect_without_restart() {
     let p = test_bench(Some(WITH_COMMENTS));
-    // Vorher: nichts eingerichtet.
+    // Before: nothing set up.
     let h = get(&p.app, "/api/health").await;
     assert_eq!(h["endpoint"]["configured"], false);
 
@@ -479,7 +479,7 @@ async fn config_writes_the_file_and_takes_effect_without_restart() {
     let a: ConfigResponse = serde_json::from_str(&answer).unwrap();
     assert!(a.stored && a.takes_effect_immediately);
 
-    // Datei: neu, aber Kommentare und alte Werte bleiben.
+    // File: new, but comments and old values stay.
     let file = std::fs::read_to_string(&p.path).unwrap();
     assert!(file.contains("# Meine Einstellungen") && file.contains("port = 8787 # Standard"));
     assert!(
@@ -488,11 +488,11 @@ async fn config_writes_the_file_and_takes_effect_without_restart() {
     );
     assert!(Config::parse(Some(&file), |_| None).is_ok());
 
-    // Ohne Neustart sichtbar.
+    // Visible without restart.
     let h = get(&p.app, "/api/health").await;
     assert_eq!(h["endpoint"]["url"], "http://localhost:4000");
     assert_eq!(h["endpoint"]["model"], "claude-sonnet-5-5");
-    // Auch die älteren Namen der Anfrage (`litellm`) gelten weiter.
+    // The older names of the request (`litellm`) still apply too.
     let (status, answer) = put(
         &p.app,
         "/api/config",
@@ -518,7 +518,7 @@ async fn config_writes_the_file_and_takes_effect_without_restart() {
         e["callback_atlassian"],
         "http://localhost:8787/api/oauth/atlassian/callback"
     );
-    // Mit Client-ID und Secret ist „Mit GitHub anmelden“ möglich.
+    // With client ID and secret "Mit GitHub anmelden" is possible.
     put(
         &p.app,
         "/api/secrets/github-oauth",
@@ -583,7 +583,7 @@ async fn without_file_is_it_created() {
             .unwrap()
             .contains("https://firma.atlassian.net")
     );
-    // Jira per Token braucht noch den Schlüssel: erst danach „verbunden“.
+    // Jira via token still needs the key: only after that "connected".
     let h = get(&p.app, "/api/health").await;
     assert_eq!(h["sign_in"]["jira"]["connected"], false);
     put(&p.app, "/api/secrets/jira", r#"{"value":"test-wert-123"}"#).await;
@@ -591,7 +591,7 @@ async fn without_file_is_it_created() {
     assert_eq!(h["sign_in"]["jira"]["connected"], true);
 }
 
-// ---- Verbindungstest für Jira (nur wiremock, nie ein echter Dienst) ----
+// ---- Connection test for Jira (wiremock only, never a real service) ----
 
 use wiremock::matchers::{header_exists, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -600,7 +600,7 @@ use crate::config::JiraConfig;
 
 const TOKEN: &str = "test-wert-123";
 
-/// Ein Server, dessen Jira-Adresse `site` ist; der Token liegt nur auf Wunsch im Schlüsselbund.
+/// A server whose Jira address is `site`; the token is only in the keychain on request.
 fn jira_state(site: &str, email: &str, with_token: bool) -> (Router, Arc<MemoryStore>) {
     let secrets = Arc::new(MemoryStore::new());
     if with_token {
@@ -657,7 +657,7 @@ async fn jira_test_ok_reads_only_and_knows_the_names() {
     assert_eq!(a["cause"], "ok");
     assert_eq!(a["name"], "Mira Keller");
     assert!(a["message"].as_str().unwrap().contains("kennt dich"));
-    // Genau ein lesender Aufruf, sonst nichts.
+    // Exactly one reading call, nothing else.
     let requests = jira.received_requests().await.unwrap();
     assert_eq!(requests.len(), 1);
     assert_eq!(requests[0].method.as_str(), "GET");
@@ -670,7 +670,7 @@ async fn jira_test_says_in_plain_text_what_it_read() {
         (ResponseTemplate::new(401), "token"),
         (ResponseTemplate::new(403), "permission"),
         (ResponseTemplate::new(404), "address"),
-        // Eine fremde Seite statt Jira.
+        // A foreign page instead of Jira.
         (
             ResponseTemplate::new(200).set_body_string("<html>Anmelden</html>"),
             "address",
@@ -693,10 +693,10 @@ async fn jira_test_says_in_plain_text_what_it_read() {
 
 #[tokio::test]
 async fn jira_test_without_connection_and_without_details() {
-    // Nichts lauscht auf dem Port.
+    // Nothing listens on the port.
     let (app, _) = jira_state("http://127.0.0.1:1", "mira@firma.example", true);
     assert_eq!(check(&app).await["cause"], "reachable");
-    // Ohne Token, ohne E-Mail, ohne Site: „Angaben“, ohne dass etwas aufgerufen wird.
+    // Without token, without email, without site: "details", without anything being called.
     for (site, email, token) in [
         ("http://127.0.0.1:1", "mira@firma.example", false),
         ("http://127.0.0.1:1", "", true),
@@ -719,7 +719,7 @@ async fn jira_test_gives_the_token_never_out_also_when_jira_it_echoes() {
     let (app, _) = jira_state(&jira.uri(), "mira@firma.example", true);
     let a = check(&app).await;
     assert_eq!(a["ok"], false);
-    // `pruefen` prüft schon, dass der Token nicht in der Antwort steht.
+    // `check` already checks that the token is not in the answer.
     assert!(!a.to_string().contains(TOKEN));
 }
 
@@ -737,9 +737,9 @@ async fn disconnect_deletes_only_tokens() {
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(body.contains(r#""set":false"#) && !body.contains(TOKEN));
     assert!(secrets.get("jira").unwrap().is_none());
-    // Zweites Mal ist kein Fehler.
+    // A second time is no error.
     assert_eq!(send_request(&app, delete("jira")).await.0, StatusCode::OK);
-    // Der Modell-Key und Client-Secrets bleiben.
+    // The model key and client secrets stay.
     for name in ["litellm", "atlassian-oauth", "unsinn"] {
         assert_eq!(
             send_request(&app, delete(name)).await.0,
@@ -747,7 +747,7 @@ async fn disconnect_deletes_only_tokens() {
         );
     }
     assert!(secrets.get("litellm").unwrap().is_some());
-    // Ohne JSON-Content-Type lehnt die gemeinsame Prüfung ab.
+    // Without a JSON content type the shared check rejects.
     let raw = request("DELETE", "/api/secrets/jira")
         .body(Body::empty())
         .unwrap();

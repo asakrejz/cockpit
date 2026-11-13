@@ -15,7 +15,7 @@ async fn check_reports_reachable_key_and_model_under_both_addresses() {
         .expect(1)
         .mount(&proxy)
         .await;
-    // Der Key liegt unter dem älteren Namen `litellm`.
+    // The key is under the older name `litellm`.
     let secrets = Arc::new(MemoryStore::new());
     secrets
         .set(secrets::LITELLM, &Secret::new("sk-geheim-123456"))
@@ -170,7 +170,7 @@ async fn model_list_reports_rejected_key_and_missing_key_in_plain_text() {
     assert!(j["hint"].as_str().unwrap().contains("lehnt den Key ab"));
     assert!(!body.contains("falsch"), "{body}");
 
-    // Ohne Key wird nichts aufgerufen.
+    // Without a key nothing is called.
     let still = MockServer::start().await;
     Mock::given(any())
         .respond_with(ResponseTemplate::new(200))
@@ -187,13 +187,13 @@ async fn model_list_reports_rejected_key_and_missing_key_in_plain_text() {
 
 #[tokio::test]
 async fn health_reports_the_agents_never_secrets() {
-    // Simuliert (Tests starten mit dem Seed demo): immer bereit.
+    // Simulated (tests start with the seed demo): always ready.
     let app = router(state(Arc::new(MemoryStore::new())), PathBuf::from("/x"));
     let (_, body) = hole(app, "/api/health").await;
     let j = json(&body);
     assert_eq!(j["agent"]["mode"], "simulated");
     assert_eq!(j["agent"]["ready"], true);
-    // Echt, aber nichts eingerichtet: sagt in Klartext, was fehlt.
+    // Real, but nothing set up: says in plain text what is missing.
     let conn = db::open_in_memory().unwrap();
     let e = Settings {
         seed: Seed::Empty,

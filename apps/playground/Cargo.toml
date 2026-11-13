@@ -5,7 +5,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
-# `csr` = Client-Side Rendering: die App läuft komplett im Browser als WASM.
+# `csr` = client-side rendering: the app runs completely in the browser as WASM.
 leptos = { workspace = true, features = ["csr"] }
 console_error_panic_hook = { workspace = true }
 web-sys = { workspace = true, features = ["Location", "MediaQueryList"] }

@@ -1,4 +1,4 @@
-//! Schritt 3: GitHub verbinden – über eine eigene GitHub App.
+//! Step 3: connect GitHub – via an own GitHub App.
 
 use cockpit_core::api::{ClientInput, ConfigChange, GitHubInput};
 use cockpit_core::setup::{client_id_read, repos_read};
@@ -10,7 +10,7 @@ use super::fields::{
 };
 use crate::oauth_card::{OAuthCard, Service};
 
-/// Berechtigungen der GitHub App: (Bereich, Stufe).
+/// Permissions of the GitHub App: (area, level).
 const PERMISSIONS: &[(&str, &str)] = &[
     ("Contents", "Read & write"),
     ("Pull requests", "Read & write"),
@@ -20,7 +20,7 @@ const PERMISSIONS: &[(&str, &str)] = &[
     ("Metadata", "Read-only (schon vorausgewählt)"),
 ];
 
-/// Ein Eintrag zum Abhaken. Der Haken lebt nur auf der Seite, er wird nicht gespeichert.
+/// An entry to tick off. The tick only lives on the page, it is not saved.
 #[component]
 fn Checkmark(area: &'static str, level: &'static str) -> impl IntoView {
     let an = RwSignal::new(false);

@@ -20,7 +20,7 @@ fn state(secrets: Arc<MemoryStore>) -> AppState {
     AppState::new(conn, secrets)
 }
 
-/// Eine Anfrage, wie sie der Browser von `127.0.0.1:8787` schickt.
+/// A request as the browser sends it from `127.0.0.1:8787`.
 fn request(method: &str, path: &str) -> axum::http::request::Builder {
     Request::builder()
         .method(method)
@@ -59,7 +59,7 @@ fn json(text: &str) -> serde_json::Value {
     serde_json::from_str(text).unwrap()
 }
 
-/// Interne ID des ersten Eintrags der Beispieldaten.
+/// Internal ID of the first entry of the sample data.
 fn first_id() -> String {
     cockpit_core::demo::workspace().items[0].id.clone()
 }
@@ -68,7 +68,7 @@ fn mark_done(id: &str) -> String {
     format!(r#"{{"action":{{"MarkDone":{{"item":"{id}"}}}}}}"#)
 }
 
-/// Liest vom Ereignisstrom, bis `n` Ereignisse (`data:`-Zeilen) da sind.
+/// Reads from the event stream until `n` events (`data:` lines) are there.
 async fn read_events(body: Body, n: usize) -> Vec<serde_json::Value> {
     use http_body_util::BodyExt;
     let mut body = body;
@@ -110,7 +110,7 @@ async fn state_from(state: AppState) -> (cockpit_core::Workspace, u64) {
     cockpit_core::persist::load_with_revision(&body).unwrap()
 }
 
-/// `url = None`: direkt beim Anbieter, dann geht der Aufruf an `anthropic_api` (die Attrappe).
+/// `url = None`: directly at the provider, then the call goes to `anthropic_api` (the fake).
 fn with_endpoint(
     url: Option<&str>,
     anthropic_api: Option<&str>,

@@ -1,23 +1,23 @@
-//! Wer die Routen unter `/api` aufrufen darf – Schutz vor fremden Webseiten.
+//! Who may call the routes under `/api` – protection against foreign web pages.
 //!
-//! Das Backend lauscht nur auf `127.0.0.1`, aber das allein schützt nicht vor einer Webseite
-//! im selben Browser. Deshalb gilt für alle `/api`-Routen:
+//! The backend only listens on `127.0.0.1`, but that alone does not protect against a web page
+//! in the same browser. Therefore the following applies to all `/api` routes:
 //!
-//! * Die Gegenstelle ist eine Loopback-Adresse.
-//! * Der `Host`-Header ist `127.0.0.1:<port>` oder `localhost:<port>` (gegen DNS-Rebinding:
-//!   dort trägt er den fremden Namen).
+//! * The peer is a loopback address.
+//! * The `Host` header is `127.0.0.1:<port>` or `localhost:<port>` (against DNS rebinding:
+//!   there it carries the foreign name).
 //!
-//! Nur für die Entwicklung mit `trunk serve` gibt es einen zweiten erlaubten Port
-//! (`COCKPIT_DEV_PORT`, nur per Umgebungsvariable): Trunk leitet `/api` weiter, schickt den `Host`
-//! ohne Port (`127.0.0.1`) und lässt den `Origin` der Entwicklungsseite stehen. Nur dann gelten
-//! beides; ohne die Variable gilt nur der eigene Port.
+//! Only for development with `trunk serve` there is a second allowed port
+//! (`COCKPIT_DEV_PORT`, only by environment variable): Trunk forwards `/api`, sends the `Host`
+//! without a port (`127.0.0.1`) and leaves the `Origin` of the development page as it is. Only then do
+//! both apply; without the variable only the own port applies.
 //!
-//! Für alles, was schreibt (nicht GET/HEAD), zusätzlich:
+//! For everything that writes (not GET/HEAD), additionally:
 //!
-//! * `Origin` fehlt oder ist genau eine der beiden eigenen Herkünfte (gegen fremde Seiten,
-//!   die per Formular oder `fetch` senden).
-//! * `Content-Type` ist `application/json`. Ein Formular kann das nicht setzen, `fetch` mit
-//!   diesem Typ löst bei fremder Herkunft eine Vorabfrage aus, die wir nicht erlauben.
+//! * `Origin` is missing or is exactly one of the two own origins (against foreign pages
+//!   that send by form or `fetch`).
+//! * `Content-Type` is `application/json`. A form cannot set that, `fetch` with
+//!   this type triggers a preflight for a foreign origin, which we do not allow.
 
 use std::net::{IpAddr, SocketAddr};
 
@@ -29,8 +29,8 @@ use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use cockpit_core::api::ErrorBody;
 
-/// Prüft eine Anfrage. `peer` ist die Adresse der Gegenstelle, falls bekannt – fehlt sie,
-/// wird abgelehnt.
+/// Checks a request. `peer` is the address of the peer if known – if it is missing,
+/// the request is rejected.
 pub fn check(
     peer: Option<IpAddr>,
     method: &Method,
@@ -47,7 +47,7 @@ pub fn check(
     let host = head.get(HOST).and_then(|h| h.to_str().ok());
     let host_ok = host.is_some_and(|h| {
         let h = h.to_ascii_lowercase();
-        // Trunk schickt den Host ohne Port weiter; das gilt nur im Entwicklungsmodus.
+        // Trunk forwards the host without a port; that only applies in development mode.
         (dev && (h == "127.0.0.1" || h == "localhost"))
             || ports
                 .iter()
@@ -85,17 +85,17 @@ pub fn check(
     Ok(())
 }
 
-/// Wie streng die Prüfung ist.
+/// How strict the check is.
 #[derive(Clone)]
 pub struct Access {
-    /// Der Port, auf dem der Server lauscht, und – nur auf ausdrücklichen Wunsch
-    /// (`COCKPIT_DEV_PORT`) – der von `trunk serve`.
+    /// The port on which the server listens and – only on explicit request
+    /// (`COCKPIT_DEV_PORT`) – that of `trunk serve`.
     pub ports: Vec<u16>,
-    /// Entwicklungsmodus: Host auch ohne Port.
+    /// Development mode: host also without a port.
     pub dev: bool,
 }
 
-/// Middleware für den `/api`-Teil des Routers.
+/// Middleware for the `/api` part of the router.
 pub async fn protect(State(access): State<Access>, request: Request, next: Next) -> Response {
     let peer = request
         .extensions()
@@ -255,7 +255,7 @@ mod tests {
         assert_eq!(post(&post_from_trunk).unwrap_err().0, StatusCode::FORBIDDEN);
         let k = head(&post_from_trunk);
         assert!(check(LOCAL, &Method::POST, &k, &[PORT, 8081], true).is_ok());
-        // Andere Ports bleiben draußen, auch mit Dev-Port.
+        // Other ports stay out, also with the dev port.
         let k = head(&[
             ("host", "localhost:9999"),
             ("content-type", "application/json"),
@@ -272,7 +272,7 @@ mod tests {
         ]);
         assert!(check(LOCAL, &Method::POST, &k, &[PORT, 8081], true).is_ok());
         assert!(check(LOCAL, &Method::POST, &k, &[PORT], false).is_err());
-        // Ein fremder Name bleibt auch im Entwicklungsmodus draußen (DNS-Rebinding).
+        // A foreign name stays out also in development mode (DNS rebinding).
         let k = head(&[("host", "boese.example")]);
         assert!(check(LOCAL, &Method::GET, &k, &[PORT, 8081], true).is_err());
     }

@@ -30,7 +30,7 @@ async fn without_setup_starts_no_run_and_the_message_says_where() {
         "{error}"
     );
     assert!(w.run().is_idle(), "es wurde nichts gestartet");
-    // Folgeaufträge gibt es noch nicht mit dem echten Agenten.
+    // Follow-up jobs do not exist yet with the real agent.
     let f = w
         .action(Action::InvestigateCheck {
             review: 85,
@@ -75,7 +75,7 @@ async fn a_run_from_the_approval_until_to_push() {
         run.summary
     );
     assert_eq!(run.files, ["neu.txt"]);
-    // Verbrauch aus dem Lauf, mit den Preisen aus den Einstellungen.
+    // Usage from the run, with the prices from the settings.
     let u = run.usage();
     assert_eq!(
         (u.input_tokens, u.output_tokens, u.millis),
@@ -83,7 +83,7 @@ async fn a_run_from_the_approval_until_to_push() {
     );
     assert!(u.cost_cents >= 1);
     assert_eq!(w.ws().spent_month(now_ms()).input_tokens, 1000);
-    // Protokoll: vom Agenten, in Klartext.
+    // Log: from the agent, in plain text.
     let agent_entries: Vec<String> = w
         .ws()
         .log_entries(Some(Actor::Agent))
@@ -100,9 +100,9 @@ async fn a_run_from_the_approval_until_to_push() {
         agent_entries.iter().any(|t| t.contains("Datei ändern")),
         "{agent_entries:?}"
     );
-    // Der Branch liegt im Remote, main ist unberührt.
+    // The branch is in the remote, main is untouched.
     assert_eq!(w.branches(), [BRANCH, "main"]);
-    // Nur CLI-Aufrufe, gemeinsame Schalter, Label je Lauf, Zeitlimit-Name, kein Geheimnis.
+    // Only CLI calls, shared switches, label per run, time limit name, no secret.
     let calls = w.log("calls.log");
     let run_line = calls
         .lines()
@@ -127,7 +127,7 @@ async fn a_run_from_the_approval_until_to_push() {
         !calls.contains("https://litellm.example"),
         "auch die Adresse steht nur in der Umgebung"
     );
-    // Der Wert kommt über die Umgebung des Kindprozesses an.
+    // The value arrives through the environment of the child process.
     let env = w.log("env.log");
     assert!(
         env.contains(&format!("TOKEN={TOKEN}"))
@@ -135,9 +135,9 @@ async fn a_run_from_the_approval_until_to_push() {
             && env.contains("MODEL=claude-sonnet-5-5"),
         "{env}"
     );
-    // Nichts bleibt liegen.
+    // Nothing is left lying around.
     assert!(!w.state.agent_dir().join("runs").join("BAU-142").exists());
-    // Das Ticket zeigt den Branch, aber es gibt keinen erfundenen Pull Request.
+    // The ticket shows the branch, but there is no invented pull request.
     assert_eq!(
         w.ws().item_by_key("BAU-142").unwrap().branch.as_deref(),
         Some(BRANCH)
@@ -184,7 +184,7 @@ fn direct_at_provider_needs_only_key_and_model() {
             }),
         },
     );
-    // Der Key liegt unter dem neuen Namen und geht dem älteren vor.
+    // The key is under the new name and goes before the older one.
     w.secrets
         .set(secrets::AGENT_KEY, &Secret::new("sk-ant-neu"))
         .unwrap();
@@ -195,7 +195,7 @@ fn direct_at_provider_needs_only_key_and_model() {
     assert_eq!(z.key.expose(), "sk-ant-neu");
     assert_eq!(z.model, "claude-opus-5-5");
 
-    // Ohne Modell fehlt etwas, und der Hinweis nennt es.
+    // Without a model something is missing, and the hint names it.
     let state = with_choice(&w, AgentChoice::default());
     let st = state.agent_status();
     assert!(!st.ready);

@@ -1,12 +1,12 @@
-// Was der Agent im Container darf. Das SDK fragt vor jedem Werkzeug (`canUseTool`); hier steht die
-// Antwort. Die maßgebliche Prüfung der geänderten Dateien macht danach das Backend (Regeln des
-// Repos) – das hier hält den Agenten nur früh von Fehlern ab.
+// What the agent may do in the container. The SDK asks before every tool (`canUseTool`); this is the
+// answer. The authoritative check of the changed files is done afterwards by the backend (rules of the
+// repo) – this only keeps the agent from mistakes early.
 
 import { isAbsolute, relative, resolve } from "node:path";
 
-/** `*` = beliebig innerhalb eines Ordnernamens, `?` = ein Zeichen, `**` = beliebig viele Ordner;
- * ein Muster ohne `/` gilt in jedem Ordner, ein `/` am Ende meint den ganzen Ordner
- * (gleiche Regeln wie `glob_match` in cockpit-core). */
+/** `*` = anything within a folder name, `?` = one character, `**` = any number of folders;
+ * a pattern without `/` applies in every folder, a `/` at the end means the whole folder
+ * (same rules as `glob_match` in cockpit-core). */
 export function globFits(pattern: string, path: string): boolean {
   let m = pattern.trim().replace(/^\.\//, "").replace(/^\//, "");
   if (!m) return false;
@@ -45,7 +45,7 @@ export interface Policy {
 
 const Writing = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
 
-/** Pfad relativ zum Repo, oder `null`, wenn er außerhalb liegt. */
+/** Path relative to the repo, or `null` if it lies outside. */
 export function repoRelative(root: string, path: string): string | null {
   const abs = isAbsolute(path) ? resolve(path) : resolve(root, path);
   const rel = relative(resolve(root), abs);
@@ -53,7 +53,7 @@ export function repoRelative(root: string, path: string): string | null {
   return rel.split("\\").join("/");
 }
 
-/** Befehle, die der Agent nie ausführen soll: Netz, Git-Fernbefehle, Hauptbranch, Rechte, Aufräumen außerhalb. */
+/** Commands the agent must never run: network, Git remote commands, main branch, permissions, cleaning up outside. */
 const FORBIDDEN_COMMANDS: [RegExp, string][] = [
   [/\bgit\b[^;&|]*\b(push|remote|fetch|pull|clone|merge|rebase|reset\s+--hard|config|credential|worktree|submodule)\b/, "Git-Befehle, die ins Netz gehen oder Verlauf umschreiben, sind nicht erlaubt"],
   [/\bgit\s+(-\S+\s+)*(checkout|switch)\s+(-\S+\s+)*(main|master|develop)\b/, "Auf den Hauptbranch wechselt der Agent nie"],

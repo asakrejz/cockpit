@@ -16,7 +16,7 @@
 //!   response [`KeyResponse`] (only „set“, never the value)
 //! * `GET /api/agent/image` / `POST /api/agent/image`: state or start of „build image“, [`ImageBuild`]
 //! * `GET /api/agent/check/container`: the same check from a container, [`ContainerCheck`]
-//! * `GET /api/health`: under `agent` an [`AgentStatus`], under `endpunkt` an [`EndpointStatus`], under `container` a [`ContainerStatus`]
+//! * `GET /api/health`: under `agent` an [`AgentStatus`], under `endpoint` an [`EndpointStatus`], under `container` a [`ContainerStatus`]
 //!
 //! Both sides use these types so that the shapes do not drift apart.
 
@@ -138,7 +138,7 @@ impl Provider {
         Provider::Codex,
     ];
 
-    /// The name in `config.toml` (`[agent] anbieter`) and in the JSON.
+    /// The name in `config.toml` (`[agent] provider`) and in the JSON.
     pub fn id(self) -> &'static str {
         match self {
             Provider::ClaudeAgentSdk => "claude-agent-sdk",
@@ -181,7 +181,7 @@ impl Provider {
 /// only whether one is in the keychain.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct EndpointStatus {
-    /// `[agent.endpunkt]` (or the older `[litellm]`) is in `config.toml`.
+    /// `[agent.endpoint]` (or the older `[litellm]`) is in `config.toml`.
     #[serde(default)]
     pub configured: bool,
     #[serde(default)]
@@ -206,7 +206,7 @@ pub struct ContainerStatus {
     /// `<cli> info` succeeded: the engine is running.
     #[serde(default)]
     pub engine_running: bool,
-    /// Where the choice comes from: `konfiguration`, `umgebung`, `erkannt` or `keine`.
+    /// Where the choice comes from: `config`, `env`, `detected` or `none`.
     #[serde(default)]
     pub source: String,
     /// What to do if it does not work.
@@ -226,7 +226,7 @@ pub struct AgentStatus {
     /// The agent image is built (`image inspect`).
     #[serde(default)]
     pub image: bool,
-    /// Name des Images, z. B. `localhost/cockpit-agent:1`.
+    /// Name of the image, e.g. `localhost/cockpit-agent:2`.
     #[serde(default)]
     pub image_name: String,
     /// The repo the agent works in (`owner/name`), if unambiguous.

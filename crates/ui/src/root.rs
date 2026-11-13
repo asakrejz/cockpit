@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-/// Hell oder Dunkel (`colorScheme`).
+/// Light or dark (`colorScheme`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Theme {
     #[default]
@@ -19,7 +19,7 @@ impl Theme {
     }
 }
 
-/// Akzentfarbe (`accentColor`). Eine Variable, alles andere wird abgeleitet.
+/// Accent color (`accentColor`). One variable, everything else is derived.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Tint {
     #[default]
@@ -45,7 +45,7 @@ impl Tint {
         Tint::Teal,
     ];
 
-    /// Name der System-Farbe, z. B. `--sys-color-<id>`.
+    /// Name of the system color, e.g. `--sys-color-<id>`.
     pub fn id(self) -> &'static str {
         match self {
             Tint::Blue => "blue",
@@ -60,7 +60,7 @@ impl Tint {
     }
 }
 
-/// "Kontrast erhöhen" (Accessibility).
+/// "Increase contrast" (accessibility).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Contrast {
     #[default]
@@ -78,16 +78,16 @@ impl Contrast {
     }
 }
 
-/// Wurzel für alle Komponenten. Setzt Theme, Tint und Kontrast für den Teilbaum.
+/// Root for all components. Sets theme, tint and contrast for the subtree.
 ///
-/// Die Tokens werden am `data-theme`-Element neu aufgelöst – deshalb muss das
-/// Attribut immer gesetzt sein, auch im Hell-Modus.
+/// The tokens are resolved anew at the `data-theme` element – therefore the
+/// attribute must always be set, also in light mode.
 #[component]
 pub fn Root(
     #[prop(into, default = Theme::Light.into())] theme: Signal<Theme>,
     #[prop(into, default = Tint::Blue.into())] tint: Signal<Tint>,
     #[prop(into, default = Contrast::Normal.into())] contrast: Signal<Contrast>,
-    /// Zusätzliche Klassen (z. B. für das Layout der Hülle).
+    /// Additional classes (e.g. for the layout of the shell).
     #[prop(optional, into)]
     class: String,
     children: Children,

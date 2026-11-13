@@ -91,7 +91,7 @@ pub enum RunKind {
     Diagnose {
         /// Number of the pull request.
         review: u32,
-        /// Name des Checks.
+        /// Name of the check.
         check: String,
     },
 }

@@ -1,6 +1,6 @@
 use super::*;
 
-/// Kurzer Stand eines einzelnen Checks.
+/// Short state of a single check.
 pub(super) fn check_state(status: Checks) -> (&'static str, StatusTone) {
     let label = match status {
         Checks::Passed => "Bestanden",
@@ -10,7 +10,7 @@ pub(super) fn check_state(status: Checks) -> (&'static str, StatusTone) {
     (label, view::tone(status.tone()))
 }
 
-/// Die Checks des Pull Requests: Name, Stand, Dauer; Log zum Aufklappen, rote neu starten.
+/// The checks of the pull request: name, state, duration; log to expand, restart red ones.
 pub(super) fn checks_section(store: Store, r: &Review, panel: Panel) -> impl IntoView + use<> {
     let number = r.number;
     let merged = r.merged.is_some();
@@ -79,7 +79,7 @@ pub(super) fn checks_section(store: Store, r: &Review, panel: Panel) -> impl Int
     }
 }
 
-/// Der Folgeauftrag zu diesem Check, falls es einen gibt.
+/// The follow-up job to this check, if there is one.
 pub(super) fn diagnose_run(store: Store, number: u32, check: &str) -> Option<AgentRun> {
     store.ws.with(|w| {
         w.followups(number)
@@ -89,8 +89,8 @@ pub(super) fn diagnose_run(store: Store, number: u32, check: &str) -> Option<Age
     })
 }
 
-/// Unter einem roten Check: „Agent untersuchen lassen“, der Stand der Untersuchung und die
-/// Diagnose mit „Fix übernehmen“ und „Verwerfen“. Nichts wird ohne dich übernommen.
+/// Under a red check: "Agent untersuchen lassen", the state of the investigation and the
+/// diagnosis with "Fix übernehmen" and "Verwerfen". Nothing is adopted without you.
 pub(super) fn investigation(
     store: Store,
     number: u32,

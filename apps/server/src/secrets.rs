@@ -1,5 +1,5 @@
-//! Ablage der Schlüssel. Sie liegen im Schlüsselbund des Systems, nie in der Datenbank,
-//! nie in der Konfigurationsdatei. `Secret` zeigt sich in `Debug` nur als `Secret(***)`.
+//! Storage of the keys. They are in the keychain of the system, never in the database,
+//! never in the configuration file. `Secret` only shows as `Secret(***)` in `Debug`.
 
 #[cfg(test)]
 use std::collections::HashMap;
@@ -8,20 +8,20 @@ use std::sync::Mutex;
 
 use cockpit_integrations::Secret;
 
-/// Name des Eintrags im Schlüsselbund.
+/// Name of the entry in the keychain.
 const SERVICE: &str = "cockpit";
 
-/// Namen der Schlüssel, die das Backend kennt.
+/// Names of the keys that the backend knows.
 pub const GITHUB: &str = "github";
 pub const JIRA: &str = "jira";
-/// Client-Secrets der OAuth-Apps (`token setzen github-oauth|atlassian-oauth`).
+/// Client secrets of the OAuth apps (`token setzen github-oauth|atlassian-oauth`).
 pub const GITHUB_OAUTH: &str = "github-oauth";
 pub const ATLASSIAN_OAUTH: &str = "atlassian-oauth";
-/// Key für den Endpunkt des Agenten (`token setzen agent-key`); geht nur beim Start an den Agent-Container.
+/// Key for the endpoint of the agent (`token setzen agent-key`); only goes to the agent container at start.
 pub const AGENT_KEY: &str = "agent-key";
-/// Der ältere Name desselben Keys (bis #31 `litellm`); wird weiter gelesen, wenn `agent-key` fehlt.
+/// The older name of the same key (until #31 `litellm`); is still read if `agent-key` is missing.
 pub const LITELLM: &str = "litellm";
-/// Access- und Refresh-Token nach der Anmeldung (ein Eintrag je Dienst, vom Backend gesetzt).
+/// Access and refresh token after the sign-in (one entry per service, set by the backend).
 pub const GITHUB_OAUTH_TOKENS: &str = "github-oauth-token";
 pub const ATLASSIAN_OAUTH_TOKENS: &str = "atlassian-oauth-token";
 
@@ -37,10 +37,10 @@ impl std::fmt::Display for SecretError {
 impl std::error::Error for SecretError {}
 
 pub trait SecretStore: Send + Sync {
-    /// `Ok(None)`, wenn es keinen Schlüssel dieses Namens gibt.
+    /// `Ok(None)` if there is no key with this name.
     fn get(&self, name: &str) -> Result<Option<Secret>, SecretError>;
     fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretError>;
-    /// Löschen eines nicht vorhandenen Schlüssels ist kein Fehler.
+    /// Deleting a key that does not exist is no error.
     fn delete(&self, name: &str) -> Result<(), SecretError>;
 
     fn has(&self, name: &str) -> Result<bool, SecretError> {
@@ -48,8 +48,8 @@ pub trait SecretStore: Send + Sync {
     }
 }
 
-/// Schlüsselbund des Systems (macOS Keychain, Windows Credential Manager, Secret Service
-/// unter Linux).
+/// Keychain of the system (macOS Keychain, Windows Credential Manager, Secret Service
+/// on Linux).
 #[derive(Debug, Default)]
 pub struct KeyringStore;
 
@@ -59,7 +59,7 @@ impl KeyringStore {
     }
 }
 
-/// Die Fehlermeldung des Schlüsselbunds enthält nie den Wert.
+/// The error message of the keychain never contains the value.
 fn error(e: keyring::Error) -> SecretError {
     SecretError(e.to_string())
 }
@@ -87,7 +87,7 @@ impl SecretStore for KeyringStore {
     }
 }
 
-/// Nur im Speicher – für Tests.
+/// In memory only – for tests.
 #[cfg(test)]
 #[derive(Default)]
 pub struct MemoryStore(Mutex<HashMap<String, Secret>>);
@@ -95,7 +95,7 @@ pub struct MemoryStore(Mutex<HashMap<String, Secret>>);
 #[cfg(test)]
 impl std::fmt::Debug for MemoryStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Nur die Namen, nie die Werte.
+        // Only the names, never the values.
         let names: Vec<String> = self
             .0
             .lock()
@@ -150,7 +150,7 @@ mod tests {
         s.set(GITHUB, &Secret::new("ghp_b")).unwrap();
         assert_eq!(s.get(GITHUB).unwrap().unwrap().expose(), "ghp_b");
         s.delete(GITHUB).unwrap();
-        s.delete(GITHUB).unwrap(); // zweites Löschen ist kein Fehler
+        s.delete(GITHUB).unwrap(); // a second delete is no error
         assert_eq!(s.get(GITHUB).unwrap(), None);
         assert!(s.has(JIRA).unwrap());
     }

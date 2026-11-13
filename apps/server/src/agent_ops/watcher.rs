@@ -1,9 +1,9 @@
 use super::*;
 
 impl AppState {
-    // ---------- Aufpasser ----------
+    // ---------- Watcher ----------
 
-    /// Ein Durchgang: vergleicht Läufe und Container und führt aus, was nötig ist.
+    /// One pass: compares runs and containers and carries out what is necessary.
     pub(crate) async fn watch(&self) {
         let ws = self.inner.live.copy();
         let (infos, blocked) = {
@@ -64,10 +64,10 @@ impl AppState {
         tokio::spawn(async move { run_task(s, k, mode, rx, info).await });
     }
 
-    // ---------- Start und Aufräumen ----------
+    // ---------- Start and clean-up ----------
 
-    /// Beim Start des Servers: Container eines früheren Starts entfernen und Läufe, die dabei
-    /// verloren gingen, als abgebrochen kennzeichnen. Blockierend.
+    /// At server start: remove containers of an earlier start and mark runs that were
+    /// lost in the process as cancelled. Blocking.
     pub(crate) fn agent_clean_up(&self) {
         let status = self.container_status();
         if let Some(cli) = self.cli_path(&status).filter(|_| status.engine_running) {
@@ -81,7 +81,7 @@ impl AppState {
         for r in ws.runs.iter().filter(|r| r.kind == RunKind::Implement) {
             let key = r.key();
             match r.state {
-                // Wartet nur auf dich: Plan liegt vor, oder eine Grenze hat angehalten (Klon bleibt).
+                // Only waits for you: a plan is ready, or a limit has halted (clone stays).
                 RunState::AwaitingApproval if r.agent_plan.is_some() => {}
                 RunState::Stopped(_) => {
                     keep.insert(agent_run::run_dir(&key));
@@ -103,7 +103,7 @@ impl AppState {
                 _ => {}
             }
         }
-        // Klone und Aufträge, die keinem wartenden Lauf gehören.
+        // Clones and jobs that do not belong to a waiting run.
         if let Ok(entries) = std::fs::read_dir(self.agent_dir().join("runs")) {
             for e in entries.flatten() {
                 if !keep.contains(e.file_name().to_string_lossy().as_ref()) {
@@ -114,12 +114,12 @@ impl AppState {
     }
 }
 
-/// Startet den Aufpasser und den Takt der übrigen Aufgaben (ohne simulierten Agenten).
+/// Starts the watcher and the tick of the other tasks (without the simulated agent).
 pub fn watcher_start(state: AppState) {
     let s = state.clone();
     tokio::task::spawn_blocking(move || s.agent_clean_up());
     tokio::spawn(async move {
-        // Erst aufräumen lassen, dann beobachten.
+        // Clean up first, then watch.
         tokio::time::sleep(Duration::from_millis(300)).await;
         let mut takt = tokio::time::interval(WATCHER_TAKT);
         let mut counter = 0u64;
@@ -127,7 +127,7 @@ pub fn watcher_start(state: AppState) {
             takt.tick().await;
             counter += 1;
             state.watch().await;
-            // Die übrigen Aufgaben (Checks, Zurückgestelltes, Verknüpfen) im gewohnten Takt.
+            // The other tasks (checks, snoozed items, linking) in the usual tick.
             if counter.is_multiple_of(2) {
                 let s = state.clone();
                 let _ = tokio::task::spawn_blocking(move || s.takt()).await;
