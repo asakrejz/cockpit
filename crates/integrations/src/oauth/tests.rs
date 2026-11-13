@@ -194,7 +194,7 @@ fn service_ids() {
 }
 
 #[test]
-fn tokens_in_the_keychain_read_the_older_expiry_name_and_write_the_new_one() {
+fn tokens_in_the_env_file_read_the_older_expiry_name_and_write_the_new_one() {
     let old = Tokens::from_text(r#"{"access":"at","refresh":"rt","laeuft_ab_s":1234}"#).unwrap();
     assert_eq!(old.expires_in_s, Some(1234));
     let text = old.as_text();

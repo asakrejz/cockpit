@@ -37,7 +37,7 @@ pub struct ServiceStatus {
     /// Kind of sign-in; `none` while disconnected.
     #[serde(default)]
     pub kind: AuthKind,
-    /// The OAuth app is set up in `config.toml` and its secret is in the keychain:
+    /// The OAuth app is set up in `config.toml` and its secret is in the .env file:
     /// „Mit … anmelden“ is possible.
     #[serde(default)]
     pub oauth_possible: bool,

@@ -9,10 +9,10 @@
 //! * `GET /api/agent/models`: the model IDs of the endpoint for the drop-down, [`ModelList`]
 //! * `GET /api/agent/check`: connection test to the endpoint, [`EndpointCheck`]
 //! * `POST /api/jira/check`: connection test for Jira via API token (read only), [`JiraCheck`]
-//! * `DELETE /api/secrets/{name}`: deletes a token (`jira`, `github`) from the keychain
+//! * `DELETE /api/secrets/{name}`: deletes a token (`jira`, `github`) from the .env file
 //! * `GET /api/setup`: what the setup assistant prefills, [`Setup`]
 //! * `PUT /api/config`: body [`ConfigChange`], writes `config.toml`, response [`ConfigResponse`]
-//! * `PUT /api/secrets/{name}`: body [`KeyInput`], stores the key in the keychain,
+//! * `PUT /api/secrets/{name}`: body [`KeyInput`], stores the key in the .env file,
 //!   response [`KeyResponse`] (only „set“, never the value)
 //! * `GET /api/agent/image` / `POST /api/agent/image`: state or start of „build image“, [`ImageBuild`]
 //! * `GET /api/agent/check/container`: the same check from a container, [`ContainerCheck`]
@@ -110,7 +110,7 @@ pub struct JiraCheck {
 /// Response to `POST /api/oauth/{service}/revoke`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct RevokeResponse {
-    /// The tokens in the keychain are deleted.
+    /// The tokens in the .env file are deleted.
     pub disconnected: bool,
     /// The service itself revoked the token (not all offer that).
     #[serde(default)]
@@ -178,7 +178,7 @@ impl Provider {
 }
 
 /// The agent's connection to its model, as `GET /api/health` reports it. Never the key itself,
-/// only whether one is in the keychain.
+/// only whether one is in the .env file.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct EndpointStatus {
     /// `[agent.endpoint]` (or the older `[litellm]`) is in `config.toml`.
@@ -192,7 +192,7 @@ pub struct EndpointStatus {
     /// The model name.
     #[serde(default)]
     pub model: Option<String>,
-    /// A key is in the keychain (`agent-key`, alternatively the older `litellm`).
+    /// A key is in the .env file (`agent-key`, alternatively the older `litellm`).
     #[serde(default)]
     pub key: bool,
 }
@@ -328,7 +328,7 @@ impl std::fmt::Debug for KeyInput {
     }
 }
 
-/// Whether a key is in the keychain – never its value.
+/// Whether a key is in the .env file – never its value.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct KeyResponse {
     pub name: String,
@@ -431,13 +431,13 @@ pub struct Setup {
     /// The address entered as callback in the Atlassian app.
     #[serde(default)]
     pub callback_atlassian: String,
-    /// Which keys are in the keychain.
+    /// Which keys are in the .env file.
     #[serde(default)]
     pub keys: Vec<KeyResponse>,
 }
 
 impl Setup {
-    /// Is the key `name` in the keychain?
+    /// Is the key `name` in the .env file?
     pub fn has_key(&self, name: &str) -> bool {
         let da = |n: &str| self.keys.iter().any(|s| s.name == n && s.set);
         // The endpoint's key was called `litellm` until #31 and still applies.

@@ -83,7 +83,7 @@ Zusammenfassung) und erklärt jeden Klick. Jeden Schritt kannst du überspringen
 - **Container-Programm** installieren und starten (siehe Tabelle oben).
 
 Schlüssel (Client-Secrets, Tokens, Key des Modell-Endpunkts) tippst oder fügst du in die Passwortfelder des Assistenten ein. Sie gehen
-nur an den Server auf deinem Rechner, der sie im **Schlüsselbund** ablegt – nicht in den Browser-Speicher, nicht in eine
+nur an den Server auf deinem Rechner, der sie in der **`.env`-Datei im Projektordner** ablegt – nicht in den Browser-Speicher, nicht in eine
 Datei. Wer lieber im Terminal arbeitet, nimmt `cockpit-server token setzen <name>` (siehe „Backend starten“).
 
 **Fertiges Archiv statt selbst bauen.** Bei jedem Versions-Tag (`v…`) baut `.github/workflows/release.yml` ein Archiv für
@@ -103,7 +103,7 @@ Der Agent setzt ein Ticket in einem **Container** um (Claude Agent SDK, ein Cont
    da ist (`image inspect`). Von Hand: `docker build -f agent/Containerfile -t localhost/cockpit-agent:2 agent` (bzw. `podman`).
 3. **Agent-Anbieter und Endpunkt:** Im Schritt „Modell“ wählst du das Werkzeug (Claude Agent SDK; Claude Code und Codex
    stehen als „bald“ da), den Endpunkt (direkt bei Anthropic, eigener Proxy wie LiteLLM, anderer kompatibler Endpunkt),
-   legst den Key ab (Schlüsselbund, Name `agent-key`) und wählst das Modell aus der Liste, die „Modelle laden“ beim
+   legst den Key ab (`.env`, Name `agent-key`, Variable `AGENT_KEY`) und wählst das Modell aus der Liste, die „Modelle laden“ beim
    Endpunkt abfragt (Freitext als Ausweg). „Aus dem Container testen“ prüft, ob ein Container den Endpunkt erreicht.
    Liegt der Proxy nur im **VPN**, kennt die
    Container-Maschine von Rancher Desktop bzw. Podman die VPN-Route oder den Namen womöglich nicht: Dann meldet der Test
@@ -143,7 +143,7 @@ Containern und echtem Modell steht aus (siehe `docs/ROADMAP.md`).
 
 Das Backend (`server/`, Binary `cockpit-server`) ist ein lokaler Dienst für eine Person. Es lauscht nur
 auf `127.0.0.1`, liefert die gebaute Cockpit-App aus und hält Daten (SQLite) und Schlüssel
-(Schlüsselbund des Systems) – Schlüssel verlassen das Backend nie. **Die App läuft nur mit dem Server**: Es gibt
+(`.env`-Datei im Projektordner) – Schlüssel verlassen das Backend nie. **Die App läuft nur mit dem Server**: Es gibt
 keinen Modus ohne Backend mehr.
 
 ```bash
@@ -193,11 +193,47 @@ und `agent-key`); der Assistent schreibt beim Speichern das neue Format und übe
 Auch die älteren deutschen Namen werden weiter gelesen: `intervall_s` (jetzt `interval_s`), `[agent] anbieter` (`provider`),
 `[agent.endpunkt]` mit `modell` (`[agent.endpoint]` mit `model`), `COCKPIT_GIT_BASIS` (`COCKPIT_GIT_BASE`) und der Seed `leer`.
 
-Schlüssel stehen nie in der Datei. Sie kommen über die Standardeingabe in den Schlüsselbund:
+Schlüssel stehen nie in der Datei. Sie kommen über die Standardeingabe in die `.env`-Datei:
 `echo "$TOKEN" | cargo run -p cockpit-server -- token setzen github` (oder `jira`, `github-oauth`, `atlassian-oauth`,
 `agent-key`; `token loeschen <name>` entfernt sie).
 `/api/health` meldet je Verbindung nur ja/nein. Die Server-Crates (`server/`, `crates/integrations`)
 laufen nur nativ; für Wasm schließt die CI sie aus (siehe `docs/ROADMAP.md`).
+
+### Zugangsdaten: die `.env`-Datei
+
+Alle Schlüssel (Jira-Token, GitHub-Token, Key des Agent-Endpunkts, Client-Secrets, Tokens der Anmeldung) liegen in einer
+`.env`-Datei im Projektordner (Entscheidung vom 13.11.2026; das Risiko einer Datei im Repo-Ordner ist bewusst gewählt).
+**Sie wird nie committet**: `.gitignore` schließt `.env` und `.env.*` aus, nur `.env.example` (nur Dummy-Werte) gehört ins Repo.
+
+- **Anlegen:** Der Assistent und `cockpit-server token setzen <name>` legen die Datei bei Bedarf an (Rechte `600`).
+  Von Hand: `cp .env.example .env` und die Werte eintragen.
+- **Ort:** `.env` im Arbeitsverzeichnis des Servers (der Repo-Ordner; `scripts/start.sh` und `start-cockpit.command` wechseln
+  dorthin). `COCKPIT_ENV_FILE=/pfad/zur/datei` biegt den Ort um (Betrieb, Tests). Der Assistent zeigt den Pfad im letzten Schritt.
+- **Format:** `NAME=wert`, Kommentare mit `#`, andere Zeilen bleiben beim Schreiben erhalten. Werte mit Sonderzeichen stehen in
+  einfachen Anführungszeichen. Die Token-Blobs der Anmeldung sind kompaktes JSON in einer Zeile (`'{"access":"…"}'`, kein base64).
+  Schreiben ist atomar (temporäre Datei, dann umbenennen).
+- **Vorrang:** Eine echte Umgebungsvariable gleichen Namens gilt vor der Datei. Ein Wert, der so gesetzt ist, lässt sich im
+  Assistenten nicht überschreiben oder löschen.
+- **Variablen:**
+
+  | Name im Backend | Variable in der `.env` |
+  |---|---|
+  | `jira` | `JIRA_TOKEN` |
+  | `github` | `GITHUB_TOKEN` |
+  | `agent-key` (älter: `litellm`) | `AGENT_KEY` |
+  | `github-oauth` | `GITHUB_OAUTH_CLIENT_SECRET` |
+  | `atlassian-oauth` | `ATLASSIAN_OAUTH_CLIENT_SECRET` |
+  | Tokens der GitHub-Anmeldung (vom Backend) | `GITHUB_OAUTH_TOKENS` |
+  | Tokens der Atlassian-Anmeldung (vom Backend) | `ATLASSIAN_OAUTH_TOKENS` |
+
+- **Sicherheitsnetz:** Beim Start und in `/api/health` (`env_datei`, sichtbar im letzten Schritt des Assistenten) warnt der
+  Server, wenn Git die `.env` verfolgt, `.gitignore` sie nicht abdeckt oder die Rechte lockerer als `600` sind (beim Start
+  werden sie auf `600` gesetzt). Die CI schlägt fehl, wenn irgendeine `.env*`-Datei (außer `.env.example`) verfolgt wird.
+  Wurde je eine echte `.env` committet: Schlüssel sofort tauschen, `git rm --cached .env`.
+- **Container:** Die `.env` kommt nie ins Image oder in den Container (`apps/agent/.dockerignore`); der Agent bekommt Werte nur
+  als `-e NAME` vom Backend.
+- **Alte Einträge aus dem Schlüsselbund** (vor dem 13.11.2026): `cargo run -p cockpit-server -- token uebernehmen` kopiert sie
+  einmalig in die `.env`. Das liest nur den Schlüsselbund, löscht dort nichts, überschreibt nichts und läuft nie von selbst.
 
 ### Entwickeln mit `trunk serve`
 
@@ -242,8 +278,8 @@ und hört auf Änderungen:
 | `GET /api/agent/models` | Die Modell-IDs des Endpunkts für das Drop-down: `{loaded, reachable, key_ok, models, hint}`; nur IDs, sortiert (Claude-Modelle zuerst), höchstens 200. Der Key bleibt im Backend |
 | `GET /api/setup` | Was der Assistent vorbelegt: Jira-Site/E-Mail/Projekte, Client-IDs, Repos, Anbieter, Endpunkt-Adresse und Modell, die beiden Callback-Adressen und je Schlüssel nur `{name, set}` |
 | `PUT /api/config` | Schreibt Client-IDs, Jira, Repos sowie Agent-Anbieter und Endpunkt in `config.toml` (siehe „Einrichten in der App“). Antwort `{stored, takes_effect_immediately, hint}`; ungültige Eingaben sind `422` mit Klartext |
-| `PUT /api/secrets/{name}` | Legt einen Schlüssel im Schlüsselbund ab. Body `{"value": "…"}`, nur `github-oauth`, `atlassian-oauth`, `agent-key` (ältere Schreibweise `litellm`), `jira`, `github`. Antwort `{name, set}` – nie der Wert |
-| `DELETE /api/secrets/{name}` | „Trennen“ für Tokens: löscht `jira` oder `github` aus dem Schlüsselbund (andere Namen: `404`). Antwort `{name, set: false}` |
+| `PUT /api/secrets/{name}` | Legt einen Schlüssel in der `.env` ab. Body `{"value": "…"}`, nur `github-oauth`, `atlassian-oauth`, `agent-key` (ältere Schreibweise `litellm`), `jira`, `github`. Antwort `{name, set}` – nie der Wert |
+| `DELETE /api/secrets/{name}` | „Trennen“ für Tokens: löscht `jira` oder `github` aus der `.env` (andere Namen: `404`). Antwort `{name, set: false}` |
 | `POST /api/jira/check` | Verbindungstest für Jira per API-Token, nur lesend (`GET /rest/api/3/myself`): `{ok, cause, message, name}`, `cause` = `ok`, `details`, `address`, `token`, `permission`, `reachable`, `sonst`. Nie der Token |
 
 Ist der Server nicht erreichbar (nicht gestartet, anderer Port), zeigt die App oben einen Hinweis mit „Erneut versuchen“;
@@ -259,16 +295,16 @@ und einen fehlenden oder eigenen `Origin`. Das gilt auch für `PUT /api/config` 
 Jira-Site (`firma.atlassian.net`; auch eine kopierte Adresse mit `https://` und Pfad wird verstanden), (2) die
 E-Mail-Adresse deines Atlassian-Kontos, (3) den Token. „Token-Seite öffnen“ führt in einem neuen Tab zu
 `https://id.atlassian.com/manage-profile/security/api-tokens`: „Token erstellen“, Namen vergeben, Ablaufdatum wählen,
-kopieren und in das Passwortfeld einfügen. Der Token geht über `PUT /api/secrets/jira` in den Schlüsselbund, Site und
+kopieren und in das Passwortfeld einfügen. Der Token geht über `PUT /api/secrets/jira` in die `.env`, Site und
 E-Mail über `PUT /api/config` in die `config.toml`. Danach prüft „Verbindung prüfen“ (`POST /api/jira/check`,
 nur lesend: `GET /rest/api/3/myself`), ob „Jira antwortet und dich kennt“, und nennt sonst im Klartext die Ursache
 (Adresse falsch, Token abgelehnt, keine Berechtigung, nicht erreichbar). Nach dem Test schlägt der Assistent die
 Jira-Projekte zur Auswahl vor (oder „Alle Projekte“), wie das Drop-down in der Inbox. In der Zusammenfassung steht, ob die
 Anmeldung „mit API-Token“ oder „mit OAuth“ läuft; „Token erneuern“ führt zurück in den Schritt, „Trennen“ löscht den Token
-im Schlüsselbund (`DELETE /api/secrets/jira`).
+in der `.env` (`DELETE /api/secrets/jira`).
 
 **Sicherheit.** Der Token hat die Rechte deines Atlassian-Kontos. Solange Cockpit nur lesen soll, nimm ein Konto oder eine
-Rolle ohne Schreibrechte; ein kurzes Ablaufdatum begrenzt den Schaden. Der Token liegt nur im Schlüsselbund und kommt nie
+Rolle ohne Schreibrechte; ein kurzes Ablaufdatum begrenzt den Schaden. Der Token liegt nur in der `.env` und kommt nie
 in Browser-Speicher, Adresse, Datenbank, `config.toml` oder Log.
 
 **Alternative: OAuth.** Wer keinen Token will, legt in der Atlassian-Entwicklerkonsole eine eigene OAuth-App an und
@@ -279,12 +315,12 @@ stehen weiter unten („Anmeldung per OAuth“). Ist beides da, geht OAuth vor d
 
 **Der bequeme Weg ist der Assistent:** Die Seite „Einrichten“ führt durch Container, Jira, GitHub und den Modellzugang
 (siehe „Einrichten in der App“ weiter unten). Er schreibt Client-IDs, Jira-Site, Repos sowie Agent-Anbieter und Endpunkt selbst in die
-`config.toml` und legt Schlüssel im Schlüsselbund ab – ohne dass du Datei oder Terminal anfasst. **Der Terminal-Weg bleibt
+`config.toml` und legt Schlüssel in der `.env` ab – ohne dass du Datei oder Terminal anfasst. **Der Terminal-Weg bleibt
 als Alternative** und ist unten beschrieben: `config.toml` von Hand bearbeiten und `cockpit-server token setzen <name>`.
 Beides führt zum selben Ergebnis und lässt sich mischen.
 
 Ohne Einrichtung bleibt der Workspace leer (oder zeigt die Beispieldaten, wenn du `COCKPIT_SEED=demo` gewählt hast).
-Sobald **eine Quelle eingerichtet ist und ihr Token im Schlüsselbund liegt**, gleicht das Backend ab: Tickets, Pull
+Sobald **eine Quelle eingerichtet ist und ihr Token in der `.env` liegt**, gleicht das Backend ab: Tickets, Pull
 Requests, Kommentare, Checks und Diffs kommen von den Diensten; die (unveränderten) Beispieldaten eines Seeds verschwinden
 beim ersten erfolgreichen Abruf. Eine Quelle ohne Konfiguration oder ohne Token bleibt aus.
 
@@ -332,7 +368,7 @@ gespeichert; die Anzahl der Treffer steht für Screenreader im Status. Die Logik
 - **Label:** `Item::labels` kommt vom Dienst (Jira `fields.labels`, GitHub-Labels des Pull Requests) und wird bei jedem Abgleich ersetzt; Groß-/Kleinschreibung zählt beim Filtern nicht.
 - Gleiche Pull-Request-Nummern aus zwei Repos sind in der Inbox getrennte Einträge (die ID enthält das Repo). Die Reviews und die Zuordnung `PrLink` hängen weiter an der Nummer – zwei Repos mit derselben Nummer teilen sich dort einen Platz.
 
-**2. Token setzen** (von der Standardeingabe in den Schlüsselbund, nie in Datei, Datenbank, Log oder Browser):
+**2. Token setzen** (von der Standardeingabe in die `.env`-Datei, nie in Datei, Datenbank, Log oder Browser):
 
 ```bash
 echo "$GITHUB_TOKEN" | cargo run -p cockpit-server -- token setzen github
@@ -349,7 +385,7 @@ Das Backend liest den Token bei jedem Gebrauch neu; ein neu gesetzter Token wirk
 | Jira | *API-Token* des Atlassian-Kontos (id.atlassian.com › Sicherheit › API-Token) | Das Konto braucht in den Projekten „Projekte durchsuchen“, „Kommentare hinzufügen“ und „Vorgänge bearbeiten/Transitionen ausführen“. Anmeldung mit der E-Mail aus der Konfiguration |
 
 **Anmeldung per OAuth (Alternative zum Token).** Statt eines Tokens meldest du dich im Browser an; Tokens und
-Client-Secret liegen nur im Schlüsselbund des Backends, nie im Browser, Repo, in der Datenbank oder im Log.
+Client-Secret liegen nur im `.env`-Datei des Backends, nie im Browser, Repo, in der Datenbank oder im Log.
 
 1. *Apps registrieren.* GitHub: eine **GitHub App** (Callback `http://127.0.0.1:8787/api/oauth/github/callback`,
    „Expire user authorization tokens“ an, Repository-Rechte wie in der Tabelle unten, App auf den Repos installieren).
@@ -370,7 +406,7 @@ Client-Secret liegen nur im Schlüsselbund des Backends, nie im Browser, Repo, i
    # site = "firma"                 # nur nötig, wenn du mehrere Sites freigibst (Name, Adresse oder Id)
    ```
 
-3. *Client-Secret in den Schlüsselbund* (Standardeingabe, wie bei den Token):
+3. *Client-Secret in die `.env`* (Standardeingabe, wie bei den Token):
 
    ```bash
    echo "$GITHUB_CLIENT_SECRET"    | cargo run -p cockpit-server -- token setzen github-oauth
@@ -390,7 +426,7 @@ Client-Secret liegen nur im Schlüsselbund des Backends, nie im Browser, Repo, i
      Atlassian dreht das Refresh-Token bei jeder Auffrischung; auch das speichert das Backend.
    - Ist ein OAuth-Zugang da, geht er vor einem API-Token (`token setzen github|jira`); die Token-Wege bleiben
      unverändert. Nach dem Trennen gilt wieder das Token.
-5. *Trennen.* „Trennen“ in der App oder `POST /api/oauth/{service}/revoke` löscht die Tokens im Schlüsselbund. Bei
+5. *Trennen.* „Trennen“ in der App oder `POST /api/oauth/{service}/revoke` löscht die Tokens in der `.env`. Bei
    GitHub widerruft das Backend das Token zusätzlich beim Dienst (`DELETE /applications/{client_id}/token`). Atlassian
    bietet dafür keinen Aufruf; den Zugriff entziehst du unter id.atlassian.com/manage-profile/apps (die App weist
    darauf hin). Gelöscht wird immer, auch wenn der Dienst nicht antwortet. Das Client-Secret bleibt.
@@ -437,7 +473,7 @@ bleiben bis zum Neustart. Ändert sich die Client-ID einer App, rät die Antwort
 
 **Wie Schlüssel ankommen.** Client-Secrets, Tokens und der Key des Endpunkts kommen in Passwortfelder
 (`autocomplete="off"`) und gehen einmal an `PUT /api/secrets/{name}` auf der Loopback-Verbindung. Der Server legt sie im
-Schlüsselbund ab. Der Wert steht nur im Feld und in dieser einen Anfrage: nicht in `localStorage`, nicht in der Adresse,
+`.env`-Datei ab. Der Wert steht nur im Feld und in dieser einen Anfrage: nicht in `localStorage`, nicht in der Adresse,
 nicht im Log, nicht in Fehlermeldungen und nie in einer Antwort (die sagt nur `gesetzt`); das Feld wird sofort nach dem
 Absenden geleert. Erlaubt sind nur die Namen `github-oauth`, `atlassian-oauth`, `agent-key`, `litellm` (älterer Name), `jira` und `github`. Die beiden
 neuen `PUT`-Routen unterliegen derselben Loopback-, Host-, Origin- und Content-Type-Prüfung wie alle Routen unter `/api`.
@@ -448,7 +484,7 @@ Die Abschnitte „Modellzugang“ und „Container“ im Einzelnen:
   und `codex` sind bekannte Werte, die in Klartext „noch nicht umgesetzt“ melden (der Assistent zeigt sie als „bald“).
   `[agent.endpoint]` sagt, wohin die Modellanfragen gehen: mit `url` an einen Anthropic-kompatiblen Endpunkt (LiteLLM,
   anderer Proxy; im Container `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`), ohne `url` direkt zu Anthropic (im Container
-  `ANTHROPIC_API_KEY`). `modell` ist der Name, wie der Endpunkt ihn anbietet. Der Key liegt nur im Schlüsselbund
+  `ANTHROPIC_API_KEY`). `modell` ist der Name, wie der Endpunkt ihn anbietet. Der Key liegt nur in der `.env`
   (`agent-key`): `echo "$KEY" | cargo run -p cockpit-server -- token setzen agent-key`; die Werte gehen nur per `-e NAME` an
   den Container. `/api/health` meldet unter `endpoint` Anbieter, Adresse, Modell und ob ein Key liegt (nie den Key).
   „Modelle laden“ ruft `GET /api/agent/models`; das Backend fragt dann `GET <url>/v1/models` (Proxy: `Authorization: Bearer`;

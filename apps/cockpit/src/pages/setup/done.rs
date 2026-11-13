@@ -10,7 +10,7 @@ use super::fields::{Context, Intro};
 use crate::server;
 use crate::sync_status::SyncStatus;
 
-/// "Token erneuern" and "Trennen" for Jira. Disconnecting deletes the token in the keychain (with
+/// "Token erneuern" and "Trennen" for Jira. Disconnecting deletes the token in the .env file (with
 /// OAuth: revokes the sign-in); the settings stay, the way back is the step "Jira".
 #[component]
 fn JiraActions(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
@@ -120,8 +120,33 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                 </Button>
             </HStack>
             <p class="t-footnote t-secondary" style="padding-inline: 4px">
-                "Wo Schlüssel liegen: nur im Schlüsselbund dieses Rechners. Sie gehen über die Eingabefelder hier (oder im Terminal mit „cockpit-server token setzen <name>“) hinein und kommen nie in den Browser-Speicher, ins Repo, in die Datenbank oder ins Log. Der echte Agent läuft in Docker oder Podman und spricht mit dem Modell-Endpunkt, den du im Schritt „Modell“ gewählt hast."
+                "Wo Schlüssel liegen: nur in der .env-Datei im Projektordner dieses Rechners. Sie gehen über die Eingabefelder hier (oder im Terminal mit „cockpit-server token setzen <name>“) hinein und kommen nie in den Browser-Speicher, in die Datenbank oder ins Log. Die Datei darf nie committet oder weitergegeben werden. Der echte Agent läuft in Docker oder Podman und spricht mit dem Modell-Endpunkt, den du im Schritt „Modell“ gewählt hast."
             </p>
+            {move || {
+                ctx.store
+                    .health
+                    .get()
+                    .and_then(|h| h.env_file)
+                    .map(|datei| {
+                        view! {
+                            <p class="t-footnote t-secondary" style="padding-inline: 4px">
+                                "Die Datei liegt hier: "
+                                <code>{datei.path}</code>
+                            </p>
+                            {datei
+                                .warnings
+                                .into_iter()
+                                .map(|w| {
+                                    view! {
+                                        <p class="t-footnote" role="alert" style="padding-inline: 4px; color: var(--red, #c00)">
+                                            {w}
+                                        </p>
+                                    }
+                                })
+                                .collect_view()}
+                        }
+                    })
+            }}
         </VStack>
     }
 }

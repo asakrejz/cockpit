@@ -83,7 +83,7 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Everything a run needs in terms of access (from settings and keychain).
+/// Everything a run needs in terms of access (from settings and .env file).
 struct Access {
     cli: PathBuf,
     /// `None` = directly at the provider.

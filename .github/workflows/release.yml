@@ -41,6 +41,7 @@ jobs:
           cp apps/agent/Containerfile apps/agent/README.md "$name/apps/agent/"
           cp -R apps/agent/runner/package.json apps/agent/runner/package-lock.json apps/agent/runner/src "$name/apps/agent/runner/"
           cp start-cockpit.command "$name/"
+          cp .env.example "$name/"
           cp README.md "$name/README.md"
           chmod +x "$name/cockpit-server" "$name/start-cockpit.command"
           # `ditto` keeps the permissions (executable).

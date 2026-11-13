@@ -7,7 +7,7 @@ use crate::api::{
 };
 use crate::connections::{AuthKind, ServiceStatus};
 
-/// The names under which the backend stores keys in the keychain (`PUT /api/secrets/{name}`).
+/// The names under which the backend stores keys in the .env file (`PUT /api/secrets/{name}`).
 pub const KEY_NAMES: &[&str] = &[
     "github-oauth",
     "atlassian-oauth",
@@ -122,7 +122,7 @@ pub fn key_name_allowed(name: &str) -> bool {
     KEY_NAMES.contains(&name)
 }
 
-/// Whether `name` is a token that „Trennen“ may delete from the keychain. Client secrets and
+/// Whether `name` is a token that „Trennen“ may delete from the .env file. Client secrets and
 /// the model key do not belong to it.
 pub fn key_deletable(name: &str) -> bool {
     matches!(name, "jira" | "github")

@@ -1,8 +1,8 @@
 //! Sign-in via OAuth in the backend: redirect, callback, refresh, revoke.
 //!
 //! The rules (PKCE, `state`, exchange, site choice) are in `cockpit_integrations::oauth`;
-//! here the course runs with keychain and database. Client secret and tokens only lie in the
-//! keychain, never in the database, never in the log, never in the browser. The browser only sees
+//! here the course runs with .env file and database. Client secret and tokens only lie in the
+//! .env file, never in the database, never in the log, never in the browser. The browser only sees
 //! redirects and messages.
 
 use std::collections::HashMap;
@@ -62,7 +62,7 @@ fn now_s() -> u64 {
 fn service_error(d: Service, f: &Error) -> String {
     match f {
         Error::NotSignedIn => format!(
-            "{} lehnt die Zugangsdaten ab – Client-ID in config.toml und Client-Secret im Schlüsselbund prüfen",
+            "{} lehnt die Zugangsdaten ab – Client-ID in config.toml und Client-Secret in der .env-Datei prüfen",
             d.name()
         ),
         Error::Network(_) => format!("{} ist nicht erreichbar", d.name()),
@@ -92,7 +92,7 @@ impl AppState {
         }
     }
 
-    /// The client secret from the keychain. Blocking.
+    /// The client secret from the .env file. Blocking.
     fn oauth_client_secret(&self, d: Service) -> Option<Secret> {
         match self.inner.secrets.get(secret_name(d)) {
             Ok(s) => s.filter(|s| !s.is_empty()),
@@ -103,7 +103,7 @@ impl AppState {
         }
     }
 
-    /// The tokens from the keychain. Unreadable counts as missing. Blocking.
+    /// The tokens from the .env file. Unreadable counts as missing. Blocking.
     pub(crate) fn oauth_tokens(&self, d: Service) -> Option<Tokens> {
         match self.inner.secrets.get(tokens_name(d)) {
             Ok(Some(t)) => {
@@ -304,7 +304,7 @@ impl AppState {
         let name = site.as_ref().map(|x| x.name.clone());
         tokio::task::spawn_blocking(move || -> Result<(), String> {
             s.oauth_tokens_set(d, &tokens).map_err(|e| {
-                format!("Die Tokens ließen sich nicht im Schlüsselbund ablegen: {e}")
+                format!("Die Tokens ließen sich nicht in der .env-Datei ablegen: {e}")
             })?;
             if let Some(site) = site {
                 let conn = s
@@ -340,7 +340,7 @@ impl AppState {
     }
 
     /// Disconnects the service: calls, where it exists, the revocation at the service and deletes the tokens
-    /// in the keychain. Deleting always happens – even if the service does not answer.
+    /// in the .env file. Deleting always happens – even if the service does not answer.
     pub async fn oauth_revoke(&self, d: Service) -> Result<RevokeResponse, String> {
         let s = self.clone();
         let (tokens, secret) =

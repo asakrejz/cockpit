@@ -78,3 +78,29 @@ async fn returns_the_app_as_static_files() {
     let (status, _) = hole(app(), "/fehlt.js").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
+
+#[tokio::test]
+async fn health_names_the_env_file_never_its_content() {
+    let dir = tempfile::tempdir().unwrap();
+    let datei = dir.path().join(".env");
+    let store = Arc::new(secrets::EnvFileStore::with_env(datei.clone(), |_| None));
+    store
+        .set(secrets::GITHUB, &Secret::new("dummy-streng-geheim"))
+        .unwrap();
+    let with_file = AppState::new(db::open_in_memory().unwrap(), store);
+    let app = router(with_file, PathBuf::from("/gibt/es/nicht"));
+    let (status, body) = hole(app, "/api/health").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!body.contains("dummy-streng-geheim"), "{body}");
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["env_file"]["path"], datei.display().to_string());
+    assert!(json["env_file"]["warnings"].is_array());
+    // Mit dem Speicher für Tests gibt es keine Datei.
+    let app = router(
+        state(Arc::new(MemoryStore::new())),
+        PathBuf::from("/gibt/es/nicht"),
+    );
+    let (_, body) = hole(app, "/api/health").await;
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert!(json["env_file"].is_null());
+}

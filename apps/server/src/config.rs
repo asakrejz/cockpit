@@ -22,7 +22,7 @@
 //! ```
 //!
 //! Sign-in via OAuth (instead of an API token), only client IDs – the secrets are in the
-//! keychain (`cockpit-server token setzen github-oauth|atlassian-oauth`):
+//! .env file (`cockpit-server token setzen github-oauth|atlassian-oauth`):
 //!
 //! ```toml
 //! [github_oauth]
@@ -35,7 +35,7 @@
 //!
 //! With `[atlassian]` `[jira]` needs neither `site` nor `email` (only `projects`/`jql`).
 //!
-//! Agent provider and endpoint (only address and model name – the key is in the keychain,
+//! Agent provider and endpoint (only address and model name – the key is in the .env file,
 //! `cockpit-server token setzen agent-key`), container runtime and seed:
 //!
 //! ```toml
@@ -58,13 +58,13 @@
 //! The assistant writes the new format.
 //!
 //! A source only syncs if it is set up here **and** its key is in the
-//! keychain (`cockpit-server token setzen <github|jira>`). Without a source the
+//! .env file (`cockpit-server token setzen <github|jira>`). Without a source the
 //! workspace stays empty (or shows the sample data if the seed `demo` is chosen).
 //!
 //! Umgebungsvariablen: `COCKPIT_PORT`, `COCKPIT_DIST`, `COCKPIT_DB`, `COCKPIT_CONFIG`
 //! (path of the configuration file), `COCKPIT_SEED` (`empty` or `demo`; `leer` still applies), `COCKPIT_CONTAINER`
 //! (`docker` or `podman`), `COCKPIT_AGENT_DIR` (folder `agent`), `COCKPIT_GIT_BASE` (older `COCKPIT_GIT_BASIS`; base address for cloning, tests only),
-//! `COCKPIT_DEV_PORT` (port of `trunk serve`, for development only).
+//! `COCKPIT_DEV_PORT` (port of `trunk serve`, for development only), `COCKPIT_ENV_FILE` (path of the `.env` file with the keys).
 
 use std::path::{Path, PathBuf};
 
@@ -143,7 +143,7 @@ pub struct AgentChoice {
     pub endpoint: Option<EndpointConfig>,
 }
 
-/// The model endpoint of the agent. The key is in the keychain, never here.
+/// The model endpoint of the agent. The key is in the .env file, never here.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct EndpointConfig {
     /// Without a slash at the end, e.g. `http://localhost:4000`; `None` = directly at the provider.
@@ -158,13 +158,13 @@ pub struct GitHubConfig {
     pub repos: Vec<String>,
 }
 
-/// The GitHub App for the sign-in. The client secret is in the keychain.
+/// The GitHub App for the sign-in. The client secret is in the .env file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OAuthConfig {
     pub client_id: String,
 }
 
-/// The Atlassian app (OAuth 2.0 3LO). The client secret is in the keychain.
+/// The Atlassian app (OAuth 2.0 3LO). The client secret is in the .env file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AtlassianConfig {
     pub client_id: String,

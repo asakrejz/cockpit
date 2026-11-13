@@ -164,6 +164,18 @@ pub struct Health {
     pub container: ContainerStatus,
     #[serde(default)]
     pub agent: AgentStatus,
+    /// Wo die `.env`-Datei mit den Schlüsseln liegt und was daran zu warnen ist (nie ein Wert).
+    #[serde(default)]
+    pub env_file: Option<EnvFileStatus>,
+}
+
+/// Pfad der `.env`-Datei und Warnungen des Servers (Git verfolgt sie, nicht ignoriert, Rechte).
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize)]
+pub struct EnvFileStatus {
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 /// State of the sign-in, of the agent endpoint and of the container runtime (`GET /api/health`).
@@ -301,7 +313,7 @@ pub async fn put_config(change: &ConfigChange) -> Result<ConfigResponse, CallErr
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Stores a key in the keychain of the server (`PUT /api/secrets/{name}`). The value
+/// Stores a key in the .env file of the server (`PUT /api/secrets/{name}`). The value
 /// only goes into the body of this request – not into the address, not into the memory of the browser.
 /// The answer only says "set".
 pub async fn put_key(name: &str, wert: String) -> Result<KeyResponse, CallError> {
@@ -334,7 +346,7 @@ pub async fn post_jira_check() -> Result<JiraCheck, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Deletes a token from the keychain (`DELETE /api/secrets/{name}`), "Trennen".
+/// Deletes a token from the .env file (`DELETE /api/secrets/{name}`), "Trennen".
 pub async fn delete_key(name: &str) -> Result<KeyResponse, CallError> {
     let request = Request::delete(&format!("/api/secrets/{name}"))
         .header("Content-Type", "application/json")

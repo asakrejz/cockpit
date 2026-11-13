@@ -315,10 +315,12 @@ pub struct Health {
     pub container: ContainerStatus,
     /// Whether the real agent can start and what is missing.
     pub agent: AgentStatus,
+    /// Wo die `.env`-Datei mit den Schlüsseln liegt und was daran zu warnen ist – nie ein Wert.
+    pub env_file: Option<secrets::EnvFileStatus>,
 }
 
 impl AppState {
-    /// Blocking (database, keychain) – do not call directly in an async handler.
+    /// Blocking (database, .env file) – do not call directly in an async handler.
     fn health(&self) -> Health {
         let names = match self.inner.db.lock() {
             Ok(conn) => db::connections(&conn).unwrap_or_else(|e| {
@@ -384,6 +386,7 @@ impl AppState {
             endpoint,
             container,
             agent,
+            env_file: self.inner.secrets.env_file().map(secrets::env_file_status),
         }
     }
 }
@@ -395,7 +398,7 @@ async fn health(State(state): State<AppState>) -> Result<Json<Health>, StatusCod
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-/// The key of the endpoint from the keychain: `agent-key`, alternatively the older `litellm`.
+/// The key of the endpoint from the .env file: `agent-key`, alternatively the older `litellm`.
 /// Blockierend.
 pub(crate) fn agent_key_read(
     secrets: &dyn crate::secrets::SecretStore,
@@ -425,7 +428,7 @@ impl AppState {
                 tracing::warn!("Key des Agent-Endpunkts nicht lesbar: {e}");
                 Err(Box::new(error(
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "Der Schlüsselbund ist nicht lesbar",
+                    "Die .env-Datei im Projektordner ist nicht lesbar",
                 )))
             }
             Err(_) => Err(Box::new(StatusCode::INTERNAL_SERVER_ERROR.into_response())),
@@ -465,7 +468,7 @@ async fn endpoint_check(State(state): State<AppState>) -> Response {
 }
 
 /// `GET /api/agent/models`: the model IDs of the endpoint (IDs only, sorted) for the drop-down.
-/// The key comes from the keychain and never leaves the backend.
+/// The key comes from the .env file and never leaves the backend.
 async fn agent_models(State(state): State<AppState>) -> Response {
     let key = match state.endpoint_key().await {
         Ok(k) => k,

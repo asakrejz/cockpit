@@ -1,8 +1,8 @@
-//! Jira and GitHub in the server: build services from configuration and keychain, run actions
+//! Jira and GitHub in the server: build services from configuration and .env file, run actions
 //! first at the service and then apply locally, sync regularly.
 //!
 //! The core of the rules is in `cockpit-core` (`sync::merge`) and `cockpit-integrations`
-//! (`outbound`); only the course runs here. A key is read fresh from the keychain for every use
+//! (`outbound`); only the course runs here. A key is read fresh from the .env file for every use
 //! (so `token setzen` works without restart), never stored or logged.
 
 use std::time::Duration;
@@ -30,7 +30,7 @@ const RETRIES: usize = 2;
 pub struct Sources {
     pub github: Option<GitHubConfig>,
     pub jira: Option<JiraConfig>,
-    /// Sign-in via OAuth (client IDs only; the secrets are in the keychain).
+    /// Sign-in via OAuth (client IDs only; the secrets are in the .env file).
     pub github_oauth: Option<OAuthConfig>,
     pub atlassian: Option<AtlassianConfig>,
     /// Addresses of the OAuth services (tests insert imitations).
@@ -84,7 +84,7 @@ pub enum ActionFailure {
 
 impl AppState {
     /// Builds the services that are set up **and** have a key. Blocking
-    /// (keychain).
+    /// (.env file).
     pub(crate) fn services_build(&self) -> Services {
         let inner = &self.inner;
         let sources = self.sources();
@@ -151,7 +151,7 @@ impl AppState {
         }
     }
 
-    /// A key from the keychain, empty counts as missing. Blocking.
+    /// A key from the .env file, empty counts as missing. Blocking.
     pub(crate) fn token(&self, name: &str) -> Option<cockpit_integrations::Secret> {
         match self.inner.secrets.get(name) {
             Ok(t) => t.filter(|t| !t.is_empty()),
@@ -197,7 +197,7 @@ impl AppState {
         if !self.sources().possible() {
             return Services::default();
         }
-        // First refresh (network), then build (keychain).
+        // First refresh (network), then build (.env file).
         self.oauth_refresh().await;
         let s = self.clone();
         tokio::task::spawn_blocking(move || s.services_build())

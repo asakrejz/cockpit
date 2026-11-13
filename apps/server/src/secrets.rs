@@ -1,5 +1,13 @@
-//! Storage of the keys. They are in the keychain of the system, never in the database,
-//! never in the configuration file. `Secret` only shows as `Secret(***)` in `Debug`.
+//! Storage of the keys. They are in the `.env` file in the project folder (`EnvFileStore`, never
+//! commit it), never in the database, never in the configuration file. `Secret` only shows as
+//! `Secret(***)` in `Debug`. The system keychain (`KeyringStore`) is only read for the one-time,
+//! explicit takeover of old entries.
+
+mod env_check;
+mod env_file;
+
+pub use env_check::{EnvFileStatus, status as env_file_status};
+pub use env_file::{EnvFileStore, Takeover, take_over};
 
 #[cfg(test)]
 use std::collections::HashMap;
@@ -45,6 +53,11 @@ pub trait SecretStore: Send + Sync {
 
     fn has(&self, name: &str) -> Result<bool, SecretError> {
         Ok(self.get(name)?.is_some())
+    }
+
+    /// Die Datei, in der die Schlüssel liegen (nur `EnvFileStore`); für Status und Warnungen.
+    fn env_file(&self) -> Option<&std::path::Path> {
+        None
     }
 }
 

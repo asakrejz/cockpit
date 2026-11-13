@@ -91,7 +91,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
         Err(m) => back.set(Some((false, m))),
     };
     // "Modelle laden": first save tool and address (the server asks the saved
-    // endpoint with the key from the keychain), then fetch the list.
+    // endpoint with the key from the .env file), then fetch the list.
     let laden = move |_| {
         list_loads.set(true);
         list_hint.set(None);
@@ -267,7 +267,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                             ctx=ctx
                             name="agent-key"
                             label=art.get().key_label()
-                            hint="Geheim wie ein Passwort. Er wird nur im Schlüsselbund dieses Rechners gespeichert."
+                            hint="Geheim wie ein Passwort. Er wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert."
                         />
                     }
                 }}

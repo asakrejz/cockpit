@@ -166,7 +166,7 @@ async fn github_state(p: &TestBench) -> String {
 #[tokio::test]
 async fn start_without_setup_shows_a_understandable_message() {
     let server = MockServer::start().await;
-    // Without a client secret in the keychain.
+    // Without a client secret in the .env file.
     let p = snapshot(&server, None, false);
     let (status, ort, _) = call(&p.app, "GET", "/api/oauth/github/start").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
@@ -224,7 +224,7 @@ async fn github_sign_in_from_start_until_health() {
             assert!(!text.contains(secret));
         }
     }
-    // Tokens are in the keychain.
+    // Tokens are in the .env file.
     let stored = p
         .secrets
         .get(secrets::GITHUB_OAUTH_TOKENS)

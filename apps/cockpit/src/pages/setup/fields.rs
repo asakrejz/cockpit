@@ -117,7 +117,7 @@ pub fn config_save(
 #[component]
 pub fn KeyField(
     ctx: Context,
-    /// Name in the keychain (`github-oauth`, `atlassian-oauth`, `agent-key`, `jira`, `github`).
+    /// Name in the .env file (`github-oauth`, `atlassian-oauth`, `agent-key`, `jira`, `github`).
     name: &'static str,
     label: &'static str,
     #[prop(optional)] hint: Option<&'static str>,
@@ -144,7 +144,7 @@ pub fn KeyField(
                 Ok(_) => {
                     back.set(Some((
                         true,
-                        "Im Schlüsselbund abgelegt. Das Feld ist wieder leer.".into(),
+                        "In der .env-Datei abgelegt. Das Feld ist wieder leer.".into(),
                     )));
                     ctx.laden();
                 }
@@ -161,7 +161,7 @@ pub fn KeyField(
                 value=wert
                 input_type="password"
                 autocomplete="off"
-                hint=hint.unwrap_or("Wird nur im Schlüsselbund dieses Rechners gespeichert.")
+                hint=hint.unwrap_or("Wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert.")
             />
             <HStack spacing="12px">
                 <Button
@@ -174,7 +174,7 @@ pub fn KeyField(
                 <Status tone=Signal::derive(move || {
                     if set() { StatusTone::Green } else { StatusTone::Gray }
                 })>
-                    {move || if set() { "Liegt im Schlüsselbund" } else { "Noch nichts abgelegt" }}
+                    {move || if set() { "Liegt in der .env-Datei" } else { "Noch nichts abgelegt" }}
                 </Status>
             </HStack>
             <Message feedback=back />

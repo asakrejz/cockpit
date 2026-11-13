@@ -3,7 +3,7 @@
 //! * `GET /api/setup`: current, non-secret values and which keys are present
 //! * `PUT /api/config`: writes client IDs, Jira, repos as well as agent provider and endpoint to `config.toml`
 //!   (atomically, comments and other values stay) and applies them without restart
-//! * `PUT /api/secrets/{name}`: stores a key in the keychain; `DELETE` deletes a
+//! * `PUT /api/secrets/{name}`: stores a key in the .env file; `DELETE` deletes a
 //!   token (`jira`, `github`) again ("Trennen")
 //! * `POST /api/jira/check`: connection test for Jira via API token (read only)
 //!
@@ -365,7 +365,7 @@ impl AppState {
         })
     }
 
-    /// The current, non-secret values. Blocking (keychain).
+    /// The current, non-secret values. Blocking (.env file).
     fn setup(&self) -> Setup {
         let q = self.sources();
         let choice = self.agent_choice();
@@ -421,7 +421,7 @@ pub async fn config(State(state): State<AppState>, body: Bytes) -> Response {
     }
 }
 
-/// `PUT /api/secrets/{name}`: stores the key in the keychain. The value is only in the
+/// `PUT /api/secrets/{name}`: stores the key in the .env file. The value is only in the
 /// body; it is neither logged nor sent back, and error messages never name it.
 pub async fn key(
     State(state): State<AppState>,
@@ -453,14 +453,14 @@ pub async fn key(
             tracing::warn!("Schlüssel für {name} nicht abgelegt: {e}");
             error(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Der Schlüsselbund hat den Schlüssel nicht angenommen. Prüfe, ob der Schlüsselbund entsperrt ist.",
+                "Die .env-Datei im Projektordner ließ sich nicht beschreiben. Prüfe die Rechte von Ordner und Datei.",
             )
         }
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }
 
-/// `DELETE /api/secrets/{name}`: deletes a token from the keychain ("Trennen"). Only the tokens
+/// `DELETE /api/secrets/{name}`: deletes a token from the .env file ("Trennen"). Only the tokens
 /// `jira` and `github` are allowed; a key that does not exist is no error.
 pub async fn key_delete(State(state): State<AppState>, UrlPath(name): UrlPath<String>) -> Response {
     if !key_deletable(&name) {
@@ -480,7 +480,7 @@ pub async fn key_delete(State(state): State<AppState>, UrlPath(name): UrlPath<St
             tracing::warn!("Schlüssel für {name} nicht gelöscht: {e}");
             error(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Der Schlüsselbund hat den Schlüssel nicht gelöscht. Prüfe, ob der Schlüsselbund entsperrt ist.",
+                "Die .env-Datei im Projektordner ließ sich nicht beschreiben. Prüfe die Rechte von Ordner und Datei.",
             )
         }
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
@@ -510,7 +510,7 @@ fn jira_cause(f: &Error) -> JiraCause {
 
 impl AppState {
     /// The connection test for Jira with email and API token (never with OAuth): address and email
-    /// from the configuration, the token from the keychain. Only `GET /rest/api/3/myself`.
+    /// from the configuration, the token from the .env file. Only `GET /rest/api/3/myself`.
     pub async fn jira_check(&self) -> JiraCheck {
         let s = self.clone();
         let details = tokio::task::spawn_blocking(move || {

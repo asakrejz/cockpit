@@ -85,7 +85,7 @@ pub struct App<'a> {
 
 // ───────────────────────── Tokens ─────────────────────────
 
-/// Access and refresh token of a service. Stored as a single entry in the keychain.
+/// Access and refresh token of a service. Stored as a single entry in the .env file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Tokens {
     pub access: Secret,
@@ -103,7 +103,7 @@ impl Tokens {
         self.expires_in_s.is_some_and(|ab| now_s + LEAD_S >= ab)
     }
 
-    /// Text for the keychain.
+    /// Text for the .env file.
     pub fn as_text(&self) -> String {
         serde_json::json!({
             "access": self.access.expose(),

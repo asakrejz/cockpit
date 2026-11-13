@@ -312,7 +312,7 @@ async fn get(app: &Router, path: &str) -> serde_json::Value {
 }
 
 #[tokio::test]
-async fn key_lands_in_keychain_and_comes_never_back() {
+async fn key_lands_in_env_file_and_comes_never_back() {
     let p = test_bench(None);
     let (status, body) = put(
         &p.app,
@@ -446,7 +446,7 @@ async fn new_routes_have_same_checks_like_all_api_routes() {
 }
 
 #[tokio::test]
-async fn the_agent_key_goes_in_the_keychain_and_never_back() {
+async fn the_agent_key_goes_in_the_env_file_and_never_back() {
     let p = test_bench(None);
     let (status, answer) = put(
         &p.app,
@@ -600,7 +600,7 @@ use crate::config::JiraConfig;
 
 const TOKEN: &str = "test-wert-123";
 
-/// A server whose Jira address is `site`; the token is only in the keychain on request.
+/// A server whose Jira address is `site`; the token is only in the .env file on request.
 fn jira_state(site: &str, email: &str, with_token: bool) -> (Router, Arc<MemoryStore>) {
     let secrets = Arc::new(MemoryStore::new());
     if with_token {

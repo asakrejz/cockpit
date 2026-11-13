@@ -188,7 +188,7 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                 ctx=ctx
                 name="atlassian-oauth"
                 label="Client-Secret (Secret)"
-                hint="Geheim wie ein Passwort. Es wird nur im Schlüsselbund dieses Rechners gespeichert und nie wieder angezeigt."
+                hint="Geheim wie ein Passwort. Es wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert und nie wieder angezeigt."
             />
         </Section>
         <Section title="3. Welche Projekte? (optional)">
@@ -345,7 +345,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                 ctx=ctx
                 name="jira"
                 label="Token"
-                hint="Geheim wie ein Passwort. Er wird nur im Schlüsselbund dieses Rechners gespeichert und nie wieder angezeigt."
+                hint="Geheim wie ein Passwort. Er wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert und nie wieder angezeigt."
             />
         </Section>
         <Section title="4. Verbindung prüfen">

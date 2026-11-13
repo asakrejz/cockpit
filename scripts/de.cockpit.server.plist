@@ -13,7 +13,7 @@
   The log is in /Users/BENUTZER/Library/Logs/cockpit-server.log.
 
   Own settings (COCKPIT_PORT, COCKPIT_DB, COCKPIT_SEED, …) belong in the file config.toml or
-  below in EnvironmentVariables. Keys never belong here: they are in the keychain
+  below in EnvironmentVariables. Keys never belong here: they are in the `.env` file in the project folder (WorkingDirectory must be the repo)
   (`cockpit-server token setzen …`).
 
   The label `de.cockpit.server` stays unchanged on purpose: an already loaded agent keeps working

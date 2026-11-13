@@ -2,7 +2,7 @@
 //! and a summary. Every step can be skipped and caught up on later.
 //!
 //! Keys (client secrets, tokens, the key of the model endpoint) go into password fields and go once
-//! to the local server, which stores them in the keychain. The browser stores them nowhere
+//! to the local server, which stores them in the .env file. The browser stores them nowhere
 //! (no `localStorage`, no address), the server never sends them back. The rules for this
 //! are in `cockpit_core::setup`, writing `config.toml` is in the server.
 
