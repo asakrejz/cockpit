@@ -110,7 +110,8 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `GET /api/agent/check/container` | the same test from a container: `{checked, mac_reached, container_reached, key_ok, hint}` |
 | `GET /api/agent/models` | model IDs of the endpoint for the drop-down: `{loaded, reachable, key_ok, models, hint}`; only IDs, sorted (Claude models first), at most 200 |
 | `GET /api/setup` | what the assistant prefills: Jira site/email/projects, client IDs, repos, provider, endpoint address and model, both callback addresses, and per key only `{name, set}` |
-| `PUT /api/config` | writes client IDs, Jira, repos, agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with plain text |
+| `POST /api/github/repos/check` | read-only look at repos (`{repos:[…]}` → per repo `Ok`/`ReadOnly`/`NotFound`/`NoAccess`/`Failed` plus the default branch); only `GET /repos/{owner}/{name}`, never changes anything |
+| `PUT /api/config` | writes client IDs, Jira, repos, the agent's repos (`agent_repos`: list with base branch and projects, plus default), agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with plain text |
 | `PUT /api/secrets/{name}` | stores a key in `.env`; body `{"value": "…"}`; names `github-oauth`, `atlassian-oauth`, `agent-key` (older `litellm`), `jira`, `github`; answer `{name, set}`, never the value |
 | `DELETE /api/secrets/{name}` | "Trennen" for tokens: deletes `jira` or `github` from `.env` (other names: `404`); answer `{name, set: false}` |
 | `GET /api/oauth/{service}/start`, `GET …/callback`, `POST …/revoke` | OAuth sign-in for `github` and `atlassian` |
@@ -138,9 +139,20 @@ stay empty and nothing is lost.
   messages). `since_ms` is `#[serde(default)]`, so older snapshots stay valid.
 - A 5xx or a timeout is a source problem (`error` / `offline`), not an error of the sync call: `POST /api/sync` still
   answers 200. A source in `quota` with a known time is not queried at all until then.
-- The number of a pull request is the key of a review in the model. Pull requests with the same number from two repos
-  are separate inbox entries (the ID contains the repo), but reviews and the `PrLink` assignment still hang on the
-  number, so two repos with the same number share one place there.
+- A pull request is identified by `PrKey { repo: "owner/name", number }` (`cockpit_core::PrKey`, text form
+  `owner/name#12`). `Review`, `PrRef`, `PrLink`, the actions (`review`, `pr`), `Target::Review`, follow-up runs
+  (`review-acme~app-12`, `check-acme~app-12-lint`) and notification routes carry it, so equal numbers from two repos
+  never mix. On the wire a key without repo is the plain number (the format before several repos); both forms are
+  read, and an empty repo is not written, so old snapshots and clients stay byte-compatible (`wire_compat`).
+  A key without repo matches any repo with that number (old data, single-repo callers); a key with repo matches only
+  that repo or an entry whose repo is still unknown. `Workspace::fill_repos` migrates old states at load: the repo
+  comes from the sync link, from the inbox entry, or from the only configured repo (`Live::fill_repos`).
+- **Ticket → repo.** `cockpit_core::AgentRepos` (`[[agent.repos]]`: repo, base branch, Jira projects, plus the default)
+  chooses the repo of a ticket (`choose(project)`: rule, else default, else none). The backend applies it in
+  `AppState::agent_route` before `StartAgent` (user's `AgentOptions.repo` wins if it is a configured repo) and
+  `GET /api/health` reports the same rules under `agent.repos`, so the interface preselects identically. A run
+  stores its repo (`AgentRun.repo`), clones and pushes only there, and checks the repo against the configuration
+  again at start. `CreateBranch` for a Jira ticket uses the same routing.
 
 **What goes outward.** In server mode these actions go to the service first; **only when it confirms is the action
 applied locally**. If the call fails, a German message (status 502) comes back and nothing changes. The rules of the
@@ -150,7 +162,7 @@ workspace (also "only you may merge", "review only after deciding on every sugge
 |--------|------|
 | `Reply` | Jira: comment (`POST /rest/api/3/issue/{key}/comment`, ADF) · GitHub: `POST /repos/{repo}/issues/{n}/comments` |
 | `SetStatus` | Jira: look for the transition that leads to the target status (`GET …/transitions`), then `POST …/transitions` |
-| `CreateBranch` | GitHub: ref from the default branch of the **first** configured repo (`POST /repos/{repo}/git/refs`) |
+| `CreateBranch` | GitHub: ref from the default branch of the repo the ticket's project is routed to, otherwise the **first** configured repo (`POST /repos/{repo}/git/refs`) |
 | `SendReview` | `POST /repos/{repo}/pulls/{n}/reviews` with verdict, text, approved suggestions and your own line comments as position comments (including `suggestion` blocks), bound to the commit seen |
 | `MergePr` | `PUT /repos/{repo}/pulls/{n}/merge` with method and the commit seen (a new push makes GitHub refuse) |
 | `RestartCheck` | `POST /repos/{repo}/check-runs/{id}/rerequest` |
@@ -218,8 +230,9 @@ token (`GitHubClient::review_input` / `failed_checks`, read only; shortened by `
 `job.json` under `followup` (secrets of the agent key and GitHub token are redacted from it). The watcher starts a
 container like for a normal run (`RunKind::runs_in_container`); the clone is the existing `claude/…` branch
 (`agent_git::clone_branch`), the check and push are the same as always (fast-forward only, path rules, never a
-force-push). The container never gets the GitHub token. Image tag `localhost/cockpit-agent:3` (the job contract gained
-`followup`).
+force-push). The container never gets the GitHub token. Image tag `localhost/cockpit-agent:4` (the job contract gained
+`followup`, and `repo` – the `owner/name` the backend cloned; follow-up jobs and the pull request always use the repo of the
+pull request / run, never "the" configured repo).
 
 **Pull request of a finished real run** (`Action::CreatePullRequest`, only you). The run is `Done` only after the
 backend pushed the branch. `GET /api/agent/pull-request` returns the preview (`Workspace::pull_request_draft`, plus the

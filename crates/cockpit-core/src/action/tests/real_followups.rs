@@ -82,18 +82,22 @@ fn review_threads_start_a_followup_on_the_branch_of_the_pull_request() {
     ok(
         &mut w,
         Action::AddressReviewThreads {
-            review: 85,
+            review: 85.into(),
             options: direct(),
         },
         1,
     );
-    let run = w.runs.iter().find(|r| r.key() == "threads-85").unwrap();
+    let run = w
+        .runs
+        .iter()
+        .find(|r| r.key() == "threads-asakrejz~rust-playground-85")
+        .unwrap();
     assert!(run.is_followup() && run.is_running());
     assert_eq!(run.branch(), "claude/BAU-127-list-separator");
     assert_eq!(
         run.kind,
         RunKind::Followup {
-            review: 85,
+            review: crate::model::PrKey::new(crate::DEMO_REPO, 85),
             task: FollowupTask::ReviewThreads
         }
     );
@@ -102,7 +106,7 @@ fn review_threads_start_a_followup_on_the_branch_of_the_pull_request() {
     fails(
         &mut w,
         Action::FixFailedChecks {
-            review: 85,
+            review: 85.into(),
             options: direct(),
         },
         ActionError::Agent(AgentError::AlreadyRunning),
@@ -115,12 +119,16 @@ fn failed_checks_are_named_in_the_run() {
     ok(
         &mut w,
         Action::FixFailedChecks {
-            review: 85,
+            review: 85.into(),
             options: direct(),
         },
         1,
     );
-    let run = w.runs.iter().find(|r| r.key() == "fixes-85").unwrap();
+    let run = w
+        .runs
+        .iter()
+        .find(|r| r.key() == "fixes-asakrejz~rust-playground-85")
+        .unwrap();
     let RunKind::Followup {
         task: FollowupTask::FailedChecks { checks },
         ..
@@ -146,7 +154,7 @@ fn followups_need_an_agent_branch_a_red_check_and_an_open_review() {
     fails(
         &mut w,
         Action::AddressReviewThreads {
-            review: 85,
+            review: 85.into(),
             options: direct(),
         },
         ActionError::Agent(AgentError::NotAgentBranch),
@@ -161,7 +169,7 @@ fn followups_need_an_agent_branch_a_red_check_and_an_open_review() {
     fails(
         &mut w,
         Action::FixFailedChecks {
-            review: 85,
+            review: 85.into(),
             options: direct(),
         },
         ActionError::Agent(AgentError::CheckNotFailed),
@@ -169,10 +177,10 @@ fn followups_need_an_agent_branch_a_red_check_and_an_open_review() {
     fails(
         &mut w,
         Action::AddressReviewThreads {
-            review: 999,
+            review: 999.into(),
             options: direct(),
         },
-        ActionError::UnknownReview(999),
+        ActionError::UnknownReview(999.into()),
     );
 }
 
@@ -183,11 +191,11 @@ fn only_you_may_commission_followups_and_pull_requests() {
         let before = w.clone();
         for a in [
             Action::AddressReviewThreads {
-                review: 85,
+                review: 85.into(),
                 options: direct(),
             },
             Action::FixFailedChecks {
-                review: 85,
+                review: 85.into(),
                 options: direct(),
             },
             Action::CreatePullRequest {
@@ -209,14 +217,14 @@ fn a_real_followup_finishes_with_a_note_and_no_new_branch_on_a_ticket() {
     ok(
         &mut w,
         Action::AddressReviewThreads {
-            review: 85,
+            review: 85.into(),
             options: direct(),
         },
         1,
     );
     report(
         &mut w,
-        "threads-85",
+        "threads-asakrejz~rust-playground-85",
         AgentReport::Started {
             detail: "docker".into(),
         },
@@ -224,13 +232,17 @@ fn a_real_followup_finishes_with_a_note_and_no_new_branch_on_a_ticket() {
     .unwrap();
     report(
         &mut w,
-        "threads-85",
+        "threads-asakrejz~rust-playground-85",
         AgentReport::Done {
             summary: "Zwei Kommentare umgesetzt.".into(),
         },
     )
     .unwrap();
-    let run = w.runs.iter().find(|r| r.key() == "threads-85").unwrap();
+    let run = w
+        .runs
+        .iter()
+        .find(|r| r.key() == "threads-asakrejz~rust-playground-85")
+        .unwrap();
     assert!(run.is_done());
     let item = w
         .items
@@ -242,7 +254,7 @@ fn a_real_followup_finishes_with_a_note_and_no_new_branch_on_a_ticket() {
     ok(
         &mut w,
         Action::FixFailedChecks {
-            review: 85,
+            review: 85.into(),
             options: direct(),
         },
         1,
@@ -358,7 +370,7 @@ fn the_new_fields_are_backward_compatible() {
             .unwrap();
     assert!(matches!(a, Action::CreatePullRequest { pull: None, .. }));
     let a = Action::AddressReviewThreads {
-        review: 85,
+        review: 85.into(),
         options: direct(),
     };
     let text = serde_json::to_string(&a).unwrap();

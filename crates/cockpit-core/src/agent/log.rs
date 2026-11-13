@@ -29,7 +29,7 @@ impl AgentRun {
         &self,
         lines: &mut Vec<String>,
         step: usize,
-        review: u32,
+        review: &PrKey,
         comments: usize,
     ) {
         let o = &self.options;
@@ -37,7 +37,7 @@ impl AgentRun {
         match step {
             0 => {
                 lines.push(format!(
-                    "› Lese {} aus Review #{review}",
+                    "› Lese {} aus Review {review}",
                     plural_comments(comments)
                 ));
                 if !hint.is_empty() {
@@ -75,12 +75,12 @@ impl AgentRun {
         &self,
         lines: &mut Vec<String>,
         step: usize,
-        review: u32,
+        review: &PrKey,
         check: &str,
     ) {
         let code = self.diagnosis.as_ref().is_none_or(Diagnosis::changes_code);
         match step {
-            0 => lines.push(format!("› Lese das Log von „{check}“ in #{review}")),
+            0 => lines.push(format!("› Lese das Log von „{check}“ in {review}")),
             1 => lines.push("› Suche Fehlermeldung, Datei und Zeile".into()),
             2 => lines.push(match &self.diagnosis {
                 Some(d) => format!("› Diagnose: {}", d.cause),
@@ -120,13 +120,13 @@ impl AgentRun {
         for step in 0..shown {
             match (&self.kind, step) {
                 (RunKind::AddressReview { review, comments }, _) => {
-                    self.address_log(&mut lines, step, *review, comments.len());
+                    self.address_log(&mut lines, step, review, comments.len());
                 }
                 (RunKind::Diagnose { review, check }, _) => {
-                    self.diagnose_log(&mut lines, step, *review, check);
+                    self.diagnose_log(&mut lines, step, review, check);
                 }
                 (RunKind::Followup { review, .. }, _) => {
-                    self.address_log(&mut lines, step, *review, 0);
+                    self.address_log(&mut lines, step, review, 0);
                 }
                 (RunKind::Implement, 0) => {
                     let comments = match self.comments {

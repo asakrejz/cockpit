@@ -17,7 +17,7 @@ impl AgentRun {
             });
         }
         if let RunKind::AddressReview { review, comments } = &self.kind {
-            return Some(self.address_plan(*review, comments.len()));
+            return Some(self.address_plan(review, comments.len()));
         }
         let o = &self.options;
         let hint = o.hint.trim();
@@ -75,12 +75,12 @@ impl AgentRun {
     }
 
     /// Plan for „implement review comments“: no new branch, no new pull request.
-    pub(super) fn address_plan(&self, review: u32, comments: usize) -> Plan {
+    pub(super) fn address_plan(&self, review: &PrKey, comments: usize) -> Plan {
         let o = &self.options;
         let hint = o.hint.trim();
         let branch = self.branch();
         let mut summary = format!(
-            "{} aus Review #{review} umsetzen: {} ändern{}, auf {branch} pushen.",
+            "{} aus Review {review} umsetzen: {} ändern{}, auf {branch} pushen.",
             plural_comments(comments),
             files_label(self.files.len()),
             if o.run_tests {
@@ -93,7 +93,7 @@ impl AgentRun {
             summary.push_str(&format!(" Dein Hinweis: „{hint}“."));
         }
         let mut steps = vec![
-            format!("{} aus Review #{review} lesen", plural_comments(comments)),
+            format!("{} aus Review {review} lesen", plural_comments(comments)),
             format!("Branch {branch} auschecken"),
             format!("{} bearbeiten", self.files.join(", ")),
         ];

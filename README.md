@@ -113,7 +113,7 @@ The agent implements a ticket in a **container** (Claude Agent SDK, one containe
 2. **Build the image:** click "Image bauen" there (or `POST /api/agent/image`). The build downloads packages and
    takes a few minutes; progress and errors appear below in plain text. `/api/health` reports under `agent`
    whether the image exists (`image inspect`). By hand:
-   `docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:3 apps/agent` (or `podman`).
+   `docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:4 apps/agent` (or `podman`).
 3. **Provider and endpoint:** in the "Modell" step choose the tool (Claude Agent SDK; Claude Code and Codex are
    shown as "soon"), the endpoint (directly at Anthropic, your own proxy such as LiteLLM, or another compatible
    endpoint), store the key (`.env`, name `agent-key`, variable `AGENT_KEY`) and pick the model from the list that
@@ -121,9 +121,11 @@ The agent implements a ticket in a **container** (Claude Agent SDK, one containe
    container can reach the endpoint. If the proxy is only reachable over a **VPN**, the container machine of
    Rancher Desktop or Podman may not know the VPN route or name; the test then says that your Mac reaches the
    proxy but the container does not. Connect the VPN first and restart Rancher Desktop or the Podman machine.
-4. **Connect GitHub and name the repo:** the agent clones through the backend. If `[github] repos` has exactly one
-   repo it is used; otherwise set `[agent] repo = "owner/name"` in `config.toml`. The folder `apps/agent/` is
-   looked up next to `apps/cockpit/dist` (`[agent] dir` or `COCKPIT_AGENT_DIR` overrides).
+4. **Connect GitHub and name the repos:** the agent clones through the backend, one repo per run. If `[github]
+   repos` has exactly one repo (or `[agent] repo` names one) it is the default. With several repos you can route
+   Jira projects to repos (`[[agent.repos]]`, see "Several repos" below) – in the assistant: step "GitHub" ›
+   "In welchen Repos arbeitet der Agent?". The folder `apps/agent/` is looked up next to `apps/cockpit/dist`
+   (`[agent] dir` or `COCKPIT_AGENT_DIR` overrides).
 
 If something is not set up, no run starts; the message says in plain language what is missing and where in the
 assistant to fix it.
@@ -196,10 +198,29 @@ email = "me@acme.example"
 [agent]
 provider = "claude-agent-sdk"     # implemented; "claude-code" and "codex" are known but not implemented
 container = "podman"              # or "docker"; detected when omitted
+repo = "acme/app"                 # default repo of the agent (optional, see "Several repos")
+[[agent.repos]]                   # the repos the agent may work in; a Jira project goes to one repo
+repo = "acme/web"
+base_branch = "develop"           # optional, default "main"
+projects = ["WEB", "SHOP"]        # Jira projects whose tickets go to this repo
+[[agent.repos]]
+repo = "acme/app"                 # without projects: only a choice
 [agent.endpoint]                  # model access, see "Setting up the agent"
 url = "https://litellm.example"   # empty or omitted = directly at Anthropic
 model = "claude-sonnet-5-5"
 ```
+
+**Several repos.** `[[agent.repos]]` lists the repos the agent may work in (owner/name, base branch, Jira
+projects). When a run starts, the backend picks the repo: the first rule whose `projects` names the ticket's Jira
+project, otherwise the default (`[agent] repo`, or the only repo). In the agent view the repo is preselected the same way
+and can be changed in a drop-down before the start; without a matching rule and without a default there is a hint
+and the start waits for your choice. A repo outside the list is refused. Without `[[agent.repos]]` everything
+works as before (`[agent] repo`, or the only `[github] repos` entry; with several `[github] repos` and no default
+you choose at every start). A project may belong to one repo only. In the assistant "Repos prüfen" looks at each repo
+read-only (`GET /repos/{owner}/{name}`: exists, visible, push allowed) – it changes nothing. Pull requests are
+identified by `owner/name#number`: equal numbers from two repos stay separate in the inbox, review, agent view,
+log and notifications; addresses look like `#/review/acme/app/87` (the older `#/review/87` still opens the first
+match).
 
 Older files keep working: `[litellm] url/model` and the key `litellm` are read as aliases for
 `[agent.endpoint]` and `agent-key` (the assistant writes the new format when saving). The older German names
@@ -736,9 +757,6 @@ Real mode only (not with `COCKPIT_SEED=demo`); every step needs your click.
 
 Not built yet (everything below is open; nothing here has been verified against the real services either):
 
-- **Ticket-to-repo mapping for several repos:** today one repo is used (`[agent] repo` or the only entry of
-  `[github] repos`); rules per repo for real repos. Also tell apart equal PR numbers from two repos: the inbox
-  already separates them, but `Review` and `PrLink` still key on the number.
 - **Adapters for Claude Code and Codex** in the runner (`apps/agent/runner/src/adapter/`, see
   [apps/agent/README.md](apps/agent/README.md)); then pass `COCKPIT_PROVIDER` on.
 - **Webhooks / live update:** open decision between a tunnel (webhooks) and polling every 2 minutes; the default

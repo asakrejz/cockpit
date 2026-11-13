@@ -4,35 +4,47 @@ impl Workspace {
     // ---------- Follow-up jobs: implement review comments, investigate red checks ----------
 
     /// The key of the entry the pull request hangs on (ticket or PR entry).
-    pub(super) fn item_key_of_pr(&self, number: u32) -> String {
+    pub(super) fn item_key_of_pr(&self, key: &PrKey) -> String {
         self.items
             .iter()
-            .find(|i| i.pr.as_ref().is_some_and(|p| p.number == number))
-            .map_or_else(|| format!("#{number}"), |i| i.key.clone())
+            .find(|i| {
+                i.pr.as_ref()
+                    .is_some_and(|p| key.matches(&p.repo, p.number))
+            })
+            .map_or_else(
+                || key.to_string(),
+                |i| match &i.pr {
+                    // A pull request without ticket is named with its repo.
+                    Some(p) if i.key.starts_with('#') && !p.repo.is_empty() => p.key().to_string(),
+                    _ => i.key.clone(),
+                },
+            )
     }
 
     /// Is a follow-up job already running or waiting on this pull request?
-    pub fn active_followup(&self, review: u32) -> Option<&AgentRun> {
-        self.runs
-            .iter()
-            .find(|r| r.is_followup() && r.kind.review() == Some(review) && r.is_active())
+    pub fn active_followup(&self, review: impl Into<PrKey>) -> Option<&AgentRun> {
+        let review = review.into();
+        self.runs.iter().find(|r| {
+            r.is_followup() && r.kind.review().is_some_and(|k| review.same(&k)) && r.is_active()
+        })
     }
 
     /// All follow-up jobs of a pull request, also the finished ones.
-    pub fn followups(&self, review: u32) -> Vec<&AgentRun> {
+    pub fn followups(&self, review: impl Into<PrKey>) -> Vec<&AgentRun> {
+        let review = review.into();
         self.runs
             .iter()
-            .filter(|r| r.is_followup() && r.kind.review() == Some(review))
+            .filter(|r| r.is_followup() && r.kind.review().is_some_and(|k| review.same(&k)))
             .collect()
     }
 
     /// Checks that a follow-up job may start on the pull request.
-    pub(super) fn check_followup(&self, review: u32) -> Result<&Review, AgentError> {
+    pub(super) fn check_followup(&self, review: &PrKey) -> Result<&Review, AgentError> {
         let r = self.review(review).ok_or(AgentError::UnknownReview)?;
         if r.merged.is_some() {
             return Err(AgentError::Merged);
         }
-        if self.active_followup(review).is_some() {
+        if self.active_followup(r.key()).is_some() {
             return Err(AgentError::AlreadyRunning);
         }
         Ok(r)
@@ -51,12 +63,12 @@ impl Workspace {
             } => "Der Agent behebt rote Checks",
             _ => "Der Agent setzt Review-Kommentare um",
         };
-        let number = run.pr_number;
+        let pr = run.pr_key();
         match self.runs.iter_mut().find(|r| r.key() == key) {
             Some(slot) => *slot = run,
             None => self.runs.push(run),
         }
-        if let Some(item) = number.and_then(|n| self.pr_item_mut(n)) {
+        if let Some(item) = pr.and_then(|k| self.pr_item_mut(k)) {
             item.agent_note = Some(note.into());
         }
         key
@@ -68,11 +80,13 @@ impl Workspace {
     /// The run pushes to the pull request's branch; there is no new pull request.
     pub fn address_review(
         &mut self,
-        review: u32,
+        review: impl Into<PrKey>,
         comments: &[String],
         options: AgentOptions,
     ) -> Result<String, AgentError> {
-        let r = self.check_followup(review)?;
+        let review = review.into();
+        let r = self.check_followup(&review)?;
+        let review = r.key();
         let mut files: Vec<String> = Vec::new();
         for id in comments {
             let c = r
@@ -96,10 +110,10 @@ impl Workspace {
         let (title, branch) = (r.title.clone(), r.branch.clone());
         let mut run = AgentRun::followup(
             RunKind::AddressReview {
-                review,
+                review: review.clone(),
                 comments: ids,
             },
-            &self.item_key_of_pr(review),
+            &self.item_key_of_pr(&review),
             &title,
             &branch,
         );
@@ -109,8 +123,14 @@ impl Workspace {
 
     /// Commissions the agent to investigate a red check. It presents a diagnosis and
     /// changes nothing before you adopt the fix. Returns the key of the run.
-    pub fn investigate_check(&mut self, review: u32, check: &str) -> Result<String, AgentError> {
-        let r = self.check_followup(review)?;
+    pub fn investigate_check(
+        &mut self,
+        review: impl Into<PrKey>,
+        check: &str,
+    ) -> Result<String, AgentError> {
+        let review = review.into();
+        let r = self.check_followup(&review)?;
+        let review = r.key();
         let failed = r
             .check_runs
             .iter()
@@ -121,10 +141,10 @@ impl Workspace {
         let (title, branch) = (r.title.clone(), r.branch.clone());
         let run = AgentRun::followup(
             RunKind::Diagnose {
-                review,
+                review: review.clone(),
                 check: check.to_string(),
             },
-            &self.item_key_of_pr(review),
+            &self.item_key_of_pr(&review),
             &title,
             &branch,
         );
@@ -141,20 +161,22 @@ impl Workspace {
     /// branches `claude/…`. Returns the key of the run (`threads-91`).
     pub fn address_review_threads(
         &mut self,
-        review: u32,
+        review: impl Into<PrKey>,
         options: AgentOptions,
     ) -> Result<String, AgentError> {
-        let r = self.check_followup(review)?;
+        let review = review.into();
+        let r = self.check_followup(&review)?;
+        let review = r.key();
         let (title, branch) = (r.title.clone(), r.branch.clone());
         if !branch.starts_with("claude/") {
             return Err(AgentError::NotAgentBranch);
         }
         let run = AgentRun::followup(
             RunKind::Followup {
-                review,
+                review: review.clone(),
                 task: FollowupTask::ReviewThreads,
             },
-            &self.item_key_of_pr(review),
+            &self.item_key_of_pr(&review),
             &title,
             &branch,
         );
@@ -165,10 +187,12 @@ impl Workspace {
     /// of the run (`fixes-91`).
     pub fn fix_failed_checks(
         &mut self,
-        review: u32,
+        review: impl Into<PrKey>,
         options: AgentOptions,
     ) -> Result<String, AgentError> {
-        let r = self.check_followup(review)?;
+        let review = review.into();
+        let r = self.check_followup(&review)?;
+        let review = r.key();
         let checks: Vec<String> = r
             .check_runs
             .iter()
@@ -184,10 +208,10 @@ impl Workspace {
         }
         let run = AgentRun::followup(
             RunKind::Followup {
-                review,
+                review: review.clone(),
                 task: FollowupTask::FailedChecks { checks },
             },
-            &self.item_key_of_pr(review),
+            &self.item_key_of_pr(&review),
             &title,
             &branch,
         );
@@ -201,13 +225,13 @@ impl Workspace {
                 .iter()
                 .find(|r| r.key() == key)
                 .and_then(|r| match &r.kind {
-                    RunKind::Diagnose { review, check } => Some((*review, check.clone())),
+                    RunKind::Diagnose { review, check } => Some((review.clone(), check.clone())),
                     _ => None,
                 })
         else {
             return;
         };
-        let diagnosis = self.review(review).and_then(|r| {
+        let diagnosis = self.review(&review).and_then(|r| {
             let c = r.check_runs.iter().find(|c| c.name == check)?;
             Some(diagnose(r, c))
         });
@@ -252,7 +276,7 @@ impl Workspace {
             RunKind::AddressReview { comments, .. } => {
                 let key = run.key();
                 let sha = short_sha(&format!("{key}:{}", comments.join(",")));
-                let done = self.review_mut(number).map_or(0, |r| {
+                let done = self.review_mut(&number).map_or(0, |r| {
                     // Change suggestions land in the diff, then the comments are done.
                     for id in comments {
                         r.apply_comment_suggestion(id);
@@ -267,7 +291,7 @@ impl Workspace {
                     1 => "1 Review-Kommentar".to_string(),
                     n => format!("{n} Review-Kommentare"),
                 };
-                if let Some(item) = self.pr_item_mut(number) {
+                if let Some(item) = self.pr_item_mut(&number) {
                     if let Some(pr) = item.pr.as_mut() {
                         pr.changes_requested = false;
                     }
@@ -289,7 +313,7 @@ impl Workspace {
             RunKind::Diagnose { check, .. } => {
                 let fix = run.diagnosis.as_ref().and_then(|d| d.fix.clone());
                 let pushed = self
-                    .review_mut(number)
+                    .review_mut(&number)
                     .zip(fix.as_ref())
                     .is_some_and(|(r, fix)| {
                         let applied = r.apply_fix(fix);
@@ -299,14 +323,14 @@ impl Workspace {
                         }
                         applied
                     });
-                self.restart_check(number, check);
+                self.restart_check(&number, check);
                 let sha = short_sha(&format!("{}:{check}", run.key()));
                 let note = if pushed {
                     format!("Fix {sha} gepusht, „{check}“ läuft erneut")
                 } else {
                     format!("„{check}“ neu gestartet")
                 };
-                if let Some(item) = self.pr_item_mut(number) {
+                if let Some(item) = self.pr_item_mut(&number) {
                     item.agent_note = Some(note.clone());
                     if pushed {
                         item.comments.push(Comment::new(
@@ -341,6 +365,7 @@ impl Workspace {
             item.branch = Some(run.branch());
             item.pr = Some(PrRef {
                 number,
+                repo: run.repo.clone(),
                 draft: run.options.draft_pr,
                 checks,
                 changes_requested: false,
@@ -364,6 +389,7 @@ impl Workspace {
         }
         self.reviews.push(Review {
             number,
+            repo: run.repo.clone(),
             title: run.ticket_title.clone(),
             description: format!(
                 "Vom Agenten für {} umgesetzt · {tests}. Der Agent führt keinen Merge aus.",

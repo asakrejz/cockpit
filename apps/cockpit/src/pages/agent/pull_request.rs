@@ -60,7 +60,8 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
         // Already there: show the link.
         if let Some(p) = r.pull_request.clone() {
             let number = p.number;
-            let has_review = store.ws.with(|w| w.review(number).is_some());
+            let key = cockpit_core::PrKey::new(&r.repo, number);
+            let has_review = store.ws.with(|w| w.review(&key).is_some());
             return Some(
                 view! {
                     <div class="ui-list__section" role="region" aria-label="Pull Request">
@@ -83,7 +84,7 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
                             {has_review
                                 .then(|| {
                                     view! {
-                                        <a class="ui-link" href=Route::Review(Some(number)).hash()>
+                                        <a class="ui-link" href=Route::Review(Some(key.clone())).hash()>
                                             "Zum Review"
                                         </a>
                                     }

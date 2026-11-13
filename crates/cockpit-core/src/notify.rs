@@ -17,7 +17,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::agent::AgentRun;
-use crate::model::{Checks, Item, Person, ReasonKind, Scope};
+use crate::model::{Checks, Item, Person, PrRef, ReasonKind, Scope};
 use crate::workspace::Workspace;
 
 /// Minutes of a day.
@@ -330,7 +330,7 @@ pub fn mentions(text: &str, who: &Person) -> bool {
 
 fn route_of(item: &Item) -> String {
     match &item.pr {
-        Some(pr) => format!("#/review/{}", pr.number),
+        Some(pr) => format!("#/review/{}", pr.key().route()),
         None => "#/".into(),
     }
 }
@@ -385,12 +385,12 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
 
         let checks_failed = |i: &Item| i.pr.as_ref().is_some_and(|p| p.checks == Checks::Failed);
         if item.scope == Scope::Mine && checks_failed(item) && !old.is_some_and(checks_failed) {
-            let number = item.pr.as_ref().map_or(0, |p| p.number);
+            let pr = item.pr.as_ref().map(PrRef::key).unwrap_or_default();
             out.push(Event {
                 reason: NotifyReason::ChecksFailed,
-                title: format!("Checks fehlgeschlagen: #{number}"),
+                title: format!("Checks fehlgeschlagen: {pr}"),
                 text: item.title.clone(),
-                route: format!("#/review/{number}"),
+                route: format!("#/review/{}", pr.route()),
             });
         }
     }
@@ -439,17 +439,17 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
             });
         }
         if run.is_done() && !old.is_some_and(AgentRun::is_done) {
-            let (text, route) = match run.pr_number {
+            let (text, route) = match run.pr_key() {
                 Some(n) if run.is_followup() => (
-                    format!("{} · #{n} wartet wieder auf dein Review", run.ticket_title),
-                    format!("#/review/{n}"),
+                    format!("{} · {n} wartet wieder auf dein Review", run.ticket_title),
+                    format!("#/review/{}", n.route()),
                 ),
                 Some(n) => (
                     format!(
-                        "{} · Pull Request #{n} wartet auf dein Review",
+                        "{} · Pull Request {n} wartet auf dein Review",
                         run.ticket_title
                     ),
-                    format!("#/review/{n}"),
+                    format!("#/review/{}", n.route()),
                 ),
                 None => (run.ticket_title.clone(), format!("#/agent/{key}")),
             };

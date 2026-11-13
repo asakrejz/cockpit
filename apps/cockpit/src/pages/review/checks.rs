@@ -12,7 +12,7 @@ pub(super) fn check_state(status: Checks) -> (&'static str, StatusTone) {
 
 /// The checks of the pull request: name, state, duration; log to expand, restart red ones.
 pub(super) fn checks_section(store: Store, r: &Review, panel: Panel) -> impl IntoView + use<> {
-    let number = r.number;
+    let number = StoredValue::new(r.key());
     let merged = r.merged.is_some();
     let rows = r
         .check_runs
@@ -49,7 +49,7 @@ pub(super) fn checks_section(store: Store, r: &Review, panel: Panel) -> impl Int
                                         size=ControlSize::Small
                                         on_click=move |_| {
                                             let _ = store.dispatch(Action::RestartCheck {
-                                                review: number,
+                                                review: number.get_value(),
                                                 check: name.get_value(),
                                             });
                                         }
@@ -80,9 +80,13 @@ pub(super) fn checks_section(store: Store, r: &Review, panel: Panel) -> impl Int
 }
 
 /// The follow-up job to this check, if there is one.
-pub(super) fn diagnose_run(store: Store, number: u32, check: &str) -> Option<AgentRun> {
+pub(super) fn diagnose_run(
+    store: Store,
+    number: StoredValue<PrKey>,
+    check: &str,
+) -> Option<AgentRun> {
     store.ws.with(|w| {
-        w.followups(number)
+        w.followups(number.get_value())
             .into_iter()
             .find(|r| matches!(&r.kind, RunKind::Diagnose { check: c, .. } if c == check))
             .cloned()
@@ -93,7 +97,7 @@ pub(super) fn diagnose_run(store: Store, number: u32, check: &str) -> Option<Age
 /// diagnosis with "Fix übernehmen" and "Verwerfen". Nothing is adopted without you.
 pub(super) fn investigation(
     store: Store,
-    number: u32,
+    number: StoredValue<PrKey>,
     check: String,
     has_log: bool,
 ) -> impl IntoView {
@@ -170,7 +174,7 @@ pub(super) fn investigation(
                         disabled=blocked
                         on_click=move |_| {
                             let _ = store.dispatch(Action::InvestigateCheck {
-                                review: number,
+                                review: number.get_value(),
                                 check: check.get_value(),
                             });
                         }

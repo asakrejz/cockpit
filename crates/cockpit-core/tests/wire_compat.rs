@@ -2,6 +2,9 @@
 //! of Rust identifiers. `wire_*.json` are the current snapshots (they write `"User"` where
 //! the older versions wrote `"Du"`); `legacy_*.json` are the snapshots written before the English
 //! renaming and must keep loading (the old names are read through `serde(alias)`).
+//! `wire_pre_repo_*.json` are the current snapshots as they were before several repos were
+//! supported (no `repo` on reviews and pull request references); they must keep loading and
+//! resaving byte-identically (empty repos are not written).
 //! Regenerate `wire_*` with `BLESS=1 cargo test -p cockpit-core --test wire_compat` only on purpose.
 
 use cockpit_core::{Action, Actor, AgentOptions, Rule, TicketStatus, Workspace, demo, persist};
@@ -80,7 +83,12 @@ fn workspace_with_actions_and_log_serializes_byte_identically() {
 
 #[test]
 fn current_snapshots_load_and_resave_identically() {
-    for name in ["wire_demo_workspace.json", "wire_busy_workspace.json"] {
+    for name in [
+        "wire_demo_workspace.json",
+        "wire_busy_workspace.json",
+        "wire_pre_repo_demo_workspace.json",
+        "wire_pre_repo_busy_workspace.json",
+    ] {
         let text = read(name);
         let (ws, revision) = persist::load_with_revision(&text).expect("snapshot loads");
         assert!(
@@ -93,8 +101,14 @@ fn current_snapshots_load_and_resave_identically() {
 #[test]
 fn legacy_snapshots_still_load_and_resave_in_the_new_names() {
     for (legacy, current) in [
-        ("legacy_demo_workspace.json", "wire_demo_workspace.json"),
-        ("legacy_busy_workspace.json", "wire_busy_workspace.json"),
+        (
+            "legacy_demo_workspace.json",
+            "wire_pre_repo_demo_workspace.json",
+        ),
+        (
+            "legacy_busy_workspace.json",
+            "wire_pre_repo_busy_workspace.json",
+        ),
     ] {
         let text = read(legacy);
         let (ws, revision) = persist::load_with_revision(&text).expect("old snapshot loads");
@@ -103,6 +117,30 @@ fn legacy_snapshots_still_load_and_resave_in_the_new_names() {
             "{legacy}: resaving must give the current snapshot"
         );
     }
+}
+
+/// A state from before several repos were supported gets its repos from the migration and
+/// then behaves like the current one.
+#[test]
+fn pre_repo_snapshots_get_their_repos_from_the_migration() {
+    let text = read("wire_pre_repo_demo_workspace.json");
+    let mut ws = persist::load(&text).expect("loads");
+    assert!(ws.reviews.iter().all(|r| r.repo.is_empty()));
+    assert!(ws.fill_repos(Some(cockpit_core::DEMO_REPO)));
+    assert!(ws.reviews.iter().all(|r| !r.repo.is_empty()));
+    // Idempotent.
+    assert!(!ws.fill_repos(Some(cockpit_core::DEMO_REPO)));
+    // The tokens repo's pull request keeps the repo of its entry instead of the default,
+    // and a ticket's copy of #91 takes the default.
+    let tokens = ws.item("pr12").unwrap().pr.as_ref().unwrap();
+    assert_eq!(tokens.repo, "asakrejz/design-tokens");
+    assert_eq!(ws.review(91).unwrap().repo, cockpit_core::DEMO_REPO);
+    assert_eq!(
+        ws.item("bau138").unwrap().pr.as_ref().unwrap().repo,
+        cockpit_core::DEMO_REPO
+    );
+    // Saving and loading the migrated state keeps it.
+    assert_eq!(persist::load(&persist::save(&ws)).unwrap(), ws);
 }
 
 #[test]

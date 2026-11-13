@@ -219,6 +219,8 @@ impl AppState {
     /// it fails, nothing changes.
     pub async fn action_run(&self, action: Action) -> Result<ActionResponse, ActionFailure> {
         let inner = &self.inner;
+        // The repo of a start is settled first (user's choice or routing rules).
+        let action = self.agent_route(action).map_err(ActionFailure::Plan)?;
         // The real agent only starts if everything is set up; otherwise the message says what is missing.
         if self.agent_real() {
             let s = self.clone();

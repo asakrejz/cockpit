@@ -33,7 +33,7 @@ async fn without_setup_starts_no_run_and_the_message_says_where() {
     // The simulated follow-up jobs (own comments, diagnosis) do not exist with the real agent.
     let f = w
         .action(Action::InvestigateCheck {
-            review: 85,
+            review: 85.into(),
             check: "Lint".into(),
         })
         .await
@@ -115,7 +115,7 @@ async fn a_run_from_the_approval_until_to_push() {
         ":/work ",
         ":/job:ro",
         "-e ANTHROPIC_AUTH_TOKEN",
-        "localhost/cockpit-agent:3",
+        "localhost/cockpit-agent:4",
     ] {
         assert!(run_line.contains(muss), "{muss} fehlt: {run_line}");
     }
@@ -200,4 +200,126 @@ fn direct_at_provider_needs_only_key_and_model() {
     let st = state.agent_status();
     assert!(!st.ready);
     assert!(st.missing.iter().any(|f| f.contains("der Modellname")));
+}
+
+// ---------- Several repos ----------
+
+fn app_and_web() -> Vec<cockpit_core::AgentRepo> {
+    vec![
+        cockpit_core::AgentRepo::new("firma/app"),
+        cockpit_core::AgentRepo {
+            // BAU-142 belongs to the project BAU.
+            projects: vec!["BAU".into()],
+            base_branch: "main".into(),
+            ..cockpit_core::AgentRepo::new("firma/web")
+        },
+    ]
+}
+
+#[tokio::test]
+async fn a_project_rule_runs_the_ticket_in_its_repo_and_pushes_only_there() {
+    let mut w = welt(true);
+    w.state = with_repos(&w, app_and_web(), Some("firma/app"));
+    w.write("scenario-run.sh", &scenario_ok());
+    w.start(false).await;
+    assert_eq!(w.run().repo, "firma/web", "the rule BAU → firma/web wins");
+    w.wait("Lauf fertig", |ws| {
+        ws.run("BAU-142").is_some_and(|r| r.is_done())
+    })
+    .await;
+    w.wait_for_end().await;
+    assert_eq!(w.branches_of("web"), [BRANCH, "main"]);
+    assert_eq!(w.branches_of("app"), ["main"], "nothing in the other repo");
+    assert_eq!(w.run().repo, "firma/web");
+}
+
+#[tokio::test]
+async fn the_users_choice_goes_before_the_rule() {
+    let mut w = welt(true);
+    w.state = with_repos(&w, app_and_web(), Some("firma/app"));
+    w.write("scenario-run.sh", &scenario_ok());
+    w.action(Action::StartAgent {
+        ticket: "BAU-142".into(),
+        options: AgentOptions {
+            plan_first: false,
+            repo: Some("firma/app".into()),
+            ..AgentOptions::default()
+        },
+    })
+    .await
+    .unwrap();
+    w.wait("Lauf fertig", |ws| {
+        ws.run("BAU-142").is_some_and(|r| r.is_done())
+    })
+    .await;
+    w.wait_for_end().await;
+    assert_eq!(w.branches_of("app"), [BRANCH, "main"]);
+    assert_eq!(w.branches_of("web"), ["main"]);
+}
+
+#[tokio::test]
+async fn a_repo_that_is_not_configured_is_rejected_and_nothing_starts() {
+    let mut w = welt(true);
+    w.state = with_repos(&w, app_and_web(), Some("firma/app"));
+    let e = w
+        .action(Action::StartAgent {
+            ticket: "BAU-142".into(),
+            options: AgentOptions {
+                repo: Some("fremd/repo".into()),
+                ..AgentOptions::default()
+            },
+        })
+        .await
+        .unwrap_err();
+    assert!(e.contains("nicht freigegeben"), "{e}");
+    assert!(w.run().is_idle());
+}
+
+#[tokio::test]
+async fn without_rule_and_default_the_user_has_to_choose() {
+    let mut w = welt(true);
+    // Two repos, none routed for BAU, no default.
+    let repos = vec![
+        cockpit_core::AgentRepo::new("firma/app"),
+        cockpit_core::AgentRepo::new("firma/web"),
+    ];
+    w.state = with_repos(&w, repos, None);
+    let e = w
+        .action(Action::StartAgent {
+            ticket: "BAU-142".into(),
+            options: AgentOptions::default(),
+        })
+        .await
+        .unwrap_err();
+    assert!(e.contains("BAU") && e.contains("Repo"), "{e}");
+    assert!(w.run().is_idle());
+    // With a choice it starts.
+    w.write("scenario-run.sh", &scenario_ok());
+    w.action(Action::StartAgent {
+        ticket: "BAU-142".into(),
+        options: AgentOptions {
+            repo: Some("firma/web".into()),
+            ..AgentOptions::default()
+        },
+    })
+    .await
+    .unwrap();
+    assert_eq!(w.run().repo, "firma/web");
+}
+
+#[tokio::test]
+async fn the_status_reports_repos_default_and_routing() {
+    let mut w = welt(true);
+    w.state = with_repos(&w, app_and_web(), Some("firma/app"));
+    let st = w.state.clone();
+    let status = tokio::task::spawn_blocking(move || st.agent_status())
+        .await
+        .unwrap();
+    assert_eq!(status.repo.as_deref(), Some("firma/app"));
+    assert_eq!(status.repos.repos.len(), 2);
+    assert_eq!(
+        status.repos.choose(Some("BAU")).repo(),
+        Some("firma/web"),
+        "the interface applies the same rules"
+    );
 }

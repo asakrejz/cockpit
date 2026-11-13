@@ -61,6 +61,16 @@ body { margin: 0; }
 .ck-usage { display: flex; flex-direction: column; gap: var(--ref-space-4); }
 .ck-problem { color: var(--sys-color-red); }
 
+/* One repo of the agent in the setup assistant. */
+.ck-agent-repo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--sys-color-separator, rgba(128, 128, 128, 0.3));
+  border-radius: 12px;
+}
+
 /* Narrow screens: notices sit above the bottom navigation and clear the notch. */
 @media (max-width: 1100px) {
   .ck-toasts { inset-inline: max(var(--ref-space-12), env(safe-area-inset-left)); inset-block-end: calc(var(--comp-tabbar-height) + var(--ref-space-24) + env(safe-area-inset-bottom)); width: auto; }

@@ -37,6 +37,7 @@ pub mod model;
 pub mod notice;
 pub mod notify;
 pub mod persist;
+pub mod repos;
 pub mod review;
 pub mod rules;
 pub mod search;
@@ -61,6 +62,7 @@ pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};
 pub use notify::{
     Channel, Channels, Delivery, Event as NotifyEvent, NotifyReason, NotifySettings, QuietHours,
 };
+pub use repos::{AgentRepo, AgentRepos, RepoChoice};
 pub use review::{
     CHECK_STEPS, CheckRun, Decision, DiffLine, FileDiff, Level, LineComment, LineKind,
     MergeBlocker, MergeMethod, Review, SendError, Suggestion, SuggestionDiff, Verdict,

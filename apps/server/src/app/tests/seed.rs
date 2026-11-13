@@ -17,7 +17,7 @@ async fn seed_demo_loads_the_sample_data() {
     };
     let conn = db::open_in_memory().unwrap();
     let (ws, _) = state_from(state_with(conn, e, Arc::new(MemoryStore::new()))).await;
-    assert_eq!(ws, cockpit_core::demo::workspace());
+    assert_eq!(ws, cockpit_core::demo::multi_repo_workspace());
 }
 
 #[tokio::test]

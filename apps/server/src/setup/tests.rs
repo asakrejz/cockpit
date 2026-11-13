@@ -756,3 +756,195 @@ async fn disconnect_deletes_only_tokens() {
         StatusCode::UNSUPPORTED_MEDIA_TYPE
     );
 }
+
+// ---------- Repos of the agent ----------
+
+fn agent_repos_change() -> ConfigChange {
+    use cockpit_core::AgentRepo;
+    use cockpit_core::api::AgentReposInput;
+    ConfigChange {
+        agent_repos: Some(AgentReposInput {
+            repos: vec![
+                AgentRepo::new("firma/app"),
+                AgentRepo {
+                    base_branch: "develop".into(),
+                    projects: vec!["WEB".into()],
+                    ..AgentRepo::new("firma/web")
+                },
+            ],
+            default: Some("firma/app".into()),
+        }),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn change_writes_agent_repos_and_keeps_the_rest_of_agent() {
+    let old = "[agent]\ncontainer = \"podman\" # meins\nrepo = \"alt/repo\"\n";
+    let (updated, c) = change(old, &agent_repos_change()).unwrap();
+    assert!(
+        updated.contains("container = \"podman\" # meins"),
+        "{updated}"
+    );
+    assert!(updated.contains("[[agent.repos]]"), "{updated}");
+    assert_eq!(c.agent_repo.as_deref(), Some("firma/app"));
+    assert_eq!(c.agent_repos.len(), 2);
+    assert_eq!(c.agent_repos[1].projects, ["WEB"]);
+    assert_eq!(c.agent_repos[1].base_branch, "develop");
+    // Writing again gives the same file, and an empty list removes everything.
+    let (again, _) = change(&updated, &agent_repos_change()).unwrap();
+    assert_eq!(again, updated);
+    let none = ConfigChange {
+        agent_repos: Some(Default::default()),
+        ..Default::default()
+    };
+    let (cleared, c) = change(&updated, &none).unwrap();
+    assert!(
+        !cleared.contains("repos") && !cleared.contains("repo ="),
+        "{cleared}"
+    );
+    assert!(c.agent_repos.is_empty() && c.agent_repo.is_none());
+    assert!(cleared.contains("container"));
+}
+
+#[test]
+fn change_rejects_a_default_outside_the_list_and_double_projects() {
+    use cockpit_core::AgentRepo;
+    use cockpit_core::api::AgentReposInput;
+    let outside = ConfigChange {
+        agent_repos: Some(AgentReposInput {
+            repos: vec![AgentRepo::new("a/b")],
+            default: Some("c/d".into()),
+        }),
+        ..Default::default()
+    };
+    assert!(change("", &outside).unwrap_err().contains("Standard-Repo"));
+    let double = ConfigChange {
+        agent_repos: Some(AgentReposInput {
+            repos: ["a/b", "a/c"]
+                .map(|r| AgentRepo {
+                    projects: vec!["WEB".into()],
+                    ..AgentRepo::new(r)
+                })
+                .to_vec(),
+            default: None,
+        }),
+        ..Default::default()
+    };
+    assert!(change("", &double).unwrap_err().contains("WEB"));
+}
+
+#[tokio::test]
+async fn the_assistant_reads_the_agent_repos_back() {
+    let b = test_bench(None);
+    let body = serde_json::to_string(&agent_repos_change()).unwrap();
+    let (status, answer) = put(&b.app, "/api/config", &body).await;
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    let setup = get(&b.app, "/api/setup").await;
+    assert_eq!(setup["agent_repos"]["default"], "firma/app");
+    assert_eq!(setup["agent_repos"]["repos"][1]["projects"][0], "WEB");
+    // It takes effect without restart: the health report knows the routing.
+    let health = get(&b.app, "/api/health").await;
+    assert_eq!(
+        health["agent"]["repos"]["repos"].as_array().unwrap().len(),
+        2
+    );
+}
+
+async fn repo_check(app: &Router, repos: &[&str]) -> serde_json::Value {
+    let body = serde_json::json!({ "repos": repos }).to_string();
+    let (status, answer) = send_request(
+        app,
+        request("POST", "/api/github/repos/check")
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{answer}");
+    assert!(!answer.contains(TOKEN), "token in the answer: {answer}");
+    serde_json::from_str(&answer).unwrap()
+}
+
+#[tokio::test]
+async fn the_repo_check_only_reads_and_says_what_it_found() {
+    let gh = MockServer::start().await;
+    for (repo, answer) in [
+        (
+            "firma/app",
+            ResponseTemplate::new(200).set_body_string(
+                r#"{"default_branch":"main","archived":false,"permissions":{"push":true,"pull":true}}"#,
+            ),
+        ),
+        (
+            "firma/lesen",
+            ResponseTemplate::new(200).set_body_string(
+                r#"{"default_branch":"trunk","permissions":{"push":false,"pull":true}}"#,
+            ),
+        ),
+        ("firma/weg", ResponseTemplate::new(404)),
+        ("firma/verboten", ResponseTemplate::new(401)),
+    ] {
+        Mock::given(method("GET"))
+            .and(path(format!("/repos/{repo}")))
+            .respond_with(answer)
+            .mount(&gh)
+            .await;
+    }
+    let secrets = Arc::new(MemoryStore::new());
+    secrets.set("github", &Secret::new(TOKEN)).unwrap();
+    let sources = Sources {
+        github: Some(crate::config::GitHubConfig {
+            api_url: gh.uri(),
+            repos: vec![],
+        }),
+        ..Sources::default()
+    };
+    let state = AppState::create(
+        db::open_in_memory().unwrap(),
+        secrets,
+        8787,
+        sources,
+        Settings::default(),
+    );
+    let app = router(state, PathBuf::from("/x"));
+    let a = repo_check(
+        &app,
+        &[
+            "firma/app",
+            "firma/lesen",
+            "firma/weg",
+            "firma/verboten",
+            "kein repo",
+        ],
+    )
+    .await;
+    let states: Vec<&str> = a["repos"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["state"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        states,
+        ["Ok", "ReadOnly", "NotFound", "NoAccess", "NotFound"]
+    );
+    assert_eq!(a["repos"][0]["default_branch"], "main");
+    assert!(
+        a["repos"][1]["message"]
+            .as_str()
+            .unwrap()
+            .contains("Schreibrecht")
+    );
+    // Only GET requests, one per valid repo – nothing was changed anywhere.
+    let requests = gh.received_requests().await.unwrap();
+    assert_eq!(requests.len(), 4);
+    assert!(requests.iter().all(|r| r.method.as_str() == "GET"));
+}
+
+#[tokio::test]
+async fn the_repo_check_without_a_github_connection_says_so() {
+    let (app, _) = jira_state("", "", false);
+    let a = repo_check(&app, &["firma/app"]).await;
+    assert_eq!(a["repos"][0]["state"], "NoAccess");
+}

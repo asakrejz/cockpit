@@ -394,10 +394,10 @@ fn rules_are_per_repo_cleaned_and_validated() {
     fails(
         &mut w,
         Action::SetRepoRules {
-            repo: "gibt/es-nicht".into(),
+            repo: "kein repo".into(),
             rules: RepoRules::default(),
         },
-        ActionError::UnknownRepo("gibt/es-nicht".into()),
+        ActionError::UnknownRepo("kein repo".into()),
     );
     ok(
         &mut w,

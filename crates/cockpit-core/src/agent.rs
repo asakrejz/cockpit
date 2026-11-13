@@ -23,6 +23,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::diagnosis::Diagnosis;
+use crate::model::PrKey;
 use crate::rules::{PathViolation, RepoRules};
 use crate::text::slug;
 use crate::usage::{AgentLimits, StopReason, Usage};
@@ -41,6 +42,10 @@ pub struct AgentOptions {
     pub base_branch: String,
     /// First present a plan and wait for approval.
     pub plan_first: bool,
+    /// The repo (`owner/name`) the run works in. `None` = the backend chooses by the rules of
+    /// the configuration; the interface sets it when the user picks one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repo: Option<String>,
 }
 
 impl Default for AgentOptions {
@@ -51,6 +56,7 @@ impl Default for AgentOptions {
             hint: String::new(),
             base_branch: "main".into(),
             plan_first: true,
+            repo: None,
         }
     }
 }
@@ -81,16 +87,16 @@ pub enum RunKind {
     Implement,
     /// Implement comments of a review and push to the pull request's branch.
     AddressReview {
-        /// Number of the pull request.
-        review: u32,
+        /// The pull request (repo and number).
+        review: PrKey,
         /// IDs of the line comments the agent is to implement.
         comments: Vec<String>,
     },
     /// Investigate a red check, present a diagnosis and – after your approval –
     /// push the fix.
     Diagnose {
-        /// Number of the pull request.
-        review: u32,
+        /// The pull request (repo and number).
+        review: PrKey,
         /// Name of the check.
         check: String,
     },
@@ -99,8 +105,8 @@ pub enum RunKind {
     /// hands them to the container. The agent continues on the same `claude/…` branch; the backend
     /// pushes the new commits (never a force-push).
     Followup {
-        /// Number of the pull request.
-        review: u32,
+        /// The pull request (repo and number).
+        review: PrKey,
         task: FollowupTask,
     },
 }
@@ -126,12 +132,12 @@ impl FollowupTask {
 
 impl RunKind {
     /// The pull request a follow-up job works on.
-    pub fn review(&self) -> Option<u32> {
+    pub fn review(&self) -> Option<PrKey> {
         match self {
             RunKind::Implement => None,
             RunKind::AddressReview { review, .. }
             | RunKind::Diagnose { review, .. }
-            | RunKind::Followup { review, .. } => Some(*review),
+            | RunKind::Followup { review, .. } => Some(review.clone()),
         }
     }
 
@@ -325,7 +331,7 @@ pub struct AgentRun {
     /// Number of completed steps (0 to [`STEPS`]).
     #[serde(default)]
     pub completed: usize,
-    /// Number of the pull request the run creates.
+    /// Number of the pull request the run creates (in the repo `repo`).
     #[serde(default)]
     pub pr_number: Option<u32>,
     /// Notes of the user that led to a new plan.
@@ -355,7 +361,8 @@ pub struct AgentRun {
     /// The diagnosis of an investigation, once it is available.
     #[serde(default)]
     pub diagnosis: Option<Diagnosis>,
-    /// The repo the run works in (key of the rules).
+    /// The repo (`owner/name`) the run works in: where it clones and pushes, and the key of
+    /// the rules. Empty in old states (then the only configured repo applies).
     #[serde(default)]
     pub repo: String,
     /// The rules of the repo as they applied at start (or at planning).
@@ -425,7 +432,10 @@ impl AgentRun {
     /// hangs on, `branch` its branch.
     pub fn followup(kind: RunKind, item_key: &str, title: &str, branch: &str) -> Self {
         let mut run = Self::new(item_key, title);
-        run.pr_number = kind.review();
+        run.pr_number = kind.review().map(|k| k.number);
+        if let Some(k) = kind.review() {
+            run.repo = k.repo;
+        }
         run.kind = kind;
         run.target_branch = branch.into();
         run
@@ -436,26 +446,32 @@ impl AgentRun {
     pub fn key(&self) -> String {
         match &self.kind {
             RunKind::Implement => self.ticket_key.clone(),
-            RunKind::AddressReview { review, .. } => format!("review-{review}"),
+            RunKind::AddressReview { review, .. } => format!("review-{}", review.slug()),
             RunKind::Diagnose { review, check } => {
-                format!("check-{review}-{}", slug(check, 24))
+                format!("check-{}-{}", review.slug(), slug(check, 24))
             }
             RunKind::Followup { review, task } => match task {
-                FollowupTask::ReviewThreads => format!("threads-{review}"),
-                FollowupTask::FailedChecks { .. } => format!("fixes-{review}"),
+                FollowupTask::ReviewThreads => format!("threads-{}", review.slug()),
+                FollowupTask::FailedChecks { .. } => format!("fixes-{}", review.slug()),
             },
         }
+    }
+
+    /// The pull request of the run (the one it creates or works on), once it has a number.
+    /// The repo is the one the run works in.
+    pub fn pr_key(&self) -> Option<PrKey> {
+        self.pr_number.map(|n| PrKey::new(&self.repo, n))
     }
 
     /// Short name for messages: the key, for follow-up jobs with plain text.
     pub fn label(&self) -> String {
         match &self.kind {
             RunKind::Implement => self.ticket_key.clone(),
-            RunKind::AddressReview { review, .. } => format!("Kommentare in #{review}"),
-            RunKind::Diagnose { review, check } => format!("Check „{check}“ in #{review}"),
+            RunKind::AddressReview { review, .. } => format!("Kommentare in {review}"),
+            RunKind::Diagnose { review, check } => format!("Check „{check}“ in {review}"),
             RunKind::Followup { review, task } => match task {
-                FollowupTask::ReviewThreads => format!("Review-Kommentare in #{review}"),
-                FollowupTask::FailedChecks { .. } => format!("Rote Checks in #{review}"),
+                FollowupTask::ReviewThreads => format!("Review-Kommentare in {review}"),
+                FollowupTask::FailedChecks { .. } => format!("Rote Checks in {review}"),
             },
         }
     }

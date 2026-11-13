@@ -4,6 +4,7 @@ use super::*;
 
 fn review() -> Review {
     Review {
+        repo: String::new(),
         number: 1,
         title: "Titel".into(),
         description: String::new(),

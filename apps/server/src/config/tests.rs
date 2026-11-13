@@ -359,3 +359,60 @@ fn older_german_spellings_are_still_read() {
     assert_eq!(c.git_base.as_deref(), Some("http://new.example"));
     assert_eq!(c.seed, Seed::Empty);
 }
+
+#[test]
+fn agent_repos_with_base_branch_and_projects() {
+    let toml = r#"
+        [agent]
+        repo = "firma/app"
+
+        [[agent.repos]]
+        repo = "firma/web"
+        base_branch = "develop"
+        projects = ["web", "SHOP"]
+
+        [[agent.repos]]
+        repo = "firma/app"
+    "#;
+    let c = Config::parse(Some(toml), no_env).unwrap();
+    assert_eq!(c.agent_repo.as_deref(), Some("firma/app"));
+    assert_eq!(c.agent_repos.len(), 2);
+    let web = &c.agent_repos[0];
+    assert_eq!(web.repo, "firma/web");
+    assert_eq!(web.base_branch, "develop");
+    assert_eq!(web.projects, ["WEB", "SHOP"], "keys are upper-cased");
+    assert_eq!(c.agent_repos[1].base_branch, "main");
+    assert!(c.agent_repos[1].projects.is_empty());
+}
+
+#[test]
+fn the_old_single_repo_config_still_reads_and_has_no_list() {
+    let c = Config::parse(
+        Some("[agent]\nrepo = \"firma/app\"\n[github]\nrepos = [\"firma/app\"]"),
+        no_env,
+    )
+    .unwrap();
+    assert_eq!(c.agent_repo.as_deref(), Some("firma/app"));
+    assert!(c.agent_repos.is_empty());
+    assert!(Config::parse(None, no_env).unwrap().agent_repos.is_empty());
+}
+
+#[test]
+fn broken_agent_repos_are_rejected_with_a_reason() {
+    for broken in [
+        "[[agent.repos]]\nrepo = \"firma\"",
+        "[[agent.repos]]\nrepo = \"a/b\"\n[[agent.repos]]\nrepo = \"a/b\"",
+        "[[agent.repos]]\nrepo = \"a/b\"\nprojects = [\"1X\"]",
+        "[[agent.repos]]\nrepo = \"a/b\"\nprojects = [\"WEB\"]\n[[agent.repos]]\nrepo = \"a/c\"\nprojects = [\"WEB\"]",
+        "[[agent.repos]]\nrepo = \"a/b\"\nbase_branch = \"-x\"",
+        "[[agent.repos]]\nrepo = \"a/b\"\nunknown = 1",
+    ] {
+        assert!(
+            matches!(
+                Config::parse(Some(broken), no_env),
+                Err(ConfigError::Wert(_) | ConfigError::Toml(_))
+            ),
+            "{broken}"
+        );
+    }
+}

@@ -9,7 +9,7 @@ The Cockpit agent runs in its own container per run (Docker or Podman). This dir
 Build by hand (the backend does the same through "Image bauen" in the setup assistant):
 
 ```bash
-docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:3 apps/agent   # or: podman build …
+docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:4 apps/agent   # or: podman build …
 ```
 
 Rules for the `Containerfile` (they hold for Docker and Podman alike): a fully qualified base image, no BuildKit
