@@ -108,7 +108,7 @@ impl Tokens {
         serde_json::json!({
             "access": self.access.expose(),
             "refresh": self.refresh.as_ref().map(Secret::expose),
-            "laeuft_ab_s": self.expires_in_s,
+            "expires_in_s": self.expires_in_s,
         })
         .to_string()
     }
@@ -121,7 +121,7 @@ impl Tokens {
             #[serde(default)]
             refresh: Option<String>,
             #[serde(default)]
-            #[serde(rename = "laeuft_ab_s")]
+            #[serde(alias = "laeuft_ab_s")]
             expires_in_s: Option<u64>,
         }
         let r: Raw = serde_json::from_str(text).ok()?;

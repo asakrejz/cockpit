@@ -37,7 +37,7 @@ const SHAPES: &[(&str, &str)] = &[
 ];
 
 fn render() -> AnyView {
-    // Zustand der Live-Controls.
+    // State of the live controls.
     let style_id = RwSignal::new("bordered-prominent");
     let size_id = RwSignal::new("regular");
     let shape_id = RwSignal::new("capsule");

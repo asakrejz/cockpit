@@ -189,7 +189,7 @@ impl JiraClient {
     }
 
     /// The projects the key may see, sorted by name (page by page, at most
-    /// [`MAX_PROJEKTE`]).
+    /// [`MAX_PROJECTS`]).
     pub async fn projects(&self) -> Result<Vec<Project>, Error> {
         let mut all = Vec::new();
         loop {

@@ -7,7 +7,7 @@ use crate::api::{
 };
 use crate::connections::{AuthKind, ServiceStatus};
 
-/// The names under which the backend stores keys in the keychain (`PUT /api/schluessel/{name}`).
+/// The names under which the backend stores keys in the keychain (`PUT /api/secrets/{name}`).
 pub const KEY_NAMES: &[&str] = &[
     "github-oauth",
     "atlassian-oauth",
@@ -564,7 +564,7 @@ pub fn summary(s: &Snapshot) -> Vec<Line> {
     let e = &s.setup;
     let container = match (&s.container.runtime, s.container.engine_running) {
         // If the real agent runs, one step is still missing without an image.
-        (Some(l), true) if s.agent.mode == "echt" && !s.agent.image => (
+        (Some(l), true) if s.agent.mode == "real" && !s.agent.image => (
             Tone::Open,
             format!(
                 "{l} läuft. Das Agent-Image ist noch nicht gebaut – klicke im Schritt „Container“ auf „Image bauen“."

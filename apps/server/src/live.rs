@@ -1,8 +1,8 @@
-//! Der Workspace des Server-Modus: hält den Stand im Speicher, wendet Aktionen an,
-//! sichert ihn in SQLite und meldet jede Änderung an die offenen Ereignis-Verbindungen.
+//! The workspace of the server mode: holds the state in memory, applies actions,
+//! saves it in SQLite and reports every change to the open event connections.
 //!
-//! Der Server kennt die einzelnen [`Action`]-Varianten nicht. Er reicht jede Aktion an
-//! `Workspace::apply` weiter – neue Varianten im Kern laufen deshalb ohne Änderung hier.
+//! The server does not know the individual [`Action`] variants. It passes every action on to
+//! `Workspace::apply` – new variants in the core therefore work here without change.
 
 use std::sync::Mutex;
 
@@ -14,166 +14,162 @@ use tokio::sync::broadcast;
 use crate::config::Seed;
 use crate::db;
 
-/// So viele Ereignisse puffert eine langsame Verbindung, bevor sie neu laden muss.
+/// This many events a slow connection buffers before it has to reload.
 const PUFFER: usize = 64;
 
 pub struct Live {
-    stand: Mutex<Stand>,
+    snapshot: Mutex<Snapshot>,
     tx: broadcast::Sender<ServerEvent>,
 }
 
-struct Stand {
+struct Snapshot {
     ws: Workspace,
     revision: u64,
 }
 
-/// Warum eine Aktion nicht angewendet wurde.
+/// Why an action was not applied.
 #[derive(Debug)]
-pub enum Fehler {
-    /// Die Regeln des Workspace lehnen sie ab (der Stand bleibt unverändert).
-    Aktion(ActionError),
-    /// Der neue Stand ließ sich nicht sichern. Dann wird er auch nicht übernommen.
-    Speichern(String),
+pub enum Error {
+    /// The rules of the workspace reject it (the state stays unchanged).
+    Action(ActionError),
+    /// The new state could not be saved. Then it is not taken over either.
+    Save(String),
 }
 
-fn sperre<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
-    // Ein abgestürzter Handler soll nicht alle weiteren lahmlegen.
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    // A crashed handler should not paralyze all others.
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 impl Live {
-    /// Lädt den gespeicherten Stand; ohne (oder bei unlesbarem) Stand beginnt der Server mit
-    /// dem Seed: standardmäßig ein leerer Workspace, mit `Seed::Demo` die Beispieldaten.
-    /// Ein gespeicherter Stand geht dem Seed immer vor.
+    /// Loads the stored state; without (or with an unreadable) state the server starts with
+    /// the seed: by default an empty workspace, with `Seed::Demo` the sample data.
+    /// A stored state always goes before the seed.
     pub fn laden(conn: &Connection, seed: Seed) -> Self {
-        let anfang = || match seed {
-            Seed::Leer => Workspace::default(),
+        let start = || match seed {
+            Seed::Empty => Workspace::default(),
             Seed::Demo => demo::workspace(),
         };
-        let gespeichert = db::workspace_laden(conn).unwrap_or_else(|e| {
+        let stored = db::workspace_laden(conn).unwrap_or_else(|e| {
             tracing::warn!("Gespeicherter Workspace nicht lesbar: {e}");
             None
         });
-        let (ws, revision) = match gespeichert.as_deref().map(persist::load_with_revision) {
-            Some(Ok(stand)) => stand,
+        let (ws, revision) = match stored.as_deref().map(persist::load_with_revision) {
+            Some(Ok(snapshot)) => snapshot,
             Some(Err(e)) => {
                 tracing::warn!(
                     "Gespeicherter Workspace passt nicht ({e:?}), starte mit dem Seed ({seed:?})"
                 );
-                (anfang(), 0)
+                (start(), 0)
             }
-            None => (anfang(), 0),
+            None => (start(), 0),
         };
         Self {
-            stand: Mutex::new(Stand { ws, revision }),
+            snapshot: Mutex::new(Snapshot { ws, revision }),
             tx: broadcast::channel(PUFFER).0,
         }
     }
 
-    /// Der aktuelle Stand als JSON (Form von `persist`, plus `revision`).
-    pub fn schnappschuss(&self) -> String {
-        let stand = sperre(&self.stand);
-        persist::save_with_revision(&stand.ws, stand.revision)
+    /// The current state as JSON (shape of `persist`, plus `revision`).
+    pub fn snapshot(&self) -> String {
+        let snapshot = lock(&self.snapshot);
+        persist::save_with_revision(&snapshot.ws, snapshot.revision)
     }
 
-    /// Eine Kopie des aktuellen Stands (für Proben und den Abgleich).
-    pub fn kopie(&self) -> Workspace {
-        sperre(&self.stand).ws.clone()
+    /// A copy of the current state (for probes and the sync).
+    pub fn copy(&self) -> Workspace {
+        lock(&self.snapshot).ws.clone()
     }
 
     pub fn revision(&self) -> u64 {
-        sperre(&self.stand).revision
+        lock(&self.snapshot).revision
     }
 
-    /// Ersetzt den Stand (nur für Tests, die Daten brauchen, die keine Aktion herstellt).
+    /// Replaces the state (for tests only that need data that no action produces).
     #[cfg(test)]
-    pub fn setze_stand_fuer_test(&self, ws: Workspace) {
-        sperre(&self.stand).ws = ws;
+    pub fn set_state_for_test(&self, ws: Workspace) {
+        lock(&self.snapshot).ws = ws;
     }
 
-    /// Wendet eine Aktion an, sichert den neuen Stand und meldet ihn. Blockierend (SQLite).
-    pub fn anwenden(
+    /// Applies an action, saves the new state and reports it. Blocking (SQLite).
+    pub fn apply(
         &self,
         db: &Mutex<Connection>,
         action: Action,
         actor: Actor,
         at_ms: u64,
-    ) -> Result<ActionResponse, Fehler> {
-        let mut stand = sperre(&self.stand);
-        // Auf einer Kopie arbeiten: Scheitert die Regel oder das Sichern, bleibt alles wie es war.
-        let mut neu = stand.ws.clone();
-        let angewendet = neu.apply(action, actor, at_ms).map_err(Fehler::Aktion)?;
-        let revision = stand.revision + 1;
-        let text = persist::save_with_revision(&neu, revision);
-        db::workspace_speichern(&sperre(db), revision, &text)
-            .map_err(|e| Fehler::Speichern(e.to_string()))?;
+    ) -> Result<ActionResponse, Error> {
+        let mut snapshot = lock(&self.snapshot);
+        // Work on a copy: if the rule or the saving fails, everything stays as it was.
+        let mut updated = snapshot.ws.clone();
+        let applied = updated.apply(action, actor, at_ms).map_err(Error::Action)?;
+        let revision = snapshot.revision + 1;
+        let text = persist::save_with_revision(&updated, revision);
+        db::workspace_save(&lock(db), revision, &text).map_err(|e| Error::Save(e.to_string()))?;
 
-        let neue = angewendet.logged.min(neu.log.len());
-        let eintraege = neu.log[neu.log.len() - neue..].to_vec();
-        stand.ws = neu;
-        stand.revision = revision;
-        // Niemand verbunden ist kein Fehler.
-        let _ = self.tx.send(ServerEvent {
-            revision,
-            entries: eintraege,
-        });
+        let added = applied.logged.min(updated.log.len());
+        let entries = updated.log[updated.log.len() - added..].to_vec();
+        snapshot.ws = updated;
+        snapshot.revision = revision;
+        // Nobody connected is no error.
+        let _ = self.tx.send(ServerEvent { revision, entries });
         Ok(ActionResponse {
             revision,
-            summary: angewendet.summary,
-            logged: angewendet.logged,
+            summary: applied.summary,
+            logged: applied.logged,
         })
     }
 
-    /// Der Takt: Jeder simulierte Agent (nur mit `agenten_simulieren`; echte Läufe melden sich selbst)
-    /// und jeder neu gestartete Check macht einen Schritt,
-    /// und abgelaufene Zurückstellungen kommen zurück in die Inbox, Pull Requests mit Ticket-Schlüssel
-    /// in Branch oder Titel werden verknüpft, und der Status verknüpfter Tickets folgt dem Pull Request. Ist nichts zu tun, passiert nichts
-    /// (und es gibt keine Revision).
-    pub fn takt(&self, db: &Mutex<Connection>, at_ms: u64, agenten_simulieren: bool) {
-        let (agenten, checks, wecken, verknuepfen, status) = {
-            let stand = sperre(&self.stand);
+    /// The tick: every simulated agent (only with `simulate_agents`; real runs report themselves)
+    /// and every newly started check takes a step,
+    /// and expired snoozes come back to the inbox, pull requests with a ticket key
+    /// in branch or title are linked, and the status of linked tickets follows the pull request. If there is nothing to do, nothing happens
+    /// (and there is no revision).
+    pub fn takt(&self, db: &Mutex<Connection>, at_ms: u64, agents_simulate: bool) {
+        let (agents, checks, wake, link, status) = {
+            let snapshot = lock(&self.snapshot);
             (
-                stand.ws.running_agents() > 0,
-                stand.ws.running_checks() > 0,
-                !stand.ws.expired_snoozes(at_ms).is_empty(),
-                !stand.ws.auto_links().is_empty(),
-                stand.ws.status_pending(),
+                snapshot.ws.running_agents() > 0,
+                snapshot.ws.running_checks() > 0,
+                !snapshot.ws.expired_snoozes(at_ms).is_empty(),
+                !snapshot.ws.auto_links().is_empty(),
+                snapshot.ws.status_pending(),
             )
         };
-        let mut schritte = Vec::new();
-        if agenten && agenten_simulieren {
-            schritte.push((Action::AdvanceAgents, Actor::Agent));
+        let mut steps = Vec::new();
+        if agents && agents_simulate {
+            steps.push((Action::AdvanceAgents, Actor::Agent));
         }
         if checks {
-            schritte.push((Action::AdvanceChecks, Actor::System));
+            steps.push((Action::AdvanceChecks, Actor::System));
         }
-        if wecken {
-            schritte.push((Action::WakeSnoozed, Actor::System));
+        if wake {
+            steps.push((Action::WakeSnoozed, Actor::System));
         }
-        if verknuepfen {
-            schritte.push((Action::AutoLinkPrs, Actor::System));
+        if link {
+            steps.push((Action::AutoLinkPrs, Actor::System));
         }
         if status {
-            schritte.push((Action::SyncTicketStatus, Actor::System));
+            steps.push((Action::SyncTicketStatus, Actor::System));
         }
-        for (action, actor) in schritte {
-            match self.anwenden(db, action, actor, at_ms) {
-                Ok(_) | Err(Fehler::Aktion(_)) => {}
-                Err(Fehler::Speichern(m)) => tracing::warn!("Takt nicht gesichert: {m}"),
+        for (action, actor) in steps {
+            match self.apply(db, action, actor, at_ms) {
+                Ok(_) | Err(Error::Action(_)) => {}
+                Err(Error::Save(m)) => tracing::warn!("Takt nicht gesichert: {m}"),
             }
         }
     }
 
-    /// Meldet an: der Empfänger für kommende Ereignisse und das erste Ereignis mit der
-    /// aktuellen Revision (ohne Einträge). Beides unter derselben Sperre, damit keine
-    /// Änderung dazwischen verloren geht.
-    pub fn abonnieren(&self) -> (broadcast::Receiver<ServerEvent>, ServerEvent) {
-        let stand = sperre(&self.stand);
+    /// Subscribes: the receiver for coming events and the first event with the
+    /// current revision (without entries). Both under the same lock so that no
+    /// change gets lost in between.
+    pub fn subscribe(&self) -> (broadcast::Receiver<ServerEvent>, ServerEvent) {
+        let snapshot = lock(&self.snapshot);
         let rx = self.tx.subscribe();
-        let erstes = ServerEvent {
-            revision: stand.revision,
+        let first = ServerEvent {
+            revision: snapshot.revision,
             entries: Vec::new(),
         };
-        (rx, erstes)
+        (rx, first)
     }
 }

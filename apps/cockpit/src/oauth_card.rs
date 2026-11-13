@@ -1,6 +1,6 @@
-//! Anmeldung per OAuth auf der Seite „Einrichten“: „Mit … anmelden“ und „Trennen“.
-//! Die Logik liegt im Backend; hier steht nur die Verdrahtung. Der Browser
-//! sieht weder Tokens noch Secrets: „Anmelden“ ist eine Navigation zu `/api/oauth/…/start`.
+//! Sign-in via OAuth on the page "Einrichten": "Mit … anmelden" and "Trennen".
+//! The logic is in the backend; here is only the wiring. The browser
+//! sees neither tokens nor secrets: "Anmelden" is a navigation to `/api/oauth/…/start`.
 
 use cockpit_core::{AuthKind, ServiceStatus};
 use feature_ui::*;
@@ -10,7 +10,7 @@ use leptos::task::spawn_local;
 use crate::server::{self, CallError};
 use crate::store::use_store;
 
-/// Welcher Dienst: Adresse im Backend, Name, Befehl für das Client-Secret.
+/// Which service: address in the backend, name, command for the client secret.
 #[derive(Clone, Copy)]
 pub enum Service {
     GitHub,
@@ -40,7 +40,7 @@ impl Service {
     }
 }
 
-/// Text zum Stand einer Verbindung.
+/// Text about the state of a connection.
 fn describe(status: &ServiceStatus) -> String {
     match (status.connected, status.kind) {
         (true, AuthKind::OAuth) => match &status.site {
@@ -55,10 +55,10 @@ fn describe(status: &ServiceStatus) -> String {
 #[component]
 pub fn OAuthCard(
     service: Service,
-    /// Wird gerufen, sobald der Server die Verbindung als bestehend meldet.
+    /// Called as soon as the server reports the connection as established.
     #[prop(into)]
     on_connected: Callback<()>,
-    /// Wird nach einem erfolgreichen „Trennen“ gerufen.
+    /// Called after a successful "Trennen".
     #[prop(into)]
     on_disconnected: Callback<()>,
 ) -> impl IntoView {

@@ -35,7 +35,7 @@ impl ButtonStyle {
         }
     }
 
-    /// Schreibweise wie in SwiftUI.
+    /// Spelling as in SwiftUI.
     pub fn swift_name(self) -> &'static str {
         match self {
             ButtonStyle::GlassProminent => ".glassProminent",
@@ -78,13 +78,13 @@ impl ControlSize {
         }
     }
 
-    /// `None` = Standardgröße, Attribut weglassen.
+    /// `None` = default size, omit the attribute.
     pub fn attr(self) -> Option<&'static str> {
         (self != ControlSize::Regular).then(|| self.id())
     }
 }
 
-/// Form des Buttons – `data-shape`.
+/// Shape of the button – `data-shape`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum ButtonShape {
     /// Kapsel (Standard).
@@ -114,9 +114,9 @@ impl ButtonShape {
     }
 }
 
-/// Button. Mit `href` wird daraus ein Link im Button-Look (`<a>`).
+/// Button. With `href` it becomes a link in the button look (`<a>`).
 ///
-/// `variant`, `size`, `shape` und `disabled` akzeptieren feste Werte oder Signals.
+/// `variant`, `size`, `shape` and `disabled` accept fixed values or signals.
 ///
 /// ```ignore
 /// view! {
@@ -134,7 +134,7 @@ pub fn Button(
     destructive: Signal<bool>,
     #[prop(into, default = false.into())] disabled: Signal<bool>,
     #[prop(optional, into)] href: Option<String>,
-    /// Pflicht für Buttons ohne Text (z. B. nur Icon).
+    /// Required for buttons without text (e.g. icon only).
     #[prop(optional, into)]
     aria_label: Option<String>,
     #[prop(optional, into)] on_click: Option<Callback<ev::MouseEvent>>,
@@ -183,7 +183,7 @@ pub fn Button(
     }
 }
 
-/// Link. Mit `chevron` erscheint ein Pfeil, der beim Hover nach rechts rückt.
+/// Link. With `chevron` an arrow appears that moves to the right on hover.
 #[component]
 pub fn Link(
     #[prop(into)] href: String,
@@ -204,7 +204,7 @@ pub enum BadgeVariant {
     #[default]
     Tint,
     Neutral,
-    /// Rundes Zählerschild (z. B. ungelesene Mitteilungen).
+    /// Round counter badge (e.g. unread notifications).
     Count,
 }
 

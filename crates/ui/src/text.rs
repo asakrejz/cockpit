@@ -36,7 +36,7 @@ impl TextStyle {
         TextStyle::Caption2,
     ];
 
-    /// Name im CSS (`t-<id>`) und in den Tokens (`--sys-type-<id>`).
+    /// Name in the CSS (`t-<id>`) and in the tokens (`--sys-type-<id>`).
     pub fn id(self) -> &'static str {
         match self {
             TextStyle::Hero => "hero",
@@ -85,7 +85,7 @@ pub enum TextWeight {
     Bold,
 }
 
-/// Text mit einem Text Style aus dem Design.
+/// Text with a text style from the design.
 ///
 /// ```ignore
 /// view! { <Text variant=TextStyle::Title1 weight=TextWeight::Bold tag=TextTag::H2>"Titel"</Text> }
@@ -96,7 +96,7 @@ pub fn Text(
     #[prop(optional)] color: TextColor,
     #[prop(optional)] weight: TextWeight,
     #[prop(optional)] tag: TextTag,
-    /// Monospace-Schrift (für Token-Namen und Code).
+    /// Monospace font (for token names and code).
     #[prop(optional)]
     mono: bool,
     children: Children,

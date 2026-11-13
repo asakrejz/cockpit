@@ -2,24 +2,24 @@ use leptos::{ev, prelude::*};
 
 use crate::{Icon, Tint, icons};
 
-/// Container für mehrere Sektionen (`List` mit `.insetGrouped`).
+/// Container for several sections (`List` with `.insetGrouped`).
 #[component]
 pub fn List(children: Children) -> impl IntoView {
     view! { <div class="ui-list">{children()}</div> }
 }
 
-/// Eine Sektion mit optionaler Kopf- und Fußzeile.
+/// A section with optional header and footer.
 #[component]
 pub fn ListSection(
     #[prop(optional, into)] header: Option<String>,
     #[prop(optional, into)] footer: Option<String>,
-    /// Zeilen haben farbige Icons – Trennlinien beginnen hinter dem Icon.
+    /// Rows have colored icons – separators start behind the icon.
     #[prop(optional)]
     icons: bool,
-    /// Große, fette Überschrift (z. B. Titel eines Onboarding-Schritts).
+    /// Large, bold heading (e.g. title of an onboarding step).
     #[prop(optional)]
     prominent: bool,
-    /// Hellere Fläche für Listen, die schon auf einer Karte oder in einem `Pane` liegen.
+    /// Lighter surface for lists that already lie on a card or in a `Pane`.
     #[prop(optional)]
     nested: bool,
     children: Children,
@@ -42,27 +42,27 @@ pub fn ListSection(
     }
 }
 
-/// Zeile einer Liste: Titel, optional Untertitel, Detail, Icon und Chevron.
+/// Row of a list: title, optional subtitle, detail, icon and chevron.
 ///
-/// * mit `href` wird die Zeile ein Link,
-/// * mit `toggle_row` ein `<label>` (Klick auf die Zeile schaltet den enthaltenen `Toggle`),
-/// * sonst ein `<div>`.
+/// * with `href` the row becomes a link,
+/// * with `toggle_row` a `<label>` (click on the row switches the contained `Toggle`),
+/// * otherwise a `<div>`.
 ///
-/// Zusätzlicher Inhalt am Zeilenende (z. B. `Toggle`, `Badge`) kommt als Kinder.
+/// Additional content at the row end (e.g. `Toggle`, `Badge`) comes as children.
 #[component]
 pub fn ListRow(
     #[prop(into)] title: String,
     #[prop(optional, into)] subtitle: Option<String>,
-    /// Detail rechts neben dem Titel – darf ein Signal sein.
+    /// Detail to the right of the title – may be a signal.
     #[prop(optional, into)]
     detail: Option<Signal<String>>,
-    /// Farbe und Pfad des Icons.
+    /// Color and path of the icon.
     #[prop(optional)]
     icon: Option<(Tint, &'static str)>,
     #[prop(optional)] chevron: bool,
     #[prop(optional, into)] href: Option<String>,
     #[prop(optional)] toggle_row: bool,
-    /// Lässt den Inhalt bei Platzmangel umbrechen.
+    /// Lets the content wrap when there is not enough room.
     #[prop(optional)]
     wrap: bool,
     #[prop(optional)] children: Option<Children>,

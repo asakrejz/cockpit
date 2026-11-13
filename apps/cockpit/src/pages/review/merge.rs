@@ -1,6 +1,6 @@
 use super::*;
 
-/// Mergen: Methode wählen, Button – und warum er gerade nicht geht.
+/// Merge: choose method, button – and why it does not work right now.
 pub(super) fn merge_section(store: Store, r: &Review, panel: Panel) -> AnyView {
     let number = r.number;
     if let Some(method) = r.merged {
@@ -12,7 +12,7 @@ pub(super) fn merge_section(store: Store, r: &Review, panel: Panel) -> AnyView {
         }
         .into_any();
     }
-    // Der Workspace kennt auch den Entwurfs-Status aus der Inbox.
+    // The workspace also knows the draft status from the inbox.
     let blockers = store.ws.with_untracked(|w| w.merge_blockers(number));
     let can_merge = blockers.is_empty();
     let reasons = blockers

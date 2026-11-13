@@ -1,10 +1,10 @@
-//! Kleine Anzeigen: Status-Punkt, Avatar, Chip, Ungelesen-Punkt.
+//! Small indicators: status dot, avatar, chip, unread dot.
 
 use leptos::prelude::*;
 
 use crate::{Icon, icons};
 
-/// Farbe eines Status-Punkts. Die ID ist zugleich der Name der System-Farbe
+/// Color of a status dot. The ID is also the name of the system color
 /// (`--sys-color-<id>`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum StatusTone {
@@ -38,13 +38,13 @@ impl StatusTone {
         }
     }
 
-    /// `None` = Grau ist der Standard, Attribut weglassen.
+    /// `None` = gray is the default, omit the attribute.
     pub fn attr(self) -> Option<&'static str> {
         (self != StatusTone::Gray).then(|| self.id())
     }
 }
 
-/// Status mit farbigem Punkt, z. B. „Verbunden“.
+/// Status with a colored dot, e.g. "Verbunden".
 #[component]
 pub fn Status(
     #[prop(into, default = StatusTone::Gray.into())] tone: Signal<StatusTone>,
@@ -53,13 +53,13 @@ pub fn Status(
     view! { <span class="ui-status" data-tone=move || tone.get().attr()>{children()}</span> }
 }
 
-/// Runder Avatar mit Initialen. Mit `agent` zeigt er den Funken in der Akzentfarbe.
+/// Round avatar with initials. With `agent` it shows the spark in the accent color.
 #[component]
 pub fn Avatar(
     #[prop(optional, into)] initials: String,
     #[prop(optional)] large: bool,
     #[prop(optional)] agent: bool,
-    /// Tooltip, z. B. der volle Name.
+    /// Tooltip, e.g. the full name.
     #[prop(optional, into)]
     title: Option<String>,
 ) -> impl IntoView {
@@ -79,13 +79,13 @@ pub fn Avatar(
     }
 }
 
-/// Kapsel in Festbreitenschrift für Branch-Namen und ähnliche Kurztexte.
+/// Capsule in monospace for branch names and similar short texts.
 #[component]
 pub fn Chip(children: Children) -> impl IntoView {
     view! { <span class="ui-chip">{children()}</span> }
 }
 
-/// Punkt für „ungelesen“. Gelesen ist er unsichtbar, behält aber seinen Platz.
+/// Dot for "unread". When read it is invisible but keeps its place.
 #[component]
 pub fn UnreadDot(#[prop(into)] read: Signal<bool>) -> impl IntoView {
     view! {

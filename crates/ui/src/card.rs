@@ -2,13 +2,13 @@ use leptos::prelude::*;
 
 use crate::{Icon, icons};
 
-/// Karte / Gruppenbox. Mit `href` oder `interactive` reagiert sie auf Hover und Klick.
+/// Card / group box. With `href` or `interactive` it reacts to hover and click.
 #[component]
 pub fn Card(
-    /// Hebt sich beim Hover an (wird mit `href` automatisch gesetzt).
+    /// Lifts on hover (set automatically with `href`).
     #[prop(optional)]
     interactive: bool,
-    /// Zusätzlicher Schatten.
+    /// Additional shadow.
     #[prop(optional)]
     elevated: bool,
     #[prop(optional, into)] href: Option<String>,
@@ -31,7 +31,7 @@ pub fn Card(
     }
 }
 
-/// Innenabstand einer Karte (unter dem Bild).
+/// Inner padding of a card (below the image).
 #[component]
 pub fn CardBody(#[prop(optional, into)] css: Option<String>, children: Children) -> impl IntoView {
     view! { <div class="ui-card__body" style=css>{children()}</div> }
@@ -71,25 +71,25 @@ impl MediaRatio {
 pub enum MediaShape {
     #[default]
     Rectangle,
-    /// Kreis (immer 1:1) – z. B. für Avatare.
+    /// Circle (always 1:1) – e.g. for avatars.
     Circle,
 }
 
-/// Bild mit festem Seitenverhältnis (`Image`).
+/// Image with a fixed aspect ratio (`Image`).
 ///
-/// Ohne `src` – oder wenn das Bild nicht lädt – erscheint ein Platzhalter.
+/// Without `src` – or if the image does not load – a placeholder appears.
 #[component]
 pub fn Media(
     #[prop(optional)] ratio: MediaRatio,
     #[prop(optional)] shape: MediaShape,
     #[prop(optional, into)] src: Option<String>,
-    /// Alternativtext. Pflicht für echte Bilder.
+    /// Alternative text. Required for real images.
     #[prop(optional, into)]
     alt: String,
-    /// Text im Platzhalter, z. B. `"[BILD]"`.
+    /// Text in the placeholder, e.g. `"[BILD]"`.
     #[prop(default = "[BILD]".into(), into)]
     placeholder: String,
-    /// Eigene Breite, z. B. `"120px"` (Standard: volle Breite).
+    /// Own width, e.g. `"120px"` (default: full width).
     #[prop(optional, into)]
     width: Option<String>,
 ) -> impl IntoView {

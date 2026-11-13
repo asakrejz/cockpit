@@ -16,10 +16,10 @@ fn render() -> AnyView {
     let query = RwSignal::new(String::new());
     let name = RwSignal::new(String::new());
     let mail = RwSignal::new(String::new());
-    let plz = RwSignal::new("1234".to_string());
-    // Die PLZ ist ungültig, solange sie nicht aus genau fünf Ziffern besteht.
-    let plz_invalid = Signal::derive(move || {
-        let v = plz.get();
+    let zip = RwSignal::new("1234".to_string());
+    // The postal code is invalid as long as it does not consist of exactly five digits.
+    let zip_invalid = Signal::derive(move || {
+        let v = zip.get();
         v.len() != 5 || !v.chars().all(|c| c.is_ascii_digit())
     });
 
@@ -39,9 +39,9 @@ fn render() -> AnyView {
                         />
                         <TextField
                             label="Postleitzahl"
-                            value=plz
+                            value=zip
                             hint="Bitte eine fünfstellige PLZ eingeben."
-                            error=plz_invalid
+                            error=zip_invalid
                         />
                     </CardBody>
                 </Card>
@@ -50,7 +50,7 @@ fn render() -> AnyView {
                         format!(
                             "Suche: „{}“ · PLZ {}",
                             query.get(),
-                            if plz_invalid.get() { "ungültig" } else { "gültig" },
+                            if zip_invalid.get() { "ungültig" } else { "gültig" },
                         )
                     }}
                 </p>

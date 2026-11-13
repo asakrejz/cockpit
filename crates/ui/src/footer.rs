@@ -1,13 +1,13 @@
 use leptos::prelude::*;
 
-/// Spalte im [`Footer`].
+/// Column in the [`Footer`].
 #[derive(Clone, Debug)]
 pub struct FooterColumn {
     pub heading: &'static str,
     pub links: Vec<&'static str>,
 }
 
-/// Seitenfuß mit Linkspalten und Rechtstexten.
+/// Page footer with link columns and legal texts.
 #[component]
 pub fn Footer(
     columns: Vec<FooterColumn>,

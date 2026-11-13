@@ -1,30 +1,30 @@
-// Einstieg des Läufers im Container. Alles Geheime kommt über die Umgebung (ANTHROPIC_MODEL und
-// entweder ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN für einen Proxy oder ANTHROPIC_API_KEY direkt
-// bei Anthropic), der Auftrag aus einer Datei. COCKPIT_ANBIETER wählt den Adapter (src/adapter/).
-// Auf stdout stehen ausschließlich JSON-Zeilen (siehe ereignis.ts), Diagnose auf stderr.
+// Entry point of the runner in the container. Everything secret comes via the environment (ANTHROPIC_MODEL and
+// either ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN for a proxy or ANTHROPIC_API_KEY directly
+// at Anthropic), the job from a file. COCKPIT_PROVIDER chooses the adapter (src/adapter/).
+// Only JSON lines go to stdout (see event.ts), diagnostics to stderr.
 
 import { createInterface } from "node:readline";
-import { leseAuftrag } from "./auftrag.ts";
-import { stdoutSenke } from "./ereignis.ts";
-import { gitAusfuehren } from "./git.ts";
-import { waehleAdapter } from "./adapter/index.ts";
-import type { Eingang } from "./adapter/schnittstelle.ts";
-import { pruefeEndpunkt } from "./pruefung.ts";
+import { readJob } from "./job.ts";
+import { stdoutSink } from "./event.ts";
+import { gitRun } from "./git.ts";
+import { chooseAdapter } from "./adapter/index.ts";
+import type { Input } from "./adapter/interface.ts";
+import { checkEndpoint } from "./check.ts";
 
-process.umask(0); // das Backend soll den Klon nach dem Lauf lesen und löschen können
+process.umask(0); // the backend should be able to read and delete the clone after the run
 
-function stdinEingang(): Eingang {
-  const zeilen = createInterface({ input: process.stdin })[Symbol.asyncIterator]();
+function stdinInput(): Input {
+  const lines = createInterface({ input: process.stdin })[Symbol.asyncIterator]();
   return {
-    async naechste() {
+    async next() {
       for (;;) {
-        const n = await zeilen.next();
+        const n = await lines.next();
         if (n.done) return null;
         try {
           const j = JSON.parse(n.value);
-          if ((j.t === "antwort" || j.t === "hinweis") && typeof j.text === "string") return { t: j.t, text: j.text };
+          if ((j.t === "answer" || j.t === "hint") && typeof j.text === "string") return { t: j.t, text: j.text };
         } catch {
-          /* unlesbare Zeilen überspringen */
+          /* skip unreadable lines */
         }
       }
     },
@@ -32,37 +32,37 @@ function stdinEingang(): Eingang {
 }
 
 async function main(): Promise<number> {
-  const senke = stdoutSenke();
-  const pfad = process.env.COCKPIT_AUFTRAG ?? "/auftrag/auftrag.json";
-  let auftrag;
+  const sink = stdoutSink();
+  const path = process.env.COCKPIT_JOB ?? "/job/job.json";
+  let job;
   try {
-    auftrag = leseAuftrag(pfad);
+    job = readJob(path);
   } catch (e) {
-    senke({ t: "fehler", text: (e as Error).message });
+    sink({ t: "error", text: (e as Error).message });
     return 2;
   }
-  if (auftrag.modus === "pruefung") return pruefeEndpunkt(process.env, senke);
+  if (job.mode === "check") return checkEndpoint(process.env, sink);
   let adapter;
   try {
-    adapter = waehleAdapter(process.env.COCKPIT_ANBIETER);
+    adapter = chooseAdapter(process.env.COCKPIT_PROVIDER);
   } catch (e) {
-    senke({ t: "fehler", text: (e as Error).message });
+    sink({ t: "error", text: (e as Error).message });
     return 2;
   }
-  return adapter.ausfuehren(auftrag, {
-    senke,
-    git: gitAusfuehren,
-    eingang: stdinEingang(),
-    wurzel: process.env.COCKPIT_WURZEL ?? "/work",
-    jetzt: () => Date.now(),
-    umgebung: process.env,
+  return adapter.run(job, {
+    sink,
+    git: gitRun,
+    input: stdinInput(),
+    root: process.env.COCKPIT_ROOT ?? "/work",
+    now: () => Date.now(),
+    env: process.env,
   });
 }
 
 main().then(
   (code) => process.exit(code),
   (e) => {
-    stdoutSenke()({ t: "fehler", text: `Unerwarteter Fehler im Läufer: ${(e as Error).message}` });
+    stdoutSink()({ t: "error", text: `Unerwarteter Fehler im Läufer: ${(e as Error).message}` });
     process.exit(2);
   },
 );

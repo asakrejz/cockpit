@@ -1,9 +1,9 @@
-//! Einstellungen: Benachrichtigungen je Grund und Kanal, Ruhezeiten und die Erlaubnis des
-//! Browsers. Gespeichert wird im Workspace über Aktionen (`SetNotifyChannel`,
-//! `SetQuietHours`). Was wann gemeldet wird, steht in `cockpit_core::notify`.
+//! Settings: notifications per reason and channel, quiet hours and the permission of the
+//! browser. Saved in the workspace through actions (`SetNotifyChannel`,
+//! `SetQuietHours`). What is reported when is in `cockpit_core::notify`.
 //!
-//! E-Mail und Slack sind nur vorbereitet: Die Auswahl wird gespeichert, versendet wird
-//! später über das Backend. Adressen und Webhook-URLs gibt es im Browser nicht.
+//! Email and Slack are only prepared: the selection is saved, sending will be done
+//! later through the backend. Addresses and webhook URLs do not exist in the browser.
 
 use cockpit_core::{Action, Channel, NotifyEvent, NotifyReason, QuietHours};
 use feature_ui::*;
@@ -16,7 +16,7 @@ use crate::{
     view,
 };
 
-/// Ein Schalter für einen Grund und einen Kanal. Ändert den Workspace nur über die Aktion.
+/// A switch for a reason and a channel. Changes the workspace only through the action.
 #[component]
 fn ChannelToggle(reason: NotifyReason, channel: Channel) -> impl IntoView {
     let store = use_store();
@@ -26,7 +26,7 @@ fn ChannelToggle(reason: NotifyReason, channel: Channel) -> impl IntoView {
             .ws
             .with_untracked(|w| w.notifications.enabled(reason, channel)),
     );
-    // Schalter → Aktion.
+    // Switch → action.
     Effect::new(move |_| {
         let want = on.get();
         if want
@@ -41,7 +41,7 @@ fn ChannelToggle(reason: NotifyReason, channel: Channel) -> impl IntoView {
             });
         }
     });
-    // Workspace → Schalter (z. B. nach dem Zurücksetzen).
+    // Workspace → switch (e.g. after resetting).
     Effect::new(move |_| {
         let now = from_ws();
         if on.get_untracked() != now {
@@ -52,7 +52,7 @@ fn ChannelToggle(reason: NotifyReason, channel: Channel) -> impl IntoView {
     view! { <Toggle checked=on aria_label=name /> }
 }
 
-/// Ruhezeiten: an/aus und von–bis. Ungültige Zeiten ändern nichts und werden rot markiert.
+/// Quiet hours: on/off and from–to. Invalid times change nothing and are marked red.
 #[component]
 fn Quiet() -> impl IntoView {
     let store = use_store();
@@ -124,7 +124,7 @@ fn Quiet() -> impl IntoView {
 #[component]
 pub fn NotificationsPage() -> impl IntoView {
     let store = use_store();
-    // Die Erlaubnis kann sich in den Browser-Einstellungen geändert haben.
+    // The permission may have changed in the browser settings.
     store.permission.set(browser::permission());
 
     let ask = move |_| browser::request(move |state| store.permission.set(state));

@@ -38,8 +38,7 @@ fn setup_statuses_read_old_and_partial_json() {
         serde_json::from_str::<Setup>("{}").unwrap(),
         Setup::default()
     );
-    let p: EndpointCheck =
-        serde_json::from_str(r#"{"konfiguriert":true,"erreichbar":true}"#).unwrap();
+    let p: EndpointCheck = serde_json::from_str(r#"{"configured":true,"reachable":true}"#).unwrap();
     assert!(p.reachable && !p.key_ok && !p.model_present);
 }
 
@@ -91,7 +90,7 @@ fn providers_have_stable_names_and_only_the_sdk_is_implemented() {
 #[test]
 fn the_old_key_name_counts_as_the_agent_key() {
     let with = |n: &str| Setup {
-        key: vec![KeyResponse {
+        keys: vec![KeyResponse {
             name: n.into(),
             set: true,
         }],

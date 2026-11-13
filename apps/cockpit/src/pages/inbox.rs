@@ -1,5 +1,5 @@
-//! Aufmerksamkeit: links die Inbox aus Tickets und Pull Requests, rechts das Detail
-//! mit Status, Branch, Kommentaren und dem Weg zum Agenten.
+//! Attention: on the left the inbox of tickets and pull requests, on the right the detail
+//! with status, branch, comments and the way to the agent.
 
 use cockpit_core::{
     Action, Filter, InboxFilter, Item, Person, Priority, Rule, SnoozeChoice, SourceFilter,
@@ -21,12 +21,12 @@ use crate::{
 pub fn InboxPage(filter: Filter) -> impl IntoView {
     let store = use_store();
 
-    // Die Memos melden sich nur, wenn sich ihr Ergebnis wirklich ändert. Ein tickender
-    // Agent an einem anderen Ticket baut das Detail also nicht neu auf.
-    // Suchtext und Quelle gehören nur dieser Seite; sie bleiben nicht über Navigation hinweg.
+    // The memos only fire when their result really changes. A ticking
+    // agent on another ticket therefore does not rebuild the detail.
+    // Search text and source belong only to this page; they do not persist across navigation.
     let query = RwSignal::new(String::new());
     let source = RwSignal::new(SourceFilter::All);
-    // Repo, Person, Status und Label ebenso; leer heißt „alle“.
+    // Repo, person, status and label likewise; empty means "all".
     let repo = RwSignal::new(String::new());
     let person = RwSignal::new(String::new());
     let status = RwSignal::new(String::new());
@@ -48,22 +48,22 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                 .collect::<Vec<Item>>()
         })
     });
-    // Der gewählte Eintrag. Ist er im Filter nicht sichtbar, gilt der erste.
+    // The chosen entry. If it is not visible in the filter, the first one applies.
     let current = Memo::new(move |_| {
         let id = store.selected.get();
         let list = items.get();
         list.iter().find(|i| i.id == id).or(list.first()).cloned()
     });
 
-    // Entwurf der Antwort. Mit jedem Wechsel des Eintrags beginnt ein neuer.
+    // Draft of the reply. With every change of the entry a new one begins.
     let draft = RwSignal::new(String::new());
     Effect::new(move |_| {
         store.selected.track();
         draft.set(String::new());
     });
 
-    // Bearbeiten-Modus eines Tickets: Entwurf von Titel und Beschreibung. Mit jedem Wechsel
-    // des Eintrags endet er; ein Entwurf geht nicht in ein anderes Ticket über.
+    // Edit mode of a ticket: draft of title and description. With every change
+    // of the entry it ends; a draft does not carry over to another ticket.
     let edit = Edit {
         on: RwSignal::new(false),
         title: RwSignal::new(String::new()),
@@ -74,13 +74,13 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
         edit.on.set(false);
     });
 
-    // Tastaturbedienung: gilt, solange die Seite offen ist, und endet mit ihr.
+    // Keyboard control: applies as long as the page is open and ends with it.
     let listener = window_event_listener(ev::keydown, move |event| {
         on_key(store, items, current, event)
     });
     on_cleanup(move || listener.remove());
 
-    // Der gewählte Eintrag soll sichtbar bleiben, auch wenn er per Tastatur wechselt.
+    // The chosen entry should stay visible, even if it changes by keyboard.
     Effect::new(move |_| {
         current.track();
         request_animation_frame(|| {
@@ -242,7 +242,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                             }
                                 .into_any()
                         } else if list.is_empty() && store.ws.with(|w| w.items.is_empty()) {
-                            // Ein frischer Workspace: noch nichts verbunden oder abgeglichen.
+                            // A fresh workspace: nothing connected or synced yet.
                             view! {
                                 <li class="ck-empty ui-vstack">
                                     <p class="t-subheadline t-secondary">
@@ -295,8 +295,8 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
     }
 }
 
-/// Der Eintrag mit dem Grund, den die Regeln liefern: Der wichtigste Treffer bestimmt Icon,
-/// Farbe und Satz in der Zeile. In „Zurückgestellt“ steht stattdessen, bis wann.
+/// The entry with the reason the rules deliver: the most important hit determines icon,
+/// color and sentence in the row. In "Zurückgestellt" the time until when is shown instead.
 fn with_reason(w: &cockpit_core::Workspace, item: &Item, filter: Filter, now: u64) -> Item {
     let mut item = item.clone();
     if let Some(hit) = w.hits(&item, now).into_iter().next() {
@@ -311,7 +311,7 @@ fn with_reason(w: &cockpit_core::Workspace, item: &Item, filter: Filter, now: u6
     item
 }
 
-/// „Zurückgestellt bis Do., 12.11., 08:00“ oder „… bis sich etwas ändert“.
+/// "Zurückgestellt bis Do., 12.11., 08:00" or "… bis sich etwas ändert".
 fn snooze_text(until_ms: Option<u64>) -> String {
     match until_ms {
         Some(ms) => format!("Zurückgestellt bis {}", format_time(ms)),
@@ -319,7 +319,7 @@ fn snooze_text(until_ms: Option<u64>) -> String {
     }
 }
 
-/// Zeitpunkt in der Ortszeit des Browsers, kurz und deutsch.
+/// Time in the browser's local time, short and in German.
 fn format_time(ms: u64) -> String {
     let options = js_sys::Object::new();
     for (key, value) in [
@@ -337,7 +337,7 @@ fn format_time(ms: u64) -> String {
         .unwrap_or_default()
 }
 
-/// Entwurf im Bearbeiten-Modus eines Tickets.
+/// Draft in the edit mode of a ticket.
 #[derive(Clone, Copy)]
 struct Edit {
     on: RwSignal<bool>,
@@ -345,7 +345,7 @@ struct Edit {
     description: RwSignal<String>,
 }
 
-/// Stellt einen Eintrag zurück und wählt danach den Nachbarn in der Liste.
+/// Snoozes an entry and then selects the neighbor in the list.
 fn snooze(store: Store, items: Memo<Vec<Item>>, id: &str, choice: SnoozeChoice) {
     let until_ms = choice.until_ms(now_ms(), utc_offset_min());
     let list = items.get_untracked();

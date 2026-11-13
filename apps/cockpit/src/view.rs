@@ -1,4 +1,4 @@
-//! Übersetzt Begriffe der Fachlogik in Bausteine der Oberfläche.
+//! Translates terms of the domain logic into building blocks of the interface.
 
 use cockpit_core::{FileDiff, LineKind, NotifyReason, ReasonKind, Tone};
 use feature_ui::{DiffKind, DiffRow, StatusTone, icons};

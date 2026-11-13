@@ -2,7 +2,7 @@
   "name": "cockpit-agent-runner",
   "version": "0.1.0",
   "private": true,
-  "description": "Läufer des Cockpit-Agenten: führt einen Auftrag mit dem Claude Agent SDK aus und meldet JSON-Zeilen auf stdout",
+  "description": "Runner of the Cockpit agent: runs a job with the Claude Agent SDK and reports JSON lines on stdout",
   "type": "module",
   "engines": { "node": ">=22.18" },
   "scripts": {

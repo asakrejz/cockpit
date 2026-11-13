@@ -1,126 +1,126 @@
 use super::*;
 
 #[tokio::test]
-async fn ohne_seed_startet_der_workspace_leer() {
-    let conn = db::open_im_speicher().unwrap();
-    let (ws, revision) = stand_von(zustand_mit(conn, leer(), Arc::new(MemoryStore::new()))).await;
+async fn without_seed_starts_the_workspace_empty() {
+    let conn = db::open_in_memory().unwrap();
+    let (ws, revision) = state_from(state_with(conn, empty(), Arc::new(MemoryStore::new()))).await;
     assert_eq!(ws, cockpit_core::Workspace::default());
     assert!(ws.items.is_empty() && ws.reviews.is_empty() && ws.runs.is_empty());
     assert_eq!(revision, 0);
 }
 
 #[tokio::test]
-async fn seed_demo_laedt_die_beispieldaten() {
-    let e = Einstellungen {
+async fn seed_demo_loads_the_sample_data() {
+    let e = Settings {
         seed: Seed::Demo,
-        ..leer()
+        ..empty()
     };
-    let conn = db::open_im_speicher().unwrap();
-    let (ws, _) = stand_von(zustand_mit(conn, e, Arc::new(MemoryStore::new()))).await;
+    let conn = db::open_in_memory().unwrap();
+    let (ws, _) = state_from(state_with(conn, e, Arc::new(MemoryStore::new()))).await;
     assert_eq!(ws, cockpit_core::demo::workspace());
 }
 
 #[tokio::test]
-async fn ein_gespeicherter_stand_geht_dem_seed_vor() {
-    let mut gespeichert = cockpit_core::demo::workspace();
-    let id = gespeichert.items[0].id.clone();
-    gespeichert.mark_done(&id);
-    let text = cockpit_core::persist::save_with_revision(&gespeichert, 5);
-    for seed in [Seed::Leer, Seed::Demo] {
-        let conn = db::open_im_speicher().unwrap();
-        db::workspace_speichern(&conn, 5, &text).unwrap();
-        let e = Einstellungen { seed, ..leer() };
-        let (ws, revision) = stand_von(zustand_mit(conn, e, Arc::new(MemoryStore::new()))).await;
-        assert_eq!(ws, gespeichert, "{seed:?}");
+async fn a_stored_state_goes_the_seed_before() {
+    let mut stored = cockpit_core::demo::workspace();
+    let id = stored.items[0].id.clone();
+    stored.mark_done(&id);
+    let text = cockpit_core::persist::save_with_revision(&stored, 5);
+    for seed in [Seed::Empty, Seed::Demo] {
+        let conn = db::open_in_memory().unwrap();
+        db::workspace_save(&conn, 5, &text).unwrap();
+        let e = Settings { seed, ..empty() };
+        let (ws, revision) = state_from(state_with(conn, e, Arc::new(MemoryStore::new()))).await;
+        assert_eq!(ws, stored, "{seed:?}");
         assert_eq!(revision, 5);
     }
 }
 
 #[tokio::test]
-async fn unlesbarer_stand_faellt_auf_den_seed_zurueck() {
-    let conn = db::open_im_speicher().unwrap();
-    db::workspace_speichern(&conn, 7, "{kaputt").unwrap();
-    let (ws, revision) = stand_von(zustand_mit(conn, leer(), Arc::new(MemoryStore::new()))).await;
+async fn unreadable_state_falls_on_the_seed_back() {
+    let conn = db::open_in_memory().unwrap();
+    db::workspace_save(&conn, 7, "{kaputt").unwrap();
+    let (ws, revision) = state_from(state_with(conn, empty(), Arc::new(MemoryStore::new()))).await;
     assert_eq!(ws, cockpit_core::Workspace::default());
     assert_eq!(revision, 0);
 }
 
 #[tokio::test]
-async fn aktionen_auf_dem_leeren_workspace_lehnen_unbekannte_eintraege_ab() {
-    let conn = db::open_im_speicher().unwrap();
+async fn actions_on_the_empty_workspace_reject_unknown_entries_ab() {
+    let conn = db::open_in_memory().unwrap();
     let app = router(
-        zustand_mit(conn, leer(), Arc::new(MemoryStore::new())),
+        state_with(conn, empty(), Arc::new(MemoryStore::new())),
         PathBuf::from("/x"),
     );
-    let (status, body) = schicke(app, &mark_done("gibt-es-nicht")).await;
+    let (status, body) = send(app, &mark_done("gibt-es-nicht")).await;
     assert!(status.is_client_error(), "{status} {body}");
 }
 
 #[tokio::test]
-async fn health_meldet_den_endpunkt_ohne_den_key() {
+async fn health_reports_the_endpoint_without_the_key() {
     let secrets = Arc::new(MemoryStore::new());
     secrets
         .set(secrets::AGENT_KEY, &Secret::new("sk-geheim-123456"))
         .unwrap();
-    let e = Einstellungen {
-        agent: AgentWahl {
-            anbieter: Provider::ClaudeAgentSdk,
-            endpunkt: Some(EndpunktKonfig {
+    let e = Settings {
+        agent: AgentChoice {
+            provider: Provider::ClaudeAgentSdk,
+            endpoint: Some(EndpointConfig {
                 url: Some("http://localhost:4000".into()),
-                modell: Some("claude-sonnet-5-5".into()),
+                model: Some("claude-sonnet-5-5".into()),
             }),
         },
-        ..leer()
+        ..empty()
     };
-    let conn = db::open_im_speicher().unwrap();
-    let app = router(zustand_mit(conn, e, secrets), PathBuf::from("/x"));
+    let conn = db::open_in_memory().unwrap();
+    let app = router(state_with(conn, e, secrets), PathBuf::from("/x"));
     let (_, body) = hole(app, "/api/health").await;
     assert!(!body.contains("geheim"), "{body}");
     let j = json(&body);
-    assert_eq!(j["endpunkt"]["konfiguriert"], true);
-    assert_eq!(j["endpunkt"]["anbieter"], "claude-agent-sdk");
-    assert_eq!(j["endpunkt"]["url"], "http://localhost:4000");
-    assert_eq!(j["endpunkt"]["modell"], "claude-sonnet-5-5");
-    assert_eq!(j["endpunkt"]["key"], true);
+    assert_eq!(j["endpoint"]["configured"], true);
+    assert_eq!(j["endpoint"]["provider"], "claude-agent-sdk");
+    assert_eq!(j["endpoint"]["url"], "http://localhost:4000");
+    assert_eq!(j["endpoint"]["model"], "claude-sonnet-5-5");
+    assert_eq!(j["endpoint"]["key"], true);
 
-    // Der ältere Schlüsselname `litellm` zählt weiter.
+    // The older key name `litellm` still counts.
     let alt = Arc::new(MemoryStore::new());
     alt.set(secrets::LITELLM, &Secret::new("sk-alt-123456"))
         .unwrap();
-    let app = router(zustand(alt), PathBuf::from("/x"));
+    let app = router(state(alt), PathBuf::from("/x"));
     let (_, body) = hole(app, "/api/health").await;
-    assert_eq!(json(&body)["endpunkt"]["key"], true);
+    assert_eq!(json(&body)["endpoint"]["key"], true);
 
-    // Ohne Einstellung: nicht konfiguriert, kein Key.
-    let app = router(zustand(Arc::new(MemoryStore::new())), PathBuf::from("/x"));
+    // Without a setting: not configured, no key.
+    let app = router(state(Arc::new(MemoryStore::new())), PathBuf::from("/x"));
     let (_, body) = hole(app, "/api/health").await;
     let j = json(&body);
-    assert_eq!(j["endpunkt"]["konfiguriert"], false);
-    assert_eq!(j["endpunkt"]["key"], false);
-    assert_eq!(j["container"]["quelle"], "keine");
-    assert_eq!(j["container"]["laufzeit"], serde_json::Value::Null);
+    assert_eq!(j["endpoint"]["configured"], false);
+    assert_eq!(j["endpoint"]["key"], false);
+    assert_eq!(j["container"]["source"], "none");
+    assert_eq!(j["container"]["runtime"], serde_json::Value::Null);
 }
 
 #[cfg(unix)]
 #[tokio::test]
-async fn health_meldet_die_container_laufzeit() {
+async fn health_reports_the_container_runtime() {
     use std::os::unix::fs::PermissionsExt;
-    let ordner = tempfile::tempdir().unwrap();
-    let datei = ordner.path().join("podman");
-    std::fs::write(&datei, "#!/bin/sh\nexit 0\n").unwrap();
-    std::fs::set_permissions(&datei, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let e = Einstellungen {
-        suchpfad: Some(ordner.path().as_os_str().to_owned()),
-        ..Einstellungen::default()
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("podman");
+    std::fs::write(&file, "#!/bin/sh\nexit 0\n").unwrap();
+    std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let e = Settings {
+        search_path: Some(dir.path().as_os_str().to_owned()),
+        ..Settings::default()
     };
-    let conn = db::open_im_speicher().unwrap();
+    let conn = db::open_in_memory().unwrap();
     let app = router(
-        zustand_mit(conn, e, Arc::new(MemoryStore::new())),
+        state_with(conn, e, Arc::new(MemoryStore::new())),
         PathBuf::from("/x"),
     );
     let (_, body) = hole(app, "/api/health").await;
     let j = json(&body);
-    assert_eq!(j["container"]["laufzeit"], "podman");
-    assert_eq!(j["container"]["engine_laeuft"], true);
-    assert_eq!(j["container"]["quelle"], "erkannt");
+    assert_eq!(j["container"]["runtime"], "podman");
+    assert_eq!(j["container"]["engine_running"], true);
+    assert_eq!(j["container"]["source"], "detected");
 }

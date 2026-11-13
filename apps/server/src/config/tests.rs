@@ -1,12 +1,12 @@
 use super::*;
 
-fn keine_env(_: &str) -> Option<String> {
+fn no_env(_: &str) -> Option<String> {
     None
 }
 
 #[test]
-fn standardwerte() {
-    let c = Config::aus(None, keine_env).unwrap();
+fn defaults() {
+    let c = Config::parse(None, no_env).unwrap();
     assert_eq!(c.port, 8787);
     assert_eq!(c.dist, PathBuf::from("apps/cockpit/dist"));
     assert!(c.db.ends_with("cockpit/cockpit.db"));
@@ -14,7 +14,7 @@ fn standardwerte() {
 }
 
 #[test]
-fn datei_ueberschreibt_standard() {
+fn file_overwrites_defaults() {
     let toml = r#"
         port = 9000
         dist = "/srv/app"
@@ -23,18 +23,18 @@ fn datei_ueberschreibt_standard() {
         site = "https://firma.atlassian.net"
         email = "ich@firma.example"
     "#;
-    let c = Config::aus(Some(toml), keine_env).unwrap();
+    let c = Config::parse(Some(toml), no_env).unwrap();
     assert_eq!(c.port, 9000);
     assert_eq!(c.dist, PathBuf::from("/srv/app"));
-    assert_eq!(c.github.unwrap().api_url, STANDARD_GITHUB_API);
+    assert_eq!(c.github.unwrap().api_url, DEFAULT_GITHUB_API);
     assert_eq!(c.jira.unwrap().email, "ich@firma.example");
-    assert_eq!(c.intervall_s, 120);
+    assert_eq!(c.interval_s, 120);
 }
 
 #[test]
-fn quellen_und_intervall() {
+fn sources_and_interval() {
     let toml = r#"
-        intervall_s = 60
+        interval_s = 60
         [github]
         repos = ["firma/app", "firma/web.v2"]
         [jira]
@@ -43,14 +43,14 @@ fn quellen_und_intervall() {
         projects = ["BAU", "WEB"]
         jql = "  "
     "#;
-    let c = Config::aus(Some(toml), keine_env).unwrap();
-    assert_eq!(c.intervall_s, 60);
+    let c = Config::parse(Some(toml), no_env).unwrap();
+    assert_eq!(c.interval_s, 60);
     assert_eq!(c.github.unwrap().repos, ["firma/app", "firma/web.v2"]);
     let j = c.jira.unwrap();
     assert_eq!(j.projects, ["BAU", "WEB"]);
     assert_eq!(j.jql, None, "leere Abfrage zählt nicht");
-    for kaputt in [
-        "intervall_s = 5",
+    for broken in [
+        "interval_s = 5",
         "[github]\nrepos = [\"nur-name\"]",
         "[github]\nrepos = [\"a/b/c\"]",
         "[github]\nrepos = [\"a b/c\"]",
@@ -58,52 +58,52 @@ fn quellen_und_intervall() {
     ] {
         assert!(
             matches!(
-                Config::aus(Some(kaputt), keine_env),
-                Err(KonfigFehler::Wert(_))
+                Config::parse(Some(broken), no_env),
+                Err(ConfigError::Wert(_))
             ),
-            "{kaputt}"
+            "{broken}"
         );
     }
 }
 
 #[test]
-fn umgebung_ueberschreibt_datei() {
+fn env_overwrites_file() {
     let env = |k: &str| match k {
         "COCKPIT_PORT" => Some("9100".to_string()),
         "COCKPIT_DB" => Some("/tmp/x.db".to_string()),
         _ => None,
     };
-    let c = Config::aus(Some("port = 9000"), env).unwrap();
+    let c = Config::parse(Some("port = 9000"), env).unwrap();
     assert_eq!(c.port, 9100);
     assert_eq!(c.db, PathBuf::from("/tmp/x.db"));
 }
 
 #[test]
-fn fehler_sind_verstaendlich() {
-    let env_kaputt = |k: &str| (k == "COCKPIT_PORT").then(|| "abc".to_string());
+fn errors_are_understandable() {
+    let env_broken = |k: &str| (k == "COCKPIT_PORT").then(|| "abc".to_string());
     assert!(matches!(
-        Config::aus(None, env_kaputt),
-        Err(KonfigFehler::Wert(_))
+        Config::parse(None, env_broken),
+        Err(ConfigError::Wert(_))
     ));
     assert!(matches!(
-        Config::aus(Some("port = "), keine_env),
-        Err(KonfigFehler::Toml(_))
+        Config::parse(Some("port = "), no_env),
+        Err(ConfigError::Toml(_))
     ));
-    // Tippfehler in der Datei fallen auf, statt still ignoriert zu werden.
+    // Typos in the file stand out instead of being silently ignored.
     assert!(matches!(
-        Config::aus(Some("prot = 1"), keine_env),
-        Err(KonfigFehler::Toml(_))
+        Config::parse(Some("prot = 1"), no_env),
+        Err(ConfigError::Toml(_))
     ));
     assert!(matches!(
-        Config::aus(Some("port = 0"), keine_env),
-        Err(KonfigFehler::Wert(_))
+        Config::parse(Some("port = 0"), no_env),
+        Err(ConfigError::Wert(_))
     ));
-    // Jira braucht Adresse und E-Mail.
-    assert!(Config::aus(Some("[jira]\nsite = \"https://x\""), keine_env).is_err());
+    // Jira needs address and email.
+    assert!(Config::parse(Some("[jira]\nsite = \"https://x\""), no_env).is_err());
 }
 
 #[test]
-fn oauth_abschnitte() {
+fn oauth_sections() {
     let toml = r#"
         [github_oauth]
         client_id = " Iv23abc "
@@ -111,72 +111,73 @@ fn oauth_abschnitte() {
         client_id = "atl123"
         site = "firma"
     "#;
-    let c = Config::aus(Some(toml), keine_env).unwrap();
+    let c = Config::parse(Some(toml), no_env).unwrap();
     assert_eq!(c.github_oauth.unwrap().client_id, "Iv23abc");
     let a = c.atlassian.unwrap();
     assert_eq!(
         (a.client_id.as_str(), a.site.as_deref()),
         ("atl123", Some("firma"))
     );
-    // [atlassian] allein richtet Jira ein, ohne site und email.
+    // [atlassian] alone sets up Jira, without site and email.
     let j = c.jira.unwrap();
     assert!(j.site.is_empty() && j.email.is_empty() && j.projects.is_empty());
 
-    // Projekte bleiben einstellbar.
+    // Projects stay configurable.
     let toml = "[atlassian]\nclient_id = \"a\"\n[jira]\nprojects = [\"BAU\"]";
     assert_eq!(
-        Config::aus(Some(toml), keine_env)
+        Config::parse(Some(toml), no_env)
             .unwrap()
             .jira
             .unwrap()
             .projects,
         ["BAU"]
     );
-    for kaputt in [
+    for broken in [
         "[github_oauth]\nclient_id = \"\"",
         "[atlassian]\nclient_id = \"a b\"",
     ] {
         assert!(matches!(
-            Config::aus(Some(kaputt), keine_env),
-            Err(KonfigFehler::Wert(_))
+            Config::parse(Some(broken), no_env),
+            Err(ConfigError::Wert(_))
         ));
     }
-    // Tippfehler im Abschnitt fallen auf (Secrets gehören nicht in die Datei).
+    // Typos in the section stand out (secrets do not belong in the file).
     assert!(matches!(
-        Config::aus(
+        Config::parse(
             Some("[atlassian]\nclient_id = \"a\"\nclient_secret = \"x\""),
-            keine_env
+            no_env
         ),
-        Err(KonfigFehler::Toml(_))
+        Err(ConfigError::Toml(_))
     ));
 }
 
 #[test]
-fn seed_ist_standardmaessig_leer() {
-    assert_eq!(Config::aus(None, keine_env).unwrap().seed, Seed::Leer);
+fn seed_is_by_default_empty() {
+    assert_eq!(Config::parse(None, no_env).unwrap().seed, Seed::Empty);
     assert_eq!(
-        Config::aus(Some("seed = \"demo\""), keine_env)
-            .unwrap()
-            .seed,
+        Config::parse(Some("seed = \"demo\""), no_env).unwrap().seed,
         Seed::Demo
     );
     let env = |k: &str| (k == "COCKPIT_SEED").then(|| "leer".to_string());
     assert_eq!(
-        Config::aus(Some("seed = \"demo\""), env).unwrap().seed,
-        Seed::Leer,
+        Config::parse(Some("seed = \"demo\""), env).unwrap().seed,
+        Seed::Empty,
         "die Umgebung geht der Datei vor"
     );
     let env = |k: &str| (k == "COCKPIT_SEED").then(|| " Demo ".to_string());
-    assert_eq!(Config::aus(None, env).unwrap().seed, Seed::Demo);
+    assert_eq!(Config::parse(None, env).unwrap().seed, Seed::Demo);
     let env = |k: &str| (k == "COCKPIT_SEED").then(|| "viel".to_string());
-    assert!(matches!(Config::aus(None, env), Err(KonfigFehler::Wert(_))));
-    assert!(Config::aus(Some("seed = \"viel\""), keine_env).is_err());
+    assert!(matches!(
+        Config::parse(None, env),
+        Err(ConfigError::Wert(_))
+    ));
+    assert!(Config::parse(Some("seed = \"viel\""), no_env).is_err());
 }
 
 #[test]
-fn repo_und_ordner_des_agenten() {
+fn repo_and_dir_the_agents() {
     let toml = "[agent]\nrepo = \" firma/app \"\ndir = \"/opt/cockpit/agent\"";
-    let c = Config::aus(Some(toml), keine_env).unwrap();
+    let c = Config::parse(Some(toml), no_env).unwrap();
     assert_eq!(c.agent_repo.as_deref(), Some("firma/app"));
     assert_eq!(c.agent_dir, Some(PathBuf::from("/opt/cockpit/agent")));
     let env = |k: &str| match k {
@@ -184,145 +185,177 @@ fn repo_und_ordner_des_agenten() {
         "COCKPIT_GIT_BASIS" => Some("file:///tmp/git/".to_string()),
         _ => None,
     };
-    let c = Config::aus(Some(toml), env).unwrap();
+    let c = Config::parse(Some(toml), env).unwrap();
     assert_eq!(c.agent_dir, Some(PathBuf::from("/andere/agent")));
-    assert_eq!(c.git_basis.as_deref(), Some("file:///tmp/git"));
-    for kaputt in ["repo = \"firma\"", "repo = \"../x\"", "repo = \"a/b/c\""] {
+    assert_eq!(c.git_base.as_deref(), Some("file:///tmp/git"));
+    for broken in ["repo = \"firma\"", "repo = \"../x\"", "repo = \"a/b/c\""] {
         assert!(
             matches!(
-                Config::aus(Some(&format!("[agent]\n{kaputt}")), keine_env),
-                Err(KonfigFehler::Wert(_))
+                Config::parse(Some(&format!("[agent]\n{broken}")), no_env),
+                Err(ConfigError::Wert(_))
             ),
-            "{kaputt}"
+            "{broken}"
         );
     }
-    // Ohne Angabe nichts.
-    let c = Config::aus(None, keine_env).unwrap();
-    assert_eq!((c.agent_repo, c.agent_dir, c.git_basis), (None, None, None));
+    // Nothing without a value.
+    let c = Config::parse(None, no_env).unwrap();
+    assert_eq!((c.agent_repo, c.agent_dir, c.git_base), (None, None, None));
 }
 
 #[test]
-fn endpunkt_und_container() {
+fn endpoint_and_container() {
     let toml = r#"
         [agent]
         container = "Podman"
-        anbieter = "Claude-Agent-SDK"
-        [agent.endpunkt]
+        provider = "Claude-Agent-SDK"
+        [agent.endpoint]
         url = " http://localhost:4000/ "
-        modell = "claude-sonnet-5-5"
+        model = "claude-sonnet-5-5"
     "#;
-    let c = Config::aus(Some(toml), keine_env).unwrap();
-    assert_eq!(c.anbieter, Provider::ClaudeAgentSdk);
-    let e = c.endpunkt.unwrap();
+    let c = Config::parse(Some(toml), no_env).unwrap();
+    assert_eq!(c.provider, Provider::ClaudeAgentSdk);
+    let e = c.endpoint.unwrap();
     assert_eq!(e.url.as_deref(), Some("http://localhost:4000"));
-    assert_eq!(e.modell.as_deref(), Some("claude-sonnet-5-5"));
+    assert_eq!(e.model.as_deref(), Some("claude-sonnet-5-5"));
     assert_eq!(c.container.as_deref(), Some("podman"));
     assert_eq!(c.container_env, None);
 
     let env = |k: &str| (k == "COCKPIT_CONTAINER").then(|| "docker".to_string());
     assert_eq!(
-        Config::aus(None, env).unwrap().container_env.as_deref(),
+        Config::parse(None, env).unwrap().container_env.as_deref(),
         Some("docker")
     );
-    for kaputt in [
-        "[agent.endpunkt]\nurl = \"localhost:4000\"",
-        "[agent.endpunkt]\nurl = \"http://\"",
-        "[agent.endpunkt]\nurl = \"http://a b\"",
+    for broken in [
+        "[agent.endpoint]\nurl = \"localhost:4000\"",
+        "[agent.endpoint]\nurl = \"http://\"",
+        "[agent.endpoint]\nurl = \"http://a b\"",
         "[agent]\ncontainer = \"nerdctl\"",
-        "[agent]\nanbieter = \"gpt\"",
+        "[agent]\nprovider = \"gpt\"",
         "[litellm]\nurl = \"localhost:4000\"",
     ] {
         assert!(
             matches!(
-                Config::aus(Some(kaputt), keine_env),
-                Err(KonfigFehler::Wert(_))
+                Config::parse(Some(broken), no_env),
+                Err(ConfigError::Wert(_))
             ),
-            "{kaputt}"
+            "{broken}"
         );
     }
-    // Der Key gehört nicht in die Datei.
-    for mit_key in [
-        "[agent.endpunkt]\nurl = \"http://x\"\nkey = \"abc\"",
+    // The key does not belong in the file.
+    for with_key in [
+        "[agent.endpoint]\nurl = \"http://x\"\nkey = \"abc\"",
         "[litellm]\nurl = \"http://x\"\nkey = \"abc\"",
     ] {
         assert!(matches!(
-            Config::aus(Some(mit_key), keine_env),
-            Err(KonfigFehler::Toml(_))
+            Config::parse(Some(with_key), no_env),
+            Err(ConfigError::Toml(_))
         ));
     }
 }
 
 #[test]
-fn direkt_beim_anbieter_hat_keine_adresse() {
-    let c = Config::aus(
-        Some("[agent.endpunkt]\nmodell = \"claude-opus-5-5\""),
-        keine_env,
+fn direct_at_provider_has_no_address() {
+    let c = Config::parse(
+        Some("[agent.endpoint]\nmodel = \"claude-opus-5-5\""),
+        no_env,
     )
     .unwrap();
-    let e = c.endpunkt.unwrap();
+    let e = c.endpoint.unwrap();
+    assert_eq!((e.url, e.model.as_deref()), (None, Some("claude-opus-5-5")));
+    // Empty address = direct; a completely empty section = not set up.
+    let c = Config::parse(Some("[agent.endpoint]\nurl = \"\"\nmodel = \"m\""), no_env).unwrap();
+    assert_eq!(c.endpoint.unwrap().url, None);
     assert_eq!(
-        (e.url, e.modell.as_deref()),
-        (None, Some("claude-opus-5-5"))
-    );
-    // Leere Adresse = direkt; ganz leerer Abschnitt = nicht eingerichtet.
-    let c = Config::aus(
-        Some("[agent.endpunkt]\nurl = \"\"\nmodell = \"m\""),
-        keine_env,
-    )
-    .unwrap();
-    assert_eq!(c.endpunkt.unwrap().url, None);
-    assert_eq!(
-        Config::aus(Some("[agent.endpunkt]"), keine_env)
+        Config::parse(Some("[agent.endpoint]"), no_env)
             .unwrap()
-            .endpunkt,
+            .endpoint,
         None
     );
     assert_eq!(
-        Config::aus(None, keine_env).unwrap().anbieter,
+        Config::parse(None, no_env).unwrap().provider,
         Provider::ClaudeAgentSdk
     );
 }
 
 #[test]
-fn bekannte_werkzeuge_lassen_sich_eintragen() {
-    for (text, soll) in [
+fn known_tools_let_itself_add() {
+    for (text, should) in [
         ("claude-code", Provider::ClaudeCode),
         ("codex", Provider::Codex),
     ] {
-        let c = Config::aus(Some(&format!("[agent]\nanbieter = \"{text}\"")), keine_env).unwrap();
-        assert_eq!(c.anbieter, soll);
+        let c = Config::parse(Some(&format!("[agent]\nprovider = \"{text}\"")), no_env).unwrap();
+        assert_eq!(c.provider, should);
     }
 }
 
 #[test]
-fn alte_litellm_datei_wird_weiter_gelesen_und_die_neue_geht_vor() {
+fn old_litellm_file_is_further_read_and_the_new_goes_before() {
     let alt = "[litellm]\nurl = \"http://localhost:4000/\"\nmodell = \"altes-modell\"\n[agent]\ncontainer = \"docker\"";
-    let c = Config::aus(Some(alt), keine_env).unwrap();
-    let e = c.endpunkt.unwrap();
+    let c = Config::parse(Some(alt), no_env).unwrap();
+    let e = c.endpoint.unwrap();
     assert_eq!(e.url.as_deref(), Some("http://localhost:4000"));
-    assert_eq!(e.modell.as_deref(), Some("altes-modell"));
-    assert_eq!(c.anbieter, Provider::ClaudeAgentSdk);
+    assert_eq!(e.model.as_deref(), Some("altes-modell"));
+    assert_eq!(c.provider, Provider::ClaudeAgentSdk);
     assert_eq!(c.container.as_deref(), Some("docker"));
 
-    let neu = "[agent.endpunkt]\nurl = \"https://litellm.example\"\nmodell = \"neues-modell\"";
-    let c = Config::aus(Some(neu), keine_env).unwrap();
+    let updated = "[agent.endpoint]\nurl = \"https://litellm.example\"\nmodel = \"neues-modell\"";
+    let c = Config::parse(Some(updated), no_env).unwrap();
     assert_eq!(
-        c.endpunkt,
-        Config::aus(Some(&format!("{alt}\n{neu}")), keine_env)
+        c.endpoint,
+        Config::parse(Some(&format!("{alt}\n{updated}")), no_env)
             .unwrap()
-            .endpunkt
+            .endpoint
     );
-    let e = c.endpunkt.unwrap();
+    let e = c.endpoint.unwrap();
     assert_eq!(e.url.as_deref(), Some("https://litellm.example"));
-    assert_eq!(e.modell.as_deref(), Some("neues-modell"));
+    assert_eq!(e.model.as_deref(), Some("neues-modell"));
 }
 
 #[test]
-fn dev_port_nur_aus_der_umgebung() {
-    assert_eq!(Config::aus(None, keine_env).unwrap().dev_port, None);
+fn dev_port_only_out_the_env() {
+    assert_eq!(Config::parse(None, no_env).unwrap().dev_port, None);
     let env = |k: &str| (k == "COCKPIT_DEV_PORT").then(|| "8081".to_string());
-    assert_eq!(Config::aus(None, env).unwrap().dev_port, Some(8081));
+    assert_eq!(Config::parse(None, env).unwrap().dev_port, Some(8081));
     let env = |k: &str| (k == "COCKPIT_DEV_PORT").then(|| "x".to_string());
-    assert!(Config::aus(None, env).is_err());
-    assert!(Config::aus(Some("dev_port = 8081"), keine_env).is_err());
+    assert!(Config::parse(None, env).is_err());
+    assert!(Config::parse(Some("dev_port = 8081"), no_env).is_err());
+}
+
+#[test]
+fn older_german_spellings_are_still_read() {
+    let old = r#"
+        intervall_s = 90
+        [agent]
+        anbieter = "codex"
+        [agent.endpunkt]
+        url = "http://localhost:4000/"
+        modell = "altes-modell"
+    "#;
+    let c = Config::parse(Some(old), no_env).unwrap();
+    assert_eq!(c.interval_s, 90);
+    assert_eq!(c.provider, Provider::Codex);
+    let e = c.endpoint.unwrap();
+    assert_eq!(e.url.as_deref(), Some("http://localhost:4000"));
+    assert_eq!(e.model.as_deref(), Some("altes-modell"));
+    // The old and the new key of the same value together are a duplicate, not a silent choice.
+    assert!(Config::parse(Some("interval_s = 60\nintervall_s = 90"), no_env).is_err());
+    // Older environment spellings: `COCKPIT_GIT_BASIS` and the seed `leer`.
+    let env = |k: &str| match k {
+        "COCKPIT_GIT_BASIS" => Some("http://git.example/".to_string()),
+        "COCKPIT_SEED" => Some("leer".to_string()),
+        _ => None,
+    };
+    let c = Config::parse(None, env).unwrap();
+    assert_eq!(c.git_base.as_deref(), Some("http://git.example"));
+    assert_eq!(c.seed, Seed::Empty);
+    // The new names win over the old ones.
+    let env = |k: &str| match k {
+        "COCKPIT_GIT_BASE" => Some("http://new.example".to_string()),
+        "COCKPIT_GIT_BASIS" => Some("http://old.example".to_string()),
+        "COCKPIT_SEED" => Some("empty".to_string()),
+        _ => None,
+    };
+    let c = Config::parse(None, env).unwrap();
+    assert_eq!(c.git_base.as_deref(), Some("http://new.example"));
+    assert_eq!(c.seed, Seed::Empty);
 }

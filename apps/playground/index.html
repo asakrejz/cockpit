@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rust Playground</title>
 
-    <!-- Das Design nutzt Inter als Fallback, wenn keine SF Pro installiert ist. -->
+    <!-- The design uses Inter as a fallback if no SF Pro is installed. -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -13,10 +13,10 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
     />
 
-    <!-- Trunk baut die App (Rust → WASM) und bindet sie automatisch ein. -->
+    <!-- Trunk builds the app (Rust → WASM) and includes it automatically. -->
     <link data-trunk rel="rust" href="Cargo.toml" data-bin="playground" />
 
-    <!-- Reihenfolge: 1. Design-Tokens (projektweit)  2. Komponenten  3. Hülle des Playgrounds -->
+    <!-- Order: 1. design tokens (project-wide)  2. components  3. shell of the playground -->
     <link data-trunk rel="css" href="../../crates/ui/tokens.css" />
     <link data-trunk rel="css" href="../../crates/ui/components.css" />
     <link data-trunk rel="css" href="../../crates/ui/extras.css" />

@@ -1,27 +1,27 @@
-// Git im geklonten Repo (/work). Der Läufer legt nur den Commit an – gepusht wird nie im Container
-// (er hat keine Zugangsdaten dafür); das macht das Backend nach seiner Prüfung.
+// Git in the cloned repo (/work). The runner only creates the commit – nothing is ever pushed in the container
+// (it has no credentials for that); the backend does that after its check.
 
 import { execFile } from "node:child_process";
 
-export type Ausfuehren = (args: string[], cwd: string) => Promise<string>;
+export type Run = (args: string[], cwd: string) => Promise<string>;
 
-export const gitAusfuehren: Ausfuehren = (args, cwd) =>
-  new Promise((ok, fehler) => {
+export const gitRun: Run = (args, cwd) =>
+  new Promise((ok, error) => {
     execFile(
       "git",
       args,
       { cwd, maxBuffer: 8 * 1024 * 1024, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } },
-      (e, out, err) => (e ? fehler(new Error(`git ${args[0]}: ${(err || e.message).trim()}`)) : ok(out)),
+      (e, out, err) => (e ? error(new Error(`git ${args[0]}: ${(err || e.message).trim()}`)) : ok(out)),
     );
   });
 
-export interface Festgehalten {
+export interface Recorded {
   commit: string;
-  dateien: string[];
+  files: string[];
 }
 
-/** Stellt sicher, dass der Branch des Auftrags ausgecheckt ist, und liefert die geänderten Dateien. */
-export async function geaenderteDateien(git: Ausfuehren, cwd: string): Promise<string[]> {
+/** Makes sure the branch of the job is checked out and returns the changed files. */
+export async function changedFiles(git: Run, cwd: string): Promise<string[]> {
   const out = await git(["status", "--porcelain", "-z", "--no-renames", "--untracked-files=all"], cwd);
   return out
     .split("\0")
@@ -29,28 +29,28 @@ export async function geaenderteDateien(git: Ausfuehren, cwd: string): Promise<s
     .map((z) => z.slice(3));
 }
 
-/** Legt einen Commit mit allen Änderungen an. `null`, wenn es nichts zu committen gibt. */
-export async function festhalten(
-  git: Ausfuehren,
+/** Creates a commit with all changes. `null` if there is nothing to commit. */
+export async function record(
+  git: Run,
   cwd: string,
   branch: string,
-  nachricht: string,
-): Promise<Festgehalten | null> {
-  const aktuell = (await git(["rev-parse", "--abbrev-ref", "HEAD"], cwd)).trim();
-  if (aktuell !== branch) {
-    throw new Error(`Der Läufer steht auf „${aktuell}“, erwartet war „${branch}“.`);
+  message: string,
+): Promise<Recorded | null> {
+  const current = (await git(["rev-parse", "--abbrev-ref", "HEAD"], cwd)).trim();
+  if (current !== branch) {
+    throw new Error(`Der Läufer steht auf „${current}“, erwartet war „${branch}“.`);
   }
-  const dateien = await geaenderteDateien(git, cwd);
-  if (dateien.length === 0) return null;
+  const files = await changedFiles(git, cwd);
+  if (files.length === 0) return null;
   await git(["add", "-A"], cwd);
   await git(
     [
       "-c", "user.name=Cockpit Agent",
       "-c", "user.email=agent@cockpit.invalid",
-      "commit", "--no-verify", "-m", nachricht,
+      "commit", "--no-verify", "-m", message,
     ],
     cwd,
   );
   const commit = (await git(["rev-parse", "HEAD"], cwd)).trim();
-  return { commit, dateien };
+  return { commit, files };
 }

@@ -1,4 +1,4 @@
-//! Diff und Vorschlags-Karte für Code-Reviews.
+//! Diff and suggestion card for code reviews.
 
 use leptos::prelude::*;
 
@@ -10,7 +10,7 @@ pub enum DiffKind {
     Del,
 }
 
-/// Eine Zeile im Diff.
+/// A line in the diff.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DiffRow {
     pub no: u32,
@@ -18,16 +18,16 @@ pub struct DiffRow {
     pub text: String,
 }
 
-/// Diff einer Datei: Zeilennummer, Vorzeichen, Text. Grün = neu, rot = entfernt.
+/// Diff of a file: line number, sign, text. Green = new, red = removed.
 ///
-/// Optional lassen sich Zeilen auswählen und Inhalt unter einer Zeile zeigen. Beides
-/// kennt nur die Position der Zeile in `rows`, nicht ihre Bedeutung:
+/// Optionally lines can be selected and content shown below a line. Both
+/// only know the position of the line in `rows`, not its meaning:
 ///
-/// * `on_select`: macht jede Zeile zu einem echten Button (Klick, Enter, Leertaste).
-///   Der Callback bekommt die Position der Zeile.
-/// * `selected`: Position der hervorgehobenen Zeile.
-/// * `below`: liefert Inhalt, der direkt unter einer Zeile steht, z. B. Kommentare.
-///   Der Callback läuft einmal je Zeile; Reaktives gehört in eine Closure im Ergebnis.
+/// * `on_select`: makes every line a real button (click, Enter, space).
+///   The callback gets the position of the line.
+/// * `selected`: position of the highlighted line.
+/// * `below`: delivers content that stands directly below a line, e.g. comments.
+///   The callback runs once per line; reactive things belong in a closure in the result.
 #[component]
 pub fn Diff(
     rows: Vec<DiffRow>,
@@ -114,7 +114,7 @@ impl SuggestionState {
     }
 }
 
-/// Karte für einen Vorschlag. Grün nach Freigabe, abgeblendet nach Ablehnung.
+/// Card for a suggestion. Green after approval, dimmed after rejection.
 #[component]
 pub fn SuggestionCard(
     #[prop(into, default = SuggestionState::Pending.into())] state: Signal<SuggestionState>,

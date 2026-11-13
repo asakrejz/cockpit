@@ -1,4 +1,4 @@
-//! Fortschritt: Timeline, Balken, Protokoll und Schritt-Anzeige.
+//! Progress: timeline, bar, log and step indicator.
 
 use leptos::prelude::*;
 
@@ -20,13 +20,13 @@ impl StepState {
     }
 }
 
-/// Senkrechte Abfolge von Schritten. Kinder: [`TimelineStep`].
+/// Vertical sequence of steps. Children: [`TimelineStep`].
 #[component]
 pub fn Timeline(children: Children) -> impl IntoView {
     view! { <ol class="ui-timeline">{children()}</ol> }
 }
 
-/// Schritt der Timeline. Erledigte zeigen ein Häkchen, der aktive pulsiert.
+/// Step of the timeline. Finished ones show a checkmark, the active one pulses.
 #[component]
 pub fn TimelineStep(
     number: usize,
@@ -47,7 +47,7 @@ pub fn TimelineStep(
     }
 }
 
-/// Fortschrittsbalken (`value` von `max`).
+/// Progress bar (`value` of `max`).
 #[component]
 pub fn Progress(
     #[prop(into)] value: Signal<usize>,
@@ -69,17 +69,17 @@ pub fn Progress(
     }
 }
 
-/// Protokoll in Festbreitenschrift. Screenreader bekommen neue Zeilen angesagt.
+/// Log in monospace. Screen readers get new lines announced.
 #[component]
 pub fn Log(#[prop(into)] text: Signal<String>) -> impl IntoView {
     view! { <pre class="ui-log" aria-live="polite">{move || text.get()}</pre> }
 }
 
-/// Schritt-Anzeige für mehrstufige Abläufe wie ein Onboarding.
+/// Step indicator for multi-step flows such as an onboarding.
 #[component]
 pub fn Steps(
     labels: &'static [&'static str],
-    /// Index des aktuellen Schritts. Alle davor gelten als erledigt.
+    /// Index of the current step. All before it count as done.
     #[prop(into)]
     current: Signal<usize>,
 ) -> impl IntoView {

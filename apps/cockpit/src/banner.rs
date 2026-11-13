@@ -1,5 +1,5 @@
-//! Hinweise zum Server: wird verbunden, ist nicht erreichbar, oder der Server hat
-//! eine Aktion abgelehnt.
+//! Notes about the server: connecting, not reachable, or the server has
+//! rejected an action.
 
 use feature_ui::*;
 use leptos::prelude::*;

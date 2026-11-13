@@ -25,7 +25,7 @@ Wer ohne Programmierkenntnisse einsteigt, liest zuerst „Schnellstart für Eins
 rustup target add wasm32-unknown-unknown   # passiert dank rust-toolchain.toml auch automatisch
 cargo install trunk --locked                # oder: brew install trunk
 
-scripts/start.sh --open             # Cockpit (oder Doppelklick auf „Cockpit starten.command“): App bauen (falls nötig), Server starten, Browser öffnen
+scripts/start.sh --open             # Cockpit (oder Doppelklick auf „start-cockpit.command“): App bauen (falls nötig), Server starten, Browser öffnen
 (cd apps/playground && trunk serve --open)   # Playground auf http://localhost:8080
 cargo test                          # Tests laufen nativ, ohne Browser
 (cd apps/playground && trunk build --release)   # fertige Playground-Seite nach apps/playground/dist
@@ -59,7 +59,7 @@ Das Repo ist privat: Du brauchst dafür Zugriff und musst dich bei GitHub anmeld
 Adresse von der Seite des Repos unter „Code“).
 
 **3. Starten per Doppelklick.** Öffne im Finder den Ordner `Documents/Web/rust-playground` und doppelklicke auf
-**`Cockpit starten.command`**. Beim ersten Mal fragt macOS, ob du die Datei öffnen willst (Rechtsklick › „Öffnen“ › noch
+**`start-cockpit.command`**. Beim ersten Mal fragt macOS, ob du die Datei öffnen willst (Rechtsklick › „Öffnen“ › noch
 einmal „Öffnen“). Ein Terminal-Fenster geht auf, baut die App (beim ersten Mal 5–15 Minuten, danach Sekunden) und
 öffnet den Browser auf `http://127.0.0.1:8787`. Schließe das Fenster, um Cockpit zu beenden.
 
@@ -87,8 +87,8 @@ nur an den Server auf deinem Rechner, der sie im **Schlüsselbund** ablegt – n
 Datei. Wer lieber im Terminal arbeitet, nimmt `cockpit-server token setzen <name>` (siehe „Backend starten“).
 
 **Fertiges Archiv statt selbst bauen.** Bei jedem Versions-Tag (`v…`) baut `.github/workflows/release.yml` ein Archiv für
-macOS (Apple Silicon): `cockpit-server`, `apps/cockpit/dist` und `Cockpit starten.command` in einem Ordner, ohne Rust und Trunk.
-Entpacken, Rechtsklick auf `Cockpit starten.command` › „Öffnen“. Die Programme sind nicht signiert, deshalb die
+macOS (Apple Silicon): `cockpit-server`, `apps/cockpit/dist` und `start-cockpit.command` in einem Ordner, ohne Rust und Trunk.
+Entpacken, Rechtsklick auf `start-cockpit.command` › „Öffnen“. Die Programme sind nicht signiert, deshalb die
 Rückfrage von macOS. Intel-Macs, Windows und Linux bauen selbst (Schritte oben). Der Workflow ist noch nie gelaufen
 (es gab noch kein Tag); beim ersten Tag prüfen, ob das Archiv startet.
 
@@ -100,7 +100,7 @@ Der Agent setzt ein Ticket in einem **Container** um (Claude Agent SDK, ein Cont
    (`podman machine start`). Der Assistent („Einrichten“ › „Container“) zeigt, ob sie läuft.
 2. **Image bauen:** dort auf „Image bauen“ klicken (oder `POST /api/agent/image`). Der Bau lädt Pakete aus dem Internet und
    dauert einige Minuten; Fortschritt und Fehler stehen in Klartext darunter. `/api/health` meldet unter `agent`, ob das Image
-   da ist (`image inspect`). Von Hand: `docker build -f agent/Containerfile -t localhost/cockpit-agent:1 agent` (bzw. `podman`).
+   da ist (`image inspect`). Von Hand: `docker build -f agent/Containerfile -t localhost/cockpit-agent:2 agent` (bzw. `podman`).
 3. **Agent-Anbieter und Endpunkt:** Im Schritt „Modell“ wählst du das Werkzeug (Claude Agent SDK; Claude Code und Codex
    stehen als „bald“ da), den Endpunkt (direkt bei Anthropic, eigener Proxy wie LiteLLM, anderer kompatibler Endpunkt),
    legst den Key ab (Schlüsselbund, Name `agent-key`) und wählst das Modell aus der Liste, die „Modelle laden“ beim
@@ -149,13 +149,13 @@ keinen Modus ohne Backend mehr.
 ```bash
 scripts/start.sh                # bauen (falls nötig) und starten: http://127.0.0.1:8787
 scripts/start.sh --open         # zusätzlich den Browser öffnen
-curl localhost:8787/api/health  # {"status":"ok","version":"…","verbindungen":{…},"abgleich":{…},"endpunkt":{…},"container":{…}}
+curl localhost:8787/api/health  # {"status":"ok","version":"…","connections":{…},"sync":{…},"endpoint":{…},"container":{…}}
 ```
 
 `scripts/start.sh` (bash, macOS) prüft `cargo` und `trunk`, baut `apps/cockpit` nach `apps/cockpit/dist`, wenn die Ausgabe fehlt
 oder eine Quelle neuer ist, und startet `cockpit-server`. Es installiert nichts. Mit `--release` baut es den Server
 als Release-Build. Ohne das Skript: `(cd apps/cockpit && trunk build) && cargo run -p cockpit-server`. **Ohne Terminal** startet ein Doppelklick auf
-`Cockpit starten.command` dasselbe (`--open`) und zeigt Fehler in lesbarem Deutsch.
+`start-cockpit.command` dasselbe (`--open`) und zeigt Fehler in lesbarem Deutsch.
 
 
 **Beim ersten Start ist alles leer.** Der Server beginnt mit einem leeren Workspace; die Seite „Einrichten“ zeigt je Dienst
@@ -171,25 +171,27 @@ COCKPIT_SEED=demo COCKPIT_DB=/tmp/cockpit-demo.db scripts/start.sh --open   # Be
 Konfiguration (alles optional): Datei `config.toml` im Konfigurationsverzeichnis (`~/.config/cockpit/`
 unter Linux, `~/Library/Application Support/cockpit/` unter macOS), darüber Umgebungsvariablen `COCKPIT_PORT` (8787),
 `COCKPIT_DIST` (`apps/cockpit/dist`), `COCKPIT_DB` (Datenverzeichnis des Nutzers, `cockpit/cockpit.db`), `COCKPIT_CONFIG`
-(Pfad der Datei), `COCKPIT_SEED` (`leer` oder `demo`) und `COCKPIT_CONTAINER` (`docker` oder `podman`).
+(Pfad der Datei), `COCKPIT_SEED` (`empty` oder `demo` (`leer` gilt weiter)) und `COCKPIT_CONTAINER` (`docker` oder `podman`).
 
 ```toml
 port = 8787
-seed = "leer"                     # oder "demo", siehe oben
+seed = "empty"                    # oder "demo", siehe oben
 [github]                          # api_url ist optional
 [jira]
 site = "https://firma.atlassian.net"
 email = "ich@firma.example"
 [agent]
-anbieter = "claude-agent-sdk"        # umgesetzt; "claude-code" und "codex" sind bekannt, aber noch nicht umgesetzt
+provider = "claude-agent-sdk"        # umgesetzt; "claude-code" und "codex" sind bekannt, aber noch nicht umgesetzt
 container = "podman"              # oder "docker"; ohne Angabe wird erkannt
-[agent.endpunkt]                  # Modellzugang, siehe „Einrichten“ unten
+[agent.endpoint]                  # Modellzugang, siehe „Einrichten“ unten
 url = "https://litellm.example"   # leer oder weglassen = direkt bei Anthropic
-modell = "claude-sonnet-5-5"
+model = "claude-sonnet-5-5"
 ```
 
-Ältere Dateien mit `[litellm] url/modell` und dem Schlüssel `litellm` werden weiter gelesen (Alias für `[agent.endpunkt]`
+Ältere Dateien mit `[litellm] url/model` und dem Schlüssel `litellm` werden weiter gelesen (Alias für `[agent.endpoint]`
 und `agent-key`); der Assistent schreibt beim Speichern das neue Format und übernimmt dabei die alten Werte.
+Auch die älteren deutschen Namen werden weiter gelesen: `intervall_s` (jetzt `interval_s`), `[agent] anbieter` (`provider`),
+`[agent.endpunkt]` mit `modell` (`[agent.endpoint]` mit `model`), `COCKPIT_GIT_BASIS` (`COCKPIT_GIT_BASE`) und der Seed `leer`.
 
 Schlüssel stehen nie in der Datei. Sie kommen über die Standardeingabe in den Schlüsselbund:
 `echo "$TOKEN" | cargo run -p cockpit-server -- token setzen github` (oder `jira`, `github-oauth`, `atlassian-oauth`,
@@ -229,27 +231,27 @@ und hört auf Änderungen:
 | Route | Zweck |
 |-------|-------|
 | `GET /api/workspace` | Stand als JSON (Form von `cockpit_core::persist`, dazu `revision`) |
-| `POST /api/actions` | Body `{"action": <Action>}`; wendet sie als „Du“ an. Antwort `{revision, zusammenfassung, protokolliert}`; eine abgelehnte Aktion ist `422` (unbekannte Form `400`) mit `{"fehler": "…"}` |
-| `POST /api/sync` | „Jetzt abgleichen“ mit Jira und GitHub. Antwort `{aktiv, revision, protokolliert}`; `aktiv: false`, wenn keine Quelle eingerichtet ist |
+| `POST /api/actions` | Body `{"action": <Action>}`; wendet sie als „Du“ an. Antwort `{revision, summary, logged}`; eine abgelehnte Aktion ist `422` (unbekannte Form `400`) mit `{"error": "…"}` |
+| `POST /api/sync` | „Jetzt abgleichen“ mit Jira und GitHub. Antwort `{active, revision, logged}`; `active: false`, wenn keine Quelle eingerichtet ist |
 | `GET /api/events` | Server-Sent Events: erst die aktuelle Revision, dann je Aktion ein Ereignis mit neuer Revision und den neuen Protokolleinträgen, dazu Keep-Alive |
-| `GET /api/jira/projekte` | Jira-Projekte für die Auswahl in der Inbox: `{aktiv, projekte: [{key, name}]}`; `aktiv: false` ohne Jira oder Token |
+| `GET /api/jira/projects` | Jira-Projekte für die Auswahl in der Inbox: `{active, projects: [{key, name}]}`; `active: false` ohne Jira oder Token |
 
-| `GET /api/agent/image` / `POST /api/agent/image` | Stand von „Image bauen“ `{laeuft, vorhanden, fehler, zeilen}` bzw. Bau im Hintergrund starten |
-| `GET /api/agent/pruefen/container` (Alias `/api/litellm/pruefen/container`) | Dieselbe Prüfung aus einem Container: `{geprueft, mac_erreicht, container_erreicht, key_ok, hinweis}` |
-| `GET /api/agent/pruefen` (Alias `/api/litellm/pruefen`) | Verbindungstest zum Endpunkt: `{konfiguriert, erreichbar, key_ok, modell_vorhanden, hinweis}` (siehe „Einrichten“) |
-| `GET /api/agent/modelle` | Die Modell-IDs des Endpunkts für das Drop-down: `{geladen, erreichbar, key_ok, modelle, hinweis}`; nur IDs, sortiert (Claude-Modelle zuerst), höchstens 200. Der Key bleibt im Backend |
-| `GET /api/einrichtung` | Was der Assistent vorbelegt: Jira-Site/E-Mail/Projekte, Client-IDs, Repos, Anbieter, Endpunkt-Adresse und Modell, die beiden Callback-Adressen und je Schlüssel nur `{name, gesetzt}` |
-| `PUT /api/konfiguration` | Schreibt Client-IDs, Jira, Repos sowie Agent-Anbieter und Endpunkt in `config.toml` (siehe „Einrichten in der App“). Antwort `{gespeichert, wirkt_sofort, hinweis}`; ungültige Eingaben sind `422` mit Klartext |
-| `PUT /api/schluessel/{name}` | Legt einen Schlüssel im Schlüsselbund ab. Body `{"wert": "…"}`, nur `github-oauth`, `atlassian-oauth`, `agent-key` (ältere Schreibweise `litellm`), `jira`, `github`. Antwort `{name, gesetzt}` – nie der Wert |
-| `DELETE /api/schluessel/{name}` | „Trennen“ für Tokens: löscht `jira` oder `github` aus dem Schlüsselbund (andere Namen: `404`). Antwort `{name, gesetzt: false}` |
-| `POST /api/jira/pruefen` | Verbindungstest für Jira per API-Token, nur lesend (`GET /rest/api/3/myself`): `{ok, ursache, meldung, name}`, `ursache` = `ok`, `angaben`, `adresse`, `token`, `berechtigung`, `erreichbar`, `sonst`. Nie der Token |
+| `GET /api/agent/image` / `POST /api/agent/image` | Stand von „Image bauen“ `{running, present, error, lines}` bzw. Bau im Hintergrund starten |
+| `GET /api/agent/check/container` | Dieselbe Prüfung aus einem Container: `{checked, mac_reached, container_reached, key_ok, hint}` |
+| `GET /api/agent/check` | Verbindungstest zum Endpunkt: `{configured, reachable, key_ok, model_present, hint}` (siehe „Einrichten“) |
+| `GET /api/agent/models` | Die Modell-IDs des Endpunkts für das Drop-down: `{loaded, reachable, key_ok, models, hint}`; nur IDs, sortiert (Claude-Modelle zuerst), höchstens 200. Der Key bleibt im Backend |
+| `GET /api/setup` | Was der Assistent vorbelegt: Jira-Site/E-Mail/Projekte, Client-IDs, Repos, Anbieter, Endpunkt-Adresse und Modell, die beiden Callback-Adressen und je Schlüssel nur `{name, set}` |
+| `PUT /api/config` | Schreibt Client-IDs, Jira, Repos sowie Agent-Anbieter und Endpunkt in `config.toml` (siehe „Einrichten in der App“). Antwort `{stored, takes_effect_immediately, hint}`; ungültige Eingaben sind `422` mit Klartext |
+| `PUT /api/secrets/{name}` | Legt einen Schlüssel im Schlüsselbund ab. Body `{"value": "…"}`, nur `github-oauth`, `atlassian-oauth`, `agent-key` (ältere Schreibweise `litellm`), `jira`, `github`. Antwort `{name, set}` – nie der Wert |
+| `DELETE /api/secrets/{name}` | „Trennen“ für Tokens: löscht `jira` oder `github` aus dem Schlüsselbund (andere Namen: `404`). Antwort `{name, set: false}` |
+| `POST /api/jira/check` | Verbindungstest für Jira per API-Token, nur lesend (`GET /rest/api/3/myself`): `{ok, cause, message, name}`, `cause` = `ok`, `details`, `address`, `token`, `permission`, `reachable`, `sonst`. Nie der Token |
 
 Ist der Server nicht erreichbar (nicht gestartet, anderer Port), zeigt die App oben einen Hinweis mit „Erneut versuchen“;
 die Seiten bleiben leer, es geht nichts verloren.
 
 Alle Routen unter `/api` prüfen die Gegenstelle (nur Loopback) und den `Host`-Header (`127.0.0.1:<port>` oder
 `localhost:<port>`, gegen DNS-Rebinding). Schreibende Anfragen brauchen zusätzlich `Content-Type: application/json`
-und einen fehlenden oder eigenen `Origin`. Das gilt auch für `PUT /api/konfiguration` und `PUT /api/schluessel/{name}`.
+und einen fehlenden oder eigenen `Origin`. Das gilt auch für `PUT /api/config` und `PUT /api/secrets/{name}`.
 
 ### Jira verbinden
 
@@ -257,13 +259,13 @@ und einen fehlenden oder eigenen `Origin`. Das gilt auch für `PUT /api/konfigur
 Jira-Site (`firma.atlassian.net`; auch eine kopierte Adresse mit `https://` und Pfad wird verstanden), (2) die
 E-Mail-Adresse deines Atlassian-Kontos, (3) den Token. „Token-Seite öffnen“ führt in einem neuen Tab zu
 `https://id.atlassian.com/manage-profile/security/api-tokens`: „Token erstellen“, Namen vergeben, Ablaufdatum wählen,
-kopieren und in das Passwortfeld einfügen. Der Token geht über `PUT /api/schluessel/jira` in den Schlüsselbund, Site und
-E-Mail über `PUT /api/konfiguration` in die `config.toml`. Danach prüft „Verbindung prüfen“ (`POST /api/jira/pruefen`,
+kopieren und in das Passwortfeld einfügen. Der Token geht über `PUT /api/secrets/jira` in den Schlüsselbund, Site und
+E-Mail über `PUT /api/config` in die `config.toml`. Danach prüft „Verbindung prüfen“ (`POST /api/jira/check`,
 nur lesend: `GET /rest/api/3/myself`), ob „Jira antwortet und dich kennt“, und nennt sonst im Klartext die Ursache
 (Adresse falsch, Token abgelehnt, keine Berechtigung, nicht erreichbar). Nach dem Test schlägt der Assistent die
 Jira-Projekte zur Auswahl vor (oder „Alle Projekte“), wie das Drop-down in der Inbox. In der Zusammenfassung steht, ob die
 Anmeldung „mit API-Token“ oder „mit OAuth“ läuft; „Token erneuern“ führt zurück in den Schritt, „Trennen“ löscht den Token
-im Schlüsselbund (`DELETE /api/schluessel/jira`).
+im Schlüsselbund (`DELETE /api/secrets/jira`).
 
 **Sicherheit.** Der Token hat die Rechte deines Atlassian-Kontos. Solange Cockpit nur lesen soll, nimm ein Konto oder eine
 Rolle ohne Schreibrechte; ein kurzes Ablaufdatum begrenzt den Schaden. Der Token liegt nur im Schlüsselbund und kommt nie
@@ -291,7 +293,7 @@ beim ersten erfolgreichen Abruf. Eine Quelle ohne Konfiguration oder ohne Token 
 **1. Konfiguration** (`config.toml`, siehe oben; keine Schlüssel in der Datei):
 
 ```toml
-intervall_s = 120                        # Abfrage-Intervall, Standard 2 Minuten, mindestens 30
+interval_s = 120                        # Abfrage-Intervall, Standard 2 Minuten, mindestens 30
 
 [github]
 repos = ["firma/app", "firma/web"]       # owner/name, mehrere möglich
@@ -308,7 +310,7 @@ Ohne `projects` und `jql` holt Jira alle mir zugewiesenen oder von mir beobachte
 kommen Pull Requests der angegebenen Repos, bei denen ein Review von mir angefragt ist oder die mir gehören.
 
 **Projekt wählen.** Hat die Jira-Site mehrere Projekte (Boards), wählst du in der Inbox oben im Drop-down „Jira-Projekt“
-eines aus. Die Liste kommt von Jira (`GET /api/jira/projekte`, dahinter `GET /rest/api/3/project/search`: alle
+eines aus. Die Liste kommt von Jira (`GET /api/jira/projects`, dahinter `GET /rest/api/3/project/search`: alle
 Projekte, die dein Token sehen darf) und enthält dazu die Projekte der Tickets, die schon da sind. Die Wahl ist
 die Aktion `SelectJiraProject` und bleibt gespeichert. Ist ein Projekt gewählt,
 
@@ -378,7 +380,7 @@ Client-Secret liegen nur im Schlüsselbund des Backends, nie im Browser, Repo, i
 4. *Anmelden.* In der App unter „Einrichten“ erscheint beim Jira- und beim GitHub-Schritt „Mit Atlassian
    anmelden“ bzw. „Mit GitHub anmelden“. Der Knopf öffnet `GET /api/oauth/{atlassian|github}/start` und leitet zum
    Dienst weiter (mit `state`, einmalig und 10 Minuten gültig, und PKCE). Nach der Zustimmung ruft der Dienst
-   `GET /api/oauth/{dienst}/callback` auf; das Backend prüft `state`, tauscht den `code` gegen die Tokens und leitet nach
+   `GET /api/oauth/{service}/callback` auf; das Backend prüft `state`, tauscht den `code` gegen die Tokens und leitet nach
    `/` um, wo ein Hinweis Erfolg oder den Fehler nennt. Der Callback ist eine Navigation des Browsers: Loopback- und
    Host-Prüfung gelten weiter, einen JSON-Content-Type verlangt er nicht.
    - *Atlassian:* danach fragt das Backend `accessible-resources` ab. Genau eine Site wird automatisch gewählt, bei
@@ -388,7 +390,7 @@ Client-Secret liegen nur im Schlüsselbund des Backends, nie im Browser, Repo, i
      Atlassian dreht das Refresh-Token bei jeder Auffrischung; auch das speichert das Backend.
    - Ist ein OAuth-Zugang da, geht er vor einem API-Token (`token setzen github|jira`); die Token-Wege bleiben
      unverändert. Nach dem Trennen gilt wieder das Token.
-5. *Trennen.* „Trennen“ in der App oder `POST /api/oauth/{dienst}/widerrufen` löscht die Tokens im Schlüsselbund. Bei
+5. *Trennen.* „Trennen“ in der App oder `POST /api/oauth/{service}/revoke` löscht die Tokens im Schlüsselbund. Bei
    GitHub widerruft das Backend das Token zusätzlich beim Dienst (`DELETE /applications/{client_id}/token`). Atlassian
    bietet dafür keinen Aufruf; den Zugriff entziehst du unter id.atlassian.com/manage-profile/apps (die App weist
    darauf hin). Gelöscht wird immer, auch wenn der Dienst nicht antwortet. Das Client-Secret bleibt.
@@ -396,7 +398,7 @@ Client-Secret liegen nur im Schlüsselbund des Backends, nie im Browser, Repo, i
    in der Quelle. Lehnt der Dienst das Auffrischen ab, löscht das Backend die Tokens: Der Dienst gilt als getrennt und
    du meldest dich neu an. Netzwerkfehler oder Störungen des Dienstes lassen die Tokens stehen.
 
-`GET /api/health` meldet unter `anmeldung.github` und `anmeldung.jira` je `verbunden`, `art` (`oauth`, `token` oder
+`GET /api/health` meldet unter `sign_in.github` und `sign_in.jira` je `connected`, `kind` (`oauth`, `token` oder
 `none`), `oauth_moeglich` (App eingerichtet und Secret da) und bei Atlassian die `site`. `cockpit-core::Connections`
 trägt dieselbe Art (`github_auth`, `jira_auth`); sie wird nicht im Browser gespeichert.
 
@@ -406,7 +408,7 @@ bei einer Web-App mit Client-Secret akzeptiert (sonst entfällt er dort), ob die
 Installations-Weiterleitung von GitHub (`installation_id`, `setup_action`): Ohne `state` aus unserem Start lehnt das
 Backend sie ab; die App ist schon installiert, die Anmeldung beginnt immer in Cockpit.
 
-**Einrichten in der App.** Die Seite „Einrichten“ (`#/einrichten`) ist ein geführter Assistent in fünf Schritten mit
+**Einrichten in der App.** Die Seite „Einrichten“ (`#/setup`) ist ein geführter Assistent in fünf Schritten mit
 Fortschrittsanzeige (Container, Jira, GitHub, Modell, Fertig). Sie erscheint beim ersten Start von selbst, wenn noch nichts
 eingerichtet ist (einmal je Browser; der Browser merkt sich nur diesen Hinweis), und ist jederzeit über „Einrichten“ in der
 Seitenleiste erreichbar. Jeder Schritt lässt sich überspringen; die Zusammenfassung nennt in Klartext, was läuft (Haken),
@@ -425,7 +427,7 @@ was offen ist und was zu prüfen ist, mit „Ansehen“ zum passenden Schritt. D
 - *Modellzugang.* Adresse, Modellname, Key und der Verbindungstest (siehe unten).
 
 **Wie Eingaben ankommen.** Nicht geheime Werte (Client-IDs, Jira-Site, E-Mail, Projekte, Repos, Endpunkt-Adresse und
--Modell) schickt die Seite an `PUT /api/konfiguration`. Der Server ändert die `config.toml` **atomar** (Nachbardatei,
+-Modell) schickt die Seite an `PUT /api/config`. Der Server ändert die `config.toml` **atomar** (Nachbardatei,
 dann umbenennen; bestehende Kommentare, Reihenfolge und andere Werte bleiben, neue Dateien sind nur für dich lesbar) und
 prüft das Ergebnis **wie beim Start** (`Config::aus`): Ist es ungültig, bleibt die Datei, wie sie war, und die Antwort
 nennt den Grund in Klartext. Eingaben werden vereinheitlicht (`firma` → `https://firma.atlassian.net`, GitHub-Adressen →
@@ -434,7 +436,7 @@ nennt den Grund in Klartext. Eingaben werden vereinheitlicht (`firma` → `https
 bleiben bis zum Neustart. Ändert sich die Client-ID einer App, rät die Antwort, sich neu anzumelden.
 
 **Wie Schlüssel ankommen.** Client-Secrets, Tokens und der Key des Endpunkts kommen in Passwortfelder
-(`autocomplete="off"`) und gehen einmal an `PUT /api/schluessel/{name}` auf der Loopback-Verbindung. Der Server legt sie im
+(`autocomplete="off"`) und gehen einmal an `PUT /api/secrets/{name}` auf der Loopback-Verbindung. Der Server legt sie im
 Schlüsselbund ab. Der Wert steht nur im Feld und in dieser einen Anfrage: nicht in `localStorage`, nicht in der Adresse,
 nicht im Log, nicht in Fehlermeldungen und nie in einer Antwort (die sagt nur `gesetzt`); das Feld wird sofort nach dem
 Absenden geleert. Erlaubt sind nur die Namen `github-oauth`, `atlassian-oauth`, `agent-key`, `litellm` (älterer Name), `jira` und `github`. Die beiden
@@ -442,21 +444,21 @@ neuen `PUT`-Routen unterliegen derselben Loopback-, Host-, Origin- und Content-T
 
 Die Abschnitte „Modellzugang“ und „Container“ im Einzelnen:
 
-- *Agent-Anbieter und Endpunkt.* `[agent] anbieter` wählt das Werkzeug im Container: `claude-agent-sdk` läuft; `claude-code`
+- *Agent-Anbieter und Endpunkt.* `[agent] provider` wählt das Werkzeug im Container: `claude-agent-sdk` läuft; `claude-code`
   und `codex` sind bekannte Werte, die in Klartext „noch nicht umgesetzt“ melden (der Assistent zeigt sie als „bald“).
-  `[agent.endpunkt]` sagt, wohin die Modellanfragen gehen: mit `url` an einen Anthropic-kompatiblen Endpunkt (LiteLLM,
+  `[agent.endpoint]` sagt, wohin die Modellanfragen gehen: mit `url` an einen Anthropic-kompatiblen Endpunkt (LiteLLM,
   anderer Proxy; im Container `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`), ohne `url` direkt zu Anthropic (im Container
   `ANTHROPIC_API_KEY`). `modell` ist der Name, wie der Endpunkt ihn anbietet. Der Key liegt nur im Schlüsselbund
   (`agent-key`): `echo "$KEY" | cargo run -p cockpit-server -- token setzen agent-key`; die Werte gehen nur per `-e NAME` an
-  den Container. `/api/health` meldet unter `endpunkt` Anbieter, Adresse, Modell und ob ein Key liegt (nie den Key).
-  „Modelle laden“ ruft `GET /api/agent/modelle`; das Backend fragt dann `GET <url>/v1/models` (Proxy: `Authorization: Bearer`;
+  den Container. `/api/health` meldet unter `endpoint` Anbieter, Adresse, Modell und ob ein Key liegt (nie den Key).
+  „Modelle laden“ ruft `GET /api/agent/models`; das Backend fragt dann `GET <url>/v1/models` (Proxy: `Authorization: Bearer`;
   direkt: `https://api.anthropic.com/v1/models` mit `x-api-key` und `anthropic-version`), ohne Weiterleitungen, mit
-  Zeitlimit und Größengrenze, und liefert nur die IDs. „Verbindung testen“ ruft `GET /api/agent/pruefen` und meldet
+  Zeitlimit und Größengrenze, und liefert nur die IDs. „Verbindung testen“ ruft `GET /api/agent/check` und meldet
   *erreichbar*, *Key angenommen* und *Modell vorhanden*, bei Fehlern mit Hinweis. Ohne Key ruft es den Endpunkt nicht auf.
 - *Container-Laufzeit.* Der Agent läuft später in einem Container, mit Docker (Rancher Desktop, Engine „dockerd (moby)“)
   oder Podman. Das Backend wählt: `COCKPIT_CONTAINER`, sonst `[agent] container`, sonst sucht es erst `podman`, dann
   `docker` im `PATH` und prüft mit `<laufzeit> info`, ob die Engine läuft (nur als Prozessaufruf, nie über den Socket; das Ergebnis
-  wird 10 Sekunden gemerkt). `/api/health` meldet unter `container` `laufzeit`, `engine_laeuft`, `quelle`
+  wird 10 Sekunden gemerkt). `/api/health` meldet unter `container` `runtime`, `engine_running`, `source`
   (`umgebung`, `konfiguration`, `erkannt`, `keine`) und einen `hinweis`. Das Agent-Image baust du im Schritt
   „Container“ mit „Image bauen“ (siehe „Den Agenten einrichten“).
 
@@ -469,7 +471,7 @@ Die Abschnitte „Modellzugang“ und „Container“ im Einzelnen:
   (sie wandern mit ihrer Zeile, wenn sich der Diff verschiebt), Urteil und „gesendet“.
 - Neue Kommentare, Status-, Check- und Review-Änderungen von außen stehen mit Urheber „System“ im Protokoll und
   lösen die Benachrichtigungen aus. `@dein-Login` in Kommentaren zählt als Erwähnung.
-- Pro Quelle gibt es einen Zustand (`/api/health` › `abgleich`, in der App unter „Abgleich“): `ok`,
+- Pro Quelle gibt es einen Zustand (`/api/health` › `sync`, in der App unter „Abgleich“): `ok`,
   `nicht-angemeldet` (401, Token abgelaufen), `keine-berechtigung` (403), `kontingent` (Rate-Limit: die Quelle
   pausiert bis zum Zeitpunkt aus `Retry-After`/`X-RateLimit-Reset`), `offline`, `fehler`. Bei einem Fehler bleiben
   die letzten Daten der Quelle stehen.
@@ -623,13 +625,13 @@ Ein Dashboard, das Jira, GitHub und Agenten an einem Ort zusammenführt. Diese S
 
 | Seite | Adresse | Was sie kann |
 |-------|---------|--------------|
-| Einrichten | `#/einrichten` | Je Dienst Stand und nächster Schritt: Jira und GitHub anmelden/trennen, Agent-Endpunkt prüfen, Container-Laufzeit erkennen |
-| Aufmerksamkeit | `#/`, `#/meine`, `#/team`, `#/zurueckgestellt` | Inbox aus Tickets und Pull Requests, gefiltert nach einschaltbaren Regeln (Erwähnung, Review-Anfrage, blockierter PR, überfälliges Ticket, Agent fertig, zugewiesen); Zurückstellen (1 Stunde, morgen früh, nächste Woche, bis sich etwas ändert); Status ändern, Branch erstellen, antworten, Agent beauftragen; Ticket bearbeiten (Titel, Beschreibung, Zuweisung, Priorität); Ticket und Pull Request verknüpfen (automatisch über den Schlüssel im Branch oder Titel, `BAU-142`, sonst von Hand oder lösen); „Status folgt dem Pull Request“ (Entwurf/offen → In Arbeit, Review angefragt → Review, gemergt → Fertig, abschaltbar in der Seitenleiste, Urheber im Protokoll: System); Suche und Quellen-Filter; Tasten `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
+| Einrichten | `#/setup` | Je Dienst Stand und nächster Schritt: Jira und GitHub anmelden/trennen, Agent-Endpunkt prüfen, Container-Laufzeit erkennen |
+| Aufmerksamkeit | `#/`, `#/mine`, `#/team`, `#/snoozed` | Inbox aus Tickets und Pull Requests, gefiltert nach einschaltbaren Regeln (Erwähnung, Review-Anfrage, blockierter PR, überfälliges Ticket, Agent fertig, zugewiesen); Zurückstellen (1 Stunde, morgen früh, nächste Woche, bis sich etwas ändert); Status ändern, Branch erstellen, antworten, Agent beauftragen; Ticket bearbeiten (Titel, Beschreibung, Zuweisung, Priorität); Ticket und Pull Request verknüpfen (automatisch über den Schlüssel im Branch oder Titel, `BAU-142`, sonst von Hand oder lösen); „Status folgt dem Pull Request“ (Entwurf/offen → In Arbeit, Review angefragt → Review, gemergt → Fertig, abschaltbar in der Seitenleiste, Urheber im Protokoll: System); Suche und Quellen-Filter; Tasten `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
 | Review | `#/review/87` | Diff lesen; Zeilen auswählen und eigene Kommentare schreiben; Kommentare des Agenten freigeben, ablehnen oder bearbeiten; Review senden |
-| Übersicht | `#/uebersicht` | Pro Person offene Einträge und Auslastung; „Hängt“ zeigt fehlgeschlagene Checks, wartende Reviews, Tickets ohne Branch und Agenten, die auf dich warten |
-| Benachrichtigungen | `#/benachrichtigungen` | Je Anlass (Review-Anfrage, Erwähnung, Agent wartet, Agent fertig, Agent angehalten, Checks rot, Ticket zugewiesen) Browser, E-Mail und Slack wählen; Ruhezeiten; Erlaubnis des Browsers per Knopf anfragen; Test-Benachrichtigung |
+| Übersicht | `#/overview` | Pro Person offene Einträge und Auslastung; „Hängt“ zeigt fehlgeschlagene Checks, wartende Reviews, Tickets ohne Branch und Agenten, die auf dich warten |
+| Benachrichtigungen | `#/notifications` | Je Anlass (Review-Anfrage, Erwähnung, Agent wartet, Agent fertig, Agent angehalten, Checks rot, Ticket zugewiesen) Browser, E-Mail und Slack wählen; Ruhezeiten; Erlaubnis des Browsers per Knopf anfragen; Test-Benachrichtigung |
 | Agent | `#/agent/BAU-142` | Auftrag mit Optionen; Plan zur Freigabe (abschaltbar); Ablauf in fünf Schritten bis zum Pull Request; Rückfragen beantworten, Hinweise schicken, pausieren; Verlauf als Gespräch |
-| Grenzen & Regeln | `#/grenzen` | Preise pro Million Token, Budget pro Lauf und pro Monat, Zeitlimit pro Lauf, höchstens so viele Läufe gleichzeitig; pro Repo erlaubte/verbotene Pfade, Pflicht-Tests, Anweisungen an den Agenten und Plan-Pflicht; Verbrauch heute und diesen Monat |
+| Grenzen & Regeln | `#/limits` | Preise pro Million Token, Budget pro Lauf und pro Monat, Zeitlimit pro Lauf, höchstens so viele Läufe gleichzeitig; pro Repo erlaubte/verbotene Pfade, Pflicht-Tests, Anweisungen an den Agenten und Plan-Pflicht; Verbrauch heute und diesen Monat |
 
 **Agent: Rückfragen und Nachsteuern.** Der Agent kann an einem Schritt anhalten und eine Frage stellen
 (Status „Wartet auf Antwort“, mit vorgeschlagenen Antworten zum Anklicken oder eigenem Text). Die Frage
