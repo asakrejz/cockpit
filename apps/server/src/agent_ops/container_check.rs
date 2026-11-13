@@ -21,9 +21,6 @@ impl AppState {
             hint: Some(hint.into()),
             ..Default::default()
         };
-        if let Some(m) = choice.provider.not_implemented() {
-            return not(&m);
-        }
         let Some(endpoint) = choice.endpoint else {
             return not(
                 "Der Endpunkt ist nicht eingerichtet. Wähle zuerst Anbieter, Endpunkt und Modell.",
@@ -53,6 +50,7 @@ impl AppState {
         let in_container = check_container(
             self,
             &cli,
+            choice.provider,
             endpoint.url.as_deref(),
             &key,
             endpoint.model.as_deref().unwrap_or("-"),
@@ -152,8 +150,14 @@ pub(super) fn check_job_write(dir: &Path) -> std::io::Result<()> {
 }
 
 /// Sets the values that `-e NAME` passes on and removes the unused ones from the inherited environment.
-pub(super) fn kind_env(cmd: &mut Command, endpoint_url: Option<&str>, key: &str, model: &str) {
-    for (name, value) in agent_run::env_for_kind(endpoint_url, key, model) {
+pub(super) fn kind_env(
+    cmd: &mut Command,
+    provider: Provider,
+    endpoint_url: Option<&str>,
+    key: &str,
+    model: &str,
+) {
+    for (name, value) in agent_run::env_for_kind(provider, endpoint_url, key, model) {
         match value {
             Some(w) => cmd.env(name, w),
             None => cmd.env_remove(name),
@@ -164,6 +168,7 @@ pub(super) fn kind_env(cmd: &mut Command, endpoint_url: Option<&str>, key: &str,
 pub(super) async fn check_container(
     state: &AppState,
     cli: &Path,
+    provider: Provider,
     endpoint_url: Option<&str>,
     key: &Secret,
     model: &str,
@@ -178,6 +183,7 @@ pub(super) async fn check_container(
         clone_only_read: true,
         job: &dir,
         stdin_open: false,
+        provider,
     });
     let mut cmd = Command::new(cli);
     cmd.args(&args)
@@ -185,7 +191,7 @@ pub(super) async fn check_container(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    kind_env(&mut cmd, endpoint_url, key.expose(), model);
+    kind_env(&mut cmd, provider, endpoint_url, key.expose(), model);
     let run = tokio::time::timeout(CHECK_TIME, cmd.output()).await;
     let result = match run {
         Err(_) => {

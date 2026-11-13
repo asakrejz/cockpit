@@ -82,3 +82,36 @@ test("with an address the endpoint wins, even if an API key is in the environmen
   });
   assert.deepEqual(urls, ["https://litellm.example/v1/models"]);
 });
+
+test("provider codex asks the OpenAI endpoint with the bearer key", async () => {
+  const s = collector();
+  const called: Array<{ url: string; headers: Record<string, string> }> = [];
+  const code = await checkEndpoint(
+    { COCKPIT_PROVIDER: "codex", OPENAI_BASE_URL: "https://proxy.example/v1/", OPENAI_API_KEY: "geheim", ANTHROPIC_API_KEY: "anders" },
+    s.sink,
+    async (url, init) => {
+      called.push({ url, headers: init.headers });
+      return { status: 200 };
+    },
+  );
+  assert.equal(code, 0);
+  assert.deepEqual(called, [{ url: "https://proxy.example/v1/models", headers: { authorization: "Bearer geheim" } }]);
+  assert.ok(!JSON.stringify(s.e).includes("geheim"));
+});
+
+test("provider codex directly at OpenAI, without a key and with a rejected key", async () => {
+  const s = collector();
+  const urls: string[] = [];
+  assert.equal(await checkEndpoint({ COCKPIT_PROVIDER: "codex", OPENAI_API_KEY: "k" }, s.sink, async (u) => (urls.push(u), { status: 401 })), 1);
+  assert.deepEqual(urls, ["https://api.openai.com/v1/models"]);
+  assert.match((s.e[0] as any).hint, /OpenAI antwortet aus dem Container, lehnt den Key aber ab \(Status 401\)/);
+  const t = collector();
+  assert.equal(await checkEndpoint({ COCKPIT_PROVIDER: "codex" }, t.sink, async () => ({ status: 200 })), 1);
+  assert.match((t.e[0] as any).hint, /OPENAI_API_KEY/);
+});
+
+test("the real fetch is used by default (a closed local port is reported, no endless recursion)", async () => {
+  const s = collector();
+  assert.equal(await checkEndpoint({ ANTHROPIC_BASE_URL: "http://127.0.0.1:1", ANTHROPIC_AUTH_TOKEN: "x" }, s.sink), 1);
+  assert.equal((s.e[0] as any).reachable, false);
+});

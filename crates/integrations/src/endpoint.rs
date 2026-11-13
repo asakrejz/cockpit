@@ -3,6 +3,8 @@
 //!
 //! * A proxy or other compatible endpoint (LiteLLM and others): header `Authorization: Bearer <key>`.
 //! * Directly at Anthropic (`https://api.anthropic.com/v1/models`): `x-api-key` and `anthropic-version`.
+//! * Codex (OpenAI-compatible endpoint): always `Authorization: Bearer <key>`, directly at
+//!   `https://api.openai.com/v1/models`.
 //!
 //! Only what the endpoint answers is reported (model IDs) – **never the key**. The call follows
 //! no redirects, so the key does not end up elsewhere, has a timeout and reads only
@@ -17,6 +19,8 @@ use crate::Secret;
 
 /// The address of the Anthropic API (without trailing slash).
 pub const ANTHROPIC_API: &str = "https://api.anthropic.com";
+/// The address of the OpenAI API (without trailing slash).
+pub const OPENAI_API: &str = "https://api.openai.com";
 /// The API version Anthropic requires on every call.
 const ANTHROPIC_VERSION: &str = "2023-06-01";
 /// The hint names this many offered models when the desired one is missing.
@@ -30,32 +34,45 @@ const TIMEOUT: Duration = Duration::from_secs(10);
 pub struct Target {
     /// Without trailing slash.
     pub base: String,
-    /// Directly at Anthropic: `x-api-key` instead of `Authorization: Bearer`.
+    /// Directly at the provider (no address entered).
     pub direct: bool,
+    /// An OpenAI-compatible endpoint (Codex) instead of an Anthropic-compatible one.
+    pub openai: bool,
 }
 
 impl Target {
     /// With an address a proxy or compatible endpoint, without an address directly at Anthropic.
     /// `direct_base` replaces the Anthropic address (for tests only).
     pub fn from(url: Option<&str>, direct_base: Option<&str>) -> Target {
+        Target::for_provider(false, url, direct_base)
+    }
+
+    /// Like [`Target::from`], for the endpoint family of the tool: `openai` for Codex, otherwise Anthropic.
+    pub fn for_provider(openai: bool, url: Option<&str>, direct_base: Option<&str>) -> Target {
         match url.map(str::trim).filter(|u| !u.is_empty()) {
             Some(u) => Target {
                 base: u.trim_end_matches('/').to_string(),
                 direct: false,
+                openai,
             },
             None => Target {
                 base: direct_base
-                    .unwrap_or(ANTHROPIC_API)
+                    .unwrap_or(if openai { OPENAI_API } else { ANTHROPIC_API })
                     .trim_end_matches('/')
                     .to_string(),
                 direct: true,
+                openai,
             },
         }
     }
 
+    fn vendor(&self) -> &'static str {
+        if self.openai { "OpenAI" } else { "Anthropic" }
+    }
+
     fn who(&self) -> String {
         if self.direct {
-            "Anthropic".into()
+            self.vendor().into()
         } else {
             format!("Der Endpunkt unter {}", self.base)
         }
@@ -98,7 +115,15 @@ impl Failed {
             Failed::Timeout => format!("{who} antwortet nicht rechtzeitig."),
             Failed::NotReachable => {
                 if target.direct {
-                    "Anthropic ist nicht erreichbar. Hast du eine Internetverbindung, und lässt dein Netz api.anthropic.com durch?".into()
+                    let host = if target.openai {
+                        "api.openai.com"
+                    } else {
+                        "api.anthropic.com"
+                    };
+                    format!(
+                        "{} ist nicht erreichbar. Hast du eine Internetverbindung, und lässt dein Netz {host} durch?",
+                        target.vendor()
+                    )
                 } else {
                     format!("{who} ist nicht erreichbar. Läuft er, und stimmt die Adresse?")
                 }
@@ -107,11 +132,15 @@ impl Failed {
             Failed::Status(s) => format!("{who} antwortet mit Status {s}."),
             Failed::NoDirectory => {
                 if target.direct {
-                    "Die Antwort von Anthropic ist kein Modellverzeichnis.".into()
+                    format!(
+                        "Die Antwort von {} ist kein Modellverzeichnis.",
+                        target.vendor()
+                    )
                 } else {
                     format!(
-                        "Die Antwort von {} ist kein Modellverzeichnis. Ist das die Adresse eines Anthropic-kompatiblen Endpunkts (z. B. eines LiteLLM-Proxys)?",
-                        target.base
+                        "Die Antwort von {} ist kein Modellverzeichnis. Ist das die Adresse eines {}-kompatiblen Endpunkts (z. B. eines LiteLLM-Proxys)?",
+                        target.base,
+                        target.vendor()
                     )
                 }
             }
@@ -146,7 +175,7 @@ async fn fetch(target: &Target, key: Option<&Secret>) -> Result<Vec<String>, Fai
         .build()
         .map_err(|e| Failed::ClientNotStartable(e.without_url().to_string()))?;
     let mut request = client.get(format!("{}/v1/models", target.base));
-    request = if target.direct {
+    request = if target.direct && !target.openai {
         // The list is paged; 1000 is the highest Anthropic allows.
         request
             .query(&[("limit", "1000")])
@@ -394,6 +423,44 @@ mod tests {
         let server = proxy(ResponseTemplate::new(500)).await;
         let l = models_load(&target(&server), Some(&Secret::new(KEY))).await;
         assert!(l.hint.unwrap().contains("500"));
+    }
+
+    #[test]
+    fn openai_target_goes_directly_to_openai() {
+        let z = Target::for_provider(true, None, None);
+        assert_eq!(
+            (z.base.as_str(), z.direct, z.openai),
+            (OPENAI_API, true, true)
+        );
+        let z = Target::for_provider(true, Some("http://p:1/"), None);
+        assert_eq!((z.base.as_str(), z.direct), ("http://p:1", false));
+        assert!(!Target::for_provider(false, None, None).openai);
+    }
+
+    #[tokio::test]
+    async fn codex_calls_use_the_bearer_key_even_directly_and_name_openai() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .and(header("authorization", format!("Bearer {KEY}").as_str()))
+            .respond_with(ResponseTemplate::new(200).set_body_json(models(&["gpt-5"])))
+            .expect(2)
+            .mount(&server)
+            .await;
+        let z = Target::for_provider(true, None, Some(&server.uri()));
+        let l = models_load(&z, Some(&Secret::new(KEY))).await;
+        assert!(l.loaded && l.models == ["gpt-5"], "{l:?}");
+        let p = verify(&z, Some(&Secret::new(KEY)), Some("gpt-5")).await;
+        assert!(p.model_present);
+        // The texts name OpenAI, not Anthropic.
+        let free = std::net::TcpListener::bind("127.0.0.1:0")
+            .unwrap()
+            .local_addr()
+            .unwrap()
+            .port();
+        let z = Target::for_provider(true, None, Some(&format!("http://127.0.0.1:{free}")));
+        let p = verify(&z, Some(&Secret::new(KEY)), Some("m")).await;
+        assert!(p.hint.unwrap().contains("OpenAI"));
     }
 
     #[tokio::test]

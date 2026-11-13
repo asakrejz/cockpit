@@ -67,7 +67,7 @@ fn config_change_only_sends_touched_sections() {
 }
 
 #[test]
-fn providers_have_stable_names_and_only_the_sdk_is_implemented() {
+fn providers_have_stable_names_and_know_their_endpoint_family() {
     for a in Provider::ALL {
         assert_eq!(Provider::from_id(a.id()), Some(a));
         let j = serde_json::to_string(&a).unwrap();
@@ -76,15 +76,11 @@ fn providers_have_stable_names_and_only_the_sdk_is_implemented() {
     assert_eq!(Provider::default(), Provider::ClaudeAgentSdk);
     assert_eq!(Provider::from_id(" Codex "), Some(Provider::Codex));
     assert_eq!(Provider::from_id("gpt"), None);
-    assert!(Provider::ClaudeAgentSdk.implemented());
-    assert!(Provider::ClaudeAgentSdk.not_implemented().is_none());
-    for a in [Provider::ClaudeCode, Provider::Codex] {
-        assert!(
-            a.not_implemented()
-                .unwrap()
-                .contains("noch nicht umgesetzt")
-        );
-    }
+    assert!(!Provider::ClaudeAgentSdk.openai_compatible());
+    assert!(!Provider::ClaudeCode.openai_compatible());
+    assert!(Provider::Codex.openai_compatible());
+    assert_eq!(Provider::Codex.vendor(), "OpenAI");
+    assert_eq!(Provider::ClaudeCode.vendor(), "Anthropic");
 }
 
 #[test]

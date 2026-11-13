@@ -115,7 +115,7 @@ async fn a_run_from_the_approval_until_to_push() {
         ":/work ",
         ":/job:ro",
         "-e ANTHROPIC_AUTH_TOKEN",
-        "localhost/cockpit-agent:3",
+        "localhost/cockpit-agent:5",
     ] {
         assert!(run_line.contains(muss), "{muss} fehlt: {run_line}");
     }
@@ -144,30 +144,40 @@ async fn a_run_from_the_approval_until_to_push() {
     );
 }
 
-#[test]
-fn a_still_not_implemented_tool_starts_no_run() {
-    let w = welt(true);
-    for a in [Provider::ClaudeCode, Provider::Codex] {
-        let state = with_choice(
-            &w,
-            AgentChoice {
-                provider: a,
-                endpoint: w.state.agent_choice().endpoint,
-            },
-        );
-        let st = state.agent_status();
-        assert!(!st.ready);
-        assert!(
-            st.missing
-                .iter()
-                .any(|f| f.contains(a.label()) && f.contains("noch nicht umgesetzt")),
-            "{:?}",
-            st.missing
-        );
-        let Err(missing) = state.access() else {
-            panic!("kein Zugang für {a:?}");
-        };
-        assert!(missing[0].contains("noch nicht umgesetzt"));
+#[tokio::test]
+async fn claude_code_and_codex_start_runs_with_their_adapter_and_names() {
+    for (provider, names, values) in [
+        (
+            Provider::ClaudeCode,
+            "-e COCKPIT_PROVIDER -e ANTHROPIC_BASE_URL -e ANTHROPIC_AUTH_TOKEN -e ANTHROPIC_MODEL -e ANTHROPIC_API_KEY",
+            format!(
+                "TOKEN={TOKEN} BASE=https://litellm.example MODEL=claude-sonnet-5-5 PROVIDER=claude-code OAIKEY= OAIBASE= CMODEL= ANTKEY="
+            ),
+        ),
+        (
+            Provider::Codex,
+            "-e COCKPIT_PROVIDER -e OPENAI_BASE_URL -e OPENAI_API_KEY -e COCKPIT_MODEL",
+            format!(
+                "TOKEN= BASE= MODEL= PROVIDER=codex OAIKEY={TOKEN} OAIBASE=https://litellm.example CMODEL=claude-sonnet-5-5 ANTKEY="
+            ),
+        ),
+    ] {
+        let w = welt_with(true, provider);
+        assert!(w.state.agent_status().ready, "{provider:?}");
+        w.write("scenario-run.sh", &scenario_ok());
+        w.start(false).await;
+        w.wait("Lauf fertig", |ws| {
+            ws.run("BAU-142").is_some_and(|r| r.is_done())
+        })
+        .await;
+        w.wait_for_end().await;
+        let calls = w.log("calls.log");
+        let run_line = calls.lines().find(|z| z.starts_with("run ")).unwrap();
+        assert!(run_line.contains(names), "{provider:?}: {run_line}");
+        assert!(!calls.contains(TOKEN), "{provider:?}: secret in arguments");
+        // The values arrive only through the environment, the other tool family is empty.
+        let env = w.log("env.log");
+        assert!(env.contains(&values), "{provider:?}: {env}");
     }
 }
 

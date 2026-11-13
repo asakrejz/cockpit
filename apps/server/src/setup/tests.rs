@@ -142,7 +142,7 @@ fn change_switches_on_direct_without_address() {
     assert!(!updated.contains("url"), "{updated}");
     let e = c.endpoint.unwrap();
     assert_eq!((e.url, e.model.as_deref()), (None, Some("claude-opus-5-5")));
-    // A tool that is not implemented yet can be entered.
+    // Claude Code and Codex can be entered like the SDK.
     let a = ConfigChange {
         endpoint: Some(EndpointInput {
             provider: Some(Provider::Codex),

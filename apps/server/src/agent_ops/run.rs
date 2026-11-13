@@ -193,6 +193,7 @@ pub(super) async fn run_run(
         clone_only_read: mode == Mode::Plan,
         job: &job_dir,
         stdin_open: true,
+        provider: access.provider,
     });
     let mut cmd = Command::new(&access.cli);
     cmd.args(&args)
@@ -202,6 +203,7 @@ pub(super) async fn run_run(
         .kill_on_drop(true);
     kind_env(
         &mut cmd,
+        access.provider,
         access.endpoint_url.as_deref(),
         access.key.expose(),
         &access.model,

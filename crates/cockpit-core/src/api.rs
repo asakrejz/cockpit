@@ -122,8 +122,8 @@ pub struct RevokeResponse {
     pub hint: Option<String>,
 }
 
-/// What the agent works with: the tool that runs in the container. So far only the
-/// Claude Agent SDK is implemented; the others are known values that report „not implemented yet“ in plain text.
+/// What the agent works with: the tool that runs in the container (adapters in `apps/agent/runner`).
+/// The Claude Agent SDK and Claude Code talk to an Anthropic-compatible endpoint, Codex to an OpenAI-compatible one.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum Provider {
@@ -163,19 +163,18 @@ impl Provider {
         }
     }
 
-    /// Whether the runner can already execute this tool.
-    pub fn implemented(self) -> bool {
-        self == Provider::ClaudeAgentSdk
+    /// Codex talks to an OpenAI-compatible endpoint, the other tools to an Anthropic-compatible one.
+    pub fn openai_compatible(self) -> bool {
+        self == Provider::Codex
     }
 
-    /// Plain text for the case that a run would need this tool but it is missing.
-    pub fn not_implemented(self) -> Option<String> {
-        (!self.implemented()).then(|| {
-            format!(
-                "{} ist noch nicht umgesetzt. Wähle unter „Einrichten“ › „Modell“ das Claude Agent SDK.",
-                self.label()
-            )
-        })
+    /// Who offers the model directly (without an endpoint address), for plain-text messages.
+    pub fn vendor(self) -> &'static str {
+        if self.openai_compatible() {
+            "OpenAI"
+        } else {
+            "Anthropic"
+        }
     }
 }
 
@@ -228,7 +227,7 @@ pub struct AgentStatus {
     /// The agent image is built (`image inspect`).
     #[serde(default)]
     pub image: bool,
-    /// Name of the image, e.g. `localhost/cockpit-agent:3`.
+    /// Name of the image, e.g. `localhost/cockpit-agent:5`.
     #[serde(default)]
     pub image_name: String,
     /// The repo the agent works in (`owner/name`), if unambiguous.

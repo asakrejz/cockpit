@@ -35,7 +35,7 @@ for a in "$@"; do
   esac
   prev="$a"
 done
-echo "TOKEN=$ANTHROPIC_AUTH_TOKEN BASE=$ANTHROPIC_BASE_URL MODEL=$ANTHROPIC_MODEL" >> "$d/env.log"
+echo "TOKEN=$ANTHROPIC_AUTH_TOKEN BASE=$ANTHROPIC_BASE_URL MODEL=$ANTHROPIC_MODEL PROVIDER=$COCKPIT_PROVIDER OAIKEY=$OPENAI_API_KEY OAIBASE=$OPENAI_BASE_URL CMODEL=$COCKPIT_MODEL ANTKEY=$ANTHROPIC_API_KEY" >> "$d/env.log"
 . "$d/scenario-$mode.sh"
 ;;
 esac
@@ -147,6 +147,11 @@ impl World {
 
 /// A world with everything set up. `real = false` leaves out the container part.
 fn welt(set_up: bool) -> World {
+    welt_with(set_up, Provider::ClaudeAgentSdk)
+}
+
+/// Like [`welt`], with the tool of the agent chosen.
+fn welt_with(set_up: bool, provider: Provider) -> World {
     use std::os::unix::fs::PermissionsExt;
     let tmp = tempfile::tempdir().unwrap();
     let bin = tmp.path().join("bin");
@@ -182,7 +187,7 @@ fn welt(set_up: bool) -> World {
         container_env: Some("docker".into()),
         search_path: Some(bin.clone().into_os_string()),
         agent: AgentChoice {
-            provider: Provider::ClaudeAgentSdk,
+            provider,
             endpoint: set_up.then(|| EndpointConfig {
                 url: Some("https://litellm.example".into()),
                 model: Some("claude-sonnet-5-5".into()),
