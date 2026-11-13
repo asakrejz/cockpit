@@ -31,10 +31,6 @@ body { margin: 0; }
 .ck-stuck { display: flex; gap: var(--ref-space-12); padding: var(--ref-space-12); border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-grouped-background); }
 .ck-stuck .ck-reason { flex: none; }
 
-/* Empty state: nothing is stuck. */
-.ck-empty-state { display: flex; flex-direction: column; align-items: center; gap: var(--ref-space-8); padding: var(--ref-space-20); text-align: center; border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-grouped-background); }
-.ck-empty-state__icon { display: inline-flex; padding: var(--ref-space-8); border-radius: var(--ref-radius-full); color: var(--sys-color-label); background: var(--sys-color-green); }
-
 /* Notifications: sections and quiet hours. */
 .ck-settings { display: flex; flex-direction: column; gap: var(--ref-space-20); padding-bottom: var(--ref-space-20); }
 .ck-quiet { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ref-space-12); }
@@ -64,3 +60,11 @@ body { margin: 0; }
 /* Usage and limits on the agent run */
 .ck-usage { display: flex; flex-direction: column; gap: var(--ref-space-4); }
 .ck-problem { color: var(--sys-color-red); }
+
+/* Before the first state arrives: loading or "server not reachable" (gate.rs). */
+.ck-gate { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--ref-space-12); min-height: 100dvh; padding: var(--ref-space-20); text-align: center; }
+.ck-gate .ui-skeleton { width: min(480px, 100%); }
+/* Source banners in the notice stack (banner.rs). */
+.ck-banner-stack .ui-banner { pointer-events: auto; width: min(560px, 100%); background: var(--sys-material-thick); backdrop-filter: blur(20px); box-shadow: inset 3px 0 0 var(--sys-color-blue), 0 6px 24px rgb(0 0 0 / 0.12); }
+.ck-banner-stack .ui-banner[data-tone="warning"] { box-shadow: inset 3px 0 0 var(--sys-color-orange), 0 6px 24px rgb(0 0 0 / 0.12); }
+.ck-banner-stack .ui-banner[data-tone="error"] { box-shadow: inset 3px 0 0 var(--sys-color-red), 0 6px 24px rgb(0 0 0 / 0.12); }

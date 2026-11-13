@@ -580,6 +580,27 @@ button. Email and Slack are only prepared: the choice is stored, sending will go
 More about agent behaviour (questions, steering, follow-up jobs, costs, limits, rules per repo) is in
 [docs/architecture.md](docs/architecture.md#agent-behaviour).
 
+
+### Empty, loading and error states
+
+Every page says what is going on instead of showing a blank area (all wording lives in `cockpit_core::notice`,
+the building blocks `EmptyState`, `ErrorState`, `StatusBanner`, `Skeleton` in `crates/ui` with a story "Zustände"
+in the Playground):
+
+- **Loading:** until the first state of the server arrives the app shows placeholder rows; if the server cannot
+  be reached it says so with "Jetzt erneut versuchen".
+- **Server or network gone later:** a banner above the pages ("Der Server ist nicht erreichbar" or "Du bist
+  offline"), the last data stays, and the app reconnects by itself (2, 4, 8, 15, then every 30 seconds).
+- **A source has a problem** (Jira or GitHub): a banner per source with cause and next step, while the other source
+  keeps working: token rejected (401, "unter Einrichten erneuern"), missing permission (403), rate limit (the sync
+  pauses until the time from `Retry-After`/`X-RateLimit-Reset` and says when it asks again), service not reachable,
+  timeout or 5xx ("letzter Stand: vor 10 Min."). The sync resumes by itself; the banner disappears on the first
+  good fetch.
+- **Empty:** inbox (nothing connected / connected but nothing yet / filter without hits with "Filter zurücksetzen"),
+  review, agent, overview, log each explain why and offer the next action.
+- **Agent run failed:** the page shows the cause in plain words (container, image, model endpoint) with a link to
+  "Einrichten".
+
 ## The component library (`feature-ui`)
 
 The crate `crates/ui` mirrors the SwiftUI names of the design:
@@ -707,8 +728,7 @@ Not built yet (everything below is open; nothing here has been verified against 
   [apps/agent/README.md](apps/agent/README.md)); then pass `COCKPIT_PROVIDER` on.
 - **Webhooks / live update:** open decision between a tunnel (webhooks) and polling every 2 minutes; the default
   stays polling.
-- **Error and empty states** (expired token, rate limit, offline, backend unreachable) across all pages, and a
-  **mobile view** (navigation at the bottom, list and detail as separate levels).
+- A **mobile view** (navigation at the bottom, list and detail as separate levels).
 - Verification with a **real container and a real model** (`#[ignore]` tests with `COCKPIT_CONTAINER=docker|podman`),
   and a first run of the **release workflow**.
 - Smaller known gaps: restarting a check through the API may need a GitHub App instead of a token; Jira status

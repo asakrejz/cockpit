@@ -75,23 +75,52 @@ pub fn ReviewPage(number: Option<u32>) -> impl IntoView {
                 .collect_view()
         })
     };
+    let no_reviews = move || store.ws.with(|w| w.reviews.is_empty());
 
     view! {
         <SplitView layout=SplitLayout::DetailWide>
             <AppSidebar>
-                <SidebarSection label="Reviews">{list}</SidebarSection>
+                <SidebarSection label="Reviews">
+                    {list}
+                    <Show when=no_reviews>
+                        <p class="ck-empty t-footnote t-secondary">"Noch keine Pull Requests zum Prüfen."</p>
+                    </Show>
+                </SidebarSection>
             </AppSidebar>
             {move || match review.get() {
                 Some(r) => view! { {diff_pane(store, r.clone(), lines)} {agent_pane(store, r, panel)} }.into_any(),
                 None => {
                     view! {
                         <Pane label="Pull Request">
-                            <PaneHeader>
-                                <h1 class="t-title1 t-bold">"Kein Pull Request"</h1>
-                                <p class="t-subheadline t-secondary">
-                                    "Diesen Pull Request gibt es nicht. Wähle links einen anderen."
-                                </p>
-                            </PaneHeader>
+                            <PaneBody>
+                                {if no_reviews() {
+                                    view! {
+                                        <EmptyState
+                                            title="Noch keine Pull Requests"
+                                            text="Sobald GitHub verbunden ist und Pull Requests auf dich warten, kannst du sie hier prüfen."
+                                            icon=icons::GIT_PR
+                                        >
+                                            <Button size=ControlSize::Small variant=ButtonStyle::GlassProminent href=Route::Setup.hash()>
+                                                "Einrichten"
+                                            </Button>
+                                        </EmptyState>
+                                    }
+                                        .into_any()
+                                } else {
+                                    view! {
+                                        <EmptyState
+                                            title="Kein Pull Request"
+                                            text="Diesen Pull Request gibt es nicht (mehr). Wähle links einen anderen oder öffne ihn aus dem Posteingang."
+                                            icon=icons::GIT_PR
+                                        >
+                                            <Button size=ControlSize::Small href=Route::Inbox(cockpit_core::Filter::All).hash()>
+                                                "Zum Posteingang"
+                                            </Button>
+                                        </EmptyState>
+                                    }
+                                        .into_any()
+                                }}
+                            </PaneBody>
                         </Pane>
                     }
                         .into_any()

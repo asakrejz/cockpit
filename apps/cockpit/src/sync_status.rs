@@ -7,25 +7,14 @@ use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use crate::server::{self, CallError};
-use crate::store::{now_ms, use_store};
-
-/// "vor 5 Min." – coarse enough for a status line.
-fn ago(then_ms: u64, now: u64) -> String {
-    let s = now.saturating_sub(then_ms) / 1000;
-    match s {
-        0..=59 => "gerade eben".into(),
-        60..=3599 => format!("vor {} Min.", s / 60),
-        3600..=86_399 => format!("vor {} Std.", s / 3600),
-        _ => format!("vor {} Tagen", s / 86_400),
-    }
-}
+use crate::server;
+use crate::store::{Store, now_ms, use_store};
 
 fn subtitle(state: &SourceState, now: u64) -> String {
     let last = state
         .last_ok_ms
         .map_or("noch nie abgeglichen".to_string(), |t| {
-            format!("zuletzt abgeglichen {}", ago(t, now))
+            format!("zuletzt abgeglichen {}", cockpit_core::notice::ago(t, now))
         });
     match &state.problem {
         None => match state.warnings.first() {
@@ -36,26 +25,27 @@ fn subtitle(state: &SourceState, now: u64) -> String {
     }
 }
 
+/// "Jetzt abgleichen": asks the server to sync now and reports the outcome as a notice.
+pub fn sync_now(store: Store, busy: RwSignal<bool>) {
+    busy.set(true);
+    spawn_local(async move {
+        let result = server::post_sync().await;
+        busy.set(false);
+        match result {
+            Ok(r) if !r.active => store
+                .notify("Keine Quelle verbunden – richte Jira oder GitHub unter „Einrichten“ ein"),
+            Ok(_) => {} // The state comes through the event stream.
+            Err(e) => store.notify(e.message()),
+        }
+    });
+}
+
 #[component]
 pub fn SyncStatus() -> impl IntoView {
     let store = use_store();
     let busy = RwSignal::new(false);
 
-    let sync_now = move |_| {
-        busy.set(true);
-        spawn_local(async move {
-            let result = server::post_sync().await;
-            busy.set(false);
-            match result {
-                Ok(r) if !r.active => store.notify(
-                    "Keine Quelle verbunden – richte Jira oder GitHub unter „Einrichten“ ein",
-                ),
-                Ok(_) => {} // The state comes through the event stream.
-                Err(CallError::Unreachable) => store.notify("Der Server ist nicht erreichbar"),
-                Err(e) => store.notify(e.message()),
-            }
-        });
-    };
+    let sync_now = move |_| sync_now(store, busy);
 
     let rows = move || {
         let now = now_ms();

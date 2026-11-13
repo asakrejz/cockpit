@@ -78,6 +78,9 @@ impl fmt::Display for Error {
             Error::NotFound => write!(f, "Nicht gefunden"),
             Error::Rejected(m) if m.is_empty() => write!(f, "Der Dienst lehnt die Anfrage ab"),
             Error::Rejected(m) => write!(f, "Der Dienst lehnt die Anfrage ab: {m}"),
+            Error::Status(code @ 500..=599) => {
+                write!(f, "Der Dienst hat einen Serverfehler gemeldet ({code})")
+            }
             Error::Status(code) => write!(f, "Unerwarteter Status vom Dienst: {code}"),
             Error::Response(m) => write!(f, "Antwort des Dienstes nicht lesbar: {m}"),
             Error::Config(m) => write!(f, "Ungültige Einstellung: {m}"),
@@ -115,5 +118,7 @@ mod tests {
             Problem::RateLimited { until_ms: None }
         );
         assert!(matches!(Error::Status(500).problem(0), Problem::Other(_)));
+        assert!(Error::Status(503).to_string().contains("Serverfehler"));
+        assert!(Error::Status(418).to_string().contains("Unerwarteter"));
     }
 }

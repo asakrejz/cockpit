@@ -103,7 +103,12 @@ async fn get(s: &MockServer, p: &str, a: ResponseTemplate) {
 /// GitHub with a pull request (#7, review requested, checks green).
 async fn github() -> MockServer {
     let s = MockServer::start().await;
-    get(&s, "/user", ok(json!({"login": "ich"}))).await;
+    mount_github(&s).await;
+    s
+}
+
+async fn mount_github(s: &MockServer) {
+    get(s, "/user", ok(json!({"login": "ich"}))).await;
     for (q, hits) in [
         (
             "is:pr is:open archived:false review-requested:@me repo:a/x",
@@ -120,11 +125,11 @@ async fn github() -> MockServer {
             .and(path("/search/issues"))
             .and(query_param("q", q))
             .respond_with(ok(json!({"items": items})))
-            .mount(&s)
+            .mount(s)
             .await;
     }
     get(
-        &s,
+        s,
         "/repos/a/x/pulls/7",
         ok(json!({
         "number": 7, "title": "Avatar", "user": {"login": "lena"},
@@ -132,19 +137,18 @@ async fn github() -> MockServer {
         "updated_at": "2024-05-14T10:00:00Z"})),
     )
     .await;
-    get(&s, "/repos/a/x/pulls/7/files", ok(json!([
+    get(s, "/repos/a/x/pulls/7/files", ok(json!([
         {"filename": "a.rs", "patch": "@@ -1,2 +1,2 @@\n fn a() {\n-    alt();\n+    neu();\n }"}]))).await;
-    get(&s, "/repos/a/x/issues/7/comments", ok(json!([]))).await;
-    get(&s, "/repos/a/x/pulls/7/comments", ok(json!([]))).await;
-    get(&s, "/repos/a/x/pulls/7/reviews", ok(json!([]))).await;
+    get(s, "/repos/a/x/issues/7/comments", ok(json!([]))).await;
+    get(s, "/repos/a/x/pulls/7/comments", ok(json!([]))).await;
+    get(s, "/repos/a/x/pulls/7/reviews", ok(json!([]))).await;
     get(
-        &s,
+        s,
         "/repos/a/x/commits/s1/check-runs",
         ok(json!({"check_runs": [
         {"id": 5, "name": "Tests", "status": "completed", "conclusion": "success"}]})),
     )
     .await;
-    s
 }
 
 fn jira_state(site: &str) -> AppState {
@@ -318,6 +322,34 @@ async fn expired_token_is_to_state_and_nothing_goes_lost() {
 }
 
 #[tokio::test]
+async fn service_outage_and_recovery_keep_the_data() {
+    let g = github().await;
+    let state = state(sources(&g.uri()), true);
+    sync(&state).await;
+    g.reset().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(503))
+        .mount(&g)
+        .await;
+    let (status, _) = sync(&state).await;
+    assert_eq!(status, StatusCode::OK, "an outage is not an error of ours");
+    let h = health(&state).await;
+    assert_eq!(h["sync"]["github"], "error");
+    assert!(h["sync"]["details"][0]["since_ms"].as_u64().is_some());
+    assert!(h["sync"]["details"][0]["retry_at_ms"].is_null());
+    let (ws, _) = snapshot(&state).await;
+    assert!(ws.item("gh-a-x-7").is_some(), "last state stays");
+
+    // The service is back: the next sync clears the problem.
+    g.reset().await;
+    mount_github(&g).await;
+    sync(&state).await;
+    let h = health(&state).await;
+    assert_eq!(h["sync"]["github"], "ok");
+    assert!(h["sync"]["details"][0]["since_ms"].is_null());
+}
+
+#[tokio::test]
 async fn quota_pauses_the_sync() {
     let g = github().await;
     let state = state(sources(&g.uri()), true);
@@ -332,7 +364,22 @@ async fn quota_pauses_the_sync() {
         .mount(&g)
         .await;
     sync(&state).await;
-    assert_eq!(health(&state).await["sync"]["github"], "quota");
+    let h = health(&state).await;
+    assert_eq!(h["sync"]["github"], "quota");
+    let d = &h["sync"]["details"][0];
+    assert_eq!(d["source"], "github");
+    assert_eq!(d["status"], "quota");
+    let retry = d["retry_at_ms"].as_u64().expect("retry time");
+    let since = d["since_ms"].as_u64().expect("since");
+    assert!(
+        (590_000..=610_000).contains(&(retry - since)),
+        "{retry} {since}"
+    );
+    assert!(
+        d["last_ok_ms"].as_u64().is_some(),
+        "last good state is known"
+    );
+    assert!(!h.to_string().contains(TOKEN));
     let before = g.received_requests().await.unwrap().len();
     // During the pause the next sync does not even ask.
     sync(&state).await;
