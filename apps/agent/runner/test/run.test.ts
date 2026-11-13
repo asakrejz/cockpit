@@ -169,3 +169,28 @@ test("without a model nothing starts", async () => {
   assert.equal(await run(job(), { ...d, env: {} }), 1);
   assert.match((s.e[0] as any).text, /kein Modell/);
 });
+
+test("follow-up: same branch, the input is in the prompt, the commit names the task, no push, no GitHub token anywhere", async () => {
+  const f = { kind: "review_comments", pull_request: 85, threads: [{ path: "a.rs", line: 2, comments: [{ author: "mira", text: "Bitte umbenennen" }] }], notes: [], checks: [] };
+  const sdk = sdkFake(
+    [assistant("m1", [{ type: "tool_use", name: "Edit", input: { file_path: "/work/a.rs" } }]), resultOk("Umbenannt.")],
+    (o, read) => {
+      const prompt = JSON.stringify(read);
+      assert.match(prompt, /Bitte umbenennen/);
+      // Neither the prompt nor the system text nor the environment of the SDK contain a GitHub token.
+      assert.doesNotMatch(prompt + o.systemPrompt, /ghp_|github_pat_|x-access-token/);
+      assert.ok(!Object.keys(o.env).some((k) => /^(GH|GITHUB)_?TOKEN/i.test(k)));
+    },
+  );
+  const s = collector();
+  const g = gitFake({ status: " M a.rs\0" });
+  const code = await run(job({ followup: f }), deps(sdk, s, g));
+  assert.equal(code, 0);
+  assert.equal((s.e.at(-1) as any).t, "result");
+  assert.equal((s.e.at(-1) as any).branch, "claude/BAU-142-fokus-ring");
+  const commit = g.calls.find((a) => a.includes("commit"))!;
+  assert.ok(commit.some((x) => x.includes("Review-Kommentare umsetzen (#85)")));
+  assert.ok(!g.calls.some((a) => a.includes("push")));
+  // No secret in the events either.
+  assert.doesNotMatch(JSON.stringify(s.e), /streng-geheim|ghp_/);
+});

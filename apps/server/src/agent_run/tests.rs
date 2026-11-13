@@ -203,7 +203,7 @@ fn the_job_carries_ticket_rules_and_branch_but_no_secrets() {
     let mut ws = demo::workspace();
     start(&mut ws, false);
     let run = ws.run("BAU-142").unwrap();
-    let j = job_json(&ws, &run, Mode::Implement, "claude/BAU-142-x");
+    let j = job_json(&ws, &run, Mode::Implement, "claude/BAU-142-x", None);
     assert_eq!(j["mode"], "implement");
     assert_eq!(j["ticket"]["key"], "BAU-142");
     assert_eq!(j["branch"], "claude/BAU-142-x");
@@ -211,6 +211,56 @@ fn the_job_carries_ticket_rules_and_branch_but_no_secrets() {
     let text = j.to_string();
     assert!(!text.contains("TOKEN") && !text.contains("sk-"));
     assert_eq!(check_job()["mode"], "check");
+}
+
+#[test]
+fn a_followup_job_carries_its_input_and_still_no_secrets() {
+    let mut ws = demo::workspace();
+    for r in ws.reviews.iter_mut().filter(|r| r.number == 85) {
+        r.branch = "claude/BAU-127-x".into();
+    }
+    ws.apply(
+        Action::AddressReviewThreads {
+            review: 85,
+            options: AgentOptions {
+                plan_first: false,
+                ..AgentOptions::default()
+            },
+        },
+        Actor::User,
+        T,
+    )
+    .unwrap();
+    let run = ws.run("threads-85").unwrap();
+    // The watcher starts the container for the real follow-up job like for a normal run.
+    assert_eq!(
+        plane(&ws, &HashMap::new(), &[]),
+        [Instruction::Start("threads-85".into(), Mode::Implement)]
+    );
+    let job = FollowupJob {
+        kind: "review_comments",
+        review: 85,
+        threads: vec![followup::Thread {
+            path: "a.rs".into(),
+            line: Some(3),
+            comments: vec![followup::ThreadComment {
+                author: "mira".into(),
+                text: "Bitte prüfen".into(),
+            }],
+        }],
+        ..FollowupJob::default()
+    };
+    let j = job_json(&ws, &run, Mode::Implement, &run.branch(), Some(&job));
+    assert_eq!(j["branch"], "claude/BAU-127-x");
+    assert_eq!(j["followup"]["kind"], "review_comments");
+    assert_eq!(j["followup"]["threads"][0]["comments"][0]["author"], "mira");
+    let text = j.to_string();
+    assert!(!text.contains("TOKEN") && !text.contains("sk-") && !text.contains("ghp_"));
+    // A normal run has no follow-up input.
+    let mut ws = demo::workspace();
+    start(&mut ws, false);
+    let run = ws.run("BAU-142").unwrap();
+    assert!(job_json(&ws, &run, Mode::Implement, "claude/x", None)["followup"].is_null());
 }
 
 #[test]

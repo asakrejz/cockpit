@@ -113,7 +113,7 @@ The agent implements a ticket in a **container** (Claude Agent SDK, one containe
 2. **Build the image:** click "Image bauen" there (or `POST /api/agent/image`). The build downloads packages and
    takes a few minutes; progress and errors appear below in plain text. `/api/health` reports under `agent`
    whether the image exists (`image inspect`). By hand:
-   `docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:2 apps/agent` (or `podman`).
+   `docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:3 apps/agent` (or `podman`).
 3. **Provider and endpoint:** in the "Modell" step choose the tool (Claude Agent SDK; Claude Code and Codex are
    shown as "soon"), the endpoint (directly at Anthropic, your own proxy such as LiteLLM, or another compatible
    endpoint), store the key (`.env`, name `agent-key`, variable `AGENT_KEY`) and pick the model from the list that
@@ -335,7 +335,7 @@ new token works without restart.
 
 | Service | Token | Rights |
 |---------|-------|--------|
-| GitHub | *fine-grained personal access token*, limited to the configured repos | repository permissions **Contents** (read and write: create a branch), **Pull requests** (read and write: read, send a review, merge), **Checks** (read and write: read check status, re-request a check), **Issues** (read and write: comments), **Metadata** (read, automatic) |
+| GitHub | *fine-grained personal access token*, limited to the configured repos | repository permissions **Contents** (read and write: create a branch), **Pull requests** (read and write: read, create the pull request of a finished agent run, send a review, merge), **Checks** (read and write: read check status, re-request a check), **Issues** (read and write: comments), **Metadata** (read, automatic) |
 | Jira | *API token* of the Atlassian account | the account needs "Browse projects", "Add comments" and "Edit issues / Transition issues" in the projects; sign-in with the email from the configuration |
 
 ### OAuth (alternative to tokens)
@@ -532,7 +532,8 @@ Full detail: [docs/security.md](docs/security.md). In short:
   `Content-Type: application/json` and a missing or own `Origin`.
 - **The agent has no GitHub token** and cannot push. It commits to a branch `claude/<ticket>-…`; the backend
   verifies it in a fresh bare repo against the repo's path rules and pushes it. **Never** the main branch, **never** a
-  force-push, **never** a merge. You create the pull request yourself.
+  force-push, **never** a merge. The pull request is created by the backend with **your** GitHub token, only after
+  you clicked "Pull Request anlegen" (see "Pull request and follow-up jobs of the real agent").
 - Comments and reviews of the agent go out only after your approval; only you may merge.
 - The agent writes only to `/work`; the runner's `canUseTool` blocks `.git`, forbidden paths, `git push` and network
   commands. Limits (budget per run and month, time limit, parallel runs) stop the container (`rm -f`).
@@ -566,7 +567,7 @@ Pages (hash routes):
 | Review | `#/review/87` | read the diff; select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you) |
 | Übersicht | `#/overview` | open entries and load per person; "Hängt" shows failed checks, waiting reviews, tickets without a branch and agents waiting for you |
 | Benachrichtigungen | `#/notifications` | per occasion choose browser, email and Slack; quiet hours; permission request by button; test notification |
-| Agent | `#/agent/BAU-142` | assignment with options; plan for approval; five-step flow to the pull request; answer questions, send hints, pause; history as a conversation |
+| Agent | `#/agent/BAU-142` | assignment with options; plan for approval; five-step flow; answer questions, send hints, pause; history as a conversation; for a finished real run "Pull Request anlegen" (preview, editable) |
 | Grenzen & Regeln | `#/limits` | prices per million tokens, budget per run and month, time limit, parallel runs; per repo allowed/forbidden paths, required tests, instructions and plan requirement; usage today and this month |
 
 Inbox filters: besides the Jira project the header filters by **repo**, **person**, **status** and **label**; each
@@ -692,14 +693,28 @@ For learning Rust through this code base: each concept names where you see it an
 A good exercise for every step: break something on purpose (for example `ButtonStyle::Glas` instead of `Glass`) and
 read the compiler message. Rust usually explains errors very precisely.
 
+## Pull request and follow-up jobs of the real agent
+
+Real mode only (not with `COCKPIT_SEED=demo`); every step needs your click.
+
+- **Create the pull request.** After a successful run the branch `claude/…` is pushed and the agent page shows
+  "Pull Request anlegen …": a preview with title (ticket key included), text (from the ticket and the agent's summary),
+  head and base branch, editable. Only "Pull Request anlegen" creates it, on GitHub with your token from `.env`
+  (`Action::CreatePullRequest`, author: you). If an open pull request exists for the branch it is linked instead
+  (no duplicate). Errors (401, 403, 422, …) are shown in plain words and change nothing. The pull request is a draft
+  if the run's option says so; Cockpit never merges, never switches the draft state and requests no review.
+- **Follow-up jobs.** On the review page of a pull request on a `claude/…` branch: "Review-Kommentare umsetzen" (review
+  threads and review texts, read from GitHub) and "Roten Check beheben" (names, output and annotations of red checks).
+  The agent continues on the same branch, the backend pushes the new commits as a normal push (no force-push), the run
+  is reported like a normal one (`threads-<nr>`, `fixes-<nr>`). Inputs are limited (30 threads, 8 comments per thread,
+  60,000 characters in total, 3,000 characters of log per check) and are handed over as data in `job.json`
+  (`followup`). GitHub's REST API does not tell which threads are resolved, so all threads go to the agent, which is
+  told to skip those that look done.
+
 ## Roadmap / Open work
 
 Not built yet (everything below is open; nothing here has been verified against the real services either):
 
-- **Follow-up jobs in real agent mode:** implementing review comments and fixing red checks currently run only in
-  the simulation (the real-agent mode answers with a plain-language notice).
-- **Pull request created by the agent automatically:** today the agent pushes a `claude/…` branch and you open the
-  pull request yourself.
 - **Ticket-to-repo mapping for several repos:** today one repo is used (`[agent] repo` or the only entry of
   `[github] repos`); rules per repo for real repos. Also tell apart equal PR numbers from two repos: the inbox
   already separates them, but `Review` and `PrLink` still key on the number.
@@ -712,6 +727,5 @@ Not built yet (everything below is open; nothing here has been verified against 
 - Verification with a **real container and a real model** (`#[ignore]` tests with `COCKPIT_CONTAINER=docker|podman`),
   and a first run of the **release workflow**.
 - Smaller known gaps: restarting a check through the API may need a GitHub App instead of a token; Jira status
-  changes depend on the project's workflow (only tested against recorded responses); editing tickets, follow-up
-  jobs and limits are not sent outward yet, and the sync overwrites title and description with the service's state
+  changes depend on the project's workflow (only tested against recorded responses); editing tickets and limits are not sent outward yet, and the sync overwrites title and description with the service's state
   (priority and PR link stay local); browser notifications are only tested with a replaced notification API.

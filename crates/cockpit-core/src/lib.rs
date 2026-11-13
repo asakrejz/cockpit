@@ -47,8 +47,9 @@ pub mod workspace;
 
 pub use action::{Action, ActionError, Actor, Applied, LogEntry, MAX_LOG, Target};
 pub use agent::{
-    AgentOptions, AgentPlan, AgentReport, AgentRun, MessageKind, Plan, Question, ReportEffect,
-    RunKind, RunMessage, RunState, Speaker, Step, StepState, Tick,
+    AgentOptions, AgentPlan, AgentReport, AgentRun, FollowupTask, MessageKind, Plan,
+    PullRequestRef, Question, ReportEffect, RunKind, RunMessage, RunState, Speaker, Step,
+    StepState, Tick,
 };
 pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::{AuthKind, Connections, ServiceStatus};
@@ -69,4 +70,6 @@ pub use sync::{
 };
 pub use team::{CAPACITY, LoadLevel, Member, Stuck, StuckKind, state_label};
 pub use usage::{AgentLimits, Charge, Pricing, StopReason, Usage};
-pub use workspace::{AgentError, LinkError, ResumeError, StatusChange, Workspace};
+pub use workspace::{
+    AgentError, LinkError, PullRequestDraft, ResumeError, StatusChange, Workspace,
+};

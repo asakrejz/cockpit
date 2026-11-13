@@ -44,6 +44,8 @@ fn bubble(m: RunMessage) -> impl IntoView {
     }
 }
 
+mod pull_request;
+
 #[component]
 pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let store = use_store();
@@ -568,6 +570,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                     }
                                 })
                         }}
+                        <pull_request::PullRequestPanel run=run />
                         {move || {
                             // Why the last run ended without a result (error, timeout, restart).
                             run.get()

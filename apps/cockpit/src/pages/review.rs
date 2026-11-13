@@ -137,11 +137,13 @@ struct LineUi {
 mod checks;
 mod comments;
 mod diff;
+mod followups;
 mod merge;
 mod suggestions;
 
 use checks::checks_section;
 use comments::comments_section;
 use diff::diff_pane;
+use followups::followup_section;
 use merge::merge_section;
 use suggestions::agent_pane;

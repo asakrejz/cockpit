@@ -94,6 +94,13 @@ impl Store {
         store
     }
 
+    /// Does the backend run the real agent (container)? Only then follow-up jobs on pull requests and
+    /// „Pull Request anlegen“ exist; the simulation has its own buttons.
+    pub fn agent_real(&self) -> bool {
+        self.health
+            .with(|h| h.as_ref().is_some_and(|h| h.agent.mode == "real"))
+    }
+
     /// Briefly shows a notice (error of the server).
     pub fn notify(&self, text: impl Into<String>) {
         let text = text.into();

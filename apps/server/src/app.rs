@@ -502,6 +502,21 @@ async fn endpoint_check_container(State(state): State<AppState>) -> Response {
     Json(state.container_check().await).into_response()
 }
 
+/// `GET /api/agent/pull-request?run=<key>`: preview of the pull request for the branch of a
+/// finished real run. Creates nothing.
+async fn pull_request_preview(
+    State(state): State<AppState>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    let Some(run) = q.get("run").filter(|r| !r.is_empty()) else {
+        return error(StatusCode::BAD_REQUEST, "Es fehlt der Lauf (run)");
+    };
+    match state.pull_request_preview(run).await {
+        Ok(p) => Json(p).into_response(),
+        Err(e) => action_error(e),
+    }
+}
+
 async fn api_unknown() -> (StatusCode, Json<serde_json::Value>) {
     (
         StatusCode::NOT_FOUND,
@@ -629,6 +644,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/jira/projects", get(jira_projects))
         .route("/api/agent/models", get(agent_models))
         .route("/api/agent/check", get(endpoint_check))
+        .route("/api/agent/pull-request", get(pull_request_preview))
         .route("/api/agent/check/container", get(endpoint_check_container))
         .route("/api/jira/check", post(crate::setup::jira_check))
         .route(

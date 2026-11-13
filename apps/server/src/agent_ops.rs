@@ -14,7 +14,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use cockpit_core::api::{AgentStatus, ContainerCheck, ContainerStatus, ImageBuild};
-use cockpit_core::{Action, ActionError, Actor, AgentReport, RunKind, RunState, Workspace};
+use cockpit_core::{
+    Action, ActionError, Actor, AgentReport, FollowupTask, RunKind, RunState, Workspace,
+};
 use cockpit_integrations::Secret;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
@@ -164,7 +166,7 @@ impl AppState {
         }
     }
 
-    fn repo_name(&self) -> Result<String, String> {
+    pub(crate) fn repo_name(&self) -> Result<String, String> {
         let q = self.sources();
         let github: Vec<String> = q
             .github
@@ -259,14 +261,27 @@ impl AppState {
     }
 
     /// Rejections before applying an action in real mode: runs only start when everything
-    /// is set up, and follow-up jobs do not exist yet. `None` if nothing speaks against it.
-    /// Blockierend.
+    /// is set up, and the simulated follow-up jobs do not exist with the real agent. `None` if nothing
+    /// speaks against it. Blocking.
     pub(crate) fn agent_lock(&self, action: &Action) -> Option<String> {
         if !self.agent_real() {
-            return None;
+            // The follow-up jobs and the pull request belong to the real agent.
+            return matches!(
+                action,
+                Action::AddressReviewThreads { .. }
+                    | Action::FixFailedChecks { .. }
+                    | Action::CreatePullRequest { .. }
+            )
+            .then(|| {
+                "Das gibt es nur mit dem echten Agenten. Im Demo-Modus laufen die Folgeaufträge als Simulation direkt am Review."
+                    .to_string()
+            });
         }
         match action {
-            Action::StartAgent { .. } | Action::ResumeStopped { .. } => {
+            Action::StartAgent { .. }
+            | Action::ResumeStopped { .. }
+            | Action::AddressReviewThreads { .. }
+            | Action::FixFailedChecks { .. } => {
                 let st = self.agent_status();
                 (!st.ready).then(|| {
                     format!(
@@ -287,7 +302,7 @@ impl AppState {
             }
             Action::AddressReview { .. } | Action::InvestigateCheck { .. } | Action::ApplyFix { .. } => {
                 Some(
-                    "Folgeaufträge (Kommentare umsetzen, Checks untersuchen) laufen noch nicht mit dem echten Agenten. Setze die Änderungen vorerst selbst um."
+                    "Diesen Folgeauftrag gibt es mit dem echten Agenten nicht. Nutze am Review „Review-Kommentare umsetzen“ oder „Rote Checks beheben“."
                         .to_string(),
                 )
             }

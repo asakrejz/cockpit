@@ -207,7 +207,7 @@ async fn health_reports_the_agents_never_secrets() {
     let j = json(&body);
     assert_eq!(j["agent"]["mode"], "real");
     assert_eq!(j["agent"]["ready"], false);
-    assert_eq!(j["agent"]["image_name"], "localhost/cockpit-agent:2");
+    assert_eq!(j["agent"]["image_name"], "localhost/cockpit-agent:3");
     let missing = j["agent"]["missing"].as_array().unwrap();
     assert!(missing.len() >= 3);
     assert!(

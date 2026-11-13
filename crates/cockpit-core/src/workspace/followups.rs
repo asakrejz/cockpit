@@ -45,6 +45,10 @@ impl Workspace {
         let note = match &run.kind {
             _ if waiting => "Der Agent wartet auf die Freigabe seines Plans",
             RunKind::Diagnose { .. } => "Der Agent untersucht einen roten Check",
+            RunKind::Followup {
+                task: FollowupTask::FailedChecks { .. },
+                ..
+            } => "Der Agent behebt rote Checks",
             _ => "Der Agent setzt Review-Kommentare um",
         };
         let number = run.pr_number;
@@ -129,6 +133,64 @@ impl Workspace {
             plan_first: false,
             ..AgentOptions::default()
         };
+        Ok(self.start_followup(run, options))
+    }
+
+    /// Commissions the **real** agent to implement the review comments of the pull request. The
+    /// backend reads the threads from GitHub when the run starts. The agent only continues on
+    /// branches `claude/…`. Returns the key of the run (`threads-91`).
+    pub fn address_review_threads(
+        &mut self,
+        review: u32,
+        options: AgentOptions,
+    ) -> Result<String, AgentError> {
+        let r = self.check_followup(review)?;
+        let (title, branch) = (r.title.clone(), r.branch.clone());
+        if !branch.starts_with("claude/") {
+            return Err(AgentError::NotAgentBranch);
+        }
+        let run = AgentRun::followup(
+            RunKind::Followup {
+                review,
+                task: FollowupTask::ReviewThreads,
+            },
+            &self.item_key_of_pr(review),
+            &title,
+            &branch,
+        );
+        Ok(self.start_followup(run, options))
+    }
+
+    /// Commissions the **real** agent to fix the red checks of the pull request. Returns the key
+    /// of the run (`fixes-91`).
+    pub fn fix_failed_checks(
+        &mut self,
+        review: u32,
+        options: AgentOptions,
+    ) -> Result<String, AgentError> {
+        let r = self.check_followup(review)?;
+        let checks: Vec<String> = r
+            .check_runs
+            .iter()
+            .filter(|c| c.status == Checks::Failed)
+            .map(|c| c.name.clone())
+            .collect();
+        if checks.is_empty() {
+            return Err(AgentError::CheckNotFailed);
+        }
+        let (title, branch) = (r.title.clone(), r.branch.clone());
+        if !branch.starts_with("claude/") {
+            return Err(AgentError::NotAgentBranch);
+        }
+        let run = AgentRun::followup(
+            RunKind::Followup {
+                review,
+                task: FollowupTask::FailedChecks { checks },
+            },
+            &self.item_key_of_pr(review),
+            &title,
+            &branch,
+        );
         Ok(self.start_followup(run, options))
     }
 
@@ -255,7 +317,7 @@ impl Workspace {
                     }
                 }
             }
-            RunKind::Implement => {}
+            RunKind::Implement | RunKind::Followup { .. } => {}
         }
     }
 
