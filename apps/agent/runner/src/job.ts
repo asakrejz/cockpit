@@ -25,6 +25,8 @@ export interface Job {
   run_tests: boolean;
   branch: string;
   base_branch: string;
+  /** The repo (`owner/name`) the backend cloned into /work – only informational; "" if unknown. */
+  repo: string;
   /** The runner may work for at most this many seconds. */
   max_seconds: number;
 }
@@ -73,6 +75,7 @@ export function checkJob(raw: unknown): Job {
     run_tests: o.run_tests !== false,
     branch,
     base_branch: String(o.base_branch ?? "main"),
+    repo: typeof o.repo === "string" && /^(?!\.{1,2}\/)[A-Za-z0-9._-]+\/(?!\.{1,2}$)[A-Za-z0-9._-]+$/.test(o.repo) ? o.repo : "",
     max_seconds: Number.isFinite(o.max_seconds) && o.max_seconds > 0 ? Math.floor(o.max_seconds) : 1800,
   };
 }
@@ -102,9 +105,12 @@ export function systemText(a: Job): string {
     "Du bist der Agent des Cockpits und arbeitest im Verzeichnis /work an einem geklonten Repository.",
     "Feste Regeln: Du arbeitest nur in /work. Du pushst nicht, mergst nicht und wechselst nicht auf den Hauptbranch;",
     `den Commit auf dem Branch ${a.branch || "(Branch des Auftrags)"} legt der Läufer selbst an, du musst nicht committen.`,
+    a.repo ? `Das Repository in /work ist ${a.repo}; ändere nur dieses Repository und beziehe dich auf kein anderes.` : "",
     "Du hast kein Netz außer dem Modellzugang. Antworte auf Deutsch.",
     ...RULES_TEXT(a.rules),
-  ].join("\n");
+  ]
+    .filter((z) => z !== "")
+    .join("\n");
 }
 
 function ticketText(a: Job): string {

@@ -3,14 +3,14 @@ use super::*;
 /// Implement review comments: choose open comments and commission the agent.
 /// Plus the state of a running follow-up job and what has already been implemented.
 pub(super) fn comments_section(store: Store, r: &Review, panel: Panel) -> impl IntoView + use<> {
-    let number = r.number;
+    let number = StoredValue::new(r.key());
     let merged = r.merged.is_some();
     move || {
         let (review, active, done) = store.ws.with(|w| {
-            let runs = w.followups(number);
+            let runs = w.followups(number.get_value());
             (
-                w.review(number).cloned(),
-                w.active_followup(number).cloned(),
+                w.review(number.get_value()).cloned(),
+                w.active_followup(number.get_value()).cloned(),
                 runs.into_iter()
                     .filter(|r| r.is_done())
                     .cloned()
@@ -111,13 +111,16 @@ pub(super) fn comments_section(store: Store, r: &Review, panel: Panel) -> impl I
                     ..Default::default()
                 };
                 let started = store.dispatch(Action::AddressReview {
-                    review: number,
+                    review: number.get_value(),
                     comments: chosen,
                     options,
                 });
                 // The plan is waiting for approval on the agent page.
                 if started.is_ok() {
-                    crate::store::navigate(&Route::Agent(Some(format!("review-{number}"))));
+                    crate::store::navigate(&Route::Agent(Some(format!(
+                        "review-{}",
+                        number.get_value().slug()
+                    ))));
                 }
             }
         };

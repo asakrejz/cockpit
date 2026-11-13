@@ -75,9 +75,6 @@ impl World {
     fn log(&self, name: &str) -> String {
         std::fs::read_to_string(self.bin().join(name)).unwrap_or_default()
     }
-    fn remote(&self) -> PathBuf {
-        self.tmp.path().join("git/firma/app.git")
-    }
     fn branches(&self) -> Vec<String> {
         self.branches_of("app")
     }

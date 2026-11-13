@@ -61,7 +61,7 @@ pub(super) fn line_notes(
     index: usize,
     ui: LineUi,
 ) -> AnyView {
-    let (number, sent) = (r.number, r.sent);
+    let (number, sent) = (StoredValue::new(r.key()), r.sent);
     let original = r
         .files
         .iter()
@@ -109,7 +109,7 @@ pub(super) fn line_notes(
                                                 .get_untracked()
                                                 .then(|| ui.edit_code.get_untracked());
                                             let saved = store.dispatch(Action::EditLineComment {
-                                                review: number,
+                                                review: number.get_value(),
                                                 comment: id.get_value(),
                                                 text: new_text,
                                                 suggestion,
@@ -173,7 +173,7 @@ pub(super) fn line_notes(
                                                     destructive=true
                                                     on_click=move |_| {
                                                         let _ = store.dispatch(Action::DeleteLineComment {
-                                                            review: number,
+                                                            review: number.get_value(),
                                                             comment: id.get_value(),
                                                         });
                                                     }
@@ -221,7 +221,7 @@ pub(super) fn line_notes(
                                 let text = ui.draft.get_untracked();
                                 let suggestion = ui.suggest.get_untracked().then(|| ui.code.get_untracked());
                                 let added = store.dispatch(Action::AddLineComment {
-                                    review: number,
+                                    review: number.get_value(),
                                     file: file.get_value(),
                                     line: index,
                                     text,
@@ -336,7 +336,7 @@ pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi) -> impl IntoView {
             <PaneHeader>
                 <div class="ui-hstack" style="--spacing: 10px">
                     <Badge variant=BadgeVariant::Neutral>"GitHub"</Badge>
-                    <span class="t-subheadline t-mono t-secondary">{format!("#{}", r.number)}</span>
+                    <span class="t-subheadline t-mono t-secondary">{r.key().to_string()}</span>
                     <Status tone=view::tone(r.checks.tone())>{r.checks.label()}</Status>
                     {r
                         .merged

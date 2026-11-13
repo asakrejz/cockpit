@@ -293,7 +293,15 @@ fn Rules(repo: String) -> impl IntoView {
 #[component]
 pub fn LimitsPage() -> impl IntoView {
     let store = use_store();
-    let repos = store.ws.with_untracked(|w| w.repos());
+    // Repos from the data plus the ones the agent is configured for (rules can be set for both).
+    let mut repos = store.ws.with_untracked(|w| w.repos());
+    store.health.with_untracked(|h| {
+        for r in h.iter().flat_map(|h| h.agent.repos.repos.iter()) {
+            if !repos.contains(&r.repo) {
+                repos.push(r.repo.clone());
+            }
+        }
+    });
 
     view! {
         <SplitView>

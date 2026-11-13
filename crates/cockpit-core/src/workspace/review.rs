@@ -124,7 +124,7 @@ impl Workspace {
     pub fn running_checks(&self) -> usize {
         self.reviews
             .iter()
-            .filter(|r| self.sync.pr(&r.key()).is_none())
+            .filter(|r| self.sync.pr(r.key()).is_none())
             .map(Review::running_checks)
             .sum()
     }

@@ -2,7 +2,7 @@ use super::*;
 
 /// Right: suggestions of the agent, own comment, verdict and sending.
 pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView {
-    let number = r.number;
+    let number = StoredValue::new(r.key());
     let undecided = r.undecided();
     let (summary, send_label, can_send, sent) = (r.summary(), r.send_label(), r.can_send(), r.sent);
     let (agent_reviewed, verdict) = (r.agent_reviewed, r.verdict.id());
@@ -17,7 +17,9 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
         panel.agent_reading.set(true);
         set_timeout(
             move || {
-                let _ = store.dispatch(Action::RequestAgentReview { review: number });
+                let _ = store.dispatch(Action::RequestAgentReview {
+                    review: number.get_value(),
+                });
                 // The page may have been left in the meantime.
                 let _ = panel.agent_reading.try_set(false);
             },
@@ -27,7 +29,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
     let send = move |_| {
         let own = panel.own_comment.get_untracked();
         let sent = store.dispatch(Action::SendReview {
-            review: number,
+            review: number.get_value(),
             comment: own,
         });
         if sent.is_ok() {
@@ -94,7 +96,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                         value=verdict
                         on_change=move |id: &'static str| {
                             if let Some(verdict) = Verdict::from_id(id) {
-                                let _ = store.dispatch(Action::SetVerdict { review: number, verdict });
+                                let _ = store.dispatch(Action::SetVerdict { review: number.get_value(), verdict });
                             }
                         }
                         aria_label="Ergebnis"
@@ -135,14 +137,19 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
 }
 
 /// A suggestion: approve, reject, edit – or take the decision back.
-pub(super) fn suggestion(store: Store, number: u32, s: Suggestion, panel: Panel) -> impl IntoView {
+pub(super) fn suggestion(
+    store: Store,
+    number: StoredValue<PrKey>,
+    s: Suggestion,
+    panel: Panel,
+) -> impl IntoView {
     let id = StoredValue::new(s.id.clone());
     let text = StoredValue::new(s.text.clone());
     let editing = Signal::derive(move || panel.editing.get().is_some_and(|e| e == id.get_value()));
     let decide = move |decision: Option<Decision>| {
         move |_| {
             let _ = store.dispatch(Action::Decide {
-                review: number,
+                review: number.get_value(),
                 suggestion: id.get_value(),
                 decision,
             });
@@ -173,7 +180,7 @@ pub(super) fn suggestion(store: Store, number: u32, s: Suggestion, panel: Panel)
                         let new_text = panel.edit_text.get_untracked();
                         panel.editing.set(None);
                         let _ = store.dispatch(Action::EditSuggestion {
-                            review: number,
+                            review: number.get_value(),
                             suggestion: id.get_value(),
                             text: new_text,
                         });

@@ -1,7 +1,7 @@
-//! Pages and their addresses. The address is in the hash of the URL (`#/review/87`),
+//! Pages and their addresses. The address is in the hash of the URL (`#/review/acme/app/87`),
 //! so that the back button and bookmarks work.
 
-use cockpit_core::Filter;
+use cockpit_core::{Filter, PrKey};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Route {
@@ -17,8 +17,9 @@ pub enum Route {
     Notifications,
     /// Costs, limits and rules per repo for the agents.
     Limits,
-    /// A review. Without a number: the first open one.
-    Review(Option<u32>),
+    /// A review of a pull request (repo and number). Without one: the first open review.
+    /// The older address with only a number (`#/review/87`) still works.
+    Review(Option<PrKey>),
     /// An agent run. Without a ticket: a sensible suggestion.
     Agent(Option<String>),
 }
@@ -29,7 +30,10 @@ impl Route {
             .trim_start_matches('#')
             .split('/')
             .filter(|p| !p.is_empty());
-        match (parts.next(), parts.next()) {
+        let (first, second) = (parts.next(), parts.next());
+        // What follows `review/`: `acme/app/87` or `87`.
+        let rest: Vec<&str> = std::iter::once(second).flatten().chain(parts).collect();
+        match (first, second) {
             // The older German addresses keep working (bookmarks).
             (Some("setup" | "einrichten"), _) => Route::Setup,
             (Some("mine" | "meine"), _) => Route::Inbox(Filter::Mine),
@@ -39,7 +43,7 @@ impl Route {
             (Some("log" | "protokoll"), _) => Route::Log,
             (Some("notifications" | "benachrichtigungen"), _) => Route::Notifications,
             (Some("limits" | "grenzen"), _) => Route::Limits,
-            (Some("review"), number) => Route::Review(number.and_then(|n| n.parse().ok())),
+            (Some("review"), _) => Route::Review(PrKey::from_route(&rest.join("/"))),
             (Some("agent"), key) => Route::Agent(key.map(str::to_string)),
             _ => Route::Inbox(Filter::All),
         }
@@ -57,7 +61,7 @@ impl Route {
             Route::Notifications => "#/notifications".into(),
             Route::Limits => "#/limits".into(),
             Route::Review(None) => "#/review".into(),
-            Route::Review(Some(number)) => format!("#/review/{number}"),
+            Route::Review(Some(key)) => format!("#/review/{}", key.route()),
             Route::Agent(None) => "#/agent".into(),
             Route::Agent(Some(key)) => format!("#/agent/{key}"),
         }
@@ -81,7 +85,8 @@ mod tests {
             Route::Notifications,
             Route::Limits,
             Route::Review(None),
-            Route::Review(Some(87)),
+            Route::Review(Some(PrKey::from(87))),
+            Route::Review(Some(PrKey::new("acme/app", 87))),
             Route::Agent(None),
             Route::Agent(Some("BAU-142".into())),
         ] {
@@ -112,9 +117,27 @@ mod tests {
     }
 
     #[test]
+    fn equal_numbers_of_two_repos_have_different_addresses() {
+        let (a, b) = (PrKey::new("acme/app", 87), PrKey::new("acme/web", 87));
+        assert_ne!(
+            Route::Review(Some(a.clone())).hash(),
+            Route::Review(Some(b)).hash()
+        );
+        assert_eq!(Route::Review(Some(a)).hash(), "#/review/acme/app/87");
+    }
+
+    #[test]
     fn broken_parameters_are_dropped() {
         assert_eq!(Route::parse("#/review/abc"), Route::Review(None));
         assert_eq!(Route::parse("#/agent/"), Route::Agent(None));
-        assert_eq!(Route::parse("#review/87"), Route::Review(Some(87)));
+        assert_eq!(
+            Route::parse("#review/87"),
+            Route::Review(Some(PrKey::from(87)))
+        );
+        assert_eq!(
+            Route::parse("#/review/x/87"),
+            Route::Review(None),
+            "not owner/name"
+        );
     }
 }

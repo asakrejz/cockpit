@@ -5,6 +5,7 @@ use cockpit_core::setup::{client_id_read, repos_read};
 use feature_ui::*;
 use leptos::prelude::*;
 
+use super::agent_repos::AgentReposSection;
 use super::fields::{
     Context, CopyField, Extern, Feedback, Intro, KeyField, Message, Section, config_save,
 };
@@ -182,6 +183,7 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
                     on_disconnected=move |_| ctx.reload()
                 />
             </Section>
+            <AgentReposSection ctx=ctx />
         </VStack>
     }
 }

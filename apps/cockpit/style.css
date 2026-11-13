@@ -64,3 +64,13 @@ body { margin: 0; }
 /* Usage and limits on the agent run */
 .ck-usage { display: flex; flex-direction: column; gap: var(--ref-space-4); }
 .ck-problem { color: var(--sys-color-red); }
+
+/* One repo of the agent in the setup assistant. */
+.ck-agent-repo {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--sys-color-separator, rgba(128, 128, 128, 0.3));
+  border-radius: 12px;
+}

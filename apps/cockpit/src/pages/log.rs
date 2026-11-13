@@ -52,7 +52,7 @@ fn link(store: Store, target: Option<Target>) -> AnyView {
             .into_any()
         }
         Target::Review(number) => {
-            if !store.ws.with_untracked(|w| w.review(number).is_some()) {
+            if !store.ws.with_untracked(|w| w.review(&number).is_some()) {
                 return ().into_any();
             }
             view! {

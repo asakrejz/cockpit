@@ -2,7 +2,7 @@ use super::*;
 
 /// Merge: choose method, button – and why it does not work right now.
 pub(super) fn merge_section(store: Store, r: &Review, panel: Panel) -> AnyView {
-    let number = r.number;
+    let number = StoredValue::new(r.key());
     if let Some(method) = r.merged {
         return view! {
             <div class="ui-vstack" style="--spacing: 10px">
@@ -13,7 +13,9 @@ pub(super) fn merge_section(store: Store, r: &Review, panel: Panel) -> AnyView {
         .into_any();
     }
     // The workspace also knows the draft status from the inbox.
-    let blockers = store.ws.with_untracked(|w| w.merge_blockers(number));
+    let blockers = store
+        .ws
+        .with_untracked(|w| w.merge_blockers(number.get_value()));
     let can_merge = blockers.is_empty();
     let reasons = blockers
         .iter()
@@ -24,7 +26,7 @@ pub(super) fn merge_section(store: Store, r: &Review, panel: Panel) -> AnyView {
             return;
         };
         let _ = store.dispatch(Action::MergePr {
-            review: number,
+            review: number.get_value(),
             method,
         });
     };

@@ -606,6 +606,15 @@ impl Item {
             .filter(|p| is_project_key(p))
     }
 
+    /// The key as shown in lists: `BAU-142` for tickets; for pull requests `acme/app#87`
+    /// (with the repo, because `#87` alone can exist in two repos), or `#87` if the repo is unknown.
+    pub fn display_key(&self) -> String {
+        match &self.pr {
+            Some(p) if self.kind == Kind::PullRequest && !p.repo.is_empty() => p.key().to_string(),
+            _ => self.key.clone(),
+        }
+    }
+
     /// Does a run belong to this entry? A run is named after the ticket key; a follow-up job
     /// on a pull request without ticket after the pull request including its repo
     /// (`acme/app#87`), because `#87` alone could be any repo's.

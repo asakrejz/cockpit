@@ -73,7 +73,7 @@ pub fn Message(feedback: Feedback) -> impl IntoView {
 }
 
 /// Plain text for a failed call.
-fn error_text(e: &CallError) -> String {
+pub fn error_text(e: &CallError) -> String {
     match e {
         CallError::Unreachable => {
             "Cockpit antwortet gerade nicht. Läuft das Startfenster noch? Danach „Erneut versuchen“."

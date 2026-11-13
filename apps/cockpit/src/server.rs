@@ -6,8 +6,8 @@ use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
     ActionRequest, ActionResponse, AgentStatus, ConfigChange, ConfigResponse, ContainerCheck,
     ContainerStatus, EndpointCheck, EndpointStatus, ErrorBody, ImageBuild, JiraCheck,
-    JiraProjectsResponse, KeyInput, KeyResponse, ModelList, RevokeResponse, ServerEvent, Setup,
-    SyncResponse,
+    JiraProjectsResponse, KeyInput, KeyResponse, ModelList, RepoCheckRequest, RepoCheckResponse,
+    RevokeResponse, ServerEvent, Setup, SyncResponse,
 };
 use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
@@ -357,6 +357,21 @@ pub async fn delete_key(name: &str) -> Result<KeyResponse, CallError> {
         return Err(rejection(resp).await);
     }
     resp.json::<KeyResponse>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Looks at repos, read-only (`POST /api/github/repos/check`): exists, visible, push allowed?
+pub async fn post_repos_check(repos: Vec<String>) -> Result<RepoCheckResponse, CallError> {
+    let request = Request::post("/api/github/repos/check")
+        .header("Content-Type", "application/json")
+        .json(&RepoCheckRequest { repos })
+        .map_err(|_| CallError::Rejected("Die Prüfung lässt sich nicht starten".into()))?;
+    let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<RepoCheckResponse>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
