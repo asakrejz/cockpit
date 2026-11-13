@@ -3,12 +3,12 @@ use super::*;
 // ---------- Agent-Takt ----------
 
 #[tokio::test]
-async fn takt_lets_the_agents_work_as_agent() {
+async fn tick_lets_the_agents_work_as_agent() {
     let state = state(Arc::new(MemoryStore::new()));
     let app = || router(state.clone(), PathBuf::from("/x"));
     // Without a running agent the tick changes nothing.
     let s = state.clone();
-    tokio::task::spawn_blocking(move || s.takt()).await.unwrap();
+    tokio::task::spawn_blocking(move || s.tick()).await.unwrap();
     assert_eq!(state.inner.live.revision(), 0);
 
     let ws = cockpit_core::demo::workspace();
@@ -34,7 +34,7 @@ async fn takt_lets_the_agents_work_as_agent() {
     let before = state.inner.live.revision();
 
     let s = state.clone();
-    tokio::task::spawn_blocking(move || s.takt()).await.unwrap();
+    tokio::task::spawn_blocking(move || s.tick()).await.unwrap();
     assert_eq!(state.inner.live.revision(), before + 1);
     let (_, body) = hole(app(), "/api/workspace").await;
     let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();
@@ -42,7 +42,7 @@ async fn takt_lets_the_agents_work_as_agent() {
 }
 
 #[tokio::test]
-async fn takt_linked_pull_requests_and_leads_the_status_after() {
+async fn tick_linked_pull_requests_and_leads_the_status_after() {
     let state = state(Arc::new(MemoryStore::new()));
     let app = || router(state.clone(), PathBuf::from("/x"));
     // The branch of #85 names BAU-150: the tick links it (as system).
@@ -54,7 +54,7 @@ async fn takt_linked_pull_requests_and_leads_the_status_after() {
         .branch = "feature/bau-150-sheet".into();
     state.inner.live.set_state_for_test(ws);
     let s = state.clone();
-    tokio::task::spawn_blocking(move || s.takt()).await.unwrap();
+    tokio::task::spawn_blocking(move || s.tick()).await.unwrap();
     let (_, body) = hole(app(), "/api/workspace").await;
     let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();
     assert_eq!(
@@ -66,12 +66,12 @@ async fn takt_linked_pull_requests_and_leads_the_status_after() {
     // On the second tick there is nothing left to do.
     let before = state.inner.live.revision();
     let s = state.clone();
-    tokio::task::spawn_blocking(move || s.takt()).await.unwrap();
+    tokio::task::spawn_blocking(move || s.tick()).await.unwrap();
     assert_eq!(state.inner.live.revision(), before);
 }
 
 #[tokio::test]
-async fn takt_drives_follow_up_jobs_until_to_diagnose() {
+async fn tick_drives_follow_up_jobs_until_to_diagnose() {
     let state = state(Arc::new(MemoryStore::new()));
     let app = || router(state.clone(), PathBuf::from("/x"));
     let start = serde_json::to_string(&ActionRequest {
@@ -85,7 +85,7 @@ async fn takt_drives_follow_up_jobs_until_to_diagnose() {
     assert_eq!(status, StatusCode::OK, "{body}");
     for _ in 0..3 {
         let s = state.clone();
-        tokio::task::spawn_blocking(move || s.takt()).await.unwrap();
+        tokio::task::spawn_blocking(move || s.tick()).await.unwrap();
     }
     let (_, body) = hole(app(), "/api/workspace").await;
     let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();
@@ -95,7 +95,7 @@ async fn takt_drives_follow_up_jobs_until_to_diagnose() {
     // After that the tick rests until you adopt the fix.
     let before = state.inner.live.revision();
     let s = state.clone();
-    tokio::task::spawn_blocking(move || s.takt()).await.unwrap();
+    tokio::task::spawn_blocking(move || s.tick()).await.unwrap();
     assert_eq!(state.inner.live.revision(), before);
     // Even now nothing can be merged: #85 has red checks.
     let merge = serde_json::to_string(&ActionRequest {
@@ -128,13 +128,13 @@ async fn tick_brings_snoozed_entries_back() {
 
     // Before it expires the tick does nothing …
     let s = state.clone();
-    tokio::task::spawn_blocking(move || s.inner.live.takt(&s.inner.db, bis - 1, true))
+    tokio::task::spawn_blocking(move || s.inner.live.tick(&s.inner.db, bis - 1, true))
         .await
         .unwrap();
     assert_eq!(state.inner.live.revision(), before);
     // … afterwards the entry is back, logged as system.
     let s = state.clone();
-    tokio::task::spawn_blocking(move || s.inner.live.takt(&s.inner.db, bis + 1, true))
+    tokio::task::spawn_blocking(move || s.inner.live.tick(&s.inner.db, bis + 1, true))
         .await
         .unwrap();
     assert_eq!(state.inner.live.revision(), before + 1);

@@ -2,7 +2,7 @@
 //! job for the container, the prerequisites and the plan of what the watcher does next.
 //! Nothing here starts a process or touches the disk – that is done by `agent_ops`.
 //!
-//! Rules for containers (see "Container" in `docs/ROADMAP.md`): only commands and switches that
+//! Rules for containers (see "Container rules" in `docs/architecture.md`): only commands and switches that
 //! Docker and Podman understand the same way; secrets only as `-e NAME` (the value is in the
 //! environment of the child process, never in the argument list); `--rm`; a label per run for cleaning up;
 //! `--add-host cockpit-host:host-gateway` to reach services on the machine.
@@ -49,7 +49,7 @@ impl Mode {
 
 // ---------- Protocol: lines of the runner ----------
 
-/// An event of the runner (a JSON line on stdout). See `agent/README.md`.
+/// An event of the runner (a JSON line on stdout). See `apps/agent/README.md`.
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(tag = "t", rename_all = "snake_case")]
 pub enum Event {

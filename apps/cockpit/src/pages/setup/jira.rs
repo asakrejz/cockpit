@@ -209,8 +209,8 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
             </p>
             <OAuthCard
                 service=Service::Atlassian
-                on_connected=move |_| ctx.laden()
-                on_disconnected=move |_| ctx.laden()
+                on_connected=move |_| ctx.reload()
+                on_disconnected=move |_| ctx.reload()
             />
         </Section>
     }
@@ -289,7 +289,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                             ..Default::default()
                         })),
                     }
-                    ctx.laden();
+                    ctx.reload();
                     running.set(false);
                 });
             },

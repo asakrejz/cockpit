@@ -136,7 +136,7 @@ export function tasksText(a: Job): string {
   }
   if (a.run_tests) z.push("", "Führe danach die Tests des Projekts aus und behebe Fehler, die du verursacht hast.");
   else z.push("", "Führe keine Tests aus.");
-  z.push("Hast du eine Frage, die nur der Nutzer beantworten kann, stelle sie mit dem Werkzeug „rueckfrage“.");
+  z.push("Hast du eine Frage, die nur der Nutzer beantworten kann, stelle sie mit dem Werkzeug „ask_user“.");
   if (a.earlier.length) z.push("", "Bisher geschah (Lauf wurde fortgesetzt):", ...a.earlier.map((b) => `- ${b}`));
   return z.join("\n");
 }

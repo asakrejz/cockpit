@@ -346,7 +346,7 @@ async fn key_lands_in_env_file_and_comes_never_back() {
 }
 
 #[tokio::test]
-async fn key_only_with_allowed_names_and_valid_wert() {
+async fn key_only_with_allowed_names_and_valid_value() {
     let p = test_bench(None);
     for name in ["github-oauth-token", "unsinn", "Jira"] {
         let (status, body) = put(
@@ -379,7 +379,7 @@ async fn key_only_with_allowed_names_and_valid_wert() {
 #[tokio::test]
 async fn new_routes_have_same_checks_like_all_api_routes() {
     let p = test_bench(None);
-    let wert = r#"{"value":"test-wert-123"}"#;
+    let value = r#"{"value":"test-wert-123"}"#;
     // Content-Type muss JSON sein.
     for kind in [
         None,
@@ -390,7 +390,7 @@ async fn new_routes_have_same_checks_like_all_api_routes() {
         if let Some(t) = kind {
             b = b.header("content-type", t);
         }
-        let (status, _) = send_request(&p.app, b.body(Body::from(wert)).unwrap()).await;
+        let (status, _) = send_request(&p.app, b.body(Body::from(value)).unwrap()).await;
         assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
     // Foreign origin, foreign host, foreign peer.
@@ -399,7 +399,7 @@ async fn new_routes_have_same_checks_like_all_api_routes() {
         request("PUT", "/api/secrets/litellm")
             .header("content-type", "application/json")
             .header("origin", "https://boese.example")
-            .body(Body::from(wert))
+            .body(Body::from(value))
             .unwrap(),
     )
     .await;
@@ -412,7 +412,7 @@ async fn new_routes_have_same_checks_like_all_api_routes() {
             .header("host", "boese.example")
             .header("content-type", "application/json")
             .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 50000))))
-            .body(Body::from(wert))
+            .body(Body::from(value))
             .unwrap(),
     )
     .await;

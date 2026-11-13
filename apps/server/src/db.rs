@@ -123,7 +123,7 @@ pub fn connection_set(
 }
 
 /// The stored workspace of the server mode (JSON with revision), if there is one.
-pub fn workspace_laden(conn: &Connection) -> Result<Option<String>, DbError> {
+pub fn load_workspace(conn: &Connection) -> Result<Option<String>, DbError> {
     match conn.query_row("SELECT json FROM workspace WHERE id = 1", [], |r| r.get(0)) {
         Ok(json) => Ok(Some(json)),
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
@@ -183,10 +183,10 @@ mod tests {
     #[test]
     fn workspace_is_replaces_not_multiplied() {
         let conn = open_in_memory().unwrap();
-        assert_eq!(workspace_laden(&conn).unwrap(), None);
+        assert_eq!(load_workspace(&conn).unwrap(), None);
         workspace_save(&conn, 1, "eins").unwrap();
         workspace_save(&conn, 2, "zwei").unwrap();
-        assert_eq!(workspace_laden(&conn).unwrap().as_deref(), Some("zwei"));
+        assert_eq!(load_workspace(&conn).unwrap().as_deref(), Some("zwei"));
         let n: u32 = conn
             .query_row("SELECT COUNT(*) FROM workspace", [], |r| r.get(0))
             .unwrap();

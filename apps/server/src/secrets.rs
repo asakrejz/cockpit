@@ -22,10 +22,10 @@ const SERVICE: &str = "cockpit";
 /// Names of the keys that the backend knows.
 pub const GITHUB: &str = "github";
 pub const JIRA: &str = "jira";
-/// Client secrets of the OAuth apps (`token setzen github-oauth|atlassian-oauth`).
+/// Client secrets of the OAuth apps (`token set github-oauth|atlassian-oauth`).
 pub const GITHUB_OAUTH: &str = "github-oauth";
 pub const ATLASSIAN_OAUTH: &str = "atlassian-oauth";
-/// Key for the endpoint of the agent (`token setzen agent-key`); only goes to the agent container at start.
+/// Key for the endpoint of the agent (`token set agent-key`); only goes to the agent container at start.
 pub const AGENT_KEY: &str = "agent-key";
 /// The older name of the same key (until #31 `litellm`); is still read if `agent-key` is missing.
 pub const LITELLM: &str = "litellm";
@@ -47,7 +47,7 @@ impl std::error::Error for SecretError {}
 pub trait SecretStore: Send + Sync {
     /// `Ok(None)` if there is no key with this name.
     fn get(&self, name: &str) -> Result<Option<Secret>, SecretError>;
-    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretError>;
+    fn set(&self, name: &str, value: &Secret) -> Result<(), SecretError>;
     /// Deleting a key that does not exist is no error.
     fn delete(&self, name: &str) -> Result<(), SecretError>;
 
@@ -55,7 +55,7 @@ pub trait SecretStore: Send + Sync {
         Ok(self.get(name)?.is_some())
     }
 
-    /// Die Datei, in der die Schlüssel liegen (nur `EnvFileStore`); für Status und Warnungen.
+    /// The file that holds the keys (only `EnvFileStore`); for status and warnings.
     fn env_file(&self) -> Option<&std::path::Path> {
         None
     }
@@ -86,9 +86,9 @@ impl SecretStore for KeyringStore {
         }
     }
 
-    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretError> {
+    fn set(&self, name: &str, value: &Secret) -> Result<(), SecretError> {
         Self::entry(name)?
-            .set_password(wert.expose())
+            .set_password(value.expose())
             .map_err(error)
     }
 
@@ -133,11 +133,11 @@ impl SecretStore for MemoryStore {
         Ok(self.0.lock().expect("Sperre vergiftet").get(name).cloned())
     }
 
-    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretError> {
+    fn set(&self, name: &str, value: &Secret) -> Result<(), SecretError> {
         self.0
             .lock()
             .expect("Sperre vergiftet")
-            .insert(name.into(), wert.clone());
+            .insert(name.into(), value.clone());
         Ok(())
     }
 

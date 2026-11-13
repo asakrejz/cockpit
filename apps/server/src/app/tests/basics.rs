@@ -82,8 +82,8 @@ async fn returns_the_app_as_static_files() {
 #[tokio::test]
 async fn health_names_the_env_file_never_its_content() {
     let dir = tempfile::tempdir().unwrap();
-    let datei = dir.path().join(".env");
-    let store = Arc::new(secrets::EnvFileStore::with_env(datei.clone(), |_| None));
+    let file = dir.path().join(".env");
+    let store = Arc::new(secrets::EnvFileStore::with_env(file.clone(), |_| None));
     store
         .set(secrets::GITHUB, &Secret::new("dummy-streng-geheim"))
         .unwrap();
@@ -93,9 +93,9 @@ async fn health_names_the_env_file_never_its_content() {
     assert_eq!(status, StatusCode::OK);
     assert!(!body.contains("dummy-streng-geheim"), "{body}");
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
-    assert_eq!(json["env_file"]["path"], datei.display().to_string());
+    assert_eq!(json["env_file"]["path"], file.display().to_string());
     assert!(json["env_file"]["warnings"].is_array());
-    // Mit dem Speicher für Tests gibt es keine Datei.
+    // The in-memory store used for tests has no file.
     let app = router(
         state(Arc::new(MemoryStore::new())),
         PathBuf::from("/gibt/es/nicht"),

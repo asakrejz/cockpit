@@ -153,8 +153,8 @@ pub(super) fn check_job_write(dir: &Path) -> std::io::Result<()> {
 
 /// Sets the values that `-e NAME` passes on and removes the unused ones from the inherited environment.
 pub(super) fn kind_env(cmd: &mut Command, endpoint_url: Option<&str>, key: &str, model: &str) {
-    for (name, wert) in agent_run::env_for_kind(endpoint_url, key, model) {
-        match wert {
+    for (name, value) in agent_run::env_for_kind(endpoint_url, key, model) {
+        match value {
             Some(w) => cmd.env(name, w),
             None => cmd.env_remove(name),
         };

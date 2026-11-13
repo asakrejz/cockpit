@@ -32,12 +32,12 @@ impl Context {
             check: RwSignal::new(None),
             container_check: RwSignal::new(None),
         };
-        k.laden();
+        k.reload();
         k
     }
 
     /// Fetches values and sign-in state anew from the server.
-    pub fn laden(&self) {
+    pub fn reload(&self) {
         let k = *self;
         k.store.refresh_health();
         spawn_local(async move {
@@ -104,7 +104,7 @@ pub fn config_save(
                     text.push_str(&h);
                 }
                 feedback.set(Some((true, text)));
-                ctx.laden();
+                ctx.reload();
                 afterwards();
             }
             Err(e) => feedback.set(Some((false, error_text(&e)))),
@@ -122,13 +122,13 @@ pub fn KeyField(
     label: &'static str,
     #[prop(optional)] hint: Option<&'static str>,
 ) -> impl IntoView {
-    let wert = RwSignal::new(String::new());
+    let value = RwSignal::new(String::new());
     let back: Feedback = RwSignal::new(None);
     let running = RwSignal::new(false);
     let set = move || ctx.setup.with(|e| e.has_key(name));
 
     let send = move |_| {
-        let checked = match key_verify(&wert.get_untracked()) {
+        let checked = match key_verify(&value.get_untracked()) {
             Ok(w) => w,
             Err(m) => {
                 back.set(Some((false, m)));
@@ -136,7 +136,7 @@ pub fn KeyField(
             }
         };
         // Clear immediately: from here on the value only lives in this one request.
-        wert.set(String::new());
+        value.set(String::new());
         running.set(true);
         back.set(None);
         spawn_local(async move {
@@ -146,7 +146,7 @@ pub fn KeyField(
                         true,
                         "In der .env-Datei abgelegt. Das Feld ist wieder leer.".into(),
                     )));
-                    ctx.laden();
+                    ctx.reload();
                 }
                 Err(e) => back.set(Some((false, error_text(&e)))),
             }
@@ -158,7 +158,7 @@ pub fn KeyField(
         <VStack spacing="8px">
             <TextField
                 label=label
-                value=wert
+                value=value
                 input_type="password"
                 autocomplete="off"
                 hint=hint.unwrap_or("Wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert.")
@@ -166,7 +166,7 @@ pub fn KeyField(
             <HStack spacing="12px">
                 <Button
                     variant=ButtonStyle::GlassProminent
-                    disabled=Signal::derive(move || running.get() || wert.with(|w| w.trim().is_empty()))
+                    disabled=Signal::derive(move || running.get() || value.with(|w| w.trim().is_empty()))
                     on_click=send
                 >
                     "Sicher ablegen"

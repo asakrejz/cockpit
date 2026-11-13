@@ -351,7 +351,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
     None
 }
 
-/// „Du“ in the sentence sounds wrong („Du kommt nicht weiter“), so it is adjusted.
+/// "Du" in the sentence sounds wrong ("Du kommt nicht weiter"), so it is adjusted.
 fn who_name(person: &Person) -> String {
     if *person == Person::me() {
         "du".into()

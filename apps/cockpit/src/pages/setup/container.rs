@@ -87,7 +87,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
     };
     let engine_running = move || status().is_some_and(|s| s.runtime.is_some() && s.engine_running);
     let missing = move || status().is_some_and(|s| s.runtime.is_none());
-    let stands_not = move || status().is_some_and(|s| s.runtime.is_some() && !s.engine_running);
+    let not_running = move || status().is_some_and(|s| s.runtime.is_some() && !s.engine_running);
 
     view! {
         <VStack spacing="12px">
@@ -111,7 +111,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                             .map(|h| view! { <p class="ui-hint" role="status">{h}</p> })
                     }}
                     <HStack spacing="12px">
-                        <Button on_click=move |_| ctx.laden()>"Erneut prüfen"</Button>
+                        <Button on_click=move |_| ctx.reload()>"Erneut prüfen"</Button>
                     </HStack>
                 </CardBody>
             </Card>
@@ -168,7 +168,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                     })
             }}
             {move || {
-                stands_not()
+                not_running()
                     .then(|| {
                         view! {
                             <Section title="Das Programm ist da, aber nicht gestartet">

@@ -44,18 +44,18 @@ pub enum Filter {
 impl Filter {
     /// ID and label, in display order.
     pub const OPTIONS: &'static [(&'static str, &'static str)] = &[
-        ("alle", "Alle"),
-        ("ich", "Ich"),
+        ("all", "Alle"),
+        ("mine", "Ich"),
         ("team", "Team"),
-        ("zurueckgestellt", "Zurückgestellt"),
+        ("snoozed", "Zurückgestellt"),
     ];
 
     pub fn id(self) -> &'static str {
         match self {
-            Filter::All => "alle",
-            Filter::Mine => "ich",
+            Filter::All => "all",
+            Filter::Mine => "mine",
             Filter::Team => "team",
-            Filter::Snoozed => "zurueckgestellt",
+            Filter::Snoozed => "snoozed",
         }
     }
 
@@ -86,11 +86,11 @@ pub enum SourceFilter {
 impl SourceFilter {
     /// ID and label, in display order.
     pub const OPTIONS: &'static [(&'static str, &'static str)] =
-        &[("alle", "Alle"), ("jira", "Jira"), ("github", "GitHub")];
+        &[("all", "Alle"), ("jira", "Jira"), ("github", "GitHub")];
 
     pub fn id(self) -> &'static str {
         match self {
-            SourceFilter::All => "alle",
+            SourceFilter::All => "all",
             SourceFilter::Jira => "jira",
             SourceFilter::GitHub => "github",
         }

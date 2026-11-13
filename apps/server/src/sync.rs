@@ -3,7 +3,7 @@
 //!
 //! The core of the rules is in `cockpit-core` (`sync::merge`) and `cockpit-integrations`
 //! (`outbound`); only the course runs here. A key is read fresh from the .env file for every use
-//! (so `token setzen` works without restart), never stored or logged.
+//! (so `token set` works without restart), never stored or logged.
 
 use std::time::Duration;
 
@@ -327,10 +327,10 @@ impl AppState {
 pub fn sync_start(state: AppState) {
     let interval = state.sources().interval;
     tokio::spawn(async move {
-        let mut takt = tokio::time::interval(interval);
-        takt.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+        let mut ticker = tokio::time::interval(interval);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
-            takt.tick().await;
+            ticker.tick().await;
             match state.sync().await {
                 Ok(a) if a.logged > 0 => {
                     tracing::info!("Abgleich: {} neue Einträge im Protokoll", a.logged)

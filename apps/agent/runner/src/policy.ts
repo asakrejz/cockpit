@@ -94,6 +94,6 @@ export function decide(r: Policy, tool: string, input: Record<string, unknown>):
     }
     return { behavior: "allow" };
   }
-  if (tool === "mcp__cockpit__rueckfrage" || tool === "TodoWrite") return { behavior: "allow" };
+  if (tool === "mcp__cockpit__ask_user" || tool === "TodoWrite") return { behavior: "allow" };
   return { behavior: "deny", message: `Das Werkzeug „${tool}“ ist im Cockpit nicht freigegeben.` };
 }

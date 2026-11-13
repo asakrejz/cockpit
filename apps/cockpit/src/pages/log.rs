@@ -12,9 +12,9 @@ use crate::{
     store::{Store, use_store},
 };
 
-/// Filter by author. "alle" shows everything.
+/// Filter by author. "all" shows everything.
 const ACTORS: &[(&str, &str)] = &[
-    ("alle", "Alle"),
+    ("all", "Alle"),
     ("du", "Du"),
     ("agent", "Agent"),
     ("system", "System"),
@@ -115,7 +115,7 @@ fn empty_state(filtered: bool) -> impl IntoView {
 pub fn LogPage() -> impl IntoView {
     let store = use_store();
     // The filter belongs only to this page.
-    let actor = RwSignal::new("alle");
+    let actor = RwSignal::new("all");
     let entries = Memo::new(move |_| {
         let who = Actor::from_id(actor.get());
         store
@@ -147,7 +147,7 @@ pub fn LogPage() -> impl IntoView {
                     {move || {
                         let list = entries.get();
                         if list.is_empty() {
-                            empty_state(actor.get() != "alle").into_any()
+                            empty_state(actor.get() != "all").into_any()
                         } else {
                             view! {
                                 <ul class="ck-stuck-list">

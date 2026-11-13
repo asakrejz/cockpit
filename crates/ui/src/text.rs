@@ -1,6 +1,6 @@
 use leptos::prelude::*;
 
-/// Text Styles (Dynamic Type „Large“) – Klassen `t-*`.
+/// Text Styles (Dynamic Type "Large") – classes `t-*`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TextStyle {
     Hero,

@@ -237,7 +237,7 @@ pub(super) async fn run_run(
         .run_seconds
         .unwrap_or_else(|| allowed_seconds(ws.limits.run_minutes, run.extra_minutes));
     let (mut active_s, mut still_s) = (0u64, 0u64);
-    let mut takt = tokio::time::interval(Duration::from_secs(1));
+    let mut ticker = tokio::time::interval(Duration::from_secs(1));
     let mut buffer = Vec::new();
     let mut discarded = 0usize;
     let mut result: Option<(String, String)> = None;
@@ -302,7 +302,7 @@ pub(super) async fn run_run(
                     }
                 }
             }
-            _ = takt.tick() => {
+            _ = ticker.tick() => {
                 let (paused, asks) = { let i = lock(info); (i.paused, i.question_open) };
                 if !paused && !asks {
                     active_s += 1;

@@ -121,16 +121,16 @@ pub fn watcher_start(state: AppState) {
     tokio::spawn(async move {
         // Clean up first, then watch.
         tokio::time::sleep(Duration::from_millis(300)).await;
-        let mut takt = tokio::time::interval(WATCHER_TAKT);
+        let mut ticker = tokio::time::interval(WATCHER_TICK);
         let mut counter = 0u64;
         loop {
-            takt.tick().await;
+            ticker.tick().await;
             counter += 1;
             state.watch().await;
             // The other tasks (checks, snoozed items, linking) in the usual tick.
             if counter.is_multiple_of(2) {
                 let s = state.clone();
-                let _ = tokio::task::spawn_blocking(move || s.takt()).await;
+                let _ = tokio::task::spawn_blocking(move || s.tick()).await;
             }
         }
     });

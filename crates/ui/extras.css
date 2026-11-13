@@ -117,7 +117,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  counter-reset: anleitung;
+  counter-reset: guide;
 }
 .ui-instructions > li {
   position: relative;
@@ -125,10 +125,10 @@
   padding-inline-start: calc(var(--ref-space-16) * 2);
   font: var(--sys-type-subheadline);
   color: var(--sys-color-label);
-  counter-increment: anleitung;
+  counter-increment: guide;
 }
 .ui-instructions > li::before {
-  content: counter(anleitung);
+  content: counter(guide);
   position: absolute;
   inset-inline-start: 0;
   top: 0;

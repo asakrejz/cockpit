@@ -228,8 +228,8 @@ async fn ask_user_answer_and_hint_go_via_stdin() {
             r#"printf '%s\n' '{{"t":"question","text":"Welcher Farbton?","suggestions":["blau","rot"]}}'
 read -r antwort
 echo "$antwort" >> "$d/stdin.log"
-read -r hinweis
-echo "$hinweis" >> "$d/stdin.log"
+read -r hint
+echo "$hint" >> "$d/stdin.log"
 printf '%s\n' '{{"t":"hints_arrived"}}'
 {}"#,
             scenario_ok()

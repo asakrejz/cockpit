@@ -164,12 +164,12 @@ pub struct Health {
     pub container: ContainerStatus,
     #[serde(default)]
     pub agent: AgentStatus,
-    /// Wo die `.env`-Datei mit den Schlüsseln liegt und was daran zu warnen ist (nie ein Wert).
+    /// Where the `.env` file with the keys lives and what to warn about (never a value).
     #[serde(default)]
     pub env_file: Option<EnvFileStatus>,
 }
 
-/// Pfad der `.env`-Datei und Warnungen des Servers (Git verfolgt sie, nicht ignoriert, Rechte).
+/// Path of the `.env` file and warnings of the server (tracked by Git, not ignored, permissions).
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize)]
 pub struct EnvFileStatus {
     #[serde(default)]
@@ -316,10 +316,10 @@ pub async fn put_config(change: &ConfigChange) -> Result<ConfigResponse, CallErr
 /// Stores a key in the .env file of the server (`PUT /api/secrets/{name}`). The value
 /// only goes into the body of this request – not into the address, not into the memory of the browser.
 /// The answer only says "set".
-pub async fn put_key(name: &str, wert: String) -> Result<KeyResponse, CallError> {
+pub async fn put_key(name: &str, value: String) -> Result<KeyResponse, CallError> {
     let request = Request::put(&format!("/api/secrets/{name}"))
         .header("Content-Type", "application/json")
-        .json(&KeyInput { value: wert })
+        .json(&KeyInput { value })
         .map_err(|_| CallError::Rejected("Die Eingabe lässt sich nicht senden".into()))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {

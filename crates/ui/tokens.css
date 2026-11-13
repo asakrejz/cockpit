@@ -175,7 +175,7 @@
   --sys-material-thick: rgb(255 255 255 / 0.86);
   --sys-material-filter: blur(24px) saturate(180%);
 
-  /* Text Styles (Dynamic Type „Large“ = Standard) */
+  /* Text Styles (Dynamic Type "Large" = default) */
   --sys-font: var(--ref-font-text);
   --sys-font-display: var(--ref-font-display);
   --sys-font-rounded: var(--ref-font-rounded);

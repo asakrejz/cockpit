@@ -41,7 +41,7 @@ fn tokens_name(d: Service) -> &'static str {
 }
 
 fn command(d: Service) -> String {
-    format!("cockpit-server token setzen {}", secret_name(d))
+    format!("cockpit-server token set {}", secret_name(d))
 }
 
 /// The callback address as it is entered in the app of the service. GitHub: `127.0.0.1`,

@@ -54,4 +54,4 @@ jobs:
         run: |
           gh release create "$GITHUB_REF_NAME" "$ARCHIV" \
             --title "Cockpit $GITHUB_REF_NAME" \
-            --notes "Fertiges Archiv für macOS (Apple Silicon). Entpacken, dann Rechtsklick auf „start-cockpit.command“ › Öffnen. Anleitung: README.md im Archiv, Abschnitt „Schnellstart für Einsteiger“."
+            --notes "Ready-made archive for macOS (Apple Silicon). Unzip, then right-click start-cockpit.command and choose Open. Instructions: README.md in the archive, section "Quick start for beginners"."

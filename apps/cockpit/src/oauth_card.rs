@@ -108,7 +108,7 @@ pub fn OAuthCard(
                     let possible = s.oauth_possible;
                     let login_label = format!("Mit {} anmelden", service.name());
                     let hint = format!(
-                        "Zuerst oben die Client-ID speichern und das Client-Secret ablegen (Terminal-Weg: „cockpit-server token setzen {}-oauth“).",
+                        "Zuerst oben die Client-ID speichern und das Client-Secret ablegen (Terminal-Weg: „cockpit-server token set {}-oauth“).",
                         service.id(),
                     );
                     view! {
