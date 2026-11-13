@@ -384,7 +384,9 @@ impl PrKey {
     pub fn from_route(text: &str) -> Option<PrKey> {
         let text = text.trim_matches('/');
         match text.rsplit_once('/') {
-            Some((repo, number)) if repo_name_valid(repo) => Some(PrKey::new(repo, number.parse().ok()?)),
+            Some((repo, number)) if repo_name_valid(repo) => {
+                Some(PrKey::new(repo, number.parse().ok()?))
+            }
             Some(_) => None,
             None => Some(PrKey::new("", text.parse().ok()?)),
         }
@@ -709,8 +711,14 @@ mod tests {
         assert_eq!(serde_json::to_string(&PrKey::from(87)).unwrap(), "87");
         let key = PrKey::new("acme/app", 87);
         assert_eq!(serde_json::to_string(&key).unwrap(), "\"acme/app#87\"");
-        assert_eq!(serde_json::from_str::<PrKey>("87").unwrap(), PrKey::from(87));
-        assert_eq!(serde_json::from_str::<PrKey>("\"acme/app#87\"").unwrap(), key);
+        assert_eq!(
+            serde_json::from_str::<PrKey>("87").unwrap(),
+            PrKey::from(87)
+        );
+        assert_eq!(
+            serde_json::from_str::<PrKey>("\"acme/app#87\"").unwrap(),
+            key
+        );
         assert_eq!(
             serde_json::from_str::<PrKey>(r#"{"repo":"acme/app","number":87}"#).unwrap(),
             key
@@ -725,7 +733,10 @@ mod tests {
         assert!(!app.matches("acme/web", 5));
         assert!(!app.matches("acme/app", 6));
         assert!(app.matches("", 5), "an entry of an old state without repo");
-        assert!(PrKey::from(5).matches("acme/web", 5), "a plain number from an old client");
+        assert!(
+            PrKey::from(5).matches("acme/web", 5),
+            "a plain number from an old client"
+        );
         assert_eq!(app.to_string(), "acme/app#5");
         assert_eq!(PrKey::from(5).to_string(), "#5");
     }

@@ -192,7 +192,10 @@ fn ready_87(w: &mut Workspace) {
 }
 
 fn merge(review: u32, method: MergeMethod) -> Action {
-    Action::MergePr { review: review.into(), method }
+    Action::MergePr {
+        review: review.into(),
+        method,
+    }
 }
 
 // ---------- Edit tickets ----------

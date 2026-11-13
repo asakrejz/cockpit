@@ -145,8 +145,11 @@ impl Workspace {
 
     /// The entry a run hangs on (see [`Item::matches_run_key`]).
     pub fn item_of_run(&self, run_ticket_key: &str) -> Option<&Item> {
-        self.item_by_key(run_ticket_key)
-            .or_else(|| self.items.iter().find(|i| i.matches_run_key(run_ticket_key)))
+        self.item_by_key(run_ticket_key).or_else(|| {
+            self.items
+                .iter()
+                .find(|i| i.matches_run_key(run_ticket_key))
+        })
     }
 
     fn item_mut(&mut self, id: &str) -> Option<&mut Item> {

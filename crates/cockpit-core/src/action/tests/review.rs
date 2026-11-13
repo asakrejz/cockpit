@@ -278,7 +278,10 @@ fn a_failed_check_can_be_restarted_and_turns_green_after_a_few_ticks() {
         ok(&mut w, Action::AdvanceChecks, 0);
     }
     let applied = ok(&mut w, Action::AdvanceChecks, 1);
-    assert_eq!(applied.summary, "Check „Tests (Browser)“ in asakrejz/rust-playground#85 bestanden");
+    assert_eq!(
+        applied.summary,
+        "Check „Tests (Browser)“ in asakrejz/rust-playground#85 bestanden"
+    );
     assert_eq!(w.log.last().unwrap().actor, Actor::System);
     assert_eq!(w.running_checks(), 0);
     // The lint error is real: the overall state stays red.

@@ -19,9 +19,9 @@ impl Workspace {
                     Some(Decision::Declined) => {
                         format!("Vorschlag {suggestion} in {review} abgelehnt")
                     }
-                    None => format!(
-                        "Entscheidung zu Vorschlag {suggestion} in {review} zurückgenommen"
-                    ),
+                    None => {
+                        format!("Entscheidung zu Vorschlag {suggestion} in {review} zurückgenommen")
+                    }
                 };
                 Ok(vec![Note::new(Target::Review(review.clone()), text)])
             }

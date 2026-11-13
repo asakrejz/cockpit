@@ -206,7 +206,9 @@ impl Workspace {
                     notes.push(
                         Note::new(
                             Target::Run(key),
-                            format!("Plan für die Kommentare in {review} vorgelegt, wartet auf Freigabe"),
+                            format!(
+                                "Plan für die Kommentare in {review} vorgelegt, wartet auf Freigabe"
+                            ),
                         )
                         .by(Actor::Agent),
                     );

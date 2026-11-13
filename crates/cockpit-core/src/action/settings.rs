@@ -66,7 +66,7 @@ impl Workspace {
                 Ok(notes)
             }
             Action::SetRepoRules { repo, rules } => {
-                if !self.repos().contains(&repo) {
+                if !crate::model::repo_name_valid(&repo) {
                     return Err(ActionError::UnknownRepo(repo));
                 }
                 if !self.set_repo_rules(&repo, rules) {

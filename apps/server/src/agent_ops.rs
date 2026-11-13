@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 
 use cockpit_core::api::{AgentStatus, ContainerCheck, ContainerStatus, ImageBuild};
 use cockpit_core::{
-    Action, ActionError, Actor, AgentRepos, AgentReport, RepoChoice, RunKind, RunState, Workspace,
+    Action, ActionError, Actor, AgentReport, AgentRepos, RepoChoice, RunKind, RunState, Workspace,
 };
 use cockpit_integrations::Secret;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
@@ -197,7 +197,11 @@ impl AppState {
     /// project, otherwise the default. In real mode a start without any repo is rejected with
     /// the reason; the simulation keeps its own default. Everything else passes unchanged.
     pub(crate) fn agent_route(&self, action: Action) -> Result<Action, String> {
-        let Action::StartAgent { ticket, mut options } = action else {
+        let Action::StartAgent {
+            ticket,
+            mut options,
+        } = action
+        else {
             return Ok(action);
         };
         let repos = self.agent_repos();
@@ -223,7 +227,9 @@ impl AppState {
                         Some(p) => format!(
                             "Für das Jira-Projekt {p} ist kein Repo zugeordnet und es gibt kein Standard-Repo. Wähle vor dem Start ein Repo aus."
                         ),
-                        None => "Es gibt kein Standard-Repo. Wähle vor dem Start ein Repo aus.".into(),
+                        None => {
+                            "Es gibt kein Standard-Repo. Wähle vor dem Start ein Repo aus.".into()
+                        }
                     });
                 }
                 RepoChoice::None => {}

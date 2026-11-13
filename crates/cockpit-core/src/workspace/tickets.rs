@@ -123,10 +123,7 @@ impl Workspace {
             .items
             .iter()
             .filter(|i| i.kind == Kind::PullRequest)
-            .find_map(|i| {
-                i.pr.clone()
-                    .filter(|p| key.matches(&p.repo, p.number))
-            });
+            .find_map(|i| i.pr.clone().filter(|p| key.matches(&p.repo, p.number)));
         from_item.or_else(|| {
             self.review(&key).map(|r| PrRef {
                 number: r.number,
@@ -142,11 +139,7 @@ impl Workspace {
 
     /// Links a ticket with a pull request. The ticket gets the pull request (and,
     /// if it has none yet, the branch), the review gets the ticket.
-    pub fn link_pr(
-        &mut self,
-        ticket_id: &str,
-        number: impl Into<PrKey>,
-    ) -> Result<(), LinkError> {
+    pub fn link_pr(&mut self, ticket_id: &str, number: impl Into<PrKey>) -> Result<(), LinkError> {
         let number = number.into();
         let key = self
             .item(ticket_id)
@@ -164,7 +157,9 @@ impl Workspace {
                 LinkError::PrHasTicket(other)
             });
         }
-        let current = self.item(ticket_id).and_then(|i| i.pr.as_ref().map(PrRef::key));
+        let current = self
+            .item(ticket_id)
+            .and_then(|i| i.pr.as_ref().map(PrRef::key));
         if let Some(n) = current {
             // If the ticket already points to this pull request, only the other side is missing.
             if !n.same(&number)
@@ -185,7 +180,8 @@ impl Workspace {
         if let Some(review) = self.review_mut(&number) {
             review.ticket_key = Some(key.clone());
         }
-        self.unlinked.retain(|(n, k)| !(n.same(&number) && *k == key));
+        self.unlinked
+            .retain(|(n, k)| !(n.same(&number) && *k == key));
         Ok(())
     }
 
@@ -208,7 +204,11 @@ impl Workspace {
             }
         }
         self.status_seen.retain(|(k, _)| *k != key);
-        if !self.unlinked.iter().any(|(n, k)| n.same(&number) && *k == key) {
+        if !self
+            .unlinked
+            .iter()
+            .any(|(n, k)| n.same(&number) && *k == key)
+        {
             self.unlinked.push((number.clone(), key));
         }
         Some(number)

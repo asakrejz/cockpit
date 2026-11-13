@@ -471,11 +471,29 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
 }
 
 #[test]
-fn the_repo_the_agents() {
-    let eins = vec!["a/b".to_string()];
+fn the_repos_the_agents() {
+    let one = vec!["a/b".to_string()];
     let two = vec!["a/b".to_string(), "c/d".to_string()];
-    assert_eq!(repo_choose(Some("x/y"), &two), Ok("x/y"));
-    assert_eq!(repo_choose(None, &eins), Ok("a/b"));
-    assert!(repo_choose(None, &two).unwrap_err().contains("[agent]"));
-    assert!(repo_choose(None, &[]).unwrap_err().contains("kein Repo"));
+    let listed = vec![
+        AgentRepo::new("a/b"),
+        AgentRepo {
+            projects: vec!["WEB".into()],
+            ..AgentRepo::new("c/d")
+        },
+    ];
+    // Only the default: it is the only repo, whatever the sync repos are.
+    let r = repos_effective(&[], Some("x/y"), &two);
+    assert_eq!((r.repos.len(), r.default.as_deref()), (1, Some("x/y")));
+    // Only one sync repo: it is the default.
+    let r = repos_effective(&[], None, &one);
+    assert_eq!(r.default.as_deref(), Some("a/b"));
+    // Several sync repos and no default: all are choices, the user picks.
+    let r = repos_effective(&[], None, &two);
+    assert_eq!((r.repos.len(), r.default), (2, None));
+    // The list plus a default that is not in it.
+    let r = repos_effective(&listed, Some("e/f"), &[]);
+    assert_eq!(r.repos.len(), 3);
+    assert_eq!(r.default.as_deref(), Some("e/f"));
+    // Nothing at all.
+    assert!(repos_effective(&[], None, &[]).is_empty());
 }

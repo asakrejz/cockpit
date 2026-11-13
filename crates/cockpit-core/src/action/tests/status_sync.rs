@@ -71,7 +71,11 @@ fn merging_finishes_the_linked_ticket_through_the_same_path() {
     assert!(ticket.read && ticket.agent_note.is_none());
     let entry = w.log.last().unwrap();
     assert_eq!(entry.actor, Actor::System);
-    assert!(entry.text.ends_with("– asakrejz/rust-playground#91 ist gemergt"));
+    assert!(
+        entry
+            .text
+            .ends_with("– asakrejz/rust-playground#91 ist gemergt")
+    );
 }
 
 #[test]

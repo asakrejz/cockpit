@@ -135,7 +135,10 @@ fn pre_repo_snapshots_get_their_repos_from_the_migration() {
     let tokens = ws.item("pr12").unwrap().pr.as_ref().unwrap();
     assert_eq!(tokens.repo, "asakrejz/design-tokens");
     assert_eq!(ws.review(91).unwrap().repo, cockpit_core::DEMO_REPO);
-    assert_eq!(ws.item("bau138").unwrap().pr.as_ref().unwrap().repo, cockpit_core::DEMO_REPO);
+    assert_eq!(
+        ws.item("bau138").unwrap().pr.as_ref().unwrap().repo,
+        cockpit_core::DEMO_REPO
+    );
     // Saving and loading the migrated state keeps it.
     assert_eq!(persist::load(&persist::save(&ws)).unwrap(), ws);
 }

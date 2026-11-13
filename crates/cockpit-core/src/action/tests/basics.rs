@@ -404,7 +404,10 @@ fn agent_steps_from_the_tick_are_logged_as_agent() {
         ]
     );
     let last = w.log.last().unwrap();
-    assert_eq!(last.target, Some(Target::Review(PrKey::new(crate::DEMO_REPO, 92))));
+    assert_eq!(
+        last.target,
+        Some(Target::Review(PrKey::new(crate::DEMO_REPO, 92)))
+    );
     assert_eq!(w.log[1].target, Some(Target::Run("BAU-142".into())));
     assert_eq!(
         w.log_entries(Some(Actor::User)).len(),

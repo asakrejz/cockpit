@@ -532,7 +532,10 @@ const REPO_B: &str = "acme/web";
 async fn two_repo_server() -> MockServer {
     let s = MockServer::start().await;
     get(&s, "/user", ok(fixture!("github_user.json"))).await;
-    for (repo, title, sha) in [(REPO, "App: Avatar", "aaa111"), (REPO_B, "Web: Header", "ccc333")] {
+    for (repo, title, sha) in [
+        (REPO, "App: Avatar", "aaa111"),
+        (REPO_B, "Web: Header", "ccc333"),
+    ] {
         Mock::given(method("GET"))
             .and(path("/search/issues"))
             .and(query_param(
@@ -617,7 +620,13 @@ async fn equal_pull_request_numbers_from_two_repos_both_arrive() {
     let items: Vec<_> = ws.items.iter().filter_map(|i| i.pr.as_ref()).collect();
     assert_eq!(items.len(), 2);
     assert!(items.iter().any(|p| p.key() == a) && items.iter().any(|p| p.key() == b));
-    assert!(ws.sync.state_of(Source::GitHub).unwrap().warnings.is_empty());
+    assert!(
+        ws.sync
+            .state_of(Source::GitHub)
+            .unwrap()
+            .warnings
+            .is_empty()
+    );
     let Outcome::Loaded(loaded) = &remote.sources[0].outcome else {
         panic!("loaded")
     };

@@ -148,7 +148,10 @@ mod tests {
     #[test]
     fn without_a_matching_rule_the_default_applies() {
         let r = repos();
-        assert_eq!(r.choose(Some("BAU")), RepoChoice::Default("acme/app".into()));
+        assert_eq!(
+            r.choose(Some("BAU")),
+            RepoChoice::Default("acme/app".into())
+        );
         assert_eq!(r.choose(None), RepoChoice::Default("acme/app".into()));
     }
 

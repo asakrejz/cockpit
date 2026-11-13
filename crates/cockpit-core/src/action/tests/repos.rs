@@ -23,7 +23,10 @@ fn the_seed_has_the_same_number_in_two_repos() {
     let w = two();
     assert_eq!(w.review(first()).unwrap().repo, DEMO_REPO);
     assert_eq!(w.review(second()).unwrap().repo, DEMO_REPO_TOKENS);
-    assert_ne!(w.review(first()).unwrap().title, w.review(second()).unwrap().title);
+    assert_ne!(
+        w.review(first()).unwrap().title,
+        w.review(second()).unwrap().title
+    );
 }
 
 #[test]
@@ -203,11 +206,13 @@ fn old_actions_with_plain_numbers_still_apply() {
         serde_json::from_str(r#"{"SetVerdict":{"review":87,"verdict":"Approve"}}"#).unwrap();
     ok(&mut w, old, 1);
     assert_eq!(w.review(87).unwrap().verdict, Verdict::Approve);
-    let new: Action = serde_json::from_str(&serde_json::to_string(&Action::SetVerdict {
-        review: first(),
-        verdict: Verdict::Approve,
-    })
-    .unwrap())
+    let new: Action = serde_json::from_str(
+        &serde_json::to_string(&Action::SetVerdict {
+            review: first(),
+            verdict: Verdict::Approve,
+        })
+        .unwrap(),
+    )
     .unwrap();
     assert_eq!(
         new,

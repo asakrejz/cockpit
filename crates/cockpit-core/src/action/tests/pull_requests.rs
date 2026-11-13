@@ -22,7 +22,10 @@ fn linking_by_hand_connects_both_sides() {
     fails(
         &mut w,
         link("bau150", 87),
-        ActionError::Link(LinkError::TicketHasPr(PrKey::new("asakrejz/rust-playground", 85))),
+        ActionError::Link(LinkError::TicketHasPr(PrKey::new(
+            "asakrejz/rust-playground",
+            85,
+        ))),
     );
     fails(
         &mut w,
@@ -48,7 +51,10 @@ fn unlinking_removes_both_sides_and_the_branch_it_brought() {
     w.pr_status_off = true;
     ok(&mut w, link("bau150", 85), 1);
     let applied = ok(&mut w, unlink("bau150"), 1);
-    assert_eq!(applied.summary, "Verknüpfung von BAU-150 mit asakrejz/rust-playground#85 gelöst");
+    assert_eq!(
+        applied.summary,
+        "Verknüpfung von BAU-150 mit asakrejz/rust-playground#85 gelöst"
+    );
     let ticket = w.item("bau150").unwrap();
     assert_eq!((ticket.pr.clone(), ticket.branch.clone()), (None, None));
     assert_eq!(w.review(85).unwrap().ticket_key, None);
@@ -79,7 +85,10 @@ fn the_branch_or_title_links_automatically() {
         [("bau150".to_string(), w.review(85).unwrap().key())]
     );
     let applied = ok(&mut w, Action::AutoLinkPrs, 1);
-    assert_eq!(applied.summary, "BAU-150 automatisch mit asakrejz/rust-playground#85 verknüpft");
+    assert_eq!(
+        applied.summary,
+        "BAU-150 automatisch mit asakrejz/rust-playground#85 verknüpft"
+    );
     let entry = w.log.last().unwrap();
     assert_eq!(
         entry.actor,

@@ -58,12 +58,12 @@ pub use model::*;
 pub use notify::{
     Channel, Channels, Delivery, Event as NotifyEvent, NotifyReason, NotifySettings, QuietHours,
 };
+pub use repos::{AgentRepo, AgentRepos, RepoChoice};
 pub use review::{
     CHECK_STEPS, CheckRun, Decision, DiffLine, FileDiff, Level, LineComment, LineKind,
     MergeBlocker, MergeMethod, Review, SendError, Suggestion, SuggestionDiff, Verdict,
     merge_blockers,
 };
-pub use repos::{AgentRepo, AgentRepos, RepoChoice};
 pub use rules::{DEMO_REPO, PathViolation, RepoRules, ViolationKind, glob_match};
 pub use search::InboxFilter;
 pub use sync::{

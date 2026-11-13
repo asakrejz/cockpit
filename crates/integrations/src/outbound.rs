@@ -137,13 +137,8 @@ pub fn plane(
                     key: i.key.clone(),
                     text,
                 }),
-                (cockpit_core::Source::GitHub, Some(pr)) => {
-                    repo_of_pr(&pr.key()).map(|(repo, _, number)| Outbound::GitHubComment {
-                        repo,
-                        number,
-                        text,
-                    })
-                }
+                (cockpit_core::Source::GitHub, Some(pr)) => repo_of_pr(&pr.key())
+                    .map(|(repo, _, number)| Outbound::GitHubComment { repo, number, text }),
                 _ => None,
             }
         }

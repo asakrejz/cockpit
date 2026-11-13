@@ -159,7 +159,11 @@ fn address_review_waits_for_plan_approval_and_can_be_steered() {
     ok(&mut w, Action::AdvanceAgents, 1);
     let step = w.apply(Action::AdvanceAgents, Actor::Agent, T).unwrap();
     assert!(step.logged >= 1);
-    assert!(w.run("review-asakrejz~rust-playground-91").unwrap().is_asking());
+    assert!(
+        w.run("review-asakrejz~rust-playground-91")
+            .unwrap()
+            .is_asking()
+    );
     ok(
         &mut w,
         Action::AnswerAgent {
@@ -169,7 +173,11 @@ fn address_review_waits_for_plan_approval_and_can_be_steered() {
         1,
     );
     run_to_end(&mut w);
-    assert!(w.run("review-asakrejz~rust-playground-91").unwrap().is_done());
+    assert!(
+        w.run("review-asakrejz~rust-playground-91")
+            .unwrap()
+            .is_done()
+    );
     // Rejecting removes the follow-up job completely.
     let mut w = ws();
     ok(&mut w, address(91, &["c1"], AgentOptions::default()), 2);
@@ -395,7 +403,10 @@ fn followups_notify_when_waiting_and_when_done() {
     let e = waiting.unwrap();
     assert_eq!(e.len(), 1);
     assert_eq!(e[0].reason, NotifyReason::AgentWaiting);
-    assert!(e[0].title.contains("Check „Lint“ in asakrejz/rust-playground#85"));
+    assert!(
+        e[0].title
+            .contains("Check „Lint“ in asakrejz/rust-playground#85")
+    );
     assert_eq!(e[0].route, "#/agent/check-asakrejz~rust-playground-85-lint");
     ok(
         &mut w,
@@ -471,7 +482,11 @@ fn followup_actions_and_runs_survive_json_and_old_saves() {
     run_to_end(&mut w);
     let (back, _) = persist::restore(Some(&persist::save(&w)));
     assert_eq!(back, w);
-    assert!(back.run("check-asakrejz~rust-playground-85-lint").unwrap().is_diagnosed());
+    assert!(
+        back.run("check-asakrejz~rust-playground-85-lint")
+            .unwrap()
+            .is_diagnosed()
+    );
     // Old runs without `kind` are „implement ticket“.
     let old: crate::agent::AgentRun =
         serde_json::from_str(r#"{"ticket_key":"BAU-1","state":"Done"}"#).unwrap();

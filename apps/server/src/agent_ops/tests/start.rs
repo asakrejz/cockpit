@@ -33,7 +33,7 @@ async fn without_setup_starts_no_run_and_the_message_says_where() {
     // Follow-up jobs do not exist yet with the real agent.
     let f = w
         .action(Action::InvestigateCheck {
-            review: 85,
+            review: 85.into(),
             check: "Lint".into(),
         })
         .await

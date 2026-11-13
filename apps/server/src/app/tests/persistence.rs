@@ -41,6 +41,6 @@ async fn unreadable_stored_state_falls_on_demo_back() {
     let app = router(state, PathBuf::from("/x"));
     let (_, body) = hole(app, "/api/workspace").await;
     let (ws, revision) = cockpit_core::persist::load_with_revision(&body).unwrap();
-    assert_eq!(ws, cockpit_core::demo::workspace());
+    assert_eq!(ws, cockpit_core::demo::multi_repo_workspace());
     assert_eq!(revision, 0);
 }

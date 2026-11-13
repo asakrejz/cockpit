@@ -3,12 +3,22 @@ use super::*;
 impl Workspace {
     // ---------- Review ----------
 
-    pub fn decide(&mut self, number: impl Into<PrKey>, suggestion: &str, decision: Option<Decision>) -> bool {
+    pub fn decide(
+        &mut self,
+        number: impl Into<PrKey>,
+        suggestion: &str,
+        decision: Option<Decision>,
+    ) -> bool {
         self.review_mut(number)
             .is_some_and(|r| r.decide(suggestion, decision))
     }
 
-    pub fn edit_suggestion(&mut self, number: impl Into<PrKey>, suggestion: &str, text: &str) -> bool {
+    pub fn edit_suggestion(
+        &mut self,
+        number: impl Into<PrKey>,
+        suggestion: &str,
+        text: &str,
+    ) -> bool {
         self.review_mut(number)
             .is_some_and(|r| r.edit(suggestion, text))
     }
@@ -65,9 +75,10 @@ impl Workspace {
     /// The entry that stands for this pull request in the inbox.
     pub(super) fn pr_item_mut(&mut self, key: impl Into<PrKey>) -> Option<&mut Item> {
         let key = key.into();
-        self.items
-            .iter_mut()
-            .find(|i| i.pr.as_ref().is_some_and(|p| key.matches(&p.repo, p.number)))
+        self.items.iter_mut().find(|i| {
+            i.pr.as_ref()
+                .is_some_and(|p| key.matches(&p.repo, p.number))
+        })
     }
 
     /// Sends the review. The inbox entry gets a summary as
@@ -124,11 +135,10 @@ impl Workspace {
         let Some(checks) = self.review(&key).map(|r| r.checks) else {
             return;
         };
-        for item in self
-            .items
-            .iter_mut()
-            .filter(|i| i.pr.as_ref().is_some_and(|p| key.matches(&p.repo, p.number)))
-        {
+        for item in self.items.iter_mut().filter(|i| {
+            i.pr.as_ref()
+                .is_some_and(|p| key.matches(&p.repo, p.number))
+        }) {
             if let Some(pr) = item.pr.as_mut() {
                 pr.checks = checks;
             }
@@ -218,11 +228,10 @@ impl Workspace {
         let ticket = review.ticket_key.clone();
         let key = review.key();
 
-        for item in self
-            .items
-            .iter_mut()
-            .filter(|i| i.pr.as_ref().is_some_and(|p| key.matches(&p.repo, p.number)))
-        {
+        for item in self.items.iter_mut().filter(|i| {
+            i.pr.as_ref()
+                .is_some_and(|p| key.matches(&p.repo, p.number))
+        }) {
             if let Some(pr) = item.pr.as_mut() {
                 pr.merged = true;
                 pr.draft = false;

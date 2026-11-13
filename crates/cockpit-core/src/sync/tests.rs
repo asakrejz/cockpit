@@ -308,11 +308,13 @@ fn status_and_checks_changes_from_outside_are_reported() {
             ..
         }
     )));
-    assert!(
-        changes
-            .iter()
-            .any(|c| matches!(c, Change::ChangesRequested { number: PrKey { number: 5, .. }, .. }))
-    );
+    assert!(changes.iter().any(|c| matches!(
+        c,
+        Change::ChangesRequested {
+            number: PrKey { number: 5, .. },
+            ..
+        }
+    )));
     assert!(
         !after.item("abc-1").unwrap().read,
         "Änderung von außen holt zurück"
@@ -573,9 +575,18 @@ fn two_repos(title_b: &str) -> Remote {
 fn equal_numbers_from_two_repos_stay_two_reviews() {
     let ws = synced(&two_repos("In web"));
     assert_eq!(ws.reviews.len(), 2);
-    assert_eq!(ws.review(PrKey::new("acme/app", 5)).unwrap().title, "In app");
-    assert_eq!(ws.review(PrKey::new("acme/web", 5)).unwrap().title, "In web");
-    assert_eq!(ws.sync.pr(PrKey::new("acme/web", 5)).unwrap().repo, "acme/web");
+    assert_eq!(
+        ws.review(PrKey::new("acme/app", 5)).unwrap().title,
+        "In app"
+    );
+    assert_eq!(
+        ws.review(PrKey::new("acme/web", 5)).unwrap().title,
+        "In web"
+    );
+    assert_eq!(
+        ws.sync.pr(PrKey::new("acme/web", 5)).unwrap().repo,
+        "acme/web"
+    );
 }
 
 #[test]

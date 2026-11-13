@@ -7,7 +7,10 @@ impl Workspace {
     pub(super) fn item_key_of_pr(&self, key: &PrKey) -> String {
         self.items
             .iter()
-            .find(|i| i.pr.as_ref().is_some_and(|p| key.matches(&p.repo, p.number)))
+            .find(|i| {
+                i.pr.as_ref()
+                    .is_some_and(|p| key.matches(&p.repo, p.number))
+            })
             .map_or_else(
                 || key.to_string(),
                 |i| match &i.pr {

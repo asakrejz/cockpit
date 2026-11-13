@@ -4,9 +4,7 @@
 //! If a source fails, its state in the workspace stays unchanged; the error becomes the
 //! [`Problem`] of the source. The fetch itself writes nothing.
 
-use cockpit_core::{
-    Loaded, Outcome, PrKey, PrLink, Remote, Review, Source, SourceData, Workspace,
-};
+use cockpit_core::{Loaded, Outcome, PrKey, PrLink, Remote, Review, Source, SourceData, Workspace};
 
 use crate::Error;
 use crate::github::{
