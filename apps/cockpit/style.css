@@ -33,7 +33,7 @@ body { margin: 0; }
 
 /* Notifications: sections and quiet hours. */
 .ck-settings { display: flex; flex-direction: column; gap: var(--ref-space-20); padding-bottom: var(--ref-space-20); }
-.ck-quiet { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ref-space-12); }
+.ck-quiet { display: grid; grid-template-columns: 1fr 1fr; align-items: end; gap: var(--ref-space-12); }
 
 /* Notices in the app (toasts). */
 .ck-toasts { position: fixed; z-index: 50; right: var(--ref-space-16); bottom: var(--ref-space-16); display: flex; flex-direction: column; gap: var(--ref-space-8); width: min(420px, calc(100vw - 2 * var(--ref-space-16))); pointer-events: none; }
@@ -60,6 +60,32 @@ body { margin: 0; }
 /* Usage and limits on the agent run */
 .ck-usage { display: flex; flex-direction: column; gap: var(--ref-space-4); }
 .ck-problem { color: var(--sys-color-red); }
+
+/* Narrow screens: notices sit above the bottom navigation and clear the notch. */
+@media (max-width: 1100px) {
+  .ck-toasts { inset-inline: max(var(--ref-space-12), env(safe-area-inset-left)); inset-block-end: calc(var(--comp-tabbar-height) + var(--ref-space-24) + env(safe-area-inset-bottom)); width: auto; }
+  /* Banners take their own row at the top instead of covering the page heading. */
+  .ck-banner-stack { position: sticky; inset-block-start: max(var(--ref-space-8), env(safe-area-inset-top)); inset-inline: 0; margin: var(--ref-space-8) var(--ref-space-12) 0; }
+  .ck-banner-stack:not(:has(*)) { display: none; }
+  .ck-setup { padding-block: max(var(--ref-space-24), env(safe-area-inset-top)) var(--ref-space-48); }
+}
+
+/* Back to the list: only needed where list and detail are separate levels (narrow screens). */
+.ck-back { display: none; }
+@media (max-width: 1100px) {
+  .ck-back { display: block; padding: var(--ref-space-8) var(--ref-space-12) 0; }
+  /* Shortcuts need a keyboard; every one of them has a button as well. */
+  .ck-keys { display: none; }
+  .ck-filters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .ck-filters > * { flex: none; }
+}
+
+/* Checkbox with a text next to it (list of repos). */
+.ck-check { display: inline-flex; gap: var(--ref-space-8); align-items: baseline; cursor: pointer; }
+@media (max-width: 1100px), (pointer: coarse) {
+  .ck-check { align-items: center; min-height: var(--sys-size-hit); }
+  .ck-check input { width: 22px; height: 22px; }
+}
 
 /* Before the first state arrives: loading or "server not reachable" (gate.rs). */
 .ck-gate { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--ref-space-12); min-height: 100dvh; padding: var(--ref-space-20); text-align: center; }

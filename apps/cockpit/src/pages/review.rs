@@ -80,7 +80,7 @@ pub fn ReviewPage(number: Option<u32>) -> impl IntoView {
     view! {
         <SplitView layout=SplitLayout::DetailWide>
             <AppSidebar>
-                <SidebarSection label="Reviews">
+                <SidebarSection label="Reviews" role=SectionRole::Picker>
                     {list}
                     <Show when=no_reviews>
                         <p class="ck-empty t-footnote t-secondary">"Noch keine Pull Requests zum Prüfen."</p>

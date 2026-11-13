@@ -63,6 +63,24 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
         draft.set(String::new());
     });
 
+    // Narrow screens show list and detail as two levels; this says which one is on.
+    let detail_open = RwSignal::new(false);
+    Effect::new(move |previous: Option<bool>| {
+        let open = detail_open.get();
+        if previous.is_some() {
+            request_animation_frame(move || {
+                if open {
+                    window().scroll_to_with_x_and_y(0.0, 0.0);
+                } else if let Some(row) = query_html(".ck-inbox [aria-pressed=\"true\"]") {
+                    let options = ScrollIntoViewOptions::new();
+                    options.set_block(ScrollLogicalPosition::Center);
+                    row.scroll_into_view_with_scroll_into_view_options(&options);
+                }
+            });
+        }
+        open
+    });
+
     // Edit mode of a ticket: draft of title and description. With every change
     // of the entry it ends; a draft does not carry over to another ticket.
     let edit = Edit {
@@ -113,7 +131,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
     };
 
     view! {
-        <SplitView>
+        <SplitView detail_open=detail_open>
             <AppSidebar>
                 <SidebarSection label="Regeln">
                     {Rule::ALL.into_iter().map(|rule| rule_switch(store, rule)).collect_view()}
@@ -309,7 +327,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                             list.into_iter()
                                 .map(|item| {
                                     let selected = active.as_deref() == Some(item.id.as_str());
-                                    row(store, item, selected)
+                                    row(store, item, selected, detail_open)
                                 })
                                 .collect_view()
                                 .into_any()
@@ -327,6 +345,9 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
             </Pane>
 
             <Pane label="Details">
+                <div class="ck-back">
+                    <Button on_click=move |_| detail_open.set(false)>"‹ Zur Liste"</Button>
+                </div>
                 {move || match current.get() {
                     Some(item) => detail(store, item, items, draft, edit).into_any(),
                     None => {

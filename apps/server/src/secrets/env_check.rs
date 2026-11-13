@@ -61,16 +61,16 @@ pub fn check_and_fix(path: &Path) -> Vec<String> {
     if let Some(mode) = loose_mode(path) {
         match fix_mode(path) {
             Ok(()) => notes.push(format!(
-                "Die Datei {} war für andere Benutzer lesbar (Rechte {mode:o}) und wurde auf 600 gesetzt.",
+                "File {} was readable by other users (mode {mode:o}) and was set to 600.",
                 path.display()
             )),
             Err(_) => notes.push(format!(
-                "Die Datei {} ist für andere Benutzer lesbar (Rechte {mode:o}) und ließ sich nicht auf 600 setzen.",
+                "File {} is readable by other users (mode {mode:o}) and could not be set to 600.",
                 path.display()
             )),
         }
     }
-    notes.extend(git_warnings(path));
+    notes.extend(git_warnings_in(path, Language::English));
     notes
 }
 
@@ -115,7 +115,18 @@ fn git(dir: &Path, args: &[&str]) -> Option<(bool, i32, String)> {
     ))
 }
 
+/// Language of a warning: German for the web app, English for the terminal at startup.
+#[derive(Clone, Copy)]
+enum Language {
+    German,
+    English,
+}
+
 fn git_warnings(path: &Path) -> Vec<String> {
+    git_warnings_in(path, Language::German)
+}
+
+fn git_warnings_in(path: &Path, language: Language) -> Vec<String> {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return Vec::new();
     };
@@ -131,15 +142,25 @@ fn git_warnings(path: &Path) -> Vec<String> {
     let shown = path.display();
     // Tracked: a commit would publish the keys.
     if let Some((true, _, _)) = git(dir, &["ls-files", "--error-unmatch", "--", name]) {
-        return vec![format!(
-            "Die Datei {shown} wird von Git verfolgt. Ein Commit würde deine Zugangsdaten veröffentlichen. Entferne sie mit „git rm --cached {name}“, committe sie nie und tausche die darin liegenden Schlüssel aus, falls sie schon einmal committet wurden."
-        )];
+        return vec![match language {
+            Language::English => format!(
+                "File {shown} is tracked by Git. A commit would publish your credentials. Remove it with `git rm --cached {name}`, never commit it, and replace the keys in it if it was ever committed."
+            ),
+            Language::German => format!(
+                "Die Datei {shown} wird von Git verfolgt. Ein Commit würde deine Zugangsdaten veröffentlichen. Entferne sie mit „git rm --cached {name}“, committe sie nie und tausche die darin liegenden Schlüssel aus, falls sie schon einmal committet wurden."
+            ),
+        }];
     }
     // Exit code 1: not ignored (0: ignored, 128: error – then say nothing).
     if let Some((false, 1, _)) = git(dir, &["check-ignore", "-q", "--", name]) {
-        return vec![format!(
-            "Die Datei {shown} ist nicht durch .gitignore geschützt. Trage „{name}“ in die .gitignore ein, damit sie nie versehentlich committet wird."
-        )];
+        return vec![match language {
+            Language::English => format!(
+                "File {shown} is not protected by .gitignore. Add `{name}` to .gitignore so it is never committed by accident."
+            ),
+            Language::German => format!(
+                "Die Datei {shown} ist nicht durch .gitignore geschützt. Trage „{name}“ in die .gitignore ein, damit sie nie versehentlich committet wird."
+            ),
+        }];
     }
     Vec::new()
 }
