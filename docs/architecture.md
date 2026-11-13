@@ -106,6 +106,7 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `POST /api/jira/check` | connection test for Jira with an API token, read only (`GET /rest/api/3/myself`): `{ok, cause, message, name}`; `cause` is `ok`, `details`, `address`, `token`, `permission`, `reachable` or `other`; never the token |
 | `GET /api/agent/image`, `POST /api/agent/image` | state of "build image" `{running, present, error, lines}`, or start the build in the background |
 | `GET /api/agent/check` | connection test to the endpoint: `{configured, reachable, key_ok, model_present, hint}` |
+| `GET /api/agent/pull-request?run=<key>` | preview of the pull request for a finished real run: `{repo, head, base, title, body, draft, existing}`; creates nothing |
 | `GET /api/agent/check/container` | the same test from a container: `{checked, mac_reached, container_reached, key_ok, hint}` |
 | `GET /api/agent/models` | model IDs of the endpoint for the drop-down: `{loaded, reachable, key_ok, models, hint}`; only IDs, sorted (Claude models first), at most 200 |
 | `GET /api/setup` | what the assistant prefills: Jira site/email/projects, client IDs, repos, provider, endpoint address and model, both callback addresses, and per key only `{name, set}` |
@@ -182,7 +183,7 @@ the agent"). Only with the seed `COCKPIT_SEED=demo` (and in tests) the simulated
 through the five steps. The real run is `apps/server/src/agent_run.rs` (pure), `agent_ops.rs` and `agent_ops/` (`run`,
 `watcher`, `image_build`, `container_check`, `lines`) for processes, `agent_git.rs` for clone/check/push; the core side
 is `AgentReport` / `Action::ReportAgent`. The runner protocol is described in [../apps/agent/README.md](../apps/agent/README.md).
-Follow-up jobs (below) run only simulated in real mode.
+The simulated follow-up jobs (below) do not exist in real mode; there the two real follow-up jobs apply.
 
 **Questions and steering.** The agent can stop at a step and ask a question (status "Wartet auf Antwort", with
 suggested answers to click or free text). The question counts as attention: it appears in the overview under "Hängt"
@@ -210,6 +211,23 @@ comments need no approval). The agent never merges; its result is a pull request
 
 The actions are `AddressReview`, `InvestigateCheck`, `ApplyFix`, `DiscardFix`. A waiting diagnosis counts as attention
 and triggers "Agent wartet" / "Agent fertig". The agent never merges here either.
+
+**Follow-up jobs of the real agent** (`RunKind::Followup`, actions `AddressReviewThreads` and `FixFailedChecks`, only
+you may trigger them). At click time and again at run start the backend reads the inputs from GitHub with the user's
+token (`GitHubClient::review_input` / `failed_checks`, read only; shortened by `github::followup`) and writes them into
+`job.json` under `followup` (secrets of the agent key and GitHub token are redacted from it). The watcher starts a
+container like for a normal run (`RunKind::runs_in_container`); the clone is the existing `claude/…` branch
+(`agent_git::clone_branch`), the check and push are the same as always (fast-forward only, path rules, never a
+force-push). The container never gets the GitHub token. Image tag `localhost/cockpit-agent:3` (the job contract gained
+`followup`).
+
+**Pull request of a finished real run** (`Action::CreatePullRequest`, only you). The run is `Done` only after the
+backend pushed the branch. `GET /api/agent/pull-request` returns the preview (`Workspace::pull_request_draft`, plus the
+open pull request GitHub already has for the branch). The action is checked on a copy first (`check_pull_request`), then
+`agent_followup.rs` looks for an open pull request for the branch, creates one if there is none
+(`POST /repos/{repo}/pulls`, with the edited title and text) and books GitHub's answer on the run
+(`AgentRun::pull_request`); a `pull` value sent by the browser is ignored. A 422 "already exists" after a race is
+resolved by linking the existing one. A sync follows so the pull request appears as a review.
 
 **Costs and limits.** Every step has a usage (input/output tokens, cost in whole euro cents, duration) shown at the
 timeline, with the run total plus "today" and "this month" below. Prices are a setting; the real agent reports its

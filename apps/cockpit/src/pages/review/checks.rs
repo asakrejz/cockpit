@@ -60,7 +60,7 @@ pub(super) fn checks_section(store: Store, r: &Review, panel: Panel) -> impl Int
                             })}
                     </div>
                     {move || open().then(|| view! { <Log text=log.get_value() /> })}
-                    {(c.status == Checks::Failed && !merged)
+                    {(c.status == Checks::Failed && !merged && !store.agent_real())
                         .then(|| investigation(store, number, name.get_value(), !c.log.trim().is_empty()))}
                 </div>
             }

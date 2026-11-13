@@ -17,6 +17,7 @@
 //! of the OAuth apps) as well as `agent-key` (key of the agent endpoint; `litellm` counts as an older name). The tokens of the sign-in are stored by the backend itself.
 
 mod access;
+mod agent_followup;
 mod agent_git;
 mod agent_ops;
 mod agent_run;

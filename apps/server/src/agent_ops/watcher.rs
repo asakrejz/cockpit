@@ -78,7 +78,7 @@ impl AppState {
         }
         let ws = self.inner.live.copy();
         let mut keep = HashSet::new();
-        for r in ws.runs.iter().filter(|r| r.kind == RunKind::Implement) {
+        for r in ws.runs.iter().filter(|r| r.kind.runs_in_container()) {
             let key = r.key();
             match r.state {
                 // Only waits for you: a plan is ready, or a limit has halted (clone stays).

@@ -322,3 +322,72 @@ fn clone_fails_in_plain_text() {
     assert!(!e.is_empty());
     assert!(clone(&a.url, &a.clone, None, "--evil", "claude/x").is_err());
 }
+
+#[test]
+fn a_followup_continues_on_the_existing_branch_and_pushes_normally() {
+    let a = layout();
+    // The earlier run: branch with one commit in the remote.
+    let first = clone(&a.url, &a.clone, None, "main", "claude/BAU-1-x").unwrap();
+    agent_works(&a.clone, "alt.txt");
+    let earlier = publish(
+        &a.clone,
+        &a.export,
+        "claude/BAU-1-x",
+        &first,
+        &a.url,
+        None,
+        &RepoRules::default(),
+    )
+    .unwrap();
+    // The follow-up starts from the branch, not from main.
+    struct Again {
+        clone: std::path::PathBuf,
+        export: std::path::PathBuf,
+    }
+    let dir = a.remote.parent().unwrap();
+    let again = Again {
+        clone: dir.join("klon2"),
+        export: dir.join("export2.git"),
+    };
+    let base = clone_branch(&a.url, &again.clone, None, "claude/BAU-1-x").unwrap();
+    assert_eq!(base, earlier.commit);
+    assert_eq!(
+        g(&again.clone, &["rev-parse", "--abbrev-ref", "HEAD"]).trim(),
+        "claude/BAU-1-x"
+    );
+    assert_eq!(
+        g(&again.clone, &["remote"]).trim(),
+        "",
+        "kein Remote im Klon"
+    );
+    agent_works(&again.clone, "neu.txt");
+    let v = publish(
+        &again.clone,
+        &again.export,
+        "claude/BAU-1-x",
+        &base,
+        &a.url,
+        None,
+        &RepoRules::default(),
+    )
+    .unwrap();
+    // Only the new file counts as changed, the history was kept (fast-forward).
+    assert_eq!(v.files, ["neu.txt"]);
+    let log = g(&a.remote, &["log", "--format=%s", "claude/BAU-1-x"]);
+    assert_eq!(log.lines().count(), 3, "{log}");
+    g(
+        &a.remote,
+        &["merge-base", "--is-ancestor", &earlier.commit, &v.commit],
+    );
+}
+
+#[test]
+fn a_followup_never_clones_a_foreign_branch() {
+    let a = layout();
+    for bad in ["main", "feature/x", "claude/../main", "claude/a;b"] {
+        let e = clone_branch(&a.url, &a.clone, None, bad).unwrap_err();
+        assert!(e.contains("nicht erlaubt"), "{bad}: {e}");
+    }
+    // A branch that does not exist: a plain error, nothing is created.
+    assert!(clone_branch(&a.url, &a.clone, None, "claude/gibt-es-nicht").is_err());
+}

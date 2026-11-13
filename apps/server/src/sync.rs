@@ -230,6 +230,14 @@ impl AppState {
                 return Err(ActionFailure::Plan(m));
             }
         }
+        // The pull request has its own course (look for an existing one, create, then book).
+        if matches!(action, Action::CreatePullRequest { .. }) {
+            return self.pull_request_create(action).await;
+        }
+        // A follow-up job only starts if GitHub has something for it to do.
+        if self.agent_real() {
+            self.followup_precheck(&action).await?;
+        }
         let _lock = inner.lock.lock().await;
 
         // Probe on a copy: the rules (also "only Du may merge") apply before every call.

@@ -241,6 +241,48 @@ pub fn clone(
     Ok(base)
 }
 
+/// Clones the **existing** branch `branch` (a branch `claude/…` of a pull request) for a follow-up
+/// job and returns the commit it stands on. New commits of the agent build on it; the backend
+/// pushes them as a normal push (never a force-push). Like [`clone`], the clone has no remote and
+/// no token afterwards.
+pub fn clone_branch(
+    url: &str,
+    target: &Path,
+    token: Option<&Secret>,
+    branch: &str,
+) -> Result<String, String> {
+    if !branch_ok(branch) {
+        return Err(format!(
+            "Der Branch „{branch}“ ist nicht erlaubt – der Agent arbeitet nur auf claude/…."
+        ));
+    }
+    let z = target.to_string_lossy().into_owned();
+    git(
+        &[
+            "clone",
+            "--quiet",
+            "--no-tags",
+            "--depth",
+            "50",
+            "--single-branch",
+            "--branch",
+            branch,
+            "--",
+            url,
+            &z,
+        ],
+        None,
+        url,
+        token,
+    )?;
+    let base = git(&["rev-parse", "HEAD"], Some(target), url, None)?
+        .trim()
+        .to_string();
+    git(&["remote", "remove", "origin"], Some(target), url, None)?;
+    permissions_open(target);
+    Ok(base)
+}
+
 /// What was pushed after the check.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Published {

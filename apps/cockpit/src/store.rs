@@ -107,6 +107,13 @@ impl Store {
         store
     }
 
+    /// Does the backend run the real agent (container)? Only then follow-up jobs on pull requests and
+    /// „Pull Request anlegen“ exist; the simulation has its own buttons.
+    pub fn agent_real(&self) -> bool {
+        self.health
+            .with(|h| h.as_ref().is_some_and(|h| h.agent.mode == "real"))
+    }
+
     /// Follows the network of the browser; coming back online reconnects at once.
     fn watch_network(&self) {
         let store = *self;

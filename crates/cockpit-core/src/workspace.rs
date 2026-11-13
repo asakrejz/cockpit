@@ -4,8 +4,11 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::action::ActionError;
 use crate::action::LogEntry;
-use crate::agent::{AgentOptions, AgentReport, AgentRun, ReportEffect, RunKind, Tick};
+use crate::agent::{
+    AgentOptions, AgentReport, AgentRun, FollowupTask, PullRequestRef, ReportEffect, RunKind, Tick,
+};
 use crate::attention::{self, Hit, Rule, Rules, Snooze};
 use crate::demo;
 use crate::diagnosis::diagnose;
@@ -32,6 +35,8 @@ pub enum AgentError {
     NoComments,
     /// Only a red check can be investigated.
     CheckNotFailed,
+    /// The agent only continues on branches `claude/…`.
+    NotAgentBranch,
     /// As many runs are already working as the limit allows (the number).
     ParallelLimit(u32),
 }
@@ -364,6 +369,7 @@ impl Workspace {
 }
 
 mod agents;
+pub use agents::PullRequestDraft;
 mod followups;
 mod limits;
 mod review;

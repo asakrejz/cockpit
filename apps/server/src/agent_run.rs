@@ -11,12 +11,13 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use cockpit_core::api::{AgentStatus, ContainerStatus, Provider};
-use cockpit_core::{AgentReport, AgentRun, RunKind, RunState, Workspace};
+use cockpit_core::{AgentReport, AgentRun, RunState, Workspace};
+use cockpit_integrations::github::followup;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
 /// Name of the agent image (fully named so that Podman does not first search the network for it).
-pub const IMAGE: &str = "localhost/cockpit-agent:2";
+pub const IMAGE: &str = "localhost/cockpit-agent:3";
 /// Label by which the backend finds its containers again and cleans up.
 pub const LABEL: &str = "cockpit.run";
 /// Name under which the container reaches the machine.
@@ -363,8 +364,40 @@ pub fn run_dir(run: &str) -> String {
 
 // ---------- Job ----------
 
-/// The job as JSON for the runner (`/job/job.json`). Contains no secrets.
-pub fn job_json(ws: &Workspace, run: &AgentRun, mode: Mode, branch: &str) -> Value {
+/// What a follow-up job gets as input, read from GitHub by the backend when the run starts
+/// (limited in amount and size, see `cockpit_integrations::github::followup`). These are texts of
+/// third parties: the runner puts them into the prompt as data.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FollowupJob {
+    /// `review_comments` or `failed_checks`.
+    pub kind: &'static str,
+    pub review: u32,
+    pub threads: Vec<followup::Thread>,
+    pub notes: Vec<followup::ReviewNote>,
+    pub checks: Vec<followup::FailedCheck>,
+}
+
+impl FollowupJob {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "kind": self.kind,
+            "pull_request": self.review,
+            "threads": self.threads,
+            "notes": self.notes,
+            "checks": self.checks,
+        })
+    }
+}
+
+/// The job as JSON for the runner (`/job/job.json`). Contains no secrets – no token of GitHub, no
+/// key of the endpoint (those never go into the job file).
+pub fn job_json(
+    ws: &Workspace,
+    run: &AgentRun,
+    mode: Mode,
+    branch: &str,
+    followup: Option<&FollowupJob>,
+) -> Value {
     let item = ws.item_by_key(&run.ticket_key);
     let comments: Vec<String> = item
         .map(|i| {
@@ -418,6 +451,7 @@ pub fn job_json(ws: &Workspace, run: &AgentRun, mode: Mode, branch: &str) -> Val
             "required_tests": rules.required_tests,
             "instructions": instructions,
         },
+        "followup": followup.map(FollowupJob::to_json),
         "run_tests": run.options.run_tests,
         "branch": branch,
         "base_branch": run.options.base_branch,
@@ -564,7 +598,7 @@ pub fn plane(
     blocked: &[String],
 ) -> Vec<Instruction> {
     let mut a = Vec::new();
-    for run in ws.runs.iter().filter(|r| r.kind == RunKind::Implement) {
+    for run in ws.runs.iter().filter(|r| r.kind.runs_in_container()) {
         let key = run.key();
         match (running.get(&key), run.state) {
             (None, RunState::Running) if !blocked.contains(&key) => {
@@ -627,7 +661,7 @@ pub fn plane(
         if !ws
             .runs
             .iter()
-            .any(|r| r.kind == RunKind::Implement && &r.key() == key)
+            .any(|r| r.kind.runs_in_container() && &r.key() == key)
         {
             a.push(Instruction::Stop(key.clone()));
         }

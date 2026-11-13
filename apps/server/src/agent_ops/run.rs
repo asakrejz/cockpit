@@ -111,6 +111,19 @@ pub(super) async fn run_run(
     ];
     let secret_refs: Vec<&str> = secret.iter().map(String::as_str).collect();
 
+    // Follow-up job: the inputs come from GitHub (read only, with the token of the person) and go
+    // into the job file as text. Whatever looks like one of our keys is removed first.
+    let followup = match state.followup_job(&ws, &run.kind).await {
+        Ok(Some(job)) => {
+            let text = agent_git::redact(&job.to_json().to_string(), &secret_refs);
+            serde_json::from_str::<serde_json::Value>(&text)
+                .ok()
+                .map(|v| (job, v))
+        }
+        Ok(None) => None,
+        Err(m) => return End::Error(m),
+    };
+
     let branch = run.branch();
     let base_dir = state.agent_dir().join("runs").join(agent_run::run_dir(key));
     let clone = base_dir.join(if mode == Mode::Plan { "plan" } else { "run" });
@@ -132,13 +145,19 @@ pub(super) async fn run_run(
             run.options.base_branch.clone(),
             branch.clone(),
         );
+        let on_existing_branch = run.kind.review().is_some();
         let bd = base_file.clone();
         let cloned = tokio::task::spawn_blocking(move || {
             let _ = std::fs::remove_dir_all(&k);
             if let Some(p) = k.parent() {
                 std::fs::create_dir_all(p).map_err(|e| format!("Ordner nicht anlegbar: {e}"))?;
             }
-            let sha = agent_git::clone(&u, &k, Some(&t), &b, &br)?;
+            // A follow-up job continues on the branch of the pull request; a new run branches off.
+            let sha = if on_existing_branch {
+                agent_git::clone_branch(&u, &k, Some(&t), &br)?
+            } else {
+                agent_git::clone(&u, &k, Some(&t), &b, &br)?
+            };
             std::fs::write(&bd, &sha).map_err(|e| format!("Stand nicht gesichert: {e}"))?;
             Ok::<_, String>(sha)
         })
@@ -157,7 +176,11 @@ pub(super) async fn run_run(
     };
 
     let job_dir = base_dir.join(format!("job-{}", mode.id()));
-    if let Err(e) = job_write(&job_dir, &agent_run::job_json(&ws, &run, mode, &branch)) {
+    let mut job = agent_run::job_json(&ws, &run, mode, &branch, followup.as_ref().map(|f| &f.0));
+    if let Some((_, redacted)) = &followup {
+        job["followup"] = redacted.clone();
+    }
+    if let Err(e) = job_write(&job_dir, &job) {
         return End::Error(format!("Der Auftrag lässt sich nicht schreiben: {e}"));
     }
 
@@ -220,9 +243,13 @@ pub(super) async fn run_run(
         AgentReport::Started {
             detail: format!(
                 "Container gestartet ({runtime}, {}), Modell {}.",
-                match mode {
-                    Mode::Plan => "Plan erarbeiten",
-                    Mode::Implement => "Ticket umsetzen",
+                match (mode, &run.kind) {
+                    (Mode::Plan, _) => "Plan erarbeiten",
+                    (Mode::Implement, RunKind::Followup { task, .. }) => match task {
+                        FollowupTask::ReviewThreads => "Review-Kommentare umsetzen",
+                        FollowupTask::FailedChecks { .. } => "Rote Checks beheben",
+                    },
+                    (Mode::Implement, _) => "Ticket umsetzen",
                 },
                 access.model
             ),

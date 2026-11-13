@@ -99,6 +99,24 @@ pub async fn fetch_jira_projects() -> Result<JiraProjectsResponse, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
+/// Preview of the pull request for the branch of a finished real run
+/// (`GET /api/agent/pull-request?run=…`). Creates nothing.
+pub async fn fetch_pull_request_preview(
+    run: &str,
+) -> Result<cockpit_core::api::PullRequestPreview, CallError> {
+    let resp = Request::get("/api/agent/pull-request")
+        .query([("run", run)])
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<cockpit_core::api::PullRequestPreview>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
 /// Open event stream. On closing (`Drop`) the connection is ended.
 pub struct Events {
     source: web_sys::EventSource,

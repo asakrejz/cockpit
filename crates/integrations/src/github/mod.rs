@@ -2,6 +2,7 @@
 
 mod client;
 pub mod dto;
+pub mod followup;
 mod map;
 mod patch;
 
