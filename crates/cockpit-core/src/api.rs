@@ -24,7 +24,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Action, LogEntry, PullRequestRef};
+use crate::{Action, AgentRepo, AgentRepos, LogEntry, PullRequestRef};
 
 /// Body of `POST /api/actions`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -230,9 +230,13 @@ pub struct AgentStatus {
     /// Name of the image, e.g. `localhost/cockpit-agent:5`.
     #[serde(default)]
     pub image_name: String,
-    /// The repo the agent works in (`owner/name`), if unambiguous.
+    /// The default repo of the agent (`owner/name`), if there is one.
     #[serde(default)]
     pub repo: Option<String>,
+    /// The repos the agent may work in, with base branch and the Jira projects routed to each,
+    /// and the default. The interface preselects the repo with the same rules the backend applies.
+    #[serde(default)]
+    pub repos: AgentRepos,
     /// What is still missing, one sentence per entry in plain text with the place in the assistant.
     #[serde(default)]
     pub missing: Vec<String>,
@@ -362,6 +366,59 @@ pub struct GitHubInput {
     pub repos: Vec<String>,
 }
 
+/// The repos the agent works in, and the rules that route tickets to them. Replaces the whole
+/// list (`[[agent.repos]]`) and the default (`[agent] repo`); an empty list removes both.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct AgentReposInput {
+    #[serde(default)]
+    pub repos: Vec<AgentRepo>,
+    /// Must be one of `repos`; `None` = no default (the user chooses at every start).
+    #[serde(default)]
+    pub default: Option<String>,
+}
+
+/// What a read-only look at a repo found.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RepoState {
+    /// It exists and the key may push (what the agent needs).
+    Ok,
+    /// It exists and the key may read, but not push.
+    ReadOnly,
+    /// No such repo, or the key cannot see it.
+    NotFound,
+    /// The key is missing, expired or lacks the permission.
+    NoAccess,
+    /// The check did not work (network, quota …).
+    Failed,
+}
+
+/// Result of checking one repo (`POST /api/github/repos/check`). Only reads.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct RepoCheck {
+    pub repo: String,
+    pub state: RepoState,
+    /// The repo's own default branch, if known.
+    #[serde(default)]
+    pub default_branch: Option<String>,
+    /// A sentence in plain text for the assistant.
+    #[serde(default)]
+    pub message: String,
+}
+
+/// Body of `POST /api/github/repos/check`.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct RepoCheckRequest {
+    #[serde(default)]
+    pub repos: Vec<String>,
+}
+
+/// Response of `POST /api/github/repos/check`.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct RepoCheckResponse {
+    #[serde(default)]
+    pub repos: Vec<RepoCheck>,
+}
+
 /// Provider, address and model of the agent. `None` leaves a value unchanged; an empty
 /// address means „directly at the provider“, an empty model removes the name.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
@@ -386,6 +443,8 @@ pub struct ConfigChange {
     pub github_oauth: Option<ClientInput>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub github: Option<GitHubInput>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_repos: Option<AgentReposInput>,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "litellm")]
     pub endpoint: Option<EndpointInput>,
 }
@@ -419,6 +478,9 @@ pub struct Setup {
     pub github_client_id: Option<String>,
     #[serde(default)]
     pub github_repos: Vec<String>,
+    /// `[[agent.repos]]` and `[agent] repo`: where the agent works and which Jira projects go where.
+    #[serde(default)]
+    pub agent_repos: AgentRepos,
     #[serde(default)]
     pub provider: Provider,
     /// Address of the endpoint; `None` = directly at the provider.

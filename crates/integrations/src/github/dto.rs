@@ -197,6 +197,17 @@ pub struct PullReview {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Repo {
     pub default_branch: String,
+    #[serde(default)]
+    pub archived: bool,
+    /// What the key holder may do in the repo (missing for some kinds of keys).
+    #[serde(default)]
+    pub permissions: Option<RepoPermissions>,
+}
+
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct RepoPermissions {
+    #[serde(default)]
+    pub push: bool,
 }
 
 /// `GET /repos/{owner}/{repo}/git/ref/heads/{branch}`

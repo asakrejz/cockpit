@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use cockpit_core::{
-    Action, AgentOptions, AgentRun, Checks, Decision, Level, MergeMethod, Review, RunKind,
+    Action, AgentOptions, AgentRun, Checks, Decision, Level, MergeMethod, PrKey, Review, RunKind,
     Suggestion, SuggestionDiff, Verdict,
 };
 use feature_ui::*;
@@ -21,7 +21,7 @@ use crate::{
 const REVIEW_TIME: Duration = Duration::from_millis(1200);
 
 #[component]
-pub fn ReviewPage(number: Option<u32>) -> impl IntoView {
+pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
     let store = use_store();
     // Without a number: the first review that has not been sent yet.
     let number = number.or_else(|| {
@@ -30,10 +30,15 @@ pub fn ReviewPage(number: Option<u32>) -> impl IntoView {
                 .iter()
                 .find(|r| !r.sent)
                 .or(w.reviews.first())
-                .map(|r| r.number)
+                .map(|r| r.key())
         })
     });
-    let review = Memo::new(move |_| number.and_then(|n| store.ws.with(|w| w.review(n).cloned())));
+    let number = StoredValue::new(number);
+    let review = Memo::new(move |_| {
+        number
+            .get_value()
+            .and_then(|n| store.ws.with(|w| w.review(n).cloned()))
+    });
 
     // State of the line comments in the diff.
     let lines = LineUi {
@@ -60,14 +65,19 @@ pub fn ReviewPage(number: Option<u32>) -> impl IntoView {
 
     let list = move || {
         store.ws.with(|w| {
+            // With reviews from more than one repo the list names the repo.
+            let multi_repo = {
+                let mut repos = w.reviews.iter().map(|r| r.repo.as_str());
+                repos.next().is_some_and(|first| repos.any(|r| r != first))
+            };
             w.reviews
                 .iter()
                 .map(|r| {
                     view! {
                         <SidebarItem
-                            href=Route::Review(Some(r.number)).hash()
-                            label=format!("#{} {}", r.number, r.title)
-                            current=Some(r.number) == number
+                            href=Route::Review(Some(r.key())).hash()
+                            label=review_label(r, multi_repo)
+                            current=number.get_value().is_some_and(|n| n.same(&r.key()))
                             count=if r.sent { "gesendet" } else { "" }
                         />
                     }
@@ -127,6 +137,15 @@ pub fn ReviewPage(number: Option<u32>) -> impl IntoView {
                 }
             }}
         </SplitView>
+    }
+}
+
+/// `#87 Titel`, with several repos `repo#87 Titel`.
+fn review_label(r: &Review, multi_repo: bool) -> String {
+    if multi_repo && !r.repo.is_empty() {
+        format!("{}#{} {}", r.repo, r.number, r.title)
+    } else {
+        format!("#{} {}", r.number, r.title)
     }
 }
 

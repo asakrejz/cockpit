@@ -20,7 +20,8 @@ use axum::extract::{Path as UrlPath, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use cockpit_core::api::{
-    ConfigChange, ConfigResponse, JiraCause, JiraCheck, KeyInput, KeyResponse, Setup,
+    AgentReposInput, ConfigChange, ConfigResponse, JiraCause, JiraCheck, KeyInput, KeyResponse,
+    RepoCheck, RepoCheckRequest, RepoCheckResponse, RepoState, Setup,
 };
 use cockpit_core::setup::{
     KEY_NAMES, client_id_read, endpoint_url_read, jira_check_text, jira_site_read, key_deletable,
@@ -230,6 +231,9 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), String> 
         }
         empty_remove(&mut doc, "github");
     }
+    if let Some(r) = &a.agent_repos {
+        agent_repos_write(&mut doc, r)?;
+    }
     if let Some(e) = &a.endpoint {
         endpoint_write(&mut doc, e)?;
     }
@@ -240,6 +244,48 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), String> 
         other => other.to_string(),
     })?;
     Ok((updated, config))
+}
+
+/// Writes `[agent] repo` (the default) and `[[agent.repos]]` (the list with base branch and
+/// Jira projects). An empty list removes both. Other values of `[agent]` stay.
+fn agent_repos_write(doc: &mut DocumentMut, input: &AgentReposInput) -> Result<(), String> {
+    if let Some(d) = &input.default
+        && !input.repos.iter().any(|r| &r.repo == d)
+    {
+        return Err(format!(
+            "Das Standard-Repo „{d}“ muss auch in der Liste der Agent-Repos stehen."
+        ));
+    }
+    let t = table(doc, "agent")?;
+    t.remove("repos");
+    match input
+        .default
+        .as_deref()
+        .map(str::trim)
+        .filter(|d| !d.is_empty())
+    {
+        Some(d) => set(t, "repo", value(d)),
+        None => {
+            t.remove("repo");
+        }
+    }
+    if !input.repos.is_empty() {
+        let mut all = toml_edit::ArrayOfTables::new();
+        for r in &input.repos {
+            let mut e = Table::new();
+            e.insert("repo", value(r.repo.trim()));
+            if r.base_branch != cockpit_core::repos::DEFAULT_BASE {
+                e.insert("base_branch", value(r.base_branch.trim()));
+            }
+            if !r.projects.is_empty() {
+                e.insert("projects", list(&r.projects));
+            }
+            all.push(e);
+        }
+        t.insert("repos", Item::ArrayOfTables(all));
+    }
+    empty_remove(doc, "agent");
+    Ok(())
 }
 
 /// Writes the file atomically: first a neighbor file, then rename. An existing file
@@ -385,6 +431,7 @@ impl AppState {
                 .as_ref()
                 .map(|g| g.repos.clone())
                 .unwrap_or_default(),
+            agent_repos: self.agent_repos_config(),
             provider: choice.provider,
             endpoint_url: choice.endpoint.as_ref().and_then(|e| e.url.clone()),
             endpoint_model: choice.endpoint.and_then(|e| e.model),
@@ -535,6 +582,126 @@ impl AppState {
             }
         }
     }
+}
+
+impl AppState {
+    /// Looks at each repo, read-only (`GET /repos/{owner}/{name}`): does it exist, can the
+    /// key see it, may it push? Changes nothing. At most 20 repos per call.
+    pub async fn repos_check(&self, repos: Vec<String>) -> RepoCheckResponse {
+        self.oauth_refresh().await;
+        let s = self.clone();
+        let access = tokio::task::spawn_blocking(move || {
+            let api = s
+                .sources()
+                .github
+                .as_ref()
+                .map_or(crate::config::DEFAULT_GITHUB_API.to_string(), |g| {
+                    g.api_url.clone()
+                });
+            s.github_access().map(|t| (api, t))
+        })
+        .await
+        .ok()
+        .flatten();
+        let mut out = Vec::new();
+        for repo in repos.into_iter().take(20) {
+            out.push(match (&access, crate::agent_git::repo_name_ok(&repo)) {
+                (_, false) => repo_check(
+                    repo,
+                    RepoState::NotFound,
+                    None,
+                    "Das ist kein Repo – gebraucht wird die Form firma/app.",
+                ),
+                (None, true) => repo_check(
+                    repo,
+                    RepoState::NoAccess,
+                    None,
+                    "GitHub ist noch nicht verbunden. Melde dich zuerst an.",
+                ),
+                (Some((api, token)), true) => {
+                    match cockpit_integrations::github::GitHubClient::new(api, token.clone()) {
+                        Err(e) => repo_check(
+                            repo,
+                            RepoState::Failed,
+                            None,
+                            &format!("Die GitHub-Adresse ist ungültig: {e}"),
+                        ),
+                        Ok(client) => repo_lookup(&client, repo).await,
+                    }
+                }
+            });
+        }
+        RepoCheckResponse { repos: out }
+    }
+}
+
+fn repo_check(
+    repo: String,
+    state: RepoState,
+    default_branch: Option<String>,
+    message: &str,
+) -> RepoCheck {
+    RepoCheck {
+        repo,
+        state,
+        default_branch,
+        message: message.into(),
+    }
+}
+
+async fn repo_lookup(
+    client: &cockpit_integrations::github::GitHubClient,
+    repo: String,
+) -> RepoCheck {
+    match client.repo_access(&repo).await {
+        Ok(a) if a.archived => repo_check(
+            repo,
+            RepoState::ReadOnly,
+            Some(a.default_branch),
+            "Das Repo ist archiviert – der Agent kann dort nichts pushen.",
+        ),
+        Ok(a) if a.can_push == Some(false) => repo_check(
+            repo,
+            RepoState::ReadOnly,
+            Some(a.default_branch),
+            "Das Repo ist lesbar, aber ohne Schreibrecht – der Agent kann dort nichts pushen.",
+        ),
+        Ok(a) => repo_check(
+            repo,
+            RepoState::Ok,
+            Some(a.default_branch),
+            "Das Repo ist erreichbar.",
+        ),
+        Err(Error::NotFound) => repo_check(
+            repo,
+            RepoState::NotFound,
+            None,
+            "Das Repo gibt es nicht, oder dein Zugang sieht es nicht.",
+        ),
+        Err(Error::NotSignedIn | Error::NoPermission) => repo_check(
+            repo,
+            RepoState::NoAccess,
+            None,
+            "Dem GitHub-Zugang fehlt die Berechtigung für dieses Repo.",
+        ),
+        Err(e) => {
+            tracing::warn!("Repo-Prüfung {repo}: {e}");
+            repo_check(
+                repo,
+                RepoState::Failed,
+                None,
+                "Die Prüfung hat nicht geklappt. Versuche es gleich noch einmal.",
+            )
+        }
+    }
+}
+
+/// `POST /api/github/repos/check`: only reads.
+pub async fn repos_check(
+    State(state): State<AppState>,
+    Json(req): Json<RepoCheckRequest>,
+) -> Response {
+    Json(state.repos_check(req.repos).await).into_response()
 }
 
 /// `POST /api/jira/check`: without a body; only reads.

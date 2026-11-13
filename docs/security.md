@@ -48,6 +48,10 @@ rest: [architecture.md](architecture.md).
   clone. The backend checks the branch in a fresh bare repo (never in the clone the container wrote to) against the repo's
   path rules and then pushes it. **Never** the main branch, **never** a force-push, **never** a merge. You create the pull
   request yourself.
+- **One repo per run, only configured ones.** A run clones and pushes in exactly one repo. The repo comes from the
+  routing rules or from your choice in the interface, and the backend refuses (at start and again when the container
+  starts) any repo that is not in `[[agent.repos]]` / `[agent] repo` / `[github] repos`. The repo check in the assistant
+  only reads (`GET /repos/{owner}/{name}`).
 - **Approval.** Comments and reviews of the agent go out only after your approval. Only you may merge. A plan that
   touches forbidden paths cannot be approved.
 - **Sandbox in the runner.** The agent writes only to `/work`; the runner blocks writing outside `/work`, `.git`,

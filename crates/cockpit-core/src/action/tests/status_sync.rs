@@ -14,11 +14,11 @@ fn the_status_follows_the_pull_request() {
     assert_eq!(entry.actor, Actor::System);
     assert_eq!(
         entry.text,
-        "Status von BAU-150 automatisch auf „In Arbeit“ gesetzt – #85 ist noch in Arbeit"
+        "Status von BAU-150 automatisch auf „In Arbeit“ gesetzt – asakrejz/rust-playground#85 ist noch in Arbeit"
     );
 
     // Review requested → Review.
-    let applied = ok(&mut w, Action::RequestReview { review: 85 }, 2);
+    let applied = ok(&mut w, Action::RequestReview { review: 85.into() }, 2);
     assert_eq!(applied.summary, "Review für #85 angefragt");
     assert_eq!(status(&w, "bau150"), TicketStatus::Review);
     let entry = w.log.last().unwrap();
@@ -26,18 +26,18 @@ fn the_status_follows_the_pull_request() {
         (entry.actor, entry.text.as_str()),
         (
             Actor::System,
-            "Status von BAU-150 automatisch auf „Review“ gesetzt – für #85 ist ein Review angefragt"
+            "Status von BAU-150 automatisch auf „Review“ gesetzt – für asakrejz/rust-playground#85 ist ein Review angefragt"
         )
     );
     fails(
         &mut w,
-        Action::RequestReview { review: 85 },
+        Action::RequestReview { review: 85.into() },
         ActionError::Unchanged,
     );
     fails(
         &mut w,
-        Action::RequestReview { review: 999 },
-        ActionError::UnknownReview(999),
+        Action::RequestReview { review: 999.into() },
+        ActionError::UnknownReview(999.into()),
     );
 
     // Nothing new: the tick does nothing.
@@ -59,7 +59,7 @@ fn merging_finishes_the_linked_ticket_through_the_same_path() {
     ok(
         &mut w,
         Action::SendReview {
-            review: 91,
+            review: 91.into(),
             comment: String::new(),
         },
         1,
@@ -71,7 +71,11 @@ fn merging_finishes_the_linked_ticket_through_the_same_path() {
     assert!(ticket.read && ticket.agent_note.is_none());
     let entry = w.log.last().unwrap();
     assert_eq!(entry.actor, Actor::System);
-    assert!(entry.text.ends_with("– #91 ist gemergt"));
+    assert!(
+        entry
+            .text
+            .ends_with("– asakrejz/rust-playground#91 ist gemergt")
+    );
 }
 
 #[test]
@@ -90,7 +94,7 @@ fn a_status_set_by_hand_stays_until_the_pull_request_moves() {
     fails(&mut w, Action::SyncTicketStatus, ActionError::NothingToDo);
     assert_eq!(status(&w, "bau150"), TicketStatus::Open);
     // When the pull request moves, the ticket follows again.
-    ok(&mut w, Action::RequestReview { review: 85 }, 2);
+    ok(&mut w, Action::RequestReview { review: 85.into() }, 2);
     assert_eq!(status(&w, "bau150"), TicketStatus::Review);
 }
 
@@ -158,7 +162,7 @@ fn the_automation_can_be_switched_off() {
 
     // Off: linking, requesting a review and merging leave the status alone.
     ok(&mut w, link("bau150", 85), 1);
-    ok(&mut w, Action::RequestReview { review: 85 }, 1);
+    ok(&mut w, Action::RequestReview { review: 85.into() }, 1);
     assert_eq!(status(&w, "bau150"), TicketStatus::Open);
     fails(&mut w, Action::SyncTicketStatus, ActionError::NothingToDo);
     w.items
@@ -172,7 +176,7 @@ fn the_automation_can_be_switched_off() {
     ok(
         &mut w,
         Action::SendReview {
-            review: 91,
+            review: 91.into(),
             comment: String::new(),
         },
         1,
@@ -256,7 +260,7 @@ fn the_new_ticket_and_link_actions_survive_json() {
         link("bau150", 85),
         unlink("bau150"),
         Action::AutoLinkPrs,
-        Action::RequestReview { review: 85 },
+        Action::RequestReview { review: 85.into() },
         Action::SyncTicketStatus,
         Action::SetStatusFollowsPr { enabled: false },
     ] {

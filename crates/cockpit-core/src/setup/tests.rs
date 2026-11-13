@@ -406,3 +406,50 @@ fn only_tokens_can_be_deleted() {
         assert!(!key_deletable(n), "{n}");
     }
 }
+
+fn row(repo: &str, base: &str, projects: &str) -> (String, String, String) {
+    (repo.into(), base.into(), projects.into())
+}
+
+#[test]
+fn agent_repos_come_from_rows() {
+    let a = agent_repos_read(
+        &[
+            row("firma/app", "", ""),
+            row("https://github.com/firma/web.git", "develop", "web, shop"),
+            row("", "", ""),
+        ],
+        "firma/app",
+    )
+    .unwrap();
+    assert_eq!(a.repos.len(), 2);
+    assert_eq!(a.repos[0].base_branch, "main");
+    assert_eq!(a.repos[1].repo, "firma/web");
+    assert_eq!(a.repos[1].projects, ["WEB", "SHOP"]);
+    assert_eq!(a.default.as_deref(), Some("firma/app"));
+    // No default is fine; an empty form clears everything.
+    assert_eq!(
+        agent_repos_read(&[row("a/b", "", "")], "").unwrap().default,
+        None
+    );
+    assert_eq!(agent_repos_read(&[], "").unwrap(), Default::default());
+}
+
+#[test]
+fn agent_repos_rows_with_mistakes_say_what_is_wrong() {
+    for (rows, default, part) in [
+        (vec![row("firma", "", "")], "", "Repo"),
+        (vec![row("a/b", "", ""), row("a/b", "", "")], "", "doppelt"),
+        (vec![row("a/b", "-x", "")], "", "Basis-Branch"),
+        (vec![row("a/b", "", "1X")], "", "Projektschlüssel"),
+        (
+            vec![row("a/b", "", "WEB"), row("a/c", "", "web")],
+            "",
+            "WEB",
+        ),
+        (vec![row("a/b", "", "")], "a/c", "Standard-Repo"),
+    ] {
+        let e = agent_repos_read(&rows, default).unwrap_err();
+        assert!(e.contains(part), "{e}");
+    }
+}

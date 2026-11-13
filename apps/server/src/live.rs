@@ -48,7 +48,7 @@ impl Live {
     pub fn load(conn: &Connection, seed: Seed) -> Self {
         let start = || match seed {
             Seed::Empty => Workspace::default(),
-            Seed::Demo => demo::workspace(),
+            Seed::Demo => demo::multi_repo_workspace(),
         };
         let stored = db::load_workspace(conn).unwrap_or_else(|e| {
             tracing::warn!("Stored workspace not readable: {e}");
@@ -67,6 +67,26 @@ impl Live {
         Self {
             snapshot: Mutex::new(Snapshot { ws, revision }),
             tx: broadcast::channel(PUFFER).0,
+        }
+    }
+
+    /// Fills the repo of pull requests and runs of a state stored before several repos were
+    /// supported (see [`Workspace::fill_repos`]); `only_repo` is the one configured repo, if
+    /// there is exactly one. Saves the result if anything changed.
+    pub fn fill_repos(&self, db: &Connection, only_repo: Option<&str>) {
+        let mut snapshot = lock(&self.snapshot);
+        let mut updated = snapshot.ws.clone();
+        if !updated.fill_repos(only_repo) {
+            return;
+        }
+        let revision = snapshot.revision + 1;
+        let text = persist::save_with_revision(&updated, revision);
+        match db::workspace_save(db, revision, &text) {
+            Ok(()) => {
+                snapshot.ws = updated;
+                snapshot.revision = revision;
+            }
+            Err(e) => tracing::warn!("Repos des alten Stands nicht gesichert: {e}"),
         }
     }
 

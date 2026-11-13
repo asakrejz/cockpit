@@ -182,10 +182,10 @@ impl Workspace {
                 comments,
                 options,
             } => {
-                self.need_open_review(review)?;
+                self.need_open_review(&review)?;
                 // Unknown comments report by name, done ones count like missing ones.
                 if let Some(id) = comments.iter().find(|id| {
-                    self.review(review)
+                    self.review(&review)
                         .is_some_and(|r| !r.line_comments.iter().any(|c| &c.id == *id))
                 }) {
                     return Err(ActionError::UnknownComment(id.clone()));
@@ -193,12 +193,12 @@ impl Workspace {
                 let plan_first = options.plan_first;
                 let n = comments.len();
                 let key = self
-                    .address_review(review, &comments, options)
+                    .address_review(&review, &comments, options)
                     .map_err(ActionError::Agent)?;
                 let mut notes = vec![Note::new(
-                    Target::Review(review),
+                    Target::Review(review.clone()),
                     format!(
-                        "Agent beauftragt, {} aus #{review} umzusetzen",
+                        "Agent beauftragt, {} aus {review} umzusetzen",
                         plural(n, "Kommentar", "Kommentare")
                     ),
                 )];
@@ -206,7 +206,9 @@ impl Workspace {
                     notes.push(
                         Note::new(
                             Target::Run(key),
-                            format!("Plan für die Kommentare in #{review} vorgelegt, wartet auf Freigabe"),
+                            format!(
+                                "Plan für die Kommentare in {review} vorgelegt, wartet auf Freigabe"
+                            ),
                         )
                         .by(Actor::Agent),
                     );
@@ -214,18 +216,18 @@ impl Workspace {
                 Ok(notes)
             }
             Action::InvestigateCheck { review, check } => {
-                self.need_open_review(review)?;
+                self.need_open_review(&review)?;
                 let known = self
-                    .review(review)
+                    .review(&review)
                     .is_some_and(|r| r.check_runs.iter().any(|c| c.name == check));
                 if !known {
                     return Err(ActionError::UnknownCheck(check));
                 }
-                self.investigate_check(review, &check)
+                self.investigate_check(&review, &check)
                     .map_err(ActionError::Agent)?;
                 Ok(vec![Note::new(
-                    Target::Review(review),
-                    format!("Agent beauftragt, den Check „{check}“ in #{review} zu untersuchen"),
+                    Target::Review(review.clone()),
+                    format!("Agent beauftragt, den Check „{check}“ in {review} zu untersuchen"),
                 )])
             }
             Action::ApplyFix { run } => {
@@ -259,21 +261,21 @@ impl Workspace {
                 )])
             }
             Action::AddressReviewThreads { review, options } => {
-                self.need_open_review(review)?;
-                self.address_review_threads(review, options)
+                self.need_open_review(&review)?;
+                self.address_review_threads(&review, options)
                     .map_err(agent_error)?;
                 Ok(vec![Note::new(
-                    Target::Review(review),
-                    format!("Agent beauftragt, die Review-Kommentare in #{review} umzusetzen"),
+                    Target::Review(review.clone()),
+                    format!("Agent beauftragt, die Review-Kommentare in {review} umzusetzen"),
                 )])
             }
             Action::FixFailedChecks { review, options } => {
-                self.need_open_review(review)?;
-                self.fix_failed_checks(review, options)
+                self.need_open_review(&review)?;
+                self.fix_failed_checks(&review, options)
                     .map_err(agent_error)?;
                 Ok(vec![Note::new(
-                    Target::Review(review),
-                    format!("Agent beauftragt, die roten Checks in #{review} zu beheben"),
+                    Target::Review(review.clone()),
+                    format!("Agent beauftragt, die roten Checks in {review} zu beheben"),
                 )])
             }
             Action::CreatePullRequest {
@@ -338,7 +340,7 @@ impl Workspace {
     /// The tick of the agents, with one entry per completed step or asked question.
     fn advance_logged(&mut self, at_ms: u64) -> Result<Vec<Note>, ActionError> {
         // Note beforehand which step is about to finish and which hints are waiting.
-        let stepping: Vec<(String, usize, String, Option<u32>, bool, usize)> = self
+        let stepping: Vec<(String, usize, String, Option<PrKey>, bool, usize)> = self
             .runs
             .iter()
             .filter(|r| r.is_running() && !r.real)
@@ -348,7 +350,7 @@ impl Workspace {
                     r.key(),
                     r.completed,
                     title,
-                    r.pr_number,
+                    r.pr_key(),
                     r.options.draft_pr,
                     r.pending_hints.len(),
                 )
@@ -397,20 +399,20 @@ impl Workspace {
                     format!("{label}: Diagnose liegt vor, der Agent wartet auf deine Entscheidung"),
                 ),
                 (_, _, true, Some(n), RunKind::AddressReview { comments, .. }) => Note::new(
-                    Target::Review(n),
+                    Target::Review(n.clone()),
                     format!(
-                        "#{n}: {} umgesetzt und auf den Branch gepusht, das Review wartet wieder auf dich",
+                        "{n}: {} umgesetzt und auf den Branch gepusht, das Review wartet wieder auf dich",
                         plural(comments.len(), "Kommentar", "Kommentare")
                     ),
                 ),
                 (_, _, true, Some(n), RunKind::Diagnose { check, .. }) => Note::new(
-                    Target::Review(n),
-                    format!("#{n}: Check „{check}“ nach dem Fix neu gestartet"),
+                    Target::Review(n.clone()),
+                    format!("{n}: Check „{check}“ nach dem Fix neu gestartet"),
                 ),
                 (_, _, true, Some(n), RunKind::Implement) => Note::new(
-                    Target::Review(n),
+                    Target::Review(n.clone()),
                     format!(
-                        "{key}: Pull Request #{n} {}erstellt",
+                        "{key}: Pull Request {n} {}erstellt",
                         if draft { "als Entwurf " } else { "" }
                     ),
                 ),

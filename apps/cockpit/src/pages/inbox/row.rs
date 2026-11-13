@@ -18,7 +18,7 @@ pub(super) fn row(
             <span class="ui-vstack" style="--spacing: 4px; flex: 1 1 auto; min-width: 0">
                 <span class="ui-hstack" style="--spacing: 6px; flex-wrap: nowrap">
                     <Badge variant=BadgeVariant::Neutral>{item.source.label()}</Badge>
-                    <span class="t-footnote t-mono t-secondary">{item.key}</span>
+                    <span class="t-footnote t-mono t-secondary">{item.display_key()}</span>
                     <span class="ui-spacer"></span>
                     <span class="t-footnote t-secondary" style="white-space: nowrap">{item.time}</span>
                 </span>

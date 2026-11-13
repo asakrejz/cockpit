@@ -90,10 +90,23 @@ impl Workspace {
         DEMO_REPO
     }
 
-    /// The repos for which rules can be set.
+    /// The repos known from the data, for the choice of rules: the sample repo, those with
+    /// rules, and every repo that reviews, entries and runs name. (Rules can be set for any repo
+    /// of the form `owner/name`; the interface adds the configured ones.)
     pub fn repos(&self) -> Vec<String> {
         let mut repos = vec![DEMO_REPO.to_string()];
-        repos.extend(self.repo_rules.keys().filter(|k| *k != DEMO_REPO).cloned());
+        let known = self
+            .repo_rules
+            .keys()
+            .cloned()
+            .chain(self.reviews.iter().map(|r| r.repo.clone()))
+            .chain(self.items.iter().filter_map(|i| i.repo.clone()))
+            .chain(self.runs.iter().map(|r| r.repo.clone()));
+        for repo in known {
+            if !repo.is_empty() && !repos.contains(&repo) {
+                repos.push(repo);
+            }
+        }
         repos
     }
 
@@ -106,7 +119,7 @@ impl Workspace {
     /// nothing changes. Waiting plans get the new rules immediately, running runs
     /// keep those they started with.
     pub fn set_repo_rules(&mut self, repo: &str, rules: RepoRules) -> bool {
-        if !self.repos().iter().any(|r| r == repo) {
+        if !repo_name_valid(repo) {
             return false;
         }
         let rules = rules.cleaned();

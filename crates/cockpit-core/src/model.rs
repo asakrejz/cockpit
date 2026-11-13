@@ -320,11 +320,163 @@ impl Checks {
     }
 }
 
+/// Identity of a pull request: the repo (`owner/name`) plus the number. Equal numbers
+/// from two repos are two different pull requests.
+///
+/// On the wire a key without repo is a plain number (the format before several repos were
+/// supported) and a key with repo is the text `owner/name#12`; both are read. A key without
+/// repo matches any repo with that number (old data, single-repo tests); a key with a repo
+/// matches only that repo (or an entry whose repo is still unknown).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PrKey {
+    /// `owner/name`; empty = unknown (old data).
+    pub repo: String,
+    pub number: u32,
+}
+
+impl PrKey {
+    pub fn new(repo: &str, number: u32) -> Self {
+        Self {
+            repo: repo.into(),
+            number,
+        }
+    }
+
+    /// Does this key address the pull request `number` of `repo`? An empty repo on either
+    /// side matches (see the type documentation).
+    pub fn matches(&self, repo: &str, number: u32) -> bool {
+        self.number == number && (self.repo.is_empty() || repo.is_empty() || self.repo == repo)
+    }
+
+    /// Does `other` address the same pull request (same rule as [`PrKey::matches`])?
+    pub fn same(&self, other: &PrKey) -> bool {
+        self.matches(&other.repo, other.number)
+    }
+
+    /// Reads `owner/name#12`, `#12` or `12`.
+    ///
+    /// ```
+    /// use cockpit_core::PrKey;
+    /// assert_eq!(PrKey::parse("acme/app#12"), Some(PrKey::new("acme/app", 12)));
+    /// assert_eq!(PrKey::parse("#12"), Some(PrKey::new("", 12)));
+    /// assert_eq!(PrKey::parse("x"), None);
+    /// ```
+    pub fn parse(text: &str) -> Option<PrKey> {
+        let text = text.trim();
+        let (repo, number) = text.rsplit_once('#').unwrap_or(("", text));
+        let number = number.parse().ok()?;
+        if !repo.is_empty() && !repo_name_valid(repo) {
+            return None;
+        }
+        Some(PrKey::new(repo, number))
+    }
+
+    /// Part of a hash address: `acme/app/12`, or `12` without repo.
+    pub fn route(&self) -> String {
+        if self.repo.is_empty() {
+            self.number.to_string()
+        } else {
+            format!("{}/{}", self.repo, self.number)
+        }
+    }
+
+    /// Reads [`PrKey::route`]; a malformed text gives `None`.
+    pub fn from_route(text: &str) -> Option<PrKey> {
+        let text = text.trim_matches('/');
+        match text.rsplit_once('/') {
+            Some((repo, number)) if repo_name_valid(repo) => {
+                Some(PrKey::new(repo, number.parse().ok()?))
+            }
+            Some(_) => None,
+            None => Some(PrKey::new("", text.parse().ok()?)),
+        }
+    }
+
+    /// For names of runs, branches and folders: `acme~app-12`, or `12` without repo. `~`
+    /// cannot occur in a repo name, so two repos never give the same text.
+    pub fn slug(&self) -> String {
+        if self.repo.is_empty() {
+            self.number.to_string()
+        } else {
+            format!("{}-{}", self.repo.replace('/', "~"), self.number)
+        }
+    }
+}
+
+impl std::fmt::Display for PrKey {
+    /// `#12`, with repo `acme/app#12`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.repo.is_empty() {
+            write!(f, "#{}", self.number)
+        } else {
+            write!(f, "{}#{}", self.repo, self.number)
+        }
+    }
+}
+
+impl From<u32> for PrKey {
+    fn from(number: u32) -> Self {
+        PrKey::new("", number)
+    }
+}
+
+impl From<&PrKey> for PrKey {
+    fn from(key: &PrKey) -> Self {
+        key.clone()
+    }
+}
+
+impl Serialize for PrKey {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        if self.repo.is_empty() {
+            s.serialize_u32(self.number)
+        } else {
+            s.collect_str(self)
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for PrKey {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Wire {
+            Number(u32),
+            Text(String),
+            Parts {
+                #[serde(default)]
+                repo: String,
+                number: u32,
+            },
+        }
+        match Wire::deserialize(d)? {
+            Wire::Number(number) => Ok(PrKey::new("", number)),
+            Wire::Parts { repo, number } => Ok(PrKey::new(&repo, number)),
+            Wire::Text(text) => PrKey::parse(&text)
+                .ok_or_else(|| serde::de::Error::custom(format!("not a pull request: {text}"))),
+        }
+    }
+}
+
+/// `owner/name` of letters, digits, `.`, `-` and `_`.
+pub fn repo_name_valid(repo: &str) -> bool {
+    let part = |t: &str| {
+        !t.is_empty()
+            && t.chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+    };
+    repo.split_once('/')
+        .is_some_and(|(o, n)| part(o) && part(n))
+}
+
 /// Reference to a pull request, as it hangs on an entry.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PrRef {
     #[serde(default)]
     pub number: u32,
+    /// `owner/name`; empty = unknown (old data, filled by the migration).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub repo: String,
     #[serde(default)]
     pub draft: bool,
     pub checks: Checks,
@@ -350,6 +502,10 @@ impl PrRef {
         } else {
             TicketStatus::InProgress
         }
+    }
+
+    pub fn key(&self) -> PrKey {
+        PrKey::new(&self.repo, self.number)
     }
 
     /// `#87 · offen`
@@ -450,6 +606,26 @@ impl Item {
             .filter(|p| is_project_key(p))
     }
 
+    /// The key as shown in lists: `BAU-142` for tickets; for pull requests `acme/app#87`
+    /// (with the repo, because `#87` alone can exist in two repos), or `#87` if the repo is unknown.
+    pub fn display_key(&self) -> String {
+        match &self.pr {
+            Some(p) if self.kind == Kind::PullRequest && !p.repo.is_empty() => p.key().to_string(),
+            _ => self.key.clone(),
+        }
+    }
+
+    /// Does a run belong to this entry? A run is named after the ticket key; a follow-up job
+    /// on a pull request without ticket after the pull request including its repo
+    /// (`acme/app#87`), because `#87` alone could be any repo's.
+    pub fn matches_run_key(&self, run_key: &str) -> bool {
+        self.key == run_key
+            || (self.kind == Kind::PullRequest
+                && self.pr.as_ref().is_some_and(|p| {
+                    PrKey::parse(run_key).is_some_and(|k| !k.repo.is_empty() && k.same(&p.key()))
+                }))
+    }
+
     /// The status for filters: for tickets their own, for pull requests the one the pull
     /// request suggests (merged → Done, review requested → Review, otherwise In progress).
     pub fn effective_status(&self) -> TicketStatus {
@@ -521,6 +697,7 @@ mod tests {
     #[test]
     fn pr_state_suggests_ticket_status() {
         let mut pr = PrRef {
+            repo: String::new(),
             number: 1,
             draft: true,
             checks: Checks::Passed,
@@ -538,8 +715,68 @@ mod tests {
     }
 
     #[test]
+    fn pr_keys_read_and_write_the_old_and_the_new_wire_form() {
+        // Old form: a plain number; new form: `owner/name#12`.
+        assert_eq!(serde_json::to_string(&PrKey::from(87)).unwrap(), "87");
+        let key = PrKey::new("acme/app", 87);
+        assert_eq!(serde_json::to_string(&key).unwrap(), "\"acme/app#87\"");
+        assert_eq!(
+            serde_json::from_str::<PrKey>("87").unwrap(),
+            PrKey::from(87)
+        );
+        assert_eq!(
+            serde_json::from_str::<PrKey>("\"acme/app#87\"").unwrap(),
+            key
+        );
+        assert_eq!(
+            serde_json::from_str::<PrKey>(r#"{"repo":"acme/app","number":87}"#).unwrap(),
+            key
+        );
+        assert!(serde_json::from_str::<PrKey>("\"nonsense\"").is_err());
+    }
+
+    #[test]
+    fn pr_keys_match_by_repo_unless_a_repo_is_unknown() {
+        let app = PrKey::new("acme/app", 5);
+        assert!(app.matches("acme/app", 5));
+        assert!(!app.matches("acme/web", 5));
+        assert!(!app.matches("acme/app", 6));
+        assert!(app.matches("", 5), "an entry of an old state without repo");
+        assert!(
+            PrKey::from(5).matches("acme/web", 5),
+            "a plain number from an old client"
+        );
+        assert_eq!(app.to_string(), "acme/app#5");
+        assert_eq!(PrKey::from(5).to_string(), "#5");
+    }
+
+    #[test]
+    fn pr_keys_make_hash_addresses_and_safe_names() {
+        let key = PrKey::new("acme/app", 5);
+        assert_eq!(key.route(), "acme/app/5");
+        assert_eq!(PrKey::from_route("acme/app/5"), Some(key.clone()));
+        assert_eq!(PrKey::from_route("5"), Some(PrKey::from(5)));
+        assert_eq!(PrKey::from_route("abc"), None);
+        assert_eq!(PrKey::from_route("x/5"), None, "not owner/name");
+        assert_eq!(key.slug(), "acme~app-5");
+        assert_ne!(PrKey::new("a-b/c", 1).slug(), PrKey::new("a/b-c", 1).slug());
+    }
+
+    #[test]
+    fn a_run_belongs_to_the_pull_request_entry_it_names() {
+        let mut item = crate::demo::workspace().item_by_key("#87").unwrap().clone();
+        let repo = item.pr.as_ref().unwrap().repo.clone();
+        assert!(item.matches_run_key("#87"));
+        assert!(item.matches_run_key(&format!("{repo}#87")));
+        assert!(!item.matches_run_key("other/repo#87"));
+        item.pr.as_mut().unwrap().number = 9;
+        assert!(!item.matches_run_key(&format!("{repo}#87")));
+    }
+
+    #[test]
     fn pr_labels() {
         let pr = PrRef {
+            repo: String::new(),
             number: 87,
             draft: false,
             checks: Checks::Passed,
@@ -550,6 +787,7 @@ mod tests {
         assert_eq!(pr.label(), "#87 · offen");
         assert_eq!(pr.status().1, Tone::Orange);
         let failed = PrRef {
+            repo: String::new(),
             number: 85,
             draft: true,
             checks: Checks::Failed,

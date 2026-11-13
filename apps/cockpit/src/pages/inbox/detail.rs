@@ -14,7 +14,7 @@ pub(super) fn detail(
     let review_href = item
         .pr
         .as_ref()
-        .map(|pr| Route::Review(Some(pr.number)).hash());
+        .map(|pr| Route::Review(Some(pr.key())).hash());
 
     // Tickets show their status for switching, pull requests the state of the checks.
     let state = if is_ticket {
@@ -207,23 +207,24 @@ pub(super) fn detail(
                 let open = store.ws.with_untracked(|w| {
                     w.reviews
                         .iter()
-                        .filter(|r| r.merged.is_none() && w.ticket_of_pr(r.number).is_none())
-                        .map(|r| (r.number, r.title.clone()))
+                        .filter(|r| r.merged.is_none() && w.ticket_of_pr(r.key()).is_none())
+                        .map(|r| (r.key(), r.title.clone()))
                         .collect::<Vec<_>>()
                 });
                 open.into_iter()
                     .map(|(number, title)| {
+                        let label = format!("Mit {number} verknüpfen");
                         view! {
                             <Button
                                 size=ControlSize::Small
                                 on_click=move |_| {
                                     let _ = store.dispatch(Action::LinkPr {
                                         item: id.get_value(),
-                                        pr: number,
+                                        pr: number.clone(),
                                     });
                                 }
                             >
-                                {format!("Mit #{number} verknüpfen")}
+                                {label}
                             </Button>
                         }
                         .attr("title", title)
@@ -330,11 +331,12 @@ pub(super) fn detail(
         }
     };
 
+    let display_key = item.display_key();
     view! {
         <PaneHeader>
             <div class="ui-hstack" style="--spacing: 10px">
                 <Badge variant=BadgeVariant::Neutral>{source}</Badge>
-                <span class="t-subheadline t-mono t-secondary">{item.key.clone()}</span>
+                <span class="t-subheadline t-mono t-secondary">{display_key}</span>
                 <span class="ui-spacer"></span>
                 <span class="ui-hstack" style="--spacing: 8px; flex-wrap: nowrap">
                     <Avatar initials=item.owner.initials.clone() />

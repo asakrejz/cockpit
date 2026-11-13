@@ -44,7 +44,7 @@ test("the call: no key in arguments, a clean environment, restrictive tools, no 
   const root = repo();
   bin.install("claude", { write: { "src/b.txt": "b\n" }, lines: [ok("fertig")] });
   const { d } = adapterEnv(bin.dir, root, { ...PROXY, ANTHROPIC_API_KEY: "sk-ant-aus-der-shell-123", OPENAI_API_KEY: "sk-fremd-0123456789", COCKPIT_PROVIDER: "claude-code", RANDOM_SECRET: "zzz" });
-  await claudeCode().run(job({ rules: { forbidden_paths: [".github/"] } }), d);
+  await claudeCode().run(job({ repo: "firma/web", rules: { forbidden_paths: [".github/"] } }), d);
   const seen = bin.seen();
   const all = seen.args.join("\n");
   assert.ok(!all.includes(TOKEN) && !all.includes("sk-"), "no key in the arguments");
@@ -59,6 +59,8 @@ test("the call: no key in arguments, a clean environment, restrictive tools, no 
   // the prompt (ticket) goes through stdin
   assert.match(seen.stdin, /BAU-142/);
   assert.doesNotMatch(seen.stdin, /ask_user/);
+  // the repo of the job is named in the rules
+  assert.match(seen.args[seen.args.indexOf("--append-system-prompt") + 1], /firma\/web/);
   // environment: proxy mode passes the token, not the api key; nothing else from the container
   assert.equal(seen.env.ANTHROPIC_AUTH_TOKEN, TOKEN);
   assert.equal(seen.env.ANTHROPIC_BASE_URL, "http://cockpit-host:4000");

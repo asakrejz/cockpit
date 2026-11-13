@@ -76,7 +76,7 @@ async fn tick_drives_follow_up_jobs_until_to_diagnose() {
     let app = || router(state.clone(), PathBuf::from("/x"));
     let start = serde_json::to_string(&ActionRequest {
         action: cockpit_core::Action::InvestigateCheck {
-            review: 85,
+            review: 85.into(),
             check: "Lint".into(),
         },
     })
@@ -89,7 +89,7 @@ async fn tick_drives_follow_up_jobs_until_to_diagnose() {
     }
     let (_, body) = hole(app(), "/api/workspace").await;
     let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();
-    let run = ws.run("check-85-lint").unwrap();
+    let run = ws.run("check-asakrejz~rust-playground-85-lint").unwrap();
     assert!(run.is_diagnosed(), "wartet auf deine Entscheidung");
     assert!(run.diagnosis.is_some());
     // After that the tick rests until you adopt the fix.
@@ -100,7 +100,7 @@ async fn tick_drives_follow_up_jobs_until_to_diagnose() {
     // Even now nothing can be merged: #85 has red checks.
     let merge = serde_json::to_string(&ActionRequest {
         action: cockpit_core::Action::MergePr {
-            review: 85,
+            review: 85.into(),
             method: cockpit_core::MergeMethod::Squash,
         },
     })

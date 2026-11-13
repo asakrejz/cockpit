@@ -5,7 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::diagnosis::Fix;
-use crate::model::{Checks, Person};
+use crate::model::{Checks, Person, PrKey};
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LineKind {
@@ -221,6 +221,9 @@ pub enum SendError {
 pub struct Review {
     #[serde(default)]
     pub number: u32,
+    /// `owner/name`; empty = unknown (old data, filled by the migration).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub repo: String,
     #[serde(default)]
     pub title: String,
     #[serde(default)]
@@ -256,6 +259,11 @@ pub struct Review {
 }
 
 impl Review {
+    /// Identity of the pull request: repo and number.
+    pub fn key(&self) -> PrKey {
+        PrKey::new(&self.repo, self.number)
+    }
+
     fn count(&self, decision: Option<Decision>) -> usize {
         self.suggestions
             .iter()

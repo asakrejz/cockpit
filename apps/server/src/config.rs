@@ -44,8 +44,18 @@
 //! [agent]
 //! provider = "claude-agent-sdk"        # or "claude-code" or "codex"
 //! container = "podman"                 # or "docker"; without a value the backend detects the runtime
-//! repo = "firma/app"                   # repo in which the agent works (otherwise the only one from [github] repos)
+//! repo = "firma/app"                   # default repo of the agent (otherwise the only one from [github] repos)
 //! dir = "/path/to/agent"               # folder with Containerfile and runner (otherwise ./apps/agent or next to apps/cockpit/dist)
+//!
+//! # Several repos: a Jira project can be routed to a repo. A ticket whose project is not named
+//! # here goes to the default repo (`repo` above); the interface lets you change it before the start.
+//! [[agent.repos]]
+//! repo = "firma/web"
+//! base_branch = "develop"              # optional, default "main"
+//! projects = ["WEB", "SHOP"]           # Jira projects whose tickets go to this repo
+//!
+//! [[agent.repos]]
+//! repo = "firma/app"                   # a repo without projects is only a choice
 //!
 //! [agent.endpoint]
 //! url = "https://litellm.example"      # proxy or compatible endpoint; empty or omitted = directly at Anthropic
@@ -69,6 +79,7 @@
 use std::path::{Path, PathBuf};
 
 use cockpit_core::api::Provider;
+use cockpit_core::{AgentRepo, is_project_key};
 use serde::Deserialize;
 
 pub const DEFAULT_PORT: u16 = 8787;
@@ -101,8 +112,10 @@ pub struct Config {
     pub container: Option<String>,
     /// Value of `COCKPIT_CONTAINER`, goes before the file.
     pub container_env: Option<String>,
-    /// `[agent] repo`: the repo in which the agent works (`owner/name`).
+    /// `[agent] repo`: the default repo in which the agent works (`owner/name`).
     pub agent_repo: Option<String>,
+    /// `[[agent.repos]]`: the repos the agent may work in, with base branch and Jira projects.
+    pub agent_repos: Vec<AgentRepo>,
     /// `[agent] dir` or `COCKPIT_AGENT_DIR`: the folder with Containerfile and runner.
     pub agent_dir: Option<PathBuf>,
     /// `COCKPIT_GIT_BASE`: base address for cloning instead of `https://github.com` (for tests).
@@ -230,9 +243,20 @@ struct FileEndpoint {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct FileAgentRepo {
+    repo: String,
+    base_branch: Option<String>,
+    #[serde(default)]
+    projects: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct FileAgent {
     container: Option<String>,
     repo: Option<String>,
+    #[serde(default)]
+    repos: Vec<FileAgentRepo>,
     dir: Option<PathBuf>,
     #[serde(alias = "anbieter")]
     provider: Option<String>,
@@ -294,6 +318,60 @@ fn repo_valid(r: &str) -> bool {
         .is_some_and(|(o, n)| teil(o) && teil(n) && !n.contains('/'))
 }
 
+/// `[[agent.repos]]`: every repo valid and once, every project a valid key and routed to one
+/// repo only (otherwise the rule would be ambiguous).
+fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>, ConfigError> {
+    let mut out: Vec<AgentRepo> = Vec::new();
+    for r in list {
+        let repo = r.repo.trim().to_string();
+        if !crate::agent_git::repo_name_ok(&repo) {
+            return Err(ConfigError::Wert(format!(
+                "[[agent.repos]] repo „{repo}“ muss die Form owner/name haben"
+            )));
+        }
+        if out.iter().any(|o| o.repo == repo) {
+            return Err(ConfigError::Wert(format!(
+                "[[agent.repos]] nennt das Repo „{repo}“ mehrfach"
+            )));
+        }
+        let base = r
+            .base_branch
+            .as_deref()
+            .map(str::trim)
+            .filter(|b| !b.is_empty())
+            .unwrap_or(cockpit_core::repos::DEFAULT_BASE);
+        if !crate::agent_git::base_branch_ok(base) {
+            return Err(ConfigError::Wert(format!(
+                "[[agent.repos]] base_branch „{base}“ von {repo} ist kein gültiger Branch-Name"
+            )));
+        }
+        let mut projects: Vec<String> = Vec::new();
+        for p in &r.projects {
+            let p = p.trim().to_ascii_uppercase();
+            if !is_project_key(&p) {
+                return Err(ConfigError::Wert(format!(
+                    "[[agent.repos]] {repo}: „{p}“ ist kein gültiger Jira-Projektschlüssel"
+                )));
+            }
+            if let Some(other) = out.iter().find(|o| o.projects.contains(&p)) {
+                return Err(ConfigError::Wert(format!(
+                    "Das Jira-Projekt {p} ist schon dem Repo „{}“ zugeordnet, nicht noch {repo}",
+                    other.repo
+                )));
+            }
+            if !projects.contains(&p) {
+                projects.push(p);
+            }
+        }
+        out.push(AgentRepo {
+            repo,
+            base_branch: base.to_string(),
+            projects,
+        });
+    }
+    Ok(out)
+}
+
 /// Default path of the configuration file.
 pub fn default_config_path() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join("cockpit").join("config.toml"))
@@ -324,6 +402,7 @@ impl Config {
             container: None,
             container_env: None,
             agent_repo: None,
+            agent_repos: Vec::new(),
             agent_dir: None,
             git_base: None,
             dev_port: None,
@@ -458,6 +537,7 @@ impl Config {
                     "[agent] repo „{r}“ muss die Form owner/name haben"
                 )));
             }
+            c.agent_repos = agent_repos_read(&a.repos)?;
             c.agent_dir = a.dir;
         }
         if let Some((wo, e)) = endpoint {

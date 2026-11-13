@@ -41,7 +41,7 @@ test("the call: sandbox without network, never asks, key only in the environment
   const root = repo();
   bin.install("codex", { write: { "src/b.txt": "b" }, lines: [item({ type: "agent_message", text: "ok" }), done] });
   const { d } = adapterEnv(bin.dir, root, { ...ENV, ANTHROPIC_AUTH_TOKEN: "sk-ant-fremd-123456", ANTHROPIC_API_KEY: "sk-ant-fremd-123456", RANDOM_SECRET: "zzz" });
-  await codex().run(job(), d);
+  await codex().run(job({ repo: "firma/web" }), d);
   const seen = bin.seen();
   const a = seen.args.join("\n");
   assert.ok(!a.includes(TOKEN) && !a.includes("sk-"), "no key in the arguments");
@@ -56,6 +56,7 @@ test("the call: sandbox without network, never asks, key only in the environment
   assert.equal(seen.args.at(-1), "-");
   assert.match(seen.stdin, /BAU-142/);
   assert.match(seen.stdin, /pushst nicht/);
+  assert.match(seen.stdin, /firma\/web/);
   assert.equal(seen.env.OPENAI_API_KEY, TOKEN);
   assert.match(seen.env.CODEX_HOME, /cockpit-codex-/);
   for (const gone of ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "RANDOM_SECRET", "OPENAI_BASE_URL", "COCKPIT_MODEL"]) {

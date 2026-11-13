@@ -343,6 +343,7 @@ fn options_decide_draft_and_checks() {
     assert_eq!(
         item.pr,
         Some(PrRef {
+            repo: DEMO_REPO.into(),
             number: 92,
             draft: false,
             checks: Checks::Running,

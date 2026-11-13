@@ -167,13 +167,13 @@ impl Workspace {
                 if !self.item(&item).is_some_and(Item::is_ticket) {
                     return Err(ActionError::NotATicket);
                 }
-                self.link_pr(&item, pr).map_err(|e| match e {
+                self.link_pr(&item, &pr).map_err(|e| match e {
                     LinkError::Same => ActionError::Unchanged,
                     e => ActionError::Link(e),
                 })?;
                 let mut notes = vec![Note::new(
                     Target::Item(item),
-                    format!("{key} mit #{pr} verknüpft"),
+                    format!("{key} mit {pr} verknüpft"),
                 )];
                 notes.extend(status_notes(self.follow_status()));
                 Ok(notes)
@@ -186,7 +186,7 @@ impl Workspace {
                 let number = self.unlink_pr(&item).ok_or(ActionError::NothingToDo)?;
                 Ok(vec![Note::new(
                     Target::Item(item),
-                    format!("Verknüpfung von {key} mit #{number} gelöst"),
+                    format!("Verknüpfung von {key} mit {number} gelöst"),
                 )])
             }
             Action::AutoLinkPrs => {
@@ -199,7 +199,7 @@ impl Workspace {
                     .map(|(id, key, number)| {
                         Note::new(
                             Target::Item(id),
-                            format!("{key} automatisch mit #{number} verknüpft"),
+                            format!("{key} automatisch mit {number} verknüpft"),
                         )
                         .by(Actor::System)
                     })
@@ -208,13 +208,13 @@ impl Workspace {
                 Ok(notes)
             }
             Action::RequestReview { review } => {
-                self.need_open_review(review)?;
-                if !self.request_review(review) {
+                self.need_open_review(&review)?;
+                if !self.request_review(&review) {
                     return Err(ActionError::Unchanged);
                 }
                 let mut notes = vec![Note::new(
-                    Target::Review(review),
-                    format!("Review für #{review} angefragt"),
+                    Target::Review(review.clone()),
+                    format!("Review für {review} angefragt"),
                 )];
                 notes.extend(status_notes(self.follow_status()));
                 Ok(notes)

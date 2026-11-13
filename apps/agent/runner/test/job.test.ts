@@ -34,6 +34,16 @@ test("task text per mode", () => {
   assert.match(tasksText(job({ run_tests: false })), /keine Tests/);
 });
 
+test("the repo of the job is named in the system text; odd values are dropped", () => {
+  const a = checkJob({ mode: "plan", ticket: { key: "X-1" }, repo: "firma/web" });
+  assert.equal(a.repo, "firma/web");
+  assert.match(systemText(a), /firma\/web/);
+  for (const bad of ["../x", "a/b/c", "x y/z", 5, null]) {
+    assert.equal(checkJob({ mode: "plan", ticket: { key: "X-1" }, repo: bad }).repo, "");
+  }
+  assert.doesNotMatch(systemText(checkJob({ mode: "plan", ticket: { key: "X-1" } })), /Das Repository in/);
+});
+
 // ---------- Follow-up jobs ----------
 
 const followupReview = {

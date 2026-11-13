@@ -226,6 +226,73 @@ pub fn projects_read(text: &str) -> Vec<String> {
     from
 }
 
+/// The agent's repos from the rows of the assistant: `(repo, base branch, projects)` per row
+/// plus the default. Empty rows are skipped. Rejects (with a plain-text reason) a repo that
+/// is not `owner/name`, one that is listed twice, a base branch with odd characters, a Jira
+/// project that is not a key or that goes to two repos, and a default outside the list.
+pub fn agent_repos_read(
+    rows: &[(String, String, String)],
+    default: &str,
+) -> Result<crate::api::AgentReposInput, String> {
+    let mut repos: Vec<crate::AgentRepo> = Vec::new();
+    for (repo, base, projects) in rows {
+        if repo.trim().is_empty() {
+            continue;
+        }
+        let name = match repos_read(repo)?.as_slice() {
+            [one] => one.clone(),
+            _ => return Err(format!("„{}“: bitte ein Repo pro Zeile.", repo.trim())),
+        };
+        if repos.iter().any(|r| r.repo == name) {
+            return Err(format!("Das Repo „{name}“ steht doppelt in der Liste."));
+        }
+        let base = base.trim();
+        let base = if base.is_empty() {
+            crate::repos::DEFAULT_BASE
+        } else {
+            base
+        };
+        if base.starts_with('-')
+            || base.contains("..")
+            || !base
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'))
+        {
+            return Err(format!(
+                "Der Basis-Branch „{base}“ von {name} ist nicht gültig."
+            ));
+        }
+        let projects = projects_read(projects);
+        for p in &projects {
+            if !crate::model::is_project_key(p) {
+                return Err(format!("„{p}“ ist kein Jira-Projektschlüssel (z. B. WEB)."));
+            }
+            if let Some(other) = repos.iter().find(|r| r.projects.contains(p)) {
+                return Err(format!(
+                    "Das Jira-Projekt {p} ist schon dem Repo „{}“ zugeordnet.",
+                    other.repo
+                ));
+            }
+        }
+        repos.push(crate::AgentRepo {
+            repo: name,
+            base_branch: base.to_string(),
+            projects,
+        });
+    }
+    let default = default.trim();
+    let default = if default.is_empty() {
+        None
+    } else {
+        let d = repos_read(default)?.into_iter().next().unwrap_or_default();
+        if !repos.iter().any(|r| r.repo == d) {
+            return Err(format!("Das Standard-Repo „{d}“ muss in der Liste stehen."));
+        }
+        Some(d)
+    };
+    Ok(crate::api::AgentReposInput { repos, default })
+}
+
 /// GitHub repos from a text. Allows `owner/name`, full addresses (`https://github.com/o/n`,
 /// also with `.git`) and separation by comma, space or lines.
 pub fn repos_read(text: &str) -> Result<Vec<String>, String> {

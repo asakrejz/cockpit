@@ -35,6 +35,16 @@ pub fn repo_name_ok(repo: &str) -> bool {
         .is_some_and(|(o, n)| teil(o) && teil(n))
 }
 
+/// A base branch to branch off: inconspicuous characters, no leading `-` (no option for `git`).
+pub fn base_branch_ok(branch: &str) -> bool {
+    !branch.is_empty()
+        && !branch.starts_with('-')
+        && !branch.contains("..")
+        && branch
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'))
+}
+
 /// Only branches `claude/…` with inconspicuous characters. The main branch is thereby excluded.
 pub fn branch_ok(branch: &str) -> bool {
     branch.starts_with("claude/")
@@ -200,12 +210,7 @@ pub fn clone(
             "Der Branch „{branch}“ ist nicht erlaubt – nur claude/… wird angelegt."
         ));
     }
-    if base_branch.is_empty()
-        || base_branch.starts_with('-')
-        || !base_branch
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'))
-    {
+    if !base_branch_ok(base_branch) {
         return Err(format!("Der Basis-Branch „{base_branch}“ ist ungültig."));
     }
     let z = target.to_string_lossy().into_owned();

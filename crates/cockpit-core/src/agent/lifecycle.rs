@@ -21,7 +21,7 @@ impl AgentRun {
         };
         self.options = options;
         self.completed = 0;
-        self.pr_number = Some(self.kind.review().unwrap_or(pr_number));
+        self.pr_number = Some(self.kind.review().map_or(pr_number, |k| k.number));
         self.plan_notes.clear();
         self.diagnosis = None;
         self.agent_plan = None;
@@ -74,7 +74,7 @@ impl AgentRun {
     pub fn reset(&mut self) {
         self.state = RunState::Idle;
         self.completed = 0;
-        self.pr_number = self.kind.review();
+        self.pr_number = self.kind.review().map(|k| k.number);
         self.plan_notes.clear();
         self.planned = false;
         self.diagnosis = None;

@@ -46,6 +46,15 @@ fn bubble(m: RunMessage) -> impl IntoView {
 
 mod pull_request;
 
+/// The Jira project of a ticket (`BAU` for `BAU-142`).
+fn item_project(store: crate::store::Store, key: &str) -> Option<String> {
+    store.ws.with(|w| {
+        w.item_by_key(key)
+            .and_then(cockpit_core::Item::project)
+            .map(str::to_string)
+    })
+}
+
 #[component]
 pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let store = use_store();
@@ -84,6 +93,36 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     let draft_pr = RwSignal::new(options.draft_pr);
     let hint = RwSignal::new(options.hint);
     let plan_first = RwSignal::new(options.plan_first);
+    // The repo the agent works in. Preselected by the routing rules of the configuration
+    // (Jira project → repo, otherwise the default); the user can change it before the start.
+    let agent_repos = Memo::new(move |_| {
+        store.health.with(|h| {
+            h.as_ref()
+                .map(|h| h.agent.repos.clone())
+                .unwrap_or_default()
+        })
+    });
+    let repo = RwSignal::new(options.repo.clone().unwrap_or_default());
+    let repo_touched = RwSignal::new(options.repo.is_some());
+    let project = Memo::new(move |_| item_project(store, &key.get_value()));
+    let routed = Memo::new(move |_| agent_repos.get().choose(project.get().as_deref()));
+    Effect::new(move |_| {
+        // Until the user chooses, the rule (or the default) decides.
+        if !repo_touched.get_untracked() {
+            repo.set(routed.get().repo().unwrap_or_default().to_string());
+        }
+    });
+    let repo_options = Signal::derive(move || {
+        let mut list = vec![(String::new(), "Repo wählen …".to_string())];
+        list.extend(
+            agent_repos
+                .get()
+                .repos
+                .iter()
+                .map(|r| (r.repo.clone(), r.repo.clone())),
+        );
+        list
+    });
     // Note for a new plan.
     let note = RwSignal::new(String::new());
     let tests_allowed = Signal::derive(move || store.conn.get().may_run_tests);
@@ -92,7 +131,8 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         draft_pr: draft_pr.get(),
         hint: hint.get(),
         plan_first: plan_first.get(),
-        ..Default::default()
+        repo: Some(repo.get()).filter(|r| !r.is_empty()),
+        base_branch: agent_repos.with(|a| a.base_branch(&repo.get())),
     };
 
     // The run as it looks now. Before the start it already shows the chosen options.
@@ -448,8 +488,39 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                 />
                                 <List>
                                     <ListSection nested=true>
+                                        <Show when=move || !agent_repos.get().is_empty()>
+                                            <ListRow title="Repo">
+                                                <Select
+                                                    options=repo_options
+                                                    value=Signal::derive(move || repo.get())
+                                                    on_change=move |v: String| {
+                                                        repo_touched.set(true);
+                                                        repo.set(v);
+                                                    }
+                                                    aria_label="Repo für den Agenten"
+                                                    disabled=locked
+                                                />
+                                            </ListRow>
+                                            <Show when=move || repo.get().is_empty() && !locked.get()>
+                                                <p class="t-footnote t-secondary" role="status">
+                                                    {move || match project.get() {
+                                                        Some(p) => format!("Für das Jira-Projekt {p} ist kein Repo zugeordnet und es gibt kein Standard-Repo. Wähle ein Repo aus."),
+                                                        None => "Es gibt kein Standard-Repo. Wähle ein Repo aus.".to_string(),
+                                                    }}
+                                                </p>
+                                            </Show>
+                                            <Show when=move || {
+                                                !locked.get() && !repo.get().is_empty()
+                                                    && matches!(routed.get(), cockpit_core::RepoChoice::Default(_))
+                                                    && project.get().is_some()
+                                            }>
+                                                <p class="t-footnote t-secondary">
+                                                    "Keine Zuordnungsregel für dieses Jira-Projekt – das Standard-Repo ist vorgewählt."
+                                                </p>
+                                            </Show>
+                                        </Show>
                                         <ListRow title="Basis-Branch">
-                                            <Chip>"main"</Chip>
+                                            <Chip>{move || agent_repos.with(|a| a.base_branch(&repo.get()))}</Chip>
                                         </ListRow>
                                         <ListRow title="Tests vor dem Pull Request ausführen" toggle_row=true>
                                             <Show when=move || !tests_allowed.get()>
@@ -488,7 +559,10 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                 <Button
                                     variant=ButtonStyle::GlassProminent
                                     size=ControlSize::Large
-                                    disabled=Signal::derive(move || blocked.get().is_some())
+                                    disabled=Signal::derive(move || {
+                                        blocked.get().is_some()
+                                            || (!agent_repos.get().is_empty() && repo.get().is_empty())
+                                    })
                                     on_click=start
                                 >
                                     <Icon path=icons::SPARKLES />
@@ -538,7 +612,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                 </Button>
                             </Show>
                             {move || {
-                                let number = run.get().filter(|r| r.is_done() || r.is_followup())?.pr_number?;
+                                let number = run.get().filter(|r| r.is_done() || r.is_followup())?.pr_key()?;
                                 Some(
                                     view! {
                                         <Button

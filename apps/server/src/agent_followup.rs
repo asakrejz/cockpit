@@ -79,22 +79,21 @@ impl AppState {
         let RunKind::Followup { review, task } = kind else {
             return Ok(None);
         };
-        let link = ws.sync.pr(*review).ok_or_else(|| {
-            format!("Der Pull Request #{review} ist noch nicht mit GitHub abgeglichen. Gleiche zuerst ab.")
+        let link = ws.sync.pr(review).ok_or_else(|| {
+            format!("Der Pull Request {review} ist noch nicht mit GitHub abgeglichen. Gleiche zuerst ab.")
         })?;
-        let repo = self
-            .repo_name()
-            .map_err(|m| format!("Das Repo des Agenten ist unklar. {m}"))?;
-        if link.repo != repo {
+        // The pull request says which repo it lives in; the agent must be allowed to work there.
+        let repo = link.repo.clone();
+        let number = link.number;
+        if !self.agent_repos().allows(&repo) {
             return Err(format!(
-                "Der Pull Request #{review} gehört zu {}, der Agent arbeitet aber in {repo}.",
-                link.repo
+                "Der Pull Request {review} gehört zu {repo}, der Agent darf dort aber nicht arbeiten. Trage das Repo unter „Einrichten“ › „GitHub“ ein."
             ));
         }
         let client = self.github_client_async().await?;
         match task {
             FollowupTask::ReviewThreads => {
-                let input = client.review_input(&repo, *review).await.map_err(|e| {
+                let input = client.review_input(&repo, number).await.map_err(|e| {
                     github_message("Die Review-Kommentare lassen sich nicht lesen", &e)
                 })?;
                 if input.is_empty() {
@@ -104,7 +103,8 @@ impl AppState {
                 }
                 Ok(Some(FollowupJob {
                     kind: task.id(),
-                    review: *review,
+                    review: number,
+                    repo: repo.clone(),
                     threads: input.threads,
                     notes: input.notes,
                     checks: Vec::new(),
@@ -112,7 +112,7 @@ impl AppState {
             }
             FollowupTask::FailedChecks { .. } => {
                 let checks = client
-                    .failed_checks(&repo, *review)
+                    .failed_checks(&repo, number)
                     .await
                     .map_err(|e| github_message("Die Checks lassen sich nicht lesen", &e))?;
                 if checks.is_empty() {
@@ -122,7 +122,8 @@ impl AppState {
                 }
                 Ok(Some(FollowupJob {
                     kind: task.id(),
-                    review: *review,
+                    review: number,
+                    repo: repo.clone(),
                     threads: Vec::new(),
                     notes: Vec::new(),
                     checks,
@@ -134,10 +135,13 @@ impl AppState {
     /// Before a follow-up job is commissioned: does GitHub have input for it?
     pub(crate) async fn followup_precheck(&self, action: &Action) -> Result<(), ActionFailure> {
         let (review, task) = match action {
-            Action::AddressReviewThreads { review, .. } => (*review, FollowupTask::ReviewThreads),
-            Action::FixFailedChecks { review, .. } => {
-                (*review, FollowupTask::FailedChecks { checks: Vec::new() })
+            Action::AddressReviewThreads { review, .. } => {
+                (review.clone(), FollowupTask::ReviewThreads)
             }
+            Action::FixFailedChecks { review, .. } => (
+                review.clone(),
+                FollowupTask::FailedChecks { checks: Vec::new() },
+            ),
             _ => return Ok(()),
         };
         let ws = self.inner.live.copy();
@@ -164,10 +168,11 @@ impl AppState {
         let draft = ws
             .pull_request_draft(key)
             .ok_or_else(|| ActionFailure::Plan("Diesen Lauf gibt es nicht.".into()))?;
-        let repo = self
-            .repo_name()
-            .map_err(|m| ActionFailure::Plan(format!("Das Repo des Agenten ist unklar. {m}")))?;
         let run = ws.runs.iter().find(|r| r.key() == key);
+        // The pull request goes into the repo the run worked in – not into "the" configured repo.
+        let repo = run
+            .ok_or_else(|| ActionFailure::Plan("Diesen Lauf gibt es nicht.".into()))
+            .and_then(|r| self.run_repo(r).map_err(ActionFailure::Plan))?;
         let mut preview = PullRequestPreview {
             repo: repo.clone(),
             head: draft.head.clone(),
@@ -234,9 +239,12 @@ impl AppState {
             .iter()
             .find(|r| r.key() == run)
             .is_some_and(|r| r.options.draft_pr);
-        let repo = self
-            .repo_name()
-            .map_err(|m| ActionFailure::Plan(format!("Das Repo des Agenten ist unklar. {m}")))?;
+        let repo = before
+            .runs
+            .iter()
+            .find(|r| r.key() == run)
+            .ok_or(ActionFailure::Intern)
+            .and_then(|r| self.run_repo(r).map_err(ActionFailure::Plan))?;
         let client = self
             .github_client_async()
             .await

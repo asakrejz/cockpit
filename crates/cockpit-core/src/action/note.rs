@@ -52,9 +52,9 @@ pub(super) fn status_notes(changes: Vec<StatusChange>) -> Vec<Note> {
         .into_iter()
         .map(|c| {
             let why = match c.to {
-                TicketStatus::Done => format!("#{} ist gemergt", c.pr),
-                TicketStatus::Review => format!("für #{} ist ein Review angefragt", c.pr),
-                _ => format!("#{} ist noch in Arbeit", c.pr),
+                TicketStatus::Done => format!("{} ist gemergt", c.pr),
+                TicketStatus::Review => format!("für {} ist ein Review angefragt", c.pr),
+                _ => format!("{} ist noch in Arbeit", c.pr),
             };
             Note::new(
                 Target::Item(c.item),

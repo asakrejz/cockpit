@@ -3,12 +3,22 @@ use super::*;
 impl Workspace {
     // ---------- Review ----------
 
-    pub fn decide(&mut self, number: u32, suggestion: &str, decision: Option<Decision>) -> bool {
+    pub fn decide(
+        &mut self,
+        number: impl Into<PrKey>,
+        suggestion: &str,
+        decision: Option<Decision>,
+    ) -> bool {
         self.review_mut(number)
             .is_some_and(|r| r.decide(suggestion, decision))
     }
 
-    pub fn edit_suggestion(&mut self, number: u32, suggestion: &str, text: &str) -> bool {
+    pub fn edit_suggestion(
+        &mut self,
+        number: impl Into<PrKey>,
+        suggestion: &str,
+        text: &str,
+    ) -> bool {
         self.review_mut(number)
             .is_some_and(|r| r.edit(suggestion, text))
     }
@@ -16,7 +26,7 @@ impl Workspace {
     /// Own comment on a diff line. Returns the ID of the comment.
     pub fn add_line_comment(
         &mut self,
-        number: u32,
+        number: impl Into<PrKey>,
         file: &str,
         line: usize,
         text: &str,
@@ -28,7 +38,7 @@ impl Workspace {
 
     pub fn edit_line_comment(
         &mut self,
-        number: u32,
+        number: impl Into<PrKey>,
         comment: &str,
         text: &str,
         suggestion: Option<&str>,
@@ -37,21 +47,22 @@ impl Workspace {
             .is_some_and(|r| r.edit_line_comment(comment, text, suggestion))
     }
 
-    pub fn delete_line_comment(&mut self, number: u32, comment: &str) -> bool {
+    pub fn delete_line_comment(&mut self, number: impl Into<PrKey>, comment: &str) -> bool {
         self.review_mut(number)
             .is_some_and(|r| r.delete_line_comment(comment))
     }
 
-    pub fn set_verdict(&mut self, number: u32, verdict: Verdict) {
+    pub fn set_verdict(&mut self, number: impl Into<PrKey>, verdict: Verdict) {
         if let Some(r) = self.review_mut(number) {
             r.set_verdict(verdict);
         }
     }
 
     /// Lets the agent look through a pull request. Returns the number of suggestions.
-    pub fn request_agent_review(&mut self, number: u32) -> usize {
-        let count = self.review_mut(number).map_or(0, Review::run_agent_review);
-        if let Some(item) = self.pr_item_mut(number) {
+    pub fn request_agent_review(&mut self, number: impl Into<PrKey>) -> usize {
+        let key = number.into();
+        let count = self.review_mut(&key).map_or(0, Review::run_agent_review);
+        if let Some(item) = self.pr_item_mut(&key) {
             item.agent_note = Some(match count {
                 0 => "Der Agent hat nichts zu beanstanden".to_string(),
                 1 => "1 Kommentar vom Agenten wartet auf deine Freigabe".to_string(),
@@ -62,16 +73,23 @@ impl Workspace {
     }
 
     /// The entry that stands for this pull request in the inbox.
-    pub(super) fn pr_item_mut(&mut self, number: u32) -> Option<&mut Item> {
-        self.items
-            .iter_mut()
-            .find(|i| i.pr.as_ref().is_some_and(|p| p.number == number))
+    pub(super) fn pr_item_mut(&mut self, key: impl Into<PrKey>) -> Option<&mut Item> {
+        let key = key.into();
+        self.items.iter_mut().find(|i| {
+            i.pr.as_ref()
+                .is_some_and(|p| key.matches(&p.repo, p.number))
+        })
     }
 
     /// Sends the review. The inbox entry gets a summary as
     /// an own comment and counts as done. Returns the number of comments.
-    pub fn send_review(&mut self, number: u32, own_comment: &str) -> Result<usize, SendError> {
-        let review = self.review_mut(number).ok_or(SendError::UnknownReview)?;
+    pub fn send_review(
+        &mut self,
+        number: impl Into<PrKey>,
+        own_comment: &str,
+    ) -> Result<usize, SendError> {
+        let key = number.into();
+        let review = self.review_mut(&key).ok_or(SendError::UnknownReview)?;
         let verdict = review.verdict;
         let sent = review.send()?.len();
 
@@ -84,7 +102,7 @@ impl Workspace {
             text.push('\n');
             text.push_str(own_comment.trim());
         }
-        if let Some(item) = self.pr_item_mut(number) {
+        if let Some(item) = self.pr_item_mut(&key) {
             item.comments.push(Comment {
                 own: true,
                 ..Comment::new(Person::me(), "gerade eben", &text)
@@ -106,21 +124,21 @@ impl Workspace {
     pub fn running_checks(&self) -> usize {
         self.reviews
             .iter()
-            .filter(|r| self.sync.pr(r.number).is_none())
+            .filter(|r| self.sync.pr(r.key()).is_none())
             .map(Review::running_checks)
             .sum()
     }
 
     /// Writes the overall state of the checks into the inbox entries.
-    pub(super) fn sync_pr_checks(&mut self, number: u32) {
-        let Some(checks) = self.review(number).map(|r| r.checks) else {
+    pub(super) fn sync_pr_checks(&mut self, number: impl Into<PrKey>) {
+        let key = number.into();
+        let Some(checks) = self.review(&key).map(|r| r.checks) else {
             return;
         };
-        for item in self
-            .items
-            .iter_mut()
-            .filter(|i| i.pr.as_ref().is_some_and(|p| p.number == number))
-        {
+        for item in self.items.iter_mut().filter(|i| {
+            i.pr.as_ref()
+                .is_some_and(|p| key.matches(&p.repo, p.number))
+        }) {
             if let Some(pr) = item.pr.as_mut() {
                 pr.checks = checks;
             }
@@ -133,25 +151,26 @@ impl Workspace {
     }
 
     /// Restarts a failed check.
-    pub fn restart_check(&mut self, number: u32, check: &str) -> bool {
+    pub fn restart_check(&mut self, number: impl Into<PrKey>, check: &str) -> bool {
+        let key = number.into();
         let restarted = self
-            .review_mut(number)
+            .review_mut(&key)
             .is_some_and(|r| r.restart_check(check));
         if restarted {
-            self.sync_pr_checks(number);
+            self.sync_pr_checks(&key);
         }
         restarted
     }
 
     /// The tick of the checks: every running one advances one step. Returns
     /// `(pull request, check, result)` for each one that finished in the process.
-    pub fn advance_checks(&mut self) -> Vec<(u32, String, Checks)> {
+    pub fn advance_checks(&mut self) -> Vec<(PrKey, String, Checks)> {
         let mut finished = Vec::new();
-        let linked: Vec<u32> = self.sync.prs.iter().map(|p| p.number).collect();
+        let linked: Vec<PrKey> = self.sync.prs.iter().map(crate::sync::PrLink::key).collect();
         for review in self
             .reviews
             .iter_mut()
-            .filter(|r| !linked.contains(&r.number))
+            .filter(|r| !linked.iter().any(|l| l.same(&r.key())))
         {
             for name in review.advance_checks() {
                 let status = review
@@ -159,12 +178,12 @@ impl Workspace {
                     .iter()
                     .find(|c| c.name == name)
                     .map_or(Checks::Failed, |c| c.status);
-                finished.push((review.number, name, status));
+                finished.push((review.key(), name, status));
             }
         }
-        let numbers: Vec<u32> = finished.iter().map(|(n, ..)| *n).collect();
-        for n in numbers {
-            self.sync_pr_checks(n);
+        let keys: Vec<PrKey> = finished.iter().map(|(k, ..)| k.clone()).collect();
+        for k in keys {
+            self.sync_pr_checks(k);
         }
         finished
     }
@@ -172,15 +191,17 @@ impl Workspace {
     // ---------- Merging ----------
 
     /// What prevents merging pull request `number`. Unknown = empty.
-    pub fn merge_blockers(&self, number: u32) -> Vec<MergeBlocker> {
-        let Some(review) = self.review(number) else {
+    pub fn merge_blockers(&self, number: impl Into<PrKey>) -> Vec<MergeBlocker> {
+        let key = number.into();
+        let Some(review) = self.review(&key) else {
             return Vec::new();
         };
+        let key = review.key();
         let mut blockers = review.merge_blockers();
-        let draft = self
-            .items
-            .iter()
-            .any(|i| i.pr.as_ref().is_some_and(|p| p.number == number && p.draft));
+        let draft = self.items.iter().any(|i| {
+            i.pr.as_ref()
+                .is_some_and(|p| key.matches(&p.repo, p.number) && p.draft)
+        });
         if draft && review.merged.is_none() {
             blockers.insert(0, MergeBlocker::Draft);
         }
@@ -192,24 +213,25 @@ impl Workspace {
     /// status change.
     pub fn merge_pr(
         &mut self,
-        number: u32,
+        number: impl Into<PrKey>,
         method: MergeMethod,
     ) -> Result<Vec<StatusChange>, Vec<MergeBlocker>> {
-        let blockers = self.merge_blockers(number);
+        let key = number.into();
+        let blockers = self.merge_blockers(&key);
         if !blockers.is_empty() {
             return Err(blockers);
         }
-        let Some(review) = self.review_mut(number) else {
+        let Some(review) = self.review_mut(&key) else {
             return Err(Vec::new());
         };
         review.merged = Some(method);
         let ticket = review.ticket_key.clone();
+        let key = review.key();
 
-        for item in self
-            .items
-            .iter_mut()
-            .filter(|i| i.pr.as_ref().is_some_and(|p| p.number == number))
-        {
+        for item in self.items.iter_mut().filter(|i| {
+            i.pr.as_ref()
+                .is_some_and(|p| key.matches(&p.repo, p.number))
+        }) {
             if let Some(pr) = item.pr.as_mut() {
                 pr.merged = true;
                 pr.draft = false;
@@ -226,7 +248,7 @@ impl Workspace {
             .filter(|i| i.is_ticket() && i.pr.is_none())
             .map(|i| i.id.clone())
         {
-            let pr = self.pr_ref_of(number);
+            let pr = self.pr_ref_of(&key);
             if let (Some(item), Some(pr)) = (self.item_mut(&id), pr) {
                 item.pr = Some(pr);
             }
@@ -235,13 +257,14 @@ impl Workspace {
     }
 
     /// Requests a review: the pull request counts as „Review angefragt“. `false` if it already is.
-    pub fn request_review(&mut self, number: u32) -> bool {
+    pub fn request_review(&mut self, number: impl Into<PrKey>) -> bool {
+        let key = number.into();
         let mut changed = false;
         for pr in self
             .items
             .iter_mut()
             .filter_map(|i| i.pr.as_mut())
-            .filter(|p| p.number == number && !p.review_requested)
+            .filter(|p| key.matches(&p.repo, p.number) && !p.review_requested)
         {
             pr.review_requested = true;
             changed = true;

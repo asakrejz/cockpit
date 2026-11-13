@@ -357,7 +357,7 @@ async fn forbidden_paths_prevent_the_push() {
         ..Default::default()
     };
     w.action(Action::SetRepoRules {
-        repo: cockpit_core::DEMO_REPO.into(),
+        repo: "firma/app".into(),
         rules: r,
     })
     .await

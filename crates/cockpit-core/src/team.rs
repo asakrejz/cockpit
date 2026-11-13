@@ -3,7 +3,8 @@
 //! Everything here is pure functions over the [`Workspace`]. They change nothing and
 //! know no UI; the „Übersicht“ page only shows their result.
 
-use crate::model::{Item, Person, TicketStatus, Tone};
+use crate::agent::AgentRun;
+use crate::model::{Item, Person, PrKey, PrRef, TicketStatus, Tone};
 use crate::workspace::Workspace;
 use crate::{Checks, Kind};
 
@@ -83,8 +84,8 @@ fn is_open(item: &Item) -> bool {
 }
 
 /// A review is waiting if it exists and has not been sent yet.
-fn review_pending(ws: &Workspace, number: u32) -> bool {
-    ws.review(number).is_some_and(|r| !r.sent)
+fn review_pending(ws: &Workspace, key: impl Into<PrKey>) -> bool {
+    ws.review(key).is_some_and(|r| !r.sent)
 }
 
 /// All people with their open entries: first „Du“ and the agent, then the
@@ -122,7 +123,7 @@ pub fn members(ws: &Workspace) -> Vec<Member> {
     // a finished one waiting for review.
     let mut active_ids: Vec<String> = Vec::new();
     for run in &ws.runs {
-        let Some(item) = ws.item_by_key(&run.ticket_key).filter(|i| is_open(i)) else {
+        let Some(item) = ws.item_of_run(&run.ticket_key).filter(|i| is_open(i)) else {
             continue;
         };
         let seen = agent.item_ids.contains(&item.id);
@@ -138,7 +139,7 @@ pub fn members(ws: &Workspace) -> Vec<Member> {
             }
             active_ids.push(item.id.clone());
             agent.in_progress += 1;
-        } else if !seen && run.is_done() && run.pr_number.is_some_and(|n| review_pending(ws, n)) {
+        } else if !seen && run.is_done() && run.pr_key().is_some_and(|n| review_pending(ws, n)) {
             agent.review += 1;
             agent.item_ids.push(item.id.clone());
         }
@@ -210,8 +211,8 @@ pub struct Stuck {
     pub who: Person,
     /// The reason as a full sentence.
     pub reason: String,
-    /// Number of the pull request, if it is about the review.
-    pub review: Option<u32>,
+    /// The pull request, if it is about the review.
+    pub review: Option<PrKey>,
     /// Ticket whose agent plan waits for approval.
     pub plan: Option<String>,
     /// Ticket where the agent asked a question.
@@ -229,7 +230,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
     if let Some(run) = ws
         .runs
         .iter()
-        .find(|r| r.ticket_key == item.key && r.is_diagnosed())
+        .find(|r| item.matches_run_key(&r.ticket_key) && r.is_diagnosed())
     {
         let cause = run
             .diagnosis
@@ -247,8 +248,8 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
             StuckKind::ChecksFailed,
             item.owner.clone(),
             format!(
-                "Die Checks von #{} sind fehlgeschlagen – {} kommt nicht weiter.",
-                pr.number,
+                "Die Checks von {} sind fehlgeschlagen – {} kommt nicht weiter.",
+                pr.key(),
                 who_name(&item.owner)
             ),
         ));
@@ -257,7 +258,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
     if let Some(reason) = ws
         .runs
         .iter()
-        .find(|r| r.ticket_key == item.key)
+        .find(|r| item.matches_run_key(&r.ticket_key))
         .and_then(|r| r.stop_reason())
     {
         return Some((
@@ -273,7 +274,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
     if let Some(question) = ws
         .runs
         .iter()
-        .find(|r| r.ticket_key == item.key && r.is_asking())
+        .find(|r| item.matches_run_key(&r.ticket_key) && r.is_asking())
         .and_then(|r| r.question.as_ref())
     {
         return Some((
@@ -286,7 +287,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
     if ws
         .runs
         .iter()
-        .any(|r| r.ticket_key == item.key && r.is_awaiting())
+        .any(|r| item.matches_run_key(&r.ticket_key) && r.is_awaiting())
     {
         return Some((
             StuckKind::PlanWaiting,
@@ -296,15 +297,15 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
     }
 
     let waiting_run = ws.runs.iter().find(|r| {
-        r.ticket_key == item.key
+        item.matches_run_key(&r.ticket_key)
             && r.is_done()
-            && r.pr_number.is_some_and(|n| review_pending(ws, n))
+            && r.pr_key().is_some_and(|n| review_pending(ws, n))
     });
-    if let Some(number) = waiting_run.and_then(|r| r.pr_number) {
+    if let Some(number) = waiting_run.and_then(AgentRun::pr_key) {
         return Some((
             StuckKind::AgentWaiting,
             me,
-            format!("Der Agent ist fertig und wartet auf dein Review von #{number}."),
+            format!("Der Agent ist fertig und wartet auf dein Review von {number}."),
         ));
     }
 
@@ -313,14 +314,15 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
             && item.owner != me
             && !p.draft
             && p.checks == Checks::Passed
-            && review_pending(ws, p.number)
+            && review_pending(ws, p.key())
     }) {
         return Some((
             StuckKind::ReviewWaiting,
             me,
             format!(
-                "{} wartet auf dein Review von #{}.",
-                item.owner.name, pr.number
+                "{} wartet auf dein Review von {}.",
+                item.owner.name,
+                pr.key()
             ),
         ));
     }
@@ -329,7 +331,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
     let agent_working = ws
         .runs
         .iter()
-        .any(|r| r.ticket_key == item.key && r.is_active());
+        .any(|r| item.matches_run_key(&r.ticket_key) && r.is_active());
     if item.is_ticket()
         && item.status == TicketStatus::InProgress
         && item.branch.is_none()
@@ -372,7 +374,7 @@ pub fn stuck(ws: &Workspace) -> Vec<Stuck> {
             let waiting = |ok: fn(&crate::AgentRun) -> bool| {
                 ws.runs
                     .iter()
-                    .find(|r| r.ticket_key == item.key && ok(r))
+                    .find(|r| item.matches_run_key(&r.ticket_key) && ok(r))
                     .map(crate::AgentRun::key)
             };
             Some(Stuck {
@@ -382,7 +384,7 @@ pub fn stuck(ws: &Workspace) -> Vec<Stuck> {
                 kind,
                 who,
                 reason,
-                review: item.pr.as_ref().map(|p| p.number),
+                review: item.pr.as_ref().map(PrRef::key),
                 plan: waiting(crate::AgentRun::is_awaiting)
                     .filter(|_| kind == StuckKind::PlanWaiting),
                 question: waiting(crate::AgentRun::is_asking)

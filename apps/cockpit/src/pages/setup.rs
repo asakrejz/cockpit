@@ -6,6 +6,7 @@
 //! (no `localStorage`, no address), the server never sends them back. The rules for this
 //! are in `cockpit_core::setup`, writing `config.toml` is in the server.
 
+mod agent_repos;
 mod container;
 mod done;
 mod fields;

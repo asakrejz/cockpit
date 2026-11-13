@@ -95,6 +95,7 @@ pub fn workspace() -> Workspace {
         branch: Some("feature/BAU-131-slider-thumb".into()),
         pr: Some(PrRef {
             number: 87,
+            repo: DEMO_REPO.into(),
             draft: false,
             checks: Checks::Passed,
             changes_requested: false,
@@ -125,6 +126,7 @@ pub fn workspace() -> Workspace {
         branch: Some("claude/BAU-138-segmented-picker".into()),
         pr: Some(PrRef {
             number: 91,
+            repo: DEMO_REPO.into(),
             draft: true,
             checks: Checks::Passed,
             changes_requested: true,
@@ -152,6 +154,7 @@ pub fn workspace() -> Workspace {
         branch: Some("feature/BAU-127-list-separator".into()),
         pr: Some(PrRef {
             number: 85,
+            repo: DEMO_REPO.into(),
             draft: false,
             checks: Checks::Failed,
             changes_requested: false,
@@ -210,6 +213,7 @@ pub fn workspace() -> Workspace {
         branch: Some("fix/DOC-7-token-table".into()),
         pr: Some(PrRef {
             number: 12,
+            repo: DEMO_REPO_TOKENS.into(),
             draft: false,
             checks: Checks::Failed,
             changes_requested: false,
@@ -231,6 +235,7 @@ pub fn workspace() -> Workspace {
     let review =
         |number: u32, item: &Item, author: Person, ticket: &str, files: Vec<FileDiff>| Review {
             number,
+            repo: item.pr.as_ref().map(|p| p.repo.clone()).unwrap_or_default(),
             title: item.title.clone(),
             description: item.description.clone(),
             author,
@@ -419,6 +424,68 @@ pub fn workspace() -> Workspace {
     }
 }
 
+/// The sample data plus a second repo with a pull request of the same number (`#87` in both
+/// repos), so that the interface shows that equal numbers from two repos are two different
+/// pull requests. This is what the server's seed `demo` and the browser demo start with.
+pub fn multi_repo_workspace() -> Workspace {
+    let mut ws = workspace();
+    let pr87t = Item {
+        scope: Scope::Team,
+        repo: Some(DEMO_REPO_TOKENS.into()),
+        labels: vec!["docs".into()],
+        branch: Some("docs/dark-mode-contrast".into()),
+        pr: Some(PrRef {
+            number: 87,
+            repo: DEMO_REPO_TOKENS.into(),
+            draft: false,
+            checks: Checks::Passed,
+            changes_requested: false,
+            merged: false,
+            review_requested: true,
+        }),
+        ..item(
+            "pr87-tokens",
+            Kind::PullRequest,
+            "#87",
+            "Tokens: Kontrast im Dark Mode",
+            "Hebt den Kontrast der Fokus-Tokens im Dark Mode an. Gleiche Nummer wie #87 im anderen Repo, aber ein eigener Pull Request.",
+            (ReasonKind::ReviewRequested, "Review angefragt von Mira"),
+            "vor 5 Std.",
+            mira(),
+        )
+    };
+    let review = Review {
+        number: 87,
+        repo: DEMO_REPO_TOKENS.into(),
+        title: pr87t.title.clone(),
+        description: pr87t.description.clone(),
+        author: mira(),
+        branch: pr87t.branch.clone().unwrap_or_default(),
+        base: "main".into(),
+        ticket_key: Some("DOC-7".into()),
+        checks: Checks::Passed,
+        files: vec![FileDiff::new(
+            "tokens.json",
+            &[
+                (31, Ctx, "  \"sys-focus-ring\": {"),
+                (32, Del, "    \"dark\": \"#5b8def\""),
+                (32, Add, "    \"dark\": \"#7aa2ff\""),
+                (33, Ctx, "  }"),
+            ],
+        )],
+        agent_reviewed: false,
+        suggestions: Vec::new(),
+        line_comments: Vec::new(),
+        verdict: Verdict::Comment,
+        sent: false,
+        check_runs: passing_checks(),
+        merged: None,
+    };
+    ws.items.push(pr87t);
+    ws.reviews.push(review);
+    ws
+}
+
 /// The rules the demo repo starts with: workflows and lock files stay off limits.
 pub fn repo_rules() -> RepoRules {
     RepoRules {
@@ -462,7 +529,7 @@ pub fn agent_question(ticket_key: &str) -> Option<(usize, Question)> {
             },
         )),
         // Follow-up job „Kommentare in #91 umsetzen“.
-        "review-91" => Some((
+        "review-asakrejz~rust-playground-91" => Some((
             2,
             Question {
                 text: "Soll ich vor dem Push auch die Browser-Tests laufen lassen? Das dauert etwa zwei Minuten."

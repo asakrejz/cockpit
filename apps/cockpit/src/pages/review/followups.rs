@@ -5,7 +5,7 @@ use super::*;
 /// continues on the same `claude/…` branch and the backend pushes the new commits – no new pull
 /// request, no merge. Only for pull requests on a branch of the agent.
 pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<> {
-    let number = r.number;
+    let number = StoredValue::new(r.key());
     let failed = r
         .check_runs
         .iter()
@@ -17,8 +17,8 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
         let (active, done) = store.ws.with(|w| {
             let jobs = |r: &&AgentRun| matches!(r.kind, RunKind::Followup { .. });
             (
-                w.active_followup(number).filter(jobs).cloned(),
-                w.followups(number)
+                w.active_followup(number.get_value()).filter(jobs).cloned(),
+                w.followups(number.get_value())
                     .into_iter()
                     .filter(|r| r.is_done() && jobs(r))
                     .cloned()
@@ -73,23 +73,29 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
         let threads = move |_| {
             if store
                 .dispatch(Action::AddressReviewThreads {
-                    review: number,
+                    review: number.get_value(),
                     options: options(),
                 })
                 .is_ok()
             {
-                crate::store::navigate(&Route::Agent(Some(format!("threads-{number}"))));
+                crate::store::navigate(&Route::Agent(Some(format!(
+                    "threads-{}",
+                    number.get_value().slug()
+                ))));
             }
         };
         let fixes = move |_| {
             if store
                 .dispatch(Action::FixFailedChecks {
-                    review: number,
+                    review: number.get_value(),
                     options: options(),
                 })
                 .is_ok()
             {
-                crate::store::navigate(&Route::Agent(Some(format!("fixes-{number}"))));
+                crate::store::navigate(&Route::Agent(Some(format!(
+                    "fixes-{}",
+                    number.get_value().slug()
+                ))));
             }
         };
         Some(view! {

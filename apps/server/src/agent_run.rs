@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use cockpit_core::api::{AgentStatus, ContainerStatus, Provider};
-use cockpit_core::{AgentReport, AgentRun, RunState, Workspace};
+use cockpit_core::{AgentRepo, AgentReport, AgentRepos, AgentRun, RunState, Workspace};
 use cockpit_integrations::github::followup;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -406,6 +406,8 @@ pub struct FollowupJob {
     /// `review_comments` or `failed_checks`.
     pub kind: &'static str,
     pub review: u32,
+    /// The repo (`owner/name`) of the pull request.
+    pub repo: String,
     pub threads: Vec<followup::Thread>,
     pub notes: Vec<followup::ReviewNote>,
     pub checks: Vec<followup::FailedCheck>,
@@ -416,6 +418,7 @@ impl FollowupJob {
         json!({
             "kind": self.kind,
             "pull_request": self.review,
+            "repo": self.repo,
             "threads": self.threads,
             "notes": self.notes,
             "checks": self.checks,
@@ -489,6 +492,7 @@ pub fn job_json(
         "run_tests": run.options.run_tests,
         "branch": branch,
         "base_branch": run.options.base_branch,
+        "repo": run.repo,
     })
 }
 
@@ -555,22 +559,41 @@ pub fn missing(v: &Prerequisites) -> Vec<String> {
     f
 }
 
-/// The repo of the agent: `[agent] repo`, otherwise the only repo from `[github] repos`.
-pub fn repo_choose<'a>(agent: Option<&'a str>, github: &'a [String]) -> Result<&'a str, String> {
-    if let Some(r) = agent {
-        return Ok(r);
+/// The sentence when no repo is set up for the agent.
+pub const NO_REPO: &str = "Es ist kein Repo eingetragen, in dem der Agent arbeiten soll. Trage es unter „Einrichten“ › „GitHub“ ein.";
+
+/// The repos of the agent and the default, from the configuration:
+///
+/// * `[[agent.repos]]` (`listed`) are the repos; `[agent] repo` (`default`) is added if it is
+///   not listed.
+/// * Without a list the default is the only repo; without a default too, the repos of
+///   `[github] repos` are the choices (the user picks at the start).
+/// * Without a default, exactly one repo is the default.
+pub fn repos_effective(
+    listed: &[AgentRepo],
+    default: Option<&str>,
+    github: &[String],
+) -> AgentRepos {
+    let mut repos: Vec<AgentRepo> = listed.to_vec();
+    if repos.is_empty()
+        && let Some(d) = default
+    {
+        repos.push(AgentRepo::new(d));
     }
-    match github {
-        [only] => Ok(only.as_str()),
-        [] => Err(
-            "Es ist kein Repo eingetragen, in dem der Agent arbeiten soll. Trage es unter „Einrichten“ › „GitHub“ ein."
-                .to_string(),
-        ),
-        _ => Err(
-            "Es sind mehrere Repos eingetragen. Lege in config.toml unter [agent] mit „repo = \"owner/name\"“ fest, in welchem der Agent arbeitet."
-                .to_string(),
-        ),
+    if repos.is_empty() {
+        repos = github.iter().map(|r| AgentRepo::new(r)).collect();
     }
+    if let Some(d) = default
+        && !repos.iter().any(|r| r.repo == d)
+    {
+        repos.push(AgentRepo::new(d));
+    }
+    let default = match default {
+        Some(d) => Some(d.to_string()),
+        None if repos.len() == 1 => Some(repos[0].repo.clone()),
+        None => None,
+    };
+    AgentRepos { repos, default }
 }
 
 /// The status for `/api/health`.
@@ -582,6 +605,7 @@ pub fn status(real: bool, v: &Prerequisites) -> AgentStatus {
             image: v.image,
             image_name: IMAGE.into(),
             repo: None,
+            repos: AgentRepos::default(),
             missing: Vec::new(),
         };
     }
@@ -592,6 +616,7 @@ pub fn status(real: bool, v: &Prerequisites) -> AgentStatus {
         image: v.image,
         image_name: IMAGE.into(),
         repo: v.repo.as_ref().ok().map(|r| (*r).to_string()),
+        repos: AgentRepos::default(),
         missing,
     }
 }

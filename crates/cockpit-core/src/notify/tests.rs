@@ -26,6 +26,7 @@ fn new_review_request_is_reported_once() {
     item.key = "#99".into();
     item.title = "Neuer Button".into();
     item.pr = Some(PrRef {
+        repo: String::new(),
         number: 99,
         draft: false,
         checks: Checks::Passed,
@@ -132,7 +133,7 @@ fn checks_turning_red_on_my_pr() {
         .checks = Checks::Failed;
     let e = only(events(&before, &after));
     assert_eq!(e.reason, NotifyReason::ChecksFailed);
-    assert_eq!(e.route, format!("#/review/{number}"));
+    assert_eq!(e.route, format!("#/review/{}/{number}", crate::DEMO_REPO));
     // Already been red: no second notification.
     assert!(events(&after, &after).is_empty());
 }

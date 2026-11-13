@@ -27,6 +27,7 @@ fn item(id: &str, key: &str, source: Source) -> Item {
         branch: None,
         pr: (source == Source::GitHub).then_some(PrRef {
             number: 7,
+            repo: "a/x".into(),
             draft: false,
             checks: Checks::Passed,
             changes_requested: false,
@@ -46,6 +47,7 @@ fn item(id: &str, key: &str, source: Source) -> Item {
 fn review() -> Review {
     let mut r = cockpit_core::demo::workspace().reviews.remove(0);
     r.number = 7;
+    r.repo = "a/x".into();
     r.files = vec![FileDiff {
         name: "a.rs".into(),
         lines: vec![
@@ -125,6 +127,7 @@ fn all() -> Targets {
         github: true,
         jira: true,
         repos: vec!["a/x".into()],
+        routing: Default::default(),
     }
 }
 
@@ -242,7 +245,7 @@ fn local_stays_local() {
         plan(
             &w,
             Action::SetVerdict {
-                review: 7,
+                review: 7.into(),
                 verdict: Verdict::Approve
             },
             &all()
@@ -297,7 +300,7 @@ fn status_branch_merge_and_check() {
     let m = plan(
         &w,
         Action::MergePr {
-            review: 7,
+            review: 7.into(),
             method: MergeMethod::Squash,
         },
         &all(),
@@ -316,7 +319,7 @@ fn status_branch_merge_and_check() {
         plan(
             &w,
             Action::RestartCheck {
-                review: 7,
+                review: 7.into(),
                 check: "Tests".into()
             },
             &all()
@@ -426,4 +429,99 @@ fn branch_and_check_calls() {
         (c.method, c.path.as_str(), c.body),
         ("POST", "/repos/a/x/check-runs/99/rerequest", None)
     );
+}
+
+// ---------- Equal numbers from two repos ----------
+
+/// `#7` in `a/x` (the usual one) and `#7` in `b/y`.
+fn ws_two() -> Workspace {
+    let mut other = review();
+    other.repo = "b/y".into();
+    other.title = "Anderes Repo".into();
+    let mut other_item = item("gh-b-y-7", "#7", Source::GitHub);
+    other_item.pr.as_mut().unwrap().repo = "b/y".into();
+    let mut w = ws();
+    let remote = Remote {
+        sources: vec![SourceData {
+            source: Source::GitHub,
+            outcome: Outcome::Loaded(Loaded {
+                items: vec![item("gh-a-x-7", "#7", Source::GitHub), other_item],
+                reviews: vec![review(), other],
+                prs: vec![
+                    PrLink {
+                        number: 7,
+                        repo: "a/x".into(),
+                        head_sha: "abc123".into(),
+                    },
+                    PrLink {
+                        number: 7,
+                        repo: "b/y".into(),
+                        head_sha: "def456".into(),
+                    },
+                ],
+                warnings: vec![],
+            }),
+        }],
+    };
+    w = cockpit_core::sync::merge(&w, &remote, T).0;
+    w
+}
+
+#[test]
+fn a_merge_goes_to_the_repo_of_the_pull_request() {
+    let w = ws_two();
+    let mut targets = all();
+    targets.repos = vec!["a/x".into(), "b/y".into()];
+    for (repo, sha) in [("a/x", "abc123"), ("b/y", "def456")] {
+        let call = plan(
+            &w,
+            Action::MergePr {
+                review: cockpit_core::PrKey::new(repo, 7),
+                method: MergeMethod::Squash,
+            },
+            &targets,
+        );
+        // The pull request must be mergeable first; the plan only needs the link.
+        match call {
+            Ok(Some(Outbound::GitHubMerge {
+                repo: r,
+                number,
+                sha: s,
+                ..
+            })) => assert_eq!((r.as_str(), number, s.as_str()), (repo, 7, sha)),
+            other => panic!("{other:?}"),
+        }
+    }
+}
+
+#[test]
+fn a_branch_for_a_ticket_goes_to_the_repo_its_project_is_routed_to() {
+    let mut w = ws();
+    // ABC-1 belongs to project ABC.
+    let routing = cockpit_core::AgentRepos {
+        repos: vec![
+            cockpit_core::AgentRepo::new("a/x"),
+            cockpit_core::AgentRepo {
+                projects: vec!["ABC".into()],
+                ..cockpit_core::AgentRepo::new("b/y")
+            },
+        ],
+        default: Some("a/x".into()),
+    };
+    let targets = Targets {
+        repos: vec!["a/x".into(), "b/y".into()],
+        routing,
+        ..all()
+    };
+    w.items.iter_mut().find(|i| i.id == "abc-1").unwrap().branch = None;
+    let Ok(Some(Outbound::GitHubBranch { repo, .. })) = plan(
+        &w,
+        Action::CreateBranch {
+            item: "abc-1".into(),
+        },
+        &targets,
+    ) else {
+        panic!("a branch is planned");
+    };
+    assert_eq!(repo, "b/y");
 }
