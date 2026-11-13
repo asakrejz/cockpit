@@ -164,6 +164,18 @@ pub struct Health {
     pub container: ContainerStatus,
     #[serde(default)]
     pub agent: AgentStatus,
+    /// Wo die `.env`-Datei mit den Schlüsseln liegt und was daran zu warnen ist (nie ein Wert).
+    #[serde(default)]
+    pub env_datei: Option<EnvFileStatus>,
+}
+
+/// Pfad der `.env`-Datei und Warnungen des Servers (Git verfolgt sie, nicht ignoriert, Rechte).
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize)]
+pub struct EnvFileStatus {
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 /// Stand der Anmeldung, des Agent-Endpunkts und der Container-Laufzeit (`GET /api/health`).
@@ -301,7 +313,7 @@ pub async fn put_konfiguration(aenderung: &ConfigChange) -> Result<ConfigRespons
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Legt einen Schlüssel im Schlüsselbund des Servers ab (`PUT /api/schluessel/{name}`). Der Wert
+/// Legt einen Schlüssel in der .env-Datei des Servers ab (`PUT /api/schluessel/{name}`). Der Wert
 /// geht nur in den Body dieser Anfrage – nicht in die Adresse, nicht in den Speicher des Browsers.
 /// Die Antwort sagt nur „gesetzt“.
 pub async fn put_schluessel(name: &str, wert: String) -> Result<KeyResponse, CallError> {
@@ -334,7 +346,7 @@ pub async fn post_jira_pruefen() -> Result<JiraCheck, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Löscht einen Token aus dem Schlüsselbund (`DELETE /api/schluessel/{name}`), „Trennen“.
+/// Löscht einen Token aus der .env-Datei (`DELETE /api/schluessel/{name}`), „Trennen“.
 pub async fn delete_schluessel(name: &str) -> Result<KeyResponse, CallError> {
     let request = Request::delete(&format!("/api/schluessel/{name}"))
         .header("Content-Type", "application/json")

@@ -166,7 +166,7 @@ async fn github_state(p: &Prufstand) -> String {
 #[tokio::test]
 async fn start_ohne_einrichtung_zeigt_eine_verstaendliche_meldung() {
     let server = MockServer::start().await;
-    // Ohne Client-Secret im Schlüsselbund.
+    // Ohne Client-Secret in der .env-Datei.
     let p = stand(&server, None, false);
     let (status, ort, _) = aufruf(&p.app, "GET", "/api/oauth/github/start").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
@@ -224,7 +224,7 @@ async fn github_anmeldung_von_start_bis_health() {
             assert!(!text.contains(geheim));
         }
     }
-    // Tokens liegen im Schlüsselbund.
+    // Tokens liegen in der .env-Datei.
     let gespeichert = p
         .secrets
         .get(secrets::GITHUB_OAUTH_TOKENS)

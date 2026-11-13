@@ -1,9 +1,9 @@
-//! Jira und GitHub im Server: Dienste aus Konfiguration und Schlüsselbund bauen, Aktionen
+//! Jira und GitHub im Server: Dienste aus Konfiguration und .env-Datei bauen, Aktionen
 //! erst beim Dienst ausführen und dann lokal anwenden, regelmäßig abgleichen.
 //!
 //! Der Kern der Regeln steht in `cockpit-core` (`sync::merge`) und `cockpit-integrations`
 //! (`ausgehend`); hier läuft nur der Ablauf. Ein Schlüssel wird für jeden Gebrauch frisch aus
-//! dem Schlüsselbund gelesen (so wirkt `token setzen` ohne Neustart), nie gespeichert oder geloggt.
+//! der .env-Datei gelesen (so wirkt `token setzen` ohne Neustart), nie gespeichert oder geloggt.
 
 use std::time::Duration;
 
@@ -30,7 +30,7 @@ const WIEDERHOLUNGEN: usize = 2;
 pub struct Quellen {
     pub github: Option<GitHubKonfig>,
     pub jira: Option<JiraKonfig>,
-    /// Anmeldung per OAuth (nur Client-IDs; die Secrets liegen im Schlüsselbund).
+    /// Anmeldung per OAuth (nur Client-IDs; die Secrets liegen in der .env-Datei).
     pub github_oauth: Option<OAuthKonfig>,
     pub atlassian: Option<AtlassianKonfig>,
     /// Adressen der OAuth-Dienste (Tests setzen nachgebaute ein).
@@ -84,7 +84,7 @@ pub enum AktionFehler {
 
 impl AppState {
     /// Baut die Dienste, die eingerichtet sind **und** einen Schlüssel haben. Blockierend
-    /// (Schlüsselbund).
+    /// (.env-Datei).
     pub(crate) fn dienste_bauen(&self) -> Services {
         let inner = &self.inner;
         let quellen = self.quellen();
@@ -151,7 +151,7 @@ impl AppState {
         }
     }
 
-    /// Ein Schlüssel aus dem Schlüsselbund, leer zählt als fehlend. Blockierend.
+    /// Ein Schlüssel aus der .env-Datei, leer zählt als fehlend. Blockierend.
     pub(crate) fn token(&self, name: &str) -> Option<cockpit_integrations::Secret> {
         match self.inner.secrets.get(name) {
             Ok(t) => t.filter(|t| !t.is_empty()),
@@ -197,7 +197,7 @@ impl AppState {
         if !self.quellen().moeglich() {
             return Services::default();
         }
-        // Zuerst auffrischen (Netzwerk), dann bauen (Schlüsselbund).
+        // Zuerst auffrischen (Netzwerk), dann bauen (.env-Datei).
         self.oauth_auffrischen().await;
         let s = self.clone();
         tokio::task::spawn_blocking(move || s.dienste_bauen())

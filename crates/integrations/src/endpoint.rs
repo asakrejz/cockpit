@@ -90,7 +90,7 @@ impl Failed {
         match self {
             Failed::NoKey => {
                 format!(
-                    "Es liegt kein Key im Schlüsselbund. {}.",
+                    "Es liegt kein Key in der .env-Datei. {}.",
                     target.key_advice()
                 )
             }

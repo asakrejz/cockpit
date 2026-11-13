@@ -1,5 +1,13 @@
-//! Ablage der Schlüssel. Sie liegen im Schlüsselbund des Systems, nie in der Datenbank,
-//! nie in der Konfigurationsdatei. `Secret` zeigt sich in `Debug` nur als `Secret(***)`.
+//! Ablage der Schlüssel. Sie liegen in der `.env`-Datei im Projektordner (`EnvFileStore`, nie
+//! committen), nie in der Datenbank, nie in der Konfigurationsdatei. `Secret` zeigt sich in
+//! `Debug` nur als `Secret(***)`. Der Schlüsselbund des Systems (`KeyringStore`) wird nur noch
+//! für die einmalige, ausdrückliche Übernahme alter Einträge gelesen.
+
+mod env_check;
+mod env_file;
+
+pub use env_check::{EnvFileStatus, status as env_file_status};
+pub use env_file::{EnvFileStore, Takeover, take_over};
 
 #[cfg(test)]
 use std::collections::HashMap;
@@ -45,6 +53,11 @@ pub trait SecretStore: Send + Sync {
 
     fn has(&self, name: &str) -> Result<bool, SecretFehler> {
         Ok(self.get(name)?.is_some())
+    }
+
+    /// Die Datei, in der die Schlüssel liegen (nur `EnvFileStore`); für Status und Warnungen.
+    fn env_file(&self) -> Option<&std::path::Path> {
+        None
     }
 }
 

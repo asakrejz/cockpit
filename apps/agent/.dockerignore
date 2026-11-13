@@ -1,0 +1,7 @@
+# The agent image never gets credentials; they reach the container only as `-e NAME` at run time.
+.env
+.env.*
+**/.env
+**/.env.*
+.git
+runner/node_modules

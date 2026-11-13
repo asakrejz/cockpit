@@ -93,7 +93,7 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
         Err(m) => rueck.set(Some((false, m))),
     };
     // „Modelle laden“: erst Werkzeug und Adresse speichern (der Server fragt den gespeicherten
-    // Endpunkt mit dem Key aus dem Schlüsselbund), dann die Liste holen.
+    // Endpunkt mit dem Key aus der .env-Datei), dann die Liste holen.
     let laden = move |_| {
         liste_laedt.set(true);
         liste_hinweis.set(None);
@@ -269,7 +269,7 @@ pub fn ModellSchritt(ctx: Kontext) -> impl IntoView {
                             ctx=ctx
                             name="agent-key"
                             label=art.get().key_label()
-                            hinweis="Geheim wie ein Passwort. Er wird nur im Schlüsselbund dieses Rechners gespeichert."
+                            hinweis="Geheim wie ein Passwort. Er wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert."
                         />
                     }
                 }}

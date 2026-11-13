@@ -579,7 +579,7 @@ use crate::config::JiraKonfig;
 
 const TOKEN: &str = "test-wert-123";
 
-/// Ein Server, dessen Jira-Adresse `site` ist; der Token liegt nur auf Wunsch im Schlüsselbund.
+/// Ein Server, dessen Jira-Adresse `site` ist; der Token liegt nur auf Wunsch in der .env-Datei.
 fn jira_stand(site: &str, email: &str, mit_token: bool) -> (Router, Arc<MemoryStore>) {
     let secrets = Arc::new(MemoryStore::new());
     if mit_token {

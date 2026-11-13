@@ -117,7 +117,7 @@ pub fn konfig_speichern(
 #[component]
 pub fn SchluesselFeld(
     ctx: Kontext,
-    /// Name im Schlüsselbund (`github-oauth`, `atlassian-oauth`, `agent-key`, `jira`, `github`).
+    /// Name in der .env-Datei (`github-oauth`, `atlassian-oauth`, `agent-key`, `jira`, `github`).
     name: &'static str,
     label: &'static str,
     #[prop(optional)] hinweis: Option<&'static str>,
@@ -144,7 +144,7 @@ pub fn SchluesselFeld(
                 Ok(_) => {
                     rueck.set(Some((
                         true,
-                        "Im Schlüsselbund abgelegt. Das Feld ist wieder leer.".into(),
+                        "In der .env-Datei abgelegt. Das Feld ist wieder leer.".into(),
                     )));
                     ctx.laden();
                 }
@@ -161,7 +161,7 @@ pub fn SchluesselFeld(
                 value=wert
                 input_type="password"
                 autocomplete="off"
-                hint=hinweis.unwrap_or("Wird nur im Schlüsselbund dieses Rechners gespeichert.")
+                hint=hinweis.unwrap_or("Wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert.")
             />
             <HStack spacing="12px">
                 <Button
@@ -174,7 +174,7 @@ pub fn SchluesselFeld(
                 <Status tone=Signal::derive(move || {
                     if gesetzt() { StatusTone::Green } else { StatusTone::Gray }
                 })>
-                    {move || if gesetzt() { "Liegt im Schlüsselbund" } else { "Noch nichts abgelegt" }}
+                    {move || if gesetzt() { "Liegt in der .env-Datei" } else { "Noch nichts abgelegt" }}
                 </Status>
             </HStack>
             <Meldung rueckmeldung=rueck />

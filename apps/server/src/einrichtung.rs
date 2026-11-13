@@ -3,7 +3,7 @@
 //! * `GET /api/einrichtung`: aktuelle, nicht geheime Werte und welche Schlüssel liegen
 //! * `PUT /api/konfiguration`: schreibt Client-IDs, Jira, Repos sowie Agent-Anbieter und Endpunkt in `config.toml`
 //!   (atomar, Kommentare und andere Werte bleiben) und wendet sie ohne Neustart an
-//! * `PUT /api/schluessel/{name}`: legt einen Schlüssel im Schlüsselbund ab; `DELETE` löscht einen
+//! * `PUT /api/schluessel/{name}`: legt einen Schlüssel in der .env-Datei ab; `DELETE` löscht einen
 //!   Token (`jira`, `github`) wieder („Trennen“)
 //! * `POST /api/jira/pruefen`: Verbindungstest für Jira per API-Token (nur Lesen)
 //!
@@ -350,7 +350,7 @@ impl AppState {
         })
     }
 
-    /// Die aktuellen, nicht geheimen Werte. Blockierend (Schlüsselbund).
+    /// Die aktuellen, nicht geheimen Werte. Blockierend (.env-Datei).
     fn einrichtung(&self) -> Setup {
         let q = self.quellen();
         let wahl = self.agent_wahl();
@@ -406,7 +406,7 @@ pub async fn konfiguration(State(state): State<AppState>, body: Bytes) -> Respon
     }
 }
 
-/// `PUT /api/schluessel/{name}`: legt den Schlüssel im Schlüsselbund ab. Der Wert steht nur im
+/// `PUT /api/schluessel/{name}`: legt den Schlüssel in der .env-Datei ab. Der Wert steht nur im
 /// Body; er wird weder geloggt noch zurückgeschickt, und Fehlermeldungen nennen ihn nie.
 pub async fn schluessel(
     State(state): State<AppState>,
@@ -438,14 +438,14 @@ pub async fn schluessel(
             tracing::warn!("Schlüssel für {name} nicht abgelegt: {e}");
             fehler(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Der Schlüsselbund hat den Schlüssel nicht angenommen. Prüfe, ob der Schlüsselbund entsperrt ist.",
+                "Die .env-Datei im Projektordner ließ sich nicht beschreiben. Prüfe die Rechte von Ordner und Datei.",
             )
         }
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }
 
-/// `DELETE /api/schluessel/{name}`: löscht einen Token aus dem Schlüsselbund („Trennen“). Erlaubt
+/// `DELETE /api/schluessel/{name}`: löscht einen Token aus der .env-Datei („Trennen“). Erlaubt
 /// sind nur die Tokens `jira` und `github`; ein nicht vorhandener Schlüssel ist kein Fehler.
 pub async fn schluessel_loeschen(
     State(state): State<AppState>,
@@ -468,7 +468,7 @@ pub async fn schluessel_loeschen(
             tracing::warn!("Schlüssel für {name} nicht gelöscht: {e}");
             fehler(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Der Schlüsselbund hat den Schlüssel nicht gelöscht. Prüfe, ob der Schlüsselbund entsperrt ist.",
+                "Die .env-Datei im Projektordner ließ sich nicht beschreiben. Prüfe die Rechte von Ordner und Datei.",
             )
         }
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
@@ -498,7 +498,7 @@ fn jira_ursache(f: &Error) -> JiraCause {
 
 impl AppState {
     /// Der Verbindungstest für Jira mit E-Mail und API-Token (nie mit OAuth): Adresse und E-Mail
-    /// aus der Konfiguration, der Token aus dem Schlüsselbund. Nur `GET /rest/api/3/myself`.
+    /// aus der Konfiguration, der Token aus der .env-Datei. Nur `GET /rest/api/3/myself`.
     pub async fn jira_pruefen(&self) -> JiraCheck {
         let s = self.clone();
         let angaben = tokio::task::spawn_blocking(move || {

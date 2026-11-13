@@ -22,7 +22,7 @@
 //! ```
 //!
 //! Anmeldung per OAuth (statt eines API-Tokens), nur Client-IDs – die Secrets liegen im
-//! Schlüsselbund (`cockpit-server token setzen github-oauth|atlassian-oauth`):
+//! .env-Datei (`cockpit-server token setzen github-oauth|atlassian-oauth`):
 //!
 //! ```toml
 //! [github_oauth]
@@ -35,7 +35,7 @@
 //!
 //! Mit `[atlassian]` braucht `[jira]` weder `site` noch `email` (nur noch `projects`/`jql`).
 //!
-//! Agent-Anbieter und Endpunkt (nur Adresse und Modellname – der Key liegt im Schlüsselbund,
+//! Agent-Anbieter und Endpunkt (nur Adresse und Modellname – der Key liegt in der .env-Datei,
 //! `cockpit-server token setzen agent-key`), Container-Laufzeit und Seed:
 //!
 //! ```toml
@@ -57,13 +57,13 @@
 //! Der Assistent schreibt das neue Format.
 //!
 //! Eine Quelle gleicht nur ab, wenn sie hier eingerichtet ist **und** ihr Schlüssel im
-//! Schlüsselbund liegt (`cockpit-server token setzen <github|jira>`). Ohne Quelle bleibt der
+//! .env-Datei liegt (`cockpit-server token setzen <github|jira>`). Ohne Quelle bleibt der
 //! Workspace leer (oder zeigt die Beispieldaten, wenn der Seed `demo` gewählt ist).
 //!
 //! Umgebungsvariablen: `COCKPIT_PORT`, `COCKPIT_DIST`, `COCKPIT_DB`, `COCKPIT_CONFIG`
 //! (Pfad der Konfigurationsdatei), `COCKPIT_SEED` (`leer` oder `demo`), `COCKPIT_CONTAINER`
 //! (`docker` oder `podman`), `COCKPIT_AGENT_DIR` (Ordner `agent`), `COCKPIT_GIT_BASIS` (Basisadresse zum Klonen, nur für Tests),
-//! `COCKPIT_DEV_PORT` (Port von `trunk serve`, nur für die Entwicklung).
+//! `COCKPIT_DEV_PORT` (Port von `trunk serve`, nur für die Entwicklung), `COCKPIT_ENV_FILE` (Pfad der `.env`-Datei mit den Schlüsseln).
 
 use std::path::{Path, PathBuf};
 
@@ -142,7 +142,7 @@ pub struct AgentWahl {
     pub endpunkt: Option<EndpunktKonfig>,
 }
 
-/// Der Modell-Endpunkt des Agenten. Der Key liegt im Schlüsselbund, nie hier.
+/// Der Modell-Endpunkt des Agenten. Der Key liegt in der .env-Datei, nie hier.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct EndpunktKonfig {
     /// Ohne Schrägstrich am Ende, z. B. `http://localhost:4000`; `None` = direkt beim Anbieter.
@@ -157,13 +157,13 @@ pub struct GitHubKonfig {
     pub repos: Vec<String>,
 }
 
-/// Die GitHub App für die Anmeldung. Das Client-Secret liegt im Schlüsselbund.
+/// Die GitHub App für die Anmeldung. Das Client-Secret liegt in der .env-Datei.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OAuthKonfig {
     pub client_id: String,
 }
 
-/// Die Atlassian-App (OAuth 2.0 3LO). Das Client-Secret liegt im Schlüsselbund.
+/// Die Atlassian-App (OAuth 2.0 3LO). Das Client-Secret liegt in der .env-Datei.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AtlassianKonfig {
     pub client_id: String,

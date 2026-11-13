@@ -1,8 +1,8 @@
 //! Anmeldung per OAuth im Backend: Weiterleitung, Callback, Auffrischen, Widerruf.
 //!
 //! Die Regeln (PKCE, `state`, Austausch, Site-Wahl) stehen in `cockpit_integrations::oauth`;
-//! hier läuft der Ablauf mit Schlüsselbund und Datenbank. Client-Secret und Tokens liegen nur im
-//! Schlüsselbund, nie in der Datenbank, nie im Log, nie im Browser. Der Browser sieht nur
+//! hier läuft der Ablauf mit .env-Datei und Datenbank. Client-Secret und Tokens liegen nur im
+//! .env-Datei, nie in der Datenbank, nie im Log, nie im Browser. Der Browser sieht nur
 //! Weiterleitungen und Meldungen.
 
 use std::collections::HashMap;
@@ -62,7 +62,7 @@ fn jetzt_s() -> u64 {
 fn dienst_fehler(d: Service, f: &Error) -> String {
     match f {
         Error::NotSignedIn => format!(
-            "{} lehnt die Zugangsdaten ab – Client-ID in config.toml und Client-Secret im Schlüsselbund prüfen",
+            "{} lehnt die Zugangsdaten ab – Client-ID in config.toml und Client-Secret in der .env-Datei prüfen",
             d.name()
         ),
         Error::Network(_) => format!("{} ist nicht erreichbar", d.name()),
@@ -92,7 +92,7 @@ impl AppState {
         }
     }
 
-    /// Das Client-Secret aus dem Schlüsselbund. Blockierend.
+    /// Das Client-Secret aus der .env-Datei. Blockierend.
     fn oauth_client_secret(&self, d: Service) -> Option<Secret> {
         match self.inner.secrets.get(secret_name(d)) {
             Ok(s) => s.filter(|s| !s.is_empty()),
@@ -103,7 +103,7 @@ impl AppState {
         }
     }
 
-    /// Die Tokens aus dem Schlüsselbund. Unlesbares zählt als fehlend. Blockierend.
+    /// Die Tokens aus der .env-Datei. Unlesbares zählt als fehlend. Blockierend.
     pub(crate) fn oauth_tokens(&self, d: Service) -> Option<Tokens> {
         match self.inner.secrets.get(tokens_name(d)) {
             Ok(Some(t)) => {
@@ -304,7 +304,7 @@ impl AppState {
         let name = site.as_ref().map(|x| x.name.clone());
         tokio::task::spawn_blocking(move || -> Result<(), String> {
             s.oauth_tokens_setzen(d, &tokens).map_err(|e| {
-                format!("Die Tokens ließen sich nicht im Schlüsselbund ablegen: {e}")
+                format!("Die Tokens ließen sich nicht in der .env-Datei ablegen: {e}")
             })?;
             if let Some(site) = site {
                 let conn = s
@@ -340,7 +340,7 @@ impl AppState {
     }
 
     /// Trennt den Dienst: ruft, wo es das gibt, den Widerruf beim Dienst auf und löscht die Tokens
-    /// im Schlüsselbund. Gelöscht wird immer – auch wenn der Dienst nicht antwortet.
+    /// in der .env-Datei. Gelöscht wird immer – auch wenn der Dienst nicht antwortet.
     pub async fn oauth_widerrufen(&self, d: Service) -> Result<RevokeResponse, String> {
         let s = self.clone();
         let (tokens, secret) =

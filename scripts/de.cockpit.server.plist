@@ -13,8 +13,8 @@
   Das Log steht in /Users/BENUTZER/Library/Logs/cockpit-server.log.
 
   Eigene Einstellungen (COCKPIT_PORT, COCKPIT_DB, COCKPIT_SEED, …) gehören in die Datei
-  config.toml oder unten in EnvironmentVariables. Schlüssel gehören nie hierher: Sie liegen im
-  Schlüsselbund (`cockpit-server token setzen …`).
+  config.toml oder unten in EnvironmentVariables. Schlüssel gehören nie hierher: Sie liegen in der
+  `.env`-Datei im Projektordner (WorkingDirectory muss das Repo sein) (`cockpit-server token setzen …`).
 -->
 <plist version="1.0">
 <dict>

@@ -2,12 +2,13 @@
 //!
 //! * lauscht nur auf `127.0.0.1`
 //! * liefert die gebaute Web-App aus und beantwortet `/api/…`
-//! * hält Daten (SQLite) und Schlüssel (Schlüsselbund) – Schlüssel verlassen das Backend nie
+//! * hält Daten (SQLite) und Schlüssel (`.env`-Datei im Projektordner) – Schlüssel verlassen das Backend nie
 //!
 //! ```text
 //! cockpit-server                                 starten
 //! cockpit-server token setzen <name>             Schlüssel von der Standardeingabe ablegen
 //! cockpit-server token loeschen <name>           Schlüssel entfernen
+//! cockpit-server token uebernehmen               alte Einträge aus dem Schlüsselbund in die .env kopieren
 //! ```
 //!
 //! `<name>`: `github`, `jira` (API-Token), `github-oauth` und `atlassian-oauth` (Client-Secret
@@ -37,7 +38,7 @@ use std::sync::Arc;
 
 use cockpit_integrations::Secret;
 use config::Config;
-use secrets::{KeyringStore, SecretStore};
+use secrets::{EnvFileStore, KeyringStore, SecretStore};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -57,6 +58,7 @@ async fn main() -> ExitCode {
     {
         [] => starten().await,
         ["token", aktion, name] => token(aktion, name),
+        ["token", "uebernehmen"] => uebernehmen(),
         _ => Err("Aufruf: cockpit-server [token setzen|loeschen <github|jira|github-oauth|atlassian-oauth|agent-key|litellm>]".into()),
     };
     match ergebnis {
@@ -87,7 +89,7 @@ fn token(aktion: &str, name: &str) -> Result<(), String> {
             NAMEN.join(", ")
         ));
     }
-    let store = KeyringStore;
+    let store = EnvFileStore::from_environment();
     match aktion {
         "setzen" => {
             let mut eingabe = String::new();
@@ -115,8 +117,34 @@ fn token(aktion: &str, name: &str) -> Result<(), String> {
     }
 }
 
+/// Übernimmt Schlüssel aus dem Schlüsselbund des Systems in die `.env`-Datei. Nur auf
+/// ausdrücklichen Aufruf (`cockpit-server token uebernehmen`): liest den Schlüsselbund, löscht
+/// dort nichts und überschreibt in der Datei nichts, was schon einen Wert hat.
+fn uebernehmen() -> Result<(), String> {
+    let ziel = EnvFileStore::from_environment();
+    let bericht = secrets::take_over(&KeyringStore, &ziel).map_err(|e| e.to_string())?;
+    for (name, ergebnis) in bericht {
+        let text = match ergebnis {
+            secrets::Takeover::Taken => "übernommen",
+            secrets::Takeover::AlreadyPresent => "hat schon einen Wert, unverändert",
+            secrets::Takeover::NotFound => "nicht im Schlüsselbund",
+        };
+        tracing::info!("{name}: {text}");
+    }
+    tracing::info!(
+        "Fertig. Die Einträge im Schlüsselbund bleiben bestehen; die Datei ist {}",
+        ziel.path().display()
+    );
+    Ok(())
+}
+
 async fn starten() -> Result<(), String> {
     let config = Config::laden().map_err(|e| e.to_string())?;
+    let store = Arc::new(EnvFileStore::from_environment());
+    tracing::info!("Schlüssel liegen in der Datei {}", store.path().display());
+    for warnung in store.check_at_startup() {
+        tracing::warn!("{warnung}");
+    }
 
     let conn = db::open(&config.db).map_err(|e| e.to_string())?;
     tracing::info!(
@@ -134,7 +162,7 @@ async fn starten() -> Result<(), String> {
 
     let state = app::AppState::neu(
         conn,
-        Arc::new(KeyringStore),
+        store,
         config.port,
         abgleich::Quellen::aus(&config),
         app::Einstellungen::aus(&config),

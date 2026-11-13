@@ -149,7 +149,7 @@ pub fn GitHubSchritt(ctx: Kontext) -> impl IntoView {
                     ctx=ctx
                     name="github-oauth"
                     label="Client-Secret"
-                    hinweis="Geheim wie ein Passwort. Es wird nur im Schlüsselbund dieses Rechners gespeichert und nie wieder angezeigt."
+                    hinweis="Geheim wie ein Passwort. Es wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert und nie wieder angezeigt."
                 />
             </Abschnitt>
             <Abschnitt title="3. App installieren – sonst sieht Cockpit keine Repos">

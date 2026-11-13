@@ -83,7 +83,7 @@ fn sperre<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
-/// Alles, was ein Lauf an Zugang braucht (aus Einstellungen und Schlüsselbund).
+/// Alles, was ein Lauf an Zugang braucht (aus Einstellungen und .env-Datei).
 struct Zugang {
     cli: PathBuf,
     /// `None` = direkt beim Anbieter.
