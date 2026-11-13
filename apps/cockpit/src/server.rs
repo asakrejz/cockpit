@@ -86,9 +86,9 @@ pub async fn post_sync() -> Result<SyncResponse, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Die Jira-Projekte für die Auswahl in der Inbox (`GET /api/jira/projekte`).
+/// Die Jira-Projekte für die Auswahl in der Inbox (`GET /api/jira/projects`).
 pub async fn fetch_jira_projects() -> Result<JiraProjectsResponse, CallError> {
-    let resp = Request::get("/api/jira/projekte")
+    let resp = Request::get("/api/jira/projects")
         .send()
         .await
         .map_err(|_| CallError::Unreachable)?;
@@ -157,9 +157,9 @@ pub struct Services {
 #[derive(Clone, Debug, Default, serde::Deserialize)]
 pub struct Health {
     #[serde(default)]
-    pub anmeldung: Services,
+    pub sign_in: Services,
     #[serde(default)]
-    pub endpunkt: EndpointStatus,
+    pub endpoint: EndpointStatus,
     #[serde(default)]
     pub container: ContainerStatus,
     #[serde(default)]
@@ -182,12 +182,12 @@ pub async fn fetch_health() -> Result<Health, CallError> {
 
 /// Art und Stand der Anmeldung bei GitHub und Jira (`GET /api/health`).
 pub async fn fetch_services() -> Result<Services, CallError> {
-    fetch_health().await.map(|h| h.anmeldung)
+    fetch_health().await.map(|h| h.sign_in)
 }
 
-/// Verbindungstest zum Endpunkt (`GET /api/agent/pruefen`).
-pub async fn fetch_endpunkt_check() -> Result<EndpointCheck, CallError> {
-    let resp = Request::get("/api/agent/pruefen")
+/// Verbindungstest zum Endpunkt (`GET /api/agent/check`).
+pub async fn fetch_endpoint_check() -> Result<EndpointCheck, CallError> {
+    let resp = Request::get("/api/agent/check")
         .send()
         .await
         .map_err(|_| CallError::Unreachable)?;
@@ -199,9 +199,9 @@ pub async fn fetch_endpunkt_check() -> Result<EndpointCheck, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Die Modell-IDs des gespeicherten Endpunkts (`GET /api/agent/modelle`).
-pub async fn fetch_modelle() -> Result<ModelList, CallError> {
-    let resp = Request::get("/api/agent/modelle")
+/// Die Modell-IDs des gespeicherten Endpunkts (`GET /api/agent/models`).
+pub async fn fetch_models() -> Result<ModelList, CallError> {
+    let resp = Request::get("/api/agent/models")
         .send()
         .await
         .map_err(|_| CallError::Unreachable)?;
@@ -228,7 +228,7 @@ pub async fn fetch_image() -> Result<ImageBuild, CallError> {
 }
 
 /// Startet „Image bauen“ (`POST /api/agent/image`); der Bau läuft im Server weiter.
-pub async fn post_image_bauen() -> Result<ImageBuild, CallError> {
+pub async fn post_image_build() -> Result<ImageBuild, CallError> {
     let request = Request::post("/api/agent/image")
         .header("Content-Type", "application/json")
         .build()
@@ -242,9 +242,9 @@ pub async fn post_image_bauen() -> Result<ImageBuild, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Prüft, ob ein Container den Endpunkt erreicht (`GET /api/agent/pruefen/container`).
+/// Prüft, ob ein Container den Endpunkt erreicht (`GET /api/agent/check/container`).
 pub async fn fetch_container_check() -> Result<ContainerCheck, CallError> {
-    let resp = Request::get("/api/agent/pruefen/container")
+    let resp = Request::get("/api/agent/check/container")
         .send()
         .await
         .map_err(|_| CallError::Unreachable)?;
@@ -256,10 +256,10 @@ pub async fn fetch_container_check() -> Result<ContainerCheck, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// „Trennen“: widerruft die Anmeldung (`POST /api/oauth/{dienst}/widerrufen`). `service`:
+/// „Trennen“: widerruft die Anmeldung (`POST /api/oauth/{dienst}/revoke`). `service`:
 /// `github` oder `atlassian`.
 pub async fn post_revoke(service: &str) -> Result<RevokeResponse, CallError> {
-    let request = Request::post(&format!("/api/oauth/{service}/widerrufen"))
+    let request = Request::post(&format!("/api/oauth/{service}/revoke"))
         .header("Content-Type", "application/json")
         .build()
         .map_err(|_| CallError::Rejected("Das Trennen lässt sich nicht starten".into()))?;
@@ -272,9 +272,9 @@ pub async fn post_revoke(service: &str) -> Result<RevokeResponse, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Die aktuellen, nicht geheimen Werte für den Assistenten (`GET /api/einrichtung`).
-pub async fn fetch_einrichtung() -> Result<Setup, CallError> {
-    let resp = Request::get("/api/einrichtung")
+/// Die aktuellen, nicht geheimen Werte für den Assistenten (`GET /api/setup`).
+pub async fn fetch_setup() -> Result<Setup, CallError> {
+    let resp = Request::get("/api/setup")
         .send()
         .await
         .map_err(|_| CallError::Unreachable)?;
@@ -286,11 +286,11 @@ pub async fn fetch_einrichtung() -> Result<Setup, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Schreibt Client-IDs, Jira, Repos oder Anbieter und Endpunkt in `config.toml` (`PUT /api/konfiguration`).
-pub async fn put_konfiguration(aenderung: &ConfigChange) -> Result<ConfigResponse, CallError> {
-    let request = Request::put("/api/konfiguration")
+/// Schreibt Client-IDs, Jira, Repos oder Anbieter und Endpunkt in `config.toml` (`PUT /api/config`).
+pub async fn put_config(change: &ConfigChange) -> Result<ConfigResponse, CallError> {
+    let request = Request::put("/api/config")
         .header("Content-Type", "application/json")
-        .json(aenderung)
+        .json(change)
         .map_err(|_| CallError::Rejected("Die Eingaben lassen sich nicht senden".into()))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
@@ -301,11 +301,11 @@ pub async fn put_konfiguration(aenderung: &ConfigChange) -> Result<ConfigRespons
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Legt einen Schlüssel im Schlüsselbund des Servers ab (`PUT /api/schluessel/{name}`). Der Wert
+/// Legt einen Schlüssel im Schlüsselbund des Servers ab (`PUT /api/secrets/{name}`). Der Wert
 /// geht nur in den Body dieser Anfrage – nicht in die Adresse, nicht in den Speicher des Browsers.
 /// Die Antwort sagt nur „gesetzt“.
-pub async fn put_schluessel(name: &str, wert: String) -> Result<KeyResponse, CallError> {
-    let request = Request::put(&format!("/api/schluessel/{name}"))
+pub async fn put_key(name: &str, wert: String) -> Result<KeyResponse, CallError> {
+    let request = Request::put(&format!("/api/secrets/{name}"))
         .header("Content-Type", "application/json")
         .json(&KeyInput { value: wert })
         .map_err(|_| CallError::Rejected("Die Eingabe lässt sich nicht senden".into()))?;
@@ -318,10 +318,10 @@ pub async fn put_schluessel(name: &str, wert: String) -> Result<KeyResponse, Cal
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Verbindungstest für Jira per API-Token (`POST /api/jira/pruefen`). Nur Lesen; die Antwort
+/// Verbindungstest für Jira per API-Token (`POST /api/jira/check`). Nur Lesen; die Antwort
 /// enthält nie den Token.
-pub async fn post_jira_pruefen() -> Result<JiraCheck, CallError> {
-    let request = Request::post("/api/jira/pruefen")
+pub async fn post_jira_check() -> Result<JiraCheck, CallError> {
+    let request = Request::post("/api/jira/check")
         .header("Content-Type", "application/json")
         .build()
         .map_err(|_| CallError::Rejected("Der Test lässt sich nicht starten".into()))?;
@@ -334,9 +334,9 @@ pub async fn post_jira_pruefen() -> Result<JiraCheck, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Löscht einen Token aus dem Schlüsselbund (`DELETE /api/schluessel/{name}`), „Trennen“.
-pub async fn delete_schluessel(name: &str) -> Result<KeyResponse, CallError> {
-    let request = Request::delete(&format!("/api/schluessel/{name}"))
+/// Löscht einen Token aus dem Schlüsselbund (`DELETE /api/secrets/{name}`), „Trennen“.
+pub async fn delete_key(name: &str) -> Result<KeyResponse, CallError> {
+    let request = Request::delete(&format!("/api/secrets/{name}"))
         .header("Content-Type", "application/json")
         .build()
         .map_err(|_| CallError::Rejected("Das Trennen lässt sich nicht starten".into()))?;

@@ -4,7 +4,7 @@
 //! `feature-ui`. Was die Knöpfe tun, steht in `cockpit-core`. Diese App verbindet beides.
 
 mod banner;
-mod erststart;
+mod first_run;
 mod notify;
 mod oauth_card;
 mod oauth_result;
@@ -55,7 +55,7 @@ fn App() -> impl IntoView {
     // Rückkehr von der Anmeldung per OAuth: Erfolg oder Fehler anzeigen.
     oauth_result::announce(store);
     // Beim ersten Start, wenn noch nichts eingerichtet ist: zum Assistenten.
-    erststart::pruefen(store);
+    first_run::check(store);
 
     // Die Adresse bestimmt die Seite.
     let listener = window_event_listener(leptos::ev::hashchange, move |_| {

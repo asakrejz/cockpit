@@ -188,7 +188,7 @@ pub struct ReportEffect {
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Speaker {
     Agent,
-    #[serde(rename = "Du")]
+    #[serde(alias = "Du")]
     User,
 }
 

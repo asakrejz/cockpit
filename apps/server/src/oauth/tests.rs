@@ -13,14 +13,14 @@ use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use super::*;
-use crate::abgleich::Quellen;
 use crate::app::router;
-use crate::config::{AtlassianKonfig, GitHubKonfig, JiraKonfig, OAuthKonfig};
+use crate::config::{AtlassianConfig, GitHubConfig, JiraConfig, OAuthConfig};
 use crate::secrets::{MemoryStore, SecretStore};
+use crate::sync::Sources;
 
-const CLIENT_GEHEIM: &str = "client-geheimnis-abc123";
+const CLIENT_SECRET: &str = "client-geheimnis-abc123";
 
-fn endpunkte(s: &MockServer) -> Endpoints {
+fn endpoints(s: &MockServer) -> Endpoints {
     Endpoints {
         github_sign_in: format!("{}/login/oauth/authorize", s.uri()),
         github_token: format!("{}/login/oauth/access_token", s.uri()),
@@ -30,58 +30,58 @@ fn endpunkte(s: &MockServer) -> Endpoints {
     }
 }
 
-struct Prufstand {
+struct TestBench {
     state: AppState,
     app: Router,
     secrets: Arc<MemoryStore>,
 }
 
-fn stand(server: &MockServer, site: Option<&str>, mit_secret: bool) -> Prufstand {
+fn snapshot(server: &MockServer, site: Option<&str>, with_secret: bool) -> TestBench {
     let secrets = Arc::new(MemoryStore::new());
-    if mit_secret {
+    if with_secret {
         for n in [secrets::GITHUB_OAUTH, secrets::ATLASSIAN_OAUTH] {
-            secrets.set(n, &Secret::new(CLIENT_GEHEIM)).unwrap();
+            secrets.set(n, &Secret::new(CLIENT_SECRET)).unwrap();
         }
     }
-    let quellen = Quellen {
-        github: Some(GitHubKonfig {
+    let sources = Sources {
+        github: Some(GitHubConfig {
             api_url: server.uri(),
             repos: vec!["a/x".into()],
         }),
-        jira: Some(JiraKonfig {
+        jira: Some(JiraConfig {
             site: String::new(),
             email: String::new(),
             projects: vec![],
             jql: None,
         }),
-        github_oauth: Some(OAuthKonfig {
+        github_oauth: Some(OAuthConfig {
             client_id: "gh-id".into(),
         }),
-        atlassian: Some(AtlassianKonfig {
+        atlassian: Some(AtlassianConfig {
             client_id: "atl-id".into(),
             site: site.map(Into::into),
         }),
-        endpunkte: endpunkte(server),
-        ..Quellen::default()
+        endpoints: endpoints(server),
+        ..Sources::default()
     };
-    let state = AppState::mit_quellen(
-        crate::db::open_im_speicher().unwrap(),
+    let state = AppState::with_sources(
+        crate::db::open_in_memory().unwrap(),
         secrets.clone(),
         8787,
-        quellen,
+        sources,
     );
-    Prufstand {
+    TestBench {
         app: router(state.clone(), PathBuf::from("/gibt/es/nicht")),
         state,
         secrets,
     }
 }
 
-async fn aufruf(app: &Router, methode: &str, pfad: &str) -> (StatusCode, String, String) {
+async fn call(app: &Router, method: &str, path: &str) -> (StatusCode, String, String) {
     // Wie die Navigation des Browsers: kein Content-Type, kein Origin.
     let req = Request::builder()
-        .method(methode)
-        .uri(pfad)
+        .method(method)
+        .uri(path)
         .header("host", "127.0.0.1:8787")
         .header("content-type", "application/json")
         .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 50000))))
@@ -101,18 +101,18 @@ async fn aufruf(app: &Router, methode: &str, pfad: &str) -> (StatusCode, String,
 
 /// Ein Wert aus der Abfrage einer Adresse (prozentdekodiert).
 fn param(url: &str, name: &str) -> String {
-    let abfrage = url
+    let query = url
         .split_once('?')
         .map_or("", |(_, q)| q.split('#').next().unwrap_or(""));
-    abfrage
+    query
         .split('&')
         .filter_map(|p| p.split_once('='))
         .find(|(k, _)| *k == name)
-        .map(|(_, v)| entkodiert(v))
+        .map(|(_, v)| decoded(v))
         .unwrap_or_default()
 }
 
-fn entkodiert(v: &str) -> String {
+fn decoded(v: &str) -> String {
     let b = v.as_bytes();
     let mut out = Vec::new();
     let mut i = 0;
@@ -136,20 +136,20 @@ fn entkodiert(v: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-async fn token_mock_github(server: &MockServer, erwartet: u64) {
+async fn token_mock_github(server: &MockServer, expected: u64) {
     Mock::given(method("POST"))
         .and(path("/login/oauth/access_token"))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
             "access_token": "ghu_zugriff_geheim", "expires_in": 28800,
             "refresh_token": "ghr_erneuern_geheim"
         })))
-        .expect(erwartet)
+        .expect(expected)
         .mount(server)
         .await;
 }
 
-async fn github_state(p: &Prufstand) -> String {
-    let (status, ort, _) = aufruf(&p.app, "GET", "/api/oauth/github/start").await;
+async fn github_state(p: &TestBench) -> String {
+    let (status, ort, _) = call(&p.app, "GET", "/api/oauth/github/start").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert!(ort.contains("/login/oauth/authorize?"), "{ort}");
     assert_eq!(param(&ort, "client_id"), "gh-id");
@@ -159,28 +159,28 @@ async fn github_state(p: &Prufstand) -> String {
         param(&ort, "redirect_uri"),
         "http://127.0.0.1:8787/api/oauth/github/callback"
     );
-    assert!(!ort.contains(CLIENT_GEHEIM));
+    assert!(!ort.contains(CLIENT_SECRET));
     param(&ort, "state")
 }
 
 #[tokio::test]
-async fn start_ohne_einrichtung_zeigt_eine_verstaendliche_meldung() {
+async fn start_without_setup_shows_a_understandable_message() {
     let server = MockServer::start().await;
     // Ohne Client-Secret im Schlüsselbund.
-    let p = stand(&server, None, false);
-    let (status, ort, _) = aufruf(&p.app, "GET", "/api/oauth/github/start").await;
+    let p = snapshot(&server, None, false);
+    let (status, ort, _) = call(&p.app, "GET", "/api/oauth/github/start").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert!(
-        ort.starts_with("http://127.0.0.1:8787/?oauth=fehler&dienst=github"),
+        ort.starts_with("http://127.0.0.1:8787/?oauth=error&service=github"),
         "{ort}"
     );
-    let meldung = param(&ort, "meldung");
-    assert!(meldung.contains("token setzen github-oauth"), "{meldung}");
+    let message = param(&ort, "message");
+    assert!(message.contains("token setzen github-oauth"), "{message}");
 
     // Ohne Client-ID in der Konfiguration.
-    let p = Prufstand {
+    let p = TestBench {
         state: AppState::new(
-            crate::db::open_im_speicher().unwrap(),
+            crate::db::open_in_memory().unwrap(),
             Arc::new(MemoryStore::new()),
         ),
         app: Router::new(),
@@ -190,23 +190,23 @@ async fn start_ohne_einrichtung_zeigt_eine_verstaendliche_meldung() {
     assert!(p.state.oauth_start(Service::Atlassian).await.is_err());
 
     // Unbekannter Dienst.
-    let p = stand(&server, None, true);
-    let (status, _, _) = aufruf(&p.app, "GET", "/api/oauth/gitlab/start").await;
+    let p = snapshot(&server, None, true);
+    let (status, _, _) = call(&p.app, "GET", "/api/oauth/gitlab/start").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
-async fn github_anmeldung_von_start_bis_health() {
+async fn github_sign_in_from_start_until_health() {
     let server = MockServer::start().await;
     token_mock_github(&server, 1).await;
-    let p = stand(&server, None, true);
-    let h = aufruf(&p.app, "GET", "/api/health").await.2;
+    let p = snapshot(&server, None, true);
+    let h = call(&p.app, "GET", "/api/health").await.2;
     let h: serde_json::Value = serde_json::from_str(&h).unwrap();
-    assert_eq!(h["anmeldung"]["github"]["verbunden"], false);
-    assert_eq!(h["anmeldung"]["github"]["oauth_moeglich"], true);
+    assert_eq!(h["sign_in"]["github"]["connected"], false);
+    assert_eq!(h["sign_in"]["github"]["oauth_possible"], true);
 
     let state = github_state(&p).await;
-    let (status, ort, body) = aufruf(
+    let (status, ort, body) = call(
         &p.app,
         "GET",
         &format!("/api/oauth/github/callback?code=abc&state={state}&installation_id=5&setup_action=install"),
@@ -214,59 +214,59 @@ async fn github_anmeldung_von_start_bis_health() {
     .await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert!(
-        ort.starts_with("http://127.0.0.1:8787/?oauth=ok&dienst=github"),
+        ort.starts_with("http://127.0.0.1:8787/?oauth=ok&service=github"),
         "{ort}"
     );
-    assert!(ort.ends_with("#/einrichten"));
+    assert!(ort.ends_with("#/setup"));
     // Nichts Geheimes in Weiterleitung oder Body.
     for text in [&ort, &body] {
-        for geheim in ["ghu_zugriff_geheim", "ghr_erneuern_geheim", CLIENT_GEHEIM] {
-            assert!(!text.contains(geheim));
+        for secret in ["ghu_zugriff_geheim", "ghr_erneuern_geheim", CLIENT_SECRET] {
+            assert!(!text.contains(secret));
         }
     }
     // Tokens liegen im Schlüsselbund.
-    let gespeichert = p
+    let stored = p
         .secrets
         .get(secrets::GITHUB_OAUTH_TOKENS)
         .unwrap()
         .unwrap();
-    let t = Tokens::from_text(gespeichert.expose()).unwrap();
+    let t = Tokens::from_text(stored.expose()).unwrap();
     assert_eq!(t.access.expose(), "ghu_zugriff_geheim");
     assert_eq!(t.refresh.unwrap().expose(), "ghr_erneuern_geheim");
 
-    let h = aufruf(&p.app, "GET", "/api/health").await.2;
+    let h = call(&p.app, "GET", "/api/health").await.2;
     let h: serde_json::Value = serde_json::from_str(&h).unwrap();
-    assert_eq!(h["anmeldung"]["github"]["verbunden"], true);
-    assert_eq!(h["anmeldung"]["github"]["art"], "oauth");
-    assert_eq!(h["verbindungen"]["github"], true);
+    assert_eq!(h["sign_in"]["github"]["connected"], true);
+    assert_eq!(h["sign_in"]["github"]["kind"], "oauth");
+    assert_eq!(h["connections"]["github"], true);
     assert!(!h.to_string().contains("geheim"));
 }
 
 #[tokio::test]
-async fn falscher_und_doppelter_state() {
+async fn wrong_and_duplicate_state() {
     let server = MockServer::start().await;
     token_mock_github(&server, 1).await; // genau ein Austausch
-    let p = stand(&server, None, true);
+    let p = snapshot(&server, None, true);
 
     // Falscher state: kein Austausch, nichts gespeichert.
     let _ = github_state(&p).await;
-    let (_, ort, _) = aufruf(
+    let (_, ort, _) = call(
         &p.app,
         "GET",
         "/api/oauth/github/callback?code=abc&state=falsch",
     )
     .await;
-    assert!(ort.contains("oauth=fehler"), "{ort}");
-    assert!(param(&ort, "meldung").contains("unbekannt"));
+    assert!(ort.contains("oauth=error"), "{ort}");
+    assert!(param(&ort, "message").contains("unbekannt"));
     // Ohne state (z. B. Rücksprung der Installation ohne unseren Start).
-    let (_, ort, _) = aufruf(
+    let (_, ort, _) = call(
         &p.app,
         "GET",
         "/api/oauth/github/callback?code=abc&installation_id=5&setup_action=install",
     )
     .await;
-    assert!(ort.contains("oauth=fehler"));
-    assert!(param(&ort, "meldung").contains("Mit GitHub anmelden"));
+    assert!(ort.contains("oauth=error"));
+    assert!(param(&ort, "message").contains("Mit GitHub anmelden"));
     assert!(
         p.secrets
             .get(secrets::GITHUB_OAUTH_TOKENS)
@@ -277,10 +277,10 @@ async fn falscher_und_doppelter_state() {
     // Richtig, dann derselbe Callback noch einmal.
     let state = github_state(&p).await;
     let url = format!("/api/oauth/github/callback?code=abc&state={state}");
-    assert!(aufruf(&p.app, "GET", &url).await.1.contains("oauth=ok"));
-    let (_, ort, _) = aufruf(&p.app, "GET", &url).await;
-    assert!(ort.contains("oauth=fehler"), "{ort}");
-    assert!(param(&ort, "meldung").contains("schon verwendet"));
+    assert!(call(&p.app, "GET", &url).await.1.contains("oauth=ok"));
+    let (_, ort, _) = call(&p.app, "GET", &url).await;
+    assert!(ort.contains("oauth=error"), "{ort}");
+    assert!(param(&ort, "message").contains("schon verwendet"));
     assert!(
         p.secrets
             .get(secrets::GITHUB_OAUTH_TOKENS)
@@ -290,17 +290,17 @@ async fn falscher_und_doppelter_state() {
 
     // State von GitHub, Callback von Atlassian.
     let state = github_state(&p).await;
-    let (_, ort, _) = aufruf(
+    let (_, ort, _) = call(
         &p.app,
         "GET",
         &format!("/api/oauth/atlassian/callback?code=abc&state={state}"),
     )
     .await;
-    assert!(param(&ort, "meldung").contains("anderen Dienst"), "{ort}");
+    assert!(param(&ort, "message").contains("anderen Dienst"), "{ort}");
 }
 
 #[tokio::test]
-async fn fehler_des_dienstes_und_abbruch() {
+async fn error_the_service_and_cancel() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/login/oauth/access_token"))
@@ -310,16 +310,16 @@ async fn fehler_des_dienstes_und_abbruch() {
         })))
         .mount(&server)
         .await;
-    let p = stand(&server, None, true);
+    let p = snapshot(&server, None, true);
     let state = github_state(&p).await;
-    let (_, ort, _) = aufruf(
+    let (_, ort, _) = call(
         &p.app,
         "GET",
         &format!("/api/oauth/github/callback?code=abc&state={state}"),
     )
     .await;
-    assert!(ort.contains("oauth=fehler"));
-    assert!(param(&ort, "meldung").contains("abgelaufen"));
+    assert!(ort.contains("oauth=error"));
+    assert!(param(&ort, "message").contains("abgelaufen"));
     assert!(
         p.secrets
             .get(secrets::GITHUB_OAUTH_TOKENS)
@@ -329,24 +329,24 @@ async fn fehler_des_dienstes_und_abbruch() {
 
     // Der Nutzer lehnt ab.
     let state = github_state(&p).await;
-    let (_, ort, _) = aufruf(
+    let (_, ort, _) = call(
         &p.app,
         "GET",
         &format!("/api/oauth/github/callback?error=access_denied&error_description=The+user+denied&state={state}"),
     )
     .await;
     assert!(
-        param(&ort, "meldung").contains("abgebrochen oder abgelehnt: The user denied"),
+        param(&ort, "message").contains("abgebrochen oder abgelehnt: The user denied"),
         "{ort}"
     );
     // Der state ist damit verbraucht.
-    let (_, ort, _) = aufruf(
+    let (_, ort, _) = call(
         &p.app,
         "GET",
         &format!("/api/oauth/github/callback?code=abc&state={state}"),
     )
     .await;
-    assert!(param(&ort, "meldung").contains("schon verwendet"));
+    assert!(param(&ort, "message").contains("schon verwendet"));
 }
 
 async fn atlassian_mocks(server: &MockServer, sites: serde_json::Value) {
@@ -365,8 +365,8 @@ async fn atlassian_mocks(server: &MockServer, sites: serde_json::Value) {
         .await;
 }
 
-async fn atlassian_anmelden(p: &Prufstand) -> String {
-    let (_, ort, _) = aufruf(&p.app, "GET", "/api/oauth/atlassian/start").await;
+async fn atlassian_sign_in(p: &TestBench) -> String {
+    let (_, ort, _) = call(&p.app, "GET", "/api/oauth/atlassian/start").await;
     assert!(ort.contains("/authorize?"), "{ort}");
     assert_eq!(param(&ort, "audience"), "api.atlassian.com");
     assert!(param(&ort, "scope").contains("offline_access"));
@@ -375,7 +375,7 @@ async fn atlassian_anmelden(p: &Prufstand) -> String {
         "http://localhost:8787/api/oauth/atlassian/callback"
     );
     let state = param(&ort, "state");
-    aufruf(
+    call(
         &p.app,
         "GET",
         &format!("/api/oauth/atlassian/callback?code=c&state={state}"),
@@ -385,41 +385,41 @@ async fn atlassian_anmelden(p: &Prufstand) -> String {
 }
 
 #[tokio::test]
-async fn atlassian_eine_site_wird_automatisch_gewaehlt() {
+async fn atlassian_a_site_is_automatic_chosen() {
     let server = MockServer::start().await;
     atlassian_mocks(
         &server,
         serde_json::json!([{"id":"cloud-1","name":"firma","url":"https://firma.atlassian.net","scopes":[]}]),
     )
     .await;
-    let p = stand(&server, None, true);
-    let ort = atlassian_anmelden(&p).await;
+    let p = snapshot(&server, None, true);
+    let ort = atlassian_sign_in(&p).await;
     assert!(
-        ort.starts_with("http://127.0.0.1:8787/?oauth=ok&dienst=atlassian"),
+        ort.starts_with("http://127.0.0.1:8787/?oauth=ok&service=atlassian"),
         "{ort}"
     );
-    assert!(param(&ort, "meldung").contains("firma"));
+    assert!(param(&ort, "message").contains("firma"));
     assert_eq!(
         p.state.atlassian_site(),
         Some(("cloud-1".into(), "firma".into()))
     );
-    let h = aufruf(&p.app, "GET", "/api/health").await.2;
+    let h = call(&p.app, "GET", "/api/health").await.2;
     let h: serde_json::Value = serde_json::from_str(&h).unwrap();
-    assert_eq!(h["anmeldung"]["jira"]["art"], "oauth");
-    assert_eq!(h["anmeldung"]["jira"]["site"], "firma");
-    assert_eq!(h["verbindungen"]["jira"], true);
+    assert_eq!(h["sign_in"]["jira"]["kind"], "oauth");
+    assert_eq!(h["sign_in"]["jira"]["site"], "firma");
+    assert_eq!(h["connections"]["jira"], true);
     // Jira wird über das Gateway angesprochen.
-    let dienste = tokio::task::spawn_blocking({
+    let services = tokio::task::spawn_blocking({
         let s = p.state.clone();
-        move || s.dienste_bauen()
+        move || s.services_build()
     })
     .await
     .unwrap();
-    assert!(dienste.jira.is_some());
+    assert!(services.jira.is_some());
 }
 
 #[tokio::test]
-async fn atlassian_mehrere_sites_brauchen_eine_wahl() {
+async fn atlassian_several_sites_need_a_choice() {
     let server = MockServer::start().await;
     atlassian_mocks(
         &server,
@@ -429,13 +429,13 @@ async fn atlassian_mehrere_sites_brauchen_eine_wahl() {
         ]),
     )
     .await;
-    let p = stand(&server, None, true);
-    let ort = atlassian_anmelden(&p).await;
-    assert!(ort.contains("oauth=fehler"), "{ort}");
-    let meldung = param(&ort, "meldung");
+    let p = snapshot(&server, None, true);
+    let ort = atlassian_sign_in(&p).await;
+    assert!(ort.contains("oauth=error"), "{ort}");
+    let message = param(&ort, "message");
     assert!(
-        meldung.contains("firma") && meldung.contains("privat"),
-        "{meldung}"
+        message.contains("firma") && message.contains("privat"),
+        "{message}"
     );
     // Kein halber Zustand.
     assert!(
@@ -446,14 +446,14 @@ async fn atlassian_mehrere_sites_brauchen_eine_wahl() {
     );
     assert_eq!(p.state.atlassian_site(), None);
 
-    let p = stand(&server, Some("privat"), true);
-    let ort = atlassian_anmelden(&p).await;
+    let p = snapshot(&server, Some("privat"), true);
+    let ort = atlassian_sign_in(&p).await;
     assert!(ort.contains("oauth=ok"), "{ort}");
     assert_eq!(p.state.atlassian_site().unwrap().0, "c2");
 }
 
 #[tokio::test]
-async fn widerruf_github_ruft_den_dienst_und_loescht() {
+async fn revoke_github_calls_the_service_and_deletes() {
     let server = MockServer::start().await;
     token_mock_github(&server, 1).await;
     Mock::given(method("DELETE"))
@@ -462,9 +462,9 @@ async fn widerruf_github_ruft_den_dienst_und_loescht() {
         .expect(1)
         .mount(&server)
         .await;
-    let p = stand(&server, None, true);
+    let p = snapshot(&server, None, true);
     let state = github_state(&p).await;
-    aufruf(
+    call(
         &p.app,
         "GET",
         &format!("/api/oauth/github/callback?code=c&state={state}"),
@@ -472,52 +472,52 @@ async fn widerruf_github_ruft_den_dienst_und_loescht() {
     .await;
     assert!(p.secrets.has(secrets::GITHUB_OAUTH_TOKENS).unwrap());
 
-    let (status, _, body) = aufruf(&p.app, "POST", "/api/oauth/github/widerrufen").await;
+    let (status, _, body) = call(&p.app, "POST", "/api/oauth/github/revoke").await;
     assert_eq!(status, StatusCode::OK);
     let a: RevokeResponse = serde_json::from_str(&body).unwrap();
     assert!(a.disconnected && a.at_service, "{body}");
     assert!(!p.secrets.has(secrets::GITHUB_OAUTH_TOKENS).unwrap());
     // Das Client-Secret bleibt (für die nächste Anmeldung).
     assert!(p.secrets.has(secrets::GITHUB_OAUTH).unwrap());
-    let h = aufruf(&p.app, "GET", "/api/health").await.2;
+    let h = call(&p.app, "GET", "/api/health").await.2;
     let h: serde_json::Value = serde_json::from_str(&h).unwrap();
-    assert_eq!(h["anmeldung"]["github"]["verbunden"], false);
-    assert_eq!(h["anmeldung"]["github"]["art"], "none");
+    assert_eq!(h["sign_in"]["github"]["connected"], false);
+    assert_eq!(h["sign_in"]["github"]["kind"], "none");
 }
 
 #[tokio::test]
-async fn widerruf_trennt_auch_wenn_der_dienst_scheitert() {
+async fn revoke_disconnects_also_when_the_service_fails() {
     let server = MockServer::start().await;
     token_mock_github(&server, 1).await;
     Mock::given(method("DELETE"))
         .respond_with(ResponseTemplate::new(500))
         .mount(&server)
         .await;
-    let p = stand(&server, None, true);
+    let p = snapshot(&server, None, true);
     let state = github_state(&p).await;
-    aufruf(
+    call(
         &p.app,
         "GET",
         &format!("/api/oauth/github/callback?code=c&state={state}"),
     )
     .await;
-    let a = p.state.oauth_widerrufen(Service::GitHub).await.unwrap();
+    let a = p.state.oauth_revoke(Service::GitHub).await.unwrap();
     assert!(a.disconnected && !a.at_service);
     assert!(a.hint.unwrap().contains("nicht bestätigt"));
     assert!(!p.secrets.has(secrets::GITHUB_OAUTH_TOKENS).unwrap());
 }
 
 #[tokio::test]
-async fn widerruf_atlassian_loescht_tokens_und_site() {
+async fn revoke_atlassian_deletes_tokens_and_site() {
     let server = MockServer::start().await;
     atlassian_mocks(
         &server,
         serde_json::json!([{"id":"c1","name":"firma","url":"https://firma.atlassian.net","scopes":[]}]),
     )
     .await;
-    let p = stand(&server, None, true);
-    atlassian_anmelden(&p).await;
-    let (status, _, body) = aufruf(&p.app, "POST", "/api/oauth/atlassian/widerrufen").await;
+    let p = snapshot(&server, None, true);
+    atlassian_sign_in(&p).await;
+    let (status, _, body) = call(&p.app, "POST", "/api/oauth/atlassian/revoke").await;
     assert_eq!(status, StatusCode::OK);
     let a: RevokeResponse = serde_json::from_str(&body).unwrap();
     assert!(a.disconnected && !a.at_service);
@@ -527,24 +527,24 @@ async fn widerruf_atlassian_loescht_tokens_und_site() {
     // Widerruf ohne Anmeldung ist kein Fehler.
     assert!(
         p.state
-            .oauth_widerrufen(Service::Atlassian)
+            .oauth_revoke(Service::Atlassian)
             .await
             .unwrap()
             .disconnected
     );
 }
 
-fn abgelaufen(p: &Prufstand, d: Service, refresh: Option<&str>) {
+fn expired(p: &TestBench, d: Service, refresh: Option<&str>) {
     let t = Tokens {
         access: Secret::new("alt_zugriff"),
         refresh: refresh.map(Secret::new),
         expires_in_s: Some(1),
     };
-    p.state.oauth_tokens_setzen(d, &t).unwrap();
+    p.state.oauth_tokens_set(d, &t).unwrap();
 }
 
 #[tokio::test]
-async fn abgelaufene_tokens_werden_aufgefrischt() {
+async fn expired_tokens_are_refreshed() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/login/oauth/access_token"))
@@ -554,21 +554,21 @@ async fn abgelaufene_tokens_werden_aufgefrischt() {
         .expect(1)
         .mount(&server)
         .await;
-    let p = stand(&server, None, true);
-    abgelaufen(&p, Service::GitHub, Some("alt_erneuern"));
-    p.state.oauth_auffrischen().await;
+    let p = snapshot(&server, None, true);
+    expired(&p, Service::GitHub, Some("alt_erneuern"));
+    p.state.oauth_refresh().await;
     let t = p.state.oauth_tokens(Service::GitHub).unwrap();
     assert_eq!(t.access.expose(), "neu_zugriff");
     assert_eq!(t.refresh.unwrap().expose(), "neu_erneuern");
     // Noch gültig: kein zweiter Aufruf (`expect(1)`).
-    p.state.oauth_auffrischen().await;
+    p.state.oauth_refresh().await;
     // Der Client bekommt das neue Token.
-    let d = p.state.dienste_bauen();
+    let d = p.state.services_build();
     assert!(d.github.is_some());
 }
 
 #[tokio::test]
-async fn scheitert_der_refresh_ist_der_dienst_getrennt() {
+async fn fails_the_refresh_is_the_service_disconnected() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/login/oauth/access_token"))
@@ -577,44 +577,44 @@ async fn scheitert_der_refresh_ist_der_dienst_getrennt() {
         })))
         .mount(&server)
         .await;
-    let p = stand(&server, None, true);
-    abgelaufen(&p, Service::GitHub, Some("alt_erneuern"));
-    p.state.oauth_auffrischen().await;
+    let p = snapshot(&server, None, true);
+    expired(&p, Service::GitHub, Some("alt_erneuern"));
+    p.state.oauth_refresh().await;
     assert!(p.state.oauth_tokens(Service::GitHub).is_none());
-    let s = p.state.dienst_status(Service::GitHub, false);
+    let s = p.state.service_status(Service::GitHub, false);
     assert!(!s.connected);
     assert_eq!(s.kind, AuthKind::None);
 
     // Ohne Refresh-Token ist der abgelaufene Zugriff nicht zu retten.
-    abgelaufen(&p, Service::GitHub, None);
-    p.state.oauth_auffrischen().await;
+    expired(&p, Service::GitHub, None);
+    p.state.oauth_refresh().await;
     assert!(p.state.oauth_tokens(Service::GitHub).is_none());
 }
 
 #[tokio::test]
-async fn stoerung_des_dienstes_trennt_nicht() {
+async fn outage_the_service_disconnects_not() {
     let server = MockServer::start().await;
     Mock::given(method("POST"))
         .respond_with(ResponseTemplate::new(503))
         .mount(&server)
         .await;
-    let p = stand(&server, None, true);
-    abgelaufen(&p, Service::GitHub, Some("alt_erneuern"));
-    p.state.oauth_auffrischen().await;
+    let p = snapshot(&server, None, true);
+    expired(&p, Service::GitHub, Some("alt_erneuern"));
+    p.state.oauth_refresh().await;
     assert!(p.state.oauth_tokens(Service::GitHub).is_some());
 }
 
 #[tokio::test]
-async fn oauth_geht_vor_dem_api_token() {
+async fn oauth_goes_before_the_api_token() {
     let server = MockServer::start().await;
-    let p = stand(&server, None, true);
+    let p = snapshot(&server, None, true);
     p.secrets
         .set(secrets::GITHUB, &Secret::new("ghp_api_token_123"))
         .unwrap();
-    let status = p.state.dienst_status(Service::GitHub, true);
+    let status = p.state.service_status(Service::GitHub, true);
     assert_eq!((status.connected, status.kind), (true, AuthKind::Token));
     p.state
-        .oauth_tokens_setzen(
+        .oauth_tokens_set(
             Service::GitHub,
             &Tokens {
                 access: Secret::new("ghu_x"),
@@ -623,21 +623,21 @@ async fn oauth_geht_vor_dem_api_token() {
             },
         )
         .unwrap();
-    let status = p.state.dienst_status(Service::GitHub, true);
+    let status = p.state.service_status(Service::GitHub, true);
     assert_eq!(status.kind, AuthKind::OAuth);
     assert!(status.oauth_possible);
     // Nach dem Trennen gilt wieder das Token.
-    p.state.oauth_widerrufen(Service::GitHub).await.unwrap();
+    p.state.oauth_revoke(Service::GitHub).await.unwrap();
     assert_eq!(
-        p.state.dienst_status(Service::GitHub, true).kind,
+        p.state.service_status(Service::GitHub, true).kind,
         AuthKind::Token
     );
 }
 
 #[tokio::test]
-async fn callback_ist_eine_navigation_aber_nur_von_diesem_rechner() {
+async fn callback_is_a_navigation_but_only_from_this_machine() {
     let server = MockServer::start().await;
-    let p = stand(&server, None, true);
+    let p = snapshot(&server, None, true);
     // Navigation des Browsers: GET ohne JSON-Content-Type und ohne Origin.
     let req = Request::builder()
         .uri("/api/oauth/github/callback?code=a&state=b")
@@ -665,7 +665,7 @@ async fn callback_ist_eine_navigation_aber_nur_von_diesem_rechner() {
 }
 
 #[test]
-fn adressen_und_kodierung() {
+fn addresses_and_encoding() {
     assert_eq!(
         redirect_uri(Service::GitHub, 8787),
         "http://127.0.0.1:8787/api/oauth/github/callback"
@@ -674,5 +674,5 @@ fn adressen_und_kodierung() {
         redirect_uri(Service::Atlassian, 8787),
         "http://localhost:8787/api/oauth/atlassian/callback"
     );
-    assert_eq!(kodiert("Ä b&c=d#"), "%C3%84%20b%26c%3Dd%23");
+    assert_eq!(encoded("Ä b&c=d#"), "%C3%84%20b%26c%3Dd%23");
 }

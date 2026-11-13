@@ -143,7 +143,7 @@ impl Store {
         spawn_local(async move {
             if let Ok(health) = server::fetch_health().await {
                 store.conn.update(|c| {
-                    c.apply_services(&health.anmeldung.github, &health.anmeldung.jira);
+                    c.apply_services(&health.sign_in.github, &health.sign_in.jira);
                     c.agent = health.agent.ready;
                 });
                 store.health.set(Some(health));

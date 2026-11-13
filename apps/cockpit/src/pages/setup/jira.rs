@@ -10,44 +10,42 @@ use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use super::felder::{
-    Abschnitt, Einleitung, Extern, Kontext, Kopierfeld, Meldung, Rueckmeldung, SchluesselFeld,
-    konfig_speichern,
+use super::fields::{
+    Context, CopyField, Extern, Feedback, Intro, KeyField, Message, Section, config_save,
 };
 use crate::oauth_card::{OAuthCard, Service};
 use crate::server::{self, CallError};
 
 /// Füllt ein Feld aus dem Server, solange es noch leer ist (der Nutzer tippt nie dagegen an).
-fn vorbelegen(feld: RwSignal<String>, quelle: impl Fn() -> String + 'static) {
+fn prefill(field: RwSignal<String>, source: impl Fn() -> String + 'static) {
     Effect::new(move |_| {
-        let neu = quelle();
-        if feld.get_untracked().is_empty() && !neu.is_empty() {
-            feld.set(neu);
+        let updated = source();
+        if field.get_untracked().is_empty() && !updated.is_empty() {
+            field.set(updated);
         }
     });
 }
 
 #[component]
-pub fn JiraSchritt(ctx: Kontext) -> impl IntoView {
+pub fn JiraStep(ctx: Context) -> impl IntoView {
     // Das Ergebnis des Verbindungstests; erst danach erscheint die Wahl des Projekts.
-    let ergebnis: RwSignal<Option<JiraCheck>> = RwSignal::new(None);
+    let result: RwSignal<Option<JiraCheck>> = RwSignal::new(None);
     let per_token = move || {
         ctx.store.health.with(|h| {
-            h.as_ref().is_some_and(|h| {
-                h.anmeldung.jira.connected && h.anmeldung.jira.kind == AuthKind::Token
-            })
+            h.as_ref()
+                .is_some_and(|h| h.sign_in.jira.connected && h.sign_in.jira.kind == AuthKind::Token)
         })
     };
-    let oauth_aktiv = move || {
-        ctx.einr.with(|e| e.atlassian_client_id.is_some())
+    let oauth_active = move || {
+        ctx.setup.with(|e| e.atlassian_client_id.is_some())
             || ctx.store.health.with(|h| {
                 h.as_ref()
-                    .is_some_and(|h| h.anmeldung.jira.kind == AuthKind::OAuth)
+                    .is_some_and(|h| h.sign_in.jira.kind == AuthKind::OAuth)
             })
     };
     view! {
         <VStack spacing="12px">
-            <Einleitung title="Jira verbinden">
+            <Intro title="Jira verbinden">
                 <p>
                     "Damit zeigt dir Cockpit deine Tickets. Am einfachsten geht das mit einem „Token“: einem Passwort nur für Programme, das du in deinem Atlassian-Konto selbst erzeugst. Du brauchst drei Angaben und etwa zwei Minuten."
                 </p>
@@ -55,20 +53,20 @@ pub fn JiraSchritt(ctx: Kontext) -> impl IntoView {
                     <strong>"Gut zu wissen:"</strong>
                     " Der Token hat die Rechte deines Kontos. Solange Cockpit nur lesen soll, nimm am besten ein Konto oder eine Rolle ohne Schreibrechte. Du kannst den Token jederzeit löschen."
                 </p>
-            </Einleitung>
-            <JiraToken ctx=ctx ergebnis=ergebnis />
+            </Intro>
+            <JiraToken ctx=ctx result=result />
             {move || {
-                (ergebnis.with(|e| e.as_ref().is_some_and(|e| e.ok)) || per_token())
-                    .then(|| view! { <JiraProjektwahl ctx=ctx /> })
+                (result.with(|e| e.as_ref().is_some_and(|e| e.ok)) || per_token())
+                    .then(|| view! { <JiraProjectChoice ctx=ctx /> })
             }}
-            <details class="ui-erweitert" open=oauth_aktiv>
+            <details class="ui-erweitert" open=oauth_active>
                 <summary>"Erweitert: Mit OAuth statt Token"</summary>
                 <VStack spacing="12px">
-                    <Einleitung title="Mit Atlassian-App (OAuth)">
+                    <Intro title="Mit Atlassian-App (OAuth)">
                         <p>
                             "Du legst einmal eine eigene kleine „App“ in der Atlassian-Entwicklerkonsole an. Cockpit meldet dich damit an, ohne dass ein Passwort weitergegeben wird, und du kannst den Zugriff jederzeit entziehen. Mehr Klickarbeit, und deine Firma muss eigene Apps erlauben."
                         </p>
-                    </Einleitung>
+                    </Intro>
                     <JiraOauth ctx=ctx />
                 </VStack>
             </details>
@@ -78,7 +76,7 @@ pub fn JiraSchritt(ctx: Kontext) -> impl IntoView {
 
 /// Ein Link im Look eines Knopfes, der in einem neuen Tab aufgeht.
 #[component]
-fn ExternKnopf(#[prop(into)] href: String, children: Children) -> impl IntoView {
+fn ExternButton(#[prop(into)] href: String, children: Children) -> impl IntoView {
     view! {
         <a
             class="ui-button"
@@ -93,55 +91,55 @@ fn ExternKnopf(#[prop(into)] href: String, children: Children) -> impl IntoView 
 }
 
 #[component]
-fn JiraOauth(ctx: Kontext) -> impl IntoView {
+fn JiraOauth(ctx: Context) -> impl IntoView {
     let client_id = RwSignal::new(String::new());
-    vorbelegen(client_id, move || {
-        ctx.einr
+    prefill(client_id, move || {
+        ctx.setup
             .with(|e| e.atlassian_client_id.clone().unwrap_or_default())
     });
-    let projekte = RwSignal::new(String::new());
-    vorbelegen(projekte, move || {
-        ctx.einr.with(|e| e.jira_projects.join(", "))
+    let projects = RwSignal::new(String::new());
+    prefill(projects, move || {
+        ctx.setup.with(|e| e.jira_projects.join(", "))
     });
-    let rueck_id: Rueckmeldung = RwSignal::new(None);
-    let rueck_projekte: Rueckmeldung = RwSignal::new(None);
-    let callback = Signal::derive(move || ctx.einr.with(|e| e.callback_atlassian.clone()));
+    let back_id: Feedback = RwSignal::new(None);
+    let back_projects: Feedback = RwSignal::new(None);
+    let callback = Signal::derive(move || ctx.setup.with(|e| e.callback_atlassian.clone()));
 
-    let id_speichern = move |_| match client_id_read(&client_id.get_untracked()) {
-        Ok(id) if id.is_empty() => rueck_id.set(Some((
+    let id_save = move |_| match client_id_read(&client_id.get_untracked()) {
+        Ok(id) if id.is_empty() => back_id.set(Some((
             false,
             "Trage die Client-ID aus der Atlassian-Konsole ein.".into(),
         ))),
-        Ok(id) => konfig_speichern(
+        Ok(id) => config_save(
             ctx,
             ConfigChange {
                 atlassian: Some(ClientInput { client_id: id }),
                 ..Default::default()
             },
-            rueck_id,
+            back_id,
             "Client-ID gespeichert.",
             || {},
         ),
-        Err(m) => rueck_id.set(Some((false, m))),
+        Err(m) => back_id.set(Some((false, m))),
     };
-    let projekte_speichern = move |_| {
-        konfig_speichern(
+    let projects_save = move |_| {
+        config_save(
             ctx,
             ConfigChange {
                 jira: Some(JiraInput {
-                    projects: Some(projects_read(&projekte.get_untracked())),
+                    projects: Some(projects_read(&projects.get_untracked())),
                     ..Default::default()
                 }),
                 ..Default::default()
             },
-            rueck_projekte,
+            back_projects,
             "Projekte gespeichert.",
             || {},
         )
     };
 
     view! {
-        <Abschnitt title="1. App in der Atlassian-Entwicklerkonsole anlegen">
+        <Section title="1. App in der Atlassian-Entwicklerkonsole anlegen">
             <ol class="ui-anleitung">
                 <li>
                     "Öffne "
@@ -166,14 +164,14 @@ fn JiraOauth(ctx: Kontext) -> impl IntoView {
                 </li>
                 <li>
                     "Wähle links „Authorization“, bei „OAuth 2.0 (3LO)“ „Add“ (oder „Configure“) und trage als „Callback URL“ diese Adresse ein. Dann „Save changes“:"
-                    <Kopierfeld store=ctx.store label="Callback-URL" text=callback />
+                    <CopyField store=ctx.store label="Callback-URL" text=callback />
                 </li>
                 <li>
                     "Wähle links „Settings“. Dort stehen die „Client ID“ und das „Secret“. Beide trägst du gleich unten ein."
                 </li>
             </ol>
-        </Abschnitt>
-        <Abschnitt title="2. Client-ID und Client-Secret eintragen">
+        </Section>
+        <Section title="2. Client-ID und Client-Secret eintragen">
             <TextField
                 label="Client ID"
                 value=client_id
@@ -181,31 +179,31 @@ fn JiraOauth(ctx: Kontext) -> impl IntoView {
                 autocomplete="off"
             />
             <HStack spacing="12px">
-                <Button variant=ButtonStyle::GlassProminent on_click=id_speichern>
+                <Button variant=ButtonStyle::GlassProminent on_click=id_save>
                     "Client-ID speichern"
                 </Button>
             </HStack>
-            <Meldung rueckmeldung=rueck_id />
-            <SchluesselFeld
+            <Message feedback=back_id />
+            <KeyField
                 ctx=ctx
                 name="atlassian-oauth"
                 label="Client-Secret (Secret)"
-                hinweis="Geheim wie ein Passwort. Es wird nur im Schlüsselbund dieses Rechners gespeichert und nie wieder angezeigt."
+                hint="Geheim wie ein Passwort. Es wird nur im Schlüsselbund dieses Rechners gespeichert und nie wieder angezeigt."
             />
-        </Abschnitt>
-        <Abschnitt title="3. Welche Projekte? (optional)">
+        </Section>
+        <Section title="3. Welche Projekte? (optional)">
             <TextField
                 label="Jira-Projekte"
-                value=projekte
-                hint="Kürzel mit Komma getrennt, z. B. BAU, WEB. Leer lassen: Cockpit zeigt dann deine Tickets und die, die du beobachtest. In der Inbox kannst du später ein Projekt wählen."
+                value=projects
+                hint="Kürzel mit Komma getrennt, z. B. BAU, WEB. Empty lassen: Cockpit zeigt dann deine Tickets und die, die du beobachtest. In der Inbox kannst du später ein Projekt wählen."
                 autocomplete="off"
             />
             <HStack spacing="12px">
-                <Button on_click=projekte_speichern>"Projekte speichern"</Button>
+                <Button on_click=projects_save>"Projekte speichern"</Button>
             </HStack>
-            <Meldung rueckmeldung=rueck_projekte />
-        </Abschnitt>
-        <Abschnitt title="4. Anmelden">
+            <Message feedback=back_projects />
+        </Section>
+        <Section title="4. Anmelden">
             <p class="t-subheadline t-secondary">
                 "Es öffnet sich eine Seite von Atlassian. Prüfe dort den Namen deiner Site und bestätige mit „Accept“."
             </p>
@@ -214,93 +212,92 @@ fn JiraOauth(ctx: Kontext) -> impl IntoView {
                 on_connected=move |_| ctx.laden()
                 on_disconnected=move |_| ctx.laden()
             />
-        </Abschnitt>
+        </Section>
     }
 }
 
 #[component]
-fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraCheck>>) -> impl IntoView {
+fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView {
     let site = RwSignal::new(String::new());
-    vorbelegen(site, move || ctx.einr.with(|e| e.jira_site.clone()));
+    prefill(site, move || ctx.setup.with(|e| e.jira_site.clone()));
     let email = RwSignal::new(String::new());
-    vorbelegen(email, move || ctx.einr.with(|e| e.jira_email.clone()));
-    let rueck: Rueckmeldung = RwSignal::new(None);
-    let laeuft = RwSignal::new(false);
+    prefill(email, move || ctx.setup.with(|e| e.jira_email.clone()));
+    let back: Feedback = RwSignal::new(None);
+    let running = RwSignal::new(false);
 
     // Schlägt das Speichern fehl, läuft der Test nicht: den Knopf wieder freigeben.
     Effect::new(move |_| {
-        if rueck.with(|r| r.as_ref().is_some_and(|(gut, _)| !gut)) {
-            laeuft.set(false);
+        if back.with(|r| r.as_ref().is_some_and(|(gut, _)| !gut)) {
+            running.set(false);
         }
     });
 
     // So versteht Cockpit die Eingabe: gleich unter dem Feld zu sehen.
-    let site_gelesen = Signal::derive(move || jira_site_read(&site.get()));
-    let verbunden = move || {
+    let site_read = Signal::derive(move || jira_site_read(&site.get()));
+    let connected = move || {
         ctx.store.health.with(|h| {
-            h.as_ref().is_some_and(|h| {
-                h.anmeldung.jira.connected && h.anmeldung.jira.kind == AuthKind::Token
-            })
+            h.as_ref()
+                .is_some_and(|h| h.sign_in.jira.connected && h.sign_in.jira.kind == AuthKind::Token)
         })
     };
 
-    let pruefen = move |_| {
-        ergebnis.set(None);
-        rueck.set(None);
-        let site_neu = match site_gelesen.get_untracked() {
+    let check = move |_| {
+        result.set(None);
+        back.set(None);
+        let site_new = match site_read.get_untracked() {
             Ok(s) if !s.is_empty() => s,
             Ok(_) => {
-                rueck.set(Some((
+                back.set(Some((
                     false,
                     "Trage zuerst die Adresse deiner Jira-Site ein.".into(),
                 )));
                 return;
             }
             Err(m) => {
-                rueck.set(Some((false, m)));
+                back.set(Some((false, m)));
                 return;
             }
         };
-        let email_neu = email.get_untracked().trim().to_string();
-        if !email_neu.contains('@') || email_neu.contains(char::is_whitespace) {
-            rueck.set(Some((
+        let email_new = email.get_untracked().trim().to_string();
+        if !email_new.contains('@') || email_new.contains(char::is_whitespace) {
+            back.set(Some((
                 false,
                 "Trage die E-Mail-Adresse deines Atlassian-Kontos ein.".into(),
             )));
             return;
         }
-        laeuft.set(true);
+        running.set(true);
         // Erst Adresse und E-Mail sichern, dann der Test (nur Lesen).
-        konfig_speichern(
+        config_save(
             ctx,
             ConfigChange {
                 jira: Some(JiraInput {
-                    site: Some(site_neu),
-                    email: Some(email_neu),
+                    site: Some(site_new),
+                    email: Some(email_new),
                     projects: None,
                 }),
                 ..Default::default()
             },
-            rueck,
+            back,
             "Adresse und E-Mail gespeichert.",
             move || {
                 spawn_local(async move {
-                    match server::post_jira_pruefen().await {
-                        Ok(p) => ergebnis.set(Some(p)),
-                        Err(e) => ergebnis.set(Some(JiraCheck {
+                    match server::post_jira_check().await {
+                        Ok(p) => result.set(Some(p)),
+                        Err(e) => result.set(Some(JiraCheck {
                             message: e.message(),
                             ..Default::default()
                         })),
                     }
                     ctx.laden();
-                    laeuft.set(false);
+                    running.set(false);
                 });
             },
         );
     };
 
     view! {
-        <Abschnitt title="1. Adresse deiner Jira-Site">
+        <Section title="1. Adresse deiner Jira-Site">
             <TextField
                 label="Jira-Adresse"
                 value=site
@@ -308,7 +305,7 @@ fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraCheck>>) -> impl IntoVi
                 hint="So beginnt die Adresse, wenn du Jira im Browser öffnest. Du kannst sie auch einfach hineinkopieren – mit https:// und allem dahinter."
                 autocomplete="off"
             />
-            {move || match site_gelesen.get() {
+            {move || match site_read.get() {
                 Ok(s) if !s.is_empty() => {
                     view! { <p class="ui-hinweis">"Cockpit verwendet: " <code>{s}</code></p> }.into_any()
                 }
@@ -318,8 +315,8 @@ fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraCheck>>) -> impl IntoVi
                         .into_any()
                 }
             }}
-        </Abschnitt>
-        <Abschnitt title="2. E-Mail-Adresse deines Atlassian-Kontos">
+        </Section>
+        <Section title="2. E-Mail-Adresse deines Atlassian-Kontos">
             <TextField
                 label="E-Mail-Adresse"
                 value=email
@@ -327,13 +324,13 @@ fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraCheck>>) -> impl IntoVi
                 hint="Die Adresse, mit der du dich bei Atlassian anmeldest."
                 autocomplete="off"
             />
-        </Abschnitt>
-        <Abschnitt title="3. Token erstellen">
+        </Section>
+        <Section title="3. Token erstellen">
             <ol class="ui-anleitung">
                 <li>
                     "Klicke auf „Token-Seite öffnen“ und melde dich bei Atlassian an. Die Seite geht in einem neuen Tab auf."
                     <HStack spacing="12px" css="margin-top: 8px">
-                        <ExternKnopf href=JIRA_TOKEN_PAGE>"Token-Seite öffnen"</ExternKnopf>
+                        <ExternButton href=JIRA_TOKEN_PAGE>"Token-Seite öffnen"</ExternButton>
                     </HStack>
                 </li>
                 <li>"Klicke auf „Create API token“ (Token erstellen)."</li>
@@ -344,32 +341,32 @@ fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraCheck>>) -> impl IntoVi
                     "Klicke auf „Create“ und dann auf „Copy“ (Kopieren). Der Token wird nur jetzt angezeigt. Füge ihn gleich hier unten ein."
                 </li>
             </ol>
-            <SchluesselFeld
+            <KeyField
                 ctx=ctx
                 name="jira"
                 label="Token"
-                hinweis="Geheim wie ein Passwort. Er wird nur im Schlüsselbund dieses Rechners gespeichert und nie wieder angezeigt."
+                hint="Geheim wie ein Passwort. Er wird nur im Schlüsselbund dieses Rechners gespeichert und nie wieder angezeigt."
             />
-        </Abschnitt>
-        <Abschnitt title="4. Verbindung prüfen">
+        </Section>
+        <Section title="4. Verbindung prüfen">
             <p class="t-subheadline t-secondary">
                 "Cockpit speichert Adresse und E-Mail und fragt Jira, wer du bist. Dabei wird nur gelesen, nichts verändert."
             </p>
             <HStack spacing="12px">
                 <Button
                     variant=ButtonStyle::GlassProminent
-                    disabled=laeuft
-                    on_click=pruefen
+                    disabled=running
+                    on_click=check
                 >
                     "Verbindung prüfen"
                 </Button>
                 <Status tone=Signal::derive(move || {
-                    if verbunden() { StatusTone::Green } else { StatusTone::Gray }
-                })>{move || if verbunden() { "Verbunden – mit API-Token" } else { "Noch nicht geprüft" }}</Status>
+                    if connected() { StatusTone::Green } else { StatusTone::Gray }
+                })>{move || if connected() { "Verbunden – mit API-Token" } else { "Noch nicht geprüft" }}</Status>
             </HStack>
-            <Meldung rueckmeldung=rueck />
+            <Message feedback=back />
             {move || {
-                ergebnis
+                result
                     .get()
                     .map(|p| {
                         view! {
@@ -384,32 +381,32 @@ fn JiraToken(ctx: Kontext, ergebnis: RwSignal<Option<JiraCheck>>) -> impl IntoVi
                         }
                     })
             }}
-        </Abschnitt>
+        </Section>
     }
 }
 
 /// Nach dem Test: die Jira-Projekte zur Auswahl („Alle Projekte“ ist möglich). Gewählt wird wie in
 /// der Inbox mit `Action::SelectJiraProject`; die Liste wird nur gelesen.
 #[component]
-fn JiraProjektwahl(ctx: Kontext) -> impl IntoView {
-    let projekte = RwSignal::new(Vec::<JiraProject>::new());
-    let rueck: Rueckmeldung = RwSignal::new(None);
-    let geladen = RwSignal::new(false);
+fn JiraProjectChoice(ctx: Context) -> impl IntoView {
+    let projects = RwSignal::new(Vec::<JiraProject>::new());
+    let back: Feedback = RwSignal::new(None);
+    let loaded = RwSignal::new(false);
     spawn_local(async move {
         match server::fetch_jira_projects().await {
-            Ok(r) => projekte.set(r.projects),
+            Ok(r) => projects.set(r.projects),
             Err(CallError::Unreachable) => {
-                rueck.set(Some((false, CallError::Unreachable.message())))
+                back.set(Some((false, CallError::Unreachable.message())))
             }
-            Err(e) => rueck.set(Some((
+            Err(e) => back.set(Some((
                 false,
                 format!("Die Projekte konnten nicht geladen werden: {}", e.message()),
             ))),
         }
-        geladen.set(true);
+        loaded.set(true);
     });
-    let optionen = Signal::derive(move || {
-        let mut liste: Vec<(String, String)> = projekte.with(|p| {
+    let options = Signal::derive(move || {
+        let mut list: Vec<(String, String)> = projects.with(|p| {
             p.iter()
                 .map(|p| {
                     let label = if p.name.is_empty() {
@@ -421,35 +418,35 @@ fn JiraProjektwahl(ctx: Kontext) -> impl IntoView {
                 })
                 .collect()
         });
-        liste.sort_by_key(|a| a.1.to_lowercase());
+        list.sort_by_key(|a| a.1.to_lowercase());
         std::iter::once((String::new(), "Alle Projekte".to_string()))
-            .chain(liste)
+            .chain(list)
             .collect()
     });
-    let gewaehlt = Signal::derive(move || {
+    let chosen = Signal::derive(move || {
         ctx.store
             .ws
             .with(|w| w.jira_project.clone().unwrap_or_default())
     });
-    let wechseln = move |key: String| {
+    let switch = move |key: String| {
         let project = (!key.is_empty()).then_some(key);
         if let Err(e) = ctx.store.dispatch(Action::SelectJiraProject { project }) {
-            rueck.set(Some((false, e.message())));
+            back.set(Some((false, e.message())));
         } else {
-            rueck.set(Some((true, "Auswahl gespeichert.".into())));
+            back.set(Some((true, "Auswahl gespeichert.".into())));
         }
     };
     view! {
-        <Abschnitt title="Welche Projekte soll Cockpit zeigen?">
+        <Section title="Welche Projekte soll Cockpit zeigen?">
             <p class="t-subheadline t-secondary">
                 "Wähle ein Projekt oder „Alle Projekte“. Du kannst das später in der Inbox ändern."
             </p>
             {move || {
-                (!geladen.get())
+                (!loaded.get())
                     .then(|| view! { <p class="t-footnote t-secondary">"Lade deine Projekte …"</p> })
             }}
             {move || {
-                (geladen.get() && projekte.with(|p| p.is_empty()) && rueck.with(|r| r.is_none()))
+                (loaded.get() && projects.with(|p| p.is_empty()) && back.with(|r| r.is_none()))
                     .then(|| {
                         view! {
                             <p class="ui-hinweis">
@@ -459,12 +456,12 @@ fn JiraProjektwahl(ctx: Kontext) -> impl IntoView {
                     })
             }}
             <Select
-                options=optionen
-                value=gewaehlt
-                on_change=wechseln
+                options=options
+                value=chosen
+                on_change=switch
                 aria_label="Jira-Projekt"
             />
-            <Meldung rueckmeldung=rueck />
-        </Abschnitt>
+            <Message feedback=back />
+        </Section>
     }
 }

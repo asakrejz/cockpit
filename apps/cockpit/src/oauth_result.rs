@@ -1,5 +1,5 @@
 //! Rückkehr von der Anmeldung per OAuth: Das Backend leitet nach `/` um und hängt Ergebnis und
-//! Meldung an die Adresse (`?oauth=ok|fehler&dienst=…&meldung=…`). Die Meldung enthält nie einen
+//! Meldung an die Adresse (`?oauth=ok|error&service=…&message=…`). Die Meldung enthält nie einen
 //! Schlüssel. Hier wird sie angezeigt und die Adresse aufgeräumt.
 
 use leptos::prelude::*;
@@ -14,7 +14,7 @@ pub fn parse(search: &str) -> Option<(bool, String)> {
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
         match key {
             "oauth" => ok = Some(value == "ok"),
-            "meldung" => message = decode(value),
+            "message" => message = decode(value),
             _ => {}
         }
     }
@@ -86,16 +86,16 @@ mod tests {
     #[test]
     fn reads_success_and_error() {
         assert_eq!(
-            parse("?oauth=ok&dienst=github&meldung=Mit%20GitHub%20angemeldet"),
+            parse("?oauth=ok&service=github&message=Mit%20GitHub%20angemeldet"),
             Some((true, "Mit GitHub angemeldet".into()))
         );
         assert_eq!(
-            parse("?oauth=fehler&dienst=atlassian&meldung=Site%20%C3%A4%20nicht+frei"),
+            parse("?oauth=error&service=atlassian&message=Site%20%C3%A4%20nicht+frei"),
             Some((false, "Site ä nicht frei".into()))
         );
         assert_eq!(parse("?oauth=ok"), Some((true, "Angemeldet".into())));
         assert_eq!(
-            parse("?oauth=fehler"),
+            parse("?oauth=error"),
             Some((false, "Die Anmeldung ist fehlgeschlagen".into()))
         );
     }
@@ -108,7 +108,7 @@ mod tests {
 
     #[test]
     fn survives_broken_encoding() {
-        assert_eq!(parse("?oauth=ok&meldung=100%").unwrap().1, "100%");
-        assert_eq!(parse("?oauth=ok&meldung=%zz").unwrap().1, "%zz");
+        assert_eq!(parse("?oauth=ok&message=100%").unwrap().1, "100%");
+        assert_eq!(parse("?oauth=ok&message=%zz").unwrap().1, "%zz");
     }
 }

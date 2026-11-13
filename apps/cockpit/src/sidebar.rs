@@ -17,7 +17,7 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
             store.ws.with(|w| w.unread(filter, now)).to_string()
         })
     };
-    // Leer, solange nichts zurückgestellt ist.
+    // Empty, solange nichts zurückgestellt ist.
     let snoozed = Signal::derive(move || {
         let now = store.now.get();
         match store.ws.with(|w| w.unread(Filter::Snoozed, now)) {

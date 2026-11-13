@@ -30,14 +30,15 @@ impl Route {
             .split('/')
             .filter(|p| !p.is_empty());
         match (parts.next(), parts.next()) {
-            (Some("einrichten"), _) => Route::Setup,
-            (Some("meine"), _) => Route::Inbox(Filter::Mine),
+            // The older German addresses keep working (bookmarks).
+            (Some("setup" | "einrichten"), _) => Route::Setup,
+            (Some("mine" | "meine"), _) => Route::Inbox(Filter::Mine),
             (Some("team"), _) => Route::Inbox(Filter::Team),
-            (Some("zurueckgestellt"), _) => Route::Inbox(Filter::Snoozed),
-            (Some("uebersicht"), _) => Route::Overview,
-            (Some("protokoll"), _) => Route::Log,
-            (Some("benachrichtigungen"), _) => Route::Notifications,
-            (Some("grenzen"), _) => Route::Limits,
+            (Some("snoozed" | "zurueckgestellt"), _) => Route::Inbox(Filter::Snoozed),
+            (Some("overview" | "uebersicht"), _) => Route::Overview,
+            (Some("log" | "protokoll"), _) => Route::Log,
+            (Some("notifications" | "benachrichtigungen"), _) => Route::Notifications,
+            (Some("limits" | "grenzen"), _) => Route::Limits,
             (Some("review"), number) => Route::Review(number.and_then(|n| n.parse().ok())),
             (Some("agent"), key) => Route::Agent(key.map(str::to_string)),
             _ => Route::Inbox(Filter::All),
@@ -46,15 +47,15 @@ impl Route {
 
     pub fn hash(&self) -> String {
         match self {
-            Route::Setup => "#/einrichten".into(),
+            Route::Setup => "#/setup".into(),
             Route::Inbox(Filter::All) => "#/".into(),
-            Route::Inbox(Filter::Mine) => "#/meine".into(),
+            Route::Inbox(Filter::Mine) => "#/mine".into(),
             Route::Inbox(Filter::Team) => "#/team".into(),
-            Route::Inbox(Filter::Snoozed) => "#/zurueckgestellt".into(),
-            Route::Overview => "#/uebersicht".into(),
-            Route::Log => "#/protokoll".into(),
-            Route::Notifications => "#/benachrichtigungen".into(),
-            Route::Limits => "#/grenzen".into(),
+            Route::Inbox(Filter::Snoozed) => "#/snoozed".into(),
+            Route::Overview => "#/overview".into(),
+            Route::Log => "#/log".into(),
+            Route::Notifications => "#/notifications".into(),
+            Route::Limits => "#/limits".into(),
             Route::Review(None) => "#/review".into(),
             Route::Review(Some(number)) => format!("#/review/{number}"),
             Route::Agent(None) => "#/agent".into(),
@@ -89,8 +90,23 @@ mod tests {
     }
 
     #[test]
+    fn older_german_addresses_still_work() {
+        for (hash, route) in [
+            ("#/einrichten", Route::Setup),
+            ("#/meine", Route::Inbox(Filter::Mine)),
+            ("#/zurueckgestellt", Route::Inbox(Filter::Snoozed)),
+            ("#/uebersicht", Route::Overview),
+            ("#/protokoll", Route::Log),
+            ("#/benachrichtigungen", Route::Notifications),
+            ("#/grenzen", Route::Limits),
+        ] {
+            assert_eq!(Route::parse(hash), route, "{hash}");
+        }
+    }
+
+    #[test]
     fn unknown_addresses_lead_to_the_inbox() {
-        for hash in ["", "#", "#/", "#/gibt-es-nicht", "unsinn"] {
+        for hash in ["", "#", "#/", "#/does-not-exist", "unsinn"] {
             assert_eq!(Route::parse(hash), Route::Inbox(Filter::All), "{hash}");
         }
     }

@@ -33,16 +33,13 @@ impl AuthKind {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServiceStatus {
     #[serde(default)]
-    #[serde(rename = "verbunden")]
     pub connected: bool,
     /// Kind of sign-in; `none` while disconnected.
     #[serde(default)]
-    #[serde(rename = "art")]
     pub kind: AuthKind,
     /// The OAuth app is set up in `config.toml` and its secret is in the keychain:
     /// „Mit … anmelden“ is possible.
     #[serde(default)]
-    #[serde(rename = "oauth_moeglich")]
     pub oauth_possible: bool,
     /// For Atlassian: the chosen site.
     #[serde(default)]
@@ -126,7 +123,7 @@ mod tests {
         let s: ServiceStatus = serde_json::from_str("{}").unwrap();
         assert_eq!(s, ServiceStatus::default());
         let s: ServiceStatus =
-            serde_json::from_str(r#"{"verbunden":true,"art":"oauth","site":"firma"}"#).unwrap();
+            serde_json::from_str(r#"{"connected":true,"kind":"oauth","site":"firma"}"#).unwrap();
         assert_eq!(s.kind, AuthKind::OAuth);
         assert_eq!(
             serde_json::to_string(&AuthKind::Token).unwrap(),

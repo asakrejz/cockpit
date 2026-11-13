@@ -16,19 +16,19 @@
 //! ```text
 //! ```
 
-mod abgleich;
-mod agent_betrieb;
+mod access;
 mod agent_git;
-mod agent_lauf;
+mod agent_ops;
+mod agent_run;
 mod app;
 mod config;
 mod container;
 mod db;
-mod einrichtung;
 mod live;
 mod oauth;
 mod secrets;
-mod zugang;
+mod setup;
+mod sync;
 
 use std::io::Read;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -49,17 +49,17 @@ async fn main() -> ExitCode {
         .init();
 
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let ergebnis = match args
+    let result = match args
         .iter()
         .map(String::as_str)
         .collect::<Vec<_>>()
         .as_slice()
     {
-        [] => starten().await,
-        ["token", aktion, name] => token(aktion, name),
+        [] => start().await,
+        ["token", action, name] => token(action, name),
         _ => Err("Aufruf: cockpit-server [token setzen|loeschen <github|jira|github-oauth|atlassian-oauth|agent-key|litellm>]".into()),
     };
-    match ergebnis {
+    match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(m) => {
             tracing::error!("{m}");
@@ -69,7 +69,7 @@ async fn main() -> ExitCode {
 }
 
 /// Namen, die sich per `token` setzen lassen.
-const NAMEN: &[&str] = &[
+const NAMES: &[&str] = &[
     secrets::GITHUB,
     secrets::JIRA,
     secrets::GITHUB_OAUTH,
@@ -80,21 +80,21 @@ const NAMEN: &[&str] = &[
 
 /// Legt einen Schlüssel ab oder löscht ihn. Der Wert kommt von der Standardeingabe, damit er
 /// weder in der Prozessliste noch in der Shell-Historie landet.
-fn token(aktion: &str, name: &str) -> Result<(), String> {
-    if !NAMEN.contains(&name) {
+fn token(action: &str, name: &str) -> Result<(), String> {
+    if !NAMES.contains(&name) {
         return Err(format!(
             "Unbekannter Name „{name}“, erlaubt sind {}",
-            NAMEN.join(", ")
+            NAMES.join(", ")
         ));
     }
     let store = KeyringStore;
-    match aktion {
+    match action {
         "setzen" => {
-            let mut eingabe = String::new();
+            let mut input = String::new();
             std::io::stdin()
-                .read_to_string(&mut eingabe)
+                .read_to_string(&mut input)
                 .map_err(|e| format!("Eingabe nicht lesbar: {e}"))?;
-            let wert = eingabe.trim();
+            let wert = input.trim();
             if wert.is_empty() {
                 return Err("Kein Schlüssel auf der Standardeingabe".into());
             }
@@ -110,19 +110,19 @@ fn token(aktion: &str, name: &str) -> Result<(), String> {
             Ok(())
         }
         _ => Err(format!(
-            "Unbekannte Aktion „{aktion}“, erlaubt sind setzen und loeschen"
+            "Unbekannte Aktion „{action}“, erlaubt sind setzen und loeschen"
         )),
     }
 }
 
-async fn starten() -> Result<(), String> {
+async fn start() -> Result<(), String> {
     let config = Config::laden().map_err(|e| e.to_string())?;
 
     let conn = db::open(&config.db).map_err(|e| e.to_string())?;
     tracing::info!(
         "Datenbank: {} (Version {})",
         config.db.display(),
-        db::AKTUELLE_VERSION
+        db::CURRENT_VERSION
     );
 
     if !config.dist.join("index.html").is_file() {
@@ -132,28 +132,28 @@ async fn starten() -> Result<(), String> {
         );
     }
 
-    let state = app::AppState::neu(
+    let state = app::AppState::create(
         conn,
         Arc::new(KeyringStore),
         config.port,
-        abgleich::Quellen::aus(&config),
-        app::Einstellungen::aus(&config),
+        sync::Sources::from_config(&config),
+        app::Settings::from_config(&config),
     );
     // Adressen und Konten aus der Konfiguration in die Datenbank übernehmen (ohne Schlüssel).
-    state.verbindungen_uebernehmen(&config)?;
+    state.connections_adopt(&config)?;
     let router = app::router(state.clone(), config.dist.clone());
 
     // Nur lokal erreichbar – bewusst nicht einstellbar.
-    let adresse = SocketAddr::from((Ipv4Addr::LOCALHOST, config.port));
-    let listener = tokio::net::TcpListener::bind(adresse)
+    let address = SocketAddr::from((Ipv4Addr::LOCALHOST, config.port));
+    let listener = tokio::net::TcpListener::bind(address)
         .await
         .map_err(|e| format!("Port {} nicht verfügbar: {e}", config.port))?;
-    tracing::info!("Cockpit läuft auf http://{adresse}");
+    tracing::info!("Cockpit läuft auf http://{address}");
 
     // Im Server-Modus läuft der Takt des simulierten Agenten hier, nicht im Browser.
-    app::agent_takt_starten(state.clone());
+    app::agent_takt_start(state.clone());
     // Jira und GitHub: regelmäßig abgleichen. Ohne Quelle oder Schlüssel passiert nichts.
-    abgleich::abgleich_starten(state);
+    sync::sync_start(state);
 
     // Die Adresse der Gegenstelle braucht `zugang`, um Fremde abzuweisen.
     axum::serve(

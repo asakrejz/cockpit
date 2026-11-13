@@ -555,14 +555,14 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                 .filter(|_| idle.get())
                                 .map(|reason| {
                                     // Der Server sagt genau, was fehlt und wo man es einrichtet.
-                                    let genau = store.health.with(|h| {
+                                    let exactly = store.health.with(|h| {
                                         h.as_ref()
                                             .map(|h| h.agent.missing.join(" "))
                                             .filter(|t| !t.is_empty())
                                     });
                                     view! {
                                         <p class="t-footnote t-secondary">
-                                            {genau.unwrap_or_else(|| reason.to_string())} " "
+                                            {exactly.unwrap_or_else(|| reason.to_string())} " "
                                             <a class="ui-link" href=Route::Setup.hash()>"Zur Einrichtung"</a>
                                         </p>
                                     }

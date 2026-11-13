@@ -9,7 +9,7 @@ use std::sync::Mutex;
 use cockpit_integrations::Secret;
 
 /// Name des Eintrags im Schlüsselbund.
-const DIENST: &str = "cockpit";
+const SERVICE: &str = "cockpit";
 
 /// Namen der Schlüssel, die das Backend kennt.
 pub const GITHUB: &str = "github";
@@ -26,24 +26,24 @@ pub const GITHUB_OAUTH_TOKENS: &str = "github-oauth-token";
 pub const ATLASSIAN_OAUTH_TOKENS: &str = "atlassian-oauth-token";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SecretFehler(pub String);
+pub struct SecretError(pub String);
 
-impl std::fmt::Display for SecretFehler {
+impl std::fmt::Display for SecretError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Schlüsselablage: {}", self.0)
     }
 }
 
-impl std::error::Error for SecretFehler {}
+impl std::error::Error for SecretError {}
 
 pub trait SecretStore: Send + Sync {
     /// `Ok(None)`, wenn es keinen Schlüssel dieses Namens gibt.
-    fn get(&self, name: &str) -> Result<Option<Secret>, SecretFehler>;
-    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretFehler>;
+    fn get(&self, name: &str) -> Result<Option<Secret>, SecretError>;
+    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretError>;
     /// Löschen eines nicht vorhandenen Schlüssels ist kein Fehler.
-    fn delete(&self, name: &str) -> Result<(), SecretFehler>;
+    fn delete(&self, name: &str) -> Result<(), SecretError>;
 
-    fn has(&self, name: &str) -> Result<bool, SecretFehler> {
+    fn has(&self, name: &str) -> Result<bool, SecretError> {
         Ok(self.get(name)?.is_some())
     }
 }
@@ -54,35 +54,35 @@ pub trait SecretStore: Send + Sync {
 pub struct KeyringStore;
 
 impl KeyringStore {
-    fn eintrag(name: &str) -> Result<keyring::Entry, SecretFehler> {
-        keyring::Entry::new(DIENST, name).map_err(fehler)
+    fn entry(name: &str) -> Result<keyring::Entry, SecretError> {
+        keyring::Entry::new(SERVICE, name).map_err(error)
     }
 }
 
 /// Die Fehlermeldung des Schlüsselbunds enthält nie den Wert.
-fn fehler(e: keyring::Error) -> SecretFehler {
-    SecretFehler(e.to_string())
+fn error(e: keyring::Error) -> SecretError {
+    SecretError(e.to_string())
 }
 
 impl SecretStore for KeyringStore {
-    fn get(&self, name: &str) -> Result<Option<Secret>, SecretFehler> {
-        match Self::eintrag(name)?.get_password() {
+    fn get(&self, name: &str) -> Result<Option<Secret>, SecretError> {
+        match Self::entry(name)?.get_password() {
             Ok(w) => Ok(Some(Secret::new(w))),
             Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(fehler(e)),
+            Err(e) => Err(error(e)),
         }
     }
 
-    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretFehler> {
-        Self::eintrag(name)?
+    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretError> {
+        Self::entry(name)?
             .set_password(wert.expose())
-            .map_err(fehler)
+            .map_err(error)
     }
 
-    fn delete(&self, name: &str) -> Result<(), SecretFehler> {
-        match Self::eintrag(name)?.delete_credential() {
+    fn delete(&self, name: &str) -> Result<(), SecretError> {
+        match Self::entry(name)?.delete_credential() {
             Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(fehler(e)),
+            Err(e) => Err(error(e)),
         }
     }
 }
@@ -96,13 +96,13 @@ pub struct MemoryStore(Mutex<HashMap<String, Secret>>);
 impl std::fmt::Debug for MemoryStore {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Nur die Namen, nie die Werte.
-        let namen: Vec<String> = self
+        let names: Vec<String> = self
             .0
             .lock()
             .map(|m| m.keys().cloned().collect())
             .unwrap_or_default();
         f.debug_struct("MemoryStore")
-            .field("namen", &namen)
+            .field("namen", &names)
             .finish()
     }
 }
@@ -116,11 +116,11 @@ impl MemoryStore {
 
 #[cfg(test)]
 impl SecretStore for MemoryStore {
-    fn get(&self, name: &str) -> Result<Option<Secret>, SecretFehler> {
+    fn get(&self, name: &str) -> Result<Option<Secret>, SecretError> {
         Ok(self.0.lock().expect("Sperre vergiftet").get(name).cloned())
     }
 
-    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretFehler> {
+    fn set(&self, name: &str, wert: &Secret) -> Result<(), SecretError> {
         self.0
             .lock()
             .expect("Sperre vergiftet")
@@ -128,7 +128,7 @@ impl SecretStore for MemoryStore {
         Ok(())
     }
 
-    fn delete(&self, name: &str) -> Result<(), SecretFehler> {
+    fn delete(&self, name: &str) -> Result<(), SecretError> {
         self.0.lock().expect("Sperre vergiftet").remove(name);
         Ok(())
     }
@@ -139,7 +139,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn setzen_lesen_loeschen() {
+    fn set_read_delete() {
         let s = MemoryStore::new();
         assert_eq!(s.get(GITHUB).unwrap(), None);
         assert!(!s.has(GITHUB).unwrap());
@@ -156,11 +156,11 @@ mod tests {
     }
 
     #[test]
-    fn debug_zeigt_keine_werte() {
+    fn debug_shows_no_values() {
         let s = MemoryStore::new();
         s.set(GITHUB, &Secret::new("ghp_geheim")).unwrap();
-        let ausgabe = format!("{s:?} {:?}", s.get(GITHUB).unwrap());
-        assert!(!ausgabe.contains("ghp_geheim"), "{ausgabe}");
-        assert!(ausgabe.contains("github"));
+        let output = format!("{s:?} {:?}", s.get(GITHUB).unwrap());
+        assert!(!output.contains("ghp_geheim"), "{output}");
+        assert!(output.contains("github"));
     }
 }

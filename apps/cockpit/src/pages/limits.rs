@@ -18,7 +18,7 @@ fn money_text(cents: Option<u64>) -> String {
         .unwrap_or_default()
 }
 
-/// Leer = keine Grenze; sonst ein Betrag in Euro. `None` bei Unsinn.
+/// Empty = keine Grenze; sonst ein Betrag in Euro. `None` bei Unsinn.
 fn parse_optional_euro(text: &str) -> Option<Option<u64>> {
     if text.trim().is_empty() {
         Some(None)
@@ -126,7 +126,7 @@ fn Limits() -> impl IntoView {
         <List>
             <ListSection
                 header="Grenzen"
-                footer="Erreicht ein Lauf eine Grenze, hält er an. Du erhöhst sie dann und setzt ihn fort – oder brichst ab. Leer lassen heißt: keine Grenze. Das Zeitlimit zählt die Arbeitszeit des Agenten, nicht die Wartezeit auf dich."
+                footer="Erreicht ein Lauf eine Grenze, hält er an. Du erhöhst sie dann und setzt ihn fort – oder brichst ab. Empty lassen heißt: keine Grenze. Das Zeitlimit zählt die Arbeitszeit des Agenten, nicht die Wartezeit auf dich."
             >
                 <ListRow title="Läufe gleichzeitig" wrap=true subtitle="Ein weiterer Lauf startet nicht, solange so viele arbeiten (auch wartend auf eine Antwort).">
                     <Stepper value=parallel min=1 max=99 />

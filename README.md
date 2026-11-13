@@ -232,24 +232,24 @@ und hört auf Änderungen:
 | `POST /api/actions` | Body `{"action": <Action>}`; wendet sie als „Du“ an. Antwort `{revision, zusammenfassung, protokolliert}`; eine abgelehnte Aktion ist `422` (unbekannte Form `400`) mit `{"fehler": "…"}` |
 | `POST /api/sync` | „Jetzt abgleichen“ mit Jira und GitHub. Antwort `{aktiv, revision, protokolliert}`; `aktiv: false`, wenn keine Quelle eingerichtet ist |
 | `GET /api/events` | Server-Sent Events: erst die aktuelle Revision, dann je Aktion ein Ereignis mit neuer Revision und den neuen Protokolleinträgen, dazu Keep-Alive |
-| `GET /api/jira/projekte` | Jira-Projekte für die Auswahl in der Inbox: `{aktiv, projekte: [{key, name}]}`; `aktiv: false` ohne Jira oder Token |
+| `GET /api/jira/projects` | Jira-Projekte für die Auswahl in der Inbox: `{aktiv, projekte: [{key, name}]}`; `aktiv: false` ohne Jira oder Token |
 
 | `GET /api/agent/image` / `POST /api/agent/image` | Stand von „Image bauen“ `{laeuft, vorhanden, fehler, zeilen}` bzw. Bau im Hintergrund starten |
-| `GET /api/agent/pruefen/container` (Alias `/api/litellm/pruefen/container`) | Dieselbe Prüfung aus einem Container: `{geprueft, mac_erreicht, container_erreicht, key_ok, hinweis}` |
-| `GET /api/agent/pruefen` (Alias `/api/litellm/pruefen`) | Verbindungstest zum Endpunkt: `{konfiguriert, erreichbar, key_ok, modell_vorhanden, hinweis}` (siehe „Einrichten“) |
-| `GET /api/agent/modelle` | Die Modell-IDs des Endpunkts für das Drop-down: `{geladen, erreichbar, key_ok, modelle, hinweis}`; nur IDs, sortiert (Claude-Modelle zuerst), höchstens 200. Der Key bleibt im Backend |
-| `GET /api/einrichtung` | Was der Assistent vorbelegt: Jira-Site/E-Mail/Projekte, Client-IDs, Repos, Anbieter, Endpunkt-Adresse und Modell, die beiden Callback-Adressen und je Schlüssel nur `{name, gesetzt}` |
-| `PUT /api/konfiguration` | Schreibt Client-IDs, Jira, Repos sowie Agent-Anbieter und Endpunkt in `config.toml` (siehe „Einrichten in der App“). Antwort `{gespeichert, wirkt_sofort, hinweis}`; ungültige Eingaben sind `422` mit Klartext |
-| `PUT /api/schluessel/{name}` | Legt einen Schlüssel im Schlüsselbund ab. Body `{"wert": "…"}`, nur `github-oauth`, `atlassian-oauth`, `agent-key` (ältere Schreibweise `litellm`), `jira`, `github`. Antwort `{name, gesetzt}` – nie der Wert |
-| `DELETE /api/schluessel/{name}` | „Trennen“ für Tokens: löscht `jira` oder `github` aus dem Schlüsselbund (andere Namen: `404`). Antwort `{name, gesetzt: false}` |
-| `POST /api/jira/pruefen` | Verbindungstest für Jira per API-Token, nur lesend (`GET /rest/api/3/myself`): `{ok, ursache, meldung, name}`, `ursache` = `ok`, `angaben`, `adresse`, `token`, `berechtigung`, `erreichbar`, `sonst`. Nie der Token |
+| `GET /api/agent/check/container` | Dieselbe Prüfung aus einem Container: `{geprueft, mac_erreicht, container_erreicht, key_ok, hinweis}` |
+| `GET /api/agent/check` | Verbindungstest zum Endpunkt: `{konfiguriert, erreichbar, key_ok, modell_vorhanden, hinweis}` (siehe „Einrichten“) |
+| `GET /api/agent/models` | Die Modell-IDs des Endpunkts für das Drop-down: `{geladen, erreichbar, key_ok, modelle, hinweis}`; nur IDs, sortiert (Claude-Modelle zuerst), höchstens 200. Der Key bleibt im Backend |
+| `GET /api/setup` | Was der Assistent vorbelegt: Jira-Site/E-Mail/Projekte, Client-IDs, Repos, Anbieter, Endpunkt-Adresse und Modell, die beiden Callback-Adressen und je Schlüssel nur `{name, gesetzt}` |
+| `PUT /api/config` | Schreibt Client-IDs, Jira, Repos sowie Agent-Anbieter und Endpunkt in `config.toml` (siehe „Einrichten in der App“). Antwort `{gespeichert, wirkt_sofort, hinweis}`; ungültige Eingaben sind `422` mit Klartext |
+| `PUT /api/secrets/{name}` | Legt einen Schlüssel im Schlüsselbund ab. Body `{"wert": "…"}`, nur `github-oauth`, `atlassian-oauth`, `agent-key` (ältere Schreibweise `litellm`), `jira`, `github`. Antwort `{name, gesetzt}` – nie der Wert |
+| `DELETE /api/secrets/{name}` | „Trennen“ für Tokens: löscht `jira` oder `github` aus dem Schlüsselbund (andere Namen: `404`). Antwort `{name, gesetzt: false}` |
+| `POST /api/jira/check` | Verbindungstest für Jira per API-Token, nur lesend (`GET /rest/api/3/myself`): `{ok, ursache, meldung, name}`, `ursache` = `ok`, `angaben`, `adresse`, `token`, `berechtigung`, `erreichbar`, `sonst`. Nie der Token |
 
 Ist der Server nicht erreichbar (nicht gestartet, anderer Port), zeigt die App oben einen Hinweis mit „Erneut versuchen“;
 die Seiten bleiben leer, es geht nichts verloren.
 
 Alle Routen unter `/api` prüfen die Gegenstelle (nur Loopback) und den `Host`-Header (`127.0.0.1:<port>` oder
 `localhost:<port>`, gegen DNS-Rebinding). Schreibende Anfragen brauchen zusätzlich `Content-Type: application/json`
-und einen fehlenden oder eigenen `Origin`. Das gilt auch für `PUT /api/konfiguration` und `PUT /api/schluessel/{name}`.
+und einen fehlenden oder eigenen `Origin`. Das gilt auch für `PUT /api/config` und `PUT /api/secrets/{name}`.
 
 ### Jira verbinden
 
@@ -257,13 +257,13 @@ und einen fehlenden oder eigenen `Origin`. Das gilt auch für `PUT /api/konfigur
 Jira-Site (`firma.atlassian.net`; auch eine kopierte Adresse mit `https://` und Pfad wird verstanden), (2) die
 E-Mail-Adresse deines Atlassian-Kontos, (3) den Token. „Token-Seite öffnen“ führt in einem neuen Tab zu
 `https://id.atlassian.com/manage-profile/security/api-tokens`: „Token erstellen“, Namen vergeben, Ablaufdatum wählen,
-kopieren und in das Passwortfeld einfügen. Der Token geht über `PUT /api/schluessel/jira` in den Schlüsselbund, Site und
-E-Mail über `PUT /api/konfiguration` in die `config.toml`. Danach prüft „Verbindung prüfen“ (`POST /api/jira/pruefen`,
+kopieren und in das Passwortfeld einfügen. Der Token geht über `PUT /api/secrets/jira` in den Schlüsselbund, Site und
+E-Mail über `PUT /api/config` in die `config.toml`. Danach prüft „Verbindung prüfen“ (`POST /api/jira/check`,
 nur lesend: `GET /rest/api/3/myself`), ob „Jira antwortet und dich kennt“, und nennt sonst im Klartext die Ursache
 (Adresse falsch, Token abgelehnt, keine Berechtigung, nicht erreichbar). Nach dem Test schlägt der Assistent die
 Jira-Projekte zur Auswahl vor (oder „Alle Projekte“), wie das Drop-down in der Inbox. In der Zusammenfassung steht, ob die
 Anmeldung „mit API-Token“ oder „mit OAuth“ läuft; „Token erneuern“ führt zurück in den Schritt, „Trennen“ löscht den Token
-im Schlüsselbund (`DELETE /api/schluessel/jira`).
+im Schlüsselbund (`DELETE /api/secrets/jira`).
 
 **Sicherheit.** Der Token hat die Rechte deines Atlassian-Kontos. Solange Cockpit nur lesen soll, nimm ein Konto oder eine
 Rolle ohne Schreibrechte; ein kurzes Ablaufdatum begrenzt den Schaden. Der Token liegt nur im Schlüsselbund und kommt nie
@@ -308,7 +308,7 @@ Ohne `projects` und `jql` holt Jira alle mir zugewiesenen oder von mir beobachte
 kommen Pull Requests der angegebenen Repos, bei denen ein Review von mir angefragt ist oder die mir gehören.
 
 **Projekt wählen.** Hat die Jira-Site mehrere Projekte (Boards), wählst du in der Inbox oben im Drop-down „Jira-Projekt“
-eines aus. Die Liste kommt von Jira (`GET /api/jira/projekte`, dahinter `GET /rest/api/3/project/search`: alle
+eines aus. Die Liste kommt von Jira (`GET /api/jira/projects`, dahinter `GET /rest/api/3/project/search`: alle
 Projekte, die dein Token sehen darf) und enthält dazu die Projekte der Tickets, die schon da sind. Die Wahl ist
 die Aktion `SelectJiraProject` und bleibt gespeichert. Ist ein Projekt gewählt,
 
@@ -388,7 +388,7 @@ Client-Secret liegen nur im Schlüsselbund des Backends, nie im Browser, Repo, i
      Atlassian dreht das Refresh-Token bei jeder Auffrischung; auch das speichert das Backend.
    - Ist ein OAuth-Zugang da, geht er vor einem API-Token (`token setzen github|jira`); die Token-Wege bleiben
      unverändert. Nach dem Trennen gilt wieder das Token.
-5. *Trennen.* „Trennen“ in der App oder `POST /api/oauth/{dienst}/widerrufen` löscht die Tokens im Schlüsselbund. Bei
+5. *Trennen.* „Trennen“ in der App oder `POST /api/oauth/{dienst}/revoke` löscht die Tokens im Schlüsselbund. Bei
    GitHub widerruft das Backend das Token zusätzlich beim Dienst (`DELETE /applications/{client_id}/token`). Atlassian
    bietet dafür keinen Aufruf; den Zugriff entziehst du unter id.atlassian.com/manage-profile/apps (die App weist
    darauf hin). Gelöscht wird immer, auch wenn der Dienst nicht antwortet. Das Client-Secret bleibt.
@@ -425,7 +425,7 @@ was offen ist und was zu prüfen ist, mit „Ansehen“ zum passenden Schritt. D
 - *Modellzugang.* Adresse, Modellname, Key und der Verbindungstest (siehe unten).
 
 **Wie Eingaben ankommen.** Nicht geheime Werte (Client-IDs, Jira-Site, E-Mail, Projekte, Repos, Endpunkt-Adresse und
--Modell) schickt die Seite an `PUT /api/konfiguration`. Der Server ändert die `config.toml` **atomar** (Nachbardatei,
+-Modell) schickt die Seite an `PUT /api/config`. Der Server ändert die `config.toml` **atomar** (Nachbardatei,
 dann umbenennen; bestehende Kommentare, Reihenfolge und andere Werte bleiben, neue Dateien sind nur für dich lesbar) und
 prüft das Ergebnis **wie beim Start** (`Config::aus`): Ist es ungültig, bleibt die Datei, wie sie war, und die Antwort
 nennt den Grund in Klartext. Eingaben werden vereinheitlicht (`firma` → `https://firma.atlassian.net`, GitHub-Adressen →
@@ -434,7 +434,7 @@ nennt den Grund in Klartext. Eingaben werden vereinheitlicht (`firma` → `https
 bleiben bis zum Neustart. Ändert sich die Client-ID einer App, rät die Antwort, sich neu anzumelden.
 
 **Wie Schlüssel ankommen.** Client-Secrets, Tokens und der Key des Endpunkts kommen in Passwortfelder
-(`autocomplete="off"`) und gehen einmal an `PUT /api/schluessel/{name}` auf der Loopback-Verbindung. Der Server legt sie im
+(`autocomplete="off"`) und gehen einmal an `PUT /api/secrets/{name}` auf der Loopback-Verbindung. Der Server legt sie im
 Schlüsselbund ab. Der Wert steht nur im Feld und in dieser einen Anfrage: nicht in `localStorage`, nicht in der Adresse,
 nicht im Log, nicht in Fehlermeldungen und nie in einer Antwort (die sagt nur `gesetzt`); das Feld wird sofort nach dem
 Absenden geleert. Erlaubt sind nur die Namen `github-oauth`, `atlassian-oauth`, `agent-key`, `litellm` (älterer Name), `jira` und `github`. Die beiden
@@ -449,9 +449,9 @@ Die Abschnitte „Modellzugang“ und „Container“ im Einzelnen:
   `ANTHROPIC_API_KEY`). `modell` ist der Name, wie der Endpunkt ihn anbietet. Der Key liegt nur im Schlüsselbund
   (`agent-key`): `echo "$KEY" | cargo run -p cockpit-server -- token setzen agent-key`; die Werte gehen nur per `-e NAME` an
   den Container. `/api/health` meldet unter `endpunkt` Anbieter, Adresse, Modell und ob ein Key liegt (nie den Key).
-  „Modelle laden“ ruft `GET /api/agent/modelle`; das Backend fragt dann `GET <url>/v1/models` (Proxy: `Authorization: Bearer`;
+  „Modelle laden“ ruft `GET /api/agent/models`; das Backend fragt dann `GET <url>/v1/models` (Proxy: `Authorization: Bearer`;
   direkt: `https://api.anthropic.com/v1/models` mit `x-api-key` und `anthropic-version`), ohne Weiterleitungen, mit
-  Zeitlimit und Größengrenze, und liefert nur die IDs. „Verbindung testen“ ruft `GET /api/agent/pruefen` und meldet
+  Zeitlimit und Größengrenze, und liefert nur die IDs. „Verbindung testen“ ruft `GET /api/agent/check` und meldet
   *erreichbar*, *Key angenommen* und *Modell vorhanden*, bei Fehlern mit Hinweis. Ohne Key ruft es den Endpunkt nicht auf.
 - *Container-Laufzeit.* Der Agent läuft später in einem Container, mit Docker (Rancher Desktop, Engine „dockerd (moby)“)
   oder Podman. Das Backend wählt: `COCKPIT_CONTAINER`, sonst `[agent] container`, sonst sucht es erst `podman`, dann
