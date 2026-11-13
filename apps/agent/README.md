@@ -5,14 +5,14 @@ Verzeichnis enthält das Image:
 
 - `Containerfile` – Node 24, Git, der Läufer; läuft als Nutzer `node` (nicht root).
 - `runner/` – der Läufer (TypeScript, ohne Build-Schritt: Node führt `.ts` direkt aus). Er liest den
-  Auftrag aus `/auftrag/auftrag.json` und führt ihn mit einem **Adapter** aus (siehe unten).
+  Auftrag aus `/job/job.json` und führt ihn mit einem **Adapter** aus (siehe unten).
 
 ## Adapter
 
 Jedes Agenten-Werkzeug ist ein Adapter in `runner/src/adapter/` mit der gemeinsamen Schnittstelle aus
-`schnittstelle.ts`: Auftrag rein (plus Senke, Git, stdin-Eingang, Umgebung), JSON-Zeilen-Ereignisse raus
+`interface.ts`: Auftrag rein (plus Senke, Git, stdin-Eingang, Umgebung), JSON-Zeilen-Ereignisse raus
 (Tabelle unten), Exit-Code als Ergebnis. `COCKPIT_PROVIDER` (Standard `claude-agent-sdk`; im Image gesetzt) wählt den
-Adapter; unbekannte und noch nicht umgesetzte Namen ergeben ein `fehler`-Ereignis in Klartext.
+Adapter; unbekannte und noch nicht umgesetzte Namen ergeben ein `error`-Ereignis in Klartext.
 
 | Adapter | Stand | Werkzeug |
 |---------|-------|----------|
@@ -35,15 +35,15 @@ Backend aus der geerbten Umgebung, damit kein Key aus der Shell der Person im Co
 | `t` | Felder | Bedeutung |
 |-----|--------|-----------|
 | `plan` | `summary`, `files`, `steps` | Plan (Modus `plan`) |
-| `schritt` | `titel`, `text`, `token_ein`, `token_aus`, `ms` | ein Arbeitsschritt mit Verbrauch |
-| `dateien` | `dateien` | bisher geänderte Dateien |
-| `frage` | `text`, `vorschlaege` | Rückfrage; der Läufer wartet auf `antwort` auf stdin |
-| `hinweise_angekommen` | – | ein Hinweis des Nutzers ist beim Agenten |
-| `ergebnis` | `text`, `branch`, `commit` | fertig; der Commit liegt auf dem Branch im Klon |
-| `pruefung` | `erreichbar`, `key_ok`, `hinweis` | Ergebnis des Prüfmodus |
-| `fehler` | `text` | Abbruch mit Grund |
+| `step` | `title`, `text`, `tokens_in`, `tokens_out`, `ms` | ein Arbeitsschritt mit Verbrauch |
+| `files` | `files` | bisher geänderte Dateien |
+| `question` | `text`, `suggestions` | Rückfrage; der Läufer wartet auf `answer` auf stdin |
+| `hints_arrived` | – | ein Hinweis des Nutzers ist beim Agenten |
+| `result` | `text`, `branch`, `commit` | fertig; der Commit liegt auf dem Branch im Klon |
+| `check` | `reachable`, `key_ok`, `hint` | Ergebnis des Prüfmodus |
+| `error` | `text` | Abbruch mit Grund |
 
-Auf stdin kommen Zeilen `{"t":"antwort","text":…}` und `{"t":"hinweis","text":…}`.
+Auf stdin kommen Zeilen `{"t":"answer","text":…}` und `{"t":"hint","text":…}`.
 
 ## Regeln im Container
 
