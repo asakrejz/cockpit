@@ -81,7 +81,7 @@ async fn build_the_images_with_progress_and_error() {
     assert!(
         build.contains("-f ")
             && build.contains("Containerfile")
-            && build.contains("-t localhost/cockpit-agent:4"),
+            && build.contains("-t localhost/cockpit-agent:5"),
         "{build}"
     );
 

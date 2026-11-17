@@ -2,14 +2,17 @@
 
 The Cockpit agent runs in its own container per run (Docker or Podman). This directory holds the image:
 
-- `Containerfile`: Node 24, Git and the runner; runs as the user `node` (not root).
+- `Containerfile`: Node 24, Git, the runner and the agent CLIs; runs as the user `node` (not root).
+- `clis/`: `package.json` + `package-lock.json` with the exact versions of `@anthropic-ai/claude-code` and `@openai/codex`
+  (installed with `npm ci`, never "latest"; no secret file is written during the install). To update a CLI, change the
+  version in `clis/package.json`, run `npm install --package-lock-only` there, review and rebuild (new image tag).
 - `runner/`: the runner (TypeScript, no build step: Node executes `.ts` directly). It reads the job from
   `/job/job.json` and executes it with an **adapter** (see below).
 
 Build by hand (the backend does the same through "Image bauen" in the setup assistant):
 
 ```bash
-docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:4 apps/agent   # or: podman build …
+docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:5 apps/agent   # or: podman build …
 ```
 
 Rules for the `Containerfile` (they hold for Docker and Podman alike): a fully qualified base image, no BuildKit
@@ -20,16 +23,52 @@ features (`# syntax=`, `RUN --mount`), the runner never works as root. See "Cont
 
 Every agent tool is an adapter in `runner/src/adapter/` with the shared interface from `interface.ts`: job in (plus a
 sink, Git, a stdin input and the environment), JSON-line events out (table below), exit code as the result.
-`COCKPIT_PROVIDER` (default `claude-agent-sdk`; set in the image) selects the adapter; unknown and not yet implemented
-names produce an `error` event in plain language.
+`COCKPIT_PROVIDER` (default `claude-agent-sdk`; the image sets the default, the backend passes the configured
+`[agent] provider` with `-e COCKPIT_PROVIDER`) selects the adapter; unknown names produce an `error` event in plain
+language.
 
-| Adapter | State | Tool |
-|---------|-------|------|
-| `claude-agent-sdk` | implemented (`adapter/claude-agent-sdk.ts`) | Claude Agent SDK; model through `ANTHROPIC_MODEL` |
-| `claude-code` | **open** | `claude -p --output-format stream-json`: only translate its lines (assistant messages, tool calls, result with usage) into the events below |
-| `codex` | **open** | `codex exec --json`: translate its events (messages, commands, file changes, usage) into the same events |
+| Adapter | Tool | Endpoint and key (environment) |
+|---------|------|--------------------------------|
+| `claude-agent-sdk` (`adapter/claude-agent-sdk.ts`) | Claude Agent SDK; asks through `canUseTool`, tool `ask_user` | `ANTHROPIC_*` |
+| `claude-code` (`adapter/claude-code.ts`) | `claude -p --output-format stream-json --verbose`, prompt on stdin | `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` or `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` |
+| `codex` (`adapter/codex.ts`) | `codex exec --json … -`, prompt on stdin | `OPENAI_API_KEY`, optional `OPENAI_BASE_URL` (`/v1` is added), `COCKPIT_MODEL` |
 
-A new adapter does not need to change anything in the backend: same event shapes, same rules (no push, write only to
+The CLI adapters share `adapter/cli.ts` (child process, JSON lines, secret scrubbing, checks after the run); the flags
+live in one place per adapter (`CLAUDE` / `CODEX` and `claudeArgs` / `codexArgs`).
+
+### Claude Code (`claude-code`)
+
+Flags: `-p --output-format stream-json --verbose --model <m> --append-system-prompt <rules> --permission-mode default
+--allowedTools Read,Glob,Grep[,Write,Edit,MultiEdit,Bash,TodoWrite] --disallowedTools WebFetch,WebSearch --max-turns <n>
+--settings <file> --setting-sources user --strict-mcp-config` (plan mode: only the reading tools). Never a bypass or
+"accept all" mode. The `--settings` file (temporary, outside `/work`, no secret) registers a `PreToolUse` hook
+(`src/hook.ts`) that applies `policy.ts` (`decide()`) to every tool call, like `canUseTool` does for the SDK: it
+fails closed (a hook that cannot read its policy denies everything). Settings of the repo are not loaded, MCP servers are
+ignored. The stream lines have the same shape as the SDK messages (`adapter/claude-messages.ts` translates both).
+
+### Codex (`codex`)
+
+Flags: `exec --json --color never --sandbox workspace-write -C /work -m <model> -c approval_policy="never"
+-c sandbox_workspace_write.network_access=false -c model_provider="cockpit" -c model_providers.cockpit.base_url=…
+-c model_providers.cockpit.env_key="OPENAI_API_KEY" -c model_providers.cockpit.wire_api="responses" -`
+(plan mode: `--sandbox read-only`). `CODEX_HOME` is a temporary folder. Codex has no per-path hook: the path rules
+are enforced by the runner after the run (below). Event translation: `item.completed` (`agent_message` = answer,
+`command_execution` = step, `file_change` = step + `files`), `turn.completed` (usage = step "Überlegt"),
+`turn.failed` = error; a bare `error` event only counts if the turn never completes.
+
+### Checks after every CLI run (`adapter/cli.ts`)
+
+* Every changed file (working tree and commits the agent made itself) is checked with `policy.ts`
+  (`violations()`): `.git`, forbidden paths, outside the allowed paths. A violation ends the run with an `error`
+  event and nothing is committed. In plan mode any changed file discards the plan.
+* The child process gets a clean environment (only `PATH`, `HOME`, locale and the endpoint names of its family);
+  the prompt goes through stdin, never an argument; values of variables named like `*KEY*`/`*TOKEN*` are replaced by
+  `[entfernt]` in every event. Broken JSON lines are skipped and counted; a stream without a final result, a non-zero
+  exit status and the time limit (`max_seconds`) become `error` events with the end of stderr.
+* Not supported by the CLI adapters: questions to you (`ask_user`) and hints while running. Cost figures of the CLIs are
+  not forwarded (the events carry tokens only).
+
+A further adapter does not need to change anything in the backend: same event shapes, same rules (no push, write only to
 `/work`, commit through `git.ts`).
 
 ## Endpoint in the environment
@@ -57,7 +96,7 @@ Lines arriving on stdin: `{"t":"answer","text":…}` and `{"t":"hint","text":…
 
 ## Follow-up jobs
 
-For a follow-up job on an existing pull request (image tag `:3`) `job.json` carries `followup`:
+For a follow-up job on an existing pull request (image tag `:3` and later) `job.json` carries `followup`:
 `{kind: "review_comments" | "failed_checks", pull_request, threads: [{path, line, comments: [{author, text}]}],
 notes: [{author, state, text}], checks: [{name, excerpt}]}`; `branch` is the existing `claude/…` branch, already
 checked out in `/work`. The runner puts the texts into the prompt as data of third parties, limits them again
@@ -68,11 +107,11 @@ unchanged; old jobs without `followup` work as before.
 
 The container has **no GitHub token**: it cannot push. It commits to a branch `claude/<ticket>-…` in the mounted
 clone; the backend checks and pushes afterwards (path rules of the repo, never the main branch, never a merge).
-`canUseTool` in the runner additionally blocks writing outside `/work`, `.git`, forbidden paths and commands such as
-`git push` and `curl`. The agent asks questions through the tool `ask_user`.
+The runner additionally blocks writing outside `/work`, `.git`, forbidden paths and commands such as `git push` and
+`curl` (see the adapters above for how each tool enforces it). The agent asks questions through the tool `ask_user`.
 
 ## Tests
 
 ```bash
-cd apps/agent/runner && npm install && npm test   # Node >= 22.18, no network, the SDK is a stand-in
+cd apps/agent/runner && npm install && npm test   # Node >= 22.18, no network; the SDK, `claude` and `codex` are stand-ins
 ```

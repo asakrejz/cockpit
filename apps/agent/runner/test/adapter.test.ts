@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { NOT_IMPLEMENTED_YET, DEFAULT_PROVIDER, chooseAdapter } from "../src/adapter/index.ts";
+import { DEFAULT_PROVIDER, chooseAdapter } from "../src/adapter/index.ts";
 import { claudeAgentSdk } from "../src/adapter/claude-agent-sdk.ts";
 import { job, input, collector } from "./helpers.ts";
 
@@ -11,12 +11,10 @@ test("without a value the Claude Agent SDK applies", () => {
   assert.equal(chooseAdapter("claude-agent-sdk").name, "claude-agent-sdk");
 });
 
-test("Claude Code and Codex are known but not implemented yet", () => {
-  assert.deepEqual([...NOT_IMPLEMENTED_YET], ["claude-code", "codex"]);
-  for (const n of NOT_IMPLEMENTED_YET) {
-    assert.throws(() => chooseAdapter(n), (e: Error) => e.message.includes(n) && e.message.includes("noch nicht umgesetzt"));
-  }
-  assert.throws(() => chooseAdapter("gpt"), /unbekannt/);
+test("all three tools have an adapter, unknown names give a plain error", () => {
+  assert.equal(chooseAdapter("claude-code").name, "claude-code");
+  assert.equal(chooseAdapter("codex").name, "codex");
+  assert.throws(() => chooseAdapter("gpt"), (e: Error) => e.message.includes("unbekannt") && e.message.includes("codex"));
 });
 
 test("an SDK that cannot be loaded gives an error event and exit code 2", async () => {

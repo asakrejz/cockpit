@@ -1,4 +1,4 @@
-//! Step 4: model – tool of the agent, endpoint (directly at Anthropic, own proxy such as
+//! Step 4: model – tool of the agent, endpoint (directly at Anthropic or OpenAI, own proxy such as
 //! LiteLLM or another compatible endpoint), key, model name as a drop-down from the list of the
 //! endpoint and the connection tests. The rules are in `cockpit_core::setup`.
 
@@ -12,15 +12,6 @@ use leptos::task::spawn_local;
 
 use super::fields::{Context, Feedback, Intro, KeyField, Message, Section, config_save};
 use crate::server::{self, CallError};
-
-/// The text in the drop-down for a tool; those not implemented yet are shown as "bald".
-fn provider_text(a: Provider) -> String {
-    if a.implemented() {
-        a.label().to_string()
-    } else {
-        format!("{} (bald)", a.label())
-    }
-}
 
 #[component]
 pub fn ModelStep(ctx: Context) -> impl IntoView {
@@ -166,13 +157,13 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
     let provider_options = Signal::derive(move || {
         Provider::ALL
             .into_iter()
-            .map(|a| (a.id().to_string(), provider_text(a)))
+            .map(|a| (a.id().to_string(), a.label().to_string()))
             .collect::<Vec<_>>()
     });
     let kind_options = Signal::derive(move || {
         EndpointKind::ALL
             .into_iter()
-            .map(|a| (a.id().to_string(), a.label().to_string()))
+            .map(|a| (a.id().to_string(), a.label(provider.get())))
             .collect::<Vec<_>>()
     });
     let model_options = Signal::derive(move || {
@@ -198,11 +189,11 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
         <VStack spacing="12px">
             <Intro title="Modell für den Agenten">
                 <p>
-                    "Der Agent denkt mit einem KI-Modell. Hier legst du fest, mit welchem Werkzeug er arbeitet und wohin er seine Modellanfragen schickt: direkt zu Anthropic, über einen Proxy deines Teams (zum Beispiel LiteLLM) oder zu einem anderen kompatiblen Endpunkt."
+                    "Der Agent denkt mit einem KI-Modell. Hier legst du fest, mit welchem Werkzeug er arbeitet und wohin er seine Modellanfragen schickt: direkt zum Anbieter des Modells (Anthropic oder OpenAI), über einen Proxy deines Teams (zum Beispiel LiteLLM) oder zu einem anderen kompatiblen Endpunkt."
                 </p>
                 <p>
                     <strong>"Das kannst du nicht selbst erzeugen:"</strong>
-                    " Den Key bekommst du von Anthropic (Konsole) oder vom Betreiber deines Proxys, dazu bei einem Proxy die Adresse. Hast du sie noch nicht, überspringe diesen Schritt und hole ihn später nach."
+                    " Den Key bekommst du vom Anbieter des Modells (Konsole von Anthropic oder OpenAI) oder vom Betreiber deines Proxys, dazu bei einem Proxy die Adresse. Hast du sie noch nicht, überspringe diesen Schritt und hole ihn später nach."
                 </p>
             </Intro>
             <Section title="1. Werkzeug">
@@ -217,19 +208,15 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         }
                     })
                 />
-                {move || {
-                    provider
-                        .get()
-                        .not_implemented()
-                        .map(|m| {
-                            view! {
-                                <p class="ui-hint" role="status">
-                                    {m}
-                                    " Du kannst es schon eintragen; Läufe starten erst, wenn es umgesetzt ist."
-                                </p>
-                            }
-                        })
-                }}
+                <p class="t-footnote t-secondary">
+                    {move || {
+                        if provider.get().openai_compatible() {
+                            "Codex spricht mit einem OpenAI-kompatiblen Endpunkt und arbeitet in einer Sandbox ohne Netz."
+                        } else {
+                            "Läuft mit einem Anthropic-kompatiblen Endpunkt."
+                        }
+                    }}
+                </p>
             </Section>
             <Section title="2. Endpunkt">
                 <Select
@@ -243,7 +230,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         }
                     })
                 />
-                <p class="t-footnote t-secondary">{move || art.get().explanation()}</p>
+                <p class="t-footnote t-secondary">{move || art.get().explanation(provider.get())}</p>
                 {move || {
                     art.get()
                         .needs_address()
@@ -266,7 +253,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         <KeyField
                             ctx=ctx
                             name="agent-key"
-                            label=art.get().key_label()
+                            label=art.get().key_label(provider.get())
                             hint="Geheim wie ein Passwort. Er wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert."
                         />
                     }
@@ -322,7 +309,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                 <TextField
                     label="Modellname von Hand"
                     value=from_hand
-                    placeholder="claude-sonnet-5-5"
+                    placeholder="Modellname, z. B. claude-sonnet-5-5 oder gpt-5"
                     hint="Nur nötig, wenn die Liste fehlt oder das Modell nicht darin steht. Steht hier etwas, gilt es statt der Auswahl. Genau abtippen, auf Groß- und Kleinschreibung achten."
                     autocomplete="off"
                 />

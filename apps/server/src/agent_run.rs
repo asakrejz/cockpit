@@ -17,7 +17,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 /// Name of the agent image (fully named so that Podman does not first search the network for it).
-pub const IMAGE: &str = "localhost/cockpit-agent:4";
+pub const IMAGE: &str = "localhost/cockpit-agent:5";
 /// Label by which the backend finds its containers again and cleans up.
 pub const LABEL: &str = "cockpit.run";
 /// Name under which the container reaches the machine.
@@ -237,6 +237,8 @@ pub struct RunCommand<'a> {
     pub job: &'a Path,
     /// With open stdin (`-i`) for answers and hints.
     pub stdin_open: bool,
+    /// The tool of the agent: selects the runner's adapter and which endpoint names `-e` passes on.
+    pub provider: Provider,
 }
 
 /// The arguments after `docker`/`podman`. Never contains a secret: the runner gets address,
@@ -272,43 +274,75 @@ pub fn run_args(b: &RunCommand) -> Vec<String> {
         s("-v"),
         format!("{}:/job:ro", b.job.display()),
     ]);
-    for name in KIND_ENV {
+    for name in kind_env_names(b.provider) {
         a.extend([s("-e"), s(name)]);
     }
     a.push(s(IMAGE));
     a
 }
 
-/// The names that `docker run` passes on via `-e NAME` (only the name, never a value).
-pub const KIND_ENV: [&str; 4] = [
-    "ANTHROPIC_BASE_URL",
-    "ANTHROPIC_AUTH_TOKEN",
-    "ANTHROPIC_MODEL",
-    "ANTHROPIC_API_KEY",
-];
+/// The names that `docker run` passes on via `-e NAME` (only the name, never a value) for a tool:
+/// the Anthropic names for the Claude Agent SDK and Claude Code, the OpenAI names (and the model) for Codex.
+pub fn kind_env_names(provider: Provider) -> Vec<&'static str> {
+    let mut names = vec!["COCKPIT_PROVIDER"];
+    names.extend(if provider.openai_compatible() {
+        ["OPENAI_BASE_URL", "OPENAI_API_KEY", "COCKPIT_MODEL"].as_slice()
+    } else {
+        [
+            "ANTHROPIC_BASE_URL",
+            "ANTHROPIC_AUTH_TOKEN",
+            "ANTHROPIC_MODEL",
+            "ANTHROPIC_API_KEY",
+        ]
+        .as_slice()
+    });
+    names
+}
 
 /// The environment of the `docker run` process: the values that `-e NAME` passes on are there.
 /// `Some` sets the value, `None` removes it from the inherited environment so that no key from the
-/// person's shell ever travels into the container.
+/// person's shell ever travels into the container. Names of the other tool family are always removed.
 ///
-/// * With an address (proxy such as LiteLLM, another compatible endpoint): `ANTHROPIC_BASE_URL` and
-///   `ANTHROPIC_AUTH_TOKEN` (Bearer).
-/// * Without an address (directly at Anthropic): `ANTHROPIC_API_KEY` (`x-api-key`), no base address.
+/// * Claude Agent SDK and Claude Code, with an address (proxy such as LiteLLM, another compatible endpoint):
+///   `ANTHROPIC_BASE_URL` and `ANTHROPIC_AUTH_TOKEN` (Bearer). Without an address (directly at Anthropic):
+///   `ANTHROPIC_API_KEY` (`x-api-key`), no base address.
+/// * Codex: `OPENAI_API_KEY` (Bearer) always, `OPENAI_BASE_URL` with an address (without one directly at OpenAI),
+///   the model in `COCKPIT_MODEL`.
 pub fn env_for_kind(
+    provider: Provider,
     endpoint_url: Option<&str>,
     key: &str,
     model: &str,
 ) -> Vec<(&'static str, Option<String>)> {
-    let (base, token, api_key) = match endpoint_url.map(str::trim).filter(|u| !u.is_empty()) {
-        Some(url) => (Some(for_container(url)), Some(key.to_string()), None),
-        None => (None, None, Some(key.to_string())),
-    };
-    vec![
-        ("ANTHROPIC_BASE_URL", base),
-        ("ANTHROPIC_AUTH_TOKEN", token),
-        ("ANTHROPIC_MODEL", Some(model.to_string())),
-        ("ANTHROPIC_API_KEY", api_key),
-    ]
+    let base = endpoint_url
+        .map(str::trim)
+        .filter(|u| !u.is_empty())
+        .map(for_container);
+    let mut out: Vec<(&'static str, Option<String>)> =
+        vec![("COCKPIT_PROVIDER", Some(provider.id().to_string()))];
+    if provider.openai_compatible() {
+        out.extend([
+            ("ANTHROPIC_BASE_URL", None),
+            ("ANTHROPIC_AUTH_TOKEN", None),
+            ("ANTHROPIC_MODEL", None),
+            ("ANTHROPIC_API_KEY", None),
+            ("OPENAI_BASE_URL", base),
+            ("OPENAI_API_KEY", Some(key.to_string())),
+            ("COCKPIT_MODEL", Some(model.to_string())),
+        ]);
+    } else {
+        let proxy = base.is_some();
+        out.extend([
+            ("OPENAI_BASE_URL", None),
+            ("OPENAI_API_KEY", None),
+            ("COCKPIT_MODEL", None),
+            ("ANTHROPIC_BASE_URL", base),
+            ("ANTHROPIC_AUTH_TOKEN", proxy.then(|| key.to_string())),
+            ("ANTHROPIC_MODEL", Some(model.to_string())),
+            ("ANTHROPIC_API_KEY", (!proxy).then(|| key.to_string())),
+        ]);
+    }
+    out
 }
 
 /// A proxy on the own machine (`localhost`, `127.0.0.1`) is called `cockpit-host` in the container.
@@ -473,8 +507,6 @@ pub fn check_job() -> Value {
 pub struct Prerequisites<'a> {
     pub container: &'a ContainerStatus,
     pub image: bool,
-    /// The tool of the agent; only implemented ones run.
-    pub provider: Provider,
     pub model: bool,
     pub key: bool,
     /// The repo in which the agent works; `Err` with the explanation if it is not unambiguous.
@@ -502,9 +534,7 @@ pub fn missing(v: &Prerequisites) -> Vec<String> {
             }
         }
     }
-    if let Some(m) = v.provider.not_implemented() {
-        f.push(m);
-    } else if !v.model || !v.key {
+    if !v.model || !v.key {
         let mut was = Vec::new();
         if !v.model {
             was.push("der Modellname");

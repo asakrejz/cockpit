@@ -5,3 +5,4 @@
 **/.env.*
 .git
 runner/node_modules
+clis/node_modules

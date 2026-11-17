@@ -258,7 +258,20 @@ fn endpoint_kinds_roundtrip_and_follow_the_url() {
     assert_eq!(EndpointKind::from_url("http://x:1"), EndpointKind::Proxy);
     assert!(!EndpointKind::Direct.needs_address());
     assert!(EndpointKind::Compatible.needs_address());
-    assert!(!EndpointKind::Direct.explanation().contains("LiteLLM"));
+    assert!(
+        !EndpointKind::Direct
+            .explanation(Provider::ClaudeCode)
+            .contains("LiteLLM")
+    );
+    assert!(
+        EndpointKind::Direct
+            .explanation(Provider::Codex)
+            .contains("OpenAI")
+    );
+    assert_eq!(
+        EndpointKind::Direct.key_label(Provider::Codex),
+        "OpenAI-API-Key"
+    );
 }
 
 #[test]
@@ -298,13 +311,14 @@ fn hand_typed_model_names_are_checked() {
 }
 
 #[test]
-fn an_unimplemented_tool_is_a_problem_in_the_summary() {
+fn the_summary_names_the_chosen_tool() {
     let mut s = Snapshot::default();
+    assert!(!summary(&s)[3].text.contains("Codex"));
     s.endpoint.provider = Provider::Codex;
     s.endpoint.configured = true;
     let z = &summary(&s)[3];
     assert_eq!(z.tone, Tone::Problem);
-    assert!(z.text.contains("Codex") && z.text.contains("noch nicht umgesetzt"));
+    assert!(z.text.starts_with("Codex: "), "{}", z.text);
 }
 
 #[test]

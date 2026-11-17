@@ -1,6 +1,9 @@
 // Check mode: does the container reach the model endpoint? A single fetch of the model list,
 // without a model call and without cost. The key comes from the environment and is never printed.
 //
+// Provider `codex` asks the OpenAI-compatible endpoint instead: `OPENAI_BASE_URL` (or directly
+// `https://api.openai.com`) with `Authorization: Bearer <OPENAI_API_KEY>`.
+//
 // * With ANTHROPIC_BASE_URL (proxy such as LiteLLM, another compatible endpoint): `Authorization: Bearer`.
 // * Without an address, with ANTHROPIC_API_KEY (directly at Anthropic): `x-api-key` and `anthropic-version`.
 
@@ -10,12 +13,16 @@ export type Fetch = (url: string, init: { headers: Record<string, string>; signa
 
 const ANTHROPIC_API = "https://api.anthropic.com";
 const ANTHROPIC_VERSION = "2023-06-01";
+const OPENAI_API = "https://api.openai.com";
+
+const realFetch: Fetch = (u, i) => globalThis.fetch(u, { ...i, redirect: "manual" });
 
 export async function checkEndpoint(
   env: Record<string, string | undefined>,
   sink: Sink,
-  fetch: Fetch = (u, i) => fetch(u, { ...i, redirect: "manual" }),
+  fetch: Fetch = realFetch,
 ): Promise<number> {
+  if ((env.COCKPIT_PROVIDER ?? "").trim() === "codex") return checkOpenai(env, sink, fetch);
   const address = (env.ANTHROPIC_BASE_URL ?? "").replace(/\/+$/, "");
   const direct = !address && !!env.ANTHROPIC_API_KEY;
   if (!address && !direct) {
@@ -42,6 +49,36 @@ export async function checkEndpoint(
   } catch (e) {
     const reason = ac.signal.aborted ? "keine Antwort innerhalb von 10 Sekunden" : (e as Error & { cause?: { code?: string } }).cause?.code ?? (e as Error).message;
     sink({ t: "check", reachable: false, key_ok: false, hint: `Der Container erreicht ${direct ? "Anthropic" : "den Endpunkt"} nicht (${reason}).` });
+    return 1;
+  } finally {
+    clearTimeout(deadline);
+  }
+}
+
+/** Check mode for Codex: `GET <base>/v1/models` with the bearer key from `OPENAI_API_KEY`. */
+async function checkOpenai(env: Record<string, string | undefined>, sink: Sink, fetch: Fetch): Promise<number> {
+  const address = (env.OPENAI_BASE_URL ?? "").replace(/\/+$/, "").replace(/\/v1$/, "");
+  if (!env.OPENAI_API_KEY) {
+    sink({ t: "check", reachable: false, key_ok: false, hint: "Im Container ist kein Key (OPENAI_API_KEY) eingestellt." });
+    return 1;
+  }
+  const direct = !address;
+  const wer = direct ? "OpenAI" : "Der Endpunkt";
+  const ac = new AbortController();
+  const deadline = setTimeout(() => ac.abort(), 10_000);
+  try {
+    const r = await fetch(`${address || OPENAI_API}/v1/models`, { headers: { authorization: `Bearer ${env.OPENAI_API_KEY}` }, signal: ac.signal });
+    const keyOk = r.status !== 401 && r.status !== 403;
+    sink({
+      t: "check",
+      reachable: true,
+      key_ok: keyOk,
+      hint: keyOk ? `${wer} antwortet aus dem Container.` : `${wer} antwortet aus dem Container, lehnt den Key aber ab (Status ${r.status}).`,
+    });
+    return keyOk ? 0 : 1;
+  } catch (e) {
+    const reason = ac.signal.aborted ? "keine Antwort innerhalb von 10 Sekunden" : (e as Error & { cause?: { code?: string } }).cause?.code ?? (e as Error).message;
+    sink({ t: "check", reachable: false, key_ok: false, hint: `Der Container erreicht ${direct ? "OpenAI" : "den Endpunkt"} nicht (${reason}).` });
     return 1;
   } finally {
     clearTimeout(deadline);

@@ -1,6 +1,6 @@
 # Image of the Cockpit agent. Builds the same with Docker and Podman:
-#   docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:4 apps/agent
-#   podman build -f apps/agent/Containerfile -t localhost/cockpit-agent:4 apps/agent
+#   docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:5 apps/agent
+#   podman build -f apps/agent/Containerfile -t localhost/cockpit-agent:5 apps/agent
 # (the backend does that via "Image bauen" in the setup assistant).
 # Deliberately without BuildKit special features (no "# syntax=", no "RUN --mount") and with a fully
 # named base image, because Podman does not resolve short names without further ado.
@@ -18,6 +18,13 @@ COPY runner/package.json runner/package-lock.json ./
 RUN npm ci --omit=dev
 COPY runner/src ./src
 
+# The agent CLIs of the adapters `claude-code` and `codex`: exact versions from their own lockfile
+# (`npm ci`, never "latest"), kept apart from the runner so the runner tests stay light.
+# Nothing secret is written here: no .npmrc, no login, the keys only arrive at run time via `-e NAME`.
+WORKDIR /opt/clis
+COPY clis/package.json clis/package-lock.json ./
+RUN npm ci --omit=dev && npm cache clean --force
+
 # The runner never works as root.
 USER node
 WORKDIR /work
@@ -25,6 +32,8 @@ ENV HOME=/home/node \
     COCKPIT_JOB=/job/job.json \
     COCKPIT_ROOT=/work \
     COCKPIT_PROVIDER=claude-agent-sdk \
+    PATH=/opt/clis/node_modules/.bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    DISABLE_AUTOUPDATER=1 \
     NODE_ENV=production
 
 ENTRYPOINT ["node", "--disable-warning=ExperimentalWarning", "/opt/runner/src/main.ts"]

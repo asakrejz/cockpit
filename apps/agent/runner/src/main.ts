@@ -1,6 +1,7 @@
 // Entry point of the runner in the container. Everything secret comes via the environment (ANTHROPIC_MODEL and
 // either ANTHROPIC_BASE_URL + ANTHROPIC_AUTH_TOKEN for a proxy or ANTHROPIC_API_KEY directly
-// at Anthropic), the job from a file. COCKPIT_PROVIDER chooses the adapter (src/adapter/).
+// at Anthropic; for Codex OPENAI_API_KEY, OPENAI_BASE_URL and COCKPIT_MODEL), the job from a file.
+// COCKPIT_PROVIDER chooses the adapter (src/adapter/).
 // Only JSON lines go to stdout (see event.ts), diagnostics to stderr.
 
 import { createInterface } from "node:readline";
