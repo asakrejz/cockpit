@@ -3,7 +3,9 @@
 /apps/cockpit/dist
 .env
 .env.*
-!.env.example
 
 # Runner of the agent (npm install in the image)
 /apps/agent/runner/node_modules
+
+
+*.DS_Store
