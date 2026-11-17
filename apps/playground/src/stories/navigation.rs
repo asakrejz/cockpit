@@ -119,33 +119,26 @@ fn render() -> AnyView {
 
         <Section
             title="Untere Navigation · BottomNav"
-            api="<BottomNav label more_label more_title more_current more_badge more> · <BottomNavItem href label icon current badge>"
+            api="<BottomNav label more_label more_title more_current more_badge slots active solid more> · <BottomNavItem href label icon current badge>"
         >
             <p class="t-footnote t-secondary">
-                "Schmale Bildschirme (bis 1100 px): vier feste Ziele und „Mehr“, das ein Sheet mit den übrigen öffnet. "
-                "Nichts scrollt seitlich. Das Sheet ist ein modaler Dialog: Fokus hinein, Tab bleibt drin, Esc oder Tippen daneben schließt."
+                "Schwebende Glas-Pille auf jeder Breite: nur so breit wie ihre Einträge, mittig, ohne Balken und ohne Hintergrundfläche. "
+                "Vier feste Ziele und „Mehr“, das ein Sheet mit den übrigen öffnet; eine Kapsel gleitet zum aktuellen Eintrag "
+                "(nicht bei „Bewegung reduzieren“). Echte iOS-Lichtbrechung gibt es im Web nicht: Weichzeichner, Sättigung, helle Kante und Glanz nähern sie an."
             </p>
-            <div class="pg-narrow pg-mini-phone pg-bottomnav-frame">
-                <BottomNav
-                    label="Hauptnavigation"
-                    more_label="Mehr"
-                    more_title="Mehr"
-                    more_badge=2usize
-                    more=move || {
-                        view! {
-                            <ul class="ui-sidebar__nav">
-                                <SidebarItem href="#navigation" label="Team" icon=icons::USERS count="2".to_string() />
-                                <SidebarItem href="#navigation" label="Protokoll" icon=icons::LIBRARY />
-                                <SidebarItem href="#navigation" label="Einrichten" icon=icons::SLIDERS />
-                            </ul>
-                        }
-                    }
-                >
-                    <BottomNavItem href="#navigation" label="Inbox" icon=icons::BELL current=true badge=7usize />
-                    <BottomNavItem href="#navigation" label="Aufgaben" icon=icons::TASKS />
-                    <BottomNavItem href="#navigation" label="Reviews" icon=icons::GIT_PR badge=3usize />
-                    <BottomNavItem href="#navigation" label="Agenten" icon=icons::SPARKLES />
-                </BottomNav>
+            <div class="pg-bottomnav-grid">
+                <div>
+                    <p class="t-footnote t-secondary">"Hell"</p>
+                    <div class="pg-bottomnav-frame" data-theme="light">{pill_demo(false)}</div>
+                </div>
+                <div>
+                    <p class="t-footnote t-secondary">"Dunkel"</p>
+                    <div class="pg-bottomnav-frame" data-theme="dark">{pill_demo(false)}</div>
+                </div>
+                <div>
+                    <p class="t-footnote t-secondary">"Fallback (deckend: reduzierte Transparenz oder kein backdrop-filter)"</p>
+                    <div class="pg-bottomnav-frame" data-theme="light">{pill_demo(true)}</div>
+                </div>
             </div>
         </Section>
 
@@ -160,4 +153,34 @@ fn render() -> AnyView {
         </Section>
     }
     .into_any()
+}
+
+/// The pill over a colourful backdrop, so the glass has something to blur.
+fn pill_demo(solid: bool) -> impl IntoView {
+    view! {
+        <div class="pg-bottomnav-backdrop" aria-hidden="true"></div>
+        <BottomNav
+            label="Hauptnavigation"
+            more_label="Mehr"
+            more_title="Mehr"
+            more_badge=2usize
+            solid=solid
+            slots=5
+            active=Some(0)
+            more=move || {
+                view! {
+                    <ul class="ui-sidebar__nav">
+                        <SidebarItem href="#navigation" label="Team" icon=icons::USERS count="2".to_string() />
+                        <SidebarItem href="#navigation" label="Protokoll" icon=icons::LIBRARY />
+                        <SidebarItem href="#navigation" label="Einrichten" icon=icons::SLIDERS />
+                    </ul>
+                }
+            }
+        >
+            <BottomNavItem href="#navigation" label="Inbox" icon=icons::BELL current=true badge=7usize />
+            <BottomNavItem href="#navigation" label="Aufgaben" icon=icons::TASKS />
+            <BottomNavItem href="#navigation" label="Reviews" icon=icons::GIT_PR badge=3usize />
+            <BottomNavItem href="#navigation" label="Agenten" icon=icons::SPARKLES />
+        </BottomNav>
+    }
 }

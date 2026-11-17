@@ -12,7 +12,6 @@ use leptos::prelude::*;
 
 use crate::{
     route::Route,
-    sidebar::AppSidebar,
     store::{Store, use_store},
     view,
 };
@@ -99,23 +98,21 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
 
     view! {
         <SplitView layout=SplitLayout::DetailWide>
-            <AppSidebar>
-                <SidebarSection label="Reviews" role=SectionRole::Picker>
-                    <Show when=move || store.ws.with(|w| w.reviews.iter().any(|r| !w.review_is_mine(r)))>
-                        <Select
-                            options=owner_options.clone()
-                            value=owner
-                            on_change=move |v: String| owner.set(v)
-                            aria_label="Besitz"
-                            compact=true
-                        />
-                    </Show>
-                    {list}
-                    <Show when=no_reviews>
-                        <p class="ck-empty t-footnote t-secondary">"Noch keine Pull Requests zum Prüfen."</p>
-                    </Show>
-                </SidebarSection>
-            </AppSidebar>
+            <PickerPane label="Pull Requests" title="Reviews">
+                <Show when=move || store.ws.with(|w| w.reviews.iter().any(|r| !w.review_is_mine(r)))>
+                    <Select
+                        options=owner_options.clone()
+                        value=owner
+                        on_change=move |v: String| owner.set(v)
+                        aria_label="Besitz"
+                        compact=true
+                    />
+                </Show>
+                <ul class="ui-sidebar__nav">{list}</ul>
+                <Show when=no_reviews>
+                    <p class="ck-empty t-footnote t-secondary">"Noch keine Pull Requests zum Prüfen."</p>
+                </Show>
+            </PickerPane>
             {move || match review.get() {
                 Some(r) => view! { {diff_pane(store, r.clone(), lines)} {agent_pane(store, r, panel)} }.into_any(),
                 None => {

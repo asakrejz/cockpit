@@ -12,7 +12,7 @@ use web_sys::{HtmlElement, KeyboardEvent, ScrollIntoViewOptions, ScrollLogicalPo
 use crate::{
     route::Route,
     server::{self, CallError},
-    sidebar::{AppSidebar, Connections},
+    sidebar::MoreSection,
     store::{Store, navigate, now_ms, use_store, utc_offset_min},
     sync_status::sync_now,
     view,
@@ -112,17 +112,15 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
     };
     view! {
         <SplitView detail_open=detail_open>
-            <AppSidebar>
-                <SidebarSection label="Regeln">
+            // The rules live in the "Mehr" sheet of the navigation.
+            <MoreSection>
+                <p class="ui-sidebar__label">"Regeln"</p>
+                <ul class="ui-sidebar__nav">
                     {Rule::ALL.into_iter().map(|rule| rule_switch(store, rule)).collect_view()}
-                </SidebarSection>
-                <SidebarSection label="Tickets">
-                    {status_follow_switch(store)}
-                </SidebarSection>
-                <SidebarSection label="Verbindungen">
-                    <Connections />
-                </SidebarSection>
-            </AppSidebar>
+                </ul>
+                <p class="ui-sidebar__label">"Tickets"</p>
+                <ul class="ui-sidebar__nav">{status_follow_switch(store)}</ul>
+            </MoreSection>
 
             <Pane label=title>
                 <PaneHeader>

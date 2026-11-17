@@ -1,8 +1,9 @@
-//! The sidebar that all pages except setup share, and the bottom navigation of narrow screens.
+//! The navigation of the app: a floating glass pill at the bottom edge on every screen width.
 //!
-//! The navigation targets are defined once ([`TARGETS`]): wide screens list all of them in the
-//! sidebar, narrow screens show those with [`Slot::Bar`] in the fixed bar and the rest behind
-//! "Mehr".
+//! The navigation targets are defined once ([`TARGETS`]): those with [`Slot::Bar`] sit in the
+//! pill, the rest behind "Mehr". The pill lives in the app shell (`main.rs`) so it stays when the
+//! page changes (and its capsule can slide). A page may add sections to the "Mehr" sheet with
+//! [`MoreSection`] (the rules of the inbox).
 
 use cockpit_core::{Filter, team};
 use feature_ui::*;
@@ -13,10 +14,10 @@ use crate::{
     store::{Store, use_store},
 };
 
-/// Where a target sits on narrow screens (up to 1100 px).
+/// Where a target sits.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Slot {
-    /// Fixed in the bottom bar.
+    /// In the pill.
     Bar,
     /// In the sheet behind "Mehr".
     More,
@@ -26,15 +27,13 @@ enum Slot {
 struct Target {
     route: fn() -> Route,
     label: &'static str,
-    /// Short label for the bottom bar (a slot is only about 64 px wide at 320 px).
+    /// Short label for the pill (a slot is only about 60 px wide at 320 px).
     short: &'static str,
     icon: &'static str,
     slot: Slot,
-    /// Wide screens: in the lower group of the sidebar instead of the upper one.
-    footer: bool,
 }
 
-/// All targets, in the order of the sidebar (and of the sheet).
+/// All targets, in the order of the pill and the sheet.
 const TARGETS: [Target; 11] = [
     Target {
         route: || Route::Inbox(Filter::All),
@@ -42,7 +41,6 @@ const TARGETS: [Target; 11] = [
         short: "Inbox",
         icon: icons::BELL,
         slot: Slot::Bar,
-        footer: false,
     },
     Target {
         route: || Route::Inbox(Filter::Mine),
@@ -50,7 +48,6 @@ const TARGETS: [Target; 11] = [
         short: "Aufgaben",
         icon: icons::TASKS,
         slot: Slot::Bar,
-        footer: false,
     },
     Target {
         route: || Route::Inbox(Filter::Team),
@@ -58,7 +55,6 @@ const TARGETS: [Target; 11] = [
         short: "Team",
         icon: icons::USERS,
         slot: Slot::More,
-        footer: false,
     },
     Target {
         route: || Route::Inbox(Filter::Snoozed),
@@ -66,7 +62,6 @@ const TARGETS: [Target; 11] = [
         short: "Zurückgestellt",
         icon: icons::MOON,
         slot: Slot::More,
-        footer: false,
     },
     Target {
         route: || Route::Overview,
@@ -74,7 +69,6 @@ const TARGETS: [Target; 11] = [
         short: "Übersicht",
         icon: icons::CHART,
         slot: Slot::More,
-        footer: false,
     },
     Target {
         route: || Route::Review(None),
@@ -82,7 +76,6 @@ const TARGETS: [Target; 11] = [
         short: "Reviews",
         icon: icons::GIT_PR,
         slot: Slot::Bar,
-        footer: false,
     },
     Target {
         route: || Route::Agent(None),
@@ -90,7 +83,6 @@ const TARGETS: [Target; 11] = [
         short: "Agenten",
         icon: icons::SPARKLES,
         slot: Slot::Bar,
-        footer: false,
     },
     Target {
         route: || Route::Log,
@@ -98,7 +90,6 @@ const TARGETS: [Target; 11] = [
         short: "Protokoll",
         icon: icons::LIBRARY,
         slot: Slot::More,
-        footer: false,
     },
     Target {
         route: || Route::Limits,
@@ -106,7 +97,6 @@ const TARGETS: [Target; 11] = [
         short: "Grenzen",
         icon: icons::SETTINGS,
         slot: Slot::More,
-        footer: true,
     },
     Target {
         route: || Route::Notifications,
@@ -114,7 +104,6 @@ const TARGETS: [Target; 11] = [
         short: "Mitteilungen",
         icon: icons::BELL,
         slot: Slot::More,
-        footer: true,
     },
     Target {
         route: || Route::Setup,
@@ -122,7 +111,6 @@ const TARGETS: [Target; 11] = [
         short: "Einrichten",
         icon: icons::SLIDERS,
         slot: Slot::More,
-        footer: true,
     },
 ];
 
@@ -137,7 +125,7 @@ impl Target {
         }
     }
 
-    /// Short text on the right of the sidebar entry (empty: nothing).
+    /// Short text on the right of the entry in the sheet (empty: nothing).
     fn count_text(&self, store: Store) -> String {
         let now = store.now.get();
         match (self.route)() {
@@ -158,7 +146,7 @@ impl Target {
         }
     }
 
-    /// How many new things wait here (badge in the bottom bar).
+    /// How many new things wait here (badge in the pill).
     fn attention(&self, store: Store) -> usize {
         let now = store.now.get();
         match (self.route)() {
@@ -228,10 +216,47 @@ pub fn Connections() -> impl IntoView {
     }
 }
 
-/// Navigation of the app. The children form the middle, page-dependent section.
+/// Sections that the current page adds to the "Mehr" sheet (under the targets, above the
+/// connections). Provided by the app shell.
+#[derive(Clone, Copy)]
+pub struct PageMenu(RwSignal<Option<ViewFn>>);
+
+impl PageMenu {
+    pub fn new() -> Self {
+        Self(RwSignal::new(None))
+    }
+}
+
+/// Adds its children to the "Mehr" sheet as long as the page shows it.
 #[component]
-pub fn AppSidebar(children: Children) -> impl IntoView {
+pub fn MoreSection(children: ChildrenFn) -> impl IntoView {
+    let menu = expect_context::<PageMenu>();
+    let content = ViewFn::from(move || children().into_any());
+    menu.0.set(Some(content));
+    on_cleanup(move || menu.0.set(None));
+}
+
+/// Which slot of the pill the route belongs to: the index in the bar, "Mehr" (after the bar
+/// targets) for the targets in the sheet, `None` for a page that is no target.
+fn active_slot(route: &Route) -> Option<usize> {
+    let bar = TARGETS.iter().filter(|t| t.slot == Slot::Bar);
+    let bar_len = bar.clone().count();
+    for (index, t) in bar.enumerate() {
+        if t.is_current(route) {
+            return Some(index);
+        }
+    }
+    TARGETS
+        .iter()
+        .any(|t| t.slot == Slot::More && t.is_current(route))
+        .then_some(bar_len)
+}
+
+/// The navigation pill with the "Mehr" sheet.
+#[component]
+pub fn AppNav() -> impl IntoView {
     let store = use_store();
+    let menu = expect_context::<PageMenu>();
     let entry = move |t: &'static Target| {
         let current = Signal::derive(move || t.is_current(&store.route.get()));
         let count = Signal::derive(move || t.count_text(store));
@@ -244,13 +269,6 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
                 current=current
             />
         }
-    };
-    let sidebar_group = move |footer: bool| {
-        TARGETS
-            .iter()
-            .filter(|t| t.footer == footer)
-            .map(entry)
-            .collect_view()
     };
     let bar_items = TARGETS
         .iter()
@@ -274,12 +292,9 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
             .map(entry)
             .collect_view()
     };
-    let more_current = Signal::derive(move || {
-        let route = store.route.get();
-        TARGETS
-            .iter()
-            .any(|t| t.slot == Slot::More && t.is_current(&route))
-    });
+    let active = Signal::derive(move || active_slot(&store.route.get()));
+    let bar_len = TARGETS.iter().filter(|t| t.slot == Slot::Bar).count();
+    let more_current = Signal::derive(move || active.get() == Some(bar_len));
     let more_badge = Signal::derive(move || {
         TARGETS
             .iter()
@@ -296,27 +311,24 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
     });
 
     view! {
-        <Sidebar label="Bereiche">
-            <SidebarBrand href="#/">
-                "Cockpit"
-                <span title="Läuft lokal auf diesem Rechner">
-                    <Badge variant=BadgeVariant::Neutral>"Lokal"</Badge>
-                </span>
-            </SidebarBrand>
-            <SidebarSection role=SectionRole::Primary>{sidebar_group(false)}</SidebarSection>
-            {children()}
-            <Spacer />
-            <SidebarSection role=SectionRole::Primary>{sidebar_group(true)}</SidebarSection>
-        </Sidebar>
         <BottomNav
             label="Hauptnavigation"
             more_label="Mehr"
             more_title="Mehr"
             more_current=more_current
             more_badge=more_badge
+            slots=bar_len + 1
+            active=active
             more=move || {
                 view! {
+                    <SidebarBrand href="#/">
+                        "Cockpit"
+                        <span title="Läuft lokal auf diesem Rechner">
+                            <Badge variant=BadgeVariant::Neutral>"Lokal"</Badge>
+                        </span>
+                    </SidebarBrand>
                     <ul class="ui-sidebar__nav">{more_items()}</ul>
+                    {move || menu.0.get().map(|section| section.run())}
                     <p class="ui-sidebar__label">"Verbindungen"</p>
                     <ul class="ui-sidebar__nav">
                         <Connections />
@@ -329,3 +341,6 @@ pub fn AppSidebar(children: Children) -> impl IntoView {
         </BottomNav>
     }
 }
+
+#[cfg(test)]
+mod tests;

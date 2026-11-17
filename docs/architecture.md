@@ -237,7 +237,7 @@ The simulated follow-up jobs (below) do not exist in real mode; there the two re
 
 **Questions and steering.** The agent can stop at a step and ask a question (status "Wartet auf Antwort", with
 suggested answers to click or free text). The question counts as attention: it appears in the overview under "Hängt"
-(button "Frage beantworten") and in the sidebar under "Agenten". While the agent runs you can send a hint under
+(button "Frage beantworten") and in the navigation under "Agenten". While the agent runs you can send a hint under
 "Nachsteuern"; it confirms at the next step. "Pausieren" stops the run, "Fortsetzen" goes on. Everything said appears
 in the history next to the timeline. The actions are `AnswerAgent`, `SteerAgent`, `PauseAgent`, `ResumeAgent`.
 
@@ -296,7 +296,7 @@ first. Required tests cannot be switched off. Changed rules apply to new runs an
 comments and reviews only after your approval; the agent never merges.
 
 **Status follows the pull request.** A ticket's status follows its linked pull request (draft/open → In Arbeit, review
-requested → Review, merged → Fertig); switchable in the sidebar, author in the log: System. Ticket and pull request are
+requested → Review, merged → Fertig); switchable in the "Mehr" menu, author in the log: System. Ticket and pull request are
 linked automatically by the key in branch or title (`BAU-142`), otherwise by hand.
 
 **Review mechanics.** For a line comment, "Änderung vorschlagen" lets you enter replacement code for the line
@@ -320,48 +320,71 @@ Which events notify is derived purely from comparing the workspace before and af
 (`SetNotifyChannel`, `SetQuietHours`). Email and Slack are prepared only; addresses and webhook URLs never live in the
 browser.
 
-## Narrow screens (phone and tablet)
+## Layout and navigation
 
-The interface is usable from 320 px width. The CSS lives in `crates/ui/extras.css` (building blocks) and
-`apps/cockpit/style.css` (Cockpit specifics), only with existing tokens; the `viewport` meta tag is set and fixed
+The interface works from 320 px width up to 2560 px and beyond. The CSS lives in `crates/ui/extras.css` (building
+blocks) and `apps/cockpit/style.css` (Cockpit specifics), only with existing tokens (the few new ones, `--ui-pill-*`
+and `--ui-nav-space`, are defined in `extras.css`; `tokens.css` is untouched). The `viewport` meta tag is set and fixed
 elements respect `env(safe-area-inset-*)`.
 
-| Breakpoint | What changes |
-| --- | --- |
-| `max-width: 1100px` | Phone and tablet layout. The three columns of `SplitView` stack, the sidebar dissolves (`display: contents`) and the fixed `BottomNav` takes over the navigation. The bar is at most 640 px wide and centred, so it stays one row on a tablet (768–1100 px) too: a persistent sidebar would leave about 500 px for list and detail there. |
-| `max-height: 500px` (with the above) | Landscape phone: flatter bar, `Mehr` sheet scrolls inside itself. |
-| `max-width: 640px` | Tighter segmented pickers. |
-| `max-width: 1100px` or `pointer: coarse` | Touch sizes: buttons, segmented pickers, selects, steppers and sidebar entries are at least 44 px (`--sys-size-hit`), selectable diff lines 34 px. |
-| above 1100px | Desktop layout, unchanged: sidebar, list and detail side by side. |
+**Shell.** Above 1100 px the shell is exactly the viewport (`100dvh`, `overflow: hidden`, no page scroll). The columns of
+`SplitView` are grid tracks of equal height; each pane scrolls on its own (`min-height: 0`, `overflow-y: auto`,
+`overscroll-behavior: contain`). The shell ends above the navigation pill (`--ui-nav-space`), so no scroll area runs
+behind it.
 
-- **Navigation (one definition, two presentations):** `TARGETS` in `apps/cockpit/src/sidebar.rs` lists all 11 pages once,
-  each with a mobile slot (`Slot::Bar` or `Slot::More`). Wide screens show all of them in the sidebar. Narrow screens
-  show a fixed `BottomNav` with five equal slots: Inbox, Aufgaben, Reviews, Agenten and **Mehr**. Nothing scrolls
-  sideways. "Mehr" opens a bottom sheet with the other targets (Team, Zurückgestellt, Übersicht, Protokoll, Grenzen &
-  Regeln, Benachrichtigungen, Einrichten) and the connection states (Jira, GitHub, agent). Counters stay visible as
-  badges; the badge of "Mehr" is the sum of what is new behind it (team, stuck tickets), and "Mehr" is marked as the
-  current page when the current page lives in the sheet. Moving a page between bar and sheet means changing one `slot`.
-  The sheet is a modal dialog (`role="dialog"`, `aria-modal`): focus moves in, Tab stays inside, Escape, a tap on the
-  dimmed area, the close button, a followed link and `hashchange` close it, focus returns to the button, and the page
-  behind does not scroll (`body.ui-scroll-locked`). Sidebar groups carry a `SectionRole`: `Primary` (the navigation,
-  hidden when narrow), `Picker` (selects the item of a page, e.g. a pull request or an agent run; a chip strip above
-  the content that fades out on the right) and `Default` (rules; a card below the content).
-- **Phone details:** `viewport-fit=cover` plus `env(safe-area-inset-*)` on the bar, the sheet and the page; `dvh` instead
-  of `vh` for full-height areas (iOS address bar); the bar is at least 52 px high with 44 px+ hit areas and steps aside
-  while a text field has the focus on touch devices (the on-screen keyboard would put the bar over the field); in
-  landscape (height up to 500 px) the bar is flatter (icon beside the label) and the sheet scrolls inside itself. Long
-  button labels and addresses wrap; the filter bar of the inbox wraps instead of scrolling.
-- **List and detail as two levels:** the inbox passes `detail_open` to `SplitView`; narrow screens show either the list or
-  the detail (tapping a row opens it, "‹ Zur Liste" goes back). Wide screens always show both. Review and agent show
-  their panes one below the other.
-- **Shortcuts:** the key hints of the inbox are hidden when narrow; every shortcut has a button (done, reply, snooze,
-  bring back, search).
-- **Wide content scrolls inside its box:** the diff (`.ui-diff`), logs and the picker strips (pull requests, agent runs)
-  scroll sideways inside their container, never the page. Segmented pickers wrap; status texts wrap.
-- **Checked in the browser pane** at 320, 375, 430 (portrait), 812×375 (landscape) and 768×1024 on every page and every
-  setup step: `scrollWidth <= innerWidth`, no element beyond the right edge outside a deliberately scrolling box (diff,
-  picker strips), nothing cut off inside a box, last content above the bar. Not checked: real devices (touch behaviour,
-  notch, iOS address bar, on-screen keyboard).
+| Width | Columns |
+| --- | --- |
+| above 1280 px | up to three: picker or list `minmax(240px, 320px)` (inbox list 320–420 px), detail `1fr`, context `minmax(300px, 380px)`. Pages with one pane (overview, log, limits, notifications) use one centred column of at most 960 px. |
+| 1101–1280 px | The context column moves **below the detail** (picker on the left over the full height; detail and context share the right side, 3 : 2). |
+| up to 1100 px | One column; the panes stack and the page scrolls. The picker becomes a chip strip above the content. Inbox: list and detail are two levels (`detail_open`). |
+
+Which columns a page has: inbox = list + detail; pull requests = picker + diff + agent review; agent = picker + run +
+activity (with no run: picker + empty state); the other pages = one pane. The setup assistant is one scrolling column.
+
+**Navigation pill.** `BottomNav` (`crates/ui/src/shell.rs`) is a floating glass pill on **every** width, mounted once in
+the app shell (`main.rs`, `AppNav`) so it survives page changes and its capsule can slide. It is centred, only as wide
+as its slots (5 × 68 px up to 1100 px, 5 × 92 px above; never wider than the viewport minus 16 px) and sits
+12 px above the bottom edge plus `env(safe-area-inset-bottom)`. There is no bar and no full-width tint. Material: a
+translucent surface (72 % of the background token) with `backdrop-filter: blur(22px) saturate(180%)`, a 1 px light
+edge, an inner top highlight and a soft outer shadow; the current slot has its own smaller glass capsule that slides
+there (`--active`, only without `prefers-reduced-motion`). Real iOS Liquid Glass refracts what is behind it; that is
+not possible in CSS, the pill only approximates it. Fallbacks: `prefers-reduced-transparency: reduce` and browsers
+without `backdrop-filter` get an opaque pill (`BottomNav solid` shows it on purpose). Text contrast on the pill is at
+least 5.5 : 1 (label) over black, white and five saturated backdrops, in light and dark. Hit areas are at least 52 px
+high; in low windows (≤ 500 px high) icon and label sit side by side. On touch devices the pill steps aside while a text
+field has the focus. `<nav aria-label>`, `aria-current="page"`, focus ring.
+
+**Targets (one definition).** `TARGETS` in `apps/cockpit/src/sidebar.rs` lists all 11 pages once, each with a `Slot`:
+four in the pill (Inbox, Aufgaben, Reviews, Agenten) and **Mehr**, which opens a bottom sheet with the other targets
+(Team, Zurückgestellt, Übersicht, Protokoll, Grenzen & Regeln, Benachrichtigungen, Einrichten). Counters are badges; the
+badge of "Mehr" is the sum behind it, and "Mehr" is current when the current page lives in the sheet. Big screens have
+room for more targets, but all stay reachable through the sheet, so the pill is the same everywhere. The sheet is a
+modal dialog (`role="dialog"`, `aria-modal`): focus moves in, Tab stays inside, Escape, a tap on the dimmed area, the
+close button, a followed link and `hashchange` close it, focus returns to the button, the page behind does not scroll
+(`body.ui-scroll-locked`).
+
+**Where the former sidebar went.**
+
+| Before (sidebar) | Now |
+| --- | --- |
+| Brand "Cockpit" + badge "Lokal" | top of the "Mehr" sheet |
+| Entries (11 targets) | pill (4) and "Mehr" sheet (7) |
+| Connections Jira / GitHub / agent | "Mehr" sheet, section "Verbindungen" (each leads to the setup) |
+| Inbox: rules (6 switches) and "Tickets" (follow status) | "Mehr" sheet while the inbox is open (`MoreSection`) |
+| Pull-request list ("Reviews") | first column of the pull-request page (`PickerPane`) |
+| Agent-run list | first column of the agent page (`PickerPane`) |
+
+- **Phone details:** `viewport-fit=cover`, `dvh` instead of `vh`; notices (toasts) sit above the pill; long button
+  labels and addresses wrap; the filter bar of the inbox wraps instead of scrolling.
+- **List and detail as two levels:** the inbox passes `detail_open` to `SplitView`; up to 1100 px either the list or
+  the detail shows (tapping a row opens it, "‹ Zur Liste" goes back).
+- **Shortcuts:** the key hints of the inbox are hidden when narrow; every shortcut has a button.
+- **Wide content scrolls inside its box:** the diff, logs and the picker strips scroll sideways inside their
+  container, never the page. Segmented pickers wrap; status texts wrap.
+- **Checked in the browser pane** at 320, 375, 768, 1100, 1280×720, 1440×900, 1920×1080, 2560×1440, 1280×600 and
+  812×375 on every page: no horizontal page scroll; above 1100 px no page scroll, equal pane heights, panes end above
+  the pill; up to 1100 px the last content ends above the pill; the pill stays inside the viewport. Not checked: real
+  devices (touch behaviour, notch, iOS address bar, on-screen keyboard) and real glass refraction.
 
 ## Working with several agents
 
