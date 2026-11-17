@@ -145,6 +145,7 @@ impl AppState {
                 .map(|j| j.projects.clone())
                 .unwrap_or_default(),
             atlassian_client_id: q.atlassian.as_ref().map(|a| a.client_id.clone()),
+            atlassian_site: q.atlassian.as_ref().and_then(|a| a.site.clone()),
             github_client_id: q.github_oauth.as_ref().map(|o| o.client_id.clone()),
             github_repos: q
                 .github

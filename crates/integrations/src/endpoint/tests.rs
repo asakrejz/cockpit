@@ -283,7 +283,10 @@ async fn without_a_key_nothing_is_called_and_the_key_never_shows_up() {
         .await;
     let p = verify(&target(&server), None, Some("m")).await;
     assert!(p.configured && !p.reachable);
-    assert!(p.hint.as_deref().unwrap().contains("agent-key"));
+    assert!({
+        let hint = p.hint.as_deref().unwrap();
+        hint.contains("Schritt „Modell“") && !hint.contains("token set")
+    });
     let l = models_load(&target(&server), Some(&Secret::new(""))).await;
     assert!(!l.loaded && l.hint.unwrap().contains("kein Key"));
 

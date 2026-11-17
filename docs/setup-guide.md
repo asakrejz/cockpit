@@ -2,7 +2,7 @@
 
 Step-by-step instructions for connecting Cockpit to the real services. The easy way is the setup assistant: the
 "Einrichten" page walks through container, Jira, GitHub, model access and live updates and writes client IDs, Jira
-site, repos and endpoint into `config.toml` and keys into `.env`. The terminal route (edit `config.toml`, run
+site, repos and endpoint into `config/config.toml` (in the project folder, created at the first start, ignored by Git) and keys into `.env`. The terminal route (edit `config/config.toml`, start from `config/config.example.toml`; run
 `cockpit-server token set <name>`) leads to the same result; both can be mixed. Back to the [README](../README.md).
 All keys end up in `.env`, see [configuration.md](configuration.md#credentials-the-env-file).
 
@@ -17,7 +17,7 @@ These steps cannot be automated; the assistant walks you through each one:
   it yourself at [id.atlassian.com](https://id.atlassian.com/manage-profile/security/api-tokens) ("Create API
   token", pick a name and an expiry date, copy) and enter site, email and token in the assistant. Only if you
   prefer signing in in the browser, create your own OAuth app in the
-  [Atlassian developer console](https://developer.atlassian.com/console/myapps/) (under "Erweitert"). Every person
+  [Atlassian developer console](https://developer.atlassian.com/console/myapps/) (the second way in the Jira step, "OAuth"). Every person
   creates their **own** app because the client secret cannot be shared.
 - **GitHub App.** Create your own GitHub App in your account (or organisation) and install it on the repos.
   Again: your own app, your own secret.
@@ -46,7 +46,8 @@ The agent implements a ticket in a **container** (Claude Agent SDK, Claude Code 
 1. **Start a container runtime:** Rancher Desktop with the engine "dockerd (moby)" (not "containerd") *or* Podman
    (`podman machine start`). The assistant ("Einrichten" › "Container") shows whether it runs.
 2. **Build the image:** click "Image bauen" there (or `POST /api/agent/image`). The build downloads packages and
-   takes a few minutes; progress and errors appear below in plain text. `/api/health` reports under `agent`
+   takes a few minutes; progress and errors appear below in plain text. The output is collapsed to the last five lines; the arrow
+   at its top right opens the complete output (an error opens it by itself). `/api/health` reports under `agent`
    the state of the image: `image_state` is `missing`, `outdated`, `current` or `unknown` (not checkable). The image
    always has the same name, `localhost/cockpit-agent:local`; the build gives it the label `cockpit.fingerprint`, and
    Cockpit compares it with a fingerprint of the sources (see `apps/agent/README.md`). So a new Cockpit version
@@ -121,8 +122,15 @@ new token works without restart.
 ## OAuth (alternative to tokens)
 
 Instead of a token you sign in in the browser. Tokens and client secret live only in the backend's `.env`, never in
-browser, repo, database or log. In the assistant this is folded under "Erweitert: Mit OAuth statt Token". If both
-exist, OAuth wins over the token.
+browser, repo, database or log. In the assistant the Jira step has a picker ("API-Token" / "OAuth"); only the chosen way is shown (the
+connected way is preselected, otherwise the token). If both exist, OAuth wins over the token.
+
+**Removing an OAuth app again.** In the Jira step "Client-ID entfernen" (with a confirmation) deletes the client ID
+from `config.toml` and the client secret from `.env`; "Trennen" has the option "Auch Client-ID und Secret vergessen".
+The same works through the API: `PUT /api/config` with an empty `client_id` (`{"atlassian":{"client_id":""}}` or
+`{"github_oauth":{"client_id":""}}`) removes the whole section (including `site`), and
+`DELETE /api/secrets/{atlassian-oauth|github-oauth}` removes the secret. `{"atlassian_site": "…"}` sets
+`[atlassian] site` (empty removes it) – needed when the account approves several sites.
 
 1. *Register the apps.* GitHub: a **GitHub App** (callback `http://127.0.0.1:8787/api/oauth/github/callback`, "Expire
    user authorization tokens" on, repository permissions as in the GitHub rights table, install the app on the repos).
@@ -183,12 +191,18 @@ The page "Einrichten" (`#/setup`) is a guided assistant in six steps with a prog
 GitHub, Modell, Live, Fertig). It appears by itself on first start when nothing is set up (once per browser; the browser
 remembers only this hint) and is always reachable via "Einrichten" in the "Mehr" menu of the navigation. Every step can be skipped; the
 summary says in plain language what works (check mark), what is open and what to verify, with "Ansehen" leading to
-the right step. The texts assume no prior knowledge.
+the right step. The texts assume no prior knowledge. The current step is part of the address (`#/setup/container`,
+`#/setup/jira`, `#/setup/github`, `#/setup/model`, `#/setup/live`, `#/setup/done`), so a reload keeps it and the back
+button walks through the steps; `#/setup` alone opens the first step that is not done yet (or the summary). Error
+messages never ask you to run terminal commands: they name the step and field ("… trage es im Schritt „GitHub“ im
+Feld „Client-Secret“ ein") and link to that step. The terminal commands remain for developers (see
+[Configuration](configuration.md)).
 
 - *Container.* Detects Docker or Podman; if neither exists, the step explains what a container is and points to
   Rancher Desktop (engine **"dockerd (moby)"**) or Podman. "Erneut prüfen" asks again.
-- *Jira.* API token in three steps, connection test and project choice (see Jira). The Atlassian OAuth app is folded
-  away under "Erweitert", with a walkthrough of the developer console.
+- *Jira.* A picker chooses between "API-Token" (three steps, connection test and project choice, see Jira) and
+  "OAuth" (walkthrough of the developer console, client ID and secret, optional site, sign-in; client ID and secret
+  can be removed again). Only the chosen way is shown.
 - *GitHub.* Instructions for a **GitHub App** with a checklist of permissions (Contents, Pull requests, Issues,
   Checks read & write; Commit statuses and Metadata read-only), callback URL to copy, client ID and secret, a hint
   to "Install App" and the repos, then "Mit GitHub anmelden".

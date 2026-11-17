@@ -5,16 +5,20 @@ reference for editing by hand. Back to the [README](../README.md).
 
 ## config.toml and environment variables
 
-Everything is optional. The file `config.toml` lives in the configuration directory
-(`~/.config/cockpit/` on Linux, `~/Library/Application Support/cockpit/` on macOS). Environment variables override
-the file:
+Everything is optional. The file `config.toml` lives in the folder `config/` of the project, next to the database
+`cockpit.db` (`config/config.toml`, `config/cockpit.db`). "Project folder" is the working directory of the server, the
+same folder in which `.env` is searched; `scripts/start.sh`, `start-cockpit.command` (also in the release archive) and
+the launchd template (`WorkingDirectory`) all start there. The server creates `config/` at the first start (mode `700`,
+files `600`) and an empty `config.toml` if there is none. Git ignores everything in `config/` except
+[`config/config.example.toml`](../config/config.example.toml), a fully commented example with dummy values to copy
+from. Environment variables override the file:
 
 | Variable | Meaning (default) |
 |----------|-------------------|
 | `COCKPIT_PORT` | port (8787) |
 | `COCKPIT_DIST` | built app (`apps/cockpit/dist`) |
-| `COCKPIT_DB` | SQLite file (`cockpit/cockpit.db` in the user's data directory) |
-| `COCKPIT_CONFIG` | path of `config.toml` |
+| `COCKPIT_DB` | SQLite file (`config/cockpit.db` in the project folder) |
+| `COCKPIT_CONFIG` | path of `config.toml` (`config/config.toml`); an explicitly named file must exist |
 | `COCKPIT_ENV_FILE` | path of the `.env` file (`.env` in the working directory) |
 | `COCKPIT_SEED` | `empty` or `demo` |
 | `COCKPIT_CONTAINER` | `docker` or `podman` |
@@ -50,8 +54,41 @@ webhooks = false                  # default: both webhook routes answer 404
 public_url = "https://cockpit.example"   # your tunnel; only shown in the assistant
 [sync]
 webhook_fallback_interval_s = 600 # poll interval of a source while its webhooks arrive (default: 5x interval_s, at most 600)
+max_prs_per_repo = 200            # open pull requests loaded per repo (default 200, 1 to 2000)
+max_prs_total = 500               # … over all repos together (default 500, 1 to 2000)
 ```
 
+**Pull requests.** The sync loads *all* open pull requests of the configured repos (most recently updated first, 100
+per call), not only yours. Beyond `max_prs_per_repo` / `max_prs_total` the rest is left out and the source state says
+"Nur die ersten N PRs je Repo geladen". Your relation to a pull request comes from the pull request itself (author,
+requested reviewers, assignees); review requests to a *team* are not detected.
+
+**Jira query.** Without `jql` the sync asks for the active sprints:
+`sprint in openSprints() [AND project in (<projects>)] ORDER BY updated DESC`. If Jira rejects `openSprints()` (project
+without sprints) or there is no active sprint, the same query runs with `statusCategory != Done` instead and the source
+state says "Dieses Projekt hat keine Sprints – zeige alle offenen Tickets". A `jql` of your own is used exactly as
+written, is never rewritten and its errors are shown as errors. The sprint field of the site is found through
+`/rest/api/3/field` (type `gh-sprint`, otherwise the name "Sprint"), once per sync.
+
+
+## Where the files live, and moving from older versions
+
+Older versions kept `config.toml` in `~/Library/Application Support/cockpit/` (macOS) or `~/.config/cockpit/`
+(`$XDG_CONFIG_HOME`, Linux) and the database next to it (Linux: `~/.local/share/cockpit/`, `$XDG_DATA_HOME`). On the
+first start without `COCKPIT_CONFIG` and `COCKPIT_DB`, the server **copies** these files to `config/` if the new ones do
+not exist yet (the database through SQLite's `VACUUM INTO`, which also takes committed data from a `-wal` file), sets
+the modes and logs `Copied config from … to …; the old files were left in place and can be deleted`. It never
+overwrites a file in `config/` and deletes nothing at the old place. While old files still exist, `/api/health`
+(`config_files.notices`) and the last assistant step say so ("Alte Konfiguration liegt noch unter …, du kannst sie
+löschen"); delete them yourself when you are happy. Setting `COCKPIT_CONFIG` or `COCKPIT_DB` switches off creating and
+migrating. Stop a still running server of the old version before the first start of the new one.
+
+**Safety net for `config/`:** at start and in `/api/health` (`config_files`, shown in the last assistant step) the
+server warns when Git tracks a file in `config/` other than the example, when one is not ignored, or when permissions
+are looser than `700`/`600` (at start they are tightened). CI (`scripts/check-tracked-files.sh`, job `no-env-files`)
+fails when anything but `config/config.example.toml` is tracked there. The folder never enters the agent image: the
+build context is `apps/agent`, and its `.dockerignore` excludes `config` as well. The release archive contains only
+`config/config.example.toml`.
 
 ## Several repos
 

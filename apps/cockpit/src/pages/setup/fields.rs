@@ -3,12 +3,13 @@
 //! `cockpit_core::setup`, writing is in the server; here is only wiring.
 
 use cockpit_core::api::{ConfigChange, ContainerCheck, EndpointCheck, Setup};
-use cockpit_core::setup::key_verify;
+use cockpit_core::setup::{key_verify, step_mentioned};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use web_sys::wasm_bindgen::JsCast;
 
+use crate::route::Route;
 use crate::server::{self, CallError};
 use crate::store::Store;
 
@@ -22,6 +23,8 @@ pub struct Context {
     pub check: RwSignal<Option<EndpointCheck>>,
     /// Result of the check "reachable from the container".
     pub container_check: RwSignal<Option<ContainerCheck>>,
+    /// The first answer of `GET /api/setup` has arrived (or failed).
+    pub ready: RwSignal<bool>,
 }
 
 impl Context {
@@ -31,6 +34,7 @@ impl Context {
             setup: RwSignal::new(Setup::default()),
             check: RwSignal::new(None),
             container_check: RwSignal::new(None),
+            ready: RwSignal::new(false),
         };
         k.reload();
         k
@@ -43,6 +47,9 @@ impl Context {
         spawn_local(async move {
             if let Ok(e) = server::fetch_setup().await {
                 k.setup.set(e);
+            }
+            if !k.ready.get_untracked() {
+                k.ready.set(true);
             }
         });
     }
@@ -58,6 +65,7 @@ pub fn Message(feedback: Feedback) -> impl IntoView {
             feedback
                 .get()
                 .map(|(gut, text)| {
+                    let link = step_link(&text);
                     view! {
                         <p
                             class="ui-hint"
@@ -65,11 +73,28 @@ pub fn Message(feedback: Feedback) -> impl IntoView {
                             style=(!gut).then_some("color: var(--sys-color-red)")
                         >
                             {text}
+                            {link}
                         </p>
                     }
                 })
         }}
     }
+}
+
+/// A link to the step that a message names (`Schritt „GitHub“`), so that the reader gets there
+/// with one click. Nothing if the message names no step or that step is open right now.
+pub fn step_link(text: &str) -> Option<impl IntoView + use<>> {
+    let step = step_mentioned(text)?;
+    let store = crate::store::use_store();
+    let here = store.route.with_untracked(|r| *r == Route::SetupStep(step));
+    (!here).then(|| {
+        view! {
+            " "
+            <a class="ui-link" href=step.hash()>
+                {format!("Zum Schritt „{}“", step.name())}
+            </a>
+        }
+    })
 }
 
 /// Plain text for a failed call.

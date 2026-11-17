@@ -18,7 +18,7 @@ fn hint_to_reachability_out_the_container() {
         "Der Container erreicht den Proxy nicht (ENOTFOUND).",
     );
     assert!(h.contains("Dein Mac erreicht den Proxy, der Container aber nicht"));
-    assert!(h.contains("VPN") && h.contains("ENOTFOUND") && h.contains("podman machine"));
+    assert!(h.contains("VPN") && h.contains("ENOTFOUND") && h.contains("Podman"));
     assert!(check_hint(false, false, false, "x").contains("Weder dein Mac noch der Container"));
     assert!(check_hint(true, true, false, "Status 401").contains("Key wird abgelehnt"));
     assert!(check_hint(true, true, true, "").contains("auch aus dem Container erreichbar"));

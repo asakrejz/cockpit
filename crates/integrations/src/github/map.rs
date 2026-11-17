@@ -32,17 +32,79 @@ pub fn aggregate_checks(runs: &[CheckRun]) -> Checks {
     }
 }
 
+/// How a pull request relates to the user, from what the pull request itself says (no
+/// extra call per pull request). Mentions are not part of it: GitHub lists them only in the
+/// comments, which are not loaded for pull requests of colleagues.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PrRelation {
+    /// I am the author.
+    pub author: bool,
+    /// A review from me (as a person) is requested.
+    pub requested: bool,
+    /// I am an assignee.
+    pub assigned: bool,
+}
+
+impl PrRelation {
+    /// `me` is the GitHub login of the user (without regard to case).
+    pub fn of(pull: &Pull, me: &str) -> Self {
+        let is_me = |login: &str| !me.is_empty() && login.eq_ignore_ascii_case(me);
+        Self {
+            author: is_me(&pull.user.login),
+            requested: pull.requested_reviewers.iter().any(|u| is_me(&u.login)),
+            assigned: pull.assignees.iter().any(|u| is_me(&u.login)),
+        }
+    }
+
+    /// Does the pull request concern me?
+    pub fn mine(&self) -> bool {
+        self.author || self.requested || self.assigned
+    }
+}
+
+impl From<Relation> for PrRelation {
+    fn from(r: Relation) -> Self {
+        Self {
+            author: r == Relation::Own,
+            requested: r == Relation::ReviewRequested,
+            assigned: false,
+        }
+    }
+}
+
+/// A pull request as an inbox entry, for the relation of the search it came from.
+pub fn pull_to_item(repo: &str, pull: &Pull, checks: Checks, relation: Relation, now: i64) -> Item {
+    pull_to_item_for(repo, pull, checks, relation.into(), now)
+}
+
 /// A pull request as an inbox entry.
 ///
 /// `repo` is `owner/name` and goes into the ID, so that equal numbers from different
-/// repos do not overlap. The reasons are provisional: for „Review requested“
-/// `ReviewRequested` applies; for own pull requests `ChecksFailed`, otherwise `Comment`.
-/// Comments are empty – they come through [`comments_to_core`].
-pub fn pull_to_item(repo: &str, pull: &Pull, checks: Checks, relation: Relation, now: i64) -> Item {
-    let (reason, reason_text) = match (relation, checks) {
-        (Relation::ReviewRequested, _) => (ReasonKind::ReviewRequested, "Review angefragt"),
-        (Relation::Own, Checks::Failed) => (ReasonKind::ChecksFailed, "Checks fehlgeschlagen"),
-        (Relation::Own, _) => (ReasonKind::Comment, "Eigener Pull Request"),
+/// repos do not overlap. The reasons are provisional: a requested review gives
+/// `ReviewRequested`; an own pull request `ChecksFailed` or `Comment`; assigned to me only and
+/// pull requests of colleagues give `Comment` – the latter with the scope `Team`, so they never
+/// raise attention. Comments are empty – they come through [`comments_to_core`].
+pub fn pull_to_item_for(
+    repo: &str,
+    pull: &Pull,
+    checks: Checks,
+    relation: PrRelation,
+    now: i64,
+) -> Item {
+    let (reason, reason_text) = if relation.requested {
+        (ReasonKind::ReviewRequested, "Review angefragt".to_string())
+    } else if relation.author {
+        match checks {
+            Checks::Failed => (ReasonKind::ChecksFailed, "Checks fehlgeschlagen".into()),
+            _ => (ReasonKind::Comment, "Eigener Pull Request".into()),
+        }
+    } else if relation.assigned {
+        (ReasonKind::Comment, "Dir zugewiesen".into())
+    } else {
+        (
+            ReasonKind::Comment,
+            format!("Pull Request von {}", pull.user.login),
+        )
     };
     Item {
         id: text::id_from(&["gh", repo, &pull.number.to_string()]),
@@ -52,9 +114,13 @@ pub fn pull_to_item(repo: &str, pull: &Pull, checks: Checks, relation: Relation,
         title: pull.title.clone(),
         description: pull.body.clone().unwrap_or_default(),
         reason,
-        reason_text: reason_text.into(),
+        reason_text,
         time: time::relative(&pull.updated_at, now),
-        scope: Scope::Mine,
+        scope: if relation.mine() {
+            Scope::Mine
+        } else {
+            Scope::Team
+        },
         owner: text::person(&pull.user.login),
         status: TicketStatus::Review,
         priority: cockpit_core::Priority::default(),
@@ -66,7 +132,11 @@ pub fn pull_to_item(repo: &str, pull: &Pull, checks: Checks, relation: Relation,
             checks,
             changes_requested: false,
             merged: false,
-            review_requested: matches!(relation, Relation::ReviewRequested),
+            review_requested: relation.requested,
+            author: pull.user.login.clone(),
+            mine: relation.mine(),
+            requested_me: relation.requested,
+            assigned_me: relation.assigned,
         }),
         agent_note: None,
         comments: Vec::new(),
@@ -74,6 +144,8 @@ pub fn pull_to_item(repo: &str, pull: &Pull, checks: Checks, relation: Relation,
         due: None,
         repo: Some(repo.to_string()),
         labels: pull.labels.iter().map(|l| l.name.clone()).collect(),
+        sprint: None,
+        updated_ms: time::parse_iso(&pull.updated_at).map(|s| s as u64 * 1000),
     }
 }
 

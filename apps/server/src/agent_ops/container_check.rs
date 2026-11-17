@@ -84,7 +84,7 @@ pub fn check_hint(mac: bool, container: bool, key_ok: bool, text: &str) -> Strin
             "Der Container erreicht den Proxy, aber der Key wird abgelehnt. {text}"
         ),
         (true, false, _) => format!(
-            "Dein Mac erreicht den Proxy, der Container aber nicht. {text} Das liegt meist daran, dass die Container-Maschine (Rancher Desktop bzw. Podman) die VPN-Verbindung oder den Namen des Proxys nicht kennt. Verbinde zuerst das VPN und starte dann Rancher Desktop bzw. „podman machine stop“ und „podman machine start“ neu. Hilft das nicht, frag deine IT, ob der Proxy aus Container-Maschinen erreichbar ist, oder trage in config.toml die IP-Adresse statt des Namens ein."
+            "Dein Mac erreicht den Proxy, der Container aber nicht. {text} Das liegt meist daran, dass die Container-Maschine (Rancher Desktop bzw. Podman) die VPN-Verbindung oder den Namen des Proxys nicht kennt. Verbinde zuerst das VPN und starte dann Rancher Desktop bzw. die Podman-Maschine neu (Anleitung im Schritt „Container“). Hilft das nicht, frag deine IT, ob der Proxy aus Container-Maschinen erreichbar ist, oder trage in config.toml die IP-Adresse statt des Namens ein."
         ),
         (false, false, _) => format!(
             "Weder dein Mac noch der Container erreichen den Proxy. Prüfe Adresse und VPN. {text}"

@@ -2,8 +2,8 @@
 //! with status, branch, comments and the way to the agent.
 
 use cockpit_core::{
-    Action, Filter, InboxFilter, Item, Person, Priority, Rule, SnoozeChoice, SourceFilter,
-    TicketStatus,
+    Action, Applies, Choices, FILTERS, Filter, FilterDef, InboxFilter, Item, Person, Priority,
+    Rule, SnoozeChoice, SourceFilter, TicketStatus,
 };
 use feature_ui::*;
 use leptos::{ev, prelude::*, wasm_bindgen::JsCast};
@@ -27,23 +27,15 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
     // Search text and source belong only to this page; they do not persist across navigation.
     let query = RwSignal::new(String::new());
     let source = RwSignal::new(SourceFilter::All);
-    // Repo, person, status and label likewise; empty means "all".
-    let repo = RwSignal::new(String::new());
-    let person = RwSignal::new(String::new());
-    let status = RwSignal::new(String::new());
-    let label = RwSignal::new(String::new());
-    let inbox_filter = Memo::new(move |_| InboxFilter {
-        repo: some_if_set(repo.get()),
-        person: some_if_set(person.get()),
-        status: TicketStatus::from_id(&status.get()),
-        label: some_if_set(label.get()),
-    });
+    // The other filters (definitions: `cockpit_core::FILTERS`) live together in one value that
+    // starts at the defaults: own entries, active sprint, done tickets hidden, rest „all“.
+    let by = RwSignal::new(InboxFilter::default());
+    let inbox_filter = Memo::new(move |_| by.get());
     let items = Memo::new(move |_| {
         let (source, query, now) = (source.get(), query.get(), store.now.get());
         let inbox_filter = inbox_filter.get();
         store.ws.with(|w| {
-            inbox_filter
-                .apply(w.search(filter, source, &query, now))
+            w.inbox(filter, source, &query, now, &inbox_filter)
                 .into_iter()
                 .map(|item| with_reason(w, item, filter, now))
                 .collect::<Vec<Item>>()
@@ -161,55 +153,11 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                     />
                     {project_picker(store)}
                     <div class="ck-filters">
-                        {filter_select(
-                            "Repo",
-                            "Alle Repos",
-                            repo,
-                            Signal::derive(move || {
-                                store.ws.with(|w| w.item_repos()).into_iter().map(|r| (r.clone(), r)).collect()
-                            }),
-                        )}
-                        {filter_select(
-                            "Person",
-                            "Alle Personen",
-                            person,
-                            Signal::derive(move || {
-                                store
-                                    .ws
-                                    .with(|w| w.owners())
-                                    .into_iter()
-                                    .map(|p| (p.name.clone(), p.name))
-                                    .collect()
-                            }),
-                        )}
-                        {filter_select(
-                            "Status",
-                            "Alle Status",
-                            status,
-                            Signal::derive(|| {
-                                TicketStatus::OPTIONS
-                                    .iter()
-                                    .map(|(id, l)| (id.to_string(), l.to_string()))
-                                    .collect()
-                            }),
-                        )}
-                        {filter_select(
-                            "Label",
-                            "Alle Labels",
-                            label,
-                            Signal::derive(move || {
-                                store.ws.with(|w| w.labels()).into_iter().map(|l| (l.clone(), l)).collect()
-                            }),
-                        )}
-                        <Show when=move || !inbox_filter.get().is_default()>
+                        {filter_bar(store, by)}
+                        <Show when=move || !by.with(InboxFilter::is_default)>
                             <Button
                                 size=ControlSize::Small
-                                on_click=move |_| {
-                                    repo.set(String::new());
-                                    person.set(String::new());
-                                    status.set(String::new());
-                                    label.set(String::new());
-                                }
+                                on_click=move |_| by.set(InboxFilter::default())
                             >
                                 "Filter zurücksetzen"
                             </Button>
@@ -229,10 +177,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                             let reset = move |_| {
                                 query.set(String::new());
                                 source.set(SourceFilter::All);
-                                repo.set(String::new());
-                                person.set(String::new());
-                                status.set(String::new());
-                                label.set(String::new());
+                                by.set(InboxFilter::default());
                             };
                             view! {
                                 <li class="ck-empty">
@@ -427,9 +372,7 @@ mod detail;
 mod keyboard;
 mod row;
 
-use controls::{
-    filter_select, is_narrowed, project_picker, rule_switch, some_if_set, status_follow_switch,
-};
+use controls::{filter_bar, is_narrowed, project_picker, rule_switch, status_follow_switch};
 use detail::detail;
 use keyboard::{on_key, query_html};
 use row::{row, row_icon};

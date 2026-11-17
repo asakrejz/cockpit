@@ -315,3 +315,78 @@ fn change_writes_the_server_section_and_keeps_the_rest() {
     };
     assert!(change(WITH_COMMENTS, &bad).is_err());
 }
+
+#[test]
+fn removing_the_client_id_deletes_the_section_from_the_file() {
+    let start = "[atlassian]\nclient_id = \"old\"\nsite = \"firma\"\n\n# my notes\n[github]\nrepos = [\"a/b\"]\n";
+    let a = ConfigChange {
+        atlassian: Some(ClientInput::default()),
+        ..Default::default()
+    };
+    let (updated, c) = change(start, &a).unwrap();
+    assert!(c.atlassian.is_none());
+    assert!(
+        !updated.contains("atlassian")
+            && !updated.contains("client_id")
+            && !updated.contains("firma"),
+        "{updated}"
+    );
+    assert!(
+        updated.contains("# my notes") && updated.contains("repos"),
+        "{updated}"
+    );
+    // The file still reads at the next start (`deny_unknown_fields`).
+    assert!(Config::parse(Some(&updated), |_| None).is_ok());
+    // Removing it twice is no error.
+    let (again, _) = change(&updated, &a).unwrap();
+    assert_eq!(again, updated);
+}
+
+#[test]
+fn changing_the_client_id_keeps_the_site_and_removing_the_site_works() {
+    let start = "[atlassian]\nclient_id = \"old\"\nsite = \"firma\"\n";
+    let new_id = ConfigChange {
+        atlassian: Some(ClientInput {
+            client_id: "new".into(),
+        }),
+        ..Default::default()
+    };
+    let (updated, c) = change(start, &new_id).unwrap();
+    let a = c.atlassian.unwrap();
+    assert_eq!(
+        (a.client_id.as_str(), a.site.as_deref()),
+        ("new", Some("firma"))
+    );
+    assert!(!updated.contains("old"), "{updated}");
+
+    let no_site = ConfigChange {
+        atlassian_site: Some(String::new()),
+        ..Default::default()
+    };
+    let (updated, c) = change(&updated, &no_site).unwrap();
+    assert_eq!(c.atlassian.unwrap().site, None);
+    assert!(!updated.contains("site"), "{updated}");
+
+    let site = ConfigChange {
+        atlassian_site: Some(" Firma Eins ".into()),
+        ..Default::default()
+    };
+    let (updated, c) = change(&updated, &site).unwrap();
+    assert_eq!(c.atlassian.unwrap().site.as_deref(), Some("Firma Eins"));
+    assert!(updated.contains("site = \"Firma Eins\""), "{updated}");
+}
+
+#[test]
+fn a_site_without_a_client_id_is_refused() {
+    let a = ConfigChange {
+        atlassian_site: Some("firma".into()),
+        ..Default::default()
+    };
+    assert!(change("", &a).is_err());
+    // Removing a site that is not there is fine.
+    let none = ConfigChange {
+        atlassian_site: Some(String::new()),
+        ..Default::default()
+    };
+    assert_eq!(change("", &none).unwrap().0, "");
+}

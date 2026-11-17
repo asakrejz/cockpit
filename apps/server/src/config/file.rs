@@ -33,6 +33,10 @@ pub(super) struct FileServer {
 #[serde(deny_unknown_fields)]
 pub(super) struct FileSync {
     pub(super) webhook_fallback_interval_s: Option<u64>,
+    /// At most this many open pull requests per repo (default 200).
+    pub(super) max_prs_per_repo: Option<usize>,
+    /// At most this many open pull requests over all repos (default 500).
+    pub(super) max_prs_total: Option<usize>,
 }
 
 /// `[litellm]` (older) and `[agent.endpoint]` have the same fields.

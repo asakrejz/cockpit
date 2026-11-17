@@ -67,8 +67,3 @@ impl std::fmt::Display for ConfigError {
 }
 
 impl std::error::Error for ConfigError {}
-
-/// Default path of the configuration file.
-pub fn default_config_path() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("cockpit").join("config.toml"))
-}

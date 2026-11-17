@@ -153,6 +153,22 @@ routes.
   shifts), verdict and "sent".
 - New comments and status, check and review changes from outside appear in the log with author "System" and trigger the
   notifications. `@your-login` in comments counts as a mention.
+- GitHub: per configured repo `GET /repos/{owner}/{name}/pulls?state=open` (100 per page, newest update first; limits
+  `[sync] max_prs_per_repo`/`max_prs_total`), no search calls and no extra call per pull request for the list. `GET /user`
+  runs once per sync. The relation to you comes from the pull request (`user`, `requested_reviewers`, `assignees`) and is
+  stored on `PrRef` (`author`, `mine`, `requested_me`, `assigned_me`; all `#[serde(default)]` and omitted when empty, so
+  `wire_compat` snapshots stay byte-identical). Pull requests with a relation get `Scope::Mine` and the full detail
+  (comments, verdicts); the others get `Scope::Team`, a reason "Pull Request von …" (no attention, no notification) and
+  only checks and diff (the diff is reloaded on a new head commit only). A repo that answers 403/404 is a hint; a repo
+  or pull request that fails for another reason (5xx, timeout) keeps its last state and adds a hint; a rate limit or a
+  rejected token fails the whole source as before. Webhooks (above) still only trigger this same sync.
+- Jira: the default query asks for active sprints (see configuration). `Item.sprint` (`name`, `state`
+  `active|closed|future`, `start`, `end`) and `Item.updated_ms` are optional on the wire; the status category already
+  gives `TicketStatus`. Entries the sync no longer delivers (sprint ended) are removed by the normal merge; a failed
+  source keeps its data.
+- Inbox filters are data (`cockpit_core::filters::FILTERS`); `Workspace::inbox` applies ownership, `InboxFilter::matches`
+  the rest. Ownership "Alle" is the only way a quiet entry reaches the inbox; `attention`, `unread` and `notify::events`
+  are unchanged.
 - Per source there is a state (`/api/health` › `sync`, in the app under "Abgleich"): `ok`, `unauthorized` (401, token
   expired), `no_permission` (403), `quota` (rate limit: the source pauses until the time from
   `Retry-After`/`X-RateLimit-Reset`), `offline`, `error`; plus `off` (not set up or no key) and `waiting` (no fetch
@@ -221,7 +237,7 @@ The simulated follow-up jobs (below) do not exist in real mode; there the two re
 
 **Questions and steering.** The agent can stop at a step and ask a question (status "Wartet auf Antwort", with
 suggested answers to click or free text). The question counts as attention: it appears in the overview under "Hängt"
-(button "Frage beantworten") and in the sidebar under "Agenten". While the agent runs you can send a hint under
+(button "Frage beantworten") and in the navigation under "Agenten". While the agent runs you can send a hint under
 "Nachsteuern"; it confirms at the next step. "Pausieren" stops the run, "Fortsetzen" goes on. Everything said appears
 in the history next to the timeline. The actions are `AnswerAgent`, `SteerAgent`, `PauseAgent`, `ResumeAgent`.
 
@@ -280,7 +296,7 @@ first. Required tests cannot be switched off. Changed rules apply to new runs an
 comments and reviews only after your approval; the agent never merges.
 
 **Status follows the pull request.** A ticket's status follows its linked pull request (draft/open → In Arbeit, review
-requested → Review, merged → Fertig); switchable in the sidebar, author in the log: System. Ticket and pull request are
+requested → Review, merged → Fertig); switchable in the "Mehr" menu, author in the log: System. Ticket and pull request are
 linked automatically by the key in branch or title (`BAU-142`), otherwise by hand.
 
 **Review mechanics.** For a line comment, "Änderung vorschlagen" lets you enter replacement code for the line

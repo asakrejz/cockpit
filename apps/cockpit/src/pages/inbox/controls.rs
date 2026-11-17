@@ -128,36 +128,58 @@ pub(super) fn is_narrowed(query: &str, source: SourceFilter, filter: &InboxFilte
     !query.trim().is_empty() || source != SourceFilter::All || !filter.is_default()
 }
 
-pub(super) fn some_if_set(value: String) -> Option<String> {
-    (!value.is_empty()).then_some(value)
+/// The selections of the filter bar, one per definition in `cockpit_core::FILTERS`. A chosen
+/// value that no longer occurs in the data (e.g. after a sync) stays in the list so that the
+/// display matches the filter. The empty value is the choice „all“ where a filter has one.
+pub(super) fn filter_bar(store: Store, by: RwSignal<InboxFilter>) -> impl IntoView {
+    FILTERS
+        .iter()
+        .map(|def| filter_choice(store, by, def))
+        .collect_view()
 }
 
-/// A choice of the filter bar. The empty value means "all", `all` is its label.
-/// A chosen value that no longer occurs (e.g. after a sync) stays in the
-/// list so that the display matches the filter.
-pub(super) fn filter_select(
-    aria_label: &'static str,
-    all: &'static str,
-    value: RwSignal<String>,
-    choices: Signal<Vec<(String, String)>>,
+fn filter_choice(
+    store: Store,
+    by: RwSignal<InboxFilter>,
+    def: &'static FilterDef,
 ) -> impl IntoView {
+    let value = Signal::derive(move || by.with(|f| f.get(def.id)));
     let options = Signal::derive(move || {
-        let mut list = choices.get();
+        let mut list: Vec<(String, String)> = match def.choices {
+            Choices::Fixed(fixed) => fixed
+                .iter()
+                .map(|(v, l)| (v.to_string(), l.to_string()))
+                .collect(),
+            Choices::FromData => store.ws.with(|w| w.filter_choices(def.id)),
+        };
         let current = value.get();
         if !current.is_empty() && !list.iter().any(|(v, _)| *v == current) {
             list.push((current.clone(), current));
         }
-        std::iter::once((String::new(), all.to_string()))
-            .chain(list)
-            .collect::<Vec<_>>()
+        match def.all_label {
+            Some(all) => std::iter::once((String::new(), all.to_string()))
+                .chain(list)
+                .collect(),
+            None => list,
+        }
     });
+    // Filters of tickets only make no sense while there are no tickets.
+    let shown = move || {
+        def.applies != Applies::Tickets || store.ws.with(|w| w.items.iter().any(Item::is_ticket))
+    };
     view! {
-        <Select
-            options=options
-            value=value
-            on_change=move |v: String| value.set(v)
-            aria_label=aria_label
-            compact=true
-        />
+        <Show when=shown>
+            <Select
+                options=options
+                value=value
+                on_change=move |v: String| {
+                    by.update(|f| {
+                        f.set(def.id, &v);
+                    })
+                }
+                aria_label=def.label
+                compact=true
+            />
+        </Show>
     }
 }

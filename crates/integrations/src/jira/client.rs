@@ -17,15 +17,21 @@ use cockpit_core::TicketStatus;
 pub const ASSIGNED_OR_WATCHED_JQL: &str = "(assignee = currentUser() OR watcher = currentUser()) \
      AND statusCategory != Done ORDER BY updated DESC";
 
-/// The query for the sync: a custom JQL, otherwise open issues assigned to me or
-/// watched by me – restricted to `projects` if given. Project keys
-/// are checked (letters, digits, `_`), so that nothing slips into the query.
+/// The part of the default queries that restricts to the active sprints.
+pub const SPRINT_CLAUSE: &str = "sprint in openSprints()";
+/// What the fallback puts in its place: all open tickets.
+const OPEN_CLAUSE: &str = "statusCategory != Done";
+const ORDER: &str = "ORDER BY updated DESC";
+
+/// The query for the sync: a custom JQL stays as it is; otherwise the tickets of the active
+/// sprints – restricted to `projects` if given (all projects the key sees otherwise). Project
+/// keys are checked (letters, digits, `_`), so that nothing slips into the query.
 pub fn jql_for(projects: &[String], own: Option<&str>) -> Result<String, Error> {
     if let Some(j) = own.map(str::trim).filter(|j| !j.is_empty()) {
         return Ok(j.to_string());
     }
     if projects.is_empty() {
-        return Ok(ASSIGNED_OR_WATCHED_JQL.to_string());
+        return Ok(format!("{SPRINT_CLAUSE} {ORDER}"));
     }
     for p in projects {
         if !cockpit_core::is_project_key(p) {
@@ -33,23 +39,34 @@ pub fn jql_for(projects: &[String], own: Option<&str>) -> Result<String, Error> 
         }
     }
     Ok(format!(
-        "project in ({}) AND (assignee = currentUser() OR watcher = currentUser()) \
-         AND statusCategory != Done ORDER BY updated DESC",
+        "{SPRINT_CLAUSE} AND project in ({}) {ORDER}",
         projects.join(", ")
     ))
 }
 
-/// All open tickets of a project – regardless of who owns them. Applies when a
-/// project is chosen in the app.
+/// The tickets of the active sprint of a project. Applies when a project is chosen in the app.
 pub fn jql_for_project(project: &str) -> Result<String, Error> {
     if !cockpit_core::is_project_key(project) {
         return Err(Error::Config(format!(
             "Ungültiger Projektschlüssel: {project}"
         )));
     }
-    Ok(format!(
-        "project = {project} AND statusCategory != Done ORDER BY updated DESC"
-    ))
+    Ok(format!("project = {project} AND {SPRINT_CLAUSE} {ORDER}"))
+}
+
+/// Is this one of the two queries [`jql_for`] and [`jql_for_project`] build by default?
+pub fn is_sprint_query(jql: &str) -> bool {
+    let jql = jql.trim();
+    jql.ends_with(ORDER)
+        && (jql.starts_with(&format!("{SPRINT_CLAUSE} "))
+            || jql.contains(&format!(" AND {SPRINT_CLAUSE} {ORDER}")))
+}
+
+/// The query for projects without sprints: the same default query with all open tickets
+/// instead of the active sprints. `None` for any other query – a JQL set by hand is never
+/// rewritten.
+pub fn open_tickets_jql(jql: &str) -> Option<String> {
+    is_sprint_query(jql).then(|| jql.trim().replacen(SPRINT_CLAUSE, OPEN_CLAUSE, 1))
 }
 
 /// This many projects per page and at most in total.
@@ -57,6 +74,7 @@ const PROJECTS_PAGE: usize = 50;
 const MAX_PROJECTS: usize = 500;
 
 const FIELDS: &str = "summary,description,status,assignee,reporter,updated,duedate,labels";
+
 /// This many issues per page and at most in total.
 const PAGE: usize = 50;
 const MAX_ISSUES: usize = 150;
@@ -68,6 +86,8 @@ pub struct JiraClient {
     token: Secret,
     /// With OAuth: `Authorization: Bearer`, otherwise Basic with email and API token.
     oauth: bool,
+    /// The sprint field of the site, asked once per client (`None` inside: the site has none).
+    sprint_field: std::sync::Mutex<Option<Option<String>>>,
 }
 
 impl std::fmt::Debug for JiraClient {
@@ -89,6 +109,7 @@ impl JiraClient {
             email: email.to_string(),
             token,
             oauth: false,
+            sprint_field: Default::default(),
         })
     }
 
@@ -101,6 +122,7 @@ impl JiraClient {
             email: String::new(),
             token: access,
             oauth: true,
+            sprint_field: Default::default(),
         })
     }
 
@@ -164,12 +186,53 @@ impl JiraClient {
 
     /// Issues for a JQL query, page by page (`nextPageToken`), at most [`MAX_ISSUES`].
     pub async fn search(&self, jql: &str) -> Result<Vec<super::dto::Issue>, Error> {
+        self.search_with_sprint(jql, None).await
+    }
+
+    /// The ID of the sprint field of this site (`customfield_10020` and the like), from
+    /// `GET /rest/api/3/field`: the field of the Jira Software sprint type, otherwise the one
+    /// named „Sprint“. `None` if the site has none (no Jira Software). Asked once per client (the
+    /// server builds one per sync); a failed question is not kept.
+    pub async fn sprint_field(&self) -> Result<Option<String>, Error> {
+        if let Some(known) = self.sprint_field.lock().ok().and_then(|k| k.clone()) {
+            return Ok(known);
+        }
+        let fields: Vec<super::dto::FieldInfo> =
+            self.lies_json(self.get("/rest/api/3/field")).await?;
+        let is_sprint_type = |f: &super::dto::FieldInfo| {
+            f.schema
+                .as_ref()
+                .and_then(|s| s.custom.as_deref())
+                .is_some_and(|c| c.ends_with(":gh-sprint"))
+        };
+        let found = fields
+            .iter()
+            .find(|f| is_sprint_type(f))
+            .or_else(|| fields.iter().find(|f| f.name == "Sprint"))
+            .map(|f| f.id.clone())
+            .filter(|id| !id.is_empty());
+        if let Ok(mut k) = self.sprint_field.lock() {
+            *k = Some(found.clone());
+        }
+        Ok(found)
+    }
+
+    /// Like [`JiraClient::search`], additionally asking for the sprint field.
+    pub async fn search_with_sprint(
+        &self,
+        jql: &str,
+        sprint_field: Option<&str>,
+    ) -> Result<Vec<super::dto::Issue>, Error> {
+        let fields = match sprint_field {
+            Some(f) => format!("{FIELDS},{f}"),
+            None => FIELDS.to_string(),
+        };
         let mut all = Vec::new();
         let mut token: Option<String> = None;
         loop {
             let mut question = vec![
                 ("jql", jql.to_string()),
-                ("fields", FIELDS.to_string()),
+                ("fields", fields.clone()),
                 ("maxResults", PAGE.to_string()),
             ];
             if let Some(t) = &token {

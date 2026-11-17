@@ -1,19 +1,23 @@
-//! Step 2: connect Jira – the default is the API token (three simple steps, then a
-//! connection test and the choice of the project); the Atlassian app (OAuth) sits collapsed under
-//! "Erweitert". The rules (read address, texts) are in `cockpit_core::setup`.
+//! Step 2: connect Jira – a picker chooses the way, only that way is shown: the API token (three
+//! simple steps, then a connection test and the choice of the project) or the Atlassian app
+//! (OAuth). The rules (read address, texts) are in `cockpit_core::setup`.
 
 use cockpit_core::Action;
 use cockpit_core::api::{ClientInput, ConfigChange, JiraCheck, JiraInput, JiraProject};
 use cockpit_core::connections::AuthKind;
-use cockpit_core::setup::{JIRA_TOKEN_PAGE, client_id_read, jira_site_read, projects_read};
+use cockpit_core::setup::{
+    JIRA_TOKEN_PAGE, client_id_read, jira_default_method, jira_site_read, projects_read,
+};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
+use super::auth_method::{AuthMethodPicker, current};
 use super::fields::{
     Context, CopyField, Extern, Feedback, Intro, KeyField, Message, Section, config_save,
+    error_text,
 };
-use crate::oauth_card::{OAuthCard, Service};
+use crate::oauth_card::{OAuthCard, Service, forget_client};
 use crate::server::{self, CallError};
 
 /// Fills a field from the server as long as it is still empty (the user never types against it).
@@ -36,31 +40,41 @@ pub fn JiraStep(ctx: Context) -> impl IntoView {
                 .is_some_and(|h| h.sign_in.jira.connected && h.sign_in.jira.kind == AuthKind::Token)
         })
     };
-    let oauth_active = move || {
-        ctx.setup.with(|e| e.atlassian_client_id.is_some())
-            || ctx.store.health.with(|h| {
-                h.as_ref()
-                    .is_some_and(|h| h.sign_in.jira.kind == AuthKind::OAuth)
-            })
-    };
+    // Which way is shown: the one the user picked, until then the connected one (else the token).
+    let chosen = RwSignal::new(None::<AuthKind>);
+    let default = Signal::derive(move || {
+        let status = ctx.store.health.with(|h| {
+            h.as_ref()
+                .map(|h| h.sign_in.jira.clone())
+                .unwrap_or_default()
+        });
+        jira_default_method(&status, ctx.setup.with(|e| e.atlassian_client_id.is_some()))
+    });
+    let method = current(chosen, default);
+    // Both ways stay in the page (only hidden), so what was typed in one is still there after
+    // switching back and forth.
     view! {
         <VStack spacing="12px">
             <Intro title="Jira verbinden">
                 <p>
-                    "Damit zeigt dir Cockpit deine Tickets. Am einfachsten geht das mit einem „Token“: einem Passwort nur für Programme, das du in deinem Atlassian-Konto selbst erzeugst. Du brauchst drei Angaben und etwa zwei Minuten."
+                    "Damit zeigt dir Cockpit deine Tickets. Du kannst dich auf zwei Wegen anmelden – wähle oben, welchen du nutzen willst. Der API-Token ist der einfachere: ein Passwort nur für Programme, das du in deinem Atlassian-Konto selbst erzeugst."
                 </p>
                 <p>
                     <strong>"Gut zu wissen:"</strong>
-                    " Der Token hat die Rechte deines Kontos. Solange Cockpit nur lesen soll, nimm am besten ein Konto oder eine Rolle ohne Schreibrechte. Du kannst den Token jederzeit löschen."
+                    " Der Zugang hat die Rechte deines Kontos. Solange Cockpit nur lesen soll, nimm am besten ein Konto oder eine Rolle ohne Schreibrechte. Du kannst den Zugang jederzeit entziehen."
                 </p>
             </Intro>
-            <JiraToken ctx=ctx result=result />
-            {move || {
-                (result.with(|e| e.as_ref().is_some_and(|e| e.ok)) || per_token())
-                    .then(|| view! { <JiraProjectChoice ctx=ctx /> })
-            }}
-            <details class="ui-advanced" open=oauth_active>
-                <summary>"Erweitert: Mit OAuth statt Token"</summary>
+            <AuthMethodPicker chosen=chosen default=default aria_label="Anmeldeweg für Jira" />
+            <div hidden=move || method.get() != AuthKind::Token>
+                <VStack spacing="12px">
+                    <JiraToken ctx=ctx result=result />
+                    {move || {
+                        (result.with(|e| e.as_ref().is_some_and(|e| e.ok)) || per_token())
+                            .then(|| view! { <JiraProjectChoice ctx=ctx /> })
+                    }}
+                </VStack>
+            </div>
+            <div hidden=move || method.get() != AuthKind::OAuth>
                 <VStack spacing="12px">
                     <Intro title="Mit Atlassian-App (OAuth)">
                         <p>
@@ -69,7 +83,7 @@ pub fn JiraStep(ctx: Context) -> impl IntoView {
                     </Intro>
                     <JiraOauth ctx=ctx />
                 </VStack>
-            </details>
+            </div>
         </VStack>
     }
 }
@@ -101,8 +115,26 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
     prefill(projects, move || {
         ctx.setup.with(|e| e.jira_projects.join(", "))
     });
+    let site = RwSignal::new(String::new());
+    prefill(site, move || {
+        ctx.setup
+            .with(|e| e.atlassian_site.clone().unwrap_or_default())
+    });
     let back_id: Feedback = RwSignal::new(None);
+    let back_site: Feedback = RwSignal::new(None);
     let back_projects: Feedback = RwSignal::new(None);
+    // Asking before the client ID and secret are removed.
+    let confirm_remove = RwSignal::new(false);
+    let removing = RwSignal::new(false);
+    // Bumped after removing, so that the sign-in card below asks the server anew.
+    let card_generation = RwSignal::new(0u32);
+    let id_stored = Memo::new(move |_| ctx.setup.with(|e| e.atlassian_client_id.is_some()));
+    let oauth_connected = Memo::new(move |_| {
+        ctx.store.health.with(|h| {
+            h.as_ref()
+                .is_some_and(|h| h.sign_in.jira.connected && h.sign_in.jira.kind == AuthKind::OAuth)
+        })
+    });
     let callback = Signal::derive(move || ctx.setup.with(|e| e.callback_atlassian.clone()));
 
     let id_save = move |_| match client_id_read(&client_id.get_untracked()) {
@@ -121,6 +153,39 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
             || {},
         ),
         Err(m) => back_id.set(Some((false, m))),
+    };
+    let site_save = move |_| {
+        config_save(
+            ctx,
+            ConfigChange {
+                atlassian_site: Some(site.get_untracked()),
+                ..Default::default()
+            },
+            back_site,
+            "Site gespeichert.",
+            || {},
+        )
+    };
+    let remove = move |_| {
+        removing.set(true);
+        back_id.set(None);
+        spawn_local(async move {
+            match forget_client(Service::Atlassian).await {
+                Ok(()) => {
+                    client_id.set(String::new());
+                    site.set(String::new());
+                    back_id.set(Some((
+                        true,
+                        "Client-ID und Client-Secret sind entfernt.".into(),
+                    )));
+                    card_generation.update(|n| *n += 1);
+                    ctx.reload();
+                }
+                Err(e) => back_id.set(Some((false, error_text(&e)))),
+            }
+            confirm_remove.set(false);
+            removing.set(false);
+        });
     };
     let projects_save = move |_| {
         config_save(
@@ -178,11 +243,55 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                 hint="Nicht geheim. Kopiere sie genau so, wie sie in der Konsole steht."
                 autocomplete="off"
             />
-            <HStack spacing="12px">
+            <HStack spacing="12px" css="flex-wrap: wrap">
                 <Button variant=ButtonStyle::GlassProminent on_click=id_save>
                     "Client-ID speichern"
                 </Button>
+                {move || {
+                    id_stored
+                        .get()
+                        .then(|| {
+                            view! {
+                                <Button
+                                    destructive=true
+                                    disabled=Signal::derive(move || oauth_connected.get())
+                                    on_click=move |_| confirm_remove.set(true)
+                                >
+                                    "Client-ID entfernen"
+                                </Button>
+                            }
+                        })
+                }}
             </HStack>
+            {move || {
+                (id_stored.get() && oauth_connected.get())
+                    .then(|| {
+                        view! {
+                            <p class="ui-hint">
+                                "Zum Entfernen trenne zuerst unten bei „4. Anmelden“ die Verbindung (dort kannst du auch gleich Client-ID und Secret vergessen lassen)."
+                            </p>
+                        }
+                    })
+            }}
+            {move || {
+                confirm_remove
+                    .get()
+                    .then(|| {
+                        view! {
+                            <div class="ui-hint" role="alertdialog" aria-label="Client-ID entfernen">
+                                <p>
+                                    "Wirklich entfernen? Die Client-ID wird aus der Konfiguration gelöscht und das Client-Secret aus der .env-Datei. Danach musst du beides neu eintragen, um dich per OAuth anzumelden."
+                                </p>
+                                <HStack spacing="12px" css="margin-top: 8px">
+                                    <Button destructive=true disabled=removing on_click=remove>
+                                        "Ja, entfernen"
+                                    </Button>
+                                    <Button on_click=move |_| confirm_remove.set(false)>"Abbrechen"</Button>
+                                </HStack>
+                            </div>
+                        }
+                    })
+            }}
             <Message feedback=back_id />
             <KeyField
                 ctx=ctx
@@ -190,6 +299,23 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                 label="Client-Secret (Secret)"
                 hint="Geheim wie ein Passwort. Es wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert und nie wieder angezeigt."
             />
+        </Section>
+        <Section title="Site wählen (nur bei mehreren)">
+            <TextField
+                label="Site"
+                value=site
+                hint="Nur nötig, wenn dein Atlassian-Konto mehrere Sites freigibt. Name, Adresse oder ID der Site. Leer lassen: Cockpit nimmt die einzige Site. Gilt nach dem nächsten Anmelden."
+                autocomplete="off"
+            />
+            <HStack spacing="12px">
+                <Button
+                    on_click=site_save
+                    disabled=Signal::derive(move || !id_stored.get())
+                >
+                    "Site speichern"
+                </Button>
+            </HStack>
+            <Message feedback=back_site />
         </Section>
         <Section title="3. Welche Projekte? (optional)">
             <TextField
@@ -207,11 +333,16 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
             <p class="t-subheadline t-secondary">
                 "Es öffnet sich eine Seite von Atlassian. Prüfe dort den Namen deiner Site und bestätige mit „Accept“."
             </p>
-            <OAuthCard
-                service=Service::Atlassian
-                on_connected=move |_| ctx.reload()
-                on_disconnected=move |_| ctx.reload()
-            />
+            {move || {
+                card_generation.track();
+                view! {
+                    <OAuthCard
+                        service=Service::Atlassian
+                        on_connected=move |_| ctx.reload()
+                        on_disconnected=move |_| ctx.reload()
+                    />
+                }
+            }}
         </Section>
     }
 }

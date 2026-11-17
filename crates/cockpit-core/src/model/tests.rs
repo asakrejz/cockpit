@@ -54,6 +54,10 @@ fn pr_state_suggests_ticket_status() {
         changes_requested: false,
         merged: false,
         review_requested: false,
+        author: String::new(),
+        mine: false,
+        requested_me: false,
+        assigned_me: false,
     };
     assert_eq!(pr.target_status(), TicketStatus::InProgress);
     pr.draft = false;
@@ -133,6 +137,10 @@ fn pr_labels() {
         changes_requested: false,
         merged: false,
         review_requested: false,
+        author: String::new(),
+        mine: false,
+        requested_me: false,
+        assigned_me: false,
     };
     assert_eq!(pr.label(), "#87 · offen");
     assert_eq!(pr.status().1, Tone::Orange);
@@ -144,6 +152,10 @@ fn pr_labels() {
         changes_requested: false,
         merged: false,
         review_requested: false,
+        author: String::new(),
+        mine: false,
+        requested_me: false,
+        assigned_me: false,
     };
     assert_eq!(failed.label(), "#85 · Entwurf");
     assert_eq!(

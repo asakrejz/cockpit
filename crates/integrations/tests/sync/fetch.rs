@@ -133,13 +133,11 @@ async fn remote_disappears() {
     // At the service only #87 is left.
     g.reset().await;
     let g2 = github_server().await;
+    let only_87: serde_json::Value =
+        serde_json::from_str(fixture!("github_pulls_open.json")).unwrap();
     Mock::given(method("GET"))
-        .and(path("/search/issues"))
-        .and(query_param(
-            "q",
-            format!("is:pr is:open archived:false author:@me repo:{REPO}"),
-        ))
-        .respond_with(ok(r#"{"items":[]}"#))
+        .and(path(format!("/repos/{REPO}/pulls")))
+        .respond_with(ok(&json!([only_87[0]]).to_string()))
         .with_priority(1)
         .mount(&g2)
         .await;

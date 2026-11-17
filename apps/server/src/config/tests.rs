@@ -9,7 +9,7 @@ fn defaults() {
     let c = Config::parse(None, no_env).unwrap();
     assert_eq!(c.port, 8787);
     assert_eq!(c.dist, PathBuf::from("apps/cockpit/dist"));
-    assert!(c.db.ends_with("cockpit/cockpit.db"));
+    assert!(c.db.ends_with("config/cockpit.db"));
     assert!(c.github.is_none() && c.jira.is_none());
 }
 
@@ -471,4 +471,32 @@ fn webhook_settings_are_validated() {
         900,
         "never shorter than the interval"
     );
+}
+
+#[test]
+fn pull_request_limits_default_and_come_from_the_sync_section() {
+    let c = Config::parse(None, no_env).unwrap();
+    assert_eq!(
+        (c.github_pr_limits.per_repo, c.github_pr_limits.total),
+        (200, 500)
+    );
+    let toml = "[sync]\nmax_prs_per_repo = 50\nmax_prs_total = 120\n";
+    let c = Config::parse(Some(toml), no_env).unwrap();
+    assert_eq!(
+        (c.github_pr_limits.per_repo, c.github_pr_limits.total),
+        (50, 120)
+    );
+    // One value alone keeps the other at its default.
+    let c = Config::parse(Some("[sync]\nmax_prs_total = 90\n"), no_env).unwrap();
+    assert_eq!(
+        (c.github_pr_limits.per_repo, c.github_pr_limits.total),
+        (200, 90)
+    );
+    for bad in [
+        "[sync]\nmax_prs_per_repo = 0\n",
+        "[sync]\nmax_prs_total = 100000\n",
+        "[sync]\nmax_prs_per_repo = -1\n",
+    ] {
+        assert!(Config::parse(Some(bad), no_env).is_err(), "{bad}");
+    }
 }

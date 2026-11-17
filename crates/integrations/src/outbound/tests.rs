@@ -33,6 +33,10 @@ fn item(id: &str, key: &str, source: Source) -> Item {
             changes_requested: false,
             merged: false,
             review_requested: false,
+            author: String::new(),
+            mine: false,
+            requested_me: false,
+            assigned_me: false,
         }),
         agent_note: None,
         comments: Vec::<Comment>::new(),
@@ -41,6 +45,8 @@ fn item(id: &str, key: &str, source: Source) -> Item {
         due: None,
         repo: None,
         labels: Vec::new(),
+        sprint: None,
+        updated_ms: None,
     }
 }
 

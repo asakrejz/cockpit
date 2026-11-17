@@ -217,7 +217,7 @@ async fn followups_need_the_real_agent_to_be_ready_and_an_agent_branch() {
         .await
         .unwrap_err();
     assert!(
-        e.contains("noch nicht starten") && e.contains("Einrichten"),
+        e.contains("noch nicht starten") && e.contains("Schritt „Container“"),
         "{e}"
     );
     // A person's branch is refused by the rules of the workspace.

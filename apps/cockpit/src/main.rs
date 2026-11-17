@@ -69,15 +69,21 @@ fn App() -> impl IntoView {
     // Snoozing, linking, status sync and the tick of the agents run in the server.
     set_interval(move || store.now.set(now_ms()), CLOCK_TICK);
 
+    // Memos, so that the page is only rebuilt when it really changes. A plain signal notifies at
+    // every `set`, even with the same value: with `store.loaded` (set after every refresh of the
+    // state) that rebuilt the whole page – and with it the setup assistant, back to step 1.
+    let loaded = Memo::new(move |_| store.loaded.get());
+    let page = Memo::new(move |_| store.route.with(Route::page));
+
     view! {
         <Root theme=system_theme() class="ck-root">
             <ServerBanner />
             {move || {
-                if !store.loaded.get() {
+                if !loaded.get() {
                     return view! { <gate::Gate /> }.into_any();
                 }
-                match store.route.get() {
-                Route::Setup => view! { <SetupPage /> }.into_any(),
+                match page.get() {
+                Route::Setup | Route::SetupStep(_) => view! { <SetupPage /> }.into_any(),
                 Route::Inbox(filter) => view! { <InboxPage filter=filter /> }.into_any(),
                 Route::Overview => view! { <OverviewPage /> }.into_any(),
                 Route::Log => view! { <LogPage /> }.into_any(),

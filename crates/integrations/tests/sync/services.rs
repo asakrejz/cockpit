@@ -87,14 +87,17 @@ async fn github_comments_page_by_page() {
 fn jql_from_projects_and_own_query() {
     assert_eq!(
         jql_for(&["BAU".into(), "WEB".into()], None).unwrap(),
-        "project in (BAU, WEB) AND (assignee = currentUser() OR watcher = currentUser()) AND statusCategory != Done ORDER BY updated DESC"
+        "sprint in openSprints() AND project in (BAU, WEB) ORDER BY updated DESC"
     );
     assert_eq!(
         jql_for(&["BAU".into()], Some(" project = X ")).unwrap(),
         "project = X"
     );
     assert!(jql_for(&["BAU) OR (x".into()], None).is_err());
-    assert!(jql_for(&[], None).unwrap().contains("currentUser()"));
+    assert_eq!(
+        jql_for(&[], None).unwrap(),
+        "sprint in openSprints() ORDER BY updated DESC"
+    );
 }
 
 #[test]
