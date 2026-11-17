@@ -12,7 +12,10 @@ async fn start_without_setup_shows_a_understandable_message() {
         "{ort}"
     );
     let message = param(&ort, "message");
-    assert!(message.contains("token set github-oauth"), "{message}");
+    assert!(
+        message.contains("Schritt „GitHub“") && message.contains("Client-Secret"),
+        "{message}"
+    );
 
     // Without a client ID in the configuration.
     let p = TestBench {

@@ -111,3 +111,12 @@ body { margin: 0; }
 @media (max-width: 400px) {
   .ui-pane__header .t-large-title { font-size: 28px; line-height: 34px; }
 }
+
+/* Output of the image build: last lines only, an arrow at the top right opens all of it. */
+.ck-log { position: relative; }
+.ck-log__text { min-height: 0; max-height: calc(5 * 20px + 28px); overflow: hidden; padding-right: 48px; }
+.ck-log[data-expanded] .ck-log__text { max-height: min(60vh, 420px); overflow: auto; }
+.ck-log__toggle { position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--ref-radius-full); background: var(--sys-color-fill); color: var(--sys-color-label); cursor: pointer; }
+.ck-log__toggle:focus-visible { outline: 2px solid var(--sys-color-tint); outline-offset: 2px; }
+.ck-log__toggle svg { transform: rotate(90deg); transition: transform var(--sys-motion-smooth); }
+.ck-log[data-expanded] .ck-log__toggle svg { transform: rotate(-90deg); }

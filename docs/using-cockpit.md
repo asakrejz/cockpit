@@ -6,7 +6,7 @@ Pages (hash routes):
 
 | Page | Address | What it does |
 |------|---------|--------------|
-| Einrichten | `#/setup` | state and next step per service: sign in to / disconnect Jira and GitHub, check the agent endpoint, detect the container runtime |
+| Einrichten | `#/setup`, `#/setup/<step>` | state and next step per service: sign in to / disconnect Jira and GitHub, check the agent endpoint, detect the container runtime |
 | Aufmerksamkeit | `#/`, `#/mine`, `#/team`, `#/snoozed` | inbox of tickets and pull requests, filtered by switchable rules (mention, review request, blocked PR, overdue ticket, agent done, assigned); snooze; change status, create a branch, reply, assign the agent; edit a ticket; link ticket and PR; search, source filter and project/repo/person/status/label filters; keys `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
 | Review | `#/review/87` | read the diff; select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you) |
 | Übersicht | `#/overview` | open entries and load per person; "Hängt" shows failed checks, waiting reviews, tickets without a branch and agents waiting for you |

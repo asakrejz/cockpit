@@ -10,6 +10,9 @@ use crate::connections::{AuthKind, ServiceStatus};
 mod inputs;
 pub use inputs::*;
 
+mod log;
+pub use log::*;
+
 mod endpoint;
 pub use endpoint::*;
 
@@ -79,20 +82,63 @@ impl Step {
         self.index().checked_sub(1).map(|i| Self::ALL[i])
     }
 
-    /// ID for the address (`#/einrichten/jira`).
+    /// ID for the address (`#/setup/jira`).
     pub fn id(self) -> &'static str {
         match self {
             Step::Container => "container",
             Step::Jira => "jira",
             Step::GitHub => "github",
-            Step::Model => "modell",
+            Step::Model => "model",
             Step::Live => "live",
-            Step::Done => "fertig",
+            Step::Done => "done",
         }
     }
 
+    /// The step of an address part. The older German ids (`modell`, `fertig`) still work.
     pub fn from_id(id: &str) -> Option<Step> {
-        Self::ALL.into_iter().find(|s| s.id() == id)
+        let id = id.to_ascii_lowercase();
+        match id.as_str() {
+            "modell" => Some(Step::Model),
+            "fertig" => Some(Step::Done),
+            _ => Self::ALL.into_iter().find(|s| s.id() == id),
+        }
+    }
+
+    /// The address of the step: `#/setup/jira`.
+    pub fn hash(self) -> String {
+        format!("#/setup/{}", self.id())
+    }
+}
+
+/// Where the assistant opens without a step in the address: the first step whose summary
+/// line is not good yet, otherwise the last one (the summary).
+pub fn first_open_step(lines: &[Line]) -> Step {
+    lines
+        .iter()
+        .find(|l| l.tone != Tone::Good)
+        .map_or(Step::Done, |l| l.step)
+}
+
+/// The step that a message names as `Schritt „GitHub“` (or `Schritt „Modell“` …). The interface
+/// uses it to put a link to that step under the message.
+pub fn step_mentioned(text: &str) -> Option<Step> {
+    const MARK: &str = "Schritt „";
+    let start = text.find(MARK)? + MARK.len();
+    let end = start + text[start..].find('“')?;
+    let name = &text[start..end];
+    Step::ALL
+        .into_iter()
+        .find(|s| s.name() == name || (*s == Step::Live && name == "Live"))
+}
+
+/// Which sign-in way the Jira step shows first: the way that is already connected; if none is,
+/// OAuth only when its client ID is already entered (the user started it), otherwise the API token.
+pub fn jira_default_method(jira: &ServiceStatus, oauth_client_id_set: bool) -> AuthKind {
+    match (jira.connected, jira.kind) {
+        (true, AuthKind::OAuth) => AuthKind::OAuth,
+        (true, _) => AuthKind::Token,
+        (false, _) if oauth_client_id_set => AuthKind::OAuth,
+        (false, _) => AuthKind::Token,
     }
 }
 
@@ -159,10 +205,11 @@ pub fn key_name_allowed(name: &str) -> bool {
     KEY_NAMES.contains(&name)
 }
 
-/// Whether `name` is a token that „Trennen“ may delete from the .env file. Client secrets and
-/// the model key do not belong to it.
+/// Whether `name` is a key that the interface may delete from the .env file again: the tokens
+/// („Trennen“) and the client secrets of the OAuth apps („Client-ID entfernen“). The model key
+/// does not belong to it.
 pub fn key_deletable(name: &str) -> bool {
-    matches!(name, "jira" | "github")
+    matches!(name, "jira" | "github" | "atlassian-oauth" | "github-oauth")
 }
 
 #[cfg(test)]

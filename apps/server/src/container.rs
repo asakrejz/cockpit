@@ -28,13 +28,13 @@ fn chosen(config: Option<&str>, env: Option<&str>) -> Option<(String, &'static s
 
 fn not_found(cli: &str) -> String {
     format!(
-        "„{cli}“ steht nicht im PATH. Installiere es (Docker: Rancher Desktop mit Engine „dockerd (moby)“; Podman: brew install podman) oder wähle die andere Laufzeit."
+        "„{cli}“ steht nicht im PATH. Installiere es (Docker: Rancher Desktop mit Engine „dockerd (moby)“, oder Podman) – die Anleitung steht im Schritt „Container“ – oder wähle die andere Laufzeit."
     )
 }
 
 fn not_started(cli: &str) -> String {
     match cli {
-        "podman" => "„podman info“ schlägt fehl. Starte die Maschine mit „podman machine start“.".into(),
+        "podman" => "„podman info“ schlägt fehl. Starte die Podman-Maschine, die Anleitung steht im Schritt „Container“.".into(),
         _ => "„docker info“ schlägt fehl. Starte Rancher Desktop und stelle die Engine auf „dockerd (moby)“ (nicht „containerd“).".into(),
     }
 }

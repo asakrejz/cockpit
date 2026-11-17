@@ -59,6 +59,10 @@ pub struct ConfigChange {
     pub atlassian: Option<ClientInput>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub github_oauth: Option<ClientInput>,
+    /// `[atlassian] site`: which site to use if several are approved (name, address or id).
+    /// Empty removes the value; needs `[atlassian] client_id` (set earlier or in the same change).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub atlassian_site: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub github: Option<GitHubInput>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -95,6 +99,9 @@ pub struct Setup {
     pub jira_projects: Vec<String>,
     #[serde(default)]
     pub atlassian_client_id: Option<String>,
+    /// `[atlassian] site`, if set.
+    #[serde(default)]
+    pub atlassian_site: Option<String>,
     #[serde(default)]
     pub github_client_id: Option<String>,
     #[serde(default)]

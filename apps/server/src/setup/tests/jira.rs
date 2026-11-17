@@ -85,7 +85,7 @@ async fn jira_test_gives_the_token_never_out_also_when_jira_it_echoes() {
 }
 
 #[tokio::test]
-async fn disconnect_deletes_only_tokens() {
+async fn deleting_a_key_is_limited_to_tokens_and_client_secrets() {
     let (app, secrets) = jira_state("", "", true);
     secrets.set("litellm", &Secret::new(TOKEN)).unwrap();
     let delete = |name: &str| {
@@ -100,8 +100,14 @@ async fn disconnect_deletes_only_tokens() {
     assert!(secrets.get("jira").unwrap().is_none());
     // A second time is no error.
     assert_eq!(send_request(&app, delete("jira")).await.0, StatusCode::OK);
-    // The model key and client secrets stay.
-    for name in ["litellm", "atlassian-oauth", "unsinn"] {
+    // A client secret can be forgotten ("Client-ID entfernen"); the model key stays.
+    secrets
+        .set("atlassian-oauth", &Secret::new("client-secret"))
+        .unwrap();
+    let (status, _) = send_request(&app, delete("atlassian-oauth")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(secrets.get("atlassian-oauth").unwrap().is_none());
+    for name in ["litellm", "agent-key", "unsinn"] {
         assert_eq!(
             send_request(&app, delete(name)).await.0,
             StatusCode::NOT_FOUND

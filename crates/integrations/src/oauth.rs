@@ -391,7 +391,7 @@ pub fn site_choose(sites: &[Site], requested: Option<&str>) -> Result<Site, Erro
         }
         ([eine], None) => Ok(eine.clone()),
         (_, None) => Err(Error::NotPossible(format!(
-            "Mehrere Sites freigegeben ({}) – in config.toml unter [atlassian] `site` setzen",
+            "Mehrere Sites freigegeben ({}) – wähle sie im Schritt „Jira“ im Feld „Site“ (unter OAuth)",
             names()
         ))),
     }
