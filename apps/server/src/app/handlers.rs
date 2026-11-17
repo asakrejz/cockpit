@@ -1,0 +1,194 @@
+//! The HTTP handlers of the API.
+
+use super::*;
+
+/// `GET /api/agent/check`: only calls `GET <url>/v1/models` with the
+/// key and reports whether the endpoint is reachable, accepts the key and offers the model.
+/// Never the key.
+pub(super) async fn endpoint_check(State(state): State<AppState>) -> Response {
+    let choice = state.agent_choice();
+    let Some(e) = choice.endpoint.clone() else {
+        // Without an entry there is nothing to check (not even "direct": first the person chooses a model).
+        return Json(cockpit_core::api::EndpointCheck {
+            hint: Some(
+                "Der Endpunkt ist nicht eingerichtet. Wähle im Schritt „Modell“ Anbieter, Endpunkt und Modell."
+                    .into(),
+            ),
+            ..Default::default()
+        })
+        .into_response();
+    };
+    let key = match state.endpoint_key().await {
+        Ok(k) => k,
+        Err(answer) => return *answer,
+    };
+    Json(
+        cockpit_integrations::endpoint::verify(
+            &state.endpoint_target(),
+            key.as_ref(),
+            e.model.as_deref(),
+        )
+        .await,
+    )
+    .into_response()
+}
+
+/// `GET /api/agent/models`: the model IDs of the endpoint (IDs only, sorted) for the drop-down.
+/// The key comes from the .env file and never leaves the backend.
+pub(super) async fn agent_models(State(state): State<AppState>) -> Response {
+    let key = match state.endpoint_key().await {
+        Ok(k) => k,
+        Err(answer) => return *answer,
+    };
+    Json(cockpit_integrations::endpoint::models_load(&state.endpoint_target(), key.as_ref()).await)
+        .into_response()
+}
+
+/// `GET /api/agent/image`: state of "Image bauen" (running, present, last lines, error).
+pub(super) async fn agent_image_read(State(state): State<AppState>) -> Response {
+    match tokio::task::spawn_blocking(move || state.image_state()).await {
+        Ok(b) => Json(b).into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+/// `POST /api/agent/image`: builds the agent image in the background (`docker build` or `podman build`).
+/// The progress is in `GET /api/agent/image`.
+pub(super) async fn agent_image_build(State(state): State<AppState>) -> Response {
+    match tokio::task::spawn_blocking(move || state.image_build()).await {
+        Ok(Ok(b)) => Json(b).into_response(),
+        Ok(Err(m)) => error(StatusCode::UNPROCESSABLE_ENTITY, m),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+/// `GET /api/agent/check/container`: does a
+/// container reach the endpoint (check mode of the image)?
+pub(super) async fn endpoint_check_container(State(state): State<AppState>) -> Response {
+    Json(state.container_check().await).into_response()
+}
+
+/// `GET /api/agent/pull-request?run=<key>`: preview of the pull request for the branch of a
+/// finished real run. Creates nothing.
+pub(super) async fn pull_request_preview(
+    State(state): State<AppState>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    let Some(run) = q.get("run").filter(|r| !r.is_empty()) else {
+        return error(StatusCode::BAD_REQUEST, "Es fehlt der Lauf (run)");
+    };
+    match state.pull_request_preview(run).await {
+        Ok(p) => Json(p).into_response(),
+        Err(e) => action_error(e),
+    }
+}
+
+pub(super) async fn api_unknown() -> (StatusCode, Json<serde_json::Value>) {
+    (
+        StatusCode::NOT_FOUND,
+        Json(serde_json::json!({ "error": "Unbekannte Adresse" })),
+    )
+}
+
+pub(crate) fn error(status: StatusCode, message: impl Into<String>) -> Response {
+    (
+        status,
+        Json(ErrorBody {
+            error: message.into(),
+        }),
+    )
+        .into_response()
+}
+
+/// `GET /api/workspace`: the current state, shape of `cockpit_core::persist` plus `revision`.
+pub(super) async fn workspace(State(state): State<AppState>) -> Response {
+    (
+        [(CONTENT_TYPE, "application/json")],
+        state.inner.live.snapshot(),
+    )
+        .into_response()
+}
+
+/// `POST /api/actions`: applies the action as "Du" with the time of the server. If it acts
+/// to the outside (Jira, GitHub), the call to the service goes first; if it fails, nothing
+/// changes. We read the body ourselves so that an unknown action gets a German message.
+pub(super) async fn action(State(state): State<AppState>, body: Bytes) -> Response {
+    let Ok(request) = serde_json::from_slice::<ActionRequest>(&body) else {
+        return error(
+            StatusCode::BAD_REQUEST,
+            "Die Anfrage ist keine bekannte Aktion",
+        );
+    };
+    // Another Jira project: sync right away so that its tickets arrive. The result
+    // reaches the app through the event stream.
+    let project_switched = matches!(
+        request.action,
+        cockpit_core::Action::SelectJiraProject { .. }
+    );
+    match state.action_run(request.action).await {
+        Ok(answer) => {
+            if project_switched {
+                let s = state.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = s.sync().await {
+                        tracing::warn!("Sync after project change: {e:?}");
+                    }
+                });
+            }
+            Json(answer).into_response()
+        }
+        Err(e) => action_error(e),
+    }
+}
+
+/// `POST /api/sync`: "jetzt abgleichen".
+pub(super) async fn sync(State(state): State<AppState>) -> Response {
+    match state.sync().await {
+        Ok(answer) => Json(answer).into_response(),
+        Err(e) => action_error(e),
+    }
+}
+
+/// `GET /api/jira/projects`: the projects for the selection in the inbox.
+pub(super) async fn jira_projects(State(state): State<AppState>) -> Response {
+    match state.jira_projects().await {
+        Ok(answer) => Json(answer).into_response(),
+        Err(e) => action_error(e),
+    }
+}
+
+pub(super) fn action_error(e: ActionFailure) -> Response {
+    match e {
+        // All rejections by the rules are 422 – without listing individual errors.
+        ActionFailure::Rule(e) => error(StatusCode::UNPROCESSABLE_ENTITY, e.message()),
+        ActionFailure::Plan(m) => error(StatusCode::UNPROCESSABLE_ENTITY, m),
+        // The service has rejected or is not reachable.
+        ActionFailure::Service(m) => error(StatusCode::BAD_GATEWAY, m),
+        ActionFailure::Save(m) => {
+            tracing::error!("Workspace not saved: {m}");
+            error(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Der Stand konnte nicht gespeichert werden",
+            )
+        }
+        ActionFailure::Intern => error(StatusCode::INTERNAL_SERVER_ERROR, "Interner Fehler"),
+    }
+}
+
+/// `GET /api/events`: server-sent events. First the current revision, then one event
+/// per applied action. Whoever reads too slowly gets the current revision and reloads.
+pub(super) async fn events(
+    State(state): State<AppState>,
+) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
+    let (rx, first) = state.inner.live.subscribe();
+    let more = BroadcastStream::new(rx).map(move |event| {
+        event.unwrap_or_else(|_| ServerEvent {
+            revision: state.inner.live.revision(),
+            entries: Vec::new(),
+        })
+    });
+    let strom = tokio_stream::once(first)
+        .chain(more)
+        .map(|e| Ok(Event::default().json_data(&e).unwrap_or_default()));
+    Sse::new(strom).keep_alive(KeepAlive::new().interval(KEEP_ALIVE))
+}

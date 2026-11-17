@@ -87,3 +87,56 @@ impl CheckRun {
         true
     }
 }
+
+impl Review {
+    /// Overall state from the individual checks: one red is enough for „failed“,
+    /// otherwise „running“ applies as long as one is running. Without details `checks` stays as it is.
+    pub fn sync_checks(&mut self) {
+        if self.check_runs.is_empty() {
+            return;
+        }
+        let any = |c: Checks| self.check_runs.iter().any(|r| r.status == c);
+        self.checks = if any(Checks::Failed) {
+            Checks::Failed
+        } else if any(Checks::Running) {
+            Checks::Running
+        } else {
+            Checks::Passed
+        };
+    }
+
+    /// Restarts a failed check. `false` if it does not exist or is
+    /// not red.
+    pub fn restart_check(&mut self, name: &str) -> bool {
+        let restarted = self
+            .check_runs
+            .iter_mut()
+            .find(|c| c.name == name)
+            .is_some_and(CheckRun::restart);
+        if restarted {
+            self.sync_checks();
+        }
+        restarted
+    }
+
+    /// Lets every running check advance one step. Returns the names of the checks
+    /// that finished in the process.
+    pub fn advance_checks(&mut self) -> Vec<String> {
+        let done: Vec<String> = self
+            .check_runs
+            .iter_mut()
+            .filter_map(|c| c.advance().then(|| c.name.clone()))
+            .collect();
+        if !done.is_empty() {
+            self.sync_checks();
+        }
+        done
+    }
+
+    pub fn running_checks(&self) -> usize {
+        self.check_runs
+            .iter()
+            .filter(|c| c.status == Checks::Running)
+            .count()
+    }
+}

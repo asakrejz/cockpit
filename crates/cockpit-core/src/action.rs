@@ -308,74 +308,6 @@ impl Action {
     }
 }
 
-/// Who triggered the action.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Actor {
-    #[serde(alias = "Du")]
-    User,
-    Agent,
-    System,
-}
-
-impl Actor {
-    pub const ALL: [Actor; 3] = [Actor::User, Actor::Agent, Actor::System];
-
-    pub fn label(self) -> &'static str {
-        match self {
-            Actor::User => "Du",
-            Actor::Agent => "Agent",
-            Actor::System => "System",
-        }
-    }
-
-    pub fn id(self) -> &'static str {
-        match self {
-            Actor::User => "du",
-            Actor::Agent => "agent",
-            Actor::System => "system",
-        }
-    }
-
-    pub fn from_id(id: &str) -> Option<Actor> {
-        Actor::ALL.into_iter().find(|a| a.id() == id)
-    }
-}
-
-/// What a log entry refers to.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub enum Target {
-    /// An inbox entry (internal ID).
-    Item(String),
-    /// A review (the pull request; old logs hold the plain number).
-    Review(PrKey),
-    /// The run of an agent (ticket key).
-    Run(String),
-    /// The settings (notifications).
-    Settings,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct LogEntry {
-    /// Running number, rises with every entry.
-    pub id: u64,
-    /// Point in time in milliseconds since 1970.
-    pub at_ms: u64,
-    pub actor: Actor,
-    #[serde(default)]
-    pub target: Option<Target>,
-    /// Short German sentence.
-    pub text: String,
-}
-
-/// Result of a successful action.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Applied {
-    /// The sentence that stands in the log (with several entries: the first).
-    pub summary: String,
-    /// Number of new log entries.
-    pub logged: usize,
-}
-
 mod agent;
 mod error;
 mod inbox;
@@ -388,6 +320,9 @@ mod tests;
 pub use error::ActionError;
 use error::agent_error;
 use note::{Note, plural, status_label, status_notes};
+
+mod log;
+pub use log::*;
 
 impl Workspace {
     /// Applies an action and writes it into the log.

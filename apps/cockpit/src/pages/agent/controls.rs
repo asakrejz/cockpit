@@ -1,0 +1,167 @@
+//! The buttons of the run and the notes that go with them.
+
+use crate::route::Route;
+use feature_ui::*;
+use leptos::prelude::*;
+
+use super::context::{AgentCtx, OptionSignals};
+
+/// The buttons for the current state of the run.
+pub(super) fn controls(ctx: AgentCtx) -> impl IntoView {
+    let AgentCtx {
+        run,
+        idle,
+        running,
+        awaiting,
+        paused,
+        diagnosed,
+        followup,
+        working,
+        violations,
+        blocked,
+        ..
+    } = ctx;
+    let OptionSignals {
+        agent_repos, repo, ..
+    } = ctx.form;
+    let start = move |_| ctx.start();
+    let cancel = move |_| ctx.cancel();
+    let approve = move |_| ctx.approve();
+    let reject = move |_| ctx.reject();
+    let pause = move |_| ctx.pause();
+    let resume = move |_| ctx.resume();
+    let to_ticket = move |_| ctx.to_ticket();
+    let apply_fix = move |_| ctx.apply_fix();
+    let discard_fix = move |_| ctx.discard_fix();
+    view! {
+        <div class="ui-hstack" style="--spacing: 10px">
+            <Show when=move || idle.get() && !followup.get()>
+                <Button
+                    variant=ButtonStyle::GlassProminent
+                    size=ControlSize::Large
+                    disabled=Signal::derive(move || {
+                        blocked.get().is_some()
+                            || (!agent_repos.get().is_empty() && repo.get().is_empty())
+                    })
+                    on_click=start
+                >
+                    <Icon path=icons::SPARKLES />
+                    "Agent starten"
+                </Button>
+            </Show>
+            <Show when=move || awaiting.get()>
+                <Button
+                    variant=ButtonStyle::GlassProminent
+                    size=ControlSize::Large
+                    disabled=Signal::derive(move || !violations.get().is_empty())
+                    on_click=approve
+                >
+                    "Plan freigeben"
+                </Button>
+                <Button size=ControlSize::Large destructive=true on_click=reject>
+                    "Plan ablehnen"
+                </Button>
+            </Show>
+            <Show when=move || running.get()>
+                <Button size=ControlSize::Large on_click=pause>
+                    "Pausieren"
+                </Button>
+            </Show>
+            <Show when=move || paused.get()>
+                <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large on_click=resume>
+                    "Fortsetzen"
+                </Button>
+            </Show>
+            <Show when=move || diagnosed.get()>
+                <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large on_click=apply_fix>
+                    {move || {
+                        if run.get().and_then(|r| r.diagnosis).is_some_and(|d| !d.changes_code()) {
+                            "Check neu starten"
+                        } else {
+                            "Fix übernehmen"
+                        }
+                    }}
+                </Button>
+                <Button size=ControlSize::Large destructive=true on_click=discard_fix>
+                    "Verwerfen"
+                </Button>
+            </Show>
+            <Show when=move || working.get() && !diagnosed.get()>
+                <Button size=ControlSize::Large destructive=true on_click=cancel>
+                    "Abbrechen"
+                </Button>
+            </Show>
+            {move || {
+                let number = run.get().filter(|r| r.is_done() || r.is_followup())?.pr_key()?;
+                Some(
+                    view! {
+                        <Button
+                            variant=ButtonStyle::GlassProminent
+                            size=ControlSize::Large
+                            href=Route::Review(Some(number)).hash()
+                        >
+                            {move || if followup.get() { "Zum Review" } else { "Pull Request prüfen" }}
+                        </Button>
+                    },
+                )
+            }}
+            <Button variant=ButtonStyle::Borderless size=ControlSize::Large on_click=to_ticket>
+                {move || if followup.get() { "Zum Eintrag" } else { "Zum Ticket" }}
+            </Button>
+        </div>
+    }
+}
+
+/// Why the agent cannot start, with the link to the setup.
+pub(super) fn blocked_hint(ctx: AgentCtx) -> Option<impl IntoView> {
+    let AgentCtx {
+        store,
+        idle,
+        blocked,
+        ..
+    } = ctx;
+    blocked.get().filter(|_| idle.get()).map(|reason| {
+        // The server says exactly what is missing and where to set it up.
+        let exactly = store.health.with(|h| {
+            h.as_ref()
+                .map(|h| h.agent.missing.join(" "))
+                .filter(|t| !t.is_empty())
+        });
+        view! {
+            <p class="t-footnote t-secondary">
+                {exactly.unwrap_or_else(|| reason.to_string())} " "
+                <a class="ui-link" href=Route::Setup.hash()>"Zur Einrichtung"</a>
+            </p>
+        }
+    })
+}
+
+/// Why the last run ended without a result (error, timeout, restart).
+pub(super) fn ended_banner(ctx: AgentCtx) -> Option<impl IntoView> {
+    let AgentCtx { run, .. } = ctx;
+    // Why the last run ended without a result (error, timeout, restart).
+    run.get()
+        .filter(|r| r.is_idle())
+        .and_then(|r| r.ended)
+        .map(|text| {
+            view! {
+                <StatusBanner
+                    tone=BannerTone::Error
+                    title="Der letzte Lauf endete ohne Ergebnis"
+                    text=text
+                >
+                    <Button size=ControlSize::Small href=Route::Setup.hash()>
+                        "Einrichtung prüfen"
+                    </Button>
+                </StatusBanner>
+            }
+        })
+}
+
+/// Message of the last action that did not work.
+pub(super) fn problem_alert(ctx: AgentCtx) -> Option<impl IntoView> {
+    let AgentCtx { problem, .. } = ctx;
+    problem.get().map(|text| {
+        view! { <p class="t-footnote ck-problem" role="alert">{text}</p> }
+    })
+}
