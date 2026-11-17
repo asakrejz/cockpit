@@ -19,6 +19,7 @@
 mod access;
 mod agent_followup;
 mod agent_git;
+mod agent_image;
 mod agent_ops;
 mod agent_run;
 mod app;

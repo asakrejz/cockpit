@@ -30,7 +30,8 @@ dirs = "6"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 toml_edit = "0.25.19"
-# HMAC-SHA256 for webhook signatures (built by hand from SHA-256) and random secrets
+# SHA-256: HMAC for webhook signatures (built by hand), fingerprint of the agent image sources
+# (agent_image.rs); and random secrets
 sha2 = "0.10"
 getrandom = "0.4"
 

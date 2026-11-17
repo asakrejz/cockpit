@@ -112,8 +112,13 @@ The agent implements a ticket in a **container** (Claude Agent SDK, Claude Code 
    (`podman machine start`). The assistant ("Einrichten" › "Container") shows whether it runs.
 2. **Build the image:** click "Image bauen" there (or `POST /api/agent/image`). The build downloads packages and
    takes a few minutes; progress and errors appear below in plain text. `/api/health` reports under `agent`
-   whether the image exists (`image inspect`). By hand:
-   `docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:5 apps/agent` (or `podman`).
+   the state of the image: `image_state` is `missing`, `outdated`, `current` or `unknown` (not checkable). The image
+   always has the same name, `localhost/cockpit-agent:local`; the build gives it the label `cockpit.fingerprint`, and
+   Cockpit compares it with a fingerprint of the sources (see `apps/agent/README.md`). So a new Cockpit version
+   detects an old image by itself and asks to rebuild; there is no tag to raise. A build by hand
+   (`docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:local apps/agent`, or `podman`) has no label
+   and counts as outdated, so use the assistant. Old images from before (`localhost/cockpit-agent:5`) are not used any
+   more; remove them yourself if you like: `docker image rm localhost/cockpit-agent:5` (or `podman image rm …`).
 3. **Provider and endpoint:** in the "Modell" step choose the tool (Claude Agent SDK, Claude Code or Codex; see the table
    under "Model provider and endpoint"), the endpoint (directly at the provider, your own proxy such as LiteLLM, or
    another compatible endpoint), store the key (`.env`, name `agent-key`, variable `AGENT_KEY`) and pick the model from the list that

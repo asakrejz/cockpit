@@ -7,10 +7,12 @@ impl AppState {
     pub(crate) fn image_state(&self) -> ImageBuild {
         let mut b = lock(&self.inner.agent.build).clone();
         let status = self.container_status();
-        b.present = status.engine_running
-            && self
-                .cli_path(&status)
-                .is_some_and(|cli| self.image_present(&cli));
+        let probe = self
+            .cli_path(&status)
+            .filter(|_| status.engine_running)
+            .map(|cli| self.image_probe(&cli));
+        b.state = probe.as_ref().map_or(ImageState::Missing, |p| p.state);
+        b.present = b.state != ImageState::Missing;
         b
     }
 
@@ -35,6 +37,7 @@ impl AppState {
                 source.display()
             ));
         }
+        let fingerprint = agent_image::fingerprint(&source)?;
         {
             let mut b = lock(&self.inner.agent.build);
             if b.running {
@@ -43,12 +46,13 @@ impl AppState {
             *b = ImageBuild {
                 running: true,
                 present: false,
+                state: ImageState::Missing,
                 error: None,
                 lines: vec!["Der Bau startet …".into()],
             };
         }
         let s = self.clone();
-        tokio::spawn(async move { build_task(s, cli, source).await });
+        tokio::spawn(async move { build_task(s, cli, source, fingerprint).await });
         Ok(lock(&self.inner.agent.build).clone())
     }
 }
@@ -86,13 +90,28 @@ pub fn build_hint(lines: &[String]) -> Option<&'static str> {
     }
 }
 
-pub(super) async fn build_task(state: AppState, cli: PathBuf, source: PathBuf) {
+/// The arguments of `<cli> build`: the fixed image name and the fingerprint label.
+pub(super) fn build_args(containerfile: &Path, source: &Path, fingerprint: &str) -> Vec<OsString> {
+    let mut a: Vec<OsString> = vec!["build".into(), "-f".into(), containerfile.into()];
+    a.extend([
+        "--label".into(),
+        format!("{}={fingerprint}", agent_image::FINGERPRINT_LABEL).into(),
+        "-t".into(),
+        IMAGE.into(),
+        source.into(),
+    ]);
+    a
+}
+
+pub(super) async fn build_task(
+    state: AppState,
+    cli: PathBuf,
+    source: PathBuf,
+    fingerprint: String,
+) {
     let containerfile = source.join("Containerfile");
     let mut cmd = Command::new(&cli);
-    cmd.args(["build", "-f"])
-        .arg(&containerfile)
-        .args(["-t", IMAGE])
-        .arg(&source)
+    cmd.args(build_args(&containerfile, &source, &fingerprint))
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -103,6 +122,11 @@ pub(super) async fn build_task(state: AppState, cli: PathBuf, source: PathBuf) {
         let mut b = lock(&state.inner.agent.build);
         b.running = false;
         b.present = error.is_none();
+        b.state = if error.is_none() {
+            ImageState::Current
+        } else {
+            ImageState::Missing
+        };
         b.error = error;
     };
     let mut kind = match kind {

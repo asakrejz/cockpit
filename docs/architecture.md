@@ -247,7 +247,7 @@ token (`GitHubClient::review_input` / `failed_checks`, read only; shortened by `
 `job.json` under `followup` (secrets of the agent key and GitHub token are redacted from it). The watcher starts a
 container like for a normal run (`RunKind::runs_in_container`); the clone is the existing `claude/…` branch
 (`agent_git::clone_branch`), the check and push are the same as always (fast-forward only, path rules, never a
-force-push). The container never gets the GitHub token. Image tag `localhost/cockpit-agent:5` (`:5` adds the Claude Code and Codex CLIs, pinned in `apps/agent/clis/package-lock.json`; the job contract gained
+force-push). The container never gets the GitHub token. The image has the fixed name `localhost/cockpit-agent:local`; whether it is current is detected by the label `cockpit.fingerprint` (SHA-256 over Containerfile, runner sources, the lockfiles of runner and CLIs, and the `CONTRACT` constant; details in `apps/agent/README.md`), and a run only starts with a current image. The image contains the Claude Code and Codex CLIs, pinned in `apps/agent/clis/package-lock.json`; the job contract gained
 `followup`, and `repo` – the `owner/name` the backend cloned; follow-up jobs and the pull request always use the repo of the
 pull request / run, never "the" configured repo).
 

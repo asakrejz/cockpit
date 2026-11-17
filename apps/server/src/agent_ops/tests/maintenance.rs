@@ -81,7 +81,13 @@ async fn build_the_images_with_progress_and_error() {
     assert!(
         build.contains("-f ")
             && build.contains("Containerfile")
-            && build.contains("-t localhost/cockpit-agent:5"),
+            && build.contains("-t localhost/cockpit-agent:local"),
+        "{build}"
+    );
+    let fp = crate::agent_image::fingerprint(&w.state.inner.settings.agent_dir.clone().unwrap())
+        .unwrap();
+    assert!(
+        build.contains(&format!("--label cockpit.fingerprint={fp}")),
         "{build}"
     );
 
@@ -136,4 +142,54 @@ async fn build_without_containerfile_and_without_runtime_says_why() {
         .unwrap()
         .unwrap_err();
     assert!(e.contains("docker") && e.contains("PATH"), "{e}");
+}
+
+#[test]
+fn build_args_are_plain_cli_flags_for_docker_and_podman() {
+    let a: Vec<String> =
+        image_build::build_args(Path::new("/x/Containerfile"), Path::new("/x"), "abc123")
+            .into_iter()
+            .map(|s| s.to_string_lossy().into_owned())
+            .collect();
+    assert_eq!(
+        a,
+        [
+            "build",
+            "-f",
+            "/x/Containerfile",
+            "--label",
+            "cockpit.fingerprint=abc123",
+            "-t",
+            "localhost/cockpit-agent:local",
+            "/x"
+        ]
+    );
+}
+
+#[tokio::test]
+async fn build_refused_without_sources_and_state_after_build() {
+    let w = welt(true);
+    w.write("label.out", "stale\n");
+    let st = w.state.clone();
+    let before = tokio::task::spawn_blocking(move || st.image_state())
+        .await
+        .unwrap();
+    assert_eq!(before.state, cockpit_core::api::ImageState::Outdated);
+    std::fs::remove_dir_all(
+        w.state
+            .inner
+            .settings
+            .agent_dir
+            .clone()
+            .unwrap()
+            .join("clis"),
+    )
+    .unwrap();
+    let st = w.state.clone();
+    let e = tokio::task::spawn_blocking(move || st.image_build())
+        .await
+        .unwrap()
+        .unwrap_err();
+    assert!(e.contains("clis"), "{e}");
+    assert!(!w.log("calls.log").contains("build "));
 }

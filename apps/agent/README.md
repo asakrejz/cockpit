@@ -5,15 +5,34 @@ The Cockpit agent runs in its own container per run (Docker or Podman). This dir
 - `Containerfile`: Node 24, Git, the runner and the agent CLIs; runs as the user `node` (not root).
 - `clis/`: `package.json` + `package-lock.json` with the exact versions of `@anthropic-ai/claude-code` and `@openai/codex`
   (installed with `npm ci`, never "latest"; no secret file is written during the install). To update a CLI, change the
-  version in `clis/package.json`, run `npm install --package-lock-only` there, review and rebuild (new image tag).
+  version in `clis/package.json`, run `npm install --package-lock-only` there, review and rebuild (the fingerprint changes by itself).
 - `runner/`: the runner (TypeScript, no build step: Node executes `.ts` directly). It reads the job from
   `/job/job.json` and executes it with an **adapter** (see below).
 
-Build by hand (the backend does the same through "Image bauen" in the setup assistant):
+Build through "Image bauen" (or "Neu bauen") in the setup assistant. The backend runs
+`<docker|podman> build -f apps/agent/Containerfile --label cockpit.fingerprint=<hex> -t localhost/cockpit-agent:local apps/agent`.
+A build by hand works without the label (`docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:local apps/agent`,
+or `podman build …`), but then the image counts as outdated and the agent does not start with it.
 
-```bash
-docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:5 apps/agent   # or: podman build …
-```
+### Fixed name and fingerprint
+
+The image name never changes: `localhost/cockpit-agent:local` (one constant, `IMAGE` in
+`apps/server/src/agent_image.rs`). A rebuild overwrites it. Whether the image is up to date is decided by a
+fingerprint, not by a number in the tag:
+
+- The fingerprint is a SHA-256 over these inputs, sorted by relative path and hashed together with the file names:
+  `Containerfile`, `runner/package.json`, `runner/package-lock.json`, everything under `runner/src/`
+  (what the Containerfile copies), `clis/package.json`, `clis/package-lock.json`, and the constant `CONTRACT` in
+  `agent_image.rs`. **Not included:** `runner/test/` (not part of the image), `node_modules`, `.DS_Store`, file times and
+  permissions. `\r\n` counts as `\n`.
+- The build stores it as the image label `cockpit.fingerprint`. The server reads the label
+  (`image inspect --format '{{ index .Config.Labels "cockpit.fingerprint" }}'`) and compares: no image = `missing`, no
+  label or other value = `outdated`, same value = `current`, sources not found = `unknown` ("nicht prüfbar").
+  A run only starts with a `current` image.
+- Raise `CONTRACT` (rarely) when the job or event format between server and runner changes **without** any file of the
+  image changing, so that old images are still recognised as outdated.
+- Images from the time of numbered tags are no longer used. Remove them by hand if wanted (Cockpit never does):
+  `docker image rm localhost/cockpit-agent:5`, or `docker image prune` for dangling layers (`podman` likewise).
 
 Rules for the `Containerfile` (they hold for Docker and Podman alike): a fully qualified base image, no BuildKit
 features (`# syntax=`, `RUN --mount`), the runner never works as root. See "Container rules" in

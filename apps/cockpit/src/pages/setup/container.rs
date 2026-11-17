@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use cockpit_core::api::{ContainerStatus, ImageBuild};
+use cockpit_core::api::{ContainerStatus, ImageBuild, ImageState};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -80,11 +80,17 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
         });
     };
     let build_running = move || build.with(|b| b.as_ref().is_some_and(|b| b.running));
-    let image_da = move || {
+    let image_state = move || {
         ctx.store
             .health
-            .with(|h| h.as_ref().is_some_and(|h| h.agent.image))
+            .with(|h| h.as_ref().map(|h| h.agent.image_state).unwrap_or_default())
     };
+    let image_hint = move || {
+        ctx.store
+            .health
+            .with(|h| h.as_ref().and_then(|h| h.agent.image_hint.clone()))
+    };
+    let image_da = move || image_state() != ImageState::Missing;
     let engine_running = move || status().is_some_and(|s| s.runtime.is_some() && s.engine_running);
     let missing = move || status().is_some_and(|s| s.runtime.is_none());
     let not_running = move || status().is_some_and(|s| s.runtime.is_some() && !s.engine_running);
@@ -121,19 +127,26 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                         view! {
                             <Section title="Agent-Image">
                                 <p class="t-subheadline t-secondary">
-                                    "Der Agent arbeitet in einem Container aus einem eigenen „Image“. Das baust du einmal hier – es lädt dabei Programme aus dem Internet und dauert einige Minuten. Bei einer neuen Cockpit-Version baust du es erneut."
+                                    "Der Agent arbeitet in einem Container aus einem eigenen „Image“. Das baust du einmal hier – es lädt dabei Programme aus dem Internet und dauert einige Minuten. Ändert sich die Cockpit-Version, erkennt Cockpit von selbst, dass das Image veraltet ist, und bittet dich, es neu zu bauen."
                                 </p>
                                 <HStack spacing="12px">
                                     <Status tone=Signal::derive(move || {
-                                        if image_da() { StatusTone::Green } else { StatusTone::Orange }
+                                        if image_state() == ImageState::Current {
+                                            StatusTone::Green
+                                        } else {
+                                            StatusTone::Orange
+                                        }
                                     })>
                                         {move || {
                                             if build_running() {
                                                 "Wird gebaut …"
-                                            } else if image_da() {
-                                                "Image ist gebaut"
                                             } else {
-                                                "Image fehlt noch"
+                                                match image_state() {
+                                                    ImageState::Current => "Image ist aktuell",
+                                                    ImageState::Outdated => "Image ist veraltet",
+                                                    ImageState::Unknown => "Image nicht prüfbar",
+                                                    ImageState::Missing => "Image fehlt noch",
+                                                }
                                             }
                                         }}
                                     </Status>
@@ -145,6 +158,22 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                                         {move || if image_da() { "Neu bauen" } else { "Image bauen" }}
                                     </Button>
                                 </HStack>
+                                {move || {
+                                    (image_state() == ImageState::Outdated && !build_running())
+                                        .then(|| {
+                                            view! {
+                                                <p class="ui-hint" role="status">
+                                                    "Das Image passt nicht zu dieser Cockpit-Version. Bitte neu bauen; bis dahin startet der Agent nicht."
+                                                </p>
+                                            }
+                                        })
+                                }}
+                                {move || {
+                                    (image_state() == ImageState::Unknown)
+                                        .then(image_hint)
+                                        .flatten()
+                                        .map(|m| view! { <p class="ui-hint" role="status">{m}</p> })
+                                }}
                                 {move || {
                                     build_error
                                         .get()
