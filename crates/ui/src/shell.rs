@@ -3,7 +3,12 @@
 use leptos::wasm_bindgen::JsCast;
 use leptos::{ev, prelude::*};
 
-use crate::{Button, ButtonShape, ButtonStyle, Icon, icons};
+use crate::{Button, ButtonShape, ButtonStyle, Icon, StackLevel, icons, is_back_swipe};
+
+thread_local! {
+    /// The level the last [`SplitView`] with levels showed.
+    static LAST_LEVEL: std::cell::Cell<Option<StackLevel>> = const { std::cell::Cell::new(None) };
+}
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SplitLayout {
@@ -15,22 +20,87 @@ pub enum SplitLayout {
 }
 
 /// Up to three columns (list or picker, detail, context), each as tall as the viewport and
-/// scrolling on its own. Up to 1279 px the third column moves below the second one, up to
-/// 1100 px all columns stack and the page scrolls.
+/// scrolling on its own. Up to 1280 px the third column moves below the second one.
 ///
-/// `detail_open` only matters on those narrow screens: if given, the list pane (first pane) and
-/// the detail pane (second pane) become two levels and only the one the signal selects is shown
-/// (`true`: the detail). Wide screens always show both.
+/// Below 768 px the page works like an iOS navigation stack: if `level` is given, the list
+/// pane (first pane) and the detail panes (all following panes) are two levels and only the one
+/// `level` selects is on screen; going deeper slides the detail in from the right. The level
+/// should come from the address of the page. On the detail level a bar at the top offers
+/// "‹ `back_label`" as a link to `back_href`; a swipe from the left edge does the same. From
+/// 768 px on, all columns stand side by side and none of this is shown.
 #[component]
 pub fn SplitView(
     #[prop(optional)] layout: SplitLayout,
-    #[prop(optional, into)] detail_open: Option<Signal<bool>>,
+    #[prop(optional, into)] level: Option<Signal<StackLevel>>,
+    /// Name of the list level, shown in the back link ("Posteingang").
+    #[prop(optional, into)]
+    back_label: Option<String>,
+    /// Address of the list level.
+    #[prop(optional, into)]
+    back_href: Option<String>,
     children: Children,
 ) -> impl IntoView {
     let layout = (layout == SplitLayout::DetailWide).then_some("detail-wide");
-    let level = move || detail_open.map(|open| if open.get() { "detail" } else { "list" });
+    let attr = move || level.map(|l| l.get().attr());
+    // The slide only runs after a change, never when the page is first shown.
+    let motion = RwSignal::new(None::<&'static str>);
+    // A page that is rebuilt per entry (a new `SplitView`) still slides: the last level that any
+    // `SplitView` showed counts as the previous one.
+    Effect::new(move |previous: Option<StackLevel>| {
+        let Some(level) = level else {
+            return StackLevel::List;
+        };
+        let now = level.get();
+        if let Some(previous) = previous.or_else(|| LAST_LEVEL.get()) {
+            motion.set(previous.motion_to(now));
+        }
+        LAST_LEVEL.set(Some(now));
+        now
+    });
+    let touch = StoredValue::new(None::<(f64, f64)>);
+    let on_start = move |event: ev::TouchEvent| {
+        let first = event
+            .touches()
+            .get(0)
+            .map(|t| (t.client_x() as f64, t.client_y() as f64));
+        touch.set_value(first);
+    };
+    let back_target = back_href.clone();
+    let on_end = move |event: ev::TouchEvent| {
+        let started = touch.get_value();
+        touch.set_value(None);
+        let (Some((x0, y0)), Some(end), Some(target)) = (
+            started,
+            event.changed_touches().get(0),
+            back_target.as_deref(),
+        ) else {
+            return;
+        };
+        let on_detail = level.is_some_and(|l| l.get_untracked() == StackLevel::Detail);
+        if on_detail && is_back_swipe(x0, y0, end.client_x() as f64, end.client_y() as f64) {
+            let _ = window().location().set_hash(target);
+        }
+    };
+    let back = level.map(|_| {
+        view! {
+            <nav class="ui-splitview__back" aria-label="Zurück">
+                <a class="ui-splitview__back-link" href=back_href.clone()>
+                    <span aria-hidden="true">"‹"</span>
+                    {back_label.unwrap_or_else(|| "Zurück".into())}
+                </a>
+            </nav>
+        }
+    });
     view! {
-        <div class="ui-splitview" data-layout=layout data-level=level>
+        <div
+            class="ui-splitview"
+            data-layout=layout
+            data-level=attr
+            data-motion=move || motion.get()
+            on:touchstart=on_start
+            on:touchend=on_end
+        >
+            {back}
             {children()}
         </div>
     }

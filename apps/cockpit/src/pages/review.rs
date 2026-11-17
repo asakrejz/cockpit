@@ -22,6 +22,12 @@ const REVIEW_TIME: Duration = Duration::from_millis(1200);
 #[component]
 pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
     let store = use_store();
+    // On a narrow screen the list is the level without a number in the address.
+    let level = if number.is_some() {
+        StackLevel::Detail
+    } else {
+        StackLevel::List
+    };
     // Without a number: the first review that has not been sent yet.
     let number = number.or_else(|| {
         store.ws.with_untracked(|w| {
@@ -97,7 +103,12 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
     let no_reviews = move || store.ws.with(|w| w.reviews.is_empty());
 
     view! {
-        <SplitView layout=SplitLayout::DetailWide>
+        <SplitView
+            layout=SplitLayout::DetailWide
+            level=level
+            back_label="Reviews"
+            back_href=Route::Review(None).hash()
+        >
             <PickerPane label="Pull Requests" title="Reviews">
                 <Show when=move || store.ws.with(|w| w.reviews.iter().any(|r| !w.review_is_mine(r)))>
                     <Select

@@ -327,7 +327,7 @@ blocks) and `apps/cockpit/style.css` (Cockpit specifics), only with existing tok
 and `--ui-nav-space`, are defined in `extras.css`; `tokens.css` is untouched). The `viewport` meta tag is set and fixed
 elements respect `env(safe-area-inset-*)`.
 
-**Shell.** Above 1100 px the shell is exactly the viewport (`100dvh`, `overflow: hidden`, no page scroll). The columns of
+**Shell.** From 768 px on the shell is exactly the viewport (`100dvh`, `overflow: hidden`, no page scroll). The columns of
 `SplitView` are grid tracks of equal height; each pane scrolls on its own (`min-height: 0`, `overflow-y: auto`,
 `overscroll-behavior: contain`). The shell ends above the navigation pill (`--ui-nav-space`), so no scroll area runs
 behind it.
@@ -335,8 +335,8 @@ behind it.
 | Width | Columns |
 | --- | --- |
 | above 1280 px | up to three: picker or list `minmax(240px, 320px)` (inbox list 320–420 px), detail `1fr`, context `minmax(300px, 380px)`. Pages with one pane (overview, log, limits, notifications) use one centred column of at most 960 px. |
-| 1101–1280 px | The context column moves **below the detail** (picker on the left over the full height; detail and context share the right side, 3 : 2). |
-| up to 1100 px | One column; the panes stack and the page scrolls. The picker becomes a chip strip above the content. Inbox: list and detail are two levels (`detail_open`). |
+| 768–1280 px | The context column moves **below the detail** (picker on the left over the full height; detail and context share the right side, 3 : 2). Pages with two columns keep both beside each other. There is no back button. |
+| below 768 px | One level at a time, like an iOS navigation stack (see below). The page scrolls. |
 
 Which columns a page has: inbox = list + detail; pull requests = picker + diff + agent review; agent = picker + run +
 activity (with no run: picker + empty state); the other pages = one pane. The setup assistant is one scrolling column.
@@ -376,14 +376,19 @@ close button, a followed link and `hashchange` close it, focus returns to the bu
 
 - **Phone details:** `viewport-fit=cover`, `dvh` instead of `vh`; notices (toasts) sit above the pill; long button
   labels and addresses wrap; the filter bar of the inbox wraps instead of scrolling.
-- **List and detail as two levels:** the inbox passes `detail_open` to `SplitView`; up to 1100 px either the list or
-  the detail shows (tapping a row opens it, "‹ Zur Liste" goes back).
+- **List and detail as two levels (`StackLevel`):** below 768 px a page with list and detail shows one level. `SplitView`
+  takes `level` (from `Route::level()`), `back_label` and `back_href`. The first pane is the list level, all further
+  panes are the detail level. A tap on an entry goes to its own address, the detail slides in from the right
+  (`--ui-stack-duration`, `--ui-stack-ease`; no slide with `prefers-reduced-motion`), the top bar shows
+  "‹ name of the list", and a swipe from the left edge does the same. Addresses: `#/item/<id>`, `#/mine/item/<id>`
+  (inbox), `#/overview/<name>`, `#/review/<repo>/<nr>`, `#/agent/<ticket>`; the list is the address without the last
+  part. Browser back and reload therefore work. Free text in an address is escaped (`route/segment.rs`).
 - **Shortcuts:** the key hints of the inbox are hidden when narrow; every shortcut has a button.
-- **Wide content scrolls inside its box:** the diff, logs and the picker strips scroll sideways inside their
+- **Wide content scrolls inside its box:** the diff and logs scroll sideways inside their
   container, never the page. Segmented pickers wrap; status texts wrap.
 - **Checked in the browser pane** at 320, 375, 768, 1100, 1280×720, 1440×900, 1920×1080, 2560×1440, 1280×600 and
-  812×375 on every page: no horizontal page scroll; above 1100 px no page scroll, equal pane heights, panes end above
-  the pill; up to 1100 px the last content ends above the pill; the pill stays inside the viewport. Not checked: real
+  812×375 on every page: no horizontal page scroll; from 768 px on no page scroll, equal pane heights, panes end above
+  the pill; below 768 px the last content ends above the pill; the pill stays inside the viewport. Not checked: real
   devices (touch behaviour, notch, iOS address bar, on-screen keyboard) and real glass refraction.
 
 ## Working with several agents

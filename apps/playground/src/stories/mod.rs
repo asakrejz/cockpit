@@ -17,6 +17,7 @@ mod media_card;
 mod navigation;
 mod pager;
 mod phone;
+mod stack_nav;
 mod states;
 
 use leptos::prelude::AnyView;
@@ -37,6 +38,8 @@ pub struct Story {
 
 /// 👉 Register new stories here – the order determines the navigation.
 /// Stories of the same group follow each other directly.
+pub use stack_nav::{Demo as StackDemo, is_demo as is_stack_demo};
+
 pub static STORIES: &[Story] = &[
     foundations::STORY,
     button::STORY,
@@ -48,6 +51,7 @@ pub static STORIES: &[Story] = &[
     navigation::STORY,
     pager::STORY,
     layout::STORY,
+    stack_nav::STORY,
     phone::STORY,
     app_blocks::STORY,
     states::STORY,

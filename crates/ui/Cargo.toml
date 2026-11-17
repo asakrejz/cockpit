@@ -6,4 +6,4 @@ license.workspace = true
 
 [dependencies]
 leptos = { workspace = true }
-web-sys = { workspace = true, features = ["Document", "DomTokenList", "Element", "HtmlElement", "KeyboardEvent", "Node", "NodeList"] }
+web-sys = { workspace = true, features = ["Document", "DomTokenList", "Element", "HtmlElement", "KeyboardEvent", "Location", "Node", "NodeList", "Touch", "TouchEvent", "TouchList"] }
