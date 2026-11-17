@@ -1,0 +1,55 @@
+# Example configuration for Cockpit. All values are dummies.
+#
+# Cockpit creates `config/config.toml` on its own at the first start; the setup page in the app
+# writes it for you. Copy this file only if you want to edit by hand:
+#
+#   cp config/config.example.toml config/config.toml
+#
+# Everything in `config/` except this example is ignored by Git. NEVER commit your own file.
+# No keys belong here: tokens and secrets live in the `.env` file in the project folder.
+
+port = 8787                 # local port of the server
+interval_s = 120            # sync every 2 minutes (at least 30)
+
+[github]
+api_url = "https://api.github.com"
+repos = ["acme/app", "acme/web"]   # repos for the sync (owner/name)
+
+[jira]
+site = "acme"               # name or address of your Jira site
+email = "you@example.com"   # account the API token belongs to
+projects = ["APP", "WEB"]   # optional: only these projects
+
+# Sign-in with OAuth instead of tokens: only the client IDs, the secrets go in `.env`.
+[github_oauth]
+client_id = "Iv23liDummyClientId"
+
+[atlassian]
+client_id = "dummyAtlassianClientId"
+site = "acme"               # optional: only if several sites are approved
+
+[agent]
+provider = "claude-agent-sdk"   # or "claude-code" or "codex"
+container = "podman"            # or "docker"; omit to detect the runtime
+repo = "acme/app"               # default repo of the agent
+
+# A Jira project can be routed to a repo; the interface lets you change it before the start.
+[[agent.repos]]
+repo = "acme/web"
+base_branch = "develop"         # optional, default "main"
+projects = ["WEB"]              # tickets of these Jira projects go to this repo
+
+[[agent.repos]]
+repo = "acme/app"               # a repo without projects is only a choice
+
+[agent.endpoint]
+url = "https://litellm.example.com"   # proxy or compatible endpoint; omit to call the provider directly
+model = "claude-sonnet-5-5"
+
+# Optional webhooks that speed up the sync (see docs/setup-guide.md).
+[server]
+webhooks = false
+public_url = "https://cockpit.example.com"
+
+[sync]
+webhook_fallback_interval_s = 600   # poll interval while webhooks arrive

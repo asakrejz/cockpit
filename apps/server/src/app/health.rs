@@ -55,6 +55,9 @@ pub struct Health {
     pub agent: AgentStatus,
     /// Where the `.env` file with the keys lives and what to warn about – never a value.
     pub env_file: Option<secrets::EnvFileStatus>,
+    /// Where the folder `config/` with configuration and database lives, what to warn about,
+    /// and a hint while old files still exist at the old place.
+    pub config_files: Option<crate::config::files_check::ConfigFilesStatus>,
 }
 
 impl AppState {
@@ -143,6 +146,9 @@ impl AppState {
             container,
             agent,
             env_file: self.inner.secrets.env_file().map(secrets::env_file_status),
+            config_files: self.inner.settings.config_dir.as_deref().map(|dir| {
+                crate::config::files_check::status(dir, &self.inner.settings.legacy_files)
+            }),
         }
     }
 }

@@ -32,7 +32,7 @@ use super::{
 
 /// Variable that points the server to a different file (tests, operation).
 pub const ENV_FILE_VAR: &str = "COCKPIT_ENV_FILE";
-/// Default file name, relative to the working directory.
+/// Default file name, relative to the project folder (the working directory, like `config/`).
 pub const DEFAULT_FILE_NAME: &str = ".env";
 
 /// Every secret name and the environment variable it lives in. `litellm` is the old name of
@@ -175,9 +175,7 @@ fn next_counter() -> u64 {
 pub fn default_path(env: impl Fn(&str) -> Option<String>) -> PathBuf {
     match env(ENV_FILE_VAR).filter(|s| !s.is_empty()) {
         Some(p) => PathBuf::from(p),
-        None => std::env::current_dir()
-            .unwrap_or_default()
-            .join(DEFAULT_FILE_NAME),
+        None => crate::config::location::project_dir().join(DEFAULT_FILE_NAME),
     }
 }
 

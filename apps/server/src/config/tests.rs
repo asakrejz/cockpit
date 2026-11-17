@@ -9,7 +9,7 @@ fn defaults() {
     let c = Config::parse(None, no_env).unwrap();
     assert_eq!(c.port, 8787);
     assert_eq!(c.dist, PathBuf::from("apps/cockpit/dist"));
-    assert!(c.db.ends_with("cockpit/cockpit.db"));
+    assert!(c.db.ends_with("config/cockpit.db"));
     assert!(c.github.is_none() && c.jira.is_none());
 }
 

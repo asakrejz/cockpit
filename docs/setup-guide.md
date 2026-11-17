@@ -2,7 +2,7 @@
 
 Step-by-step instructions for connecting Cockpit to the real services. The easy way is the setup assistant: the
 "Einrichten" page walks through container, Jira, GitHub, model access and live updates and writes client IDs, Jira
-site, repos and endpoint into `config.toml` and keys into `.env`. The terminal route (edit `config.toml`, run
+site, repos and endpoint into `config/config.toml` (in the project folder, created at the first start, ignored by Git) and keys into `.env`. The terminal route (edit `config/config.toml`, start from `config/config.example.toml`; run
 `cockpit-server token set <name>`) leads to the same result; both can be mixed. Back to the [README](../README.md).
 All keys end up in `.env`, see [configuration.md](configuration.md#credentials-the-env-file).
 
