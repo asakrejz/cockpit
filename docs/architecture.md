@@ -57,6 +57,12 @@ Principles:
 4. **Every step stays runnable.** After every PR the Playground and the Cockpit build and the Cockpit runs with the
    server, with an empty start and with `COCKPIT_SEED=demo`.
 
+Code layout (Rust): tests never stand inline. `foo.rs` ends with `#[cfg(test)] mod tests;` and the tests live in
+`foo/tests.rs` (child module, so it sees private items); a big test file is split by topic into `foo/tests/<topic>.rs`
+with shared helpers in `foo/tests.rs`. Logic files stay below roughly 500 lines: `foo.rs` keeps the core types and
+re-exports (`pub use`) the topic modules in `foo/<topic>.rs`, so public paths do not change. Integration tests of a
+crate with shared helpers use `tests/<name>/main.rs` plus topic files.
+
 Gaps that were found *between* PRs and are worth remembering: tick tasks must run in the browser
 (`apps/cockpit/src/main.rs`) **and** in the server (`apps/server/src/live.rs`, `tick`); look runs up through
 `run.key()`, not `ticket_key` (follow-up jobs have their own keys); new local fields must not be overwritten by the sync
