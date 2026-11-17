@@ -7,9 +7,10 @@
 use cockpit_core::{Loaded, Outcome, PrKey, PrLink, Remote, Review, Source, SourceData, Workspace};
 
 use crate::Error;
+use crate::github::dto::Pull;
 use crate::github::{
-    GitHubClient, Relation, changes_requested, check_runs_to_core, comments_with_reviews,
-    pull_to_item, pull_to_review,
+    GitHubClient, PrRelation, changes_requested, check_runs_to_core, comments_with_reviews,
+    pull_to_item_for, pull_to_review,
 };
 use crate::jira::{self, JiraClient};
 use crate::outbound::{Outbound, Targets};
@@ -115,6 +116,42 @@ fn only_hint(e: &Error) -> bool {
     )
 }
 
+/// An error that holds for every repo: the source fails as a whole (and keeps its data).
+fn all_repos(e: &Error) -> bool {
+    matches!(e, Error::RateLimit { .. } | Error::NotSignedIn)
+}
+
+/// Copies what the workspace knows about the pull requests of `repo` that `wanted` accepts into
+/// the result – for a repo or pull request that could not be read this time, so that it does not
+/// vanish from the inbox because of a short outage.
+fn carry_over(
+    known: &Workspace,
+    repo: &str,
+    wanted: impl Fn(u32) -> bool,
+    out: &mut Loaded,
+    taken: &mut Vec<(String, u32)>,
+) {
+    for link in known.sync.prs.iter().filter(|l| l.repo == repo) {
+        if !wanted(link.number) || taken.iter().any(|(r, n)| r == repo && *n == link.number) {
+            continue;
+        }
+        let key = link.key();
+        let id = crate::text::id_from(&["gh", repo, &link.number.to_string()]);
+        let (Some(item), Some(review)) = (known.item(&id), known.review(&key)) else {
+            continue;
+        };
+        out.items.push(item.clone());
+        out.reviews.push(review.clone());
+        out.prs.push(link.clone());
+        taken.push((repo.to_string(), link.number));
+    }
+}
+
+/// All open pull requests of the repos (not only mine): per repo the list of open pull requests,
+/// at most [`PrLimits`] per repo and in total. The relation to the user comes from the pull
+/// request itself (author, requested reviewers, assignees). Pull requests of colleagues get
+/// the scope `Team` and only the cheap data (checks, diff); the comments and verdicts are loaded
+/// for pull requests that concern me.
 pub async fn github_load(
     client: &GitHubClient,
     repos: &[String],
@@ -122,36 +159,74 @@ pub async fn github_load(
     now_s: i64,
 ) -> Result<Loaded, Error> {
     let me = client.me().await?;
+    let limits = client.limits();
     let mut out = Loaded::default();
-    let mut seen: Vec<(String, u32)> = Vec::new();
+    let mut taken: Vec<(String, u32)> = Vec::new();
 
+    // First collect the lists (a failed repo does not block the others) …
+    let mut pulls: Vec<(String, Pull, PrRelation)> = Vec::new();
+    let mut left = limits.total;
     for repo in repos {
-        let mut hits: Vec<(u32, Relation)> = Vec::new();
-        for relation in [Relation::ReviewRequested, Relation::Own] {
-            match client.search_in(relation, repo).await {
-                Ok(list) => hits.extend(list.into_iter().map(|(_, nr)| (nr, relation))),
-                Err(e) if only_hint(&e) => {
-                    out.warnings.push(format!("{repo}: {e}"));
-                    hits.clear();
-                    break;
+        if left == 0 {
+            out.warnings.push(format!(
+                "{repo}: nicht geladen – Nur die ersten {} PRs insgesamt",
+                limits.total
+            ));
+            continue;
+        }
+        let max = limits.per_repo.min(left);
+        match client.pulls_open(repo, max).await {
+            Ok(page) => {
+                if page.truncated {
+                    let which = if max < limits.per_repo {
+                        format!("{} PRs insgesamt", limits.total)
+                    } else {
+                        format!("{} PRs je Repo", limits.per_repo)
+                    };
+                    out.warnings
+                        .push(format!("{repo}: Nur die ersten {which} geladen"));
                 }
-                Err(e) => return Err(e),
+                left -= page.pulls.len();
+                for pull in page.pulls {
+                    let relation = PrRelation::of(&pull, &me);
+                    pulls.push((repo.clone(), pull, relation));
+                }
+            }
+            Err(e) if all_repos(&e) => return Err(e),
+            Err(e) if only_hint(&e) => out.warnings.push(format!("{repo}: {e}")),
+            Err(e) => {
+                out.warnings.push(format!(
+                    "{repo}: {e} – der Stand vom letzten Abgleich bleibt"
+                ));
+                carry_over(known, repo, |_| true, &mut out, &mut taken);
             }
         }
-        for (nr, relation) in hits {
-            if seen.iter().any(|(r, n)| r == repo && *n == nr) {
-                continue;
+    }
+    // … mine first (stable: the order of the service stays within each group) …
+    pulls.sort_by_key(|(_, _, r)| !r.mine());
+
+    // … then load the details.
+    for (repo, pull, relation) in pulls {
+        let nr = pull.number;
+        if taken.iter().any(|(r, n)| *r == repo && *n == nr) {
+            continue;
+        }
+        taken.push((repo.clone(), nr));
+        match pull_load(client, &repo, &pull, relation, &me, known, now_s).await {
+            Ok((item, review, link)) => {
+                out.items.push(item);
+                out.reviews.push(review);
+                out.prs.push(link);
             }
-            seen.push((repo.clone(), nr));
-            match pull_load(client, repo, nr, relation, &me, known, now_s).await {
-                Ok((item, review, link)) => {
-                    out.items.push(item);
-                    out.reviews.push(review);
-                    out.prs.push(link);
-                }
-                // Closed or deleted between search and fetch.
-                Err(Error::NotFound) => {}
-                Err(e) => return Err(e),
+            // Closed or deleted since the list.
+            Err(Error::NotFound) => {}
+            Err(e) if all_repos(&e) => return Err(e),
+            Err(e) => {
+                out.warnings.push(format!(
+                    "{repo}#{nr}: {e} – der Stand vom letzten Abgleich bleibt"
+                ));
+                taken.retain(|(r, n)| !(*r == repo && *n == nr));
+                carry_over(known, &repo, |n| n == nr, &mut out, &mut taken);
             }
         }
     }
@@ -161,18 +236,25 @@ pub async fn github_load(
 async fn pull_load(
     client: &GitHubClient,
     repo: &str,
-    nr: u32,
-    relation: Relation,
+    pull: &Pull,
+    relation: PrRelation,
     me: &str,
     known: &Workspace,
     now_s: i64,
 ) -> Result<(cockpit_core::Item, Review, PrLink), Error> {
-    let pull = client.pull(repo, nr).await?;
+    let nr = pull.number;
     let runs = client.check_runs(repo, &pull.head.sha).await?;
     let checks = crate::github::aggregate_checks(&runs);
-    let verdicts = client.reviews(repo, nr).await?;
-    let comments = client.comments(repo, nr).await?;
-    let lines = client.line_comments(repo, nr).await?;
+    // Comments and verdicts only for pull requests that concern me.
+    let (verdicts, comments, lines) = if relation.mine() {
+        (
+            client.reviews(repo, nr).await?,
+            client.comments(repo, nr).await?,
+            client.line_comments(repo, nr).await?,
+        )
+    } else {
+        Default::default()
+    };
 
     // The diff only changes with a new commit.
     let key = PrKey::new(repo, nr);
@@ -187,14 +269,14 @@ async fn pull_load(
         None => client.files(repo, nr).await?,
     };
 
-    let mut item = pull_to_item(repo, &pull, checks, relation, now_s);
+    let mut item = pull_to_item_for(repo, pull, checks, relation, now_s);
     item.comments = comments_with_reviews(&comments, &lines, &verdicts, me, now_s);
-    if relation == Relation::Own
+    if relation.author
         && let Some(pr) = item.pr.as_mut()
     {
         pr.changes_requested = changes_requested(&verdicts, me);
     }
-    let mut review = pull_to_review(&pull, &files, checks);
+    let mut review = pull_to_review(pull, &files, checks);
     review.repo = repo.to_string();
     if let Some(old) = unchanged {
         review.files = old.files.clone();
@@ -208,6 +290,10 @@ async fn pull_load(
     Ok((item, review, link))
 }
 
+/// Loads the tickets for `jql`. The default queries ask for the active sprints; if the site or
+/// project has none (Jira rejects `openSprints()`, or there is no active sprint), the same query
+/// with all open tickets runs instead and the state of the source says so. A JQL set by hand is
+/// never rewritten and its errors stay errors.
 pub async fn jira_load(
     client: &JiraClient,
     jql: &str,
@@ -216,10 +302,71 @@ pub async fn jira_load(
 ) -> Result<Loaded, Error> {
     let me = client.me().await?;
     let mut out = Loaded::default();
-    for issue in client.search(jql).await? {
-        let mut item = jira::issue_to_item(&issue, &me, now_s);
-        if in_project && item.scope != cockpit_core::Scope::Mine {
-            item.reason_text = "Im Projekt".into();
+    // The sprint field is optional: without it (or without the right to list fields) the
+    // tickets just carry no sprint.
+    let sprint_field = match client.sprint_field().await {
+        Ok(f) => f,
+        Err(e @ (Error::RateLimit { .. } | Error::NotSignedIn)) => return Err(e),
+        Err(e) => {
+            out.warnings
+                .push(format!("Sprint-Feld nicht ermittelt: {e}"));
+            None
+        }
+    };
+    let field = sprint_field.as_deref();
+    let fallback = jira::open_tickets_jql(jql);
+    let mut used_fallback = false;
+    let issues = match (client.search_with_sprint(jql, field).await, &fallback) {
+        // No active sprint at all: show what is open instead.
+        (Ok(list), Some(open)) if list.is_empty() => {
+            let all = client.search_with_sprint(open, field).await?;
+            if !all.is_empty() {
+                used_fallback = true;
+                let any_sprint = all.iter().any(|i| {
+                    field.is_some_and(|f| {
+                        i.fields
+                            .extra
+                            .get(f)
+                            .is_some_and(|v| jira::sprint_of(v).is_some())
+                    })
+                });
+                out.warnings.push(
+                    if any_sprint {
+                        "Kein aktiver Sprint – zeige alle offenen Tickets"
+                    } else {
+                        "Dieses Projekt hat keine Sprints – zeige alle offenen Tickets"
+                    }
+                    .into(),
+                );
+            }
+            all
+        }
+        (Ok(list), _) => list,
+        // Jira does not know `openSprints()` here (e.g. a project without Jira Software).
+        (Err(Error::Rejected(m)), Some(open))
+            if m.is_empty() || m.to_lowercase().contains("sprint") =>
+        {
+            used_fallback = true;
+            out.warnings
+                .push("Dieses Projekt hat keine Sprints – zeige alle offenen Tickets".into());
+            client.search_with_sprint(open, field).await?
+        }
+        (Err(e), _) => return Err(e),
+    };
+    // Whoever the ticket is not assigned to is shown because of the query, not because of a watch.
+    let by_query = if in_project || used_fallback {
+        Some("Im Projekt")
+    } else if jira::is_sprint_query(jql) {
+        Some("Im Sprint")
+    } else {
+        None
+    };
+    for issue in issues {
+        let mut item = jira::issue_to_item_with(&issue, &me, now_s, field);
+        if let Some(text) = by_query
+            && item.scope != cockpit_core::Scope::Mine
+        {
+            item.reason_text = text.into();
         }
         match client.comments(&issue.key).await {
             Ok(k) => item.comments = jira::comments_to_core(&k, &me, now_s),

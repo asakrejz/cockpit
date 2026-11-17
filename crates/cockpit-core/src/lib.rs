@@ -32,6 +32,7 @@ pub mod attention;
 pub mod connections;
 pub mod demo;
 pub mod diagnosis;
+pub mod filters;
 pub mod link;
 pub mod model;
 pub mod notice;
@@ -57,6 +58,9 @@ pub use agent::{
 pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::{AuthKind, Connections, ServiceStatus};
 pub use diagnosis::{Diagnosis, Fix};
+pub use filters::{
+    Applies, Choices, FILTERS, FilterDef, NO_TICKET, Ownership, RECENT_DAYS, SprintView, filter_def,
+};
 pub use model::*;
 pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};
 pub use notify::{

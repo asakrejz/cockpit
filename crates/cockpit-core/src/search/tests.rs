@@ -88,18 +88,30 @@ fn workspace_search_is_the_rule_based_subset_of_visible() {
     }
 }
 
+/// The filter without the start restrictions on sprint and done tickets (the demo tickets have no sprint).
+fn unrestricted(filter: &InboxFilter) -> InboxFilter {
+    InboxFilter {
+        sprint: crate::SprintView::AllOpen,
+        hide_done: false,
+        ..filter.clone()
+    }
+}
+
 fn keys_of(filter: &InboxFilter) -> Vec<String> {
     let ws = demo::workspace();
-    keys(&filter.apply(ws.items.iter().collect()))
+    keys(&unrestricted(filter).apply(ws.items.iter().collect(), 0))
 }
 
 #[test]
 fn the_default_filter_keeps_everything() {
     let ws = demo::workspace();
-    let filter = InboxFilter::default();
-    assert!(filter.is_default());
+    let filter = unrestricted(&InboxFilter::default());
+    assert!(
+        !filter.is_default(),
+        "the start state restricts sprint and done"
+    );
     assert_eq!(
-        filter.apply(ws.items.iter().collect()).len(),
+        filter.apply(ws.items.iter().collect(), 0).len(),
         ws.items.len()
     );
 }

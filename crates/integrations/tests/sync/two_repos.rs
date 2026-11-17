@@ -12,43 +12,19 @@ async fn two_repo_server() -> MockServer {
         (REPO, "App: Avatar", "aaa111"),
         (REPO_B, "Web: Header", "ccc333"),
     ] {
-        Mock::given(method("GET"))
-            .and(path("/search/issues"))
-            .and(query_param(
-                "q",
-                format!("is:pr is:open archived:false review-requested:@me repo:{repo}"),
-            ))
-            .respond_with(ok(&json!({"total_count":1,"items":[{
-                "number": 87,
-                "title": title,
-                "state": "open",
-                "repository_url": format!("https://api.github.com/repos/{repo}"),
-                "pull_request": {"url": format!("https://api.github.com/repos/{repo}/pulls/87")}
-            }]})
-            .to_string()))
-            .mount(&s)
-            .await;
-        Mock::given(method("GET"))
-            .and(path("/search/issues"))
-            .and(query_param(
-                "q",
-                format!("is:pr is:open archived:false author:@me repo:{repo}"),
-            ))
-            .respond_with(ok(r#"{"total_count":0,"items":[]}"#))
-            .mount(&s)
-            .await;
         let base = format!("/repos/{repo}");
         get(
             &s,
-            &format!("{base}/pulls/87"),
-            ok(&json!({
+            &format!("{base}/pulls"),
+            ok(&json!([{
                 "number": 87, "state": "open", "title": title, "body": "",
                 "draft": false, "user": {"login": "tobias-lang"},
+                "requested_reviewers": [{"login": "mkeller"}],
                 "head": {"ref": "feature/x", "sha": sha},
                 "base": {"ref": "main", "sha": "bbb222"},
                 "created_at": "2024-05-13T08:00:00Z", "updated_at": "2024-05-14T10:00:00Z",
                 "labels": []
-            })
+            }])
             .to_string()),
         )
         .await;

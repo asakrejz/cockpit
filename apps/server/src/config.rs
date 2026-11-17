@@ -72,6 +72,8 @@
 //!
 //! [sync]
 //! webhook_fallback_interval_s = 600        # poll interval while webhooks arrive (default: 5x interval_s, at most 600)
+//! max_prs_per_repo = 200                   # open pull requests loaded per repo (default 200)
+//! max_prs_total = 500                      # … and over all repos together (default 500)
 //! ```
 //!
 //! Older files are still read: `[litellm]` (`url`, `modell`) and the key `litellm`
@@ -113,6 +115,9 @@ pub const MIN_INTERVAL_S: u64 = 30;
 pub const WEBHOOK_FALLBACK_FACTOR: u64 = 5;
 /// ... but at most this long, unless set explicitly.
 pub const WEBHOOK_FALLBACK_MAX_S: u64 = 600;
+/// Upper bound of `max_prs_per_repo` and `max_prs_total` (each page is a call at GitHub).
+const MAX_PRS_LIMIT: usize = 2000;
+
 /// Upper bound of an explicit `webhook_fallback_interval_s`.
 pub const WEBHOOK_FALLBACK_LIMIT_S: u64 = 3600;
 
@@ -162,6 +167,8 @@ pub struct Config {
     pub public_url: Option<String>,
     /// `[sync] webhook_fallback_interval_s`; `None` = [`Config::webhook_fallback_s`] decides.
     pub webhook_fallback_interval_s: Option<u64>,
+    /// `[sync] max_prs_per_repo` and `max_prs_total`: how many open pull requests the sync loads.
+    pub github_pr_limits: cockpit_integrations::github::PrLimits,
 }
 
 /// What the server starts with as long as no state has been stored.
@@ -229,6 +236,7 @@ impl Config {
             webhooks: false,
             public_url: None,
             webhook_fallback_interval_s: None,
+            github_pr_limits: Default::default(),
         }
     }
 
@@ -401,6 +409,26 @@ impl Config {
                     .map_err(ConfigError::Wert)?,
             )
             .filter(|u| !u.is_empty());
+        }
+        if let Some(s) = &d.sync {
+            for (name, value) in [
+                ("max_prs_per_repo", s.max_prs_per_repo),
+                ("max_prs_total", s.max_prs_total),
+            ] {
+                if let Some(n) = value
+                    && !(1..=MAX_PRS_LIMIT).contains(&n)
+                {
+                    return Err(ConfigError::Wert(format!(
+                        "[sync] {name} = {n} muss zwischen 1 und {MAX_PRS_LIMIT} liegen"
+                    )));
+                }
+            }
+            if let Some(n) = s.max_prs_per_repo {
+                c.github_pr_limits.per_repo = n;
+            }
+            if let Some(n) = s.max_prs_total {
+                c.github_pr_limits.total = n;
+            }
         }
         if let Some(i) = d.sync.and_then(|s| s.webhook_fallback_interval_s) {
             if !(c.interval_s..=WEBHOOK_FALLBACK_LIMIT_S).contains(&i) {

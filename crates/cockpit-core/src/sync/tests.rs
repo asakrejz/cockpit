@@ -7,6 +7,7 @@ use crate::{notify, persist};
 mod changes;
 mod items;
 mod merge;
+mod sprints;
 mod two_repos;
 
 const T: u64 = 1_800_000_000_000;
@@ -34,6 +35,8 @@ fn ticket(key: &str, title: &str) -> Item {
         priority: Default::default(),
         repo: None,
         labels: Vec::new(),
+        sprint: None,
+        updated_ms: None,
     }
 }
 
@@ -54,6 +57,10 @@ fn pr_item(number: u32) -> Item {
             changes_requested: false,
             merged: false,
             review_requested: true,
+            author: String::new(),
+            mine: false,
+            requested_me: false,
+            assigned_me: false,
         }),
         branch: Some("feature/x".into()),
         ..ticket("X-1", "")

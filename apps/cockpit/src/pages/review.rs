@@ -4,8 +4,8 @@
 use std::time::Duration;
 
 use cockpit_core::{
-    Action, AgentOptions, AgentRun, Checks, Decision, Level, MergeMethod, PrKey, Review, RunKind,
-    Suggestion, SuggestionDiff, Verdict,
+    Action, AgentOptions, AgentRun, Checks, Decision, Level, MergeMethod, Ownership, PrKey, Review,
+    RunKind, Suggestion, SuggestionDiff, Verdict,
 };
 use feature_ui::*;
 use leptos::prelude::*;
@@ -26,9 +26,11 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
     // Without a number: the first review that has not been sent yet.
     let number = number.or_else(|| {
         store.ws.with_untracked(|w| {
-            w.reviews
-                .iter()
+            let mine = w.reviews_for(Ownership::Mine, None);
+            mine.iter()
                 .find(|r| !r.sent)
+                .or(mine.first())
+                .copied()
                 .or(w.reviews.first())
                 .map(|r| r.key())
         })
@@ -63,15 +65,23 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
         deselected: RwSignal::new(Vec::new()),
     };
 
+    // Whose pull requests the list shows; starts with those that concern me.
+    let owner = RwSignal::new(Ownership::default().id().to_string());
+    let owner_options: Vec<(String, String)> = Ownership::OPTIONS
+        .iter()
+        .map(|(v, l)| (v.to_string(), l.to_string()))
+        .collect();
     let list = move || {
+        let ownership = Ownership::from_id(&owner.get()).unwrap_or_default();
         store.ws.with(|w| {
             // With reviews from more than one repo the list names the repo.
             let multi_repo = {
                 let mut repos = w.reviews.iter().map(|r| r.repo.as_str());
                 repos.next().is_some_and(|first| repos.any(|r| r != first))
             };
-            w.reviews
-                .iter()
+            let current = number.get_value();
+            w.reviews_for(ownership, current.as_ref())
+                .into_iter()
                 .map(|r| {
                     view! {
                         <SidebarItem
@@ -91,6 +101,15 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
         <SplitView layout=SplitLayout::DetailWide>
             <AppSidebar>
                 <SidebarSection label="Reviews" role=SectionRole::Picker>
+                    <Show when=move || store.ws.with(|w| w.reviews.iter().any(|r| !w.review_is_mine(r)))>
+                        <Select
+                            options=owner_options.clone()
+                            value=owner
+                            on_change=move |v: String| owner.set(v)
+                            aria_label="Besitz"
+                            compact=true
+                        />
+                    </Show>
                     {list}
                     <Show when=no_reviews>
                         <p class="ck-empty t-footnote t-secondary">"Noch keine Pull Requests zum Prüfen."</p>

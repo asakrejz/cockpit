@@ -33,6 +33,10 @@ fn new_review_request_is_reported_once() {
         changes_requested: false,
         merged: false,
         review_requested: false,
+        author: String::new(),
+        mine: false,
+        requested_me: false,
+        assigned_me: false,
     });
     after.items.push(item);
     let e = only(events(&before, &after));

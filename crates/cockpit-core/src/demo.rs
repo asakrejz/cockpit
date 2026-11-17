@@ -66,6 +66,8 @@ fn item(
         due: None,
         repo: None,
         labels: Vec::new(),
+        sprint: None,
+        updated_ms: None,
     }
 }
 
@@ -125,6 +127,10 @@ pub fn multi_repo_workspace() -> Workspace {
             changes_requested: false,
             merged: false,
             review_requested: true,
+            author: String::new(),
+            mine: false,
+            requested_me: false,
+            assigned_me: false,
         }),
         ..item(
             "pr87-tokens",
@@ -166,7 +172,168 @@ pub fn multi_repo_workspace() -> Workspace {
     };
     ws.items.push(pr87t);
     ws.reviews.push(review);
+    add_team_pull_requests(&mut ws);
+    add_sprints(&mut ws);
     ws
+}
+
+/// Pull requests of colleagues that concern nobody here: the interface lists them under
+/// „Alle“ and they never raise attention. Two have no ticket key in branch or title.
+fn add_team_pull_requests(ws: &mut Workspace) {
+    let team = [
+        (
+            101,
+            DEMO_REPO,
+            "Avatare zwischenspeichern",
+            "perf/avatar-cache",
+            lena(),
+            "performance",
+        ),
+        (
+            102,
+            DEMO_REPO_TOKENS,
+            "Tippfehler in der README",
+            "docs/readme-typo",
+            jonas(),
+            "docs",
+        ),
+        (
+            103,
+            DEMO_REPO,
+            "SHOP-5: Warenkorb-Symbol",
+            "feature/shop-5-cart-icon",
+            mira(),
+            "design",
+        ),
+    ];
+    for (number, repo, title, branch, author, label) in team {
+        let mut pr = item(
+            &format!("pr{number}"),
+            Kind::PullRequest,
+            &format!("#{number}"),
+            title,
+            "Pull Request einer Kollegin oder eines Kollegen – nur unter „Alle“ sichtbar.",
+            (
+                ReasonKind::Comment,
+                &format!("Pull Request von {}", author.name),
+            ),
+            "vor 1 Tg.",
+            author.clone(),
+        );
+        pr.repo = Some(repo.into());
+        pr.branch = Some(branch.into());
+        pr.labels = vec![label.into()];
+        pr.status = TicketStatus::Review;
+        pr.pr = Some(PrRef {
+            number,
+            repo: repo.into(),
+            draft: false,
+            checks: Checks::Passed,
+            changes_requested: false,
+            merged: false,
+            review_requested: false,
+            author: author.name.to_lowercase(),
+            mine: false,
+            requested_me: false,
+            assigned_me: false,
+        });
+        ws.reviews.push(Review {
+            number,
+            repo: repo.into(),
+            title: title.into(),
+            description: pr.description.clone(),
+            author,
+            branch: branch.into(),
+            base: "main".into(),
+            ticket_key: None,
+            checks: Checks::Passed,
+            files: vec![FileDiff::new(
+                "README.md",
+                &[(1, Del, "# Projekt"), (1, Add, "# Projekt – Überblick")],
+            )],
+            agent_reviewed: false,
+            suggestions: Vec::new(),
+            line_comments: Vec::new(),
+            verdict: Verdict::Comment,
+            sent: false,
+            check_runs: passing_checks(),
+            merged: None,
+        });
+        ws.items.push(pr);
+    }
+}
+
+/// Sprints for the tickets, and tickets of colleagues in other sprints or none: the sprint
+/// filter of the inbox has something to choose from.
+fn add_sprints(ws: &mut Workspace) {
+    let sprint = |name: &str, state, start: &str, end: &str| Sprint {
+        name: name.into(),
+        state,
+        start: start.into(),
+        end: end.into(),
+    };
+    let active = sprint(
+        "Sprint 12",
+        SprintState::Active,
+        "2026-11-03T08:00:00.000Z",
+        "2026-11-17T16:00:00.000Z",
+    );
+    let updated = crate::attention::day_start_ms("2026-11-10");
+    for item in ws.items.iter_mut().filter(|i| i.kind == Kind::Ticket) {
+        item.updated_ms = updated;
+        if item.key != "DOC-7" {
+            item.sprint = Some(active.clone());
+        }
+    }
+    let ticket = |key: &str, title: &str, sprint: Option<Sprint>, days_ago: u64| {
+        let mut t = item(
+            &key.to_lowercase().replace('-', ""),
+            Kind::Ticket,
+            key,
+            title,
+            "Ticket einer Kollegin oder eines Kollegen – nur unter „Alle“ sichtbar.",
+            (ReasonKind::Comment, "Im Sprint"),
+            "vor 2 Tg.",
+            jonas(),
+        );
+        t.sprint = sprint;
+        t.updated_ms = updated.map(|u| u - days_ago * 24 * 3600 * 1000);
+        t
+    };
+    ws.items.push(ticket(
+        "WEB-21",
+        "Kopfzeile auf schmalen Bildschirmen",
+        Some(active.clone()),
+        1,
+    ));
+    ws.items.push(ticket(
+        "WEB-22",
+        "Cookie-Hinweis überarbeiten",
+        Some(sprint(
+            "Sprint 13",
+            SprintState::Future,
+            "2026-11-17T16:00:00.000Z",
+            "2026-12-01T16:00:00.000Z",
+        )),
+        4,
+    ));
+    ws.items.push(ticket(
+        "WEB-23",
+        "Idee: Dark-Mode-Schalter im Footer",
+        None,
+        40,
+    ));
+    ws.items.push(ticket(
+        "WEB-18",
+        "Bildformate prüfen (Sprint beendet)",
+        Some(sprint(
+            "Sprint 11",
+            SprintState::Closed,
+            "2026-10-20T08:00:00.000Z",
+            "2026-11-03T16:00:00.000Z",
+        )),
+        9,
+    ));
 }
 
 /// The rules the demo repo starts with: workflows and lock files stay off limits.

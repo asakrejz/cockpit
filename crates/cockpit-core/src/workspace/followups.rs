@@ -371,6 +371,10 @@ impl Workspace {
                 changes_requested: false,
                 merged: false,
                 review_requested: true,
+                author: String::new(),
+                mine: false,
+                requested_me: false,
+                assigned_me: false,
             });
             // The pull request waits as a review – the same way as for any linked ticket.
             item.status = item

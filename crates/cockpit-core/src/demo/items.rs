@@ -36,6 +36,10 @@ pub(super) fn items() -> [Item; 7] {
             changes_requested: false,
             merged: false,
             review_requested: true,
+            author: String::new(),
+            mine: false,
+            requested_me: false,
+            assigned_me: false,
         }),
         agent_note: Some("3 Kommentare vom Agenten warten auf deine Freigabe".into()),
         comments: vec![Comment::new(
@@ -67,6 +71,10 @@ pub(super) fn items() -> [Item; 7] {
             changes_requested: true,
             merged: false,
             review_requested: true,
+            author: String::new(),
+            mine: false,
+            requested_me: false,
+            assigned_me: false,
         }),
         agent_note: Some("Vom Agenten umgesetzt · Tests bestanden".into()),
         ..item(
@@ -95,6 +103,10 @@ pub(super) fn items() -> [Item; 7] {
             changes_requested: false,
             merged: false,
             review_requested: false,
+            author: String::new(),
+            mine: false,
+            requested_me: false,
+            assigned_me: false,
         }),
         comments: vec![Comment::new(
             mira(),
@@ -154,6 +166,10 @@ pub(super) fn items() -> [Item; 7] {
             changes_requested: false,
             merged: false,
             review_requested: false,
+            author: String::new(),
+            mine: false,
+            requested_me: false,
+            assigned_me: false,
         }),
         ..item(
             "pr12",
