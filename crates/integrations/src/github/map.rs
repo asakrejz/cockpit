@@ -145,6 +145,7 @@ pub fn pull_to_item_for(
         repo: Some(repo.to_string()),
         labels: pull.labels.iter().map(|l| l.name.clone()).collect(),
         sprint: None,
+        issue_type: None,
         updated_ms: time::parse_iso(&pull.updated_at).map(|s| s as u64 * 1000),
     }
 }

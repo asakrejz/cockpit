@@ -5,7 +5,7 @@ use cockpit_core::Item;
 use serde::de::DeserializeOwned;
 
 use super::dto::{
-    Annotation, CheckRun, CheckRuns, GitRefResponse, InstallationRepos, Installations,
+    Annotation, CheckRun, CheckRuns, ContentFile, GitRefResponse, InstallationRepos, Installations,
     IssueComment, Pull, PullFile, PullReview, PullSummary, Repo, RepoListEntry, ReviewComment,
     SearchItem, SearchResult, User,
 };
@@ -480,6 +480,42 @@ impl GitHubClient {
             archived: r.archived,
             can_push: r.permissions.map(|p| p.push),
         })
+    }
+
+    /// The contribution guidelines of a repo: the first of `CONTRIBUTING.md`,
+    /// `.github/CONTRIBUTING.md` and `docs/CONTRIBUTING.md` that exists (`GET
+    /// /repos/{repo}/contents/{path}`). Read-only. `None` if there is none; files over 200 kB
+    /// are skipped. Returns the path and the text.
+    pub async fn contributing(&self, repo: &str) -> Result<Option<(String, String)>, Error> {
+        for path in cockpit_core::branch::GUIDELINE_FILES {
+            let file: Result<ContentFile, Error> = self
+                .lies_json(self.get(&format!("/repos/{repo}/contents/{path}")))
+                .await;
+            let file = match file {
+                Ok(f) => f,
+                // No such file: try the next place.
+                // A folder with that name answers with a list, not a file.
+                Err(Error::NotFound | Error::Response(_)) => continue,
+                Err(e) => return Err(e),
+            };
+            if file.kind != "file" || file.encoding != "base64" || file.size > 200_000 {
+                continue;
+            }
+            use base64::Engine as _;
+            let clean: String = file
+                .content
+                .chars()
+                .filter(|c| !c.is_whitespace())
+                .collect();
+            let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(clean) else {
+                continue;
+            };
+            return Ok(Some((
+                path.to_string(),
+                String::from_utf8_lossy(&bytes).into_owned(),
+            )));
+        }
+        Ok(None)
     }
 
     /// The repos a personal access token can reach (`GET /user/repos`): own, as collaborator

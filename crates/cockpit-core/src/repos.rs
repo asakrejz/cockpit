@@ -14,6 +14,10 @@ fn default_base() -> String {
     DEFAULT_BASE.into()
 }
 
+fn default_pattern() -> String {
+    crate::branch::DEFAULT_PATTERN.into()
+}
+
 /// One repo the agent may work in.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct AgentRepo {
@@ -25,6 +29,9 @@ pub struct AgentRepo {
     /// Jira projects (`WEB`) whose tickets go to this repo.
     #[serde(default)]
     pub projects: Vec<String>,
+    /// How the agent names its branches (`{ticket}`, `{slug}`, `{type}`); see [`crate::branch`].
+    #[serde(default = "default_pattern")]
+    pub branch_pattern: String,
 }
 
 impl AgentRepo {
@@ -33,6 +40,7 @@ impl AgentRepo {
             repo: repo.into(),
             base_branch: default_base(),
             projects: Vec::new(),
+            branch_pattern: default_pattern(),
         }
     }
 }
@@ -80,6 +88,14 @@ impl AgentRepos {
     pub fn base_branch(&self, repo: &str) -> String {
         self.find(repo)
             .map_or_else(default_base, |r| r.base_branch.clone())
+    }
+
+    /// Branch pattern of a repo (the default pattern if it is unknown or sets none).
+    pub fn branch_pattern(&self, repo: &str) -> String {
+        self.find(repo)
+            .map(|r| r.branch_pattern.trim())
+            .filter(|p| !p.is_empty())
+            .map_or_else(default_pattern, str::to_string)
     }
 
     /// The repo for a ticket of the Jira project `project`: the first rule that names the

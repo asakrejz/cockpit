@@ -90,10 +90,23 @@ off by default (`[server] webhooks = false`: `404`).
 
 ## The agent
 
-- **No GitHub token in the container.** The agent cannot push. It commits to a branch `claude/<ticket>-…` in the mounted
-  clone. The backend checks the branch in a fresh bare repo (never in the clone the container wrote to) against the repo's
+- **No GitHub token in the container.** The agent cannot push. It commits to a branch in the mounted clone, named by the
+  repo's `branch_pattern` (`claude/<ticket>-…` by default, see [configuration.md](configuration.md#branch-names)). The
+  backend checks the branch in a fresh bare repo (never in the clone the container wrote to) against the repo's
   path rules and then pushes it. **Never** the main branch, **never** a force-push, **never** a merge. You create the pull
   request yourself.
+- **Branch names are enforced, not suggested.** The pattern comes from `config.toml` only; whatever a request or the
+  container says is replaced or ignored. Before the clone and again before the push the backend requires that the branch
+  is exactly what the pattern produces (a valid name, at most 120 characters, letters, digits and `/ - _ .`). It refuses
+  `main`, `master`, `HEAD`, `develop`, `development`, `trunk`, `production`, `prod`, `staging`, the repo's base branch
+  and anything under `refs/`, **whatever the pattern is**. A pattern must not be empty, needs `{ticket}` (so it never
+  names one fixed branch) and is validated when the config is read and when the assistant saves it. A new run also
+  refuses a branch that **already exists** on GitHub (protected or somebody else's), checked with `git ls-remote` before
+  the clone and again right before the push; the push itself is a plain push, never forced. A follow-up on a pull request
+  may only continue a branch that fits the repo's pattern or lives under `claude/` (pull requests from before a change
+  keep working). The proposal "Aus Richtlinien vorschlagen" only reads `CONTRIBUTING.md` and saves nothing; its text is
+  data for pattern matching, never instructions. The runner hint to follow the commit conventions of such a file is
+  advice to the agent and never loosens the fixed rules.
 - **One repo per run, only configured ones.** A run clones and pushes in exactly one repo. The repo comes from the
   routing rules or from your choice in the interface, and the backend refuses (at start and again when the container
   starts) any repo that is not in `[[agent.repos]]` / `[agent] repo` / `[github] repos`. The repo check in the assistant

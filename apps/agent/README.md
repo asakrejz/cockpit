@@ -124,8 +124,10 @@ unchanged; old jobs without `followup` work as before.
 
 ## Rules in the container
 
-The container has **no GitHub token**: it cannot push. It commits to a branch `claude/<ticket>-…` in the mounted
-clone; the backend checks and pushes afterwards (path rules of the repo, never the main branch, never a merge).
+The container has **no GitHub token**: it cannot push. It commits to a branch in the mounted
+clone, named by the repo's `branch_pattern` (`claude/<ticket>-…` by default); the backend checks and pushes afterwards
+(name and path rules of the repo, never the main branch, never a merge). If the repo has a `CONTRIBUTING.md`, the job
+names it (`contributing`) and the system text tells the agent to follow its commit conventions.
 The runner additionally blocks writing outside `/work`, `.git`, forbidden paths and commands such as `git push` and
 `curl` (see the adapters above for how each tool enforces it). The agent asks questions through the tool `ask_user`.
 

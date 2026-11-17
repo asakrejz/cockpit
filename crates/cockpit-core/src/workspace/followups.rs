@@ -158,7 +158,7 @@ impl Workspace {
 
     /// Commissions the **real** agent to implement the review comments of the pull request. The
     /// backend reads the threads from GitHub when the run starts. The agent only continues on
-    /// branches `claude/…`. Returns the key of the run (`threads-91`).
+    /// branches that the repo's pattern names (`claude/…` by default). Returns the key of the run (`threads-91`).
     pub fn address_review_threads(
         &mut self,
         review: impl Into<PrKey>,
@@ -168,7 +168,9 @@ impl Workspace {
         let r = self.check_followup(&review)?;
         let review = r.key();
         let (title, branch) = (r.title.clone(), r.branch.clone());
-        if !branch.starts_with("claude/") {
+        if crate::branch::check_existing(&options.branch_pattern, &options.base_branch, &branch)
+            .is_err()
+        {
             return Err(AgentError::NotAgentBranch);
         }
         let run = AgentRun::followup(
@@ -203,7 +205,9 @@ impl Workspace {
             return Err(AgentError::CheckNotFailed);
         }
         let (title, branch) = (r.title.clone(), r.branch.clone());
-        if !branch.starts_with("claude/") {
+        if crate::branch::check_existing(&options.branch_pattern, &options.base_branch, &branch)
+            .is_err()
+        {
             return Err(AgentError::NotAgentBranch);
         }
         let run = AgentRun::followup(

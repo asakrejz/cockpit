@@ -54,6 +54,7 @@
 //! repo = "firma/web"
 //! base_branch = "develop"              # optional, default "main"
 //! projects = ["WEB", "SHOP"]           # Jira projects whose tickets go to this repo
+//! branch_pattern = "feature/{ticket}-{slug}"   # optional, default "claude/{ticket}-{slug}"
 //!
 //! [[agent.repos]]
 //! repo = "firma/app"                   # a repo without projects is only a choice

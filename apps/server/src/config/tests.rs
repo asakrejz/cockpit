@@ -386,6 +386,50 @@ fn agent_repos_with_base_branch_and_projects() {
 }
 
 #[test]
+fn the_branch_pattern_defaults_and_can_be_set_per_repo() {
+    let toml = r#"
+        [[agent.repos]]
+        repo = "firma/web"
+        branch_pattern = "feature/{ticket}-{slug}"
+
+        [[agent.repos]]
+        repo = "firma/app"
+    "#;
+    let c = Config::parse(Some(toml), no_env).unwrap();
+    assert_eq!(c.agent_repos[0].branch_pattern, "feature/{ticket}-{slug}");
+    assert_eq!(c.agent_repos[1].branch_pattern, "claude/{ticket}-{slug}");
+}
+
+#[test]
+fn an_invalid_branch_pattern_is_rejected_when_the_config_is_read() {
+    for bad in [
+        "main",
+        "",
+        "   ",
+        "feature/{slug}",
+        "{ticket}{slug}",
+        "feature/{nope}-{ticket}",
+        "feature/{ticket}/",
+        "a b/{ticket}",
+    ] {
+        let toml = format!("[[agent.repos]]\nrepo = \"a/b\"\nbranch_pattern = \"{bad}\"");
+        let result = Config::parse(Some(&toml), no_env);
+        // An empty value is the same as none: it falls back to the default.
+        if bad.trim().is_empty() {
+            assert_eq!(
+                result.unwrap().agent_repos[0].branch_pattern,
+                "claude/{ticket}-{slug}"
+            );
+            continue;
+        }
+        assert!(
+            matches!(&result, Err(ConfigError::Wert(m)) if m.contains("branch_pattern")),
+            "{bad}: {result:?}"
+        );
+    }
+}
+
+#[test]
 fn the_old_single_repo_config_still_reads_and_has_no_list() {
     let c = Config::parse(
         Some("[agent]\nrepo = \"firma/app\"\n[github]\nrepos = [\"firma/app\"]"),

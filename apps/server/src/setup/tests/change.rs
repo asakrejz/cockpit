@@ -376,6 +376,49 @@ fn saving_the_list_migrates_the_old_format() {
 }
 
 #[test]
+fn a_branch_pattern_is_written_only_when_it_is_not_the_default() {
+    use cockpit_core::AgentRepo;
+    use cockpit_core::api::AgentReposInput;
+    let a = ConfigChange {
+        agent_repos: Some(AgentReposInput {
+            repos: vec![
+                AgentRepo::new("firma/app"),
+                AgentRepo {
+                    branch_pattern: "{type}/{ticket}-{slug}".into(),
+                    ..AgentRepo::new("firma/web")
+                },
+            ],
+            default: None,
+        }),
+        ..Default::default()
+    };
+    let (text, c) = change("", &a).unwrap();
+    assert_eq!(text.matches("branch_pattern").count(), 1, "{text}");
+    assert!(text.contains("branch_pattern = \"{type}/{ticket}-{slug}\""));
+    assert_eq!(c.agent_repos[0].branch_pattern, "claude/{ticket}-{slug}");
+    assert_eq!(c.agent_repos[1].branch_pattern, "{type}/{ticket}-{slug}");
+}
+
+#[test]
+fn saving_an_invalid_branch_pattern_is_refused_and_writes_nothing() {
+    use cockpit_core::AgentRepo;
+    use cockpit_core::api::AgentReposInput;
+    for bad in ["main", "feature/{slug}", "{ticket}{slug}", "a b/{ticket}"] {
+        let a = ConfigChange {
+            agent_repos: Some(AgentReposInput {
+                repos: vec![AgentRepo {
+                    branch_pattern: bad.into(),
+                    ..AgentRepo::new("firma/web")
+                }],
+                default: None,
+            }),
+            ..Default::default()
+        };
+        assert!(change("", &a).is_err(), "{bad}");
+    }
+}
+
+#[test]
 fn saving_an_empty_list_removes_both_places() {
     use cockpit_core::api::AgentReposInput;
     let a = ConfigChange {

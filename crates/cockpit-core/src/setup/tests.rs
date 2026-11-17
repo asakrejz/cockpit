@@ -455,8 +455,30 @@ fn only_tokens_and_client_secrets_can_be_deleted() {
     }
 }
 
-fn row(repo: &str, base: &str, projects: &str) -> (String, String, String) {
-    (repo.into(), base.into(), projects.into())
+fn row(repo: &str, base: &str, projects: &str) -> (String, String, String, String) {
+    (repo.into(), base.into(), projects.into(), String::new())
+}
+
+fn row_with(repo: &str, pattern: &str) -> (String, String, String, String) {
+    (repo.into(), String::new(), String::new(), pattern.into())
+}
+
+#[test]
+fn branch_pattern_defaults_and_is_validated() {
+    let a = agent_repos_read(
+        &[
+            row("a/b", "", ""),
+            row_with("a/c", " feature/{ticket}-{slug} "),
+        ],
+        "",
+    )
+    .unwrap();
+    assert_eq!(a.repos[0].branch_pattern, "claude/{ticket}-{slug}");
+    assert_eq!(a.repos[1].branch_pattern, "feature/{ticket}-{slug}");
+    for bad in ["main", "feature/{slug}", "{x}/{ticket}", "a b/{ticket}"] {
+        let e = agent_repos_read(&[row_with("a/b", bad)], "").unwrap_err();
+        assert!(e.starts_with("a/b:"), "{e}");
+    }
 }
 
 #[test]

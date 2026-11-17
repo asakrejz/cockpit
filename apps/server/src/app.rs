@@ -72,6 +72,10 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/github/repos", get(crate::setup::repos_list))
         .route("/api/github/check", post(crate::setup::github_check_route))
         .route(
+            "/api/github/branch-suggestion",
+            post(crate::setup::branch_suggestion_route),
+        )
+        .route(
             "/api/agent/image",
             get(agent_image_read).post(agent_image_build),
         )

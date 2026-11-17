@@ -11,7 +11,18 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
         .iter()
         .filter(|c| c.status == Checks::Failed)
         .count();
-    let agent_branch = r.branch.starts_with("claude/");
+    // The pattern of the repo names the agent's branches (`claude/…` unless it is changed).
+    let agent_branch = store.health.with(|h| {
+        let repos = h
+            .as_ref()
+            .map(|h| h.agent.repos.clone())
+            .unwrap_or_default();
+        cockpit_core::branch::is_agent_branch(
+            &repos.branch_pattern(&r.repo),
+            &repos.base_branch(&r.repo),
+            &r.branch,
+        )
+    });
     let merged = r.merged.is_some();
     move || {
         let (active, done) = store.ws.with(|w| {

@@ -71,6 +71,11 @@ pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Optio
         repo: None,
         labels: f.labels.iter().filter(|l| !l.is_empty()).cloned().collect(),
         sprint: sprint_field.and_then(|id| sprint_of(f.extra.get(id)?)),
+        issue_type: f
+            .issuetype
+            .as_ref()
+            .map(|t| t.name.clone())
+            .filter(|n| !n.is_empty()),
         updated_ms: time::parse_iso(&f.updated).map(|s| s as u64 * 1000),
     }
 }

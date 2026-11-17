@@ -82,8 +82,8 @@ Check the server with `curl localhost:8787/api/health`.
   [setup guide](docs/setup-guide.md#github); while Cockpit should only read, use read-only rights.
 - Webhooks are optional and off by default. Through a tunnel only `/api/webhooks/*` may be reachable; they only
   trigger a sync and accept a correct HMAC signature only.
-- The agent has no GitHub token and cannot push. It commits to a branch `claude/<ticket>-…`; the backend verifies it
-  against the path rules and pushes it. Never the main branch, never a force-push, never a merge. Comments and
+- The agent has no GitHub token and cannot push. It commits to a branch named by the repo's pattern (`claude/<ticket>-…` unless you set `branch_pattern`); the backend
+  verifies the name and the path rules and pushes it. Never the main branch, never a force-push, never a merge. Comments and
   reviews of the agent go out only after your approval; only you merge.
 - The agent writes only to `/work`; limits (budget, time, parallel runs) stop the container.
 

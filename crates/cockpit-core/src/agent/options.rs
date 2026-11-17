@@ -2,6 +2,15 @@
 
 use super::*;
 
+// Default values are not written, so saved states stay as they were.
+fn is_default_pattern(p: &String) -> bool {
+    p == crate::branch::DEFAULT_PATTERN
+}
+
+fn is_feature(t: &String) -> bool {
+    t == crate::branch::BranchType::Feature.as_str()
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(default)]
 pub struct AgentOptions {
@@ -11,6 +20,14 @@ pub struct AgentOptions {
     /// Additional hints to the agent.
     pub hint: String,
     pub base_branch: String,
+    /// How the branch is named (see [`crate::branch`]). The backend sets it from the repo's
+    /// configuration at the start; whatever a request carries is replaced.
+    #[serde(skip_serializing_if = "is_default_pattern")]
+    pub branch_pattern: String,
+    /// The `{type}` of the branch: `feature`, `fix` or `chore`. Set by the backend from the
+    /// Jira issue type.
+    #[serde(skip_serializing_if = "is_feature")]
+    pub branch_type: String,
     /// First present a plan and wait for approval.
     pub plan_first: bool,
     /// The repo (`owner/name`) the run works in. `None` = the backend chooses by the rules of
@@ -26,6 +43,8 @@ impl Default for AgentOptions {
             draft_pr: true,
             hint: String::new(),
             base_branch: "main".into(),
+            branch_pattern: crate::branch::DEFAULT_PATTERN.into(),
+            branch_type: crate::branch::BranchType::Feature.as_str().into(),
             plan_first: true,
             repo: None,
         }

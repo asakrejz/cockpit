@@ -117,11 +117,11 @@ pub fn projects_read(text: &str) -> Vec<String> {
 /// is not `owner/name`, one that is listed twice, a base branch with odd characters, a Jira
 /// project that is not a key or that goes to two repos, and a default outside the list.
 pub fn agent_repos_read(
-    rows: &[(String, String, String)],
+    rows: &[(String, String, String, String)],
     default: &str,
 ) -> Result<crate::api::AgentReposInput, String> {
     let mut repos: Vec<crate::AgentRepo> = Vec::new();
-    for (repo, base, projects) in rows {
+    for (repo, base, projects, pattern) in rows {
         if repo.trim().is_empty() {
             continue;
         }
@@ -160,10 +160,18 @@ pub fn agent_repos_read(
                 ));
             }
         }
+        let pattern = pattern.trim();
+        let pattern = if pattern.is_empty() {
+            crate::branch::DEFAULT_PATTERN
+        } else {
+            pattern
+        };
+        crate::branch::validate(pattern).map_err(|m| format!("{name}: {m}"))?;
         repos.push(crate::AgentRepo {
             repo: name,
             base_branch: base.to_string(),
             projects,
+            branch_pattern: pattern.to_string(),
         });
     }
     let default = default.trim();

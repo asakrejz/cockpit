@@ -45,6 +45,7 @@ repo = "acme/app"                 # default repo of the agent (optional, see "Se
 repo = "acme/web"
 base_branch = "develop"           # optional, default "main"
 projects = ["WEB", "SHOP"]        # Jira projects whose tickets go to this repo
+branch_pattern = "{type}/{ticket}-{slug}"   # optional, default "claude/{ticket}-{slug}", see "Branch names"
 [[agent.repos]]
 repo = "acme/app"                 # without projects: only a choice
 [agent.endpoint]                  # model access, see "Model provider and endpoint"
@@ -104,6 +105,30 @@ you choose at every start). A project may belong to one repo only. In the assist
 read-only (`GET /repos/{owner}/{name}`: exists, visible, push allowed) – it changes nothing. Pull requests are
 identified by `owner/name#number`: equal numbers from two repos stay separate in the inbox, review, agent view,
 log and notifications; addresses look like `#/review/acme/app/87`.
+
+## Branch names
+
+`branch_pattern` of a `[[agent.repos]]` entry says how the agent names its branches in that repo. Without it the
+branch is `claude/{ticket}-{slug}`, as before.
+
+| Placeholder | Becomes | Example |
+| --- | --- | --- |
+| `{ticket}` | the Jira key (**required**) | `BAU-142` |
+| `{slug}` | the ticket title as a short name (at most 24 characters) | `toggle-fokus-ring-fehlt` |
+| `{type}` | `feature`, `fix` or `chore`, from the Jira issue type (Bug/Fehler → `fix`; Task/Sub-task/Aufgabe → `chore`; everything else, also an unknown type, → `feature`; without an issue type the ticket's labels decide) | `fix` |
+
+A pattern such as `feature/{ticket}-{slug}` gives `feature/BAU-142-toggle-fokus-ring-fehlt`. A pattern is refused
+(when the file is read and when the assistant saves it) if it is empty, has no `{ticket}` (so it would point at a
+fixed branch or let two tickets share one), contains an unknown placeholder, glues two placeholders together, or has
+characters other than letters, digits and `/ - _ .`. An empty value counts as not set.
+
+In the assistant (step "GitHub", the list of repos) the button "Aus Richtlinien vorschlagen" reads `CONTRIBUTING.md`,
+`.github/CONTRIBUTING.md` and `docs/CONTRIBUTING.md` of the repo (read-only, `GET /repos/{owner}/{name}/contents/{path}`)
+and recognizes usual names (`feature/`, `bugfix/`, `PROJ-123`). It only **proposes**: you confirm with "Übernehmen" and
+save the list yourself. Without a finding you get a hint. If the clone has such a file, the runner also tells the agent
+to follow the commit conventions in it.
+
+The pattern is enforced by the backend, see [security.md](security.md#the-agent).
 
 ## Seed data
 

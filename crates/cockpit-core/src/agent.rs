@@ -306,15 +306,16 @@ impl AgentRun {
         self.state == RunState::Done
     }
 
-    /// `claude/BAU-142-toggle-fokus-ring-fehlt`
+    /// `claude/BAU-142-toggle-fokus-ring-fehlt` (or whatever the pattern of the repo makes of it)
     pub fn branch(&self) -> String {
         if !self.target_branch.is_empty() {
             return self.target_branch.clone();
         }
-        format!(
-            "claude/{}-{}",
-            self.ticket_key,
-            slug(&self.ticket_title, 24)
+        crate::branch::render(
+            &self.options.branch_pattern,
+            &self.ticket_key,
+            &self.ticket_title,
+            crate::branch::BranchType::from_word(&self.options.branch_type),
         )
     }
 }

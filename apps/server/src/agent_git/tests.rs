@@ -1,33 +1,11 @@
 use super::*;
 
 #[test]
-fn names_and_branches_are_streng_checked() {
+fn repo_names_are_strictly_checked() {
     assert!(repo_name_ok("firma/app"));
     assert!(repo_name_ok("a.b/c_d-e"));
     for bad in ["app", "a/b/c", "../x", "a/..", "a /b", "a/b;rm", "/b", "a/"] {
         assert!(!repo_name_ok(bad), "{bad}");
-    }
-    assert!(branch_ok("claude/BAU-142-fokus-ring"));
-    assert!(branch_ok("claude/a/b"));
-    for bad in [
-        "main",
-        "master",
-        "claude",
-        "claude/",
-        "claude/../main",
-        "claude/a b",
-        "claude/a//b",
-        "claude/x.lock",
-        "agent/BAU-1",
-        "refs/heads/main",
-        "claude/a;b",
-        "claude/-f",
-    ] {
-        // `-f` does not start with `-` because "claude/" comes before it; allowed, but harmless.
-        if bad == "claude/-f" {
-            continue;
-        }
-        assert!(!branch_ok(bad), "{bad}");
     }
 }
 
@@ -146,10 +124,28 @@ fn agent_works(clone: &Path, file: &str) {
     g(clone, &["commit", "--quiet", "-m", "Agent"]);
 }
 
+/// A new branch under the default pattern, off `main`.
+fn rule(branch: &str) -> BranchRule<'_> {
+    BranchRule {
+        branch,
+        pattern: cockpit_core::branch::DEFAULT_PATTERN,
+        base: "main",
+        existing: false,
+    }
+}
+
+/// A follow-up on an existing branch.
+fn follow(branch: &str) -> BranchRule<'_> {
+    BranchRule {
+        existing: true,
+        ..rule(branch)
+    }
+}
+
 #[test]
-fn clone_work_check_push_only_on_claude_branches() {
+fn clone_work_check_push_only_on_pattern_branches() {
     let a = layout();
-    let base = clone(&a.url, &a.clone, None, "main", "claude/BAU-1-x").unwrap();
+    let base = clone(&a.url, &a.clone, None, &rule("claude/BAU-1-x")).unwrap();
     assert_eq!(base.len(), 40);
     assert_eq!(
         g(&a.clone, &["rev-parse", "--abbrev-ref", "HEAD"]).trim(),
@@ -160,11 +156,11 @@ fn clone_work_check_push_only_on_claude_branches() {
     let v = publish(
         &a.clone,
         &a.export,
-        "claude/BAU-1-x",
         &base,
         &a.url,
         None,
         &RepoRules::default(),
+        &rule("claude/BAU-1-x"),
     )
     .unwrap();
     assert_eq!(v.files, ["src/neu.rs"]);
@@ -182,20 +178,20 @@ fn clone_work_check_push_only_on_claude_branches() {
 #[test]
 fn the_main_branch_is_never_created_or_pushed() {
     let a = layout();
-    assert!(clone(&a.url, &a.clone, None, "main", "main").is_err());
-    let base = clone(&a.url, &a.clone, None, "main", "claude/x").unwrap();
+    assert!(clone(&a.url, &a.clone, None, &rule("main")).is_err());
+    let base = clone(&a.url, &a.clone, None, &rule("claude/BAU-2-x")).unwrap();
     agent_works(&a.clone, "a.txt");
     for b in ["main", "master", "agent/x", "refs/heads/main"] {
         let e = publish(
             &a.clone,
             &a.export,
-            b,
             &base,
             &a.url,
             None,
             &RepoRules::default(),
+            &rule(b),
         );
-        assert!(e.unwrap_err().contains("nicht erlaubt"), "{b}");
+        assert!(e.is_err(), "{b}");
     }
     assert_eq!(heads(&a.remote), ["main"]);
 }
@@ -203,13 +199,22 @@ fn the_main_branch_is_never_created_or_pushed() {
 #[test]
 fn rules_the_repos_prevent_the_push() {
     let a = layout();
-    let base = clone(&a.url, &a.clone, None, "main", "claude/r").unwrap();
+    let base = clone(&a.url, &a.clone, None, &rule("claude/BAU-3-r")).unwrap();
     agent_works(&a.clone, "Cargo.lock");
     let rules = RepoRules {
         forbidden_paths: vec!["*.lock".into()],
         ..RepoRules::default()
     };
-    let e = publish(&a.clone, &a.export, "claude/r", &base, &a.url, None, &rules).unwrap_err();
+    let e = publish(
+        &a.clone,
+        &a.export,
+        &base,
+        &a.url,
+        None,
+        &rules,
+        &rule("claude/BAU-3-r"),
+    )
+    .unwrap_err();
     assert!(e.contains("verstoßen gegen die Regeln"), "{e}");
     assert_eq!(heads(&a.remote), ["main"]);
 }
@@ -217,35 +222,35 @@ fn rules_the_repos_prevent_the_push() {
 #[test]
 fn without_commit_and_with_foreign_history_is_not_pushed() {
     let a = layout();
-    let base = clone(&a.url, &a.clone, None, "main", "claude/leer").unwrap();
+    let base = clone(&a.url, &a.clone, None, &rule("claude/BAU-4-leer")).unwrap();
     let e = publish(
         &a.clone,
         &a.export,
-        "claude/leer",
         &base,
         &a.url,
         None,
         &RepoRules::default(),
+        &rule("claude/BAU-4-leer"),
     )
     .unwrap_err();
     assert!(e.contains("nichts committet"), "{e}");
 
     // Rewritten history: a branch without the starting state.
     let b = layout();
-    let base = clone(&b.url, &b.clone, None, "main", "claude/fremd").unwrap();
+    let base = clone(&b.url, &b.clone, None, &rule("claude/BAU-5-fremd")).unwrap();
     g(
         &b.clone,
-        &["checkout", "--quiet", "--orphan", "claude/fremd2"],
+        &["checkout", "--quiet", "--orphan", "claude/BAU-5-fremd2"],
     );
     agent_works(&b.clone, "x.txt");
     let e = publish(
         &b.clone,
         &b.export,
-        "claude/fremd2",
         &base,
         &b.url,
         None,
         &RepoRules::default(),
+        &rule("claude/BAU-5-fremd2"),
     )
     .unwrap_err();
     assert!(e.contains("baut nicht auf"), "{e}");
@@ -257,7 +262,7 @@ fn without_commit_and_with_foreign_history_is_not_pushed() {
 fn a_tampered_clone_leads_on_the_machine_nothing_out() {
     use std::os::unix::fs::PermissionsExt;
     let a = layout();
-    let base = clone(&a.url, &a.clone, None, "main", "claude/boese").unwrap();
+    let base = clone(&a.url, &a.clone, None, &rule("claude/BAU-6-boese")).unwrap();
     let mark = a.clone.parent().unwrap().join("ausgefuehrt");
     // Hooks and commands in the configuration, as an agent could put them in .git.
     for hook in [
@@ -297,11 +302,11 @@ fn a_tampered_clone_leads_on_the_machine_nothing_out() {
     publish(
         &a.clone,
         &a.export,
-        "claude/boese",
         &base,
         &a.url,
         None,
         &RepoRules::default(),
+        &rule("claude/BAU-6-boese"),
     )
     .unwrap();
     assert!(!mark.exists(), "im Klon darf nichts ausgeführt werden");
@@ -315,28 +320,31 @@ fn clone_fails_in_plain_text() {
         "file:///gibt/es/nicht.git",
         &a.clone,
         None,
-        "main",
-        "claude/x",
+        &rule("claude/BAU-2-x"),
     )
     .unwrap_err();
     assert!(!e.is_empty());
-    assert!(clone(&a.url, &a.clone, None, "--evil", "claude/x").is_err());
+    let evil = BranchRule {
+        base: "--evil",
+        ..rule("claude/BAU-2-x")
+    };
+    assert!(clone(&a.url, &a.clone, None, &evil).is_err());
 }
 
 #[test]
 fn a_followup_continues_on_the_existing_branch_and_pushes_normally() {
     let a = layout();
     // The earlier run: branch with one commit in the remote.
-    let first = clone(&a.url, &a.clone, None, "main", "claude/BAU-1-x").unwrap();
+    let first = clone(&a.url, &a.clone, None, &rule("claude/BAU-1-x")).unwrap();
     agent_works(&a.clone, "alt.txt");
     let earlier = publish(
         &a.clone,
         &a.export,
-        "claude/BAU-1-x",
         &first,
         &a.url,
         None,
         &RepoRules::default(),
+        &rule("claude/BAU-1-x"),
     )
     .unwrap();
     // The follow-up starts from the branch, not from main.
@@ -349,7 +357,7 @@ fn a_followup_continues_on_the_existing_branch_and_pushes_normally() {
         clone: dir.join("klon2"),
         export: dir.join("export2.git"),
     };
-    let base = clone_branch(&a.url, &again.clone, None, "claude/BAU-1-x").unwrap();
+    let base = clone_branch(&a.url, &again.clone, None, &follow("claude/BAU-1-x")).unwrap();
     assert_eq!(base, earlier.commit);
     assert_eq!(
         g(&again.clone, &["rev-parse", "--abbrev-ref", "HEAD"]).trim(),
@@ -364,11 +372,11 @@ fn a_followup_continues_on_the_existing_branch_and_pushes_normally() {
     let v = publish(
         &again.clone,
         &again.export,
-        "claude/BAU-1-x",
         &base,
         &a.url,
         None,
         &RepoRules::default(),
+        &follow("claude/BAU-1-x"),
     )
     .unwrap();
     // Only the new file counts as changed, the history was kept (fast-forward).
@@ -384,10 +392,26 @@ fn a_followup_continues_on_the_existing_branch_and_pushes_normally() {
 #[test]
 fn a_followup_never_clones_a_foreign_branch() {
     let a = layout();
-    for bad in ["main", "feature/x", "claude/../main", "claude/a;b"] {
-        let e = clone_branch(&a.url, &a.clone, None, bad).unwrap_err();
-        assert!(e.contains("nicht erlaubt"), "{bad}: {e}");
+    for bad in [
+        "main",
+        "feature/x",
+        "claude/../main",
+        "claude/a;b",
+        "develop",
+    ] {
+        let e = clone_branch(&a.url, &a.clone, None, &follow(bad)).unwrap_err();
+        assert!(!e.is_empty(), "{bad}");
     }
     // A branch that does not exist: a plain error, nothing is created.
-    assert!(clone_branch(&a.url, &a.clone, None, "claude/gibt-es-nicht").is_err());
+    assert!(
+        clone_branch(
+            &a.url,
+            &a.clone,
+            None,
+            &follow("claude/BAU-9-gibt-es-nicht")
+        )
+        .is_err()
+    );
 }
+
+mod patterns;

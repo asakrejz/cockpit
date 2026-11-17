@@ -8,6 +8,9 @@ use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
+use cockpit_core::branch::DEFAULT_PATTERN;
+
+use super::branch_pattern::BranchPatternField;
 use super::fields::{Context, Feedback, Message, Section, config_save, error_text};
 use crate::server;
 
@@ -21,19 +24,28 @@ struct Row {
     repo: RwSignal<String>,
     base: RwSignal<String>,
     projects: RwSignal<String>,
+    pattern: RwSignal<String>,
 }
 
 #[component]
 pub fn RepoPicker(ctx: Context) -> impl IntoView {
     let next_id = StoredValue::new(0usize);
-    let new_row = move |repo: &str, base: &str, projects: &str| {
+    // The signals of a row belong to the page, not to the effect or click that creates the row:
+    // those owners are cleaned up again and would take the signals with them.
+    let owner = StoredValue::new(Owner::current());
+    let new_row = move |repo: &str, base: &str, projects: &str, pattern: &str| {
         let id = next_id.get_value();
         next_id.set_value(id + 1);
-        Row {
+        let make = || Row {
             id,
             repo: RwSignal::new(repo.into()),
             base: RwSignal::new(base.into()),
             projects: RwSignal::new(projects.into()),
+            pattern: RwSignal::new(pattern.into()),
+        };
+        match owner.get_value() {
+            Some(o) => o.with(make),
+            None => make(),
         }
     };
     let rows: RwSignal<Vec<Row>> = RwSignal::new(Vec::new());
@@ -50,7 +62,14 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
             stored
                 .repos
                 .iter()
-                .map(|r| new_row(&r.repo, &r.base_branch, &r.projects.join(", ")))
+                .map(|r| {
+                    let pattern = if r.branch_pattern == DEFAULT_PATTERN {
+                        ""
+                    } else {
+                        &r.branch_pattern
+                    };
+                    new_row(&r.repo, &r.base_branch, &r.projects.join(", "), pattern)
+                })
                 .collect(),
         );
         default.set(stored.default.unwrap_or_default());
@@ -106,7 +125,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
             } else {
                 &info.default_branch
             };
-            let r = new_row(&name, base, "");
+            let r = new_row(&name, base, "", "");
             rows.update(|l| l.push(r));
         }
     };
@@ -140,7 +159,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
         Ok(names) => {
             for n in names {
                 if !chosen.get_untracked().contains(&n) {
-                    let r = new_row(&n, "main", "");
+                    let r = new_row(&n, "main", "", "");
                     rows.update(|l| l.push(r));
                 }
             }
@@ -152,7 +171,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
 
     let feedback: Feedback = RwSignal::new(None);
     let save = move |_| {
-        let list: Vec<(String, String, String)> = rows
+        let list: Vec<(String, String, String, String)> = rows
             .get_untracked()
             .iter()
             .map(|r| {
@@ -160,6 +179,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                     r.repo.get_untracked(),
                     r.base.get_untracked(),
                     r.projects.get_untracked(),
+                    r.pattern.get_untracked(),
                 )
             })
             .collect();
@@ -285,6 +305,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                             hint="Optional. Tickets dieser Projekte gehen an dieses Repo."
                             autocomplete="off"
                         />
+                        <BranchPatternField repo=row.repo pattern=row.pattern />
                         <HStack spacing="12px">
                             <label style="display: inline-flex; gap: 6px; align-items: center; cursor: pointer">
                                 <input

@@ -227,3 +227,90 @@ async fn the_connection_test_without_token_and_with_a_dead_address() {
     let app = gh_app("http://127.0.0.1:9", Some(TOKEN), None);
     assert_eq!(test_connection(&app, &[]).await["cause"], "Network");
 }
+
+// ---------- Branch pattern from the guidelines ----------
+
+fn file_body(text: &str) -> serde_json::Value {
+    use base64::Engine as _;
+    json!({"type": "file", "encoding": "base64", "size": text.len(),
+           "content": base64::engine::general_purpose::STANDARD.encode(text)})
+}
+
+async fn suggest(app: &Router, repo: &str) -> (StatusCode, serde_json::Value) {
+    let (status, body) = send_request(
+        app,
+        request("POST", "/api/github/branch-suggestion")
+            .header("content-type", "application/json")
+            .body(Body::from(json!({ "repo": repo }).to_string()))
+            .unwrap(),
+    )
+    .await;
+    assert!(!body.contains(TOKEN), "token in the answer: {body}");
+    (status, serde_json::from_str(&body).unwrap_or_default())
+}
+
+#[tokio::test]
+async fn a_pattern_is_proposed_from_contributing_and_nothing_is_changed() {
+    let gh = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/repos/firma/web/contents/CONTRIBUTING.md"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(file_body(
+            "# Contributing\nName your branch feature/PROJ-123-short-title or fix/PROJ-9-x.",
+        )))
+        .mount(&gh)
+        .await;
+    let app = gh_app(&gh.uri(), Some(TOKEN), None);
+    let (status, a) = suggest(&app, "firma/web").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(a["pattern"], "{type}/{ticket}-{slug}");
+    assert_eq!(a["source"], "CONTRIBUTING.md");
+    assert!(!a["message"].as_str().unwrap().is_empty());
+    let requests = gh.received_requests().await.unwrap();
+    assert!(requests.iter().all(|r| r.method.as_str() == "GET"));
+}
+
+#[tokio::test]
+async fn without_a_finding_the_answer_is_a_friendly_hint() {
+    // No file at all.
+    let gh = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({"message": "Not Found"})))
+        .mount(&gh)
+        .await;
+    let app = gh_app(&gh.uri(), Some(TOKEN), None);
+    let (status, a) = suggest(&app, "firma/web").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(a["pattern"].is_null());
+    assert!(
+        a["message"]
+            .as_str()
+            .unwrap()
+            .contains("keine Datei CONTRIBUTING.md")
+    );
+
+    // A file that says nothing about branches.
+    let gh = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/repos/firma/web/contents/CONTRIBUTING.md"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(file_body("Be kind.")))
+        .mount(&gh)
+        .await;
+    let app = gh_app(&gh.uri(), Some(TOKEN), None);
+    let (status, a) = suggest(&app, "firma/web").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(a["pattern"].is_null());
+    assert_eq!(a["source"], "CONTRIBUTING.md");
+    assert!(a["message"].as_str().unwrap().contains("selbst ein"));
+}
+
+#[tokio::test]
+async fn the_proposal_needs_a_connection_and_a_real_repo_name() {
+    let gh = MockServer::start().await;
+    let app = gh_app(&gh.uri(), None, None);
+    let (status, a) = suggest(&app, "firma/web").await;
+    assert_eq!(status, StatusCode::CONFLICT, "{a}");
+    let app = gh_app(&gh.uri(), Some(TOKEN), None);
+    let (status, _) = suggest(&app, "../etc/passwd").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(gh.received_requests().await.unwrap().is_empty());
+}

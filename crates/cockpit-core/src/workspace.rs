@@ -37,7 +37,7 @@ pub enum AgentError {
     NoComments,
     /// Only a red check can be investigated.
     CheckNotFailed,
-    /// The agent only continues on branches `claude/…`.
+    /// The agent only continues on branches that the pattern of the repo names (`claude/…` by default).
     NotAgentBranch,
     /// As many runs are already working as the limit allows (the number).
     ParallelLimit(u32),

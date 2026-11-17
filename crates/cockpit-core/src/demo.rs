@@ -67,6 +67,7 @@ fn item(
         repo: None,
         labels: Vec::new(),
         sprint: None,
+        issue_type: None,
         updated_ms: None,
     }
 }

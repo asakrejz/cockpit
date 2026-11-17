@@ -83,7 +83,7 @@ impl ActionError {
                 "Wähle mindestens einen offenen Kommentar aus".into()
             }
             ActionError::Agent(AgentError::NotAgentBranch) => {
-                "Der Branch dieses Pull Requests beginnt nicht mit „claude/“ – dort arbeitet der Agent nicht weiter"
+                "Der Branch dieses Pull Requests passt nicht zum Namensmuster des Repos – dort arbeitet der Agent nicht weiter"
                     .into()
             }
             ActionError::Agent(AgentError::CheckNotFailed) => {

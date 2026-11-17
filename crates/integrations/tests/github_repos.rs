@@ -147,3 +147,97 @@ async fn errors_are_mapped_and_never_contain_the_token() {
         assert!(!format!("{e} {e:?}").contains("ghp_testtoken"));
     }
 }
+
+fn file(text: &str) -> Value {
+    use base64::Engine as _;
+    let raw = base64::engine::general_purpose::STANDARD.encode(text);
+    // GitHub wraps the base64 text in lines.
+    let wrapped: Vec<String> = raw
+        .as_bytes()
+        .chunks(60)
+        .map(|c| String::from_utf8_lossy(c).into_owned())
+        .collect();
+    json!({"type": "file", "encoding": "base64", "size": text.len(), "content": wrapped.join("\n") + "\n"})
+}
+
+#[tokio::test]
+async fn contributing_is_read_from_the_first_place_that_has_it() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/repos/acme/app/contents/CONTRIBUTING.md"))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({"message": "Not Found"})))
+        .expect(1)
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/repos/acme/app/contents/.github/CONTRIBUTING.md"))
+        .and(header("authorization", "Bearer ghp_testtoken"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(file("Branches: feature/PROJ-123-short-title. Ünïcode ok.")),
+        )
+        .expect(1)
+        .mount(&server)
+        .await;
+    // Never asked: the first hit wins.
+    Mock::given(method("GET"))
+        .and(path("/repos/acme/app/contents/docs/CONTRIBUTING.md"))
+        .respond_with(ResponseTemplate::new(500))
+        .expect(0)
+        .mount(&server)
+        .await;
+    let (found, text) = client(&server)
+        .contributing("acme/app")
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(found, ".github/CONTRIBUTING.md");
+    assert!(text.contains("feature/PROJ-123-short-title") && text.contains("Ünïcode"));
+}
+
+#[tokio::test]
+async fn contributing_missing_everywhere_is_none_and_only_reads() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({"message": "Not Found"})))
+        .expect(3)
+        .mount(&server)
+        .await;
+    assert!(
+        client(&server)
+            .contributing("acme/app")
+            .await
+            .unwrap()
+            .is_none()
+    );
+    let requests = server.received_requests().await.unwrap();
+    assert!(
+        requests
+            .iter()
+            .all(|r| r.method == wiremock::http::Method::GET)
+    );
+}
+
+#[tokio::test]
+async fn contributing_skips_folders_and_huge_files_and_reports_other_errors() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/repos/acme/app/contents/CONTRIBUTING.md"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{"name": "x"}])))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/repos/acme/app/contents/.github/CONTRIBUTING.md"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(
+            json!({"type": "file", "encoding": "base64", "size": 900_000, "content": "eA=="}),
+        ))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/repos/acme/app/contents/docs/CONTRIBUTING.md"))
+        .respond_with(ResponseTemplate::new(403).set_body_json(json!({"message": "no"})))
+        .mount(&server)
+        .await;
+    let e = client(&server).contributing("acme/app").await.unwrap_err();
+    assert!(matches!(e, Error::NoPermission), "{e:?}");
+}

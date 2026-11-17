@@ -36,6 +36,7 @@ fn ticket(key: &str, title: &str) -> Item {
         repo: None,
         labels: Vec::new(),
         sprint: None,
+        issue_type: None,
         updated_ms: None,
     }
 }

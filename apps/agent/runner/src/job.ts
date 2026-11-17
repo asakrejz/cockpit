@@ -39,11 +39,15 @@ export interface Job {
   run_tests: boolean;
   branch: string;
   base_branch: string;
+  /** Path of the repo's contribution guidelines in /work (`CONTRIBUTING.md`), "" if there are none. */
+  contributing: string;
   /** The repo (`owner/name`) the backend cloned into /work – only informational; "" if unknown. */
   repo: string;
   /** The runner may work for at most this many seconds. */
   max_seconds: number;
 }
+
+const GUIDELINES = ["CONTRIBUTING.md", ".github/CONTRIBUTING.md", "docs/CONTRIBUTING.md"];
 
 export function emptyRules(): Rules {
   return { allowed_paths: [], forbidden_paths: [], required_tests: [], instructions: [] };
@@ -104,8 +108,12 @@ export function checkJob(raw: unknown): Job {
   const t = o.ticket ?? {};
   const r = o.rules ?? {};
   const branch = String(o.branch ?? "");
-  if (o.mode === "implement" && !/^claude\/[A-Za-z0-9._\/-]+$/.test(branch)) {
-    throw new Error(`Der Branch „${branch}“ muss mit „claude/“ beginnen.`);
+  // The backend enforces the pattern of the repo; here only a plain, harmless name is let through.
+  if (
+    o.mode === "implement" &&
+    (!/^[A-Za-z0-9][A-Za-z0-9._\/-]*$/.test(branch) || branch.includes("..") || /^(main|master|head)$/i.test(branch))
+  ) {
+    throw new Error(`Der Branch „${branch}“ ist kein erlaubter Branch-Name.`);
   }
   return {
     mode: o.mode,
@@ -131,6 +139,7 @@ export function checkJob(raw: unknown): Job {
     run_tests: o.run_tests !== false,
     branch,
     base_branch: String(o.base_branch ?? "main"),
+    contributing: GUIDELINES.includes(o.contributing) ? o.contributing : "",
     repo: typeof o.repo === "string" && /^(?!\.{1,2}\/)[A-Za-z0-9._-]+\/(?!\.{1,2}$)[A-Za-z0-9._-]+$/.test(o.repo) ? o.repo : "",
     max_seconds: Number.isFinite(o.max_seconds) && o.max_seconds > 0 ? Math.floor(o.max_seconds) : 1800,
   };
@@ -162,6 +171,9 @@ export function systemText(a: Job): string {
     "Feste Regeln: Du arbeitest nur in /work. Du pushst nicht, mergst nicht und wechselst nicht auf den Hauptbranch;",
     `den Commit auf dem Branch ${a.branch || "(Branch des Auftrags)"} legt der Läufer selbst an, du musst nicht committen.`,
     a.repo ? `Das Repository in /work ist ${a.repo}; ändere nur dieses Repository und beziehe dich auf kein anderes.` : "",
+    a.contributing
+      ? `Das Repository hat Richtlinien in ${a.contributing}. Lies sie und halte dich an die Konventionen für Commit-Nachrichten und Code, soweit sie nicht den festen Regeln hier widersprechen.`
+      : "",
     "Du hast kein Netz außer dem Modellzugang. Antworte auf Deutsch.",
     ...RULES_TEXT(a.rules),
   ]
