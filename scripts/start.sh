@@ -8,7 +8,7 @@
 #
 # Without a terminal: double-click `start-cockpit.command` in the repo folder (it calls this script with --open).
 # Nothing is installed and nothing is created outside the repo. Configuration and keys:
-# see the README ("Backend starten"). Environment variables such as COCKPIT_PORT,
+# see docs/configuration.md. Environment variables such as COCKPIT_PORT,
 # COCKPIT_DB or COCKPIT_SEED=demo are passed to the server unchanged.
 set -euo pipefail
 
