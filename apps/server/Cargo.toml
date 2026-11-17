@@ -30,6 +30,8 @@ dirs = "6"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 toml_edit = "0.25.19"
+# SHA-256 fingerprint of the agent image sources (already in the tree via cockpit-integrations)
+sha2 = "0.10"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

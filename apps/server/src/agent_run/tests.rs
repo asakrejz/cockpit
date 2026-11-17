@@ -502,7 +502,8 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
     let no = ContainerStatus::default();
     let v = Prerequisites {
         container: &no,
-        image: false,
+        image: ImageState::Missing,
+        image_hint: None,
         model: false,
         key: false,
         repo: Err("Es ist kein Repo eingetragen.".into()),
@@ -520,7 +521,8 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
     };
     let fast = Prerequisites {
         container: &running,
-        image: false,
+        image: ImageState::Missing,
+        image_hint: None,
         model: true,
         key: true,
         repo: Ok("firma/app"),
@@ -529,10 +531,40 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
     let f = missing(&fast);
     assert_eq!(f.len(), 1);
     assert!(f[0].contains("Image bauen"));
+    // Outdated and not checkable images block a run too, with different advice.
+    let outdated = Prerequisites {
+        container: &running,
+        image: ImageState::Outdated,
+        image_hint: None,
+        model: true,
+        key: true,
+        repo: Ok("firma/app"),
+        github_access: true,
+    };
+    let f = missing(&outdated);
+    assert_eq!(f.len(), 1);
+    assert!(
+        f[0].contains("veraltet") && f[0].contains("neu bauen"),
+        "{f:?}"
+    );
+    let s = status(true, &outdated);
+    assert!(!s.ready && s.image && s.image_state == ImageState::Outdated);
+    let unknown = Prerequisites {
+        image: ImageState::Unknown,
+        image_hint: Some("Der Ordner fehlt.".into()),
+        repo: Ok("firma/app"),
+        ..outdated
+    };
+    let f = missing(&unknown);
+    assert!(
+        f[0].contains("nicht prüfen") && f[0].contains("Der Ordner fehlt."),
+        "{f:?}"
+    );
     let s = status(
         true,
         &Prerequisites {
-            image: true,
+            image: ImageState::Current,
+            image_hint: None,
             ..fast
         },
     );
@@ -544,7 +576,8 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
     };
     let f = missing(&Prerequisites {
         container: &not_running,
-        image: true,
+        image: ImageState::Current,
+        image_hint: None,
         model: true,
         key: true,
         repo: Ok("a/b"),

@@ -10,14 +10,13 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use cockpit_core::api::{AgentStatus, ContainerStatus, Provider};
+use cockpit_core::api::{AgentStatus, ContainerStatus, ImageState, Provider};
 use cockpit_core::{AgentRepo, AgentReport, AgentRepos, AgentRun, RunState, Workspace};
 use cockpit_integrations::github::followup;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-/// Name of the agent image (fully named so that Podman does not first search the network for it).
-pub const IMAGE: &str = "localhost/cockpit-agent:5";
+pub use crate::agent_image::IMAGE;
 /// Label by which the backend finds its containers again and cleans up.
 pub const LABEL: &str = "cockpit.run";
 /// Name under which the container reaches the machine.
@@ -506,12 +505,33 @@ pub fn check_job() -> Value {
 /// What has to be there for a real run.
 pub struct Prerequisites<'a> {
     pub container: &'a ContainerStatus,
-    pub image: bool,
+    pub image: ImageState,
+    /// Why the image state is `unknown`.
+    pub image_hint: Option<String>,
     pub model: bool,
     pub key: bool,
     /// The repo in which the agent works; `Err` with the explanation if it is not unambiguous.
     pub repo: Result<&'a str, String>,
     pub github_access: bool,
+}
+
+/// The sentence when the image may not be used for a run, `None` if it is current.
+pub fn image_problem(state: ImageState, hint: Option<&str>) -> Option<String> {
+    match state {
+        ImageState::Current => None,
+        ImageState::Missing => Some(
+            "Das Agent-Image fehlt. Öffne „Einrichten“ › „Container“ und klicke auf „Image bauen“."
+                .to_string(),
+        ),
+        ImageState::Outdated => Some(
+            "Das Agent-Image ist veraltet. Bitte unter „Einrichten“ › „Container“ neu bauen."
+                .to_string(),
+        ),
+        ImageState::Unknown => Some(format!(
+            "Ob das Agent-Image aktuell ist, lässt sich nicht prüfen. {}",
+            hint.unwrap_or("Prüfe den Schritt „Container“ unter „Einrichten“.")
+        )),
+    }
 }
 
 /// One sentence in plain text per missing prerequisite, with the place in the assistant ("Einrichten").
@@ -525,14 +545,7 @@ pub fn missing(v: &Prerequisites) -> Vec<String> {
         (Some(l), false) => f.push(format!(
             "{l} läuft nicht. Starte es (Rancher Desktop bzw. „podman machine start“) und prüfe es unter „Einrichten“ › „Container“."
         )),
-        (Some(_), true) => {
-            if !v.image {
-                f.push(
-                    "Das Agent-Image fehlt. Öffne „Einrichten“ › „Container“ und klicke auf „Image bauen“."
-                        .to_string(),
-                );
-            }
-        }
+        (Some(_), true) => f.extend(image_problem(v.image, v.image_hint.as_deref())),
     }
     if !v.model || !v.key {
         let mut was = Vec::new();
@@ -602,7 +615,9 @@ pub fn status(real: bool, v: &Prerequisites) -> AgentStatus {
         return AgentStatus {
             mode: "simulated".into(),
             ready: true,
-            image: v.image,
+            image: v.image != ImageState::Missing,
+            image_state: v.image,
+            image_hint: v.image_hint.clone(),
             image_name: IMAGE.into(),
             repo: None,
             repos: AgentRepos::default(),
@@ -613,7 +628,9 @@ pub fn status(real: bool, v: &Prerequisites) -> AgentStatus {
     AgentStatus {
         mode: "real".into(),
         ready: missing.is_empty(),
-        image: v.image,
+        image: v.image != ImageState::Missing,
+        image_state: v.image,
+        image_hint: v.image_hint.clone(),
         image_name: IMAGE.into(),
         repo: v.repo.as_ref().ok().map(|r| (*r).to_string()),
         repos: AgentRepos::default(),

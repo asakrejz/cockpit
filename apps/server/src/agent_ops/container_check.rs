@@ -10,7 +10,7 @@ impl AppState {
         let prepared = tokio::task::spawn_blocking(move || {
             let status = s.container_status();
             let cli = s.cli_path(&status).filter(|_| status.engine_running);
-            let image = cli.as_ref().is_some_and(|c| s.image_present(c));
+            let image = cli.as_ref().map(|c| s.image_probe(c));
             (status, cli, image, s.agent_choice(), s.agent_key())
         })
         .await;
@@ -36,10 +36,10 @@ impl AppState {
                 "Die Container-Laufzeit läuft nicht (Schritt „Container“).".into()
             }));
         };
-        if !image {
-            return not(
-                "Das Agent-Image fehlt. Baue es im Schritt „Container“ mit „Image bauen“, dann kann der Container testen.",
-            );
+        if let Some(problem) =
+            image.and_then(|p| agent_run::image_problem(p.state, p.hint.as_deref()))
+        {
+            return not(&format!("{problem} Danach kann der Container testen."));
         }
         let mac = cockpit_integrations::endpoint::verify(
             &self.endpoint_target(),

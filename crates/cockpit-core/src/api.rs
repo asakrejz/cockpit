@@ -224,10 +224,16 @@ pub struct AgentStatus {
     /// Runs can start: everything necessary is set up (always true in mode `simuliert`).
     #[serde(default)]
     pub ready: bool,
-    /// The agent image is built (`image inspect`).
+    /// The agent image exists, current or not (`image inspect`).
     #[serde(default)]
     pub image: bool,
-    /// Name of the image, e.g. `localhost/cockpit-agent:5`.
+    /// Whether the image matches the sources of this Cockpit version (fingerprint).
+    #[serde(default)]
+    pub image_state: ImageState,
+    /// Plain-text reason when `image_state` is `unknown`.
+    #[serde(default)]
+    pub image_hint: Option<String>,
+    /// Name of the image, always the same: `localhost/cockpit-agent:local`.
     #[serde(default)]
     pub image_name: String,
     /// The default repo of the agent (`owner/name`), if there is one.
@@ -242,6 +248,24 @@ pub struct AgentStatus {
     pub missing: Vec<String>,
 }
 
+/// How the agent image compares with the sources of this Cockpit version.
+///
+/// The image carries the label `cockpit.fingerprint` (a SHA-256 over the files that make the
+/// image, see the server); it is compared with the fingerprint of the current sources.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ImageState {
+    /// There is no image (yet).
+    #[default]
+    Missing,
+    /// The image exists, but the label is missing or differs: it must be rebuilt.
+    Outdated,
+    /// The image was built from the current sources.
+    Current,
+    /// The image exists, but the fingerprint of the sources cannot be computed.
+    Unknown,
+}
+
 /// State of „build image“ (`GET`/`POST /api/agent/image`).
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ImageBuild {
@@ -251,6 +275,9 @@ pub struct ImageBuild {
     /// The image exists (after the last build or already before).
     #[serde(default)]
     pub present: bool,
+    /// Whether the image is current (see [`ImageState`]).
+    #[serde(default)]
+    pub state: ImageState,
     /// Why the last build failed, in plain text.
     #[serde(default)]
     pub error: Option<String>,

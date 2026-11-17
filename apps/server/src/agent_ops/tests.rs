@@ -19,7 +19,7 @@ d="$(dirname "$0")"
 echo "$@" >> "$d/calls.log"
 case "$1" in
   info) exit 0 ;;
-  image) [ -e "$d/no-image" ] && exit 1; exit 0 ;;
+  image) [ -e "$d/no-image" ] && exit 1; [ -e "$d/inspect-error" ] && { echo "boom" >&2; exit 125; }; cat "$d/label.out" 2>/dev/null; exit 0 ;;
   build) cat "$d/build.out" 2>/dev/null; [ -e "$d/build.error" ] && { echo "write: no space left on device" >&2; exit 1; }; exit 0 ;;
   ps) cat "$d/ps.out" 2>/dev/null; exit 0 ;;
   rm) for a in "$@"; do touch "$d/stopped-$a"; done; exit 0 ;;
@@ -184,7 +184,24 @@ fn welt_with(set_up: bool, provider: Provider) -> World {
 
     let agent_dir = tmp.path().join("agent");
     std::fs::create_dir_all(&agent_dir).unwrap();
-    std::fs::write(agent_dir.join("Containerfile"), "FROM scratch\n").unwrap();
+    for (p, c) in [
+        ("Containerfile", "FROM scratch\n"),
+        ("runner/package.json", "{}\n"),
+        ("runner/package-lock.json", "{}\n"),
+        ("runner/src/main.ts", "run\n"),
+        ("clis/package.json", "{}\n"),
+        ("clis/package-lock.json", "{}\n"),
+    ] {
+        let f = agent_dir.join(p);
+        std::fs::create_dir_all(f.parent().unwrap()).unwrap();
+        std::fs::write(f, c).unwrap();
+    }
+    // The fake image carries the current fingerprint, unless a test says otherwise.
+    std::fs::write(
+        bin.join("label.out"),
+        format!("{}\n", crate::agent_image::fingerprint(&agent_dir).unwrap()),
+    )
+    .unwrap();
 
     let secrets = Arc::new(MemoryStore::new());
     if set_up {
