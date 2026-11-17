@@ -392,12 +392,11 @@ fn ci_script_fails_for_tracked_config_files_only() {
     }
     let run = |dir: &Path| Command::new("bash").arg(&script).arg(dir).output().unwrap();
     std::fs::create_dir_all(dir.path().join("config")).unwrap();
-    std::fs::write(dir.path().join(".env.example"), "A=dummy\n").unwrap();
     std::fs::write(dir.path().join("config/config.example.toml"), "port = 1\n").unwrap();
     assert!(git(dir.path(), &["add", "-f", "."]));
     assert!(
         run(dir.path()).status.success(),
-        "example files are allowed"
+        "the example file is allowed"
     );
 
     std::fs::write(dir.path().join("config/config.toml"), "port = 2\n").unwrap();

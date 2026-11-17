@@ -65,8 +65,7 @@ the database or the browser:
 echo "$TOKEN" | cargo run -p cockpit-server -- token set jira   # also: github, agent-key, github-oauth, atlassian-oauth
 ```
 
-**Never commit `.env`.** `.gitignore` excludes it and CI fails when any `.env*` file other than `.env.example` (dummy
-values only) is tracked. The server sets mode `600` and warns about loose permissions. If a real `.env` was ever
+**Never commit `.env`.** `.gitignore` excludes it and CI fails when any `.env*` file is tracked. The server sets mode `600` and warns about loose permissions. If a real `.env` was ever
 committed, rotate the keys immediately.
 
 The full reference (`config.toml`, all variables, several repos, model provider and endpoint, container runtime,

@@ -6,7 +6,7 @@ on:
 
 jobs:
   # Credentials live in a local `.env` and the local configuration in `config/`; neither may be
-  # tracked (only `.env.example` and `config/config.example.toml` may be).
+  # tracked (only `config/config.example.toml` may be).
   no-env-files:
     runs-on: ubuntu-latest
     steps:

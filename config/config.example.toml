@@ -6,7 +6,7 @@
 #   cp config/config.example.toml config/config.toml
 #
 # Everything in `config/` except this example is ignored by Git. NEVER commit your own file.
-# No keys belong here: tokens and secrets live in the `.env` file (see `.env.example`).
+# No keys belong here: tokens and secrets live in the `.env` file in the project folder.
 
 port = 8787                 # local port of the server
 interval_s = 120            # sync every 2 minutes (at least 30)

@@ -17,8 +17,8 @@ Details: [configuration.md](configuration.md).
 - **Where they live.** Only in the backend, in the `.env` file in the project folder (decision of 2026-11-13; the risk
   of a file inside the repo folder is accepted knowingly). Never in the repo, the database, logs, `config/config.toml`, URLs
   or browser storage (`localStorage`).
-- **Never committed.** `.gitignore` excludes `.env` and `.env.*`; only `.env.example` with dummy values belongs in the
-  repo. CI fails when any `.env*` file other than `.env.example` is tracked. At start and in `/api/health` (`env_file`)
+- **Never committed.** `.gitignore` excludes `.env` and `.env.*`; no `.env*` file belongs in the repo. CI fails when any
+  `.env*` file is tracked. At start and in `/api/health` (`env_file`)
   the server warns when Git tracks the file, `.gitignore` does not cover it or the permissions are looser than `600`; at
   start it sets them to `600`. If a real `.env` was ever committed: rotate the keys and run `git rm --cached .env`.
 - **Two ways in.** `cockpit-server token set <name>` in the terminal (the value comes from standard input, so it is

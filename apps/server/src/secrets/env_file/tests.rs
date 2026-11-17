@@ -301,29 +301,3 @@ fn take_over_copies_but_never_overwrites_or_deletes() {
     );
     assert!(source.has(GITHUB).unwrap());
 }
-
-/// `.env.example` lists every variable of the code, with dummy values only.
-#[test]
-fn env_example_lists_all_names_with_dummy_values() {
-    let example = include_str!("../../../../../.env.example");
-    let mut seen = std::collections::HashMap::new();
-    for line in example.lines() {
-        if let Some((name, v)) = parse_line(line) {
-            seen.insert(name.to_string(), v);
-        }
-    }
-    let mut expected: Vec<&str> = VARIABLES.iter().map(|(_, v)| *v).collect();
-    expected.sort_unstable();
-    expected.dedup();
-    let mut names: Vec<&str> = seen.keys().map(String::as_str).collect();
-    names.sort_unstable();
-    assert_eq!(names, expected, "`.env.example` and VARIABLES differ");
-    for (name, v) in &seen {
-        assert!(
-            v.starts_with("dummy-") || v.contains("dummy"),
-            "{name} in .env.example is not a dummy value: {v}"
-        );
-        assert!(!v.contains("ghp_") && !v.contains("sk-"), "{name}");
-    }
-    assert!(example.to_lowercase().contains("never commit"));
-}
