@@ -6,18 +6,12 @@ import { type Sink, truncate } from "../event.ts";
 import { type Run, record } from "../git.ts";
 import { type Policy, decide } from "../policy.ts";
 import type { Adapter, Input } from "./interface.ts";
+import { ClaudeTranslator, type SdkMessage, describe, planFromAnswer } from "./claude-messages.ts";
+
+export { describe, planFromAnswer };
+export type { SdkMessage };
 
 export type { Input };
-
-/** A message from the SDK (only the fields we read). */
-export interface SdkMessage {
-  type: string;
-  subtype?: string;
-  message?: { id?: string; usage?: Record<string, number>; content?: Array<Record<string, any>> };
-  result?: string;
-  is_error?: boolean;
-  errors?: string[];
-}
 
 export interface QueryOptions {
   cwd: string;
@@ -81,44 +75,6 @@ function user_message(text: string) {
   return { type: "user", message: { role: "user", content: text }, parent_tool_use_id: null, session_id: "" };
 }
 
-/** Short sentence about a tool call, for the history in Cockpit. */
-export function describe(name: string, input: Record<string, any>): { title: string; text: string } {
-  const path = String(input.file_path ?? input.path ?? input.pattern ?? "");
-  switch (name) {
-    case "Read": return { title: "Datei lesen", text: path };
-    case "Write": return { title: "Datei schreiben", text: path };
-    case "Edit":
-    case "MultiEdit": return { title: "Datei ändern", text: path };
-    case "Glob":
-    case "Grep": return { title: "Code durchsuchen", text: path };
-    case "Bash": return { title: "Befehl ausführen", text: String(input.command ?? "") };
-    default: return { title: name, text: "" };
-  }
-}
-
-/** Pulls the plan (JSON block) out of the model's answer; without a block the answer becomes the summary. */
-export function planFromAnswer(text: string): { summary: string; files: string[]; steps: string[] } {
-  const block = /```json\s*([\s\S]*?)```/i.exec(text)?.[1] ?? /(\{[\s\S]*\})/.exec(text)?.[1];
-  if (block) {
-    try {
-      const j = JSON.parse(block);
-      const list = (x: unknown) => (Array.isArray(x) ? x.map(String) : []);
-      return { summary: String(j.summary ?? ""), files: list(j.files), steps: list(j.steps) };
-    } catch {
-      /* falls back to the answer below */
-    }
-  }
-  return { summary: truncate(text.trim(), 600), files: [], steps: [] };
-}
-
-function usageFrom(m: SdkMessage): { ein: number; aus: number } {
-  const u = m.message?.usage ?? {};
-  const ein = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
-  return { ein, aus: u.output_tokens ?? 0 };
-}
-
-const Writer = new Set(["Write", "Edit", "MultiEdit"]);
-
 /** Runs the job. Returns the exit code of the process (0 = a result was reported). */
 export async function run(a: Job, d: Dependencies): Promise<number> {
   const model = d.env.ANTHROPIC_MODEL ?? "";
@@ -135,9 +91,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
     allowed: a.rules.allowed_paths,
     forbidden: a.rules.forbidden_paths,
   };
-  const changed = new Set<string>();
-  const seen = new Set<string>();
-  let lastStart = d.now();
+  const tr = new ClaudeTranslator(d.sink, d.root, d.now);
 
   const answers = new Queue<string>();
   // Hints from the user: as a further message to the running agent.
@@ -159,7 +113,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
     d.sink({ t: "question", text, suggestions });
     const it = answers[Symbol.asyncIterator]();
     const r = await it.next();
-    lastStart = d.now(); // Time waiting for the user does not count as run time
+    tr.restartClock(); // Time waiting for the user does not count as run time
     return r.done ? "(keine Antwort)" : r.value;
   };
 
@@ -192,40 +146,11 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
   let error: string | null = null;
   try {
     for await (const m of d.sdk.query({ prompt: input, options: options })) {
-      if (m.type === "assistant" && m.message) {
-        const id = m.message.id ?? "";
-        const { ein, aus } = id && seen.has(id) ? { ein: 0, aus: 0 } : usageFrom(m);
-        if (id) seen.add(id);
-        const now = d.now();
-        const ms = Math.max(0, now - lastStart);
-        lastStart = now;
-        let first = true;
-        for (const b of m.message.content ?? []) {
-          if (b.type === "tool_use") {
-            const { title, text } = describe(String(b.name), b.input ?? {});
-            d.sink({ t: "step", title, text, tokens_in: first ? ein : 0, tokens_out: first ? aus : 0, ms: first ? ms : 0 });
-            first = false;
-            if (Writer.has(String(b.name))) {
-              const p = String(b.input?.file_path ?? "");
-              const rel = p.startsWith(`${d.root}/`) ? p.slice(d.root.length + 1) : p;
-              if (rel && !changed.has(rel)) {
-                changed.add(rel);
-                d.sink({ t: "files", files: [...changed] });
-              }
-            }
-          } else if (b.type === "text" && String(b.text ?? "").trim()) {
-            endText = String(b.text);
-          }
-        }
-        if (first && (ein > 0 || aus > 0)) {
-          d.sink({ t: "step", title: "Überlegt", text: "", tokens_in: ein, tokens_out: aus, ms });
-        }
-      } else if (m.type === "result") {
-        if (m.subtype === "success" && !m.is_error) endText = m.result ?? endText;
-        else error = (m.errors ?? []).join("; ") || `Das Modell hat den Lauf mit „${m.subtype ?? "Fehler"}“ beendet.`;
-        input.close();
-      }
+      tr.handle(m);
+      if (m.type === "result") input.close();
     }
+    endText = tr.endText;
+    error = tr.error;
   } catch (e) {
     error = cancel.signal.aborted
       ? `Das Zeitlimit von ${Math.round(a.max_seconds / 60)} Minuten im Container ist überschritten.`

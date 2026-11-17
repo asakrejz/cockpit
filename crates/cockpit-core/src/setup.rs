@@ -448,11 +448,11 @@ pub fn endpoint_url_read(text: &str) -> Result<String, String> {
 /// address is entered; „Proxy“ and „other endpoint“ differ only in the hints in the assistant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EndpointKind {
-    /// Directly at Anthropic (no address, key from the Anthropic console).
+    /// Directly at the provider of the model (no address): Anthropic, for Codex OpenAI.
     Direct,
     /// A proxy of your own like LiteLLM.
     Proxy,
-    /// Another Anthropic-compatible endpoint.
+    /// Another compatible endpoint (Anthropic-compatible, for Codex OpenAI-compatible).
     Compatible,
 }
 
@@ -475,11 +475,12 @@ impl EndpointKind {
         Self::ALL.into_iter().find(|a| a.id() == id)
     }
 
-    pub fn label(self) -> &'static str {
+    /// The text in the drop-down; the direct way is named after the provider of the chosen tool.
+    pub fn label(self, tool: Provider) -> String {
         match self {
-            EndpointKind::Direct => "Direkt bei Anthropic",
-            EndpointKind::Proxy => "Eigener Proxy (z. B. LiteLLM)",
-            EndpointKind::Compatible => "Anderer kompatibler Endpunkt",
+            EndpointKind::Direct => format!("Direkt bei {}", tool.vendor()),
+            EndpointKind::Proxy => "Eigener Proxy (z. B. LiteLLM)".into(),
+            EndpointKind::Compatible => "Anderer kompatibler Endpunkt".into(),
         }
     }
 
@@ -498,17 +499,19 @@ impl EndpointKind {
     }
 
     /// Explanation under the selection.
-    pub fn explanation(self) -> &'static str {
+    pub fn explanation(self, tool: Provider) -> String {
+        let vendor = tool.vendor();
         match self {
-            EndpointKind::Direct => {
-                "Der Agent spricht ohne Zwischenstation mit Anthropic. Du brauchst einen API-Key aus der Anthropic-Konsole."
-            }
+            EndpointKind::Direct => format!(
+                "Der Agent spricht ohne Zwischenstation mit {vendor}. Du brauchst einen API-Key aus der Konsole von {vendor}."
+            ),
             EndpointKind::Proxy => {
                 "Eine Zwischenstation, die dein Team betreibt (z. B. LiteLLM). Du bekommst Adresse und Key vom Betreiber."
+                    .into()
             }
-            EndpointKind::Compatible => {
-                "Ein Dienst, der die Schnittstelle von Anthropic nachbildet. Trage seine Adresse und seinen Key ein."
-            }
+            EndpointKind::Compatible => format!(
+                "Ein Dienst, der die Schnittstelle von {vendor} nachbildet. Trage seine Adresse und seinen Key ein."
+            ),
         }
     }
 
@@ -520,8 +523,9 @@ impl EndpointKind {
         }
     }
 
-    pub fn key_label(self) -> &'static str {
+    pub fn key_label(self, tool: Provider) -> &'static str {
         match self {
+            EndpointKind::Direct if tool.openai_compatible() => "OpenAI-API-Key",
             EndpointKind::Direct => "Anthropic-API-Key",
             EndpointKind::Proxy => "Key des Proxys",
             EndpointKind::Compatible => "Key des Endpunkts",
@@ -739,13 +743,6 @@ pub fn summary(s: &Snapshot) -> Vec<Line> {
 
     let model = {
         let (tone, text) = match (&s.check, s.endpoint.configured || s.endpoint.key) {
-            _ if !s.endpoint.provider.implemented() => (
-                Tone::Problem,
-                s.endpoint
-                    .provider
-                    .not_implemented()
-                    .unwrap_or_else(|| Provider::default().label().to_string()),
-            ),
             (Some(p), _) => check_plain_text(p),
             (None, false) => (Tone::Open, "Noch nicht eingerichtet.".to_string()),
             (None, true) if !s.endpoint.key => (
@@ -760,6 +757,12 @@ pub fn summary(s: &Snapshot) -> Vec<Line> {
                 Tone::Open,
                 "Eingetragen, aber noch nicht getestet. Starte den Verbindungstest.".to_string(),
             ),
+        };
+        // Name the chosen tool as soon as something is entered.
+        let text = if s.endpoint.configured || s.endpoint.key {
+            format!("{}: {text}", s.endpoint.provider.label())
+        } else {
+            text
         };
         Line {
             name: "Modellzugang",

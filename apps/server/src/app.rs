@@ -45,7 +45,8 @@ pub struct Settings {
     pub seed: Seed,
     /// `[agent] provider` and `[agent.endpoint]`.
     pub agent: AgentChoice,
-    /// Replacement for `https://api.anthropic.com` so that tests never reach the real API.
+    /// Replacement for `https://api.anthropic.com` (and `https://api.openai.com` for Codex) so that tests never reach
+    /// the real API.
     pub anthropic_api: Option<String>,
     /// `[agent] container`.
     pub container: Option<String>,
@@ -497,7 +498,8 @@ impl AppState {
     /// Where the calls to the endpoint go: the entered address, otherwise directly Anthropic.
     pub(crate) fn endpoint_target(&self) -> cockpit_integrations::endpoint::Target {
         let choice = self.agent_choice();
-        cockpit_integrations::endpoint::Target::from(
+        cockpit_integrations::endpoint::Target::for_provider(
+            choice.provider.openai_compatible(),
             choice.endpoint.as_ref().and_then(|e| e.url.as_deref()),
             self.inner.settings.anthropic_api.as_deref(),
         )

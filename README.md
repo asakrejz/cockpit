@@ -106,17 +106,17 @@ and `start-cockpit.command` in one folder, no Rust or Trunk needed. Unzip, right
 
 ## Setting up the agent
 
-The agent implements a ticket in a **container** (Claude Agent SDK, one container per run). One-time setup:
+The agent implements a ticket in a **container** (Claude Agent SDK, Claude Code or Codex, one container per run). One-time setup:
 
 1. **Start a container runtime:** Rancher Desktop with the engine "dockerd (moby)" (not "containerd") *or* Podman
    (`podman machine start`). The assistant ("Einrichten" › "Container") shows whether it runs.
 2. **Build the image:** click "Image bauen" there (or `POST /api/agent/image`). The build downloads packages and
    takes a few minutes; progress and errors appear below in plain text. `/api/health` reports under `agent`
    whether the image exists (`image inspect`). By hand:
-   `docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:4 apps/agent` (or `podman`).
-3. **Provider and endpoint:** in the "Modell" step choose the tool (Claude Agent SDK; Claude Code and Codex are
-   shown as "soon"), the endpoint (directly at Anthropic, your own proxy such as LiteLLM, or another compatible
-   endpoint), store the key (`.env`, name `agent-key`, variable `AGENT_KEY`) and pick the model from the list that
+   `docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:5 apps/agent` (or `podman`).
+3. **Provider and endpoint:** in the "Modell" step choose the tool (Claude Agent SDK, Claude Code or Codex; see the table
+   under "Model provider and endpoint"), the endpoint (directly at the provider, your own proxy such as LiteLLM, or
+   another compatible endpoint), store the key (`.env`, name `agent-key`, variable `AGENT_KEY`) and pick the model from the list that
    "Modelle laden" fetches from the endpoint (free text as a fallback). "Aus dem Container testen" checks that a
    container can reach the endpoint. If the proxy is only reachable over a **VPN**, the container machine of
    Rancher Desktop or Podman may not know the VPN route or name; the test then says that your Mac reaches the
@@ -196,7 +196,7 @@ repos = ["acme/app", "acme/web"]  # owner/name, several allowed; api_url only fo
 site = "https://acme.atlassian.net"
 email = "me@acme.example"
 [agent]
-provider = "claude-agent-sdk"     # implemented; "claude-code" and "codex" are known but not implemented
+provider = "claude-agent-sdk"     # or "claude-code" or "codex"
 container = "podman"              # or "docker"; detected when omitted
 repo = "acme/app"                 # default repo of the agent (optional, see "Several repos")
 [[agent.repos]]                   # the repos the agent may work in; a Jira project goes to one repo
@@ -456,16 +456,26 @@ changes, the answer advises signing in again.
 are sent once to `PUT /api/secrets/{name}` over the loopback connection; the server stores them in `.env`. See
 [docs/security.md](docs/security.md) for the guarantees.
 
-**Model provider and endpoint.** `[agent] provider` picks the tool in the container: `claude-agent-sdk` runs;
-`claude-code` and `codex` are known values that report "not implemented yet" in plain text (the assistant shows them
-as "bald"). `[agent.endpoint]` says where model requests go: with `url` to an Anthropic-compatible endpoint
-(LiteLLM, another proxy; in the container `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`), without `url` directly to
-Anthropic (in the container `ANTHROPIC_API_KEY`); `model` is the name as the endpoint offers it. "Modelle laden" calls
-`GET /api/agent/models`; the backend then queries `GET <url>/v1/models` (proxy: `Authorization: Bearer`; direct:
-`https://api.anthropic.com/v1/models` with `x-api-key` and `anthropic-version`) without following redirects, with a
+**Model provider and endpoint.** `[agent] provider` picks the tool in the container; the backend passes it as
+`COCKPIT_PROVIDER` and the runner starts the matching adapter:
+
+| `provider` | Tool in the container | Endpoint family | Names passed with `-e` (values only in the process environment) |
+|------------|-----------------------|-----------------|------------------------------------------------------------------|
+| `claude-agent-sdk` (default) | Claude Agent SDK | Anthropic-compatible | `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN` (with `url`) or `ANTHROPIC_API_KEY` (direct), `ANTHROPIC_MODEL` |
+| `claude-code` | Claude Code CLI (`claude -p --output-format stream-json`) | Anthropic-compatible | same as above |
+| `codex` | Codex CLI (`codex exec --json`, sandbox `workspace-write` without network, approval `never`) | OpenAI-compatible | `OPENAI_BASE_URL` (with `url`; `/v1` is added), `OPENAI_API_KEY`, `COCKPIT_MODEL` |
+
+All three run under the same rules (see "Security model"); the CLI adapters cannot ask you questions or take hints
+while running (hints reach the agent with the next run). `[agent.endpoint]` says where model requests go: with `url`
+to a compatible endpoint (LiteLLM, another proxy), without `url` directly to the provider of the tool (Anthropic, for
+`codex` OpenAI); `model` is the name as the endpoint offers it. "Modelle laden" calls
+`GET /api/agent/models`; the backend then queries `GET <url>/v1/models` (proxy: `Authorization: Bearer`; direct at
+Anthropic: `https://api.anthropic.com/v1/models` with `x-api-key` and `anthropic-version`; direct at OpenAI, for
+`codex`: `https://api.openai.com/v1/models` with `Authorization: Bearer`) without following redirects, with a
 timeout and a size limit, and returns only the IDs. "Verbindung testen" calls `GET /api/agent/check` and reports
 *reachable*, *key accepted* and *model present*, with a hint on errors. Without a key it does not call the endpoint.
-`/api/health` reports under `endpoint` provider, address, model and whether a key exists (never the key).
+`/api/health` reports under `endpoint` provider, address, model and whether a key exists (never the key); the setup
+summary names the chosen tool. An endpoint that offers no model list: enter the model name by hand.
 
 **Container runtime.** The backend chooses: `COCKPIT_CONTAINER`, else `[agent] container`, else it looks for
 `podman`, then `docker` in the `PATH` and checks with `<runtime> info` whether the engine runs (a process call, never
@@ -627,8 +637,9 @@ Full detail: [docs/security.md](docs/security.md). In short:
   force-push, **never** a merge. The pull request is created by the backend with **your** GitHub token, only after
   you clicked "Pull Request anlegen" (see "Pull request and follow-up jobs of the real agent").
 - Comments and reviews of the agent go out only after your approval; only you may merge.
-- The agent writes only to `/work`; the runner's `canUseTool` blocks `.git`, forbidden paths, `git push` and network
-  commands. Limits (budget per run and month, time limit, parallel runs) stop the container (`rm -f`).
+- The agent writes only to `/work`; the runner blocks `.git`, forbidden paths, `git push` and network commands (the SDK
+  through `canUseTool`, Claude Code through a `PreToolUse` hook with the same rules, Codex through its sandbox without
+  network) and, for every tool, checks the changed files against the path rules after the run. Limits (budget per run and month, time limit, parallel runs) stop the container (`rm -f`).
 
 ## Container rules
 
@@ -828,8 +839,9 @@ Real mode only (not with `COCKPIT_SEED=demo`); every step needs your click.
 
 Not built yet (everything below is open; nothing here has been verified against the real services either):
 
-- **Adapters for Claude Code and Codex** in the runner (`apps/agent/runner/src/adapter/`, see
-  [apps/agent/README.md](apps/agent/README.md)); then pass `COCKPIT_PROVIDER` on.
+- **Real CLIs:** the adapters for Claude Code and Codex are only tested with stand-in programs; a first run with the
+  real CLIs, a built image and a real model is open (the event shapes of the CLIs and the sandbox of Codex inside a
+  container with dropped capabilities are unverified).
 - **Webhooks / live update:** built (optional, default off), but only tested with local, signed requests and
   recorded service responses – not with a real tunnel or real webhooks at GitHub and Jira.
 - Verification with a **real container and a real model** (`#[ignore]` tests with `COCKPIT_CONTAINER=docker|podman`),

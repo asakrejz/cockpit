@@ -92,8 +92,29 @@ off by default (`[server] webhooks = false`: `404`).
   only reads (`GET /repos/{owner}/{name}`).
 - **Approval.** Comments and reviews of the agent go out only after your approval. Only you may merge. A plan that
   touches forbidden paths cannot be approved.
-- **Sandbox in the runner.** The agent writes only to `/work`; `canUseTool` in the runner blocks writing outside `/work`,
-  `.git`, forbidden paths and commands such as `git push` and `curl`.
+- **Sandbox in the runner.** The agent writes only to `/work`; the runner blocks writing outside `/work`, `.git`,
+  forbidden paths and commands such as `git push` and `curl`. How each tool enforces this:
+  - *Claude Agent SDK:* `canUseTool` (`policy.ts`).
+  - *Claude Code CLI:* restrictive `--allowedTools`/`--disallowedTools` (no web tools), `--permission-mode default`
+    (never a bypass mode), a `PreToolUse` hook that applies the same `policy.ts` to every call and fails closed, no
+    settings from the repo (`--setting-sources user`), no MCP servers (`--strict-mcp-config`).
+  - *Codex CLI:* sandbox `workspace-write` (plan mode `read-only`) with `network_access=false` and approval policy `never`.
+  - *All tools, after the run:* the runner checks every changed file (working tree and commits the agent made itself)
+    against allowed and forbidden paths and `.git`; a violation aborts with an error and nothing is committed. The
+    backend checks the branch once more in a fresh bare repo before pushing.
+
+  **Limits of this.** Codex has no per-path hook, so a write to a forbidden path is only caught after the run (the
+  change never leaves the container, but the run is lost). The command rules for Claude Code's `Bash` tool are regular
+  expressions and can be circumvented by an adversarial model (`python -c`, shell tricks); what holds regardless is that
+  the container has no GitHub token, `--cap-drop ALL`, and the backend's check before any push. Claude Code can still
+  reach the network through `Bash` commands that the patterns do not know; the container's network is not restricted
+  to the model endpoint (that needs a firewall in the container runtime, which Cockpit does not set up). Whether Codex's
+  own sandbox works inside a container with dropped capabilities depends on the host kernel (it is unverified here).
+  Codex cannot ask questions and neither CLI adapter takes hints while running.
+- **CLIs in the image.** `@anthropic-ai/claude-code` and `@openai/codex` are installed with exact versions from
+  `apps/agent/clis/package-lock.json` (`npm ci`), without a login or `.npmrc`; the image holds no key. The adapters start
+  them with a clean environment (only the endpoint names of their family), pass the prompt through stdin and scrub key
+  values from every event and error text.
 - **Environment.** Endpoint address, key and model reach the container only as `-e NAME`, with the value in the child
   process environment, never in the argument list, `ps` or logs. Names that are not used are removed from the inherited
   environment, so no key from your shell ends up in the container. `.env` never enters the image or the container

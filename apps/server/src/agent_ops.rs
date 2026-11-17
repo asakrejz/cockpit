@@ -13,7 +13,7 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use cockpit_core::api::{AgentStatus, ContainerCheck, ContainerStatus, ImageBuild};
+use cockpit_core::api::{AgentStatus, ContainerCheck, ContainerStatus, ImageBuild, Provider};
 use cockpit_core::{
     Action, ActionError, Actor, AgentReport, AgentRepos, FollowupTask, RepoChoice, RunKind,
     RunState, Workspace,
@@ -89,6 +89,7 @@ fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
 /// Everything a run needs in terms of access (from settings and .env file).
 struct Access {
     cli: PathBuf,
+    provider: Provider,
     /// `None` = directly at the provider.
     endpoint_url: Option<String>,
     key: Secret,
@@ -280,7 +281,6 @@ impl AppState {
         let v = Prerequisites {
             container: &container,
             image,
-            provider: choice.provider,
             model: choice.endpoint.as_ref().is_some_and(|e| e.model.is_some()),
             key: self.agent_key().is_some(),
             repo,
@@ -301,9 +301,6 @@ impl AppState {
         }
         let container = self.container_status();
         let choice = self.agent_choice();
-        if let Some(m) = choice.provider.not_implemented() {
-            return Err(vec![m]);
-        }
         let endpoint = choice
             .endpoint
             .ok_or_else(|| vec!["Der Modellzugang fehlt.".to_string()])?;
@@ -314,6 +311,7 @@ impl AppState {
             .map_or(crate::config::DEFAULT_GITHUB_API, |g| g.api_url.as_str())
             .to_string();
         Ok(Access {
+            provider: choice.provider,
             cli: self.cli_path(&container).ok_or_else(|| {
                 vec!["Das Container-Programm ist nicht mehr zu finden.".to_string()]
             })?,

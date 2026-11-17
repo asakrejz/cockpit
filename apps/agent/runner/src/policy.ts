@@ -97,3 +97,22 @@ export function decide(r: Policy, tool: string, input: Record<string, unknown>):
   if (tool === "mcp__cockpit__ask_user" || tool === "TodoWrite") return { behavior: "allow" };
   return { behavior: "deny", message: `Das Werkzeug „${tool}“ ist im Cockpit nicht freigegeben.` };
 }
+
+/** Why a changed file (path relative to the repo) is not allowed, or `null` if it is fine. This is the check after
+ * the run for tools that cannot enforce the path rules themselves (Claude Code and Codex CLI). */
+export function pathViolation(r: Policy, rel: string): string | null {
+  if (rel === ".git" || rel.startsWith(".git/")) return `„${rel}“: Das .git-Verzeichnis darf nicht verändert werden.`;
+  if (rel.startsWith("../") || isAbsolute(rel)) return `„${rel}“ liegt außerhalb von ${r.root}.`;
+  for (const v of r.forbidden) {
+    if (globFits(v, rel)) return `„${rel}“ ist laut Regel „${v}“ verboten.`;
+  }
+  if (r.allowed.length && !r.allowed.some((e) => globFits(e, rel))) {
+    return `„${rel}“ liegt außerhalb der erlaubten Pfade (${r.allowed.join(", ")}).`;
+  }
+  return null;
+}
+
+/** All violations among the changed files. */
+export function violations(r: Policy, files: string[]): string[] {
+  return files.map((f) => pathViolation(r, f)).filter((v): v is string => v !== null);
+}

@@ -1,0 +1,10 @@
+{
+  "name": "cockpit-agent-clis",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Agent CLIs that the runner can drive (adapters claude-code and codex); exact versions, installed with npm ci",
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.323",
+    "@openai/codex": "0.169.0"
+  }
+}

@@ -42,7 +42,7 @@
 //! seed = "demo"                        # sample data, only if no state has been stored yet
 //!
 //! [agent]
-//! provider = "claude-agent-sdk"        # implemented; "claude-code" and "codex" are known but not implemented yet
+//! provider = "claude-agent-sdk"        # or "claude-code" or "codex"
 //! container = "podman"                 # or "docker"; without a value the backend detects the runtime
 //! repo = "firma/app"                   # default repo of the agent (otherwise the only one from [github] repos)
 //! dir = "/path/to/agent"               # folder with Containerfile and runner (otherwise ./apps/agent or next to apps/cockpit/dist)
