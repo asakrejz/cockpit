@@ -86,7 +86,7 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         repo: Ok("a/b"),
         github_access: true,
     });
-    assert!(f[0].contains("podman machine start"));
+    assert!(f[0].contains("Podman") && f[0].contains("Schritt „Container“"));
     // Simulated: always ready.
     assert!(status(false, &v).ready);
 }

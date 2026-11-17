@@ -183,6 +183,23 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), String> 
             }
         }
     }
+    if let Some(site) = &a.atlassian_site {
+        let site = site.trim();
+        if doc.contains_key("atlassian") {
+            let t = table(&mut doc, "atlassian")?;
+            if site.is_empty() {
+                t.remove("site");
+            } else if site.chars().any(char::is_control) {
+                return Err("Der Name der Site enthält Sonderzeichen.".into());
+            } else {
+                set(t, "site", value(site));
+            }
+        } else if !site.is_empty() {
+            return Err(
+                "Trage zuerst die Client-ID ein, dann kannst du die Site festlegen.".into(),
+            );
+        }
+    }
     if let Some(g) = &a.github {
         let repos = repos_read(&g.repos.join(","))?;
         {

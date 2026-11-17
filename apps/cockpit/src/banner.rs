@@ -92,7 +92,7 @@ pub fn ServerBanner() -> impl IntoView {
 
     // Sources with a problem; on "Einrichten" the list there already says it.
     let sources = move || {
-        if !store.loaded.get() || store.route.get() == Route::Setup {
+        if !store.loaded.get() || store.route.with(Route::is_setup) {
             return Vec::new();
         }
         let now = store.now.get();

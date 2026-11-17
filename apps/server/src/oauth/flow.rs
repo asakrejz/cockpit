@@ -7,8 +7,9 @@ impl AppState {
     pub async fn oauth_start(&self, d: Service) -> Result<String, String> {
         let Some(client_id) = self.oauth_config_id(d) else {
             return Err(format!(
-                "{}-Anmeldung ist nicht eingerichtet – Client-ID in config.toml eintragen",
-                d.name()
+                "{}-Anmeldung ist nicht eingerichtet – trage die Client-ID im Schritt „{}“ im Feld „Client ID“ ein.",
+                d.name(),
+                step_name(d)
             ));
         };
         let s = self.clone();
@@ -16,10 +17,7 @@ impl AppState {
             .await
             .map_err(|_| "Interner Fehler".to_string())?;
         let Some(secret) = secret else {
-            return Err(format!(
-                "Das Client-Secret fehlt – `{}` ausführen",
-                command(d)
-            ));
+            return Err(secret_missing(d));
         };
         let (state, challenge) = self
             .inner
@@ -79,13 +77,17 @@ impl AppState {
             return Err(format!("{} hat keinen Code geschickt", d.name()));
         };
         let Some(client_id) = self.oauth_config_id(d) else {
-            return Err(format!("{}-Anmeldung ist nicht eingerichtet", d.name()));
+            return Err(format!(
+                "{}-Anmeldung ist nicht eingerichtet – trage die Client-ID im Schritt „{}“ ein.",
+                d.name(),
+                step_name(d)
+            ));
         };
         let s = self.clone();
         let secret = tokio::task::spawn_blocking(move || s.oauth_client_secret(d))
             .await
             .map_err(|_| "Interner Fehler".to_string())?
-            .ok_or_else(|| format!("Das Client-Secret fehlt – `{}` ausführen", command(d)))?;
+            .ok_or_else(|| secret_missing(d))?;
         let uri = redirect_uri(d, self.inner.port);
         let app = App {
             client_id: &client_id,

@@ -53,7 +53,7 @@ async fn check_without_key_calls_the_endpoint_not_on() {
     let j = json(&body);
     assert_eq!(j["configured"], true);
     assert_eq!(j["key_ok"], false);
-    assert!(j["hint"].as_str().unwrap().contains("agent-key"));
+    assert!(j["hint"].as_str().unwrap().contains("Schritt „Modell“"));
 }
 
 #[tokio::test]
