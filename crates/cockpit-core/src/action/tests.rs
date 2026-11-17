@@ -29,10 +29,7 @@ fn ok(w: &mut Workspace, action: Action, n: usize) -> Applied {
 fn fails(w: &mut Workspace, action: Action, error: ActionError) {
     let before = w.clone();
     assert_eq!(w.apply(action, Actor::User, T), Err(error));
-    assert_eq!(
-        *w, before,
-        "ein Fehler ändert nichts und protokolliert nichts"
-    );
+    assert_eq!(*w, before, "an error changes nothing and logs nothing");
 }
 
 /// Brings BAU-142 up to the agent's follow-up question.

@@ -225,7 +225,7 @@ pub(super) async fn run_run(
     };
     let cli = access.cli.clone();
     let mut stdin = kind.stdin.take();
-    let mut stdout = BufReader::new(kind.stdout.take().expect("stdout ist umgeleitet"));
+    let mut stdout = BufReader::new(kind.stdout.take().expect("stdout is piped"));
     let stderr_end: Arc<Mutex<VecDeque<String>>> = Arc::default();
     if let Some(se) = kind.stderr.take() {
         let end = stderr_end.clone();

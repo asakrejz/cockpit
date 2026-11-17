@@ -60,11 +60,7 @@ fn options_show_up_in_steps_and_log() {
     assert!(log.contains("› Hinweis: Auch den Slider prüfen\n"), "{log}");
     assert!(log.contains("› Tests übersprungen"));
     assert!(log.contains("› Bearbeite components.css, tokens.css"));
-    assert_eq!(
-        log.lines().count(),
-        STEPS + 1,
-        "der Hinweis ist eine Zusatzzeile"
-    );
+    assert_eq!(log.lines().count(), STEPS + 1, "the hint is an extra line");
 }
 
 #[test]

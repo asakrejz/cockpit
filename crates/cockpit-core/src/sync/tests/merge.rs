@@ -8,7 +8,7 @@ fn new_entries_come_in_front_and_the_demo_goes() {
         T,
     );
     let keys: Vec<&str> = ws.items.iter().map(|i| i.key.as_str()).collect();
-    assert_eq!(keys, ["ABC-1", "ABC-2"], "Beispieldaten sind weg");
+    assert_eq!(keys, ["ABC-1", "ABC-2"], "sample data is gone");
     assert!(ws.reviews.is_empty() && ws.runs.is_empty());
     assert!(ws.sync.demo_dropped);
     assert!(ws.sync.is_synced("abc-1"));
