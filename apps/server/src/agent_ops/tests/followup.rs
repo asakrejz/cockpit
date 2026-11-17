@@ -10,6 +10,7 @@ use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 mod jobs;
+mod panel;
 mod pull_request;
 mod two_repos;
 

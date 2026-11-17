@@ -1,0 +1,18 @@
+[
+  {
+    "sha": "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+    "commit": {
+      "message": "Use the avatar token\n\nThe size now comes from --comp-avatar-size.",
+      "author": { "name": "M. Keller", "date": "2024-05-13T09:30:00Z" }
+    },
+    "author": { "login": "mkeller" }
+  },
+  {
+    "sha": "bbbb2222bbbb2222bbbb2222bbbb2222bbbb2222",
+    "commit": {
+      "message": "Add the token",
+      "author": { "name": "Jo Doe", "date": "2024-05-13T11:00:00Z" }
+    },
+    "author": null
+  }
+]

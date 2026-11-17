@@ -60,7 +60,7 @@ impl AppState {
         GitHubClient::new(api, token).map_err(|e| format!("Der GitHub-Zugang ist ungültig: {e}"))
     }
 
-    async fn github_client_async(&self) -> Result<GitHubClient, String> {
+    pub(crate) async fn github_client_async(&self) -> Result<GitHubClient, String> {
         self.oauth_refresh().await;
         let s = self.clone();
         tokio::task::spawn_blocking(move || s.github_client())
