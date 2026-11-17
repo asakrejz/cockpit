@@ -6,9 +6,12 @@ pub mod followup;
 mod map;
 mod patch;
 
-pub use client::{GitHubClient, MAX_REPOS, Relation, RepoAccess, RepoInfo, RepoList};
+pub use client::{
+    GitHubClient, MAX_REPOS, OpenPulls, PrLimits, Relation, RepoAccess, RepoInfo, RepoList,
+};
 pub use map::{
-    aggregate_checks, changes_requested, check_runs_to_core, comments_to_core,
-    comments_with_reviews, file_to_diff, mention_for, pull_to_item, pull_to_review,
+    PrRelation, aggregate_checks, changes_requested, check_runs_to_core, comments_to_core,
+    comments_with_reviews, file_to_diff, mention_for, pull_to_item, pull_to_item_for,
+    pull_to_review,
 };
 pub use patch::parse_patch;

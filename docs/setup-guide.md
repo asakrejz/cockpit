@@ -191,7 +191,7 @@ backend rejects it; the app is already installed, sign-in always begins in Cockp
 
 The page "Einrichten" (`#/setup`) is a guided assistant in six steps with a progress indicator (Container, Jira,
 GitHub, Modell, Live, Fertig). It appears by itself on first start when nothing is set up (once per browser; the browser
-remembers only this hint) and is always reachable via "Einrichten" in the sidebar. Every step can be skipped; the
+remembers only this hint) and is always reachable via "Einrichten" in the "Mehr" menu of the navigation. Every step can be skipped; the
 summary says in plain language what works (check mark), what is open and what to verify, with "Ansehen" leading to
 the right step. The texts assume no prior knowledge. The current step is part of the address (`#/setup/container`,
 `#/setup/jira`, `#/setup/github`, `#/setup/model`, `#/setup/live`, `#/setup/done`), so a reload keeps it and the back

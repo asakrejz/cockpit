@@ -18,6 +18,8 @@ macro_rules! fixture {
 }
 
 mod fetch;
+mod jira_sprints;
+mod open_pulls;
 mod outages;
 mod services;
 mod two_repos;
@@ -38,39 +40,16 @@ async fn get(s: &MockServer, p: &str, response: ResponseTemplate) {
         .await;
 }
 
-/// GitHub with fixtures: #87 (review requested) and #91 (own PR, checks red).
+/// GitHub with fixtures: #87 (review requested) and #91 (own PR, checks red) in the list of
+/// open pull requests.
 async fn github_server() -> MockServer {
     let s = MockServer::start().await;
     get(&s, "/user", ok(fixture!("github_user.json"))).await;
-    Mock::given(method("GET"))
-        .and(path("/search/issues"))
-        .and(query_param(
-            "q",
-            format!("is:pr is:open archived:false review-requested:@me repo:{REPO}"),
-        ))
-        .respond_with(ok(fixture!("github_search_review.json")))
-        .mount(&s)
-        .await;
-    Mock::given(method("GET"))
-        .and(path("/search/issues"))
-        .and(query_param(
-            "q",
-            format!("is:pr is:open archived:false author:@me repo:{REPO}"),
-        ))
-        .respond_with(ok(fixture!("github_search_own.json")))
-        .mount(&s)
-        .await;
     let base = format!("/repos/{REPO}");
     get(
         &s,
-        &format!("{base}/pulls/87"),
-        ok(fixture!("github_pull_87.json")),
-    )
-    .await;
-    get(
-        &s,
-        &format!("{base}/pulls/91"),
-        ok(fixture!("github_pull_91.json")),
+        &format!("{base}/pulls"),
+        ok(fixture!("github_pulls_open.json")),
     )
     .await;
     get(

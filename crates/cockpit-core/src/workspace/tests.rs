@@ -350,6 +350,10 @@ fn options_decide_draft_and_checks() {
             changes_requested: false,
             merged: false,
             review_requested: true,
+            author: String::new(),
+            mine: false,
+            requested_me: false,
+            assigned_me: false,
         })
     );
     assert_eq!(

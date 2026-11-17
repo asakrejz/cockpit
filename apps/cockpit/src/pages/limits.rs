@@ -9,7 +9,7 @@ use cockpit_core::{
 use feature_ui::*;
 use leptos::prelude::*;
 
-use crate::{sidebar::AppSidebar, store::use_store};
+use crate::store::use_store;
 
 /// Text of an amount of money for an input field: `5,00`, empty = no limit.
 fn money_text(cents: Option<u64>) -> String {
@@ -305,7 +305,6 @@ pub fn LimitsPage() -> impl IntoView {
 
     view! {
         <SplitView>
-            <AppSidebar>{""}</AppSidebar>
 
             <Pane label="Grenzen und Regeln">
                 <PaneHeader>

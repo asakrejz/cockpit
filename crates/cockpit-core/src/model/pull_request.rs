@@ -143,6 +143,19 @@ pub struct PrRef {
     /// A review is requested.
     #[serde(default)]
     pub review_requested: bool,
+    /// GitHub login of the author (empty = not known, old data).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub author: String,
+    /// The pull request concerns me: I am the author, a requested reviewer or an assignee.
+    /// Old data has `false` here; the entry's `scope` stays the authority for old entries.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub mine: bool,
+    /// A review from me is requested (as a person, not through a team).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub requested_me: bool,
+    /// I am an assignee.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub assigned_me: bool,
 }
 
 impl PrRef {

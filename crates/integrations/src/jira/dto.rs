@@ -72,6 +72,27 @@ pub struct Fields {
     pub duedate: Option<String>,
     #[serde(default)]
     pub labels: Vec<String>,
+    /// All other fields, among them the sprint field of the site (its ID differs per site).
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, Value>,
+}
+
+/// `GET /rest/api/3/field` – one field (only what finding the sprint field needs).
+#[derive(Debug, Clone, Deserialize)]
+pub struct FieldInfo {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub schema: Option<FieldSchema>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct FieldSchema {
+    /// `com.pyxis.greenhopper.jira:gh-sprint` for the sprint field.
+    #[serde(default)]
+    pub custom: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

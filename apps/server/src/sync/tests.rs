@@ -109,32 +109,14 @@ async fn github() -> MockServer {
 
 async fn mount_github(s: &MockServer) {
     get(s, "/user", ok(json!({"login": "ich"}))).await;
-    for (q, hits) in [
-        (
-            "is:pr is:open archived:false review-requested:@me repo:a/x",
-            true,
-        ),
-        ("is:pr is:open archived:false author:@me repo:a/x", false),
-    ] {
-        let items = if hits {
-            json!([{"number": 7, "repository_url": "https://api.github.com/repos/a/x"}])
-        } else {
-            json!([])
-        };
-        Mock::given(method("GET"))
-            .and(path("/search/issues"))
-            .and(query_param("q", q))
-            .respond_with(ok(json!({"items": items})))
-            .mount(s)
-            .await;
-    }
     get(
         s,
-        "/repos/a/x/pulls/7",
-        ok(json!({
+        "/repos/a/x/pulls",
+        ok(json!([{
         "number": 7, "title": "Avatar", "user": {"login": "lena"},
+        "requested_reviewers": [{"login": "ich"}],
         "head": {"ref": "feature/x", "sha": "s1"}, "base": {"ref": "main"},
-        "updated_at": "2024-05-14T10:00:00Z"})),
+        "updated_at": "2024-05-14T10:00:00Z"}])),
     )
     .await;
     get(s, "/repos/a/x/pulls/7/files", ok(json!([
@@ -226,7 +208,7 @@ async fn chosen_project_determines_the_query() {
         .and(path("/rest/api/3/search/jql"))
         .and(query_param(
             "jql",
-            "project = WEB AND statusCategory != Done ORDER BY updated DESC",
+            "project = WEB AND sprint in openSprints() ORDER BY updated DESC",
         ))
         .respond_with(ok(json!({"issues": [issue]})))
         .expect(1)

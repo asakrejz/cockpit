@@ -55,7 +55,21 @@ webhooks = false                  # default: both webhook routes answer 404
 public_url = "https://cockpit.example"   # your tunnel; only shown in the assistant
 [sync]
 webhook_fallback_interval_s = 600 # poll interval of a source while its webhooks arrive (default: 5x interval_s, at most 600)
+max_prs_per_repo = 200            # open pull requests loaded per repo (default 200, 1 to 2000)
+max_prs_total = 500               # … over all repos together (default 500, 1 to 2000)
 ```
+
+**Pull requests.** The sync loads *all* open pull requests of the configured repos (most recently updated first, 100
+per call), not only yours. Beyond `max_prs_per_repo` / `max_prs_total` the rest is left out and the source state says
+"Nur die ersten N PRs je Repo geladen". Your relation to a pull request comes from the pull request itself (author,
+requested reviewers, assignees); review requests to a *team* are not detected.
+
+**Jira query.** Without `jql` the sync asks for the active sprints:
+`sprint in openSprints() [AND project in (<projects>)] ORDER BY updated DESC`. If Jira rejects `openSprints()` (project
+without sprints) or there is no active sprint, the same query runs with `statusCategory != Done` instead and the source
+state says "Dieses Projekt hat keine Sprints – zeige alle offenen Tickets". A `jql` of your own is used exactly as
+written, is never rewritten and its errors are shown as errors. The sprint field of the site is found through
+`/rest/api/3/field` (type `gh-sprint`, otherwise the name "Sprint"), once per sync.
 
 
 ## Where the files live, and moving from older versions

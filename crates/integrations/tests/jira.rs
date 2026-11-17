@@ -199,7 +199,7 @@ async fn projects_page_by_page() {
 fn query_for_a_project() {
     assert_eq!(
         jql_for_project("BAU").unwrap(),
-        "project = BAU AND statusCategory != Done ORDER BY updated DESC"
+        "project = BAU AND sprint in openSprints() ORDER BY updated DESC"
     );
     for broken in ["", "1AB", "A) OR (B", "BAU-1"] {
         assert!(

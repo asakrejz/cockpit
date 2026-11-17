@@ -133,6 +133,10 @@ impl Workspace {
                 changes_requested: false,
                 merged: r.merged.is_some(),
                 review_requested: false,
+                author: String::new(),
+                mine: false,
+                requested_me: false,
+                assigned_me: false,
             })
         })
     }

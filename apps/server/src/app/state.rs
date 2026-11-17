@@ -243,6 +243,7 @@ impl AppState {
             atlassian: c.atlassian.clone(),
             endpoints: alt.endpoints.clone(),
             interval: alt.interval,
+            pr_limits: c.github_pr_limits,
         };
         match self.inner.sources.write() {
             Ok(mut q) => *q = Arc::new(updated),

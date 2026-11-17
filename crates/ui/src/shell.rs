@@ -14,7 +14,9 @@ pub enum SplitLayout {
     DetailWide,
 }
 
-/// Three columns. Below 1100 px they stack.
+/// Up to three columns (list or picker, detail, context), each as tall as the viewport and
+/// scrolling on its own. Up to 1279 px the third column moves below the second one, up to
+/// 1100 px all columns stack and the page scrolls.
 ///
 /// `detail_open` only matters on those narrow screens: if given, the list pane (first pane) and
 /// the detail pane (second pane) become two levels and only the one the signal selects is shown
@@ -134,12 +136,12 @@ pub fn SidebarItem(
     }
 }
 
-/// Navigation bar fixed to the bottom edge on narrow screens (up to 1100 px); hidden above that,
-/// where the [`Sidebar`] shows the same targets.
+/// Floating navigation pill ("liquid glass") at the bottom edge, centred, on every screen width.
 ///
-/// Holds a few fixed main targets ([`BottomNavItem`] as children, at most five slots including
+/// Holds a few fixed main targets ([`BottomNavItem`] as children, `slots` in total including
 /// "more") and a last button that opens a bottom sheet with everything else (`more`). Nothing
-/// scrolls sideways. The button is marked as current when `more_current` is true (the current
+/// scrolls sideways. A glass capsule slides to the slot `active` names (counted from 0, "more"
+/// is the last one; `None`: none is current). The button is marked as current when `more_current` is true (the current
 /// page lives in the sheet) and carries `more_badge` (summed attention of the hidden targets).
 ///
 /// The sheet is a modal dialog: focus moves into it, Tab stays inside, Escape or a tap outside
@@ -160,6 +162,16 @@ pub fn BottomNav(
     /// Number of new things behind the button (0: no badge).
     #[prop(into, default = 0.into())]
     more_badge: Signal<usize>,
+    /// Opaque pill without blur (the fallback for `prefers-reduced-transparency` and browsers
+    /// without `backdrop-filter`, shown on purpose, e.g. in a style guide).
+    #[prop(optional)]
+    solid: bool,
+    /// Number of slots including "more" (the pill is as wide as its slots).
+    #[prop(default = 5)]
+    slots: usize,
+    /// Index of the slot of the current page (the capsule slides there).
+    #[prop(into, default = None.into())]
+    active: Signal<Option<usize>>,
     /// Content of the sheet (a list of [`SidebarItem`]s, further sections).
     #[prop(into)]
     more: ViewFn,
@@ -253,8 +265,13 @@ pub fn BottomNav(
     };
 
     view! {
-        <nav class="ui-bottomnav" aria-label=label>
-            <ul class="ui-bottomnav__list">
+        <nav class="ui-bottomnav" aria-label=label data-solid=solid.then_some("")>
+          <div class="ui-bottomnav__pill" style=format!("--slots:{slots}")>
+            <ul
+                class="ui-bottomnav__list"
+                style=move || format!("--active:{}", active.get().unwrap_or(0))
+                data-active=move || active.get().is_some().then_some("true")
+            >
                 {children()}
                 <li>
                     <button
@@ -274,6 +291,7 @@ pub fn BottomNav(
                     </button>
                 </li>
             </ul>
+          </div>
         </nav>
         <div
             class="ui-bottomnav-overlay"
@@ -352,6 +370,26 @@ pub fn BottomNavItem(
                 <span class="ui-bottomnav__label">{move || label.get()}</span>
             </a>
         </li>
+    }
+}
+
+/// Column of the [`SplitView`] that picks the item the next column shows (a pull request, an
+/// agent run). Up to 1100 px it becomes a chip strip above the content.
+#[component]
+pub fn PickerPane(
+    #[prop(into)] label: String,
+    /// Small heading above the entries.
+    #[prop(into)]
+    title: String,
+    children: Children,
+) -> impl IntoView {
+    view! {
+        <section class="ui-pane" data-kind="picker" aria-label=label>
+            <div class="ui-pane__header">
+                <h2 class="t-headline">{title}</h2>
+            </div>
+            <div class="ui-pane__body">{children()}</div>
+        </section>
     }
 }
 

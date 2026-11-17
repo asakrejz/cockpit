@@ -169,6 +169,47 @@ pub struct Item {
     /// Labels of the service (Jira labels, GitHub labels).
     #[serde(default)]
     pub labels: Vec<String>,
+    /// Jira only: the sprint the ticket is in (the active one if it is in several).
+    /// `None` = no sprint (backlog) or no sprint data.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sprint: Option<Sprint>,
+    /// Last update at the service (milliseconds since 1970), `None` = unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub updated_ms: Option<u64>,
+}
+
+/// State of a Jira sprint.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum SprintState {
+    Active,
+    Closed,
+    Future,
+}
+
+impl SprintState {
+    /// Reads Jira's `state` (any case); unknown values give `None`.
+    pub fn parse(text: &str) -> Option<SprintState> {
+        match text.trim().to_lowercase().as_str() {
+            "active" => Some(SprintState::Active),
+            "closed" => Some(SprintState::Closed),
+            "future" => Some(SprintState::Future),
+            _ => None,
+        }
+    }
+}
+
+/// The sprint of a ticket as the sync delivers it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct Sprint {
+    #[serde(default)]
+    pub name: String,
+    pub state: SprintState,
+    /// Start and end as Jira writes them (ISO timestamp), empty = unknown.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub start: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub end: String,
 }
 
 impl Item {
@@ -193,6 +234,28 @@ impl Item {
             .split_once('-')
             .map(|(p, _)| p)
             .filter(|p| is_project_key(p))
+    }
+
+    /// The Jira project this entry belongs to: for a ticket its own ([`Item::project`]); for a
+    /// pull request the project of the first ticket key in its branch name or title
+    /// (`feature/bau-142-x` → `BAU`), `None` if there is none.
+    pub fn ticket_project(&self) -> Option<String> {
+        if self.kind == Kind::Ticket {
+            return self.project().map(str::to_string);
+        }
+        let branch = self.branch.as_deref().unwrap_or_default();
+        [branch, self.title.as_str()].iter().find_map(|text| {
+            crate::link::ticket_keys(text)
+                .first()
+                .and_then(|k| k.split_once('-'))
+                .map(|(p, _)| p.to_string())
+                .filter(|p| is_project_key(p))
+        })
+    }
+
+    /// Does the entry belong to me (assigned, own, review requested), as opposed to the team?
+    pub fn is_mine(&self) -> bool {
+        self.scope == Scope::Mine
     }
 
     /// The key as shown in lists: `BAU-142` for tickets; for pull requests `acme/app#87`
