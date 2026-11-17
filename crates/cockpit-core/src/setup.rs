@@ -3,7 +3,8 @@
 //! merely wires it up.
 
 use crate::api::{
-    AgentStatus, ContainerStatus, EndpointCheck, EndpointStatus, JiraCause, Provider, Setup,
+    AgentStatus, ContainerStatus, EndpointCheck, EndpointStatus, GitHubCause, JiraCause, Provider,
+    Setup,
 };
 use crate::connections::{AuthKind, ServiceStatus};
 
@@ -15,6 +16,9 @@ pub use log::*;
 
 mod endpoint;
 pub use endpoint::*;
+
+mod repo_list;
+pub use repo_list::*;
 
 mod summary;
 pub use summary::*;

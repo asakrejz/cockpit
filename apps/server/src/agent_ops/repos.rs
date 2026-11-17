@@ -73,6 +73,8 @@ impl AppState {
                     "Das Repo „{chosen}“ ist für den Agenten nicht freigegeben. Trage es unter „Einrichten“ › „GitHub“ ein."
                 ));
             }
+            // The base branch always belongs to the repo, whatever the request carries.
+            options.base_branch = repos.base_branch(&chosen);
         } else {
             let ws = self.inner.live.copy();
             let project = ws

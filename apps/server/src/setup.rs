@@ -6,6 +6,8 @@
 //! * `PUT /api/secrets/{name}`: stores a key in the .env file; `DELETE` deletes a
 //!   token (`jira`, `github`) again ("Trennen")
 //! * `POST /api/jira/check`: connection test for Jira via API token (read only)
+//! * `GET /api/github/repos`: the repos the GitHub access can reach (read only)
+//! * `POST /api/github/check`: connection test for GitHub: user and chosen repos (read only)
 //!
 //! All three run behind the check from `access` (loopback, host, origin, content type).
 //! A key only occurs in the body of the request, is logged nowhere and never sent back;
@@ -43,6 +45,9 @@ pub use config_write::*;
 
 mod checks;
 pub use checks::*;
+
+mod github;
+pub use github::*;
 
 impl AppState {
     /// Takes over the addresses and accounts from the configuration into the database (without keys).
@@ -152,7 +157,13 @@ impl AppState {
                 .as_ref()
                 .map(|g| g.repos.clone())
                 .unwrap_or_default(),
-            agent_repos: self.agent_repos_config(),
+            // One list for the assistant: repos of `[github] repos` (older) are part of it.
+            agent_repos: self.agent_repos_config().unified(
+                &q.github
+                    .as_ref()
+                    .map(|g| g.repos.clone())
+                    .unwrap_or_default(),
+            ),
             provider: choice.provider,
             endpoint_url: choice.endpoint.as_ref().and_then(|e| e.url.clone()),
             endpoint_model: choice.endpoint.and_then(|e| e.model),

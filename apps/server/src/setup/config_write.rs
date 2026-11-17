@@ -259,6 +259,13 @@ pub(super) fn agent_repos_write(
     }
     let t = table(doc, "agent")?;
     t.remove("repos");
+    // The list is the one place for the repos: the older `[github] repos` goes away, the
+    // sync takes its repos from the list (see `Config::parse`).
+    if let Some(g) = doc.get_mut("github").and_then(Item::as_table_like_mut) {
+        g.remove("repos");
+    }
+    empty_remove(doc, "github");
+    let t = table(doc, "agent")?;
     match input
         .default
         .as_deref()

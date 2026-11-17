@@ -32,7 +32,8 @@ seed = "empty"                    # or "demo", see "Seed data"
 interval_s = 120                  # sync interval, default 2 minutes, at least 30
 
 [github]
-repos = ["acme/app", "acme/web"]  # owner/name, several allowed; api_url only for GitHub Enterprise
+# api_url = "https://ghe.example/api/v3"   # only for GitHub Enterprise
+# repos = [...]                   # older spelling, still read; the assistant now writes [[agent.repos]] only
 [jira]
 site = "https://acme.atlassian.net"
 email = "me@acme.example"
@@ -92,8 +93,10 @@ build context is `apps/agent`, and its `.dockerignore` excludes `config` as well
 
 ## Several repos
 
-`[[agent.repos]]` lists the repos the agent may work in (owner/name, base branch, Jira
-projects). When a run starts, the backend picks the repo: the first rule whose `projects` names the ticket's Jira
+`[[agent.repos]]` is the ONE list of repos (owner/name, base branch, Jira projects): they are the pull-request
+sources of the sync **and** the repos the agent may work in. The assistant writes only this list (and `[agent] repo`
+for the default) and removes `[github] repos`. Older configs keep working: `[github] repos` is still read and its
+repos are added to the sync, and the assistant shows both together in one list; saving it migrates to the new format. When a run starts, the backend picks the repo: the first rule whose `projects` names the ticket's Jira
 project, otherwise the default (`[agent] repo`, or the only repo). In the agent view the repo is preselected the same way
 and can be changed in a drop-down before the start; without a matching rule and without a default there is a hint
 and the start waits for your choice. A repo outside the list is refused. Without `[[agent.repos]]` the default applies (`[agent] repo`, or the only `[github] repos` entry; with several `[github] repos` and no default

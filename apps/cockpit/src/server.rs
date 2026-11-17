@@ -5,9 +5,10 @@
 use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
     ActionRequest, ActionResponse, AgentStatus, ConfigChange, ConfigResponse, ContainerCheck,
-    ContainerStatus, EndpointCheck, EndpointStatus, ErrorBody, ImageBuild, JiraCheck,
-    JiraProjectsResponse, KeyInput, KeyResponse, ModelList, RepoCheckRequest, RepoCheckResponse,
-    RevokeResponse, ServerEvent, Setup, SyncResponse, WebhookSecretResponse, WebhookTestResponse,
+    ContainerStatus, EndpointCheck, EndpointStatus, ErrorBody, GitHubCheck, GitHubRepoList,
+    ImageBuild, JiraCheck, JiraProjectsResponse, KeyInput, KeyResponse, ModelList,
+    RepoCheckRequest, RevokeResponse, ServerEvent, Setup, SyncResponse, WebhookSecretResponse,
+    WebhookTestResponse,
 };
 use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
@@ -39,6 +40,15 @@ async fn rejection(resp: gloo_net::http::Response) -> CallError {
         status,
         server_message.as_deref(),
     ))
+}
+
+/// Like [`rejection`], but the server's own sentence wins (the GitHub calls of the assistant
+/// already say in plain text what is wrong, e.g. which token problem).
+async fn rejection_own(resp: gloo_net::http::Response) -> CallError {
+    match resp.json::<ErrorBody>().await {
+        Ok(e) if !e.error.trim().is_empty() => CallError::Rejected(e.error),
+        _ => CallError::Rejected("GitHub lässt sich gerade nicht abfragen.".into()),
+    }
 }
 
 /// Loads the current state including the revision.
@@ -392,17 +402,31 @@ pub async fn delete_key(name: &str) -> Result<KeyResponse, CallError> {
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }
 
-/// Looks at repos, read-only (`POST /api/github/repos/check`): exists, visible, push allowed?
-pub async fn post_repos_check(repos: Vec<String>) -> Result<RepoCheckResponse, CallError> {
-    let request = Request::post("/api/github/repos/check")
+/// The repos the connected GitHub access can reach (`GET /api/github/repos`). Only reads.
+pub async fn fetch_github_repos() -> Result<GitHubRepoList, CallError> {
+    let resp = Request::get("/api/github/repos")
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection_own(resp).await);
+    }
+    resp.json::<GitHubRepoList>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// The connection test of GitHub (`POST /api/github/check`): the user and the chosen repos.
+pub async fn post_github_check(repos: Vec<String>) -> Result<GitHubCheck, CallError> {
+    let request = Request::post("/api/github/check")
         .header("Content-Type", "application/json")
         .json(&RepoCheckRequest { repos })
         .map_err(|_| CallError::Rejected("Die Prüfung lässt sich nicht starten".into()))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
-        return Err(rejection(resp).await);
+        return Err(rejection_own(resp).await);
     }
-    resp.json::<RepoCheckResponse>()
+    resp.json::<GitHubCheck>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }

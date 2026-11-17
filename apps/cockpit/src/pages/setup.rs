@@ -6,7 +6,6 @@
 //! (no `localStorage`, no address), the server never sends them back. The rules for this
 //! are in `cockpit_core::setup`, writing `config.toml` is in the server.
 
-mod agent_repos;
 mod auth_method;
 mod build_log;
 mod container;
@@ -16,6 +15,7 @@ mod github;
 mod jira;
 mod live;
 mod model;
+mod repo_picker;
 
 use cockpit_core::setup::{Snapshot, Step, first_open_step, summary};
 use feature_ui::*;

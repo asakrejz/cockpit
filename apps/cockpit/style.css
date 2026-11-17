@@ -73,6 +73,12 @@ body { margin: 0; }
   border-radius: 12px;
 }
 
+/* The list of repos to choose from in the setup assistant. */
+.ck-repo-list { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; border: 1px solid var(--sys-color-separator, rgba(128, 128, 128, 0.3)); border-radius: 12px; }
+.ck-repo-list:not(:has(li)) { display: none; }
+.ck-repo-item { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 12px; cursor: pointer; }
+.ck-repo-name { font-weight: 600; overflow-wrap: anywhere; }
+
 /* Notices sit above the navigation pill (on every width). */
 .ck-toasts { inset-block-end: calc(var(--ui-nav-space) + var(--ref-space-8)); }
 @media (max-width: 1100px) {

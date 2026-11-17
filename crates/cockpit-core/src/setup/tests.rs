@@ -550,6 +550,53 @@ fn webhook_keys_are_allowed_names() {
     assert!(!key_deletable("github-webhook"));
 }
 
+#[test]
+fn github_texts_never_name_a_token_and_the_ok_names_the_user() {
+    use crate::api::GitHubCause;
+    for c in [
+        GitHubCause::Ok,
+        GitHubCause::NotConnected,
+        GitHubCause::Token,
+        GitHubCause::Permission,
+        GitHubCause::RateLimit,
+        GitHubCause::Network,
+        GitHubCause::Other,
+    ] {
+        let t = github_check_text(c, Some("ada"));
+        assert!(!t.is_empty() && !t.contains("ghp_"), "{c:?}");
+    }
+    assert!(github_check_text(GitHubCause::Ok, Some("ada")).contains("als ada"));
+    assert_eq!(
+        github_check_text(GitHubCause::Ok, None),
+        "GitHub antwortet."
+    );
+}
+
+#[test]
+fn the_repo_search_needs_every_word_and_ignores_case() {
+    assert!(repo_matches("Firma/Web-Shop", ""));
+    assert!(repo_matches("Firma/Web-Shop", "web"));
+    assert!(repo_matches("Firma/Web-Shop", "firma SHOP"));
+    assert!(!repo_matches("Firma/Web-Shop", "firma api"));
+}
+
+#[test]
+fn the_repo_summary_says_found_selected_and_the_search() {
+    assert_eq!(
+        repo_summary(23, 23, 2, false),
+        "23 Repos gefunden, 2 ausgewählt."
+    );
+    assert_eq!(
+        repo_summary(1, 1, 0, false),
+        "1 Repo gefunden, keins ausgewählt."
+    );
+    assert_eq!(
+        repo_summary(23, 4, 2, false),
+        "23 Repos gefunden, 2 ausgewählt. Die Suche zeigt 4."
+    );
+    assert!(repo_summary(500, 500, 1, true).contains("noch mehr"));
+}
+
 fn lines(n: usize) -> Vec<String> {
     (1..=n).map(|i| format!("Schritt {i}")).collect()
 }

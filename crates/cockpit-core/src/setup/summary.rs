@@ -2,6 +2,38 @@
 
 use super::*;
 
+/// The plain text for the result of the GitHub connection test. Never names the token.
+pub fn github_check_text(cause: GitHubCause, user: Option<&str>) -> String {
+    match cause {
+        GitHubCause::Ok => match user.filter(|n| !n.is_empty()) {
+            Some(n) => format!("GitHub antwortet und kennt dich als {n}."),
+            None => "GitHub antwortet.".into(),
+        },
+        GitHubCause::NotConnected => {
+            "GitHub ist noch nicht verbunden. Lege zuerst den Token ab (oder melde dich mit der GitHub App an)."
+                .into()
+        }
+        GitHubCause::Token => {
+            "GitHub lehnt den Token ab. Er ist falsch kopiert, abgelaufen oder widerrufen – erzeuge einen neuen."
+                .into()
+        }
+        GitHubCause::Permission => {
+            "Der Token ist gültig, aber GitHub verweigert den Zugriff. Prüfe die Rechte des Tokens und ob die Organisation ihn zulässt."
+                .into()
+        }
+        GitHubCause::RateLimit => {
+            "GitHub bremst gerade (zu viele Anfragen). Versuche es in einigen Minuten noch einmal."
+                .into()
+        }
+        GitHubCause::Network => {
+            "GitHub ist nicht erreichbar. Bist du im Netz, und stimmt die API-Adresse?".into()
+        }
+        GitHubCause::Other => {
+            "GitHub hat unerwartet geantwortet. Versuche es in einer Minute noch einmal.".into()
+        }
+    }
+}
+
 /// The plain text for the result of the Jira connection test. Never names the token.
 pub fn jira_check_text(cause: JiraCause, name: Option<&str>) -> String {
     match cause {

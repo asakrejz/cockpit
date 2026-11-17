@@ -58,3 +58,34 @@ fn old_json_without_fields_reads() {
     let one: AgentRepo = serde_json::from_str(r#"{"repo":"a/b"}"#).unwrap();
     assert_eq!(one, AgentRepo::new("a/b"));
 }
+
+#[test]
+fn the_unified_list_adds_repos_that_only_the_older_section_names() {
+    let r = repos();
+    let all = r.unified(&["acme/old".into(), "acme/web".into()]);
+    assert_eq!(all.names(), ["acme/app", "acme/web", "acme/old"]);
+    // What is configured stays untouched: base branch, projects and default.
+    assert_eq!(all.base_branch("acme/web"), "develop");
+    assert_eq!(all.default.as_deref(), Some("acme/app"));
+    assert_eq!(all.base_branch("acme/old"), "main");
+    assert!(all.find("acme/old").unwrap().projects.is_empty());
+}
+
+#[test]
+fn an_empty_configuration_takes_the_older_list_as_it_is() {
+    let all = AgentRepos::default().unified(&["a/b".into(), "c/d".into()]);
+    assert_eq!(all.names(), ["a/b", "c/d"]);
+    assert_eq!(all.default, None);
+    assert!(AgentRepos::default().unified(&[]).is_empty());
+}
+
+#[test]
+fn a_project_routes_to_its_repo_in_the_unified_list() {
+    let all = repos().unified(&["acme/old".into()]);
+    assert_eq!(all.choose(Some("web")), RepoChoice::Rule("acme/web".into()));
+    assert_eq!(
+        all.choose(Some("X")),
+        RepoChoice::Default("acme/app".into())
+    );
+    assert!(all.allows("acme/old") && !all.allows("acme/zzz"));
+}

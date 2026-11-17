@@ -215,6 +215,39 @@ pub struct RepoPermissions {
     pub push: bool,
 }
 
+/// One repo of a list (`GET /user/repos`, `GET /user/installations/{id}/repositories`).
+#[derive(Debug, Clone, Deserialize)]
+pub struct RepoListEntry {
+    pub full_name: String,
+    #[serde(default)]
+    pub private: bool,
+    #[serde(default)]
+    pub archived: bool,
+    #[serde(default)]
+    pub default_branch: Option<String>,
+    #[serde(default)]
+    pub permissions: Option<RepoPermissions>,
+}
+
+/// `GET /user/installations`
+#[derive(Debug, Clone, Deserialize)]
+pub struct Installations {
+    #[serde(default)]
+    pub installations: Vec<Installation>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Installation {
+    pub id: u64,
+}
+
+/// `GET /user/installations/{id}/repositories`
+#[derive(Debug, Clone, Deserialize)]
+pub struct InstallationRepos {
+    #[serde(default)]
+    pub repositories: Vec<RepoListEntry>,
+}
+
 /// `GET /repos/{owner}/{repo}/git/ref/heads/{branch}`
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitRefResponse {

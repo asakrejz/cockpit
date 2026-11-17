@@ -1,0 +1,229 @@
+//! The repo list and the connection test of GitHub (wiremock only, never a real service).
+
+use super::*;
+use serde_json::json;
+
+/// A server whose GitHub address is the mock; `token` is stored in the .env file if given.
+fn gh_app(api: &str, token: Option<&str>, oauth: Option<&str>) -> Router {
+    let secrets = Arc::new(MemoryStore::new());
+    if let Some(t) = token {
+        secrets.set("github", &Secret::new(t)).unwrap();
+    }
+    if let Some(t) = oauth {
+        secrets
+            .set(
+                crate::secrets::GITHUB_OAUTH_TOKENS,
+                &Secret::new(json!({"access": t}).to_string()),
+            )
+            .unwrap();
+    }
+    let sources = Sources {
+        github: Some(crate::config::GitHubConfig {
+            api_url: api.into(),
+            repos: vec![],
+        }),
+        ..Sources::default()
+    };
+    let state = AppState::create(
+        db::open_in_memory().unwrap(),
+        secrets,
+        8787,
+        sources,
+        Settings::default(),
+    );
+    router(state, PathBuf::from("/x"))
+}
+
+async fn list(app: &Router) -> (StatusCode, serde_json::Value) {
+    let (status, body) = send_request(
+        app,
+        request("GET", "/api/github/repos")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert!(!body.contains(TOKEN), "token in the answer: {body}");
+    (status, serde_json::from_str(&body).unwrap_or_default())
+}
+
+async fn test_connection(app: &Router, repos: &[&str]) -> serde_json::Value {
+    let (status, body) = send_request(
+        app,
+        request("POST", "/api/github/check")
+            .header("content-type", "application/json")
+            .body(Body::from(json!({ "repos": repos }).to_string()))
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(!body.contains(TOKEN), "token in the answer: {body}");
+    serde_json::from_str(&body).unwrap()
+}
+
+fn entry(name: &str) -> serde_json::Value {
+    json!({"full_name": name, "private": true, "archived": false, "default_branch": "develop",
+           "permissions": {"push": true}})
+}
+
+#[tokio::test]
+async fn the_list_comes_from_the_user_repos_with_a_token() {
+    let gh = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/user/repos"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([entry("firma/app")])))
+        .mount(&gh)
+        .await;
+    let app = gh_app(&gh.uri(), Some(TOKEN), None);
+    let (status, a) = list(&app).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(a["via"], "token");
+    assert_eq!(a["truncated"], false);
+    assert_eq!(a["repos"][0]["repo"], "firma/app");
+    assert_eq!(a["repos"][0]["default_branch"], "develop");
+    assert_eq!(a["repos"][0]["private"], true);
+    assert_eq!(a["repos"][0]["can_push"], true);
+    let requests = gh.received_requests().await.unwrap();
+    assert!(requests.iter().all(|r| r.method.as_str() == "GET"));
+}
+
+#[tokio::test]
+async fn the_list_of_a_github_app_comes_from_its_installations() {
+    let gh = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/user/installations"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({"installations": [{"id": 5}]})),
+        )
+        .mount(&gh)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/user/installations/5/repositories"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({"repositories": [entry("firma/web")]})),
+        )
+        .mount(&gh)
+        .await;
+    // The sign-in goes before a token that may also be there.
+    let app = gh_app(&gh.uri(), Some("other"), Some(TOKEN));
+    let (status, a) = list(&app).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(a["via"], "app");
+    assert_eq!(a["repos"][0]["repo"], "firma/web");
+}
+
+#[tokio::test]
+async fn the_list_names_the_problem_in_plain_text() {
+    for (code, status, word) in [
+        (401u16, StatusCode::UNAUTHORIZED, "lehnt den Token ab"),
+        (403, StatusCode::FORBIDDEN, "verweigert den Zugriff"),
+        (404, StatusCode::NOT_FOUND, "kennt diese Adresse nicht"),
+        (429, StatusCode::TOO_MANY_REQUESTS, "bremst"),
+        (500, StatusCode::BAD_GATEWAY, "unerwartet"),
+    ] {
+        let gh = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/user/repos"))
+            .respond_with(
+                ResponseTemplate::new(code)
+                    .set_body_json(json!({"message": format!("bad {TOKEN}")})),
+            )
+            .mount(&gh)
+            .await;
+        let app = gh_app(&gh.uri(), Some(TOKEN), None);
+        let (s, body) = send_request(
+            &app,
+            request("GET", "/api/github/repos")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await;
+        assert_eq!(s, status, "{code}: {body}");
+        assert!(body.contains(word), "{code}: {body}");
+        assert!(!body.contains(TOKEN), "{code}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn the_list_without_a_connection_says_so() {
+    let (app, _) = jira_state("", "", false);
+    let (status, body) = send_request(
+        &app,
+        request("GET", "/api/github/repos")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(body.contains("noch nicht verbunden"), "{body}");
+}
+
+#[tokio::test]
+async fn the_connection_test_names_user_and_repos_and_only_reads() {
+    let gh = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/user"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"login": "ada"})))
+        .mount(&gh)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/repos/firma/app"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!({"default_branch": "main", "permissions": {"push": true}})),
+        )
+        .mount(&gh)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/repos/firma/weg"))
+        .respond_with(ResponseTemplate::new(404))
+        .mount(&gh)
+        .await;
+    let app = gh_app(&gh.uri(), Some(TOKEN), None);
+    let a = test_connection(&app, &["firma/app", "firma/weg"]).await;
+    assert_eq!(a["cause"], "Ok");
+    assert_eq!(a["user"], "ada");
+    assert!(a["message"].as_str().unwrap().contains("ada"));
+    // The connection works, but one repo is not visible: not "ok" overall.
+    assert_eq!(a["ok"], false);
+    assert_eq!(a["repos"][0]["state"], "Ok");
+    assert_eq!(a["repos"][1]["state"], "NotFound");
+    assert!(
+        a["repos"][1]["message"]
+            .as_str()
+            .unwrap()
+            .contains("sieht es nicht")
+    );
+    let requests = gh.received_requests().await.unwrap();
+    assert_eq!(requests.len(), 3);
+    assert!(requests.iter().all(|r| r.method.as_str() == "GET"));
+}
+
+#[tokio::test]
+async fn the_connection_test_maps_failures_of_the_user_call() {
+    for (code, cause) in [
+        (401u16, "Token"),
+        (403, "Permission"),
+        (429, "RateLimit"),
+        (500, "Other"),
+    ] {
+        let gh = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/user"))
+            .respond_with(ResponseTemplate::new(code))
+            .mount(&gh)
+            .await;
+        let app = gh_app(&gh.uri(), Some(TOKEN), None);
+        let a = test_connection(&app, &["firma/app"]).await;
+        assert_eq!(a["cause"], cause, "{code}");
+        assert_eq!(a["ok"], false);
+        assert_eq!(a["repos"].as_array().unwrap().len(), 0);
+    }
+}
+
+#[tokio::test]
+async fn the_connection_test_without_token_and_with_a_dead_address() {
+    let (app, _) = jira_state("", "", false);
+    assert_eq!(test_connection(&app, &[]).await["cause"], "NotConnected");
+    let app = gh_app("http://127.0.0.1:9", Some(TOKEN), None);
+    assert_eq!(test_connection(&app, &[]).await["cause"], "Network");
+}
