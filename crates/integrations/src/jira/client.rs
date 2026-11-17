@@ -54,6 +54,64 @@ pub fn jql_for_project(project: &str) -> Result<String, Error> {
     Ok(format!("project = {project} AND {SPRINT_CLAUSE} {ORDER}"))
 }
 
+/// The query the sync runs and how its tickets are labelled.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct JiraQuery {
+    pub jql: String,
+    /// The query was chosen in the app (project or sprint view): tickets that are neither
+    /// assigned to me nor watched by me then show up with the reason „Im Projekt“.
+    pub in_selection: bool,
+}
+
+/// The query for the sync, from what the app has chosen.
+///
+/// * Nothing chosen (`chosen` is `None` and the sprint view is „Aktueller Sprint“): as before,
+///   [`jql_for`] with the settings file.
+/// * Project chosen, current sprint: [`jql_for_project`].
+/// * Another sprint view („Alle offenen“, „Zuletzt aktualisiert“, „Backlog“): all open tickets
+///   of the project (or of the projects of the settings file; all projects if there are none) –
+///   whoever they are assigned to. A JQL set by hand is only replaced when a project is chosen.
+///
+/// Only ever a read query; nothing here writes to Jira.
+pub fn jql_for_selection(
+    projects: &[String],
+    own: Option<&str>,
+    chosen: Option<&str>,
+    sprint: cockpit_core::SprintView,
+) -> Result<JiraQuery, Error> {
+    use cockpit_core::SprintView;
+    let plain = |jql: String, in_selection| JiraQuery { jql, in_selection };
+    if sprint == SprintView::Current {
+        return match chosen {
+            Some(p) => jql_for_project(p).map(|j| plain(j, true)),
+            None => jql_for(projects, own).map(|j| plain(j, false)),
+        };
+    }
+    if chosen.is_none() && own.map(str::trim).is_some_and(|j| !j.is_empty()) {
+        return jql_for(projects, own).map(|j| plain(j, false));
+    }
+    let keys = chosen.map(|p| vec![p.to_string()]);
+    let keys = keys.as_deref().unwrap_or(projects);
+    for p in keys {
+        if !cockpit_core::is_project_key(p) {
+            return Err(Error::Config(format!("Ungültiger Projektschlüssel: {p}")));
+        }
+    }
+    let mut clauses = Vec::new();
+    if !keys.is_empty() {
+        clauses.push(format!("project in ({})", keys.join(", ")));
+    }
+    clauses.push(OPEN_CLAUSE.to_string());
+    match sprint {
+        SprintView::Backlog => clauses.push("sprint is EMPTY".to_string()),
+        SprintView::Recent => {
+            clauses.push(format!("updated >= -{}d", cockpit_core::RECENT_DAYS));
+        }
+        SprintView::AllOpen | SprintView::Current => {}
+    }
+    Ok(plain(format!("{} {ORDER}", clauses.join(" AND ")), true))
+}
+
 /// Is this one of the two queries [`jql_for`] and [`jql_for_project`] build by default?
 pub fn is_sprint_query(jql: &str) -> bool {
     let jql = jql.trim();

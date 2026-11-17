@@ -221,6 +221,7 @@ fn lena() -> Person {
 
 mod basics;
 mod follow_ups;
+mod inbox_filter;
 mod limits;
 mod pull_requests;
 mod real_agent;

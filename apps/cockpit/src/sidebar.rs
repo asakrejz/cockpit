@@ -2,8 +2,7 @@
 //!
 //! The navigation targets are defined once ([`TARGETS`]): those with [`Slot::Bar`] sit in the
 //! pill, the rest behind "Mehr". The pill lives in the app shell (`main.rs`) so it stays when the
-//! page changes (and its capsule can slide). A page may add sections to the "Mehr" sheet with
-//! [`MoreSection`] (the rules of the inbox).
+//! page changes (and its capsule can slide).
 
 use cockpit_core::{Filter, team};
 use feature_ui::*;
@@ -225,15 +224,6 @@ impl PageMenu {
     pub fn new() -> Self {
         Self(RwSignal::new(None))
     }
-}
-
-/// Adds its children to the "Mehr" sheet as long as the page shows it.
-#[component]
-pub fn MoreSection(children: ChildrenFn) -> impl IntoView {
-    let menu = expect_context::<PageMenu>();
-    let content = ViewFn::from(move || children().into_any());
-    menu.0.set(Some(content));
-    on_cleanup(move || menu.0.set(None));
 }
 
 /// Which slot of the pill the route belongs to: the index in the bar, "Mehr" (after the bar

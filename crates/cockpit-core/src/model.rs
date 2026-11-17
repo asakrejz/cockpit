@@ -84,7 +84,7 @@ impl Filter {
 }
 
 /// Inbox filter by source: all, only Jira or only GitHub.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SourceFilter {
     #[default]
     All,

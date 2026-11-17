@@ -74,15 +74,9 @@ fn issue_without_assignee_and_open() {
     let s = search();
     let item = issue_to_item(&s.issues[2], "acc-mira", now());
     assert_eq!(item.status, TicketStatus::Open);
-    // Without an assignee the reporter counts as the owner.
-    assert_eq!(item.owner.name, "Tobias Lang");
-
-    let mut without_all = s.issues[2].clone();
-    without_all.fields.reporter = None;
-    assert_eq!(
-        issue_to_item(&without_all, "acc-mira", now()).owner.name,
-        "Nicht zugewiesen"
-    );
+    // Without an assignee nobody owns the ticket, even if a reporter is known.
+    assert_eq!(item.owner.name, "Nicht zugewiesen");
+    assert_eq!(item.owner.initials, "–");
 }
 
 #[test]

@@ -81,7 +81,7 @@ in a new tab: create a token, pick a name and expiry, copy and paste it into the
 `PUT /api/secrets/jira` (into `.env`), site and email to `PUT /api/config` (into `config.toml`). "Verbindung prüfen"
 (`POST /api/jira/check`, read only: `GET /rest/api/3/myself`) then tests whether "Jira antwortet und dich kennt"
 and otherwise names the cause in plain language (wrong address, token rejected, no permission, unreachable). Afterwards the
-assistant suggests the Jira projects to choose from (or "Alle Projekte"), like the drop-down in the inbox. The
+assistant suggests the Jira projects to choose from (or "Alle Projekte"), like the drop-down "Jira-Projekt" in the inbox's filter dialog. The
 summary shows whether the sign-in is "mit API-Token" or "mit OAuth"; "Token erneuern" returns to the step and
 "Trennen" deletes the token from `.env` (`DELETE /api/secrets/jira`).
 
@@ -89,14 +89,27 @@ summary shows whether the sign-in is "mit API-Token" or "mit OAuth"; "Token erne
 account or role without write permissions; a short expiry limits the damage. The token lives only in `.env` and never
 in browser storage, URL, database, `config.toml` or log.
 
-**Choosing a project.** If the Jira site has several projects (boards), pick one in the inbox drop-down "Jira-Projekt".
-The list comes from Jira (`GET /api/jira/projects`, behind it `GET /rest/api/3/project/search`: all projects your token
-may see) plus the projects of the tickets already present. The choice is the action `SelectJiraProject` and is
-stored. With a project selected the inbox shows only its tickets (pull requests stay visible, they belong to no
-project); the sync fetches **all open tickets of the project** (`project = KEY AND statusCategory != Done`), not only
-yours (what is neither assigned to nor watched by you appears under "Team" with "Im Projekt"); and the choice takes
-precedence over `projects` and `jql` from `config.toml`. "Alle Projekte" restores those. After a change the server
-syncs immediately.
+**Choosing a project and a sprint view.** If the Jira site has several projects (boards), pick one in the inbox: the button
+"Filter" opens the filter dialog, and "Jira-Projekt" is its first field. The list comes from Jira (`GET /api/jira/projects`,
+behind it `GET /rest/api/3/project/search`: all projects your token may see) plus the projects of the tickets already
+present. The choice is the action `SelectJiraProject` and is stored. With a project selected the inbox shows only its tickets
+(pull requests stay visible, they belong to no project), and the choice takes precedence over `projects` and `jql` from
+`config.toml`. "Alle Projekte" restores those.
+
+What the sync fetches follows the choice (read queries only, never a change in Jira) and always covers **all tickets of
+other people** too, not only yours (what is neither assigned to nor watched by you appears under "Team" with "Im Projekt"):
+
+| Project | Sprint in the dialog | Query |
+|---------|----------------------|-------|
+| none | Aktueller Sprint (default) | as before: `sprint in openSprints()` (restricted to `projects` from `config.toml`), or your own `jql` |
+| `BAU` | Aktueller Sprint | `project = BAU AND sprint in openSprints()` |
+| `BAU` or none | Alle offenen | `project in (BAU) AND statusCategory != Done` |
+| `BAU` or none | Backlog | … `AND sprint is EMPTY` |
+| `BAU` or none | Zuletzt aktualisiert | … `AND updated >= -14d` |
+
+Without a chosen project a sprint view other than "Aktueller Sprint" asks for the projects from `config.toml` (all projects
+if there are none); an own `jql` in `config.toml` is only replaced when a project is chosen. The sprint view is saved with the
+other filters (action `SetInboxFilter`); after a change of project or sprint view the server syncs immediately.
 
 **Terminal route.** `config.toml`:
 

@@ -59,7 +59,8 @@ pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::{AuthKind, Connections, ServiceStatus};
 pub use diagnosis::{Diagnosis, Fix};
 pub use filters::{
-    Applies, Choices, FILTERS, FilterDef, NO_TICKET, Ownership, RECENT_DAYS, SprintView, filter_def,
+    ASSIGNED_TO_ME, ActiveFilter, Applies, Choices, FILTERS, FilterDef, JIRA_PROJECT_FILTER,
+    NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED, UNASSIGNED_NAME, filter_def,
 };
 pub use model::*;
 pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};

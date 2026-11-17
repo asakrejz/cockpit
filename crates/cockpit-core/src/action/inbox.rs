@@ -265,6 +265,17 @@ impl Workspace {
                 }
                 Ok(vec![Note::new(Target::Settings, text)])
             }
+            Action::SetInboxFilter { filter } => {
+                let text = if filter.is_default() {
+                    "Filter zurückgesetzt"
+                } else {
+                    "Filter angewendet"
+                };
+                if !self.set_inbox_filter(filter) {
+                    return Err(ActionError::Unchanged);
+                }
+                Ok(vec![Note::new(Target::Settings, text.to_string())])
+            }
             _ => unreachable!("inbox: dispatched by perform"),
         }
     }
