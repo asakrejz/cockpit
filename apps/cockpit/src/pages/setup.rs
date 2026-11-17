@@ -1,5 +1,5 @@
-//! Setup: a guided assistant in five steps – container, Jira, GitHub, model access
-//! and a summary. Every step can be skipped and caught up on later.
+//! Setup: a guided assistant in six steps – container, Jira, GitHub, model access,
+//! optional live update (webhooks) and a summary. Every step can be skipped and caught up on later.
 //!
 //! Keys (client secrets, tokens, the key of the model endpoint) go into password fields and go once
 //! to the local server, which stores them in the .env file. The browser stores them nowhere
@@ -12,6 +12,7 @@ mod done;
 mod fields;
 mod github;
 mod jira;
+mod live;
 mod model;
 
 use cockpit_core::setup::Step;
@@ -24,10 +25,11 @@ use done::DoneStep;
 use fields::Context;
 use github::GitHubStep;
 use jira::JiraStep;
+use live::LiveStep;
 use model::ModelStep;
 
 /// Labels of the progress display, in the order of [`Step::ALL`].
-const NAMES: &[&str] = &["Container", "Jira", "GitHub", "Modell", "Fertig"];
+const NAMES: &[&str] = &["Container", "Jira", "GitHub", "Modell", "Live", "Fertig"];
 
 #[component]
 pub fn SetupPage() -> impl IntoView {
@@ -74,6 +76,7 @@ pub fn SetupPage() -> impl IntoView {
                         Step::Jira => view! { <JiraStep ctx=ctx /> }.into_any(),
                         Step::GitHub => view! { <GitHubStep ctx=ctx /> }.into_any(),
                         Step::Model => view! { <ModelStep ctx=ctx /> }.into_any(),
+                        Step::Live => view! { <LiveStep ctx=ctx /> }.into_any(),
                         Step::Done => {
                             view! { <DoneStep ctx=ctx to_step=jump /> }.into_any()
                         }

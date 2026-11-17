@@ -237,6 +237,23 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), String> 
     if let Some(e) = &a.endpoint {
         endpoint_write(&mut doc, e)?;
     }
+    if let Some(w) = &a.webhooks {
+        {
+            let t = table(&mut doc, "server")?;
+            if let Some(on) = w.enabled {
+                set(t, "webhooks", value(on));
+            }
+            if let Some(url) = &w.public_url {
+                let url = cockpit_core::setup::public_url_read(url)?;
+                if url.is_empty() {
+                    t.remove("public_url");
+                } else {
+                    set(t, "public_url", value(url));
+                }
+            }
+        }
+        empty_remove(&mut doc, "server");
+    }
 
     let updated = doc.to_string();
     let config = Config::parse(Some(&updated), |_| None).map_err(|e| match e {
@@ -437,6 +454,7 @@ impl AppState {
             endpoint_model: choice.endpoint.and_then(|e| e.model),
             callback_github: redirect_uri(Service::GitHub, port),
             callback_atlassian: redirect_uri(Service::Atlassian, port),
+            webhooks: self.webhooks_info(),
             keys: KEY_NAMES
                 .iter()
                 .map(|n| KeyResponse {

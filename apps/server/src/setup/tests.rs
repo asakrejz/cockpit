@@ -948,3 +948,44 @@ async fn the_repo_check_without_a_github_connection_says_so() {
     let a = repo_check(&app, &["firma/app"]).await;
     assert_eq!(a["repos"][0]["state"], "NoAccess");
 }
+
+#[test]
+fn change_writes_the_server_section_and_keeps_the_rest() {
+    use cockpit_core::api::WebhooksInput;
+    let a = ConfigChange {
+        webhooks: Some(WebhooksInput {
+            enabled: Some(true),
+            public_url: Some(" https://cockpit.example/ ".into()),
+        }),
+        ..Default::default()
+    };
+    let (updated, c) = change(WITH_COMMENTS, &a).unwrap();
+    assert!(updated.contains("# Meine Einstellungen"), "{updated}");
+    assert!(updated.contains("webhooks = true"), "{updated}");
+    assert!(
+        updated.contains("public_url = \"https://cockpit.example\""),
+        "{updated}"
+    );
+    assert!(c.webhooks);
+    assert_eq!(c.public_url.as_deref(), Some("https://cockpit.example"));
+    // Switch off, remove the address: the section stays with `webhooks = false` only.
+    let off = ConfigChange {
+        webhooks: Some(WebhooksInput {
+            enabled: Some(false),
+            public_url: Some(String::new()),
+        }),
+        ..Default::default()
+    };
+    let (updated, c) = change(&updated, &off).unwrap();
+    assert!(!c.webhooks && c.public_url.is_none(), "{updated}");
+    assert!(!updated.contains("public_url"), "{updated}");
+    // A bad address is refused and nothing is written.
+    let bad = ConfigChange {
+        webhooks: Some(WebhooksInput {
+            enabled: None,
+            public_url: Some("http://cockpit.example".into()),
+        }),
+        ..Default::default()
+    };
+    assert!(change(WITH_COMMENTS, &bad).is_err());
+}

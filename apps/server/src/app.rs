@@ -70,6 +70,8 @@ pub struct Settings {
     pub data_dir: Option<PathBuf>,
     /// Fixed upper bound in seconds for a run instead of the limits of the workspace (tests only).
     pub run_seconds: Option<u64>,
+    /// `[server] webhooks`, `public_url` and `[sync] webhook_fallback_interval_s`.
+    pub webhooks: crate::webhooks::WebhookSettings,
 }
 
 impl Settings {
@@ -92,6 +94,12 @@ impl Settings {
             git_base: config.git_base.clone(),
             data_dir: config.db.parent().map(PathBuf::from),
             run_seconds: None,
+            webhooks: crate::webhooks::WebhookSettings {
+                enabled: config.webhooks,
+                public_url: config.public_url.clone(),
+                fallback_s: config.webhook_fallback_s(),
+                ..Default::default()
+            },
         }
     }
 }
@@ -153,6 +161,8 @@ pub(crate) struct Inner {
     pub(crate) container: Cache,
     /// Runs of the real agent (container) and the build of the image.
     pub(crate) agent: crate::agent_ops::Runs,
+    /// Optional webhooks: switch, debounce, rate limit, last received (memory only).
+    pub(crate) webhooks: crate::webhooks::Hub,
 }
 
 impl AppState {
@@ -229,9 +239,10 @@ impl AppState {
                 lock: tokio::sync::Mutex::new(()),
                 written: AtomicU64::new(0),
                 sync: tokio::sync::Mutex::new(()),
-                settings,
                 container: Cache::default(),
                 agent: crate::agent_ops::Runs::default(),
+                webhooks: crate::webhooks::Hub::new(settings.webhooks.clone()),
+                settings,
             }),
         }
     }
@@ -284,6 +295,7 @@ impl AppState {
             Ok(mut l) => *l = repos,
             Err(v) => *v.into_inner() = repos,
         }
+        self.inner.webhooks.apply(c.webhooks, c.public_url.clone());
     }
 
     /// A tick of the tasks in the background. The simulated agent only joins in if the server
@@ -709,7 +721,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         dev: state.inner.settings.dev_port.is_some(),
         ports,
     };
-    Router::new()
+    let protected = Router::new()
         .route("/api/health", get(health))
         .route("/api/workspace", get(workspace))
         .route("/api/actions", post(action))
@@ -735,12 +747,27 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/oauth/{service}/start", get(crate::oauth::start))
         .route("/api/oauth/{service}/callback", get(crate::oauth::callback))
         .route("/api/oauth/{service}/revoke", post(crate::oauth::revoke))
+        .route(
+            "/api/setup/webhook-secret/{source}",
+            post(crate::webhooks::secret_new),
+        )
+        .route(
+            "/api/setup/webhook-test/{source}",
+            post(crate::webhooks::test),
+        )
         .route("/api/{*rest}", any(api_unknown))
-        // Applies only to `/api`, not to the files of the app.
+        // Applies only to `/api`, not to the files of the app. Added routes below are outside.
         .layer(axum::middleware::from_fn_with_state(
             access,
             access::protect,
-        ))
+        ));
+    // The two webhook routes are the only ones that accept a foreign `Host` (a tunnel forwards
+    // its public name). They do their own checks (switch, secret, signature); see `webhooks`.
+    let webhooks = Router::new()
+        .route(crate::webhooks::GITHUB_PATH, any(crate::webhooks::github))
+        .route(crate::webhooks::JIRA_PATH, any(crate::webhooks::jira));
+    protected
+        .merge(webhooks)
         .with_state(state)
         .fallback_service(ServeDir::new(dist))
 }

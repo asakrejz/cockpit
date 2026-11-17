@@ -42,6 +42,44 @@ rest: [architecture.md](architecture.md).
 - Endpoint calls of the backend (`GET <url>/v1/models`, connection tests) do not follow redirects and have a timeout and
   a size limit; they are only made when a key exists and they return IDs and booleans, never the key.
 
+## Webhooks (optional, internet-facing)
+
+The two routes `POST /api/webhooks/github` and `POST /api/webhooks/jira` are the only part of the server meant to be
+reached from the internet, through a tunnel the user runs (see the README, "Live updates and webhooks"). They are
+off by default (`[server] webhooks = false`: `404`).
+
+- **Only these two routes** skip the `Host` check (a tunnel forwards its public name); they sit outside the `access`
+  layer. Everything else (`/api/workspace`, `/api/actions`, `/api/secrets/*`, `/api/events`, `/api/setup/*` including
+  the secret generator and the test button, unknown paths below `/api/webhooks/`) still needs loopback peer and
+  loopback `Host`; tests send every route with foreign hosts and expect `403`. The peer must still be loopback (the
+  tunnel client runs on the same machine).
+- **Authentication:** HMAC-SHA256 over the raw body with a secret from `.env` (`GITHUB_WEBHOOK_SECRET`,
+  `JIRA_WEBHOOK_SECRET`), compared in constant time. GitHub: `X-Hub-Signature-256`. Jira: `X-Hub-Signature`; for
+  senders that cannot sign, the secret as `?token=` (compared in constant time). The token variant is weaker: it
+  appears in the URL (tunnel and Jira logs, history), is the same on every request, and does not bind the body, so
+  anyone who sees one request can send others. Prefer the signature. If a signature header is present it alone
+  decides. No secret: `404`, nothing is accepted (an empty secret counts as none).
+- **Only a trigger.** The payload is not parsed beyond the event type (Jira: `webhookEvent`; GitHub: header) and
+  is never stored or used as data. A forged or replayed request can at most cause a sync, which asks the services
+  with the user's own credentials and applies the result through the normal merge. The sync is merged (one run per
+  source per 5 s) and honours the rate-limit pause of PR #43.
+- **Replay.** A delivery ID (`X-GitHub-Delivery`, `X-Atlassian-Webhook-Identifier`) or an identical body seen in the
+  last 10 minutes is answered `202` and ignored (at most 512 remembered, memory only). The ID header is not
+  signed, therefore the body hash is checked as well. A captured signed request can therefore not be replayed
+  more than once per 10 minutes, and even then it only triggers a sync.
+- **Size and rate.** Body at most 1 MiB (`413`), only `application/json` (`415`), at most 120 requests per source per
+  minute counting invalid ones (`429`); the secret is read and the signature checked only after these cheap checks.
+- **No details out, nothing in logs.** Failures are plain status codes with an empty body. Logs name the source and
+  at most the event type (letters, digits and `_ : . -`, 64 characters), never headers, URL, body or secrets.
+- **Secrets.** Generated locally (32 random bytes from the system, 64 hex characters) via the loopback-only
+  `POST /api/setup/webhook-secret/{source}`; the value is in that one answer and nowhere else (not in `/api/setup`,
+  logs or errors). Renewing replaces the old one.
+- **Local test.** `POST /api/setup/webhook-test/{source}` sends a signed request to `127.0.0.1:<port>`; it calls no
+  external service and never starts a sync. Its event is shown as "test (lokal)".
+- **Tunnel hygiene.** Forward only `/api/webhooks/*` where the tunnel allows it, stop it when unused, treat the
+  public address as public. Not covered: a leaked secret (anyone with it can trigger syncs – renew it) and denial of
+  service on the tunnel itself.
+
 ## The agent
 
 - **No GitHub token in the container.** The agent cannot push. It commits to a branch `claude/<ticket>-…` in the mounted
