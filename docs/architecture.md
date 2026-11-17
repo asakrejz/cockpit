@@ -301,29 +301,46 @@ browser.
 
 ## Narrow screens (phone and tablet)
 
-The interface is usable from about 360 px width. The CSS lives in `crates/ui/extras.css` (building blocks) and
+The interface is usable from 320 px width. The CSS lives in `crates/ui/extras.css` (building blocks) and
 `apps/cockpit/style.css` (Cockpit specifics), only with existing tokens; the `viewport` meta tag is set and fixed
 elements respect `env(safe-area-inset-*)`.
 
 | Breakpoint | What changes |
 | --- | --- |
-| `max-width: 1100px` | Phone and tablet layout. The three columns of `SplitView` stack, the sidebar dissolves (`display: contents`) and the fixed `BottomNav` takes over the navigation. |
+| `max-width: 1100px` | Phone and tablet layout. The three columns of `SplitView` stack, the sidebar dissolves (`display: contents`) and the fixed `BottomNav` takes over the navigation. The bar is at most 640 px wide and centred, so it stays one row on a tablet (768–1100 px) too: a persistent sidebar would leave about 500 px for list and detail there. |
+| `max-height: 500px` (with the above) | Landscape phone: flatter bar, `Mehr` sheet scrolls inside itself. |
+| `max-width: 640px` | Tighter segmented pickers. |
 | `max-width: 1100px` or `pointer: coarse` | Touch sizes: buttons, segmented pickers, selects, steppers and sidebar entries are at least 44 px (`--sys-size-hit`), selectable diff lines 34 px. |
 | above 1100px | Desktop layout, unchanged: sidebar, list and detail side by side. |
 
-- **Navigation:** all 11 entries of the sidebar exist a second time as `BottomNav` (a bar at the bottom edge that scrolls
-  sideways; the current page is scrolled into view). Sidebar groups carry a `SectionRole`: `Primary` (the navigation,
-  hidden when narrow because the bar shows it), `Picker` (selects the item of a page, e.g. a pull request or an agent
-  run; a chip strip above the content) and `Default` (rules, connections; a card below the content).
+- **Navigation (one definition, two presentations):** `TARGETS` in `apps/cockpit/src/sidebar.rs` lists all 11 pages once,
+  each with a mobile slot (`Slot::Bar` or `Slot::More`). Wide screens show all of them in the sidebar. Narrow screens
+  show a fixed `BottomNav` with five equal slots: Inbox, Aufgaben, Reviews, Agenten and **Mehr**. Nothing scrolls
+  sideways. "Mehr" opens a bottom sheet with the other targets (Team, Zurückgestellt, Übersicht, Protokoll, Grenzen &
+  Regeln, Benachrichtigungen, Einrichten) and the connection states (Jira, GitHub, agent). Counters stay visible as
+  badges; the badge of "Mehr" is the sum of what is new behind it (team, stuck tickets), and "Mehr" is marked as the
+  current page when the current page lives in the sheet. Moving a page between bar and sheet means changing one `slot`.
+  The sheet is a modal dialog (`role="dialog"`, `aria-modal`): focus moves in, Tab stays inside, Escape, a tap on the
+  dimmed area, the close button, a followed link and `hashchange` close it, focus returns to the button, and the page
+  behind does not scroll (`body.ui-scroll-locked`). Sidebar groups carry a `SectionRole`: `Primary` (the navigation,
+  hidden when narrow), `Picker` (selects the item of a page, e.g. a pull request or an agent run; a chip strip above
+  the content that fades out on the right) and `Default` (rules; a card below the content).
+- **Phone details:** `viewport-fit=cover` plus `env(safe-area-inset-*)` on the bar, the sheet and the page; `dvh` instead
+  of `vh` for full-height areas (iOS address bar); the bar is at least 52 px high with 44 px+ hit areas and steps aside
+  while a text field has the focus on touch devices (the on-screen keyboard would put the bar over the field); in
+  landscape (height up to 500 px) the bar is flatter (icon beside the label) and the sheet scrolls inside itself. Long
+  button labels and addresses wrap; the filter bar of the inbox wraps instead of scrolling.
 - **List and detail as two levels:** the inbox passes `detail_open` to `SplitView`; narrow screens show either the list or
   the detail (tapping a row opens it, "‹ Zur Liste" goes back). Wide screens always show both. Review and agent show
   their panes one below the other.
 - **Shortcuts:** the key hints of the inbox are hidden when narrow; every shortcut has a button (done, reply, snooze,
   bring back, search).
-- **Wide content scrolls inside its box:** the diff (`.ui-diff`), logs, the filter bar and the bottom bar scroll
-  sideways inside their container, never the page. Segmented pickers wrap; status texts wrap.
-- **Checked in the browser pane** at 375×812 and 768×1024 on every page (no horizontal page scroll, no console
-  errors). Not checked: real devices (touch behaviour, notch, on-screen keyboard).
+- **Wide content scrolls inside its box:** the diff (`.ui-diff`), logs and the picker strips (pull requests, agent runs)
+  scroll sideways inside their container, never the page. Segmented pickers wrap; status texts wrap.
+- **Checked in the browser pane** at 320, 375, 430 (portrait), 812×375 (landscape) and 768×1024 on every page and every
+  setup step: `scrollWidth <= innerWidth`, no element beyond the right edge outside a deliberately scrolling box (diff,
+  picker strips), nothing cut off inside a box, last content above the bar. Not checked: real devices (touch behaviour,
+  notch, iOS address bar, on-screen keyboard).
 
 ## Working with several agents
 

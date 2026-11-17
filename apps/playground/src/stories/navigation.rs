@@ -117,6 +117,38 @@ fn render() -> AnyView {
             </HStack>
         </Section>
 
+        <Section
+            title="Untere Navigation · BottomNav"
+            api="<BottomNav label more_label more_title more_current more_badge more> · <BottomNavItem href label icon current badge>"
+        >
+            <p class="t-footnote t-secondary">
+                "Schmale Bildschirme (bis 1100 px): vier feste Ziele und „Mehr“, das ein Sheet mit den übrigen öffnet. "
+                "Nichts scrollt seitlich. Das Sheet ist ein modaler Dialog: Fokus hinein, Tab bleibt drin, Esc oder Tippen daneben schließt."
+            </p>
+            <div class="pg-narrow pg-mini-phone pg-bottomnav-frame">
+                <BottomNav
+                    label="Hauptnavigation"
+                    more_label="Mehr"
+                    more_title="Mehr"
+                    more_badge=2usize
+                    more=move || {
+                        view! {
+                            <ul class="ui-sidebar__nav">
+                                <SidebarItem href="#navigation" label="Team" icon=icons::USERS count="2".to_string() />
+                                <SidebarItem href="#navigation" label="Protokoll" icon=icons::LIBRARY />
+                                <SidebarItem href="#navigation" label="Einrichten" icon=icons::SLIDERS />
+                            </ul>
+                        }
+                    }
+                >
+                    <BottomNavItem href="#navigation" label="Inbox" icon=icons::BELL current=true badge=7usize />
+                    <BottomNavItem href="#navigation" label="Aufgaben" icon=icons::TASKS />
+                    <BottomNavItem href="#navigation" label="Reviews" icon=icons::GIT_PR badge=3usize />
+                    <BottomNavItem href="#navigation" label="Agenten" icon=icons::SPARKLES />
+                </BottomNav>
+            </div>
+        </Section>
+
         <Section title="Footer" api="<Footer columns copyright legal>">
             <Card>
                 <Footer

@@ -1,8 +1,9 @@
 //! App scaffold after `NavigationSplitView`: glass sidebar and two panes.
 
+use leptos::wasm_bindgen::JsCast;
 use leptos::{ev, prelude::*};
 
-use crate::{Icon, icons};
+use crate::{Button, ButtonShape, ButtonStyle, Icon, icons};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SplitLayout {
@@ -134,14 +135,223 @@ pub fn SidebarItem(
 }
 
 /// Navigation bar fixed to the bottom edge on narrow screens (up to 1100 px); hidden above that,
-/// where the [`Sidebar`] shows the same entries. Children: [`SidebarItem`]s. Wide content scrolls
-/// sideways inside the bar. Respects the safe areas of notched devices.
+/// where the [`Sidebar`] shows the same targets.
+///
+/// Holds a few fixed main targets ([`BottomNavItem`] as children, at most five slots including
+/// "more") and a last button that opens a bottom sheet with everything else (`more`). Nothing
+/// scrolls sideways. The button is marked as current when `more_current` is true (the current
+/// page lives in the sheet) and carries `more_badge` (summed attention of the hidden targets).
+///
+/// The sheet is a modal dialog: focus moves into it, Tab stays inside, Escape or a tap outside
+/// closes it and focus returns to the button; the page behind does not scroll. Following a link in
+/// the sheet closes it.
 #[component]
-pub fn BottomNav(#[prop(into)] label: String, children: Children) -> impl IntoView {
+pub fn BottomNav(
+    #[prop(into)] label: String,
+    /// Label of the button that opens the sheet, e.g. "Mehr".
+    #[prop(into)]
+    more_label: String,
+    /// Title of the sheet.
+    #[prop(into)]
+    more_title: String,
+    /// The current page is one of the targets in the sheet.
+    #[prop(into, default = false.into())]
+    more_current: Signal<bool>,
+    /// Number of new things behind the button (0: no badge).
+    #[prop(into, default = 0.into())]
+    more_badge: Signal<usize>,
+    /// Content of the sheet (a list of [`SidebarItem`]s, further sections).
+    #[prop(into)]
+    more: ViewFn,
+    /// The main targets.
+    children: Children,
+) -> impl IntoView {
+    let open = RwSignal::new(false);
+    let sheet = NodeRef::<leptos::html::Div>::new();
+    let button = NodeRef::<leptos::html::Button>::new();
+    let more_label = StoredValue::new(more_label);
+    let more_title = StoredValue::new(more_title);
+
+    // Close, give the page its scroll back and the focus to the button.
+    let close = move || {
+        if open.get_untracked() {
+            open.set(false);
+            if let Some(b) = button.get_untracked() {
+                let _ = b.focus();
+            }
+        }
+    };
+    // Lock the page behind the sheet; always release it, also if the nav disappears.
+    Effect::new(move |_| {
+        let on = open.get();
+        if let Some(body) = document().body() {
+            let _ = body.class_list().toggle_with_force("ui-scroll-locked", on);
+        }
+        if on {
+            // After the sheet became visible: focus the first target.
+            request_animation_frame(move || {
+                if let Some(sheet) = sheet.get_untracked()
+                    && let Ok(Some(first)) = sheet.query_selector("a[href], button")
+                    && let Ok(el) = first.dyn_into::<web_sys::HtmlElement>()
+                {
+                    let _ = el.focus();
+                }
+            });
+        }
+    });
+    on_cleanup(move || {
+        if let Some(body) = document().body() {
+            let _ = body.class_list().remove_1("ui-scroll-locked");
+        }
+    });
+    // Back/forward or a link elsewhere on the page leaves the sheet.
+    let hash_listener = window_event_listener(ev::hashchange, move |_| open.set(false));
+    on_cleanup(move || hash_listener.remove());
+
+    let on_keydown = move |ev: ev::KeyboardEvent| match ev.key().as_str() {
+        "Escape" => {
+            ev.prevent_default();
+            close();
+        }
+        // Keep Tab inside the dialog.
+        "Tab" => {
+            let Some(sheet) = sheet.get_untracked() else {
+                return;
+            };
+            let Ok(list) = sheet.query_selector_all("a[href], button:not([disabled])") else {
+                return;
+            };
+            let last = list.length().saturating_sub(1);
+            let (Some(first_el), Some(last_el)) = (list.item(0), list.item(last)) else {
+                return;
+            };
+            let active = document().active_element();
+            let is = |n: &web_sys::Node| active.as_ref().is_some_and(|a| a.is_same_node(Some(n)));
+            if ev.shift_key() && is(&first_el) {
+                ev.prevent_default();
+                if let Ok(el) = last_el.dyn_into::<web_sys::HtmlElement>() {
+                    let _ = el.focus();
+                }
+            } else if !ev.shift_key() && is(&last_el) {
+                ev.prevent_default();
+                if let Ok(el) = first_el.dyn_into::<web_sys::HtmlElement>() {
+                    let _ = el.focus();
+                }
+            }
+        }
+        _ => {}
+    };
+    // A tap on a link inside the sheet follows it and closes the sheet.
+    let on_sheet_click = move |ev: ev::MouseEvent| {
+        let on_link = ev
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::Element>().ok())
+            .is_some_and(|el| el.closest("a[href]").ok().flatten().is_some());
+        if on_link {
+            open.set(false);
+        }
+    };
+
     view! {
         <nav class="ui-bottomnav" aria-label=label>
-            <ul class="ui-bottomnav__list">{children()}</ul>
+            <ul class="ui-bottomnav__list">
+                {children()}
+                <li>
+                    <button
+                        type="button"
+                        node_ref=button
+                        class="ui-bottomnav__item"
+                        aria-haspopup="dialog"
+                        aria-expanded=move || if open.get() { "true" } else { "false" }
+                        aria-current=move || more_current.get().then_some("page")
+                        on:click=move |_| open.update(|o| *o = !*o)
+                    >
+                        <span class="ui-bottomnav__icon">
+                            <Icon path=icons::MORE size=22 />
+                            <BottomNavBadge count=more_badge />
+                        </span>
+                        <span class="ui-bottomnav__label">{more_label.get_value()}</span>
+                    </button>
+                </li>
+            </ul>
         </nav>
+        <div
+            class="ui-bottomnav-overlay"
+            hidden=move || !open.get()
+            on:click=move |ev| {
+                // Only a tap on the dimmed area itself, not on the sheet.
+                if ev.target() == ev.current_target() {
+                    close();
+                }
+            }
+        >
+            <div
+                class="ui-bottomnav-sheet"
+                node_ref=sheet
+                role="dialog"
+                aria-modal="true"
+                aria-label=more_title.get_value()
+                on:keydown=on_keydown
+                on:click=on_sheet_click
+            >
+                <div class="ui-sheet__grabber" aria-hidden="true"></div>
+                <div class="ui-bottomnav-sheet__head">
+                    <p class="t-headline">{more_title.get_value()}</p>
+                    <Button
+                        variant=ButtonStyle::Glass
+                        shape=ButtonShape::Circle
+                        aria_label="Schließen"
+                        on_click=move |_| close()
+                    >
+                        <Icon path=icons::CLOSE size=16 stroke=2.6 />
+                    </Button>
+                </div>
+                <div class="ui-bottomnav-sheet__body">{more.run()}</div>
+            </div>
+        </div>
+    }
+}
+
+/// Small counter on an icon of the [`BottomNav`]. Invisible at 0; reads as "N neu" to screen readers.
+#[component]
+fn BottomNavBadge(#[prop(into)] count: Signal<usize>) -> impl IntoView {
+    let shown = move || count.get() > 0;
+    view! {
+        <Show when=shown>
+            <span class="ui-bottomnav__badge" aria-hidden="true">
+                {move || if count.get() > 99 { "99+".to_string() } else { count.get().to_string() }}
+            </span>
+            <span class="ui-sr-only">{move || format!(", {} neu", count.get())}</span>
+        </Show>
+    }
+}
+
+/// Main target in the [`BottomNav`]: icon, short label and an optional counter.
+#[component]
+pub fn BottomNavItem(
+    #[prop(into)] href: String,
+    #[prop(into)] label: Signal<String>,
+    /// SVG path from [`icons`].
+    icon: &'static str,
+    #[prop(into, default = false.into())] current: Signal<bool>,
+    /// Number of new things (0: no badge).
+    #[prop(into, default = 0.into())]
+    badge: Signal<usize>,
+) -> impl IntoView {
+    view! {
+        <li>
+            <a
+                class="ui-bottomnav__item"
+                href=href
+                aria-current=move || current.get().then_some("page")
+            >
+                <span class="ui-bottomnav__icon">
+                    <Icon path=icon size=22 />
+                    <BottomNavBadge count=badge />
+                </span>
+                <span class="ui-bottomnav__label">{move || label.get()}</span>
+            </a>
+        </li>
     }
 }
 
