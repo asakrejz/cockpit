@@ -29,6 +29,10 @@ pub const ATLASSIAN_OAUTH: &str = "atlassian-oauth";
 pub const AGENT_KEY: &str = "agent-key";
 /// The older name of the same key (until #31 `litellm`); is still read if `agent-key` is missing.
 pub const LITELLM: &str = "litellm";
+/// Shared secrets for the signature of incoming webhooks (`GITHUB_WEBHOOK_SECRET`,
+/// `JIRA_WEBHOOK_SECRET`); the assistant can generate them.
+pub const GITHUB_WEBHOOK: &str = "github-webhook";
+pub const JIRA_WEBHOOK: &str = "jira-webhook";
 /// Access and refresh token after the sign-in (one entry per service, set by the backend).
 pub const GITHUB_OAUTH_TOKENS: &str = "github-oauth-token";
 pub const ATLASSIAN_OAUTH_TOKENS: &str = "atlassian-oauth-token";

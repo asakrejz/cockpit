@@ -284,6 +284,12 @@ impl AppState {
     /// quota limit. Was something written in the meantime? Then the fetch is
     /// outdated and is repeated.
     pub async fn sync(&self) -> Result<SyncResponse, ActionFailure> {
+        self.sync_sources(&[Source::GitHub, Source::Jira]).await
+    }
+
+    /// Like [`AppState::sync`], but only asks the given sources (a webhook names one; the
+    /// regular tick leaves out sources whose webhooks arrive and that were asked recently).
+    pub async fn sync_sources(&self, only: &[Source]) -> Result<SyncResponse, ActionFailure> {
         let inner = &self.inner;
         let _only_one = inner.sync.lock().await;
         let services = self.services().await;
@@ -300,8 +306,11 @@ impl AppState {
             let known = inner.live.copy();
             let paused: Vec<Source> = [Source::GitHub, Source::Jira]
                 .into_iter()
-                .filter(|s| known.sync.paused_until(*s, now).is_some())
+                .filter(|s| !only.contains(s) || known.sync.paused_until(*s, now).is_some())
                 .collect();
+            for s in only {
+                inner.webhooks.fetched(*s, tokio::time::Instant::now());
+            }
             let remote = services.fetch(&known, now, &paused).await;
             if remote.sources.is_empty() {
                 return Ok(SyncResponse {
@@ -341,7 +350,12 @@ pub fn sync_start(state: AppState) {
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
         loop {
             ticker.tick().await;
-            match state.sync().await {
+            // While a source's webhooks arrive it is only polled as a safety net.
+            let due = state.sources_due();
+            if due.is_empty() {
+                continue;
+            }
+            match state.sync_sources(&due).await {
                 Ok(a) if a.logged > 0 => {
                     tracing::info!("Sync: {} new entries in the log", a.logged)
                 }

@@ -6,7 +6,8 @@ fn steps_walk_forward_and_back() {
     assert_eq!(Step::Container.previous(), None);
     assert_eq!(Step::Container.next(), Some(Step::Jira));
     assert_eq!(Step::Done.next(), None);
-    assert_eq!(Step::Done.previous(), Some(Step::Model));
+    assert_eq!(Step::Done.previous(), Some(Step::Live));
+    assert_eq!(Step::Live.previous(), Some(Step::Model));
     for s in Step::ALL {
         assert_eq!(Step::from_id(s.id()), Some(s));
     }
@@ -438,4 +439,52 @@ fn agent_repos_rows_with_mistakes_say_what_is_wrong() {
         let e = agent_repos_read(&rows, default).unwrap_err();
         assert!(e.contains(part), "{e}");
     }
+}
+
+#[test]
+fn public_url_is_checked_and_normalized() {
+    assert_eq!(public_url_read(""), Ok(String::new()));
+    assert_eq!(public_url_read("  "), Ok(String::new()));
+    assert_eq!(
+        public_url_read(" https://cockpit.example/ "),
+        Ok("https://cockpit.example".into())
+    );
+    assert_eq!(
+        public_url_read("https://a.example:8443/tunnel"),
+        Ok("https://a.example:8443/tunnel".into())
+    );
+    for bad in [
+        "http://cockpit.example",
+        "cockpit.example",
+        "https://",
+        "https://a b.example",
+        "https://u@cockpit.example",
+        "https://cockpit.example/?x=1",
+        "https://cockpit.example/#a",
+    ] {
+        assert!(public_url_read(bad).is_err(), "{bad}");
+    }
+}
+
+#[test]
+fn webhook_texts() {
+    assert_eq!(
+        webhook_target(Some("https://cockpit.example"), "/api/webhooks/github"),
+        "https://cockpit.example/api/webhooks/github"
+    );
+    assert_eq!(
+        webhook_target(None, "/api/webhooks/jira"),
+        "<öffentliche Adresse>/api/webhooks/jira"
+    );
+    assert!(webhook_received_text(None, None, 5).starts_with("Noch nichts"));
+    assert_eq!(
+        webhook_received_text(Some(0), Some("check_run"), 180_000),
+        "Zuletzt empfangen vor 3 Min. (check_run)."
+    );
+}
+
+#[test]
+fn webhook_keys_are_allowed_names() {
+    assert!(key_name_allowed("github-webhook") && key_name_allowed("jira-webhook"));
+    assert!(!key_deletable("github-webhook"));
 }

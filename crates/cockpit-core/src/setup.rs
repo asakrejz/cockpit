@@ -15,6 +15,8 @@ pub const KEY_NAMES: &[&str] = &[
     "litellm",
     "jira",
     "github",
+    "github-webhook",
+    "jira-webhook",
 ];
 
 /// Where to create an API token at Atlassian.
@@ -30,15 +32,17 @@ pub enum Step {
     Jira,
     GitHub,
     Model,
+    Live,
     Done,
 }
 
 impl Step {
-    pub const ALL: [Step; 5] = [
+    pub const ALL: [Step; 6] = [
         Step::Container,
         Step::Jira,
         Step::GitHub,
         Step::Model,
+        Step::Live,
         Step::Done,
     ];
 
@@ -49,6 +53,7 @@ impl Step {
             Step::Jira => "Jira",
             Step::GitHub => "GitHub",
             Step::Model => "Modell",
+            Step::Live => "Live-Update",
             Step::Done => "Fertig",
         }
     }
@@ -72,6 +77,7 @@ impl Step {
             Step::Jira => "jira",
             Step::GitHub => "github",
             Step::Model => "modell",
+            Step::Live => "live",
             Step::Done => "fertig",
         }
     }
@@ -115,6 +121,72 @@ pub fn key_verify(value: &str) -> Result<String, String> {
         );
     }
     Ok(value.to_string())
+}
+
+/// Checks the public address of the tunnel (`[server] public_url`): `https://host[:port][/path]`,
+/// no spaces, no user name, query or fragment. Returns it without a trailing slash; empty
+/// stays empty (= remove). The address is only displayed, the server never calls it.
+pub fn public_url_read(text: &str) -> Result<String, String> {
+    let text = text.trim();
+    if text.is_empty() {
+        return Ok(String::new());
+    }
+    let rest = text.strip_prefix("https://").ok_or(
+        "Die öffentliche Adresse muss mit https:// beginnen, z. B. https://cockpit.example.",
+    )?;
+    let host = rest.split('/').next().unwrap_or("");
+    if host.is_empty()
+        || text.len() > 200
+        || text.chars().any(|c| c.is_whitespace() || c.is_control())
+        || text.contains(['?', '#', '@', '\\'])
+    {
+        return Err(
+            "Das ist keine gültige Adresse. Erwartet wird etwas wie https://cockpit.example (ohne Leerzeichen, Zugangsdaten oder Parameter)."
+                .into(),
+        );
+    }
+    Ok(text.trim_end_matches('/').to_string())
+}
+
+/// GitHub events the webhook should send (Settings › Webhooks › „Let me select individual events“).
+pub const GITHUB_WEBHOOK_EVENTS: &[&str] = &[
+    "Pull requests",
+    "Pull request reviews",
+    "Pull request review comments",
+    "Check runs",
+    "Check suites",
+    "Issue comments",
+];
+
+/// Jira events the webhook should send (Admin › System › WebHooks).
+pub const JIRA_WEBHOOK_EVENTS: &[&str] = &[
+    "Issue: created, updated, deleted",
+    "Comment: created, updated, deleted",
+];
+
+/// The address to enter at GitHub or Jira: the public address of the tunnel plus the route. Without
+/// an address a placeholder shows how it will look.
+pub fn webhook_target(public_url: Option<&str>, path: &str) -> String {
+    format!(
+        "{}{path}",
+        public_url
+            .filter(|u| !u.is_empty())
+            .unwrap_or("<öffentliche Adresse>")
+    )
+}
+
+/// "Zuletzt empfangen vor 3 Min. (pull_request)" – only time and event type, never content.
+pub fn webhook_received_text(last_ms: Option<u64>, event: Option<&str>, now_ms: u64) -> String {
+    match last_ms {
+        None => "Noch nichts empfangen (seit dem Start von Cockpit).".into(),
+        Some(t) => {
+            let when = crate::notice::ago(t, now_ms);
+            match event.filter(|e| !e.is_empty()) {
+                Some(e) => format!("Zuletzt empfangen {when} ({e})."),
+                None => format!("Zuletzt empfangen {when}."),
+            }
+        }
+    }
 }
 
 /// Whether `name` is an allowed key name.

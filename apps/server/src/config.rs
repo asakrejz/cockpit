@@ -62,6 +62,17 @@
 //! model = "claude-sonnet-5-5"          # name as the endpoint offers it
 //! ```
 //!
+//! Optional webhooks (speed up the sync; off by default, see the README):
+//!
+//! ```toml
+//! [server]
+//! webhooks = true                          # the two routes /api/webhooks/{github,jira} answer
+//! public_url = "https://cockpit.example"   # your tunnel, only shown in the assistant
+//!
+//! [sync]
+//! webhook_fallback_interval_s = 600        # poll interval while webhooks arrive (default: 5x interval_s, at most 600)
+//! ```
+//!
 //! Older files are still read: `[litellm]` (`url`, `modell`) and the key `litellm`
 //! (equivalent to `[agent.endpoint]` and `agent-key`), `[agent] anbieter`, `[agent.endpunkt]`
 //! with `modell`, and `intervall_s`; if both are present the new one applies.
@@ -88,6 +99,12 @@ pub const DEFAULT_GITHUB_API: &str = "https://api.github.com";
 pub const DEFAULT_INTERVAL_S: u64 = 120;
 /// Shorter is not possible: the services limit the number of fetches.
 pub const MIN_INTERVAL_S: u64 = 30;
+/// Poll interval of a source while webhooks arrive: this multiple of the interval ...
+pub const WEBHOOK_FALLBACK_FACTOR: u64 = 5;
+/// ... but at most this long, unless set explicitly.
+pub const WEBHOOK_FALLBACK_MAX_S: u64 = 600;
+/// Upper bound of an explicit `webhook_fallback_interval_s`.
+pub const WEBHOOK_FALLBACK_LIMIT_S: u64 = 3600;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Config {
@@ -125,6 +142,12 @@ pub struct Config {
     /// The file that was read from (and that the setup assistant writes to); `None`
     /// if there is no configuration directory.
     pub config_path: Option<PathBuf>,
+    /// `[server] webhooks`: the webhook routes answer (default `false`: 404).
+    pub webhooks: bool,
+    /// `[server] public_url`: address of the tunnel, only shown in the assistant.
+    pub public_url: Option<String>,
+    /// `[sync] webhook_fallback_interval_s`; `None` = [`Config::webhook_fallback_s`] decides.
+    pub webhook_fallback_interval_s: Option<u64>,
 }
 
 /// What the server starts with as long as no state has been stored.
@@ -147,6 +170,17 @@ impl Seed {
             ))),
         }
     }
+}
+
+/// The poll interval while webhooks arrive: explicit value, otherwise 5x the interval, at most
+/// 10 minutes – and never shorter than the interval itself.
+pub fn fallback_s(interval_s: u64, explicit: Option<u64>) -> u64 {
+    explicit.unwrap_or_else(|| {
+        interval_s
+            .saturating_mul(WEBHOOK_FALLBACK_FACTOR)
+            .min(WEBHOOK_FALLBACK_MAX_S)
+            .max(interval_s)
+    })
 }
 
 /// The tool and its endpoint as last configured (replaceable during operation).
@@ -230,6 +264,22 @@ struct File {
     seed: Option<String>,
     litellm: Option<FileEndpoint>,
     agent: Option<FileAgent>,
+    server: Option<FileServer>,
+    sync: Option<FileSync>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FileServer {
+    #[serde(default)]
+    webhooks: bool,
+    public_url: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FileSync {
+    webhook_fallback_interval_s: Option<u64>,
 }
 
 /// `[litellm]` (older) and `[agent.endpoint]` have the same fields.
@@ -407,7 +457,15 @@ impl Config {
             git_base: None,
             dev_port: None,
             config_path: None,
+            webhooks: false,
+            public_url: None,
+            webhook_fallback_interval_s: None,
         }
+    }
+
+    /// Poll interval of a source while its webhooks arrive regularly.
+    pub fn webhook_fallback_s(&self) -> u64 {
+        fallback_s(self.interval_s, self.webhook_fallback_interval_s)
     }
 
     /// Defaults → file content → environment. `file` is the text of the TOML file (if
@@ -566,6 +624,23 @@ impl Config {
             if url.is_some() || model.is_some() {
                 c.endpoint = Some(EndpointConfig { url, model });
             }
+        }
+        if let Some(w) = d.server {
+            c.webhooks = w.webhooks;
+            c.public_url = Some(
+                cockpit_core::setup::public_url_read(w.public_url.as_deref().unwrap_or(""))
+                    .map_err(ConfigError::Wert)?,
+            )
+            .filter(|u| !u.is_empty());
+        }
+        if let Some(i) = d.sync.and_then(|s| s.webhook_fallback_interval_s) {
+            if !(c.interval_s..=WEBHOOK_FALLBACK_LIMIT_S).contains(&i) {
+                return Err(ConfigError::Wert(format!(
+                    "[sync] webhook_fallback_interval_s = {i} muss zwischen interval_s ({}) und {WEBHOOK_FALLBACK_LIMIT_S} liegen",
+                    c.interval_s
+                )));
+            }
+            c.webhook_fallback_interval_s = Some(i);
         }
         if let Some(p) = env("COCKPIT_AGENT_DIR").filter(|s| !s.trim().is_empty()) {
             c.agent_dir = Some(PathBuf::from(p.trim()));

@@ -30,6 +30,9 @@ dirs = "6"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 toml_edit = "0.25.19"
+# HMAC-SHA256 for webhook signatures (built by hand from SHA-256) and random secrets
+sha2 = "0.10"
+getrandom = "0.4"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

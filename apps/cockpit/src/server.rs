@@ -7,7 +7,7 @@ use cockpit_core::api::{
     ActionRequest, ActionResponse, AgentStatus, ConfigChange, ConfigResponse, ContainerCheck,
     ContainerStatus, EndpointCheck, EndpointStatus, ErrorBody, ImageBuild, JiraCheck,
     JiraProjectsResponse, KeyInput, KeyResponse, ModelList, RepoCheckRequest, RepoCheckResponse,
-    RevokeResponse, ServerEvent, Setup, SyncResponse,
+    RevokeResponse, ServerEvent, Setup, SyncResponse, WebhookSecretResponse, WebhookTestResponse,
 };
 use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
@@ -389,6 +389,37 @@ pub async fn post_repos_check(repos: Vec<String>) -> Result<RepoCheckResponse, C
         return Err(rejection(resp).await);
     }
     resp.json::<RepoCheckResponse>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Generates a new webhook secret on the server (`POST /api/setup/webhook-secret/{source}`).
+/// The answer carries the value once, so it can be pasted into GitHub or Jira.
+pub async fn post_webhook_secret(source: &str) -> Result<WebhookSecretResponse, CallError> {
+    let request = Request::post(&format!("/api/setup/webhook-secret/{source}"))
+        .header("Content-Type", "application/json")
+        .build()
+        .map_err(|_| CallError::Rejected("Die Anfrage lässt sich nicht starten".into()))?;
+    let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<WebhookSecretResponse>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// Sends a signed test request from the server to itself (`POST /api/setup/webhook-test/{source}`).
+pub async fn post_webhook_test(source: &str) -> Result<WebhookTestResponse, CallError> {
+    let request = Request::post(&format!("/api/setup/webhook-test/{source}"))
+        .header("Content-Type", "application/json")
+        .build()
+        .map_err(|_| CallError::Rejected("Der Test lässt sich nicht starten".into()))?;
+    let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<WebhookTestResponse>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }

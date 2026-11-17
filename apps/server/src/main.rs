@@ -30,6 +30,7 @@ mod oauth;
 mod secrets;
 mod setup;
 mod sync;
+mod webhooks;
 
 use std::io::Read;
 use std::net::{Ipv4Addr, SocketAddr};
