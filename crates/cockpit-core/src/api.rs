@@ -224,10 +224,16 @@ pub struct AgentStatus {
     /// Runs can start: everything necessary is set up (always true in mode `simuliert`).
     #[serde(default)]
     pub ready: bool,
-    /// The agent image is built (`image inspect`).
+    /// The agent image exists, current or not (`image inspect`).
     #[serde(default)]
     pub image: bool,
-    /// Name of the image, e.g. `localhost/cockpit-agent:5`.
+    /// Whether the image matches the sources of this Cockpit version (fingerprint).
+    #[serde(default)]
+    pub image_state: ImageState,
+    /// Plain-text reason when `image_state` is `unknown`.
+    #[serde(default)]
+    pub image_hint: Option<String>,
+    /// Name of the image, always the same: `localhost/cockpit-agent:local`.
     #[serde(default)]
     pub image_name: String,
     /// The default repo of the agent (`owner/name`), if there is one.
@@ -242,6 +248,24 @@ pub struct AgentStatus {
     pub missing: Vec<String>,
 }
 
+/// How the agent image compares with the sources of this Cockpit version.
+///
+/// The image carries the label `cockpit.fingerprint` (a SHA-256 over the files that make the
+/// image, see the server); it is compared with the fingerprint of the current sources.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ImageState {
+    /// There is no image (yet).
+    #[default]
+    Missing,
+    /// The image exists, but the label is missing or differs: it must be rebuilt.
+    Outdated,
+    /// The image was built from the current sources.
+    Current,
+    /// The image exists, but the fingerprint of the sources cannot be computed.
+    Unknown,
+}
+
 /// State of „build image“ (`GET`/`POST /api/agent/image`).
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ImageBuild {
@@ -251,6 +275,9 @@ pub struct ImageBuild {
     /// The image exists (after the last build or already before).
     #[serde(default)]
     pub present: bool,
+    /// Whether the image is current (see [`ImageState`]).
+    #[serde(default)]
+    pub state: ImageState,
     /// Why the last build failed, in plain text.
     #[serde(default)]
     pub error: Option<String>,
@@ -447,6 +474,69 @@ pub struct ConfigChange {
     pub agent_repos: Option<AgentReposInput>,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "litellm")]
     pub endpoint: Option<EndpointInput>,
+    /// `[server] webhooks` and `[server] public_url`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub webhooks: Option<WebhooksInput>,
+}
+
+/// Switch and public address for webhooks. `None` leaves a value unchanged; an empty address
+/// removes it. The address is only shown to the user (for the two target URLs), never called.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct WebhooksInput {
+    #[serde(default)]
+    pub enabled: Option<bool>,
+    #[serde(default)]
+    pub public_url: Option<String>,
+}
+
+/// What the assistant shows about one webhook source. Never the secret.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct WebhookSourceInfo {
+    /// Path of the route on this server, e.g. `/api/webhooks/github`.
+    #[serde(default)]
+    pub path: String,
+    /// A secret is in the `.env` file.
+    #[serde(default)]
+    pub secret_set: bool,
+    /// When a correctly signed request last arrived (milliseconds since 1970); memory only.
+    #[serde(default)]
+    pub last_received_ms: Option<u64>,
+    /// Its event type (`ping`, `pull_request`, `jira:issue_updated`, ...), nothing else of it.
+    #[serde(default)]
+    pub last_event: Option<String>,
+}
+
+/// State of the optional webhooks (`GET /api/setup`).
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct WebhooksInfo {
+    #[serde(default)]
+    pub enabled: bool,
+    /// `[server] public_url`: the address of the tunnel, for display only.
+    #[serde(default)]
+    pub public_url: Option<String>,
+    /// Poll interval of a source while its webhooks arrive regularly.
+    #[serde(default)]
+    pub fallback_interval_s: u64,
+    #[serde(default)]
+    pub github: WebhookSourceInfo,
+    #[serde(default)]
+    pub jira: WebhookSourceInfo,
+}
+
+/// Response of `POST /api/setup/webhook-secret/{source}`: the only time the value is sent.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct WebhookSecretResponse {
+    #[serde(default)]
+    pub secret: String,
+}
+
+/// Response of `POST /api/setup/webhook-test/{source}`.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct WebhookTestResponse {
+    #[serde(default)]
+    pub ok: bool,
+    #[serde(default)]
+    pub message: String,
 }
 
 /// Response to `PUT /api/config`.
@@ -497,6 +587,9 @@ pub struct Setup {
     /// Which keys are in the .env file.
     #[serde(default)]
     pub keys: Vec<KeyResponse>,
+    /// Optional webhooks (live update).
+    #[serde(default)]
+    pub webhooks: WebhooksInfo,
 }
 
 impl Setup {

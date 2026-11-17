@@ -115,7 +115,7 @@ async fn a_run_from_the_approval_until_to_push() {
         ":/work ",
         ":/job:ro",
         "-e ANTHROPIC_AUTH_TOKEN",
-        "localhost/cockpit-agent:5",
+        "localhost/cockpit-agent:local",
     ] {
         assert!(run_line.contains(muss), "{muss} fehlt: {run_line}");
     }
@@ -303,7 +303,7 @@ async fn claude_code_and_codex_run_in_the_routed_and_the_chosen_repo() {
                 "{env}"
             );
             let calls = w.log("calls.log");
-            assert!(!calls.contains(TOKEN) && calls.contains("localhost/cockpit-agent:5"));
+            assert!(!calls.contains(TOKEN) && calls.contains("localhost/cockpit-agent:local"));
         }
     }
 }
@@ -373,4 +373,109 @@ async fn the_status_reports_repos_default_and_routing() {
         Some("firma/web"),
         "the interface applies the same rules"
     );
+}
+
+async fn image_state_of(w: &World) -> (cockpit_core::api::ImageState, AgentStatus) {
+    let st = w.state.clone();
+    let status = tokio::task::spawn_blocking(move || st.agent_status())
+        .await
+        .unwrap();
+    (status.image_state, status)
+}
+
+#[tokio::test]
+async fn image_states_missing_outdated_current_unknown() {
+    use cockpit_core::api::ImageState;
+    // Current: the label equals the fingerprint of the sources.
+    let w = welt(true);
+    let (s, status) = image_state_of(&w).await;
+    assert_eq!(s, ImageState::Current);
+    assert!(status.ready && status.image, "{:?}", status.missing);
+    let calls = w.log("calls.log");
+    assert!(
+        calls.contains("image inspect --format {{ index .Config.Labels \"cockpit.fingerprint\" }} localhost/cockpit-agent:local"),
+        "{calls}"
+    );
+
+    // Label differs.
+    let w = welt(true);
+    w.write("label.out", "0000\n");
+    let (s, status) = image_state_of(&w).await;
+    assert_eq!(s, ImageState::Outdated);
+    assert!(!status.ready && status.image);
+    assert!(
+        status.missing[0].contains("veraltet"),
+        "{:?}",
+        status.missing
+    );
+
+    // Label missing: empty output, or the placeholder some versions print.
+    for out in ["\n", "<no value>\n"] {
+        let w = welt(true);
+        w.write("label.out", out);
+        assert_eq!(image_state_of(&w).await.0, ImageState::Outdated, "{out:?}");
+    }
+
+    // No image.
+    let w = welt(true);
+    w.write("no-image", "");
+    let (s, status) = image_state_of(&w).await;
+    assert_eq!(s, ImageState::Missing);
+    assert!(!status.image);
+
+    // The inspect call itself fails (not "no such image"): treated like no image, no crash.
+    let w = welt(true);
+    w.write("inspect-error", "");
+    assert_eq!(image_state_of(&w).await.0, ImageState::Missing);
+
+    // The sources are not there: not checkable, with the reason in plain text.
+    let w = welt(true);
+    std::fs::remove_dir_all(
+        w.state
+            .inner
+            .settings
+            .agent_dir
+            .clone()
+            .unwrap()
+            .join("runner"),
+    )
+    .unwrap();
+    let (s, status) = image_state_of(&w).await;
+    assert_eq!(s, ImageState::Unknown);
+    assert!(!status.ready && status.image);
+    assert!(
+        status
+            .image_hint
+            .as_deref()
+            .is_some_and(|h| h.contains("runner")),
+        "{status:?}"
+    );
+    assert!(
+        status.missing[0].contains("nicht prüfen"),
+        "{:?}",
+        status.missing
+    );
+}
+
+#[tokio::test]
+async fn start_refused_with_outdated_image_and_allowed_with_current() {
+    let w = welt(true);
+    w.write("label.out", "stale\n");
+    let e = w
+        .action(Action::StartAgent {
+            ticket: "BAU-142".into(),
+            options: AgentOptions::default(),
+        })
+        .await
+        .unwrap_err();
+    assert!(e.contains("veraltet") && e.contains("neu bauen"), "{e}");
+    assert!(
+        !w.log("calls.log").contains("run "),
+        "no run with the old image"
+    );
+    // After the image is current again (new answer after the short cache time) the start works.
+    let w = welt(true);
+    w.start(false).await;
+    w.wait("Container", |_| w.log("calls.log").contains("run "))
+        .await;
 }

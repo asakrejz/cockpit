@@ -112,12 +112,29 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `GET /api/setup` | what the assistant prefills: Jira site/email/projects, client IDs, repos, provider, endpoint address and model, both callback addresses, and per key only `{name, set}` |
 | `POST /api/github/repos/check` | read-only look at repos (`{repos:[…]}` → per repo `Ok`/`ReadOnly`/`NotFound`/`NoAccess`/`Failed` plus the default branch); only `GET /repos/{owner}/{name}`, never changes anything |
 | `PUT /api/config` | writes client IDs, Jira, repos, the agent's repos (`agent_repos`: list with base branch and projects, plus default), agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with plain text |
-| `PUT /api/secrets/{name}` | stores a key in `.env`; body `{"value": "…"}`; names `github-oauth`, `atlassian-oauth`, `agent-key` (older `litellm`), `jira`, `github`; answer `{name, set}`, never the value |
+| `PUT /api/secrets/{name}` | stores a key in `.env`; body `{"value": "…"}`; names `github-oauth`, `atlassian-oauth`, `agent-key` (older `litellm`), `jira`, `github`, `github-webhook`, `jira-webhook`; answer `{name, set}`, never the value |
 | `DELETE /api/secrets/{name}` | "Trennen" for tokens: deletes `jira` or `github` from `.env` (other names: `404`); answer `{name, set: false}` |
+| `POST /api/webhooks/github`, `POST /api/webhooks/jira` | optional (`[server] webhooks`), the only routes reachable with a foreign `Host`: HMAC-signed triggers for the sync; `202`/`200`/`204`/`401`/`404`/`413`/`415`/`429`, no body, payload never used as data |
+| `POST /api/setup/webhook-secret/{source}` | generates a webhook secret (`github`\|`jira`), stores it in `.env`, returns it once: `{secret}` |
+| `POST /api/setup/webhook-test/{source}` | signed test request from the server to itself over loopback: `{ok, message}` |
 | `GET /api/oauth/{service}/start`, `GET …/callback`, `POST …/revoke` | OAuth sign-in for `github` and `atlassian` |
 
 If the server is unreachable (not started, other port) the app shows a notice at the top with "Erneut versuchen"; the pages
 stay empty and nothing is lost.
+
+## Webhooks
+
+`apps/server/src/webhooks.rs`. Two routes outside the `access` layer (router merge), own checks in this order:
+switch, method, loopback peer, `application/json`, rate limit, secret present, body size, signature, replay,
+event type. A valid relevant event calls `AppState::webhook_trigger(source)`: a `Gate` per source runs one sync at
+once (leading edge) and merges further ones within 5 s into a single trailing sync; both call
+`sync_sources(&[source])`, the same code as the regular sync (single-flight lock, retries on concurrent writes,
+rate-limit pause), with the other source treated as paused. The sync tick uses `sources_due()`: a source whose
+webhooks arrive regularly (`poll_due`, a pure function of elapsed times) is only asked every
+`webhook_fallback_interval_s`. State (last received, gates, rate and replay windows) is in memory (`Hub`); the
+switch and public address are replaceable at runtime like the other settings. The assistant step "Live" reads
+`GET /api/setup` › `webhooks`, writes `[server]` through `PUT /api/config` and uses the two `/api/setup/webhook-*`
+routes.
 
 ## Sync and outbound actions
 
@@ -230,7 +247,7 @@ token (`GitHubClient::review_input` / `failed_checks`, read only; shortened by `
 `job.json` under `followup` (secrets of the agent key and GitHub token are redacted from it). The watcher starts a
 container like for a normal run (`RunKind::runs_in_container`); the clone is the existing `claude/…` branch
 (`agent_git::clone_branch`), the check and push are the same as always (fast-forward only, path rules, never a
-force-push). The container never gets the GitHub token. Image tag `localhost/cockpit-agent:5` (`:5` adds the Claude Code and Codex CLIs, pinned in `apps/agent/clis/package-lock.json`; the job contract gained
+force-push). The container never gets the GitHub token. The image has the fixed name `localhost/cockpit-agent:local`; whether it is current is detected by the label `cockpit.fingerprint` (SHA-256 over Containerfile, runner sources, the lockfiles of runner and CLIs, and the `CONTRACT` constant; details in `apps/agent/README.md`), and a run only starts with a current image. The image contains the Claude Code and Codex CLIs, pinned in `apps/agent/clis/package-lock.json`; the job contract gained
 `followup`, and `repo` – the `owner/name` the backend cloned; follow-up jobs and the pull request always use the repo of the
 pull request / run, never "the" configured repo).
 

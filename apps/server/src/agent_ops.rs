@@ -13,7 +13,9 @@ use std::process::Stdio;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use cockpit_core::api::{AgentStatus, ContainerCheck, ContainerStatus, ImageBuild, Provider};
+use cockpit_core::api::{
+    AgentStatus, ContainerCheck, ContainerStatus, ImageBuild, ImageState, Provider,
+};
 use cockpit_core::{
     Action, ActionError, Actor, AgentReport, AgentRepos, FollowupTask, RepoChoice, RunKind,
     RunState, Workspace,
@@ -24,6 +26,7 @@ use tokio::process::Command;
 use tokio::sync::mpsc;
 
 use crate::agent_git;
+use crate::agent_image;
 use crate::agent_run::{
     self as agent_run, Event, IMAGE, Info, Instruction, LABEL, MAX_LINE, Mode, Prerequisites,
     RunCommand,
@@ -68,6 +71,14 @@ pub enum RunControl {
     Hint(String),
 }
 
+/// Result of comparing the image with the sources, remembered briefly.
+#[derive(Clone, Debug)]
+struct ImageProbe {
+    state: ImageState,
+    /// Plain-text reason when `state` is `Unknown`.
+    hint: Option<String>,
+}
+
 struct Handle {
     info: Arc<Mutex<Info>>,
     tx: mpsc::UnboundedSender<RunControl>,
@@ -79,7 +90,7 @@ pub struct Runs {
     running: Mutex<HashMap<String, Handle>>,
     failed: Mutex<HashMap<String, Instant>>,
     build: Mutex<ImageBuild>,
-    image: Mutex<Option<(Instant, bool)>>,
+    image: Mutex<Option<(Instant, ImageProbe)>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -133,23 +144,60 @@ impl AppState {
         container::in_path(status.runtime.as_deref()?, &self.search_path())
     }
 
-    /// Is there the agent image? (`image inspect`, remembered briefly). Blocking.
-    fn image_present(&self, cli: &Path) -> bool {
+    /// State of the agent image: missing, outdated, current or not checkable (`image inspect`
+    /// with the fingerprint label against the fingerprint of the sources; remembered briefly).
+    /// Blocking.
+    fn image_probe(&self, cli: &Path) -> ImageProbe {
         let mut c = lock(&self.inner.agent.image);
-        if let Some((t, v)) = *c
+        if let Some((t, v)) = &*c
             && t.elapsed() < IMAGE_VALID
         {
-            return v;
+            return v.clone();
         }
-        let ok = std::process::Command::new(cli)
-            .args(["image", "inspect", IMAGE])
+        let probe = self.image_probe_now(cli);
+        *c = Some((Instant::now(), probe.clone()));
+        probe
+    }
+
+    fn image_probe_now(&self, cli: &Path) -> ImageProbe {
+        let unknown = |hint: String| ImageProbe {
+            state: ImageState::Unknown,
+            hint: Some(hint),
+        };
+        let out = std::process::Command::new(cli)
+            .args(agent_image::inspect_args())
+            .arg(IMAGE)
             .stdin(Stdio::null())
-            .stdout(Stdio::null())
             .stderr(Stdio::null())
-            .status()
-            .is_ok_and(|s| s.success());
-        *c = Some((Instant::now(), ok));
-        ok
+            .output();
+        let out = match out {
+            Ok(o) => o,
+            Err(e) => {
+                return unknown(format!(
+                    "Das Container-Programm lässt sich nicht aufrufen ({e})."
+                ));
+            }
+        };
+        // Docker and Podman both exit non-zero for an image that does not exist.
+        if !out.status.success() {
+            return ImageProbe {
+                state: ImageState::Missing,
+                hint: None,
+            };
+        }
+        let text = String::from_utf8_lossy(&out.stdout);
+        let label = agent_image::label_value(&text);
+        match agent_image::fingerprint(&self.agent_source()) {
+            Ok(fp) if label == Some(fp.as_str()) => ImageProbe {
+                state: ImageState::Current,
+                hint: None,
+            },
+            Ok(_) => ImageProbe {
+                state: ImageState::Outdated,
+                hint: None,
+            },
+            Err(e) => unknown(e),
+        }
     }
 
     fn image_forget(&self) {
@@ -267,10 +315,14 @@ impl AppState {
     /// The state of the agent for `/api/health`. Blocking.
     pub(crate) fn agent_status(&self) -> AgentStatus {
         let container = self.container_status();
-        let image = self
+        let probe = self
             .cli_path(&container)
             .filter(|_| container.engine_running)
-            .is_some_and(|cli| self.image_present(&cli));
+            .map(|cli| self.image_probe(&cli))
+            .unwrap_or(ImageProbe {
+                state: ImageState::Missing,
+                hint: None,
+            });
         let choice = self.agent_choice();
         let repos = self.agent_repos();
         let repo = repos
@@ -280,7 +332,8 @@ impl AppState {
             .ok_or_else(|| agent_run::NO_REPO.to_string());
         let v = Prerequisites {
             container: &container,
-            image,
+            image: probe.state,
+            image_hint: probe.hint,
             model: choice.endpoint.as_ref().is_some_and(|e| e.model.is_some()),
             key: self.agent_key().is_some(),
             repo,

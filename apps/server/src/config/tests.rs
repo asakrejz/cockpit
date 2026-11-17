@@ -416,3 +416,59 @@ fn broken_agent_repos_are_rejected_with_a_reason() {
         );
     }
 }
+
+#[test]
+fn webhooks_are_off_by_default_and_old_files_still_read() {
+    let c = Config::parse(None, no_env).unwrap();
+    assert!(!c.webhooks);
+    assert_eq!(c.public_url, None);
+    assert_eq!(c.webhook_fallback_interval_s, None);
+    // 5x the interval, at most 10 minutes.
+    assert_eq!(c.webhook_fallback_s(), 600);
+    // A file from before webhooks (with the old key names) reads unchanged.
+    let old = "intervall_s = 60\n[github]\nrepos = [\"a/b\"]\n";
+    let c = Config::parse(Some(old), no_env).unwrap();
+    assert!(!c.webhooks);
+    assert_eq!(c.interval_s, 60);
+    assert_eq!(c.webhook_fallback_s(), 300);
+}
+
+#[test]
+fn webhook_settings_from_the_file() {
+    let toml = r#"
+        interval_s = 120
+        [server]
+        webhooks = true
+        public_url = "https://cockpit.example/"
+        [sync]
+        webhook_fallback_interval_s = 900
+    "#;
+    let c = Config::parse(Some(toml), no_env).unwrap();
+    assert!(c.webhooks);
+    assert_eq!(c.public_url.as_deref(), Some("https://cockpit.example"));
+    assert_eq!(c.webhook_fallback_s(), 900);
+    // `[server]` alone, without an address.
+    let c = Config::parse(Some("[server]\nwebhooks = true\n"), no_env).unwrap();
+    assert!(c.webhooks && c.public_url.is_none());
+}
+
+#[test]
+fn webhook_settings_are_validated() {
+    for toml in [
+        "[server]\npublic_url = \"http://cockpit.example\"\n",
+        "[server]\npublic_url = \"https://cockpit.example/x?a=b\"\n",
+        "[server]\npublic_url = \"https://user@cockpit.example\"\n",
+        "[server]\nunknown = 1\n",
+        "interval_s = 120\n[sync]\nwebhook_fallback_interval_s = 60\n",
+        "[sync]\nwebhook_fallback_interval_s = 99999\n",
+    ] {
+        assert!(Config::parse(Some(toml), no_env).is_err(), "{toml}");
+    }
+    assert_eq!(fallback_s(30, None), 150);
+    assert_eq!(fallback_s(300, None), 600);
+    assert_eq!(
+        fallback_s(900, None),
+        900,
+        "never shorter than the interval"
+    );
+}

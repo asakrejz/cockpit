@@ -19,6 +19,7 @@
 mod access;
 mod agent_followup;
 mod agent_git;
+mod agent_image;
 mod agent_ops;
 mod agent_run;
 mod app;
@@ -30,6 +31,7 @@ mod oauth;
 mod secrets;
 mod setup;
 mod sync;
+mod webhooks;
 
 use std::io::Read;
 use std::net::{Ipv4Addr, SocketAddr};

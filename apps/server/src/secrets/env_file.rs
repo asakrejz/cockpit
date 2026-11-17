@@ -27,7 +27,7 @@ use cockpit_integrations::Secret;
 
 use super::{
     AGENT_KEY, ATLASSIAN_OAUTH, ATLASSIAN_OAUTH_TOKENS, GITHUB, GITHUB_OAUTH, GITHUB_OAUTH_TOKENS,
-    JIRA, LITELLM, SecretError, SecretStore,
+    GITHUB_WEBHOOK, JIRA, JIRA_WEBHOOK, LITELLM, SecretError, SecretStore,
 };
 
 /// Variable that points the server to a different file (tests, operation).
@@ -46,6 +46,8 @@ pub const VARIABLES: &[(&str, &str)] = &[
     (LITELLM, "AGENT_KEY"),
     (GITHUB_OAUTH_TOKENS, "GITHUB_OAUTH_TOKENS"),
     (ATLASSIAN_OAUTH_TOKENS, "ATLASSIAN_OAUTH_TOKENS"),
+    (GITHUB_WEBHOOK, "GITHUB_WEBHOOK_SECRET"),
+    (JIRA_WEBHOOK, "JIRA_WEBHOOK_SECRET"),
 ];
 
 /// The variable for a secret name.
