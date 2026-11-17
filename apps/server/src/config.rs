@@ -62,7 +62,7 @@
 //! model = "claude-sonnet-5-5"          # name as the endpoint offers it
 //! ```
 //!
-//! Optional webhooks (speed up the sync; off by default, see the README):
+//! Optional webhooks (speed up the sync; off by default, see docs/setup-guide.md):
 //!
 //! ```toml
 //! [server]
