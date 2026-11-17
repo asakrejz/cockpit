@@ -236,7 +236,7 @@ a.ui-list__row:focus-visible, button.ui-list__row:focus-visible { outline: none;
    ===================================================================== */
 
 /* ---------- App Shell (NavigationSplitView) ---------- */
-.ui-splitview { display: grid; grid-template-columns: 264px minmax(0, 420px) minmax(0, 1fr); gap: 12px; padding: 12px; min-height: 100vh; align-items: start; background: var(--sys-color-grouped-background); }
+.ui-splitview { display: grid; grid-template-columns: 264px minmax(0, 420px) minmax(0, 1fr); gap: 12px; padding: 12px; min-height: 100vh; min-height: 100dvh; align-items: start; background: var(--sys-color-grouped-background); }
 .ui-splitview[data-layout="detail-wide"] { grid-template-columns: 264px minmax(0, 1fr) minmax(0, 420px); }
 @media (max-width: 1100px) { .ui-splitview, .ui-splitview[data-layout="detail-wide"] { grid-template-columns: minmax(0, 1fr); } }
 

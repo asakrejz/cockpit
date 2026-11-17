@@ -2,7 +2,7 @@
 
 body { margin: 0; }
 
-.ck-root { min-height: 100vh; background: var(--sys-color-grouped-background); }
+.ck-root { min-height: 100vh; min-height: 100dvh; background: var(--sys-color-grouped-background); }
 
 /* Text that ends with "…" when there is not enough room. */
 .ck-ellipsis { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -13,7 +13,7 @@ body { margin: 0; }
 /* Small colored icon in the inbox row. */
 .ck-reason { width: 22px; height: 22px; border-radius: var(--ref-radius-6); }
 
-.ck-setup { min-height: 100vh; padding-block: 56px var(--ref-space-96); }
+.ck-setup { min-height: 100vh; min-height: 100dvh; padding-block: 56px var(--ref-space-96); }
 
 /* Inbox: search field and keyboard shortcuts. */
 .ck-keys { display: flex; flex-wrap: wrap; gap: var(--ref-space-4) var(--ref-space-16); margin: 0; padding: var(--ref-space-8) var(--ref-space-20) var(--ref-space-16); }
@@ -86,8 +86,8 @@ body { margin: 0; }
   .ck-back { display: block; padding: var(--ref-space-8) var(--ref-space-12) 0; }
   /* Shortcuts need a keyboard; every one of them has a button as well. */
   .ck-keys { display: none; }
-  .ck-filters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
-  .ck-filters > * { flex: none; }
+  /* The filters wrap into rows (nothing is hidden behind a sideways scroll). */
+  .ck-filters { flex-wrap: wrap; }
 }
 
 /* Checkbox with a text next to it (list of repos). */
@@ -104,3 +104,10 @@ body { margin: 0; }
 .ck-banner-stack .ui-banner { pointer-events: auto; width: min(560px, 100%); background: var(--sys-material-thick); backdrop-filter: blur(20px); box-shadow: inset 3px 0 0 var(--sys-color-blue), 0 6px 24px rgb(0 0 0 / 0.12); }
 .ck-banner-stack .ui-banner[data-tone="warning"] { box-shadow: inset 3px 0 0 var(--sys-color-orange), 0 6px 24px rgb(0 0 0 / 0.12); }
 .ck-banner-stack .ui-banner[data-tone="error"] { box-shadow: inset 3px 0 0 var(--sys-color-red), 0 6px 24px rgb(0 0 0 / 0.12); }
+
+/* Narrow: long page titles break instead of pushing the counter out of the pane. */
+.ui-pane__header h1 { min-width: 0; overflow-wrap: anywhere; }
+.ui-pane__header .ui-badge { flex: none; }
+@media (max-width: 400px) {
+  .ui-pane__header .t-large-title { font-size: 28px; line-height: 34px; }
+}

@@ -141,3 +141,7 @@ body { margin: 0; }
 
 /* Do not stretch badges to full width in column layouts. */
 .pg-backdrop > .ui-badge { align-self: flex-start; }
+
+/* BottomNav story: the bar and its sheet sit inside the frame (a transform makes it their containing block). */
+.pg-bottomnav-frame { position: relative; transform: translateZ(0); height: 420px; overflow: hidden; border-radius: var(--ref-radius-20); background: var(--sys-color-grouped-background); }
+.pg-bottomnav-frame .ui-bottomnav { display: block; }

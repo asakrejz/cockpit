@@ -12,7 +12,7 @@ use web_sys::{HtmlElement, KeyboardEvent, ScrollIntoViewOptions, ScrollLogicalPo
 use crate::{
     route::Route,
     server::{self, CallError},
-    sidebar::AppSidebar,
+    sidebar::{AppSidebar, Connections},
     store::{Store, navigate, now_ms, use_store, utc_offset_min},
     sync_status::sync_now,
     view,
@@ -118,18 +118,6 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
         Filter::Team => ("Team", "Im Team ist gerade nichts offen."),
         Filter::Snoozed => ("Zurückgestellt", "Nichts ist zurückgestellt."),
     };
-    let connection = move |label: &'static str,
-                           on: fn(&cockpit_core::Connections) -> bool,
-                           text: &'static str| {
-        let connected = Signal::derive(move || on(&store.conn.get()));
-        let status = view! {
-            <Status tone=Signal::derive(move || {
-                if connected.get() { StatusTone::Green } else { StatusTone::Gray }
-            })>{move || if connected.get() { text } else { "Getrennt" }}</Status>
-        };
-        view! { <SidebarItem href=Route::Setup.hash() label=label trailing=status.into_any() /> }
-    };
-
     view! {
         <SplitView detail_open=detail_open>
             <AppSidebar>
@@ -140,9 +128,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                     {status_follow_switch(store)}
                 </SidebarSection>
                 <SidebarSection label="Verbindungen">
-                    {connection("Jira", |c| c.jira, "Verbunden")}
-                    {connection("GitHub", |c| c.github, "Verbunden")}
-                    {connection("Agent", |c| c.agent, "Bereit")}
+                    <Connections />
                 </SidebarSection>
             </AppSidebar>
 

@@ -655,7 +655,7 @@ view! {
 | Content | `List`, `ListSection`, `ListRow`, `ListButtonRow`, `Card`, `CardBody`, `Media` |
 | Navigation | `Navbar`, `IosNav`, `TabBar`, `Pager`, `Footer` |
 | Overlay | `Sheet` |
-| App | `SplitView`, `Sidebar`, `Pane`, `Status`, `Avatar`, `Chip`, `InboxRow`, `CommentBubble`, `Textarea`, `Diff`, `SuggestionCard`, `Timeline`, `Progress`, `Log`, `Steps` |
+| App | `SplitView`, `Sidebar`, `BottomNav`, `Pane`, `Status`, `Avatar`, `Chip`, `InboxRow`, `CommentBubble`, `Textarea`, `Diff`, `SuggestionCard`, `Timeline`, `Progress`, `Log`, `Steps` |
 
 **Building block and story.** A building block lives in `crates/<name>/` (a crate that depends only on `leptos`, hence
 reusable); a story lives in `apps/playground/src/stories/<name>.rs` and shows it with sample values. In another
