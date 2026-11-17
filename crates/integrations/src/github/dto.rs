@@ -39,7 +39,7 @@ pub struct GitRef {
     pub sha: String,
 }
 
-/// `GET /repos/{owner}/{repo}/pulls/{number}`
+/// `GET /repos/{owner}/{repo}/pulls/{number}`, also an element of the list `GET /repos/{owner}/{repo}/pulls`
 #[derive(Debug, Clone, Deserialize)]
 pub struct Pull {
     pub number: u32,
@@ -56,6 +56,11 @@ pub struct Pull {
     pub updated_at: String,
     #[serde(default)]
     pub labels: Vec<Label>,
+    /// People whose review is requested (teams are not listed here).
+    #[serde(default)]
+    pub requested_reviewers: Vec<User>,
+    #[serde(default)]
+    pub assignees: Vec<User>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

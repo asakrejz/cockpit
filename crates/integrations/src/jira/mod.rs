@@ -6,5 +6,8 @@ pub mod dto;
 mod map;
 
 pub use adf::{adf_to_text, adf_to_text_for, text_to_adf};
-pub use client::{ASSIGNED_OR_WATCHED_JQL, JiraClient, jql_for, jql_for_project};
-pub use map::{comments_to_core, issue_to_item, status_from};
+pub use client::{
+    ASSIGNED_OR_WATCHED_JQL, JiraClient, SPRINT_CLAUSE, is_sprint_query, jql_for, jql_for_project,
+    open_tickets_jql,
+};
+pub use map::{comments_to_core, issue_to_item, issue_to_item_with, sprint_of, status_from};

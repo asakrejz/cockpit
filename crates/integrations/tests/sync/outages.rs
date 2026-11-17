@@ -161,14 +161,8 @@ async fn unknown_repo_is_a_hint_not_an_outage() {
         jira: None,
     };
     Mock::given(method("GET"))
-        .and(path("/search/issues"))
-        .and(query_param(
-            "q",
-            "is:pr is:open archived:false review-requested:@me repo:gibt/es-nicht",
-        ))
-        .respond_with(
-            ResponseTemplate::new(422).set_body_json(json!({"message": "Validation Failed"})),
-        )
+        .and(path("/repos/gibt/es-nicht/pulls"))
+        .respond_with(ResponseTemplate::new(404).set_body_json(json!({"message": "Not Found"})))
         .mount(&g)
         .await;
     let (ws, _) = sync(&d, &Workspace::default(), NOW_MS).await;

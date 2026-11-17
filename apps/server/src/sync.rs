@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use cockpit_core::api::{ActionResponse, JiraProject, JiraProjectsResponse, SyncResponse};
 use cockpit_core::{Action, ActionError, Actor, Source};
-use cockpit_integrations::github::GitHubClient;
+use cockpit_integrations::github::{GitHubClient, PrLimits};
 use cockpit_integrations::jira::{JiraClient, jql_for, jql_for_project};
 use cockpit_integrations::oauth::{Endpoints, Service};
 use cockpit_integrations::outbound::plane;
@@ -36,6 +36,8 @@ pub struct Sources {
     /// Addresses of the OAuth services (tests insert imitations).
     pub endpoints: Endpoints,
     pub interval: Duration,
+    /// How many open pull requests the GitHub sync loads.
+    pub pr_limits: PrLimits,
 }
 
 impl Default for Sources {
@@ -47,6 +49,7 @@ impl Default for Sources {
             atlassian: None,
             endpoints: Endpoints::default(),
             interval: Duration::from_secs(DEFAULT_INTERVAL_S),
+            pr_limits: PrLimits::default(),
         }
     }
 }
@@ -60,6 +63,7 @@ impl Sources {
             atlassian: config.atlassian.clone(),
             endpoints: Endpoints::default(),
             interval: Duration::from_secs(config.interval_s),
+            pr_limits: config.github_pr_limits,
         }
     }
 
@@ -99,7 +103,7 @@ impl AppState {
                 match GitHubClient::new(&g.api_url, t) {
                     Ok(client) => {
                         services.github = Some(GitHubService {
-                            client,
+                            client: client.with_limits(sources.pr_limits),
                             repos: g.repos.clone(),
                         })
                     }

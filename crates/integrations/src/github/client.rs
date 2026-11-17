@@ -41,8 +41,39 @@ pub struct RepoAccess {
     pub can_push: Option<bool>,
 }
 
-/// At most this many pull requests per relation are loaded per fetch.
+/// At most this many pull requests per relation are loaded per fetch (the searches).
 const MAX_PRS: usize = 30;
+
+/// How many open pull requests the sync loads at most.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PrLimits {
+    /// Per repo (the most recently updated ones come first).
+    pub per_repo: usize,
+    /// Over all repos together.
+    pub total: usize,
+}
+
+impl PrLimits {
+    pub const DEFAULT_PER_REPO: usize = 200;
+    pub const DEFAULT_TOTAL: usize = 500;
+}
+
+impl Default for PrLimits {
+    fn default() -> Self {
+        Self {
+            per_repo: Self::DEFAULT_PER_REPO,
+            total: Self::DEFAULT_TOTAL,
+        }
+    }
+}
+
+/// The open pull requests of one repo.
+#[derive(Clone, Debug)]
+pub struct OpenPulls {
+    pub pulls: Vec<Pull>,
+    /// There are more open pull requests than were loaded.
+    pub truncated: bool,
+}
 /// Pages of 100 for files and comments (GitHub delivers at most 3000 files).
 const MAX_PAGES: u32 = 3;
 
@@ -50,6 +81,7 @@ pub struct GitHubClient {
     http: reqwest::Client,
     base: String,
     token: Secret,
+    limits: PrLimits,
 }
 
 impl std::fmt::Debug for GitHubClient {
@@ -69,6 +101,52 @@ impl GitHubClient {
             http: client()?,
             base: base_url(api_url)?,
             token,
+            limits: PrLimits::default(),
+        })
+    }
+
+    /// Changes how many pull requests the sync loads (default: [`PrLimits::default`]).
+    pub fn with_limits(mut self, limits: PrLimits) -> Self {
+        self.limits = PrLimits {
+            per_repo: limits.per_repo.max(1),
+            total: limits.total.max(1),
+        };
+        self
+    }
+
+    pub fn limits(&self) -> PrLimits {
+        self.limits
+    }
+
+    /// The open pull requests of a repo, most recently updated first, page by page (100 each)
+    /// until `max` is reached. One call per page, none per pull request. Only reads.
+    pub async fn pulls_open(&self, repo: &str, max: usize) -> Result<OpenPulls, Error> {
+        let max = max.max(1);
+        let mut all: Vec<Pull> = Vec::new();
+        let mut page = 1u32;
+        loop {
+            let part: Vec<Pull> = self
+                .lies_json(self.get(&format!("/repos/{repo}/pulls")).query(&[
+                    ("state", "open"),
+                    ("sort", "updated"),
+                    ("direction", "desc"),
+                    ("per_page", "100"),
+                    ("page", &page.to_string()),
+                ]))
+                .await?;
+            let full = part.len() >= 100;
+            all.extend(part);
+            // One more than `max` tells that there are more.
+            if all.len() > max || !full {
+                break;
+            }
+            page += 1;
+        }
+        let truncated = all.len() > max;
+        all.truncate(max);
+        Ok(OpenPulls {
+            pulls: all,
+            truncated,
         })
     }
 

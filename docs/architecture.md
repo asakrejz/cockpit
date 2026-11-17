@@ -153,6 +153,22 @@ routes.
   shifts), verdict and "sent".
 - New comments and status, check and review changes from outside appear in the log with author "System" and trigger the
   notifications. `@your-login` in comments counts as a mention.
+- GitHub: per configured repo `GET /repos/{owner}/{name}/pulls?state=open` (100 per page, newest update first; limits
+  `[sync] max_prs_per_repo`/`max_prs_total`), no search calls and no extra call per pull request for the list. `GET /user`
+  runs once per sync. The relation to you comes from the pull request (`user`, `requested_reviewers`, `assignees`) and is
+  stored on `PrRef` (`author`, `mine`, `requested_me`, `assigned_me`; all `#[serde(default)]` and omitted when empty, so
+  `wire_compat` snapshots stay byte-identical). Pull requests with a relation get `Scope::Mine` and the full detail
+  (comments, verdicts); the others get `Scope::Team`, a reason "Pull Request von …" (no attention, no notification) and
+  only checks and diff (the diff is reloaded on a new head commit only). A repo that answers 403/404 is a hint; a repo
+  or pull request that fails for another reason (5xx, timeout) keeps its last state and adds a hint; a rate limit or a
+  rejected token fails the whole source as before. Webhooks (above) still only trigger this same sync.
+- Jira: the default query asks for active sprints (see configuration). `Item.sprint` (`name`, `state`
+  `active|closed|future`, `start`, `end`) and `Item.updated_ms` are optional on the wire; the status category already
+  gives `TicketStatus`. Entries the sync no longer delivers (sprint ended) are removed by the normal merge; a failed
+  source keeps its data.
+- Inbox filters are data (`cockpit_core::filters::FILTERS`); `Workspace::inbox` applies ownership, `InboxFilter::matches`
+  the rest. Ownership "Alle" is the only way a quiet entry reaches the inbox; `attention`, `unread` and `notify::events`
+  are unchanged.
 - Per source there is a state (`/api/health` › `sync`, in the app under "Abgleich"): `ok`, `unauthorized` (401, token
   expired), `no_permission` (403), `quota` (rate limit: the source pauses until the time from
   `Retry-After`/`X-RateLimit-Reset`), `offline`, `error`; plus `off` (not set up or no key) and `waiting` (no fetch

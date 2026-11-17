@@ -12,10 +12,12 @@ use crate::agent::{
 use crate::attention::{self, Hit, Rule, Rules, Snooze};
 use crate::demo;
 use crate::diagnosis::diagnose;
+use crate::filters::{Choices, NO_TICKET, Ownership, SprintView};
 use crate::model::*;
 use crate::notify::NotifySettings;
 use crate::review::{CHECK_STEPS, Decision, MergeBlocker, MergeMethod, Review, SendError, Verdict};
 use crate::rules::{DEMO_REPO, RepoRules};
+use crate::search::InboxFilter;
 use crate::sync::SyncState;
 use crate::text::slug;
 use crate::usage::{
@@ -260,6 +262,90 @@ impl Workspace {
             .collect()
     }
 
+    /// Inbox entries for the filter bar: like [`Workspace::search`], then narrowed by the
+    /// [`InboxFilter`].
+    ///
+    /// With the ownership „Meine“ the list is the attention list as before. With „Alle“ the
+    /// entries of colleagues (pull requests and tickets without a reason for attention) are
+    /// listed too – they never raise attention or notifications themselves. The sprint
+    /// „Aktueller Sprint“ falls back to „Alle offenen“ as long as no ticket carries sprint data
+    /// (a project without sprints).
+    pub fn inbox(
+        &self,
+        filter: Filter,
+        source: SourceFilter,
+        query: &str,
+        now_ms: u64,
+        by: &InboxFilter,
+    ) -> Vec<&Item> {
+        let by = self.effective_filter(by);
+        let base: Vec<&Item> = match by.ownership {
+            Ownership::All if filter != Filter::Snoozed => self
+                .visible(filter)
+                .into_iter()
+                .filter(|i| !self.is_snoozed(&i.id, now_ms))
+                .filter(|i| source.matches(i.source) && crate::search::matches_query(i, query))
+                .filter(|i| self.in_project(i))
+                .collect(),
+            _ => self.search(filter, source, query, now_ms),
+        };
+        by.apply(base, now_ms)
+    }
+
+    /// The filter as it acts on this workspace: „Aktueller Sprint“ without any sprint data in
+    /// the tickets counts as „Alle offenen“.
+    pub fn effective_filter(&self, by: &InboxFilter) -> InboxFilter {
+        let mut by = by.clone();
+        if by.sprint == SprintView::Current && !self.has_sprint_data() {
+            by.sprint = SprintView::AllOpen;
+        }
+        by
+    }
+
+    /// Does any ticket carry a sprint?
+    pub fn has_sprint_data(&self) -> bool {
+        self.items
+            .iter()
+            .any(|i| i.is_ticket() && i.sprint.is_some())
+    }
+
+    /// The choices of a filter with [`Choices::FromData`], as `(value, label)` in display order.
+    /// For filters with fixed choices (and unknown IDs) the fixed list.
+    pub fn filter_choices(&self, id: &str) -> Vec<(String, String)> {
+        let same = |v: String| (v.clone(), v);
+        match id {
+            "repo" => self.item_repos().into_iter().map(same).collect(),
+            "person" => self.owners().into_iter().map(|p| same(p.name)).collect(),
+            "label" => self.labels().into_iter().map(same).collect(),
+            "project" => {
+                let mut list: Vec<String> = self
+                    .items
+                    .iter()
+                    .filter_map(Item::ticket_project)
+                    .chain(self.jira_project.clone())
+                    .collect();
+                list.sort();
+                list.dedup();
+                let mut out: Vec<(String, String)> = list.into_iter().map(same).collect();
+                if self
+                    .items
+                    .iter()
+                    .any(|i| i.kind == Kind::PullRequest && i.ticket_project().is_none())
+                {
+                    out.push((NO_TICKET.into(), "Ohne Ticket".into()));
+                }
+                out
+            }
+            other => match crate::filters::filter_def(other).map(|d| d.choices) {
+                Some(Choices::Fixed(list)) => list
+                    .iter()
+                    .map(|(v, l)| (v.to_string(), l.to_string()))
+                    .collect(),
+                _ => Vec::new(),
+            },
+        }
+    }
+
     /// Entries that need attention for this filter (or, for
     /// [`Filter::Snoozed`], are currently snoozed), in display order.
     pub fn attention(&self, filter: Filter, now_ms: u64) -> Vec<&Item> {
@@ -344,6 +430,30 @@ impl Workspace {
 
     /// The review of a pull request. A plain number (no repo) finds the first review with
     /// that number; use a full [`PrKey`] wherever two repos can be involved.
+    /// Does the pull request of this review concern me (author, requested reviewer or assignee)?
+    /// A review without an inbox entry counts as mine: nothing says it belongs to a colleague.
+    pub fn review_is_mine(&self, review: &Review) -> bool {
+        let key = review.key();
+        self.items
+            .iter()
+            .find(|i| i.pr.as_ref().is_some_and(|p| p.key().same(&key)))
+            .is_none_or(Item::is_mine)
+    }
+
+    /// The reviews for the page „Pull Requests“: with `ownership` „Meine“ only those that
+    /// concern me, with „Alle“ all open pull requests of the repos. `keep` stays in the list in
+    /// any case (the review that is open right now).
+    pub fn reviews_for(&self, ownership: Ownership, keep: Option<&PrKey>) -> Vec<&Review> {
+        self.reviews
+            .iter()
+            .filter(|r| {
+                ownership == Ownership::All
+                    || self.review_is_mine(r)
+                    || keep.is_some_and(|k| k.same(&r.key()))
+            })
+            .collect()
+    }
+
     pub fn review(&self, key: impl Into<PrKey>) -> Option<&Review> {
         let key = key.into();
         self.reviews.iter().find(|r| key.matches(&r.repo, r.number))
