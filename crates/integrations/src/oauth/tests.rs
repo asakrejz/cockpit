@@ -112,7 +112,7 @@ fn site_choice() {
     let two = [site("abc-1", "firma"), site("def-2", "privat")];
     let f = site_choose(&two, None).unwrap_err().to_string();
     assert!(
-        f.contains("firma") && f.contains("privat") && f.contains("site"),
+        f.contains("firma") && f.contains("privat") && f.contains("Schritt „Jira“"),
         "{f}"
     );
     for requested in ["privat", "PRIVAT", "def-2", "https://privat.atlassian.net/"] {

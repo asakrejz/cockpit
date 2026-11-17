@@ -7,6 +7,7 @@ use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
+use super::build_log::CollapsibleLog;
 use super::fields::{Context, Extern, Intro, Section};
 use crate::server::{self, CallError};
 use crate::store::Store;
@@ -64,7 +65,24 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
     let build = RwSignal::new(None::<ImageBuild>);
     let build_error = RwSignal::new(None::<String>);
     build_watch(build, ctx.store);
+    // Per build: collapsed at the start; an error opens it once (the reader can close it again).
+    let log_open = RwSignal::new(false);
+    let opened_by_error = StoredValue::new(false);
+    let has_log =
+        Memo::new(move |_| build.with(|b| b.as_ref().is_some_and(|b| !b.lines.is_empty())));
+    let log_lines = Signal::derive(move || {
+        build.with(|b| b.as_ref().map(|b| b.lines.clone()).unwrap_or_default())
+    });
+    Effect::new(move |_| {
+        let failed = build.with(|b| b.as_ref().is_some_and(|b| b.error.is_some()));
+        if failed && !opened_by_error.get_value() {
+            opened_by_error.set_value(true);
+            log_open.set(true);
+        }
+    });
     let start_build = move |_| {
+        log_open.set(false);
+        opened_by_error.set_value(false);
         build_error.set(None);
         spawn_local(async move {
             match server::post_image_build().await {
@@ -91,9 +109,12 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
             .with(|h| h.as_ref().and_then(|h| h.agent.image_hint.clone()))
     };
     let image_da = move || image_state() != ImageState::Missing;
-    let engine_running = move || status().is_some_and(|s| s.runtime.is_some() && s.engine_running);
-    let missing = move || status().is_some_and(|s| s.runtime.is_none());
-    let not_running = move || status().is_some_and(|s| s.runtime.is_some() && !s.engine_running);
+    // Memos: the sections below only rebuild when the answer changes, not at every refresh.
+    let engine_running =
+        Memo::new(move |_| status().is_some_and(|s| s.runtime.is_some() && s.engine_running));
+    let missing = Memo::new(move |_| status().is_some_and(|s| s.runtime.is_none()));
+    let not_running =
+        Memo::new(move |_| status().is_some_and(|s| s.runtime.is_some() && !s.engine_running));
 
     view! {
         <VStack spacing="12px">
@@ -122,7 +143,8 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                 </CardBody>
             </Card>
             {move || {
-                engine_running()
+                engine_running
+                    .get()
                     .then(|| {
                         view! {
                             <Section title="Agent-Image">
@@ -185,11 +207,10 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                                         .map(|m| view! { <p class="ui-hint" role="alert">{m}</p> })
                                 }}
                                 {move || {
-                                    build.get()
-                                        .filter(|b| !b.lines.is_empty())
-                                        .map(|b| {
-                                            let text = b.lines.join("\n");
-                                            view! { <Log text=Signal::derive(move || text.clone()) /> }
+                                    has_log
+                                        .get()
+                                        .then(|| {
+                                            view! { <CollapsibleLog lines=log_lines expanded=log_open /> }
                                         })
                                 }}
                             </Section>
@@ -197,7 +218,8 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                     })
             }}
             {move || {
-                not_running()
+                not_running
+                    .get()
                     .then(|| {
                         view! {
                             <Section title="Das Programm ist da, aber nicht gestartet">
@@ -215,7 +237,8 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                     })
             }}
             {move || {
-                missing()
+                missing
+                    .get()
                     .then(|| {
                         view! {
                             <Section title="Option A: Rancher Desktop (empfohlen für Einsteiger)">

@@ -210,6 +210,13 @@ impl Store {
         store.refresh_health();
     }
 
+    /// Marks the server as reachable. Only writes on a change: a signal notifies at every `set`.
+    fn set_online(&self) {
+        if self.link.get_untracked() != Link::Online {
+            self.link.set(Link::Online);
+        }
+    }
+
     /// Fetches sign-in, agent endpoint and container runtime from the server.
     pub fn refresh_health(&self) {
         let store = *self;
@@ -238,8 +245,10 @@ impl Store {
                 let result = server::fetch_workspace().await;
                 match result {
                     Ok((ws, revision)) => {
-                        store.link.set(Link::Online);
-                        store.loaded.set(true);
+                        store.set_online();
+                        if !store.loaded.get_untracked() {
+                            store.loaded.set(true);
+                        }
                         store.attempts.set_value(0);
                         let previous = store.revision.get_value();
                         if previous != Some(revision) {
@@ -283,7 +292,7 @@ impl Store {
             let result = server::post_action(action).await;
             match result {
                 Ok(response) => {
-                    store.link.set(Link::Online);
+                    store.set_online();
                     if store.revision.get_value() != Some(response.revision) {
                         store.refresh();
                     }
@@ -391,6 +400,23 @@ pub fn current_hash() -> String {
 /// Switches to an address like `#/review/87`.
 pub fn navigate_hash(hash: &str) {
     let _ = window().location().set_hash(hash);
+}
+
+/// Changes the address without a new entry in the history (the back button skips it), e.g. when an
+/// address without details is completed. `hashchange` does not fire for this, so the route is set here.
+impl Store {
+    pub fn replace_route(&self, route: &Route) {
+        let url = route.hash();
+        let replaced = window().history().ok().is_some_and(|h| {
+            h.replace_state_with_url(&web_sys::wasm_bindgen::JsValue::NULL, "", Some(&url))
+                .is_ok()
+        });
+        if replaced {
+            self.route.set(route.clone());
+        } else {
+            navigate(route);
+        }
+    }
 }
 
 /// Switches the page via the address. The app reacts to `hashchange`.

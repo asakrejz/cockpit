@@ -102,6 +102,7 @@ use crate::config::JiraConfig;
 mod change;
 mod github;
 mod jira;
+mod messages;
 mod repos;
 mod routes;
 

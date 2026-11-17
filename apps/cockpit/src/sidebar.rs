@@ -132,6 +132,7 @@ impl Target {
         let own = (self.route)();
         match (&own, route) {
             (Route::Review(_), Route::Review(_)) | (Route::Agent(_), Route::Agent(_)) => true,
+            (Route::Setup, other) => other.is_setup(),
             _ => &own == route,
         }
     }

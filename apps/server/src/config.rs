@@ -1,7 +1,8 @@
 //! Configuration: defaults, above them the file, above that environment variables.
 //!
-//! The file (`config.toml` in the configuration directory of the user, e.g.
-//! `~/.config/cockpit/`) contains **no keys** – only addresses and accounts.
+//! The file (`config/config.toml` in the project folder, created at the first start; see
+//! `location`) contains **no keys** – only addresses and accounts. The database is
+//! `config/cockpit.db` next to it. `COCKPIT_CONFIG` and `COCKPIT_DB` override the places.
 //!
 //! ```toml
 //! port = 8787
@@ -96,6 +97,9 @@ use serde::Deserialize;
 mod file;
 use file::*;
 
+pub mod files_check;
+pub mod location;
+
 mod sections;
 pub use sections::*;
 
@@ -148,6 +152,10 @@ pub struct Config {
     /// The file that was read from (and that the setup assistant writes to); `None`
     /// if there is no configuration directory.
     pub config_path: Option<PathBuf>,
+    /// The folder `config/` in the project folder, if the default places are in use (checked by Git and permission rules).
+    pub config_dir: Option<PathBuf>,
+    /// Places of old files (before `config/`), reported while they still exist.
+    pub legacy_files: Vec<PathBuf>,
     /// `[server] webhooks`: the webhook routes answer (default `false`: 404).
     pub webhooks: bool,
     /// `[server] public_url`: address of the tunnel, only shown in the assistant.
@@ -190,10 +198,7 @@ pub fn fallback_s(interval_s: u64, explicit: Option<u64>) -> u64 {
 }
 
 fn default_db_path() -> PathBuf {
-    dirs::data_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("cockpit")
-        .join("cockpit.db")
+    location::default_db_path(&location::project_dir())
 }
 
 impl Config {
@@ -219,6 +224,8 @@ impl Config {
             git_base: None,
             dev_port: None,
             config_path: None,
+            config_dir: None,
+            legacy_files: Vec::new(),
             webhooks: false,
             public_url: None,
             webhook_fallback_interval_s: None,
@@ -467,9 +474,15 @@ impl Config {
     /// defaults apply) and puts the environment variables on top.
     pub fn load() -> Result<Self, ConfigError> {
         let env = |k: &str| std::env::var(k).ok();
+        let project = location::project_dir();
+        let notes =
+            location::prepare(&project, &env, location::is_macos()).map_err(ConfigError::Wert)?;
+        for n in notes {
+            tracing::info!("{n}");
+        }
         let (path, explicit) = match env("COCKPIT_CONFIG").filter(|s| !s.is_empty()) {
             Some(p) => (Some(PathBuf::from(p)), true),
-            None => (default_config_path(), false),
+            None => (Some(location::default_config_path(&project)), false),
         };
         let text = match path.as_deref().map(read_optional) {
             Some(Ok(t)) => t,
@@ -482,6 +495,10 @@ impl Config {
         }
         let mut c = Self::parse(text.as_deref(), env)?;
         c.config_path = path;
+        let overrides = env("COCKPIT_CONFIG").is_some_and(|v| !v.is_empty())
+            && env("COCKPIT_DB").is_some_and(|v| !v.is_empty());
+        c.config_dir = (!overrides).then(|| location::config_dir(&project));
+        c.legacy_files = location::legacy_candidates(&env, location::is_macos());
         Ok(c)
     }
 }

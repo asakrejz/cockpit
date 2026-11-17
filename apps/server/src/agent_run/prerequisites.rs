@@ -43,7 +43,7 @@ pub fn missing(v: &Prerequisites) -> Vec<String> {
                 .to_string(),
         ),
         (Some(l), false) => f.push(format!(
-            "{l} läuft nicht. Starte es (Rancher Desktop bzw. „podman machine start“) und prüfe es unter „Einrichten“ › „Container“."
+            "{l} läuft nicht. Starte es (Rancher Desktop bzw. die Podman-Maschine) und prüfe es im Schritt „Container“."
         )),
         (Some(_), true) => f.extend(image_problem(v.image, v.image_hint.as_deref())),
     }

@@ -44,8 +44,20 @@ fn tokens_name(d: Service) -> &'static str {
     }
 }
 
-fn command(d: Service) -> String {
-    format!("cockpit-server token set {}", secret_name(d))
+/// The step of the assistant in which this service is set up (messages link to it).
+pub(crate) fn step_name(d: Service) -> &'static str {
+    match d {
+        Service::GitHub => "GitHub",
+        Service::Atlassian => "Jira",
+    }
+}
+
+/// "Das Client-Secret fehlt …" – names the field in the assistant, never a terminal command.
+pub(crate) fn secret_missing(d: Service) -> String {
+    format!(
+        "Das Client-Secret fehlt – trage es im Schritt „{}“ im Feld „Client-Secret“ ein.",
+        step_name(d)
+    )
 }
 
 /// The callback address as it is entered in the app of the service. GitHub: `127.0.0.1`,
@@ -66,8 +78,9 @@ fn now_s() -> u64 {
 fn service_error(d: Service, f: &Error) -> String {
     match f {
         Error::NotSignedIn => format!(
-            "{} lehnt die Zugangsdaten ab – Client-ID in config.toml und Client-Secret in der .env-Datei prüfen",
-            d.name()
+            "{} lehnt die Zugangsdaten ab – prüfe Client-ID und Client-Secret im Schritt „{}“.",
+            d.name(),
+            step_name(d)
         ),
         Error::Network(_) => format!("{} ist nicht erreichbar", d.name()),
         other => format!("{}: {other}", d.name()),

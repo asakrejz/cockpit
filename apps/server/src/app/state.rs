@@ -21,6 +21,10 @@ pub struct Settings {
     pub dev_port: Option<u16>,
     /// The `config.toml` into which the setup assistant writes.
     pub config_path: Option<PathBuf>,
+    /// The folder `config/` (Git and permission checks in `/api/health`).
+    pub config_dir: Option<PathBuf>,
+    /// Places of old files, reported while they still exist.
+    pub legacy_files: Vec<PathBuf>,
     /// `[agent] repo`: the default repo in which the agent works.
     pub agent_repo: Option<String>,
     /// `[[agent.repos]]`: the repos the agent may work in.
@@ -51,6 +55,8 @@ impl Settings {
             search_path: None,
             dev_port: config.dev_port,
             config_path: config.config_path.clone(),
+            config_dir: config.config_dir.clone(),
+            legacy_files: config.legacy_files.clone(),
             agent_repo: config.agent_repo.clone(),
             agent_repos: config.agent_repos.clone(),
             agent_dir: Some(agent_dir_find(config)),

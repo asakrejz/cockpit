@@ -6,6 +6,8 @@
 //! (no `localStorage`, no address), the server never sends them back. The rules for this
 //! are in `cockpit_core::setup`, writing `config.toml` is in the server.
 
+mod auth_method;
+mod build_log;
 mod container;
 mod done;
 mod fields;
@@ -15,11 +17,12 @@ mod live;
 mod model;
 mod repo_picker;
 
-use cockpit_core::setup::Step;
+use cockpit_core::setup::{Snapshot, Step, first_open_step, summary};
 use feature_ui::*;
 use leptos::prelude::*;
 
-use crate::store::use_store;
+use crate::route::Route;
+use crate::store::{navigate, use_store};
 use container::ContainerStep;
 use done::DoneStep;
 use fields::Context;
@@ -38,6 +41,53 @@ pub fn SetupPage() -> impl IntoView {
     let ctx = Context::create(store);
     let step = RwSignal::new(Step::Container);
     let index = Signal::derive(move || step.get().index());
+    // The step is part of the address (`#/setup/jira`), so it survives a reload of the page and
+    // the back button works. Without a step in the address the assistant opens at the first step
+    // that is not done yet (see below), once.
+    let route_step = Signal::derive(move || match store.route.get() {
+        Route::SetupStep(s) => Some(s),
+        _ => None,
+    });
+    let ready = RwSignal::new(route_step.get_untracked().is_some());
+    if let Some(s) = route_step.get_untracked() {
+        step.set(s);
+    }
+    // Address -> step (back button, links from other pages).
+    Effect::new(move |_| {
+        if let Some(s) = route_step.get() {
+            if step.get_untracked() != s {
+                step.set(s);
+            }
+            ready.set(true);
+        }
+    });
+    // Step -> address.
+    Effect::new(move |_| {
+        let s = step.get();
+        if ready.get() && route_step.get_untracked() != Some(s) {
+            navigate(&Route::SetupStep(s));
+        }
+    });
+    // Without a step in the address: wait for the state of the server, then pick the first open step.
+    Effect::new(move |_| {
+        if ready.get_untracked() || !ctx.ready.get() {
+            return;
+        }
+        let Some(health) = store.health.get() else {
+            return;
+        };
+        let lines = summary(&Snapshot {
+            setup: ctx.setup.get_untracked(),
+            jira: health.sign_in.jira.clone(),
+            github: health.sign_in.github.clone(),
+            endpoint: health.endpoint.clone(),
+            container: health.container.clone(),
+            agent: health.agent.clone(),
+            check: None,
+        });
+        // The address effect above takes the step over from here.
+        store.replace_route(&Route::SetupStep(first_open_step(&lines)));
+    });
 
     let next_step = move |_| {
         if let Some(n) = step.get_untracked().next() {
@@ -71,7 +121,11 @@ pub fn SetupPage() -> impl IntoView {
 
                     <Steps labels=NAMES current=index />
 
-                    {move || match step.get() {
+                    {move || {
+                        if !ready.get() {
+                            return view! { <Skeleton rows=3 label="Einrichtung lädt" /> }.into_any();
+                        }
+                        match step.get() {
                         Step::Container => view! { <ContainerStep ctx=ctx /> }.into_any(),
                         Step::Jira => view! { <JiraStep ctx=ctx /> }.into_any(),
                         Step::GitHub => view! { <GitHubStep ctx=ctx /> }.into_any(),
@@ -79,6 +133,7 @@ pub fn SetupPage() -> impl IntoView {
                         Step::Live => view! { <LiveStep ctx=ctx /> }.into_any(),
                         Step::Done => {
                             view! { <DoneStep ctx=ctx to_step=jump /> }.into_any()
+                        }
                         }
                     }}
 

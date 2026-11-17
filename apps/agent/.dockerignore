@@ -6,3 +6,7 @@
 .git
 runner/node_modules
 clis/node_modules
+# The project configuration and database (config/ at the repo root) are never part of the image either.
+config
+**/config/config.toml
+**/cockpit.db*

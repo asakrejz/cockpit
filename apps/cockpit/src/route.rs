@@ -1,12 +1,15 @@
 //! Pages and their addresses. The address is in the hash of the URL (`#/review/acme/app/87`),
 //! so that the back button and bookmarks work.
 
+use cockpit_core::setup::Step;
 use cockpit_core::{Filter, PrKey};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Route {
     /// Set up and change connections.
     Setup,
+    /// A step of the setup assistant (`#/setup/jira`). The page is the same as for `Setup`.
+    SetupStep(Step),
     /// The inbox with a filter.
     Inbox(Filter),
     /// Team overview: who works on what and what is stuck.
@@ -25,6 +28,19 @@ pub enum Route {
 }
 
 impl Route {
+    /// The route as far as it decides which page is shown: all addresses of the setup assistant
+    /// are one page, so moving between its steps never rebuilds the page.
+    pub fn page(&self) -> Route {
+        match self {
+            Route::SetupStep(_) => Route::Setup,
+            other => other.clone(),
+        }
+    }
+
+    pub fn is_setup(&self) -> bool {
+        matches!(self, Route::Setup | Route::SetupStep(_))
+    }
+
     pub fn parse(hash: &str) -> Route {
         let mut parts = hash
             .trim_start_matches('#')
@@ -35,7 +51,10 @@ impl Route {
         let rest: Vec<&str> = std::iter::once(second).flatten().chain(parts).collect();
         match (first, second) {
             // The older German addresses keep working (bookmarks).
-            (Some("setup" | "einrichten"), _) => Route::Setup,
+            (Some("setup" | "einrichten"), step) => match step.and_then(Step::from_id) {
+                Some(step) => Route::SetupStep(step),
+                None => Route::Setup,
+            },
             (Some("mine" | "meine"), _) => Route::Inbox(Filter::Mine),
             (Some("team"), _) => Route::Inbox(Filter::Team),
             (Some("snoozed" | "zurueckgestellt"), _) => Route::Inbox(Filter::Snoozed),
@@ -52,6 +71,7 @@ impl Route {
     pub fn hash(&self) -> String {
         match self {
             Route::Setup => "#/setup".into(),
+            Route::SetupStep(step) => step.hash(),
             Route::Inbox(Filter::All) => "#/".into(),
             Route::Inbox(Filter::Mine) => "#/mine".into(),
             Route::Inbox(Filter::Team) => "#/team".into(),

@@ -2,11 +2,13 @@
 //! GitHub App (OAuth) is the second way. Both end in the same list of repos and the same test.
 
 use cockpit_core::api::{ClientInput, ConfigChange, GitHubCheck, RepoState};
+use cockpit_core::connections::AuthKind;
 use cockpit_core::setup::client_id_read;
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
+use super::auth_method::{AuthMethodPicker, current};
 use super::fields::{
     Context, CopyField, Extern, Feedback, Intro, KeyField, Message, Section, config_save,
     error_text,
@@ -17,12 +19,6 @@ use crate::server;
 
 /// Where a fine-grained token is created.
 const TOKEN_PAGE: &str = "https://github.com/settings/personal-access-tokens/new";
-
-/// The two ways to connect: (id, label).
-const WAYS: &[(&str, &str)] = &[
-    ("token", "Token (empfohlen)"),
-    ("app", "GitHub App (OAuth)"),
-];
 
 /// Rights of the token: (area, level).
 const TOKEN_RIGHTS: &[(&str, &str)] = &[
@@ -361,24 +357,19 @@ fn ConnectionCheck(ctx: Context) -> impl IntoView {
 
 #[component]
 pub fn GitHubStep(ctx: Context) -> impl IntoView {
-    let way = RwSignal::new("token");
     // Someone who already set up an app keeps seeing it; everyone else starts with the token.
-    let chosen = RwSignal::new(false);
-    Effect::new(move |_| {
+    let chosen: RwSignal<Option<AuthKind>> = RwSignal::new(None);
+    let default = Signal::derive(move || {
         let app = ctx
             .setup
             .with(|s| s.github_client_id.is_some() && !s.has_key("github"));
-        if app && !chosen.get_untracked() {
-            way.set("app");
+        if app {
+            AuthKind::OAuth
+        } else {
+            AuthKind::Token
         }
     });
-    Effect::new(move |_| {
-        // Own choice wins over the guess above.
-        if way.get() == "app" || way.get() == "token" {
-            chosen.set(true);
-        }
-    });
-    let app = move || way.get() == "app";
+    let method = current(chosen, default);
 
     view! {
         <VStack spacing="12px">
@@ -387,10 +378,17 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
                     "Damit sieht Cockpit deine Pull Requests und Reviews, und der Agent kann in deinen Repos arbeiten. Der einfachste Weg ist ein Token, der nur die Repos sieht, die du auswählst. Du kannst ihn jederzeit auf GitHub löschen."
                 </p>
             </Intro>
-            <Segmented options=WAYS value=way aria_label="Art der Anmeldung bei GitHub" />
-            <Show when=app fallback=move || view! { <TokenWay ctx=ctx /> }>
-                <AppWay ctx=ctx />
-            </Show>
+            <AuthMethodPicker chosen=chosen default=default aria_label="Anmeldeweg für GitHub" />
+            <div hidden=move || method.get() != AuthKind::Token>
+                <VStack spacing="12px">
+                    <TokenWay ctx=ctx />
+                </VStack>
+            </div>
+            <div hidden=move || method.get() != AuthKind::OAuth>
+                <VStack spacing="12px">
+                    <AppWay ctx=ctx />
+                </VStack>
+            </div>
             <RepoPicker ctx=ctx />
             <ConnectionCheck ctx=ctx />
         </VStack>

@@ -15,6 +15,51 @@ fn steps_walk_forward_and_back() {
 }
 
 #[test]
+fn step_addresses_use_english_ids_and_accept_the_older_german_ones() {
+    assert_eq!(Step::Model.hash(), "#/setup/model");
+    assert_eq!(Step::Done.hash(), "#/setup/done");
+    assert_eq!(Step::from_id("modell"), Some(Step::Model));
+    assert_eq!(Step::from_id("fertig"), Some(Step::Done));
+    assert_eq!(Step::from_id("JIRA"), Some(Step::Jira));
+}
+
+fn line(step: Step, tone: Tone) -> Line {
+    Line {
+        name: "x",
+        tone,
+        text: String::new(),
+        step,
+    }
+}
+
+#[test]
+fn assistant_opens_at_first_open_step_or_the_last() {
+    let lines = [
+        line(Step::Container, Tone::Good),
+        line(Step::Jira, Tone::Open),
+        line(Step::GitHub, Tone::Problem),
+    ];
+    assert_eq!(first_open_step(&lines), Step::Jira);
+    assert_eq!(first_open_step(&lines[..1]), Step::Done);
+    assert_eq!(first_open_step(&[]), Step::Done);
+}
+
+#[test]
+fn a_message_can_name_its_step() {
+    assert_eq!(
+        step_mentioned("Das Client-Secret fehlt – trage es im Schritt „GitHub“ ein."),
+        Some(Step::GitHub)
+    );
+    assert_eq!(
+        step_mentioned("Im Schritt „Modell“ im Feld „Key“."),
+        Some(Step::Model)
+    );
+    assert_eq!(step_mentioned("Im Schritt „Unbekannt“."), None);
+    assert_eq!(step_mentioned("Kein Hinweis"), None);
+    assert_eq!(step_mentioned("Schritt „offen"), None);
+}
+
+#[test]
 fn first_start_is_detected() {
     let e = Setup::default();
     let from = ServiceStatus::default();
@@ -401,9 +446,11 @@ fn jira_test_texts_never_mention_a_token_value() {
 }
 
 #[test]
-fn only_tokens_can_be_deleted() {
-    assert!(key_deletable("jira") && key_deletable("github"));
-    for n in ["litellm", "atlassian-oauth", "github-oauth", "", "Jira"] {
+fn only_tokens_and_client_secrets_can_be_deleted() {
+    for n in ["jira", "github", "atlassian-oauth", "github-oauth"] {
+        assert!(key_deletable(n), "{n}");
+    }
+    for n in ["litellm", "agent-key", "", "Jira"] {
         assert!(!key_deletable(n), "{n}");
     }
 }
@@ -548,4 +595,66 @@ fn the_repo_summary_says_found_selected_and_the_search() {
         "23 Repos gefunden, 2 ausgewählt. Die Suche zeigt 4."
     );
     assert!(repo_summary(500, 500, 1, true).contains("noch mehr"));
+}
+
+fn lines(n: usize) -> Vec<String> {
+    (1..=n).map(|i| format!("Schritt {i}")).collect()
+}
+
+#[test]
+fn collapsed_log_shows_only_the_last_five_lines() {
+    let l = lines(12);
+    assert_eq!(
+        log_visible(&l, false),
+        "Schritt 8\nSchritt 9\nSchritt 10\nSchritt 11\nSchritt 12"
+    );
+    assert_eq!(log_visible(&l, true).lines().count(), 12);
+    assert_eq!(log_hidden(&l), 7);
+}
+
+#[test]
+fn short_log_is_shown_whole_and_empty_log_is_empty() {
+    assert_eq!(
+        log_visible(&lines(3), false),
+        "Schritt 1\nSchritt 2\nSchritt 3"
+    );
+    assert_eq!(log_visible(&[], false), "");
+    assert_eq!(log_hidden(&lines(5)), 0);
+}
+
+#[test]
+fn log_toggle_label_says_what_the_button_does() {
+    assert_eq!(
+        log_toggle_label(&lines(12), false),
+        "Ausgabe aufklappen (7 frühere Zeilen)"
+    );
+    assert_eq!(log_toggle_label(&lines(3), false), "Ausgabe aufklappen");
+    assert_eq!(log_toggle_label(&lines(12), true), "Ausgabe einklappen");
+}
+
+#[test]
+fn jira_shows_the_connected_way_first_otherwise_the_token() {
+    let status = |connected, kind| ServiceStatus {
+        connected,
+        kind,
+        ..Default::default()
+    };
+    assert_eq!(
+        jira_default_method(&status(true, AuthKind::OAuth), false),
+        AuthKind::OAuth
+    );
+    assert_eq!(
+        jira_default_method(&status(true, AuthKind::Token), true),
+        AuthKind::Token,
+        "a connected token wins over a leftover client ID"
+    );
+    assert_eq!(
+        jira_default_method(&status(false, AuthKind::Token), false),
+        AuthKind::Token
+    );
+    assert_eq!(
+        jira_default_method(&status(false, AuthKind::Token), true),
+        AuthKind::OAuth,
+        "OAuth was started"
+    );
 }

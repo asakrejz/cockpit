@@ -29,7 +29,7 @@ fn present_but_without_engine_gives_a_hint() {
     let s = choose(None, None, all_ok, no);
     assert_eq!(s.runtime.as_deref(), Some("podman"), "die erste gefundene");
     assert!(!s.engine_running);
-    assert!(s.hint.unwrap().contains("podman machine start"));
+    assert!(s.hint.unwrap().contains("Podman-Maschine"));
     let s = choose(None, None, |c| c == "docker", no);
     assert!(s.hint.unwrap().contains("dockerd (moby)"));
 }

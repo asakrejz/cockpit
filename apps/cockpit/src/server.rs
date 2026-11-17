@@ -194,6 +194,20 @@ pub struct Health {
     /// Where the `.env` file with the keys lives and what to warn about (never a value).
     #[serde(default)]
     pub env_file: Option<EnvFileStatus>,
+    /// The folder `config/` with configuration and database: path, warnings, old files.
+    #[serde(default)]
+    pub config_files: Option<ConfigFilesStatus>,
+}
+
+/// Path of the folder `config/`, warnings (Git, permissions) and hints about old files.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize)]
+pub struct ConfigFilesStatus {
+    #[serde(default)]
+    pub path: String,
+    #[serde(default)]
+    pub warnings: Vec<String>,
+    #[serde(default)]
+    pub notices: Vec<String>,
 }
 
 /// Path of the `.env` file and warnings of the server (tracked by Git, not ignored, permissions).
