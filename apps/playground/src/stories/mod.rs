@@ -17,6 +17,7 @@ mod media_card;
 mod navigation;
 mod pager;
 mod phone;
+mod rich_text;
 mod states;
 
 use leptos::prelude::AnyView;
@@ -50,6 +51,7 @@ pub static STORIES: &[Story] = &[
     layout::STORY,
     phone::STORY,
     app_blocks::STORY,
+    rich_text::STORY,
     states::STORY,
 ];
 

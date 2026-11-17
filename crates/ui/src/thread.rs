@@ -2,7 +2,7 @@
 
 use leptos::prelude::*;
 
-use crate::{Avatar, next_id};
+use crate::{Avatar, RichText, next_id};
 
 /// Row of an inbox. The content comes as children.
 #[component]
@@ -32,6 +32,9 @@ pub fn CommentBubble(
     #[prop(into)] initials: String,
     #[prop(into)] time: String,
     #[prop(into)] text: String,
+    /// Formatted text; if not empty, it is shown instead of `text`.
+    #[prop(optional)]
+    rich: cockpit_core::adf::Doc,
     #[prop(optional)] own: bool,
     /// The comment comes from the agent.
     #[prop(optional)]
@@ -42,7 +45,10 @@ pub fn CommentBubble(
             <Avatar initials=initials agent=agent />
             <div class="ui-comment__bubble">
                 <p class="t-footnote t-secondary">{format!("{who} · {time}")}</p>
-                <p class="t-body" style="white-space: pre-line">{text}</p>
+                {match rich {
+                    doc if !doc.is_empty() => view! { <RichText doc=doc /> }.into_any(),
+                    _ => view! { <p class="t-body" style="white-space: pre-line">{text}</p> }.into_any(),
+                }}
             </div>
         </div>
     }

@@ -12,6 +12,7 @@ use std::collections::BTreeMap;
 
 mod items;
 mod reviews;
+mod rich;
 use items::items;
 pub use reviews::*;
 
@@ -51,6 +52,7 @@ fn item(
         key: key.into(),
         title: title.into(),
         description: description.into(),
+        description_rich: None,
         reason,
         reason_text: reason_text.into(),
         time: time.into(),
