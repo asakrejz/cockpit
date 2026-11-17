@@ -56,7 +56,7 @@ pub(super) fn reviews(pr87: &Item, bau138: &Item, pr85: &Item) -> [Review; 3] {
         ],
         ..review(
             87,
-            &pr87,
+            pr87,
             jonas(),
             "BAU-131",
             vec![
@@ -126,7 +126,7 @@ pub(super) fn reviews(pr87: &Item, bau138: &Item, pr85: &Item) -> [Review; 3] {
                 .into(),
         ..review(
             91,
-            &bau138,
+            bau138,
             Person::agent(),
             "BAU-138",
             agent_changes("BAU-138"),
@@ -134,7 +134,7 @@ pub(super) fn reviews(pr87: &Item, bau138: &Item, pr85: &Item) -> [Review; 3] {
     };
     let mut review85 = review(
         85,
-        &pr85,
+        pr85,
         mira(),
         "BAU-127",
         vec![
