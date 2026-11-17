@@ -208,12 +208,11 @@ pub fn LiveStep(ctx: Context) -> impl IntoView {
                 </p>
             </Intro>
             <Section title="1. Webhooks einschalten">
-                <HStack spacing="12px" css="flex-wrap: wrap">
-                    <label class="ck-check">
+                <List>
+                    <ListRow title="Webhooks aktivieren" toggle_row=true wrap=true>
                         <Toggle checked=enabled aria_label="Webhooks aktivieren" />
-                        <span>"Webhooks aktivieren"</span>
-                    </label>
-                </HStack>
+                    </ListRow>
+                </List>
                 <TextField
                     label="Öffentliche Adresse des Tunnels"
                     value=public_url
