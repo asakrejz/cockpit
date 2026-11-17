@@ -30,8 +30,10 @@ dirs = "6"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 toml_edit = "0.25.19"
-# SHA-256 fingerprint of the agent image sources (already in the tree via cockpit-integrations)
+# SHA-256: HMAC for webhook signatures (built by hand), fingerprint of the agent image sources
+# (agent_image.rs); and random secrets
 sha2 = "0.10"
+getrandom = "0.4"
 
 [dev-dependencies]
 tower = { version = "0.5", features = ["util"] }

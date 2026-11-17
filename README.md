@@ -213,6 +213,11 @@ repo = "acme/app"                 # without projects: only a choice
 [agent.endpoint]                  # model access, see "Setting up the agent"
 url = "https://litellm.example"   # empty or omitted = directly at Anthropic
 model = "claude-sonnet-5-5"
+[server]                          # optional webhooks, see "Live updates and webhooks"
+webhooks = false                  # default: both webhook routes answer 404
+public_url = "https://cockpit.example"   # your tunnel; only shown in the assistant
+[sync]
+webhook_fallback_interval_s = 600 # poll interval of a source while its webhooks arrive (default: 5x interval_s, at most 600)
 ```
 
 **Several repos.** `[[agent.repos]]` lists the repos the agent may work in (owner/name, base branch, Jira
@@ -425,8 +430,8 @@ backend rejects it; the app is already installed, sign-in always begins in Cockp
 
 ### The setup assistant in detail
 
-The page "Einrichten" (`#/setup`) is a guided assistant in five steps with a progress indicator (Container, Jira,
-GitHub, Modell, Fertig). It appears by itself on first start when nothing is set up (once per browser; the browser
+The page "Einrichten" (`#/setup`) is a guided assistant in six steps with a progress indicator (Container, Jira,
+GitHub, Modell, Live, Fertig). It appears by itself on first start when nothing is set up (once per browser; the browser
 remembers only this hint) and is always reachable via "Einrichten" in the sidebar. Every step can be skipped; the
 summary says in plain language what works (check mark), what is open and what to verify, with "Ansehen" leading to
 the right step. The texts assume no prior knowledge.
@@ -439,6 +444,9 @@ the right step. The texts assume no prior knowledge.
   Checks read & write; Commit statuses and Metadata read-only), callback URL to copy, client ID and secret, a hint
   to "Install App" and the repos, then "Mit GitHub anmelden".
 - *Modell.* Provider, endpoint address, model, key and connection test.
+- *Live (optional).* Switch for webhooks, the public address of your tunnel (display only), a generated secret per
+  source (shown once), copyable target addresses, short instructions for cloudflared/ngrok and for the webhook at
+  GitHub and Jira, "Zuletzt empfangen" per source and a local test button. See the next section.
 
 **How inputs arrive.** Non-secret values (client IDs, Jira site, email, projects, repos, endpoint address and model)
 go to `PUT /api/config`. The server changes `config.toml` **atomically** (neighbour file, then rename; existing
@@ -479,6 +487,66 @@ summary names the chosen tool. An endpoint that offers no model list: enter the 
 the socket; the result is cached for 10 seconds). `/api/health` reports under `container` `runtime`, `engine_running`,
 `source` (`env`, `config`, `detected`, `none`) and a `hint`.
 
+## Live updates and webhooks
+
+By default the backend polls Jira and GitHub every `interval_s` (120 s) and pushes changes to the browser through
+the event stream (`GET /api/events`; the browser reconnects by itself and shows "zuletzt abgeglichen"). That needs
+no setup and stays the default. **Webhooks are an optional accelerator**: when something changes, GitHub or Jira
+calls your Cockpit and it syncs that source right away.
+
+A webhook is **only a trigger**. Cockpit never takes data from the request: after a valid one it syncs the affected
+source through the normal, authenticated API (merged: at most one sync per source every 5 seconds). Webhooks need
+a tunnel because GitHub and Jira cannot reach `127.0.0.1`. **Cockpit installs and starts nothing**; you run the
+tunnel and create the webhooks yourself, Cockpit never creates or changes a webhook at a service.
+
+1. **Switch on.** In the assistant, step "Live" (or in `config.toml`): `[server] webhooks = true`. Without it both
+   routes answer `404`.
+2. **Secret.** The assistant generates a random secret per source (`GITHUB_WEBHOOK_SECRET`, `JIRA_WEBHOOK_SECRET` in
+   `.env`) and shows it **once**, so you can paste it into GitHub or Jira. It is never shown again; "Neues Secret
+   erzeugen" replaces it. You can also set the variables by hand. Without a secret nothing is accepted.
+3. **Tunnel** (manual, pick one; the port is the one of `COCKPIT_PORT`, 8787 by default):
+
+   ```bash
+   cloudflared tunnel --url http://127.0.0.1:8787     # quick tunnel, new https://….trycloudflare.com address at every start
+   ```
+
+   ```bash
+   ngrok http 127.0.0.1:8787                          # needs an ngrok account; free plans may change the address
+   ```
+
+   Enter the https address under "Öffentliche Adresse" (`[server] public_url`). It is only used to show you the two
+   target addresses; Cockpit never calls it.
+4. **GitHub.** Repo or App › Webhooks › Add webhook. Payload URL `https://<tunnel>/api/webhooks/github`, content type
+   `application/json`, the secret, events: Pull requests, Pull request reviews, Pull request review comments, Check
+   runs, Check suites, Issue comments. GitHub sends a `ping` right away (answered with `200`).
+5. **Jira.** Administration › System › WebHooks › Create. URL `https://<tunnel>/api/webhooks/jira`, events: issue
+   created/updated/deleted and comment created/updated/deleted. Jira Cloud admin webhooks with a secret sign the body
+   (`X-Hub-Signature: sha256=…`); put the secret in that field. If your Jira cannot sign (older versions,
+   automation rules) append the secret to the URL: `…/api/webhooks/jira?token=<secret>`. That is **weaker**: the
+   secret travels in the address, may appear in logs of the tunnel or Jira, and does not protect the body. Prefer the
+   signature.
+6. **Check.** "Lokal testen" in the assistant sends a signed request from Cockpit to itself over loopback and proves
+   secret and route without any external service. "Zuletzt empfangen" per source (time and event type only, kept in
+   memory) shows whether a real delivery arrived; at GitHub use Recent Deliveries › Redeliver.
+
+**Routes.** `POST /api/webhooks/github` (`X-Hub-Signature-256: sha256=<hmac>`, `X-GitHub-Event`,
+`X-GitHub-Delivery`) and `POST /api/webhooks/jira` (`X-Hub-Signature: sha256=<hmac>` or `?token=`; the event type is
+`webhookEvent` in the body). The HMAC-SHA256 is computed over the raw body. Answers: `202` trigger accepted, `200`
+ping, `204` event ignored, `401` signature wrong, `404` off or no secret, `405`/`413`/`415`/`429` method, size
+(1 MiB), content type, rate limit. They never say why a request failed.
+
+**Safety net for the poll interval.** While webhooks of a source arrive regularly (a relevant event within the last
+two intervals) that source is polled only every `[sync] webhook_fallback_interval_s` (default 5 × `interval_s`, at
+most 10 minutes). When they stop, it returns to `interval_s` by itself. A quiet repository therefore also returns
+to the normal interval; that costs only a few requests. A manual "Jetzt abgleichen" always asks everything.
+
+**Tunnel safety.** Through the tunnel only `/api/webhooks/github` and `/api/webhooks/jira` are meant to be reachable.
+Everything else in Cockpit still insists on a loopback peer and a loopback `Host`, so it answers `403` to a foreign
+name, but do not rely on one layer: configure the tunnel to forward only the path prefix `/api/webhooks/` where it
+can (cloudflared ingress rules with `path`, ngrok traffic policy, or a reverse proxy in front), keep the secrets
+long and secret, and stop the tunnel when you do not need it. Details and the threat model:
+[docs/security.md](docs/security.md).
+
 ## Architecture
 
 ```
@@ -486,7 +554,7 @@ Browser (apps/cockpit, WASM)            Backend (apps/server)
 ┌──────────────────────────┐   HTTP    ┌────────────────────────────────┐
 │ Pages → store.dispatch   │ ────────▶ │ POST /api/actions              │──▶ GitHub, Jira
 │ Workspace (signal)       │ ◀──────── │ GET  /api/workspace (snapshot) │──▶ Agent (container)
-│                          │ ◀── SSE ─ │ GET  /api/events (changes)     │◀── polling (webhooks: open)
+│                          │ ◀── SSE ─ │ GET  /api/events (changes)     │◀── polling (+ optional webhooks)
 └──────────────────────────┘           │ SQLite · keys in .env          │
                                         └────────────────────────────────┘
           both use  crates/cockpit-core  (model, rules, Action)
@@ -566,6 +634,9 @@ Full detail: [docs/security.md](docs/security.md). In short:
 - **Loopback only.** The server listens on `127.0.0.1`. Every route under `/api` checks the peer (loopback) and the
   `Host` header (`127.0.0.1:<port>` or `localhost:<port>`, against DNS rebinding); writing requests also need
   `Content-Type: application/json` and a missing or own `Origin`.
+- **Webhooks are optional and off by default.** Only the two routes `/api/webhooks/github|jira` may be reached with a
+  foreign `Host` (through a tunnel you start). They accept only a correct HMAC signature, never use the payload as
+  data (they just trigger a sync) and are limited in size, rate and duplicates. See "Live updates and webhooks".
 - **The agent has no GitHub token** and cannot push. It commits to a branch `claude/<ticket>-…`; the backend
   verifies it in a fresh bare repo against the repo's path rules and pushes it. **Never** the main branch, **never** a
   force-push, **never** a merge. The pull request is created by the backend with **your** GitHub token, only after
@@ -776,8 +847,8 @@ Not built yet (everything below is open; nothing here has been verified against 
 - **Real CLIs:** the adapters for Claude Code and Codex are only tested with stand-in programs; a first run with the
   real CLIs, a built image and a real model is open (the event shapes of the CLIs and the sandbox of Codex inside a
   container with dropped capabilities are unverified).
-- **Webhooks / live update:** open decision between a tunnel (webhooks) and polling every 2 minutes; the default
-  stays polling.
+- **Webhooks / live update:** built (optional, default off), but only tested with local, signed requests and
+  recorded service responses – not with a real tunnel or real webhooks at GitHub and Jira.
 - Verification with a **real container and a real model** (`#[ignore]` tests with `COCKPIT_CONTAINER=docker|podman`),
   and a first run of the **release workflow**.
 - Smaller known gaps: restarting a check through the API may need a GitHub App instead of a token; Jira status
