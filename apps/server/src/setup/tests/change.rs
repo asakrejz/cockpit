@@ -315,3 +315,94 @@ fn change_writes_the_server_section_and_keeps_the_rest() {
     };
     assert!(change(WITH_COMMENTS, &bad).is_err());
 }
+
+const OLD_GITHUB: &str = "[github]\n# nur lesen\napi_url = \"https://ghe.example/api/v3\"\nrepos = [\"firma/app\", \"firma/alt\"]\n\n[agent]\nrepo = \"firma/app\"\n";
+
+#[test]
+fn an_old_config_with_github_repos_still_reads_and_syncs() {
+    let c = Config::parse(Some(OLD_GITHUB), |_| None).unwrap();
+    assert_eq!(c.github.unwrap().repos, ["firma/app", "firma/alt"]);
+    assert!(c.agent_repos.is_empty());
+    assert_eq!(c.agent_repo.as_deref(), Some("firma/app"));
+}
+
+#[test]
+fn agent_repos_alone_are_also_the_repos_of_the_sync() {
+    let text = "[[agent.repos]]\nrepo = \"firma/web\"\n\n[[agent.repos]]\nrepo = \"firma/app\"\nbase_branch = \"develop\"\n";
+    let c = Config::parse(Some(text), |_| None).unwrap();
+    let g = c.github.unwrap();
+    assert_eq!(g.repos, ["firma/web", "firma/app"]);
+    assert_eq!(g.api_url, crate::config::DEFAULT_GITHUB_API);
+    // Both spellings together: no duplicates.
+    let both = format!("[github]\nrepos = [\"firma/app\", \"firma/zusatz\"]\n\n{text}");
+    let c = Config::parse(Some(&both), |_| None).unwrap();
+    assert_eq!(
+        c.github.unwrap().repos,
+        ["firma/app", "firma/zusatz", "firma/web"]
+    );
+}
+
+#[test]
+fn saving_the_list_migrates_the_old_format() {
+    use cockpit_core::AgentRepo;
+    use cockpit_core::api::AgentReposInput;
+    let a = ConfigChange {
+        agent_repos: Some(AgentReposInput {
+            repos: vec![
+                AgentRepo::new("firma/app"),
+                AgentRepo {
+                    base_branch: "develop".into(),
+                    projects: vec!["WEB".into()],
+                    ..AgentRepo::new("firma/neu")
+                },
+            ],
+            default: Some("firma/app".into()),
+        }),
+        ..Default::default()
+    };
+    let (text, c) = change(OLD_GITHUB, &a).unwrap();
+    // One place for the repos; the address of the older section stays.
+    assert!(!text.contains("repos = [\"firma/app\""), "{text}");
+    assert!(text.contains("api_url = \"https://ghe.example/api/v3\""));
+    assert!(text.contains("[[agent.repos]]") && text.contains("# nur lesen"));
+    let g = c.github.unwrap();
+    assert_eq!(g.repos, ["firma/app", "firma/neu"]);
+    assert_eq!(g.api_url, "https://ghe.example/api/v3");
+    // The written file reads back the same.
+    let again = Config::parse(Some(&text), |_| None).unwrap();
+    assert_eq!(again.agent_repos, c.agent_repos);
+    assert_eq!(again.agent_repos[1].base_branch, "develop");
+    assert_eq!(again.github.unwrap().repos, ["firma/app", "firma/neu"]);
+}
+
+#[test]
+fn saving_an_empty_list_removes_both_places() {
+    use cockpit_core::api::AgentReposInput;
+    let a = ConfigChange {
+        agent_repos: Some(AgentReposInput::default()),
+        ..Default::default()
+    };
+    let (text, c) = change(
+        "[github]\nrepos = [\"firma/app\"]\n[agent]\nrepo = \"firma/app\"\n",
+        &a,
+    )
+    .unwrap();
+    assert!(!text.contains("firma/app"), "{text}");
+    assert!(c.github.is_none() && c.agent_repos.is_empty());
+}
+
+#[test]
+fn a_hand_made_old_list_and_the_wizard_see_one_list() {
+    use cockpit_core::{AgentRepo, AgentRepos};
+    let c = Config::parse(Some(OLD_GITHUB), |_| None).unwrap();
+    let configured = AgentRepos {
+        repos: c.agent_repos.clone(),
+        default: c.agent_repo.clone(),
+    };
+    let all = configured.unified(&c.github.unwrap().repos);
+    assert_eq!(
+        all.repos,
+        [AgentRepo::new("firma/app"), AgentRepo::new("firma/alt")]
+    );
+    assert_eq!(all.default.as_deref(), Some("firma/app"));
+}

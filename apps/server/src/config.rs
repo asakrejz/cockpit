@@ -360,6 +360,20 @@ impl Config {
             c.agent_repos = agent_repos_read(&a.repos)?;
             c.agent_dir = a.dir;
         }
+        // One list of repos: the repos of `[[agent.repos]]` are also the ones the sync compares.
+        // `[github] repos` (older) is still read and adds to them; the assistant writes only
+        // `[[agent.repos]]`.
+        if !c.agent_repos.is_empty() {
+            let g = c.github.get_or_insert_with(|| GitHubConfig {
+                api_url: DEFAULT_GITHUB_API.into(),
+                repos: Vec::new(),
+            });
+            for r in &c.agent_repos {
+                if !g.repos.contains(&r.repo) {
+                    g.repos.push(r.repo.clone());
+                }
+            }
+        }
         if let Some((wo, e)) = endpoint {
             let url = e.url.map(|u| u.trim().trim_end_matches('/').to_string());
             let url = match url.filter(|u| !u.is_empty()) {

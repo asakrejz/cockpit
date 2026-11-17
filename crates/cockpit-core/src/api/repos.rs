@@ -55,6 +55,68 @@ pub struct RepoCheckResponse {
     pub repos: Vec<RepoCheck>,
 }
 
+/// One repo the connected GitHub access can reach (`GET /api/github/repos`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct GitHubRepoInfo {
+    /// `owner/name`
+    pub repo: String,
+    #[serde(default)]
+    pub private: bool,
+    #[serde(default)]
+    pub archived: bool,
+    /// The repo's own default branch; preselects the base branch.
+    #[serde(default)]
+    pub default_branch: String,
+    /// `None` if GitHub does not say.
+    #[serde(default)]
+    pub can_push: Option<bool>,
+}
+
+/// Response of `GET /api/github/repos`. Only reads.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct GitHubRepoList {
+    #[serde(default)]
+    pub repos: Vec<GitHubRepoInfo>,
+    /// There are more repos than were listed (the list stops at 500); use the search of GitHub
+    /// or type the name.
+    #[serde(default)]
+    pub truncated: bool,
+    /// Which access produced the list: `token` or `app`.
+    #[serde(default)]
+    pub via: String,
+}
+
+/// What the connection test of GitHub found.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GitHubCause {
+    Ok,
+    /// No token / sign-in yet.
+    NotConnected,
+    /// 401: GitHub rejects the token.
+    Token,
+    /// 403: valid, but without permission.
+    Permission,
+    /// The quota is used up.
+    RateLimit,
+    /// No connection to GitHub.
+    Network,
+    Other,
+}
+
+/// Response of `POST /api/github/check`: who GitHub sees, and per repo what the key may do.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct GitHubCheck {
+    pub ok: bool,
+    pub cause: GitHubCause,
+    /// A sentence in plain text. Never names the token.
+    pub message: String,
+    /// Login of the key holder.
+    #[serde(default)]
+    pub user: Option<String>,
+    #[serde(default)]
+    pub repos: Vec<RepoCheck>,
+}
+
 /// Preview of the pull request for the branch of a finished real run
 /// (`GET /api/agent/pull-request?run=<key>`). Nothing is created by asking for it.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]

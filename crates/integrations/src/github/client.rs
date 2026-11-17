@@ -5,8 +5,9 @@ use cockpit_core::Item;
 use serde::de::DeserializeOwned;
 
 use super::dto::{
-    Annotation, CheckRun, CheckRuns, GitRefResponse, IssueComment, Pull, PullFile, PullReview,
-    PullSummary, Repo, ReviewComment, SearchItem, SearchResult, User,
+    Annotation, CheckRun, CheckRuns, GitRefResponse, InstallationRepos, Installations,
+    IssueComment, Pull, PullFile, PullReview, PullSummary, Repo, RepoListEntry, ReviewComment,
+    SearchItem, SearchResult, User,
 };
 use super::followup::{self, FailedCheck, ReviewInput};
 use super::map;
@@ -39,6 +40,43 @@ pub struct RepoAccess {
     pub archived: bool,
     /// `None` if the service does not say.
     pub can_push: Option<bool>,
+}
+
+/// One repo of the list the user can choose from.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RepoInfo {
+    /// `owner/name`
+    pub repo: String,
+    pub private: bool,
+    pub archived: bool,
+    pub default_branch: String,
+    /// `None` if the service does not say.
+    pub can_push: Option<bool>,
+}
+
+/// The repos a key can reach. `truncated`: there are more than [`MAX_REPOS`].
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct RepoList {
+    pub repos: Vec<RepoInfo>,
+    pub truncated: bool,
+}
+
+/// At most this many repos are listed.
+pub const MAX_REPOS: usize = 500;
+
+impl From<RepoListEntry> for RepoInfo {
+    fn from(r: RepoListEntry) -> Self {
+        Self {
+            repo: r.full_name,
+            private: r.private,
+            archived: r.archived,
+            default_branch: r
+                .default_branch
+                .filter(|b| !b.is_empty())
+                .unwrap_or_else(|| "main".into()),
+            can_push: r.permissions.map(|p| p.push),
+        }
+    }
 }
 
 /// At most this many pull requests per relation are loaded per fetch.
@@ -366,6 +404,59 @@ impl GitHubClient {
         })
     }
 
+    /// The repos a personal access token can reach (`GET /user/repos`): own, as collaborator
+    /// and through organizations. Read-only; at most [`MAX_REPOS`], sorted by name.
+    pub async fn repo_list(&self) -> Result<RepoList, Error> {
+        let mut list = RepoList::default();
+        for page in 1..=(MAX_REPOS / 100 + 1) {
+            let part: Vec<RepoListEntry> = self
+                .lies_json(self.get("/user/repos").query(&[
+                    ("affiliation", "owner,collaborator,organization_member"),
+                    ("sort", "full_name"),
+                    ("per_page", "100"),
+                    ("page", &page.to_string()),
+                ]))
+                .await?;
+            let full = part.len() == 100;
+            list.repos.extend(part.into_iter().map(RepoInfo::from));
+            if !full {
+                break;
+            }
+        }
+        list_finish(&mut list);
+        Ok(list)
+    }
+
+    /// The repos a GitHub App sign-in can reach: all installations of the app for the user
+    /// (`GET /user/installations`) and their repos. Read-only.
+    pub async fn installation_repo_list(&self) -> Result<RepoList, Error> {
+        let installations: Installations = self
+            .lies_json(
+                self.get("/user/installations")
+                    .query(&[("per_page", "100")]),
+            )
+            .await?;
+        let mut list = RepoList::default();
+        for i in installations.installations {
+            for page in 1..=(MAX_REPOS / 100 + 1) {
+                let part: InstallationRepos = self
+                    .lies_json(
+                        self.get(&format!("/user/installations/{}/repositories", i.id))
+                            .query(&[("per_page", "100"), ("page", &page.to_string())]),
+                    )
+                    .await?;
+                let full = part.repositories.len() == 100;
+                list.repos
+                    .extend(part.repositories.into_iter().map(RepoInfo::from));
+                if !full {
+                    break;
+                }
+            }
+        }
+        list_finish(&mut list);
+        Ok(list)
+    }
+
     /// Re-requests the check with this name on the current commit of the pull request.
     pub async fn check_again_start(&self, repo: &str, nr: u32, check: &str) -> Result<(), Error> {
         let pull = self.pull(repo, nr).await?;
@@ -378,5 +469,15 @@ impl GitHubClient {
                 Error::NotPossible(format!("Check „{check}“ gibt es bei GitHub nicht (mehr)"))
             })?;
         self.send(&check_again_request(repo, id)).await.map(|_| ())
+    }
+}
+
+/// Sorts by name, drops duplicates and applies the limit.
+fn list_finish(list: &mut RepoList) {
+    list.repos.sort_by_key(|r| r.repo.to_lowercase());
+    list.repos.dedup_by(|a, b| a.repo == b.repo);
+    if list.repos.len() > MAX_REPOS {
+        list.repos.truncate(MAX_REPOS);
+        list.truncated = true;
     }
 }

@@ -76,6 +76,17 @@ pub(super) fn job(ctx: AgentCtx) -> impl IntoView {
                         <ListRow title="Basis-Branch">
                             <Chip>{move || agent_repos.with(|a| a.base_branch(&repo.get()))}</Chip>
                         </ListRow>
+                        <Show when=move || !repo.get().is_empty()>
+                            <p class="t-footnote t-secondary" role="status">
+                                {move || {
+                                    format!(
+                                        "Arbeitet in {} auf Basis {}.",
+                                        repo.get(),
+                                        agent_repos.with(|a| a.base_branch(&repo.get())),
+                                    )
+                                }}
+                            </p>
+                        </Show>
                         <ListRow title="Tests vor dem Pull Request ausführen" toggle_row=true>
                             <Show when=move || !tests_allowed.get()>
                                 <span class="t-footnote t-secondary">"In den Einstellungen aus"</span>

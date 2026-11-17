@@ -100,6 +100,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 use crate::config::JiraConfig;
 
 mod change;
+mod github;
 mod jira;
 mod repos;
 mod routes;

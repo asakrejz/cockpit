@@ -112,6 +112,31 @@ impl AgentRepos {
         }
     }
 
+    /// The one list of the assistant: the configured repos plus those that only the older
+    /// `[github] repos` names (they stay, so nothing is lost when the list is saved again).
+    ///
+    /// ```
+    /// use cockpit_core::{AgentRepo, AgentRepos};
+    /// let configured = AgentRepos { repos: vec![AgentRepo::new("acme/web")], default: None };
+    /// let all = configured.unified(&["acme/app".into(), "acme/web".into()]);
+    /// let names: Vec<_> = all.repos.iter().map(|r| r.repo.as_str()).collect();
+    /// assert_eq!(names, ["acme/web", "acme/app"]);
+    /// ```
+    pub fn unified(&self, github: &[String]) -> AgentRepos {
+        let mut all = self.clone();
+        for r in github {
+            if all.find(r).is_none() {
+                all.repos.push(AgentRepo::new(r));
+            }
+        }
+        all
+    }
+
+    /// Names of the repos, in list order: the repos the sync compares.
+    pub fn names(&self) -> Vec<String> {
+        self.repos.iter().map(|r| r.repo.clone()).collect()
+    }
+
     /// Checks a repo chosen by hand: it has to be one of the configured ones.
     pub fn allows(&self, repo: &str) -> bool {
         self.find(repo).is_some()

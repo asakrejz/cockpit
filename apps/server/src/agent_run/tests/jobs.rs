@@ -16,6 +16,18 @@ fn the_job_carries_ticket_rules_and_branch_but_no_secrets() {
 }
 
 #[test]
+fn the_job_names_the_repo_and_the_base_branch_of_the_run() {
+    let mut ws = demo::workspace();
+    start(&mut ws, false);
+    let mut run = ws.run("BAU-142").unwrap();
+    run.repo = "firma/web".into();
+    run.options.base_branch = "develop".into();
+    let j = job_json(&ws, &run, Mode::Implement, "claude/BAU-142-x", None);
+    assert_eq!(j["repo"], "firma/web");
+    assert_eq!(j["base_branch"], "develop");
+}
+
+#[test]
 fn a_followup_job_carries_its_input_and_still_no_secrets() {
     let mut ws = demo::workspace();
     for r in ws.reviews.iter_mut().filter(|r| r.number == 85) {

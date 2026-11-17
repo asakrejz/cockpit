@@ -60,10 +60,12 @@ The agent implements a ticket in a **container** (Claude Agent SDK, Claude Code 
    container can reach the endpoint. If the proxy is only reachable over a **VPN**, the container machine of
    Rancher Desktop or Podman may not know the VPN route or name; the test then says that your Mac reaches the
    proxy but the container does not. Connect the VPN first and restart Rancher Desktop or the Podman machine.
-4. **Connect GitHub and name the repos:** the agent clones through the backend, one repo per run. If `[github]
-   repos` has exactly one repo (or `[agent] repo` names one) it is the default. With several repos you can route
-   Jira projects to repos (`[[agent.repos]]`, see [configuration.md](configuration.md#several-repos)) – in the assistant: step "GitHub" ›
-   "In welchen Repos arbeitet der Agent?". The folder `apps/agent/` is looked up next to `apps/cockpit/dist`
+4. **Connect GitHub and choose the repos:** the agent clones through the backend, one repo per run. In the
+   assistant, step "GitHub" › "Repos auswählen" shows the repos your access can reach (read-only
+   `GET /api/github/repos`); you tick the ones you work with. There is ONE list: a ticked repo is a source of the
+   pull-request comparison and a choice for the agent. Per repo you set the base branch (preset: the repo's default
+   branch) and optionally Jira projects that route to it (`[[agent.repos]]`, see
+   [configuration.md](configuration.md#several-repos)); one repo is the default. The folder `apps/agent/` is looked up next to `apps/cockpit/dist`
    (`[agent] dir` or `COCKPIT_AGENT_DIR` overrides).
 
 If something is not set up, no run starts; the message says in plain language what is missing and where in the
@@ -189,9 +191,15 @@ the right step. The texts assume no prior knowledge.
   Rancher Desktop (engine **"dockerd (moby)"**) or Podman. "Erneut prüfen" asks again.
 - *Jira.* API token in three steps, connection test and project choice (see Jira). The Atlassian OAuth app is folded
   away under "Erweitert", with a walkthrough of the developer console.
-- *GitHub.* Instructions for a **GitHub App** with a checklist of permissions (Contents, Pull requests, Issues,
-  Checks read & write; Commit statuses and Metadata read-only), callback URL to copy, client ID and secret, a hint
-  to "Install App" and the repos, then "Mit GitHub anmelden".
+- *GitHub.* A switch "Token (empfohlen)" / "GitHub App (OAuth)". **Token:** create a fine-grained personal access
+  token at `github.com/settings/personal-access-tokens/new`, select only the repos you want (start with test repos),
+  repository permissions Contents, Pull requests, Issues and Checks *Read and write*, Metadata *Read-only*, and put
+  it into the password field (stored in `.env`). **GitHub App:** callback URL to copy (`127.0.0.1`, not `localhost`),
+  webhook "Active" off, Setup URL empty, no private key needed – only client ID and client secret, saved together
+  with one "Speichern" ("Client-ID entfernen" deletes the ID), then "Install App" and "Mit GitHub anmelden". Both
+  ways end in the repo list and "Verbindung prüfen" (`POST /api/github/check`: `GET /user` and `GET /repos/{owner}/{name}`
+  per saved repo; read-only; never prints the token). The list comes from `GET /user/repos` (token; owner,
+  collaborator, organization member; at most 500) or from the app's installations (OAuth).
 - *Modell.* Provider, endpoint address, model, key and connection test.
 - *Live (optional).* Switch for webhooks, the public address of your tunnel (display only), a generated secret per
   source (shown once), copyable target addresses, short instructions for cloudflared/ngrok and for the webhook at
