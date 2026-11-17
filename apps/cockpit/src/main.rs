@@ -53,6 +53,7 @@ fn system_theme() -> Theme {
 fn App() -> impl IntoView {
     let store = Store::new();
     provide_context(store);
+    provide_context(sidebar::PageMenu::new());
     // Return from the OAuth sign-in: show success or error.
     oauth_result::announce(store);
     // On the first start, when nothing is set up yet: to the assistant.
@@ -86,6 +87,9 @@ fn App() -> impl IntoView {
                 Route::Agent(ticket) => view! { <AgentPage ticket=ticket /> }.into_any(),
                 }
             }}
+            <Show when=move || store.loaded.get()>
+                <sidebar::AppNav />
+            </Show>
             <toasts::Toasts />
         </Root>
     }

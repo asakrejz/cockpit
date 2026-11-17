@@ -3,8 +3,6 @@
 use feature_ui::*;
 use leptos::prelude::*;
 
-use crate::sidebar::AppSidebar;
-
 mod actions;
 mod activity;
 mod context;
@@ -25,11 +23,9 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
 
     view! {
         <SplitView layout=SplitLayout::DetailWide>
-            <AppSidebar>
-                <SidebarSection label="Agenten-Läufe" role=SectionRole::Picker>
-                    {move || sidebar::sidebar_runs(ctx)}
-                </SidebarSection>
-            </AppSidebar>
+            <PickerPane label="Agenten-Läufe" title="Agenten-Läufe">
+                <ul class="ui-sidebar__nav">{move || sidebar::sidebar_runs(ctx)}</ul>
+            </PickerPane>
 
             <Show
                 when=move || run.get().is_some()

@@ -2,6 +2,12 @@
 
 Pages of the app (hash routes). Back to the [README](../README.md).
 
+**Navigation:** a floating glass pill at the bottom edge on every screen size: Inbox, Aufgaben, Reviews, Agenten and
+**Mehr**. "Mehr" opens a menu with the other pages (Team, Zurückgestellt, Übersicht, Protokoll, Grenzen & Regeln,
+Benachrichtigungen, Einrichten), the connection states of Jira, GitHub and the agent, and on the inbox the rules
+(which events count as attention). The lists of pull requests and agent runs are the first column of their pages.
+Every column scrolls on its own. Details: [Layout and navigation](architecture.md#layout-and-navigation).
+
 Pages (hash routes):
 
 | Page | Address | What it does |

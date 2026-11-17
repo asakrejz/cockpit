@@ -8,7 +8,6 @@ use web_sys::wasm_bindgen::JsValue;
 
 use crate::{
     route::Route,
-    sidebar::AppSidebar,
     store::{Store, use_store},
 };
 
@@ -131,7 +130,6 @@ pub fn LogPage() -> impl IntoView {
 
     view! {
         <SplitView>
-            <AppSidebar>{""}</AppSidebar>
 
             <Pane label="Protokoll">
                 <PaneHeader>

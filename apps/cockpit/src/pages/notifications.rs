@@ -11,7 +11,6 @@ use leptos::prelude::*;
 
 use crate::{
     notify::{self as browser, Permission},
-    sidebar::AppSidebar,
     store::use_store,
     view,
 };
@@ -148,7 +147,6 @@ pub fn NotificationsPage() -> impl IntoView {
 
     view! {
         <SplitView>
-            <AppSidebar>{""}</AppSidebar>
 
             <Pane label="Benachrichtigungen">
                 <PaneHeader>

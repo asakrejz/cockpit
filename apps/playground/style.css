@@ -144,4 +144,8 @@ body { margin: 0; }
 
 /* BottomNav story: the bar and its sheet sit inside the frame (a transform makes it their containing block). */
 .pg-bottomnav-frame { position: relative; transform: translateZ(0); height: 420px; overflow: hidden; border-radius: var(--ref-radius-20); background: var(--sys-color-grouped-background); }
-.pg-bottomnav-frame .ui-bottomnav { display: block; }
+.pg-bottomnav-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: var(--ref-space-16); }
+.pg-bottomnav-frame { color: var(--sys-color-label); }
+.pg-bottomnav-frame .ui-bottomnav { position: absolute; }
+.pg-bottomnav-frame .ui-bottomnav-overlay { position: absolute; }
+.pg-bottomnav-backdrop { position: absolute; inset: 0; background: linear-gradient(135deg, #ff6b6b 0%, #4dabf7 45%, #51cf66 100%); }

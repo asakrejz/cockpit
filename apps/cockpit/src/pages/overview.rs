@@ -7,7 +7,6 @@ use leptos::prelude::*;
 
 use crate::{
     route::Route,
-    sidebar::AppSidebar,
     store::{Store, use_store},
     view,
 };
@@ -90,7 +89,6 @@ pub fn OverviewPage() -> impl IntoView {
 
     view! {
            <SplitView>
-               <AppSidebar>{""}</AppSidebar>
 
                <Pane label="Team">
                    <PaneHeader>
