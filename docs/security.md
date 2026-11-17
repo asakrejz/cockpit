@@ -26,7 +26,7 @@ rest: [architecture.md](architecture.md).
   not overwrite and never runs by itself.
 - **Jira API token** has the rights of the Atlassian account: while Cockpit should only read, use an account or role
   without write permissions and a short expiry. GitHub tokens should be fine-grained and limited to the configured
-  repos (see the rights table in the README).
+  repos (see the rights table in the [setup guide](setup-guide.md#github)).
 
 ## Requests to the backend
 
@@ -45,7 +45,7 @@ rest: [architecture.md](architecture.md).
 ## Webhooks (optional, internet-facing)
 
 The two routes `POST /api/webhooks/github` and `POST /api/webhooks/jira` are the only part of the server meant to be
-reached from the internet, through a tunnel the user runs (see the README, "Live updates and webhooks"). They are
+reached from the internet, through a tunnel the user runs (see the [setup guide](setup-guide.md#live-updates-and-webhooks)). They are
 off by default (`[server] webhooks = false`: `404`).
 
 - **Only these two routes** skip the `Host` check (a tunnel forwards its public name); they sit outside the `access`

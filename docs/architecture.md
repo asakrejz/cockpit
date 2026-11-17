@@ -13,7 +13,7 @@ The README is the entry page; this document holds the depth.
 | Data | SQLite in one file in the user's data directory. |
 | Keys | Only in the backend, in the `.env` file in the project folder (decision of 2026-11-13, risk accepted knowingly; never committed; older versions used the system keychain, `cockpit-server token import` copies those entries). **Never in the repo, the log, the database or browser storage.** Details: [security.md](security.md). |
 | Agent | Claude Agent SDK, Claude Code or Codex in a container per run, **with Docker (Rancher Desktop) or Podman**. The container gets only the cloned repo, never a GitHub token. |
-| Freshness | Polling every 2 minutes by default (`interval_s`). Webhooks would need a tunnel; that decision is open (see "Roadmap / Open work" in the README). |
+| Freshness | Polling every 2 minutes by default (`interval_s`). Webhooks are an optional accelerator, see [setup-guide.md](setup-guide.md#live-updates-and-webhooks). |
 | Sample data | The mode that showed sample data in the browser without a backend is gone: the app needs the server. `demo::workspace()` stays as test data, for the Playground stories and as the seed `COCKPIT_SEED=demo` (only on explicit request and only when no state is stored yet). The server starts empty. |
 | Agent provider and endpoint | Selectable (decision of 2026-11-12): tool `[agent] provider` (Claude Agent SDK, Claude Code CLI or Codex CLI, selected in the runner by `COCKPIT_PROVIDER`), endpoint `[agent.endpoint] url/model` (a proxy such as LiteLLM, another compatible endpoint, or without an address directly at Anthropic). The user has no Anthropic key of their own but an LiteLLM proxy, so LiteLLM is only one possible endpoint. With an address the container gets `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`, without one `ANTHROPIC_API_KEY` (Codex: `OPENAI_BASE_URL` + `OPENAI_API_KEY`, model in `COCKPIT_MODEL`); the model name is a setting chosen in the assistant from the endpoint's list. The key lives only in `.env` (`token set agent-key`). Older `[litellm]` values and the key `litellm` are still read. |
 | Jira sign-in | API token by default (the company does not approve OAuth apps); OAuth is the folded-away alternative. |
@@ -207,8 +207,7 @@ online, offline, plus `navigator.onLine`), whether the first workspace has arriv
 
 ## Agent behaviour
 
-**Real agent versus simulation.** The agent in the server is a **real run in a container** (see the README, "Setting up
-the agent"). Only with the seed `COCKPIT_SEED=demo` (and in tests) the simulated agent still runs: a timer that walks
+**Real agent versus simulation.** The agent in the server is a **real run in a container** (see the [setup guide](setup-guide.md#agent-container-image-model)). Only with the seed `COCKPIT_SEED=demo` (and in tests) the simulated agent still runs: a timer that walks
 through the five steps. The real run is `apps/server/src/agent_run.rs` (pure), `agent_ops.rs` and `agent_ops/` (`run`,
 `watcher`, `image_build`, `container_check`, `lines`) for processes, `agent_git.rs` for clone/check/push; the core side
 is `AgentReport` / `Action::ReportAgent`. The runner protocol is described in [../apps/agent/README.md](../apps/agent/README.md).
