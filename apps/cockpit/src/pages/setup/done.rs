@@ -147,6 +147,42 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                         }
                     })
             }}
+            {move || {
+                ctx.store
+                    .health
+                    .get()
+                    .and_then(|h| h.config_files)
+                    .map(|ordner| {
+                        view! {
+                            <p class="t-footnote t-secondary" style="padding-inline: 4px">
+                                "Konfiguration und Datenbank liegen hier: "
+                                <code>{ordner.path}</code>
+                            </p>
+                            {ordner
+                                .warnings
+                                .into_iter()
+                                .map(|w| {
+                                    view! {
+                                        <p class="t-footnote" role="alert" style="padding-inline: 4px; color: var(--red, #c00)">
+                                            {w}
+                                        </p>
+                                    }
+                                })
+                                .collect_view()}
+                            {ordner
+                                .notices
+                                .into_iter()
+                                .map(|n| {
+                                    view! {
+                                        <p class="t-footnote t-secondary" style="padding-inline: 4px">
+                                            {n}
+                                        </p>
+                                    }
+                                })
+                                .collect_view()}
+                        }
+                    })
+            }}
         </VStack>
     }
 }

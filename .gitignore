@@ -7,3 +7,8 @@
 
 # Runner of the agent (npm install in the image)
 /apps/agent/runner/node_modules
+
+# Configuration and database of this computer (created by the server at the first start).
+# Only the example is committed.
+config/*
+!config/config.example.toml

@@ -4,10 +4,18 @@ Cockpit runs on one person's computer and talks to Jira, GitHub, a model endpoin
 lists what protects the credentials and what limits the agent. Entry page: [../README.md](../README.md); depth on the
 rest: [architecture.md](architecture.md).
 
+## Local files in `config/`
+
+Configuration and database (`config/config.toml`, `config/cockpit.db`) hold addresses, accounts and workspace data, no
+keys, but are still private to this computer. `.gitignore` excludes everything in `config/` except
+`config/config.example.toml`; CI fails when anything else there is tracked; the server creates the folder with mode
+`700` and files `600`, warns at start and in `/api/health` (`config_files`) about tracked, unignored or too open files.
+Details: [configuration.md](configuration.md).
+
 ## Credentials
 
 - **Where they live.** Only in the backend, in the `.env` file in the project folder (decision of 2026-11-13; the risk
-  of a file inside the repo folder is accepted knowingly). Never in the repo, the database, logs, `config.toml`, URLs
+  of a file inside the repo folder is accepted knowingly). Never in the repo, the database, logs, `config/config.toml`, URLs
   or browser storage (`localStorage`).
 - **Never committed.** `.gitignore` excludes `.env` and `.env.*`; only `.env.example` with dummy values belongs in the
   repo. CI fails when any `.env*` file other than `.env.example` is tracked. At start and in `/api/health` (`env_file`)

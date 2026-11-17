@@ -55,8 +55,9 @@ prompt. Documentation links in this README that point into `docs/` are only vali
 
 ## Configuration in brief
 
-Everything is optional. `config.toml` lives in `~/Library/Application Support/cockpit/` (macOS) or
-`~/.config/cockpit/` (Linux); environment variables such as `COCKPIT_PORT`, `COCKPIT_DB`, `COCKPIT_CONFIG` and
+Everything is optional. `config.toml` and the database `cockpit.db` live in the folder `config/` of the project (the
+server creates it at the first start; Git ignores it, only `config/config.example.toml` is committed). Nothing is
+written outside the project. Environment variables such as `COCKPIT_PORT`, `COCKPIT_DB`, `COCKPIT_CONFIG` and
 `COCKPIT_CONTAINER` override it. **Keys live only in the `.env` file in the project folder**, never in `config.toml`,
 the database or the browser:
 

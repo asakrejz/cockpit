@@ -151,7 +151,13 @@ async fn start() -> Result<(), String> {
         tracing::warn!("{warning}");
     }
 
+    if let Some(dir) = &config.config_dir {
+        for note in config::files_check::check_and_fix(dir) {
+            tracing::warn!("{note}");
+        }
+    }
     let conn = db::open(&config.db).map_err(|e| e.to_string())?;
+    config::location::tighten_db(&config.db);
     tracing::info!(
         "Database: {} (version {})",
         config.db.display(),
