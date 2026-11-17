@@ -86,7 +86,7 @@ fn tracked_file_is_reported_even_if_ignored() {
 }
 
 #[test]
-fn env_example_is_not_ignored_by_the_repo_gitignore() {
+fn env_files_are_ignored_by_the_repo_gitignore() {
     if !git_available() {
         return;
     }
@@ -98,7 +98,7 @@ fn env_example_is_not_ignored_by_the_repo_gitignore() {
     assert!(ignored(".env"));
     assert!(ignored(".env.local"));
     assert!(ignored("apps/server/.env"));
-    assert!(!ignored(".env.example"));
+    assert!(ignored(".env.example"));
 }
 
 #[cfg(unix)]

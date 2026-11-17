@@ -78,10 +78,10 @@ test data and for the Playground stories.
 
 All keys (Jira token, GitHub token, key of the agent endpoint, client secrets, sign-in tokens) live in a `.env`
 file in the project folder. The risk of a file inside the repository folder was a deliberate choice. **It is never
-committed**: `.gitignore` excludes `.env` and `.env.*`; only `.env.example` (dummy values only) belongs in the repo.
+committed**: `.gitignore` excludes `.env` and `.env.*`; no `.env*` file belongs in the repo.
 
 - **Create:** the assistant and `cockpit-server token set <name>` create the file when needed (mode `600`). By
-  hand: `cp .env.example .env` and fill in the values.
+  hand: create `.env` with the variables from the table below.
 - **Location:** `.env` in the server's working directory (the repo folder; `scripts/start.sh` and
   `start-cockpit.command` change into it). `COCKPIT_ENV_FILE=/path/to/file` redirects it (operation, tests). The
   assistant shows the path in the last step.
@@ -105,7 +105,7 @@ committed**: `.gitignore` excludes `.env` and `.env.*`; only `.env.example` (dum
 
 - **Safety net:** at start and in `/api/health` (`env_file`, visible in the last assistant step) the server warns
   when Git tracks the `.env`, `.gitignore` does not cover it, or the permissions are looser than `600` (at start they
-  are set to `600`). CI fails when any `.env*` file other than `.env.example` is tracked. If a real `.env` was ever
+  are set to `600`). CI fails when any `.env*` file is tracked. If a real `.env` was ever
   committed: rotate the keys immediately and run `git rm --cached .env`.
 - **Container:** the `.env` never enters the image or container (`apps/agent/.dockerignore`); the agent receives
   values only as `-e NAME` from the backend.
