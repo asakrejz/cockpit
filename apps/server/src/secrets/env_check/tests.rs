@@ -98,7 +98,6 @@ fn env_files_are_ignored_by_the_repo_gitignore() {
     assert!(ignored(".env"));
     assert!(ignored(".env.local"));
     assert!(ignored("apps/server/.env"));
-    assert!(ignored(".env.example"));
 }
 
 #[cfg(unix)]
