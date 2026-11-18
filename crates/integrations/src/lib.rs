@@ -22,6 +22,7 @@ mod secret;
 pub mod sync;
 pub mod text;
 pub mod time;
+pub mod translate;
 
 pub mod endpoint;
 pub mod github;
