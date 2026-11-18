@@ -5,7 +5,10 @@ use cockpit_core::connections::AuthKind;
 use feature_ui::*;
 use leptos::prelude::*;
 
-const OPTIONS: &[(&str, &str)] = &[("token", "API-Token"), ("oauth", "OAuth")];
+/// The two ways: (id, label). The labels follow the language, so they are built on demand.
+fn options() -> [(&'static str, String); 2] {
+    [("token", t!(SetupAuthToken)), ("oauth", t!(SetupAuthOauth))]
+}
 
 fn id(kind: AuthKind) -> &'static str {
     if kind == AuthKind::OAuth {
@@ -31,7 +34,25 @@ pub fn AuthMethodPicker(
             AuthKind::Token
         }));
     });
-    view! { <SegmentedPicker options=OPTIONS value=value on_change=on_change aria_label=aria_label stretch=true /> }
+    view! {
+        <div class="ui-segmented" role="group" aria-label=aria_label style="align-self: stretch">
+            {options()
+                .into_iter()
+                .map(|(id, label)| {
+                    view! {
+                        <button
+                            type="button"
+                            style="flex: 1 1 0; padding-inline: 8px"
+                            aria-pressed=move || (value.get() == id).to_string()
+                            on:click=move |_| on_change.run(id)
+                        >
+                            {label}
+                        </button>
+                    }
+                })
+                .collect_view()}
+        </div>
+    }
 }
 
 /// The way that is shown now.

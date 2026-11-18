@@ -1,0 +1,3 @@
+# Sign-in way picker (Jira and GitHub steps).
+setup_auth.token = API token
+setup_auth.oauth = OAuth
