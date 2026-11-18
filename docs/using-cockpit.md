@@ -10,7 +10,7 @@ Every column scrolls on its own. Details: [Layout and navigation](architecture.m
 
 **Language:** the app speaks German and English. It starts in the language of the browser (German for `de*`, otherwise
 English). You change it in the "More" menu ("Language") or in the first step of the setup assistant; the change applies at
-once and is saved in the workspace. Texts from Jira and GitHub stay as they are. The page names below are the German ones;
+once and is saved in the workspace. The agents write their plans, summaries and review comments in the same language. The language of pull request titles and texts is a separate setting per repo (setup assistant, default English). Texts from Jira and GitHub stay as they are. The page names below are the German ones;
 in English they read Attention, My tasks, Pull requests, Agents, Log, Limits & rules, Notifications, Set up.
 
 Pages (hash routes):

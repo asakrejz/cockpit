@@ -115,6 +115,17 @@ from the person's shell ends up in the container.
 
 Lines arriving on stdin: `{"t":"answer","text":…}` and `{"t":"hint","text":…}`.
 
+## Languages
+
+`job.json` carries two language codes (`"de"` or `"en"`):
+
+- `language`: the language of the interface. The system prompt ends with "Answer in English." or "Antworte auf Deutsch."; plan,
+  summary, questions and review comments are written in it. Step titles and error texts of the runner (`src/texts.ts`) are in it
+  too. Missing: `"de"` (older backends).
+- `pr_language`: the team language of the repo. The commit message the runner creates is written in it. Missing: `"en"`.
+
+The prompt itself stays as it is; only the answer language is set. Technical output (stderr, logs, `expect`) is English.
+
 ## Follow-up jobs
 
 For a follow-up job on an existing pull request (image tag `:3` and later) `job.json` carries `followup`:
