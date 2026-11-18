@@ -1,0 +1,5 @@
+# Answers of the access check of the server (only this computer may call it).
+server_access.local_only = Only requests from this computer are allowed
+server_access.unexpected_host = Unexpected host
+server_access.foreign_origin = Foreign origin
+server_access.expect_json = Content-Type: application/json is expected

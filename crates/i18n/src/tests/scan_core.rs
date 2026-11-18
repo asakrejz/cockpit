@@ -4,12 +4,12 @@
 
 use std::fs;
 
-use super::{rust_files, workspace_root};
 use super::scan::{literals, production_part};
+use super::{rust_files, workspace_root};
 
 const GERMAN_WORDS: &[&str] = &[
-    "der", "die", "das", "nicht", "und", "wird", "kein", "keine", "für", "mit", "eine", "oder", "noch",
-    "schon", "gibt", "kann", "von", "den", "dem", "sich", "wurde", "bitte", "wenn", "dann",
+    "der", "die", "das", "nicht", "und", "wird", "kein", "keine", "für", "mit", "eine", "oder",
+    "noch", "schon", "gibt", "kann", "von", "den", "dem", "sich", "wurde", "bitte", "wenn", "dann",
 ];
 
 /// Literals that are German on purpose: old names that are still read as aliases, matching data
@@ -38,15 +38,26 @@ fn looks_german(text: &str) -> bool {
 }
 
 fn is_sample_or_test(rel: &str) -> bool {
-    rel.contains("/demo/") || rel.ends_with("/demo.rs") || rel.ends_with("tests.rs") || rel.contains("/tests/")
+    rel.contains("/demo/")
+        || rel.ends_with("/demo.rs")
+        || rel.ends_with("tests.rs")
+        || rel.contains("/tests/")
 }
 
 #[test]
 fn no_german_text_literals_in_core_server_and_integrations() {
     let mut found = Vec::new();
-    for dir in ["crates/cockpit-core/src", "apps/server/src", "crates/integrations/src"] {
+    for dir in [
+        "crates/cockpit-core/src",
+        "apps/server/src",
+        "crates/integrations/src",
+    ] {
         for file in rust_files(dir) {
-            let rel = file.strip_prefix(workspace_root()).unwrap().to_string_lossy().to_string();
+            let rel = file
+                .strip_prefix(workspace_root())
+                .unwrap()
+                .to_string_lossy()
+                .to_string();
             if is_sample_or_test(&rel) || ALLOWED_FILES.contains(&rel.as_str()) {
                 continue;
             }

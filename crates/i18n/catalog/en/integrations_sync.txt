@@ -1,0 +1,15 @@
+# Hints of the sync with Jira and GitHub (shown next to the state of a source).
+integrations_sync.not_loaded = {repo}: not loaded – only the first {n} PRs in total
+integrations_sync.truncated_total = {repo}: only the first {n} PRs in total loaded
+integrations_sync.truncated_per_repo = {repo}: only the first {n} PRs per repo loaded
+integrations_sync.repo_hint = {repo}: {error}
+integrations_sync.repo_stale = {repo}: {error} – the state of the last sync stays
+integrations_sync.pr_stale = {repo}#{number}: {error} – the state of the last sync stays
+integrations_sync.sprint_field_failed = Sprint field not found: {error}
+integrations_sync.no_active_sprint = No active sprint – showing all open tickets
+integrations_sync.no_sprints = This project has no sprints – showing all open tickets
+integrations_sync.pr_by = Pull request by {author}
+integrations_sync.review_approved = Review: approved
+integrations_sync.review_changes_requested = Review: changes requested
+integrations_sync.review_plain = Review
+integrations_sync.review_comment = {verdict}\n{text}

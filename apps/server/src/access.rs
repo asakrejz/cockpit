@@ -28,6 +28,7 @@ use axum::http::{HeaderMap, Method, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use cockpit_core::api::ErrorBody;
+use cockpit_i18n::msg;
 
 /// Checks a request. `peer` is the address of the peer if known – if it is missing,
 /// the request is rejected.
@@ -37,12 +38,9 @@ pub fn check(
     head: &HeaderMap,
     ports: &[u16],
     dev: bool,
-) -> Result<(), (StatusCode, &'static str)> {
+) -> Result<(), (StatusCode, cockpit_i18n::Msg)> {
     if !peer.is_some_and(|ip| ip.is_loopback()) {
-        return Err((
-            StatusCode::FORBIDDEN,
-            "Nur Anfragen von diesem Rechner sind erlaubt",
-        ));
+        return Err((StatusCode::FORBIDDEN, msg!(ServerAccessLocalOnly)));
     }
     let host = head.get(HOST).and_then(|h| h.to_str().ok());
     let host_ok = host.is_some_and(|h| {
@@ -54,7 +52,7 @@ pub fn check(
                 .any(|p| h == format!("127.0.0.1:{p}") || h == format!("localhost:{p}"))
     });
     if !host_ok {
-        return Err((StatusCode::FORBIDDEN, "Unerwarteter Host"));
+        return Err((StatusCode::FORBIDDEN, msg!(ServerAccessUnexpectedHost)));
     }
     if matches!(*method, Method::GET | Method::HEAD) {
         return Ok(());
@@ -65,7 +63,7 @@ pub fn check(
             origin == format!("http://127.0.0.1:{p}") || origin == format!("http://localhost:{p}")
         });
         if !own {
-            return Err((StatusCode::FORBIDDEN, "Fremde Herkunft"));
+            return Err((StatusCode::FORBIDDEN, msg!(ServerAccessForeignOrigin)));
         }
     }
     let is_json = head
@@ -79,7 +77,7 @@ pub fn check(
     if !is_json {
         return Err((
             StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            "Erwartet wird Content-Type: application/json",
+            msg!(ServerAccessExpectJson),
         ));
     }
     Ok(())
@@ -109,7 +107,7 @@ pub async fn protect(State(access): State<Access>, request: Request, next: Next)
         access.dev,
     ) {
         Ok(()) => next.run(request).await,
-        Err((status, message)) => (status, Json(ErrorBody::text(message))).into_response(),
+        Err((status, message)) => (status, Json(ErrorBody::coded(message))).into_response(),
     }
 }
 

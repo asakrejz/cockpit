@@ -299,8 +299,10 @@ pub fn review_data(review: &Review, comment: &str, sha: &str) -> ReviewData {
             || (review.verdict == Verdict::Comment && lines.is_empty()))
     {
         text = match review.verdict {
-            Verdict::RequestChanges => "Änderungen angefordert.".into(),
-            _ => "Review aus dem Cockpit.".into(),
+            // Content for GitHub, not interface text: it is sent in English, whatever language
+            // the interface speaks.
+            Verdict::RequestChanges => "Changes requested.".into(),
+            _ => "Review from Cockpit.".into(),
         };
     }
     ReviewData {

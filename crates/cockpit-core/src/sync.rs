@@ -68,7 +68,13 @@ pub fn merge(local: &Workspace, remote: &Remote, now_ms: u64) -> (Workspace, Vec
                     ws.sync.demo_dropped = true;
                 }
                 merge_source(&mut ws, source, loaded, &mut changes);
-                ws.sync.set_state(source, None, now_ms, &loaded.warnings);
+                ws.sync.set_state_with(
+                    source,
+                    None,
+                    now_ms,
+                    &loaded.warnings,
+                    &loaded.warning_msgs,
+                );
                 if before.is_some() {
                     changes.push(Change::SourceRecovered { source });
                 }
@@ -169,6 +175,7 @@ fn merge_item(old: Item, remote: &Item, changes: &mut Vec<Change>) -> Item {
     // branch for tickets (Jira does not know it).
     item.read = old.read;
     item.agent_note = old.agent_note.clone();
+    item.agent_note_msg = old.agent_note_msg.clone();
     if item.due.is_none() && remote.source == Source::GitHub {
         item.due = old.due.clone();
     }

@@ -8,6 +8,7 @@ fn review() -> Review {
         number: 1,
         title: "Titel".into(),
         description: String::new(),
+        description_msg: None,
         author: Person::new("Jonas", "JB"),
         branch: "feature/x".into(),
         base: "main".into(),

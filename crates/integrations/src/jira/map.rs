@@ -67,6 +67,7 @@ pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Optio
         branch: None,
         pr: None,
         agent_note: None,
+        agent_note_msg: None,
         comments: Vec::new(),
         read: false,
         due: f.duedate.clone().filter(|d| !d.is_empty()),
@@ -141,6 +142,7 @@ pub fn comments_to_core(comments: &[JiraComment], me: &str, now: i64) -> Vec<Com
                 },
                 time: time::relative(&c.created, now, Lang::De),
                 text: adf_to_text_for(&c.body, me),
+                text_msg: None,
                 rich: cockpit_core::adf::parse(&c.body, me),
                 own,
             }
