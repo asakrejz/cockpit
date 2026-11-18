@@ -7,7 +7,7 @@ use leptos::prelude::*;
 use super::context::AgentCtx;
 
 /// The state of the run in one phrase and its colour.
-pub(super) fn status_of(ctx: AgentCtx) -> (&'static str, StatusTone) {
+pub(super) fn status_of(ctx: AgentCtx) -> (String, StatusTone) {
     let AgentCtx {
         running,
         awaiting,
@@ -19,21 +19,21 @@ pub(super) fn status_of(ctx: AgentCtx) -> (&'static str, StatusTone) {
         ..
     } = ctx;
     if done.get() {
-        ("Fertig", StatusTone::Green)
+        (t!(AgentHeaderDone), StatusTone::Green)
     } else if diagnosed.get() {
-        ("Wartet auf Entscheidung", StatusTone::Orange)
+        (t!(AgentHeaderDecision), StatusTone::Orange)
     } else if awaiting.get() {
-        ("Wartet auf Freigabe", StatusTone::Orange)
+        (t!(AgentHeaderApproval), StatusTone::Orange)
     } else if asking.get() {
-        ("Wartet auf Antwort", StatusTone::Orange)
+        (t!(AgentHeaderAnswer), StatusTone::Orange)
     } else if paused.get() {
-        ("Pausiert", StatusTone::Gray)
+        (t!(AgentHeaderPaused), StatusTone::Gray)
     } else if stopped.get() {
-        ("Angehalten", StatusTone::Red)
+        (t!(AgentHeaderHalted), StatusTone::Red)
     } else if running.get() {
-        ("Agent arbeitet", StatusTone::Blue)
+        (t!(AgentHeaderWorking), StatusTone::Blue)
     } else {
-        ("Bereit", StatusTone::Gray)
+        (t!(AgentHeaderReady), StatusTone::Gray)
     }
 }
 
@@ -59,7 +59,7 @@ pub(super) fn header(ctx: AgentCtx) -> impl IntoView {
             <h1 class="t-title1 t-bold">
                 {move || {
                     match run.get().filter(|r| r.is_followup()) {
-                        Some(r) => format!("{} · {}", r.label(), r.ticket_title),
+                        Some(r) => format!("{} · {}", super::labels::run_label(&r), r.ticket_title),
                         None => item.get().map(|i| i.title).unwrap_or_default(),
                     }
                 }}
@@ -67,7 +67,7 @@ pub(super) fn header(ctx: AgentCtx) -> impl IntoView {
             <Progress
                 value=Signal::derive(move || run.get().map_or(0, |r| r.completed))
                 max=STEPS
-                label="Fortschritt"
+                label=t!(AgentHeaderProgress)
             />
         </PaneHeader>
     }

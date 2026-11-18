@@ -1,10 +1,7 @@
 //! Usage and the course in five steps.
 
 use crate::route::Route;
-use cockpit_core::{
-    agent::STEPS,
-    usage::{format_euro, format_number},
-};
+use cockpit_core::{agent::STEPS, usage::format_euro};
 use feature_ui::*;
 use leptos::prelude::*;
 
@@ -22,31 +19,35 @@ pub(super) fn usage(ctx: AgentCtx) -> Option<impl IntoView> {
     });
     let budget = limits.run_budget_cents.map(|b| b + run.extra_budget_cents);
     Some(view! {
-        <div class="ui-list__section" role="region" aria-label="Verbrauch">
-            <p class="ui-list__header">"Verbrauch"</p>
+        <div class="ui-list__section" role="region" aria-label=t!(AgentProgressUsage)>
+            <p class="ui-list__header">{t!(AgentProgressUsage)}</p>
             <div class="ck-usage">
                 <p class="t-subheadline">
-                    {format!(
-                        "Dieser Lauf: {} Token ein · {} aus · {} · {}",
-                        format_number(usage.input_tokens),
-                        format_number(usage.output_tokens),
-                        format_euro(usage.cost_cents),
-                        cockpit_core::usage::format_duration(usage.millis),
-                    )}
-                    {budget.map(|b| format!(" (Budget {})", format_euro(b)))}
+                    {match budget {
+                        Some(b) => t!(
+                            AgentProgressThisRunBudget,
+                            usage = super::labels::usage_line(&usage),
+                            budget = format_euro(b)
+                        ),
+                        None => t!(AgentProgressThisRun, usage = super::labels::usage_line(&usage)),
+                    }}
                 </p>
                 <p class="t-footnote t-secondary">
-                    {format!(
-                        "Heute {} · diesen Monat {}{}",
-                        format_euro(today.cost_cents),
-                        format_euro(month.cost_cents),
-                        limits
-                            .month_budget_cents
-                            .map(|b| format!(" von {}", format_euro(b)))
-                            .unwrap_or_default(),
-                    )}
+                    {match limits.month_budget_cents {
+                        Some(b) => t!(
+                            AgentProgressTotalsBudget,
+                            today = format_euro(today.cost_cents),
+                            month = format_euro(month.cost_cents),
+                            budget = format_euro(b)
+                        ),
+                        None => t!(
+                            AgentProgressTotals,
+                            today = format_euro(today.cost_cents),
+                            month = format_euro(month.cost_cents)
+                        ),
+                    }}
                     " · "
-                    <a class="ui-link" href=Route::Limits.hash()>"Grenzen & Regeln"</a>
+                    <a class="ui-link" href=Route::Limits.hash()>{t!(AgentProgressLimitsLink)}</a>
                 </p>
             </div>
         </div>
@@ -76,7 +77,7 @@ pub(super) fn timeline_steps(ctx: AgentCtx) -> impl IntoView {
                 text=Signal::derive(move || {
                     step()
                         .map(|s| match s.usage {
-                            Some(u) => format!("{} · {}", s.text, u.line()),
+                            Some(u) => format!("{} · {}", s.text, super::labels::usage_line(&u)),
                             None => s.text,
                         })
                         .unwrap_or_default()

@@ -10,18 +10,19 @@ use super::context::AgentCtx;
 pub(super) fn diagnosis(ctx: AgentCtx) -> Option<impl IntoView> {
     let AgentCtx { run, .. } = ctx;
     let d = run.get().filter(|r| r.is_diagnosed())?.diagnosis?;
+    let check_badge = t!(AgentDecisionsCheckBadge, name = d.check);
     Some(view! {
-        <div class="ui-list__section" role="region" aria-label="Diagnose des Agenten">
-            <p class="ui-list__header">"Diagnose – wartet auf deine Entscheidung"</p>
+        <div class="ui-list__section" role="region" aria-label=t!(AgentDecisionsDiagnosisLabel)>
+            <p class="ui-list__header">{t!(AgentDecisionsDiagnosisHeader)}</p>
             <SuggestionCard state=SuggestionState::Pending>
                 <div class="ui-hstack" style="--spacing: 8px">
-                    <Badge variant=BadgeVariant::Tint>{format!("Check {}", d.check)}</Badge>
+                    <Badge variant=BadgeVariant::Tint>{check_badge}</Badge>
                     {d
                         .location()
                         .map(|l| view! { <span class="t-footnote t-mono t-secondary">{l}</span> })}
                 </div>
                 <p class="t-headline">{d.cause.clone()}</p>
-                <p class="t-footnote t-secondary">"Vorschlag: " {d.remedy.clone()}</p>
+                <p class="t-footnote t-secondary">{t!(AgentDecisionsSuggestion, text = d.remedy)}</p>
                 {d
                     .patch
                     .clone()
@@ -29,12 +30,12 @@ pub(super) fn diagnosis(ctx: AgentCtx) -> Option<impl IntoView> {
                         view! {
                             <Diff
                                 rows=crate::view::diff_rows(&p)
-                                label=format!("Fix für {}", p.name)
+                                label=t!(AgentDecisionsFixFor, name = p.name)
                             />
                         }
                     })}
                 <p class="t-footnote t-secondary">
-                    "Bis du entscheidest, bleibt der Branch unverändert."
+                    {t!(AgentDecisionsBranchUnchanged)}
                 </p>
             </SuggestionCard>
         </div>
@@ -55,10 +56,10 @@ pub(super) fn stopped_card(ctx: AgentCtx) -> Option<impl IntoView> {
     let detail = limits.describe(reason, &run, month);
     let options = reason.raise_options();
     Some(view! {
-        <div class="ui-list__section" role="region" aria-label="Lauf angehalten">
-            <p class="ui-list__header">"Lauf angehalten – wartet auf dich"</p>
+        <div class="ui-list__section" role="region" aria-label=t!(AgentDecisionsStoppedLabel)>
+            <p class="ui-list__header">{t!(AgentDecisionsStoppedHeader)}</p>
             <SuggestionCard state=SuggestionState::Pending>
-                <p class="t-headline">{reason.label()}</p>
+                <p class="t-headline">{super::labels::stop_label(reason)}</p>
                 <p class="t-subheadline t-secondary">{detail}</p>
                 <div class="ui-hstack" style="--spacing: 8px; flex-wrap: wrap">
                     {options
@@ -70,17 +71,20 @@ pub(super) fn stopped_card(ctx: AgentCtx) -> Option<impl IntoView> {
                                     size=ControlSize::Small
                                     on_click=move |_| raise(extra)
                                 >
-                                    {format!("Um {} erhöhen und fortsetzen", reason.raise_label(extra))}
+                                    {t!(
+                                        AgentDecisionsRaiseResume,
+                                        amount = super::labels::raise_amount(reason, extra)
+                                    )}
                                 </Button>
                             }
                         })
                         .collect_view()}
                     <Button size=ControlSize::Small destructive=true on_click=cancel>
-                        "Abbrechen"
+                        {t!(AgentDecisionsCancel)}
                     </Button>
                 </div>
                 <p class="t-footnote t-secondary">
-                    {format!("Erhöht wird {}.", reason.raises())}
+                    {t!(AgentDecisionsRaises, what = super::labels::raises_label(reason))}
                 </p>
             </SuggestionCard>
         </div>
@@ -98,8 +102,8 @@ pub(super) fn question(ctx: AgentCtx) -> Option<impl IntoView> {
     let send_answer = move |text: String| ctx.send_answer(text);
     let question = run.get().filter(|r| r.is_asking())?.question?;
     Some(view! {
-        <div class="ui-list__section" role="region" aria-label="Frage des Agenten">
-            <p class="ui-list__header">"Frage des Agenten – wartet auf deine Antwort"</p>
+        <div class="ui-list__section" role="region" aria-label=t!(AgentDecisionsQuestionLabel)>
+            <p class="ui-list__header">{t!(AgentDecisionsQuestionHeader)}</p>
             <SuggestionCard state=SuggestionState::Pending>
                 <p class="t-headline">{question.text.clone()}</p>
                 <div class="ui-hstack" style="--spacing: 8px">
@@ -121,8 +125,8 @@ pub(super) fn question(ctx: AgentCtx) -> Option<impl IntoView> {
             <div class="ui-vstack" style="--spacing: 10px">
                 <Textarea
                     value=answer
-                    label="Deine Antwort"
-                    placeholder="Oder eigene Antwort schreiben …"
+                    label=t!(AgentDecisionsYourAnswer)
+                    placeholder=t!(AgentDecisionsAnswerPlaceholder)
                     min_height="72px"
                 />
                 <div class="ui-hstack">
@@ -131,7 +135,7 @@ pub(super) fn question(ctx: AgentCtx) -> Option<impl IntoView> {
                         disabled=answer_empty
                         on_click=move |_| send_answer(answer.get_untracked())
                     >
-                        "Antworten"
+                        {t!(AgentDecisionsAnswer)}
                     </Button>
                 </div>
             </div>
@@ -150,18 +154,18 @@ pub(super) fn steer_card(ctx: AgentCtx) -> impl IntoView {
     let send_steer = move |_| ctx.send_steer();
     view! {
         <Show when=move || working.get()>
-            <div class="ui-list__section" role="region" aria-label="Agent nachsteuern">
-                <p class="ui-list__header">"Nachsteuern"</p>
+            <div class="ui-list__section" role="region" aria-label=t!(AgentDecisionsSteerLabel)>
+                <p class="ui-list__header">{t!(AgentDecisionsSteerHeader)}</p>
                 <div class="ui-vstack" style="--spacing: 10px">
                     <Textarea
                         value=steer
-                        label="Anweisung an den Agenten"
-                        placeholder="Anweisung für den nächsten Schritt, z. B.: Bitte auch die Doku anpassen."
+                        label=t!(AgentDecisionsSteerField)
+                        placeholder=t!(AgentDecisionsSteerPlaceholder)
                         min_height="72px"
                     />
                     <div class="ui-hstack">
                         <Button disabled=steer_empty on_click=send_steer>
-                            "Hinweis senden"
+                            {t!(AgentDecisionsSendHint)}
                         </Button>
                     </div>
                 </div>
@@ -183,13 +187,17 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
     let plan = plan.get()?;
     let waiting = awaiting.get();
     Some(view! {
-        <div class="ui-list__section" role="region" aria-label="Plan des Agenten">
+        <div class="ui-list__section" role="region" aria-label=t!(AgentDecisionsPlanLabel)>
             <p class="ui-list__header">
-                {if waiting { "Plan – wartet auf deine Freigabe" } else { "Freigegebener Plan" }}
+                {if waiting {
+                    t!(AgentDecisionsPlanWaiting)
+                } else {
+                    t!(AgentDecisionsPlanApproved)
+                }}
             </p>
             <SuggestionCard state=SuggestionState::Pending>
                 <p class="t-subheadline">{plan.summary.clone()}</p>
-                <p class="t-footnote t-secondary">"Dateien"</p>
+                <p class="t-footnote t-secondary">{t!(AgentDecisionsFiles)}</p>
                 <ul class="ck-plan">
                     {plan
                         .files
@@ -197,7 +205,7 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
                         .map(|f| view! { <li class="t-mono t-footnote">{f.clone()}</li> })
                         .collect_view()}
                 </ul>
-                <p class="t-footnote t-secondary">"Schritte"</p>
+                <p class="t-footnote t-secondary">{t!(AgentDecisionsSteps)}</p>
                 <ol class="ck-plan">
                     {plan
                         .steps
@@ -208,8 +216,8 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
                 {(!plan.rules.is_empty())
                     .then(|| {
                         view! {
-                            <p class="t-footnote t-secondary">"Regeln, die gelten"</p>
-                            <ul class="ck-plan" aria-label="Regeln, die gelten">
+                            <p class="t-footnote t-secondary">{t!(AgentDecisionsRulesApply)}</p>
+                            <ul class="ck-plan" aria-label=t!(AgentDecisionsRulesApply)>
                                 {plan
                                     .rules
                                     .iter()
@@ -222,9 +230,9 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
                     .then(|| {
                         view! {
                             <p class="t-footnote ck-problem">
-                                "Nicht freigebbar – der Plan verstößt gegen die Regeln:"
+                                {t!(AgentDecisionsNotApprovable)}
                             </p>
-                            <ul class="ck-plan" aria-label="Regelverstöße">
+                            <ul class="ck-plan" aria-label=t!(AgentDecisionsViolationsLabel)>
                                 {plan
                                     .violations
                                     .iter()
@@ -232,9 +240,9 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
                                     .collect_view()}
                             </ul>
                             <p class="t-footnote t-secondary">
-                                "Ändere die Regeln unter "
-                                <a class="ui-link" href=Route::Limits.hash()>"Grenzen & Regeln"</a>
-                                " oder lehne den Plan ab."
+                                {t!(AgentDecisionsChangeRulesBefore)} " "
+                                <a class="ui-link" href=Route::Limits.hash()>{t!(AgentDecisionsLimitsLink)}</a>
+                                " " {t!(AgentDecisionsChangeRulesAfter)}
                             </p>
                         }
                     })}
@@ -243,13 +251,13 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
                 <div class="ui-vstack" style="--spacing: 10px">
                     <Textarea
                         value=note
-                        label="Anmerkung für einen neuen Plan"
-                        placeholder="Anmerkung für einen neuen Plan, z. B.: Bitte auch den Slider-Thumb ändern."
+                        label=t!(AgentDecisionsNoteLabel)
+                        placeholder=t!(AgentDecisionsNotePlaceholder)
                         min_height="72px"
                     />
                     <div class="ui-hstack">
                         <Button disabled=note_empty on_click=revise>
-                            "Neuen Plan anfordern"
+                            {t!(AgentDecisionsNewPlan)}
                         </Button>
                     </div>
                 </div>

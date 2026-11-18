@@ -1,0 +1,6 @@
+agent.runs = Agenten-Läufe
+agent.job_label = Agent-Auftrag
+agent.empty_title = Noch kein Agent-Lauf
+agent.empty_text = Agenten setzen Jira-Tickets um. Wähle im Posteingang ein Ticket und gib es dort dem Agenten. Der Lauf erscheint dann hier.
+agent.to_inbox = Zum Posteingang
+agent.course = Ablauf

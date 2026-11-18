@@ -1,0 +1,9 @@
+agent_header.done = Done
+agent_header.decision = Waiting for decision
+agent_header.approval = Waiting for approval
+agent_header.answer = Waiting for answer
+agent_header.paused = Paused
+agent_header.halted = Halted
+agent_header.working = Agent is working
+agent_header.ready = Ready
+agent_header.progress = Progress
