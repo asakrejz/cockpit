@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::{Msg, msg};
 
 impl AgentRun {
     pub fn start(&mut self, mut options: AgentOptions, pr_number: u32) {
@@ -30,20 +31,20 @@ impl AgentRun {
         self.summary.clear();
         self.clear_usage();
         self.clear_conversation();
-        self.say(
+        self.say_msg(
             Speaker::Agent,
             MessageKind::Info,
-            format!("Auftrag für {} angenommen.", self.label()),
+            msg!(CoreAgentMAccepted, label = self.label_msg()),
         );
         let hint = self.options.hint.trim().to_string();
         if !hint.is_empty() {
             self.say(Speaker::User, MessageKind::Hint, hint);
         }
         if self.planned {
-            self.say(
+            self.say_msg(
                 Speaker::Agent,
                 MessageKind::Info,
-                "Ich habe einen Plan vorgelegt und warte auf deine Freigabe.".into(),
+                msg!(CoreAgentMPlanPresented),
             );
         }
     }
@@ -68,6 +69,19 @@ impl AgentRun {
             kind,
             step,
             text,
+            msg: None,
+        });
+    }
+
+    /// Like [`AgentRun::say`], for a sentence of the system as code and parameters.
+    pub(super) fn say_msg(&mut self, from: Speaker, kind: MessageKind, msg: Msg) {
+        let step = self.completed;
+        self.messages.push(RunMessage {
+            from,
+            kind,
+            step,
+            text: msg.de(),
+            msg: Some(msg),
         });
     }
 
@@ -93,7 +107,7 @@ impl AgentRun {
             return false;
         }
         self.state = RunState::Running;
-        self.say(Speaker::User, MessageKind::Info, "Fix übernommen.".into());
+        self.say_msg(Speaker::User, MessageKind::Info, msg!(CoreAgentMFixAdopted));
         true
     }
 
@@ -104,7 +118,11 @@ impl AgentRun {
             return false;
         }
         self.state = RunState::Running;
-        self.say(Speaker::User, MessageKind::Info, "Plan freigegeben.".into());
+        self.say_msg(
+            Speaker::User,
+            MessageKind::Info,
+            msg!(CoreAgentMPlanApproved),
+        );
         true
     }
 
@@ -124,10 +142,10 @@ impl AgentRun {
             return false;
         }
         self.plan_notes.push(note.to_string());
-        self.say(
+        self.say_msg(
             Speaker::User,
             MessageKind::Hint,
-            format!("Anmerkung zum Plan: {note}"),
+            msg!(CoreAgentMPlanNote, note = note),
         );
         // The real agent works out a new plan; until it is ready, no approval is possible.
         if self.real {
@@ -172,7 +190,7 @@ impl AgentRun {
             return false;
         }
         self.state = RunState::Paused;
-        self.say(Speaker::User, MessageKind::Info, "Lauf pausiert.".into());
+        self.say_msg(Speaker::User, MessageKind::Info, msg!(CoreAgentMPaused));
         true
     }
 
@@ -182,7 +200,7 @@ impl AgentRun {
             return false;
         }
         self.state = RunState::Running;
-        self.say(Speaker::User, MessageKind::Info, "Lauf fortgesetzt.".into());
+        self.say_msg(Speaker::User, MessageKind::Info, msg!(CoreAgentMResumed));
         true
     }
 
@@ -202,15 +220,15 @@ impl AgentRun {
         }
         self.state = RunState::Running;
         let text = if extra == 0 {
-            "Lauf fortgesetzt.".to_string()
+            msg!(CoreAgentMResumed)
         } else {
-            format!(
-                "Lauf fortgesetzt – {} um {} erhöht.",
-                reason.raises(),
-                reason.raise_label(extra)
+            msg!(
+                CoreAgentMResumedRaised,
+                what = reason.raises_msg(),
+                amount = reason.raise_label_msg(extra)
             )
         };
-        self.say(Speaker::User, MessageKind::Info, text);
+        self.say_msg(Speaker::User, MessageKind::Info, text);
         true
     }
 
@@ -235,23 +253,24 @@ impl AgentRun {
         }
         if let Some(reason) = limits.reached(self, month_spent_cents) {
             self.state = RunState::Stopped(reason);
-            let detail = limits.describe(reason, self, month_spent_cents);
-            self.say(
+            let detail = limits.describe_msg(reason, self, month_spent_cents);
+            self.say_msg(
                 Speaker::Agent,
                 MessageKind::Info,
-                format!(
-                    "Angehalten: {}. {detail} Erhöhe {} und setze den Lauf fort – oder brich ihn ab.",
-                    reason.label(),
-                    reason.raises()
+                msg!(
+                    CoreAgentMHalted,
+                    reason = reason.label_msg(),
+                    detail = detail,
+                    what = reason.raises_msg()
                 ),
             );
             return Tick::Stopped;
         }
         for hint in std::mem::take(&mut self.pending_hints) {
-            self.say(
+            self.say_msg(
                 Speaker::Agent,
                 MessageKind::Ack,
-                format!("Hinweis erhalten: {hint}"),
+                msg!(CoreAgentMHintReceived, hint = hint),
             );
         }
         // The follow-up question is hard-wired in the demo (see `demo::agent_question`);
@@ -267,10 +286,14 @@ impl AgentRun {
             return Tick::Asked;
         }
         let done = self.steps()[self.completed.min(STEPS - 1)].clone();
-        self.say(
+        self.say_msg(
             Speaker::Agent,
             MessageKind::Info,
-            format!("{}: {}", done.title, done.text),
+            msg!(
+                CoreAgentMStepLine,
+                title = done.title_msg,
+                text = done.text_msg
+            ),
         );
         // Consumption of the step: made-up but fixed values in the demo.
         let (input, output, millis) = crate::demo::step_tokens(&self.ticket_key, self.completed);
@@ -282,10 +305,10 @@ impl AgentRun {
         } else if self.completed == DIAGNOSED_AT && matches!(self.kind, RunKind::Diagnose { .. }) {
             // The diagnosis is ready. Until your decision the branch stays untouched.
             self.state = RunState::AwaitingFix;
-            self.say(
+            self.say_msg(
                 Speaker::Agent,
                 MessageKind::Info,
-                "Die Diagnose liegt vor. Ich warte, ob ich den Fix übernehmen soll.".into(),
+                msg!(CoreAgentMDiagnosisReady),
             );
             Tick::Diagnosed
         } else {

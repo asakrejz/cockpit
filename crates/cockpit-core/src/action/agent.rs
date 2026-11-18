@@ -161,7 +161,7 @@ impl Workspace {
                 let mut notes: Vec<Note> = effect
                     .notes
                     .into_iter()
-                    .map(|text| Note::new(Target::Run(run.clone()), text).by(Actor::Agent))
+                    .map(|msg| Note::coded(Target::Run(run.clone()), msg).by(Actor::Agent))
                     .collect();
                 if effect.finished {
                     notes.push(

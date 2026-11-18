@@ -8,7 +8,7 @@
 //!   branch, protection). Never automatic, never another branch, never a force of any kind.
 
 use cockpit_core::api::{BranchCheck, BranchDeleted};
-use cockpit_core::branch::{DeleteFacts, deletable};
+use cockpit_core::branch::{DeleteFacts, deletable_msg};
 use cockpit_core::{Action, Actor, AgentRun, Closure, RunKind};
 use cockpit_integrations::Error as ServiceError;
 use cockpit_integrations::github::GitHubClient;
@@ -43,7 +43,7 @@ struct Plan {
     client: GitHubClient,
     repo: String,
     branch: String,
-    verdict: Result<(), String>,
+    verdict: Result<(), cockpit_i18n::Msg>,
 }
 
 impl AppState {
@@ -102,11 +102,11 @@ impl AppState {
             .map_err(|e| read("GitHub liefert das Repo nicht", e))?
             .default_branch;
         let verdict = match client.branch_protected(&repo, &branch).await {
-            Err(ServiceError::NotFound) => Err(format!(
+            Err(ServiceError::NotFound) => Err(cockpit_i18n::Msg::raw(format!(
                 "Den Branch „{branch}“ gibt es auf GitHub nicht mehr."
-            )),
+            ))),
             Err(e) => return Err(read("GitHub liefert den Branch nicht", e)),
-            Ok(protected) => deletable(&DeleteFacts {
+            Ok(protected) => deletable_msg(&DeleteFacts {
                 pattern: &pattern,
                 base_branch: &base,
                 default_branch: &default_branch,
@@ -131,7 +131,8 @@ impl AppState {
             Ok(p) => BranchCheck {
                 branch: p.branch,
                 allowed: p.verdict.is_ok(),
-                reason: p.verdict.err(),
+                reason: p.verdict.clone().err().map(|m| m.de()),
+                reason_msg: p.verdict.err(),
             },
             Err(reason) => BranchCheck {
                 branch: self
@@ -145,6 +146,7 @@ impl AppState {
                     .unwrap_or_default(),
                 allowed: false,
                 reason: Some(reason),
+                reason_msg: None,
             },
         }
     }
@@ -152,7 +154,7 @@ impl AppState {
     /// `POST /api/agent/branch`: deletes the branch of the run – after checking everything again.
     pub(crate) async fn branch_delete(&self, key: &str) -> Result<BranchDeleted, ActionFailure> {
         let plan = self.branch_plan(key).await.map_err(ActionFailure::Plan)?;
-        plan.verdict.map_err(ActionFailure::Plan)?;
+        plan.verdict.map_err(|m| ActionFailure::Plan(m.de()))?;
         plan.client
             .branch_delete(&plan.repo, &plan.branch)
             .await

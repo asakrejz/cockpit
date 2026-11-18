@@ -11,6 +11,7 @@
 //!
 //! Everything here is pure: the time comes from outside.
 
+use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};
 
 use crate::agent::AgentRun;
@@ -61,14 +62,19 @@ impl Usage {
     }
 
     /// `12.400 Token ein · 1.200 aus · 25 ct · 25 s`
-    pub fn line(&self) -> String {
-        format!(
-            "{} Token ein · {} aus · {} · {}",
-            format_number(self.input_tokens),
-            format_number(self.output_tokens),
-            format_euro(self.cost_cents),
-            format_duration(self.millis)
+    pub fn line_msg(&self) -> Msg {
+        msg!(
+            CoreUsageLine,
+            input = format_number(self.input_tokens),
+            output = format_number(self.output_tokens),
+            cost = format_euro(self.cost_cents),
+            time = format_duration(self.millis)
         )
+    }
+
+    /// [`Usage::line_msg`] in German.
+    pub fn line(&self) -> String {
+        self.line_msg().de()
     }
 }
 
@@ -110,21 +116,31 @@ pub enum StopReason {
 }
 
 impl StopReason {
-    pub fn label(self) -> &'static str {
+    pub fn label_msg(self) -> Msg {
         match self {
-            StopReason::RunBudget => "Budget pro Lauf erreicht",
-            StopReason::MonthBudget => "Monatsbudget erreicht",
-            StopReason::Time => "Zeitlimit erreicht",
+            StopReason::RunBudget => msg!(CoreUsageStopRunBudget),
+            StopReason::MonthBudget => msg!(CoreUsageStopMonthBudget),
+            StopReason::Time => msg!(CoreUsageStopTime),
         }
     }
 
+    /// [`StopReason::label_msg`] in German.
+    pub fn label(self) -> String {
+        self.label_msg().de()
+    }
+
     /// What is raised on resume.
-    pub fn raises(self) -> &'static str {
+    pub fn raises_msg(self) -> Msg {
         match self {
-            StopReason::RunBudget => "das Budget dieses Laufs",
-            StopReason::MonthBudget => "das Monatsbudget",
-            StopReason::Time => "das Zeitlimit dieses Laufs",
+            StopReason::RunBudget => msg!(CoreUsageRaisesRunBudget),
+            StopReason::MonthBudget => msg!(CoreUsageRaisesMonthBudget),
+            StopReason::Time => msg!(CoreUsageRaisesTime),
         }
+    }
+
+    /// [`StopReason::raises_msg`] in German.
+    pub fn raises(self) -> String {
+        self.raises_msg().de()
     }
 
     /// Increases the UI offers: cents for budgets, minutes for the time limit.
@@ -136,11 +152,16 @@ impl StopReason {
     }
 
     /// `1,00 €` bzw. `10 Min`
-    pub fn raise_label(self, extra: u64) -> String {
+    pub fn raise_label_msg(self, extra: u64) -> Msg {
         match self {
-            StopReason::Time => format!("{extra} Min"),
-            _ => format_euro(extra),
+            StopReason::Time => msg!(CoreUsageMinutes, n = extra),
+            _ => Msg::raw(format_euro(extra)),
         }
+    }
+
+    /// [`StopReason::raise_label_msg`] in German.
+    pub fn raise_label(self, extra: u64) -> String {
+        self.raise_label_msg(extra).de()
     }
 }
 
@@ -216,42 +237,57 @@ impl AgentLimits {
 
     /// A sentence that says how far consumption and limit are. For the hint at the
     /// stopped run.
-    pub fn describe(&self, reason: StopReason, run: &AgentRun, month_spent_cents: u64) -> String {
+    pub fn describe_msg(&self, reason: StopReason, run: &AgentRun, month_spent_cents: u64) -> Msg {
         let usage = run.usage();
         match reason {
-            StopReason::RunBudget => format!(
-                "Der Lauf hat {} verbraucht, erlaubt sind {}.",
-                format_euro(usage.cost_cents),
-                format_euro(
+            StopReason::RunBudget => msg!(
+                CoreUsageDescribeRunBudget,
+                used = format_euro(usage.cost_cents),
+                allowed = format_euro(
                     self.run_budget_cents
                         .unwrap_or_default()
                         .saturating_add(run.extra_budget_cents)
                 )
             ),
-            StopReason::MonthBudget => format!(
-                "In diesem Monat sind {} verbraucht, erlaubt sind {}.",
-                format_euro(month_spent_cents),
-                format_euro(self.month_budget_cents.unwrap_or_default())
+            StopReason::MonthBudget => msg!(
+                CoreUsageDescribeMonthBudget,
+                used = format_euro(month_spent_cents),
+                allowed = format_euro(self.month_budget_cents.unwrap_or_default())
             ),
-            StopReason::Time => format!(
-                "Der Lauf arbeitet seit {}, erlaubt sind {} Min.",
-                format_duration(usage.millis),
-                u64::from(self.run_minutes.unwrap_or_default()).saturating_add(run.extra_minutes)
+            StopReason::Time => msg!(
+                CoreUsageDescribeTime,
+                used = format_duration(usage.millis),
+                allowed = u64::from(self.run_minutes.unwrap_or_default())
+                    .saturating_add(run.extra_minutes)
             ),
         }
     }
 
+    /// [`AgentLimits::describe_msg`] in German.
+    pub fn describe(&self, reason: StopReason, run: &AgentRun, month_spent_cents: u64) -> String {
+        self.describe_msg(reason, run, month_spent_cents).de()
+    }
+
     /// Short sentence for the log.
-    pub fn summary(&self) -> String {
-        let money = |v: Option<u64>| v.map_or("unbegrenzt".to_string(), format_euro);
-        format!(
-            "Budget pro Lauf {}, pro Monat {}, Zeitlimit {}, höchstens {} parallel",
-            money(self.run_budget_cents),
-            money(self.month_budget_cents),
-            self.run_minutes
-                .map_or("unbegrenzt".to_string(), |m| format!("{m} Min")),
-            self.max_parallel
+    pub fn summary_msg(&self) -> Msg {
+        let money = |v: Option<u64>| {
+            v.map_or_else(|| msg!(CoreUsageUnlimited), |c| Msg::raw(format_euro(c)))
+        };
+        msg!(
+            CoreUsageSummary,
+            run = money(self.run_budget_cents),
+            month = money(self.month_budget_cents),
+            time = self.run_minutes.map_or_else(
+                || msg!(CoreUsageUnlimited),
+                |m| msg!(CoreUsageMinutes, n = m)
+            ),
+            parallel = self.max_parallel
         )
+    }
+
+    /// [`AgentLimits::summary_msg`] in German.
+    pub fn summary(&self) -> String {
+        self.summary_msg().de()
     }
 }
 

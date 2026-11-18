@@ -2,8 +2,9 @@
 //! GitHub. Deleting is never automatic: it only happens on the user's click, and only when every
 //! rule here says yes.
 
-use super::{check, structure};
+use super::{check_msg, structure_msg};
 use crate::agent::Closure;
+use cockpit_i18n::{Msg, msg};
 
 /// What is known about the branch and its pull request.
 #[derive(Clone, Copy, Debug)]
@@ -45,29 +46,25 @@ pub struct DeleteFacts<'a> {
 /// assert!(deletable(&DeleteFacts { ended: None, ..facts }).is_err());
 /// ```
 pub fn deletable(f: &DeleteFacts) -> Result<(), String> {
-    structure(f.branch)?;
+    deletable_msg(f).map_err(|m| m.de())
+}
+
+/// [`deletable`] with the reason as code and parameters.
+pub fn deletable_msg(f: &DeleteFacts) -> Result<(), Msg> {
+    structure_msg(f.branch)?;
     if f.ended.is_none() {
-        return Err("Der Pull Request ist noch offen. Den Branch kannst du erst löschen, wenn er gemergt oder geschlossen ist.".into());
+        return Err(msg!(CoreBranchDeleteOpen));
     }
     if f.branch.eq_ignore_ascii_case(f.default_branch) {
-        return Err(format!(
-            "Der Branch „{}“ ist der Standard-Branch des Repos und bleibt.",
-            f.branch
-        ));
+        return Err(msg!(CoreBranchDeleteDefault, branch = f.branch));
     }
     // Base branch, main branches and the pattern of the repo.
-    check(f.pattern, f.base_branch, f.branch)?;
+    check_msg(f.pattern, f.base_branch, f.branch)?;
     if f.protected {
-        return Err(format!(
-            "Der Branch „{}“ ist auf GitHub geschützt und bleibt.",
-            f.branch
-        ));
+        return Err(msg!(CoreBranchDeleteProtected, branch = f.branch));
     }
     if f.branch != f.pull_head || f.branch != f.run_branch {
-        return Err(format!(
-            "Der Branch „{}“ gehört nicht zu diesem Lauf und seinem Pull Request.",
-            f.branch
-        ));
+        return Err(msg!(CoreBranchDeleteForeign, branch = f.branch));
     }
     Ok(())
 }

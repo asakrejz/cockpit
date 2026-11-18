@@ -151,7 +151,7 @@ impl ActionError {
                 format!("Zu diesem Lauf gehört schon der Pull Request #{n}")
             }
             ActionError::MergeBlocked(blockers) => {
-                let reasons: Vec<&str> = blockers.iter().map(|b| b.reason()).collect();
+                let reasons: Vec<String> = blockers.iter().map(|b| b.reason()).collect();
                 format!("Mergen geht noch nicht: {}", reasons.join(" "))
             }
         }

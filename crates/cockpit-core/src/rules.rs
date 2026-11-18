@@ -9,6 +9,7 @@
 //! (`*.lock` matches `Cargo.lock` and `a/b/yarn.lock`), a pattern with `/` from the root
 //! (`styles/*.css`). A trailing `/` means the whole folder (`docs/` = `docs/**`).
 
+use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};
 
 /// The name of the only repo there is today (demo). More will follow later.
@@ -101,15 +102,20 @@ pub struct PathViolation {
 
 impl PathViolation {
     /// Explanation for the UI.
-    pub fn reason(&self) -> String {
+    pub fn reason_msg(&self) -> Msg {
         match self.kind {
-            ViolationKind::Forbidden => {
-                format!("{} ist verboten (Regel „{}“)", self.file, self.pattern)
-            }
-            ViolationKind::NotAllowed => {
-                format!("{} liegt außerhalb der erlaubten Pfade", self.file)
-            }
+            ViolationKind::Forbidden => msg!(
+                CoreAgentViolationForbidden,
+                file = &self.file,
+                pattern = &self.pattern
+            ),
+            ViolationKind::NotAllowed => msg!(CoreAgentViolationNotAllowed, file = &self.file),
         }
+    }
+
+    /// [`PathViolation::reason_msg`] in German.
+    pub fn reason(&self) -> String {
+        self.reason_msg().de()
     }
 }
 
@@ -186,27 +192,38 @@ impl RepoRules {
     }
 
     /// The applicable rules as lines for plan and log. Empty if there are none.
-    pub fn lines(&self) -> Vec<String> {
+    pub fn lines_msg(&self) -> Vec<Msg> {
         let mut lines = Vec::new();
         if !self.allowed_paths.is_empty() {
-            lines.push(format!("Erlaubt nur: {}", self.allowed_paths.join(", ")));
+            lines.push(msg!(
+                CoreAgentRuleAllowed,
+                paths = self.allowed_paths.join(", ")
+            ));
         }
         if !self.forbidden_paths.is_empty() {
-            lines.push(format!("Verboten: {}", self.forbidden_paths.join(", ")));
+            lines.push(msg!(
+                CoreAgentRuleForbidden,
+                paths = self.forbidden_paths.join(", ")
+            ));
         }
         if !self.required_tests.is_empty() {
-            lines.push(format!(
-                "Pflicht-Tests vor dem Pull Request: {}",
-                self.required_tests.join(", ")
+            lines.push(msg!(
+                CoreAgentRuleRequiredTests,
+                tests = self.required_tests.join(", ")
             ));
         }
         if self.plan_required {
-            lines.push("Plan-Freigabe ist Pflicht".to_string());
+            lines.push(msg!(CoreAgentRulePlanRequired));
         }
         if !self.instructions.is_empty() {
-            lines.push(format!("Anweisung: {}", self.instructions));
+            lines.push(msg!(CoreAgentRuleInstruction, text = &self.instructions));
         }
         lines
+    }
+
+    /// [`RepoRules::lines_msg`] in German.
+    pub fn lines(&self) -> Vec<String> {
+        self.lines_msg().iter().map(Msg::de).collect()
     }
 }
 

@@ -74,11 +74,16 @@ pub enum Level {
 }
 
 impl Level {
-    pub fn label(self) -> &'static str {
+    pub fn label_msg(self) -> cockpit_i18n::Msg {
         match self {
-            Level::Note => "Hinweis",
-            Level::Important => "Wichtig",
+            Level::Note => cockpit_i18n::msg!(CoreReviewLevelNote),
+            Level::Important => cockpit_i18n::msg!(CoreReviewLevelImportant),
         }
+    }
+
+    /// [`Level::label_msg`] in German.
+    pub fn label(self) -> String {
+        self.label_msg().de()
     }
 }
 
@@ -282,11 +287,8 @@ pub enum Verdict {
 }
 
 impl Verdict {
-    pub const OPTIONS: &'static [(&'static str, &'static str)] = &[
-        ("comment", "Kommentieren"),
-        ("approve", "Genehmigen"),
-        ("changes", "Änderungen"),
-    ];
+    /// The ids of all results (the labels come from [`Verdict::label_msg`]).
+    pub const IDS: &'static [&'static str] = &["comment", "approve", "changes"];
 
     pub fn id(self) -> &'static str {
         match self {
@@ -296,11 +298,17 @@ impl Verdict {
         }
     }
 
-    pub fn label(self) -> &'static str {
-        Self::OPTIONS
-            .iter()
-            .find(|(id, _)| *id == self.id())
-            .map_or("", |(_, label)| label)
+    pub fn label_msg(self) -> cockpit_i18n::Msg {
+        match self {
+            Verdict::Comment => cockpit_i18n::msg!(CoreReviewVerdictComment),
+            Verdict::Approve => cockpit_i18n::msg!(CoreReviewVerdictApprove),
+            Verdict::RequestChanges => cockpit_i18n::msg!(CoreReviewVerdictChanges),
+        }
+    }
+
+    /// [`Verdict::label_msg`] in German.
+    pub fn label(self) -> String {
+        self.label_msg().de()
     }
 
     pub fn from_id(id: &str) -> Option<Verdict> {
@@ -389,13 +397,18 @@ impl Review {
     }
 
     /// `1 freigegeben · 0 abgelehnt · 2 offen`
-    pub fn summary(&self) -> String {
-        format!(
-            "{} freigegeben · {} abgelehnt · {} offen",
-            self.approved(),
-            self.declined(),
-            self.undecided()
+    pub fn summary_msg(&self) -> cockpit_i18n::Msg {
+        cockpit_i18n::msg!(
+            CoreReviewSummary,
+            approved = self.approved(),
+            declined = self.declined(),
+            open = self.undecided()
         )
+    }
+
+    /// [`Review::summary_msg`] in German.
+    pub fn summary(&self) -> String {
+        self.summary_msg().de()
     }
 
     fn suggestion_mut(&mut self, id: &str) -> Option<&mut Suggestion> {

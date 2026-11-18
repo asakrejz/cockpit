@@ -53,6 +53,9 @@ pub struct BranchCheck {
     pub allowed: bool,
     #[serde(default)]
     pub reason: Option<String>,
+    /// The same reason as code and parameters; the UI renders it in its language.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason_msg: Option<cockpit_i18n::Msg>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]

@@ -1,10 +1,14 @@
-use super::log::{files_label, plural_comments};
+use super::texts::{comments_msg, files_msg, raw};
 use super::*;
+use cockpit_i18n::{ArgValue, Msg, msg};
+
+type StepTexts = [(Msg, Msg); STEPS];
 
 impl AgentRun {
-    pub(super) fn pr_label(&self) -> String {
+    /// `#12`, or "pull request" as long as there is no number.
+    pub(super) fn pr_label(&self) -> Msg {
         self.pr_number
-            .map_or("Pull Request".to_string(), |n| format!("#{n}"))
+            .map_or_else(|| msg!(CoreAgentPrFallback), |n| raw(format!("#{n}")))
     }
 
     /// Title and text of each step, matching kind and options of the run.
@@ -23,191 +27,185 @@ impl AgentRun {
         self.build_steps(texts)
     }
 
-    pub(super) fn address_texts(
-        &self,
-        review: &PrKey,
-        comments: usize,
-    ) -> [(&'static str, String); STEPS] {
-        let o = &self.options;
+    fn tests_step(&self) -> (Msg, Msg) {
+        if self.options.run_tests {
+            (
+                msg!(CoreAgentStepTitleTestsRun),
+                msg!(CoreAgentStepTextTests),
+            )
+        } else {
+            (
+                msg!(CoreAgentStepTitleTestsSkipped),
+                msg!(CoreAgentStepTextTestsOff),
+            )
+        }
+    }
+
+    pub(super) fn address_texts(&self, review: &PrKey, comments: usize) -> StepTexts {
         [
             (
-                "Kommentare gelesen",
-                format!(
-                    "{} aus Review {review} ausgewertet",
-                    plural_comments(comments)
+                msg!(CoreAgentStepTitleCommentsRead),
+                msg!(
+                    CoreAgentStepTextCommentsRead,
+                    comments = comments_msg(comments),
+                    review = review.to_string()
                 ),
             ),
-            ("Branch ausgecheckt", self.branch()),
+            (msg!(CoreAgentStepTitleBranchCheckedOut), raw(self.branch())),
             (
-                "Änderungen umgesetzt",
-                files_label(self.files.len()) + " angepasst",
-            ),
-            if o.run_tests {
-                (
-                    "Tests ausgeführt",
-                    "Lint und Tests laufen im Branch".to_string(),
-                )
-            } else {
-                (
-                    "Tests übersprungen",
-                    "In den Optionen abgeschaltet".to_string(),
-                )
-            },
-            (
-                "Auf Branch gepusht",
-                format!(
-                    "Neuer Commit auf {} – kein neuer Pull Request, das Review wartet wieder auf dich",
-                    self.branch()
+                msg!(CoreAgentStepTitleChangesDone),
+                msg!(
+                    CoreAgentStepTextChanges,
+                    files = files_msg(self.files.len())
                 ),
+            ),
+            self.tests_step(),
+            (
+                msg!(CoreAgentStepTitlePushed),
+                msg!(CoreAgentStepTextPushedReview, branch = self.branch()),
             ),
         ]
     }
 
-    pub(super) fn diagnose_texts(
-        &self,
-        review: &PrKey,
-        check: &str,
-    ) -> [(&'static str, String); STEPS] {
+    pub(super) fn diagnose_texts(&self, review: &PrKey, check: &str) -> StepTexts {
         let code = self.diagnosis.as_ref().is_none_or(Diagnosis::changes_code);
         [
             (
-                "Log gelesen",
-                format!("Check „{check}“ von {review}: Ausgabe ausgewertet"),
-            ),
-            (
-                "Ursache eingegrenzt",
-                "Fehlermeldung, Datei und Zeile bestimmt".to_string(),
-            ),
-            (
-                "Diagnose erstellt",
-                "Ursache und Vorschlag liegen zur Entscheidung vor".to_string(),
-            ),
-            if code {
-                (
-                    "Fix angewendet",
-                    "Änderung im Branch, Lint und Tests laufen".to_string(),
-                )
-            } else {
-                (
-                    "Kein Code-Fix nötig",
-                    "Der Branch bleibt unverändert".to_string(),
-                )
-            },
-            if code {
-                (
-                    "Gepusht, Check neu gestartet",
-                    format!("{} aktualisiert, „{check}“ läuft erneut", self.branch()),
-                )
-            } else {
-                ("Check neu gestartet", format!("„{check}“ läuft erneut"))
-            },
-        ]
-    }
-
-    pub(super) fn implement_texts(&self) -> [(&'static str, String); STEPS] {
-        let o = &self.options;
-        let mut files = match self.files.len() {
-            1 => "1 Datei angepasst".to_string(),
-            n => format!("{n} Dateien angepasst"),
-        };
-        if self.rules.has_path_rules() && self.violations().is_empty() {
-            files.push_str(" · Pfad-Regeln eingehalten");
-        }
-        [
-            (
-                "Ticket gelesen",
-                format!(
-                    "Beschreibung und Kommentare aus {} ausgewertet",
-                    self.ticket_key
+                msg!(CoreAgentStepTitleLogRead),
+                msg!(
+                    CoreAgentStepTextLogRead,
+                    check = check,
+                    review = review.to_string()
                 ),
             ),
             (
-                "Branch erstellt",
-                format!("{} von {}", self.branch(), o.base_branch),
+                msg!(CoreAgentStepTitleCauseFound),
+                msg!(CoreAgentStepTextCause),
             ),
-            ("Änderungen umgesetzt", files),
-            if !self.rules.required_tests.is_empty() {
+            (
+                msg!(CoreAgentStepTitleDiagnosisMade),
+                msg!(CoreAgentStepTextDiagnosis),
+            ),
+            if code {
                 (
-                    "Pflicht-Tests ausgeführt",
-                    format!(
-                        "{} im Branch bestanden",
-                        self.rules.required_tests.join(", ")
+                    msg!(CoreAgentStepTitleFixApplied),
+                    msg!(CoreAgentStepTextFix),
+                )
+            } else {
+                (msg!(CoreAgentStepTitleNoFix), msg!(CoreAgentStepTextNoFix))
+            },
+            if code {
+                (
+                    msg!(CoreAgentStepTitlePushedRestarted),
+                    msg!(
+                        CoreAgentStepTextPushedRestarted,
+                        branch = self.branch(),
+                        check = check
                     ),
                 )
-            } else if o.run_tests {
-                (
-                    "Tests ausgeführt",
-                    "Lint und Tests laufen im Branch".to_string(),
-                )
             } else {
                 (
-                    "Tests übersprungen",
-                    "In den Optionen abgeschaltet".to_string(),
+                    msg!(CoreAgentStepTitleCheckRestarted),
+                    msg!(CoreAgentStepTextCheckRestarted, check = check),
                 )
             },
+        ]
+    }
+
+    pub(super) fn implement_texts(&self) -> StepTexts {
+        let o = &self.options;
+        let files = files_msg(self.files.len());
+        let changes = if self.rules.has_path_rules() && self.violations().is_empty() {
+            msg!(CoreAgentStepTextChangesRules, files = files)
+        } else {
+            msg!(CoreAgentStepTextChanges, files = files)
+        };
+        [
             (
-                "Pull Request erstellt",
-                format!(
-                    "{}{} – wartet auf dein Review",
-                    self.pr_label(),
-                    if o.draft_pr { " als Entwurf" } else { "" }
+                msg!(CoreAgentStepTitleTicketRead),
+                msg!(CoreAgentStepTextTicketRead, ticket = &self.ticket_key),
+            ),
+            (
+                msg!(CoreAgentStepTitleBranchCreated),
+                msg!(
+                    CoreAgentStepTextBranchFrom,
+                    branch = self.branch(),
+                    base = &o.base_branch
                 ),
+            ),
+            (msg!(CoreAgentStepTitleChangesDone), changes),
+            if !self.rules.required_tests.is_empty() {
+                (
+                    msg!(CoreAgentStepTitleRequiredTestsRun),
+                    msg!(
+                        CoreAgentStepTextRequired,
+                        tests = self.rules.required_tests.join(", ")
+                    ),
+                )
+            } else {
+                self.tests_step()
+            },
+            (
+                msg!(CoreAgentStepTitlePrCreated),
+                if o.draft_pr {
+                    msg!(CoreAgentStepTextPrDraft, pr = self.pr_label())
+                } else {
+                    msg!(CoreAgentStepTextPr, pr = self.pr_label())
+                },
             ),
         ]
     }
 
-    pub(super) fn build_steps(&self, texts: [(&'static str, String); STEPS]) -> Vec<Step> {
+    pub(super) fn build_steps(&self, texts: StepTexts) -> Vec<Step> {
         texts
             .into_iter()
             .enumerate()
             .map(|(i, (title, text))| {
                 if i == 0 && self.is_awaiting() {
-                    return Step {
-                        title: "Plan liegt vor".to_string(),
-                        text: if self.violations().is_empty() {
-                            "Wartet auf deine Freigabe – bis dahin ändert der Agent nichts"
+                    return Step::new(
+                        msg!(CoreAgentStepTitlePlanReady),
+                        if self.violations().is_empty() {
+                            msg!(CoreAgentStepTextPlanWait)
                         } else {
-                            "Der Plan verstößt gegen die Regeln des Repos – er lässt sich nicht freigeben"
-                        }
-                        .to_string(),
-                        state: StepState::Active,
-                        usage: None,
-                    };
+                            msg!(CoreAgentStepTextPlanViolation)
+                        },
+                        StepState::Active,
+                        None,
+                    );
                 }
                 if i == self.completed && self.is_diagnosed() {
-                    return Step {
-                        title: "Diagnose liegt vor".to_string(),
-                        text: "Wartet auf deine Entscheidung – bis dahin bleibt der Branch unverändert"
-                            .to_string(),
-                        state: StepState::Active,
-                        usage: None,
-                    };
+                    return Step::new(
+                        msg!(CoreAgentStepTitleDiagnosisReady),
+                        msg!(CoreAgentStepTextDiagnosisWait),
+                        StepState::Active,
+                        None,
+                    );
                 }
                 if i == self.completed && self.is_asking() {
-                    return Step {
-                        title: "Frage an dich".to_string(),
-                        text: "Wartet auf deine Antwort".to_string(),
-                        state: StepState::Active,
-                        usage: None,
-                    };
+                    return Step::new(
+                        msg!(CoreAgentStepTitleQuestion),
+                        msg!(CoreAgentStepTextAnswerWait),
+                        StepState::Active,
+                        None,
+                    );
                 }
                 if i == self.completed && self.is_paused() {
-                    return Step {
-                        title: title.to_string(),
-                        text: "Pausiert – setze den Lauf fort, damit es weitergeht".to_string(),
-                        state: StepState::Active,
-                        usage: None,
-                    };
+                    return Step::new(
+                        title,
+                        msg!(CoreAgentStepTextPaused),
+                        StepState::Active,
+                        None,
+                    );
                 }
                 if i == self.completed
                     && let Some(reason) = self.stop_reason()
                 {
-                    return Step {
-                        title: title.to_string(),
-                        text: format!("Angehalten: {} – erhöhe das Limit oder brich ab", reason.label()),
-                        state: StepState::Active,
-                        usage: None,
-                    };
+                    return Step::new(
+                        title,
+                        msg!(CoreAgentStepTextHalted, reason = reason.label_msg()),
+                        StepState::Active,
+                        None,
+                    );
                 }
                 // If the user answered a question at this step, it is noted there.
                 let text = match self
@@ -215,25 +213,29 @@ impl AgentRun {
                     .iter()
                     .find(|m| m.kind == MessageKind::Answer && m.step == i)
                 {
-                    Some(answer) => format!("{text} · Deine Antwort: {}", answer.text),
+                    Some(answer) => msg!(
+                        CoreAgentStepTextWithAnswer,
+                        text = ArgValue::from(text),
+                        answer = &answer.text
+                    ),
                     None => text,
                 };
-                Step {
-                    title: title.to_string(),
+                Step::new(
+                    title,
                     text,
-                    usage: if i < self.completed {
-                        self.step_usage.get(i).copied()
-                    } else {
-                        None
-                    },
-                    state: if i < self.completed {
+                    if i < self.completed {
                         StepState::Done
                     } else if i == self.completed && self.is_working() {
                         StepState::Active
                     } else {
                         StepState::Pending
                     },
-                }
+                    if i < self.completed {
+                        self.step_usage.get(i).copied()
+                    } else {
+                        None
+                    },
+                )
             })
             .collect()
     }

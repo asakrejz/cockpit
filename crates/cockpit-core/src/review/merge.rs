@@ -51,17 +51,21 @@ pub enum MergeBlocker {
 
 impl MergeBlocker {
     /// Justification for the UI.
-    pub fn reason(self) -> &'static str {
+    pub fn reason_msg(self) -> cockpit_i18n::Msg {
+        use cockpit_i18n::msg;
         match self {
-            MergeBlocker::AlreadyMerged => "Der Pull Request ist schon gemergt.",
-            MergeBlocker::Draft => "Der Pull Request ist noch ein Entwurf.",
-            MergeBlocker::ChecksFailed => "Mindestens ein Check ist fehlgeschlagen.",
-            MergeBlocker::ChecksRunning => "Die Checks laufen noch.",
-            MergeBlocker::ReviewNotSent => "Dein Review ist noch nicht gesendet.",
-            MergeBlocker::ChangesRequested => {
-                "Du hast „Änderungen“ angefordert – erst das Ergebnis ändern."
-            }
+            MergeBlocker::AlreadyMerged => msg!(CoreReviewBlockerAlreadyMerged),
+            MergeBlocker::Draft => msg!(CoreReviewBlockerDraft),
+            MergeBlocker::ChecksFailed => msg!(CoreReviewBlockerChecksFailed),
+            MergeBlocker::ChecksRunning => msg!(CoreReviewBlockerChecksRunning),
+            MergeBlocker::ReviewNotSent => msg!(CoreReviewBlockerNotSent),
+            MergeBlocker::ChangesRequested => msg!(CoreReviewBlockerChanges),
         }
+    }
+
+    /// [`MergeBlocker::reason_msg`] in German.
+    pub fn reason(self) -> String {
+        self.reason_msg().de()
     }
 }
 

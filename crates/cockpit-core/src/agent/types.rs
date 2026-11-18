@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::review::DiffSide;
+use cockpit_i18n::{Lang, Msg};
 
 /// A pull request on GitHub that belongs to the branch of a run.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
@@ -88,8 +89,8 @@ pub enum AgentReport {
 /// What a report of the agent has effected; the workspace books and logs it.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ReportEffect {
-    /// Sentences for the log.
-    pub notes: Vec<String>,
+    /// Sentences for the log, as code and parameters.
+    pub notes: Vec<Msg>,
     /// New consumption for the ledger.
     pub usage: Option<Usage>,
     /// The run has finished.
@@ -130,7 +131,22 @@ pub struct RunMessage {
     pub kind: MessageKind,
     /// Number of completed steps at the time the message arose.
     pub step: usize,
+    /// The text; German for coded messages (readers that only know plain text), the original
+    /// words for what the user or the agent wrote.
     pub text: String,
+    /// The message as code and parameters, for texts the system wrote. Shown in the language of
+    /// the interface; without it `text` is shown as it is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub msg: Option<Msg>,
+}
+
+impl RunMessage {
+    /// The text in `lang`.
+    pub fn text_in(&self, lang: Lang) -> String {
+        self.msg
+            .as_ref()
+            .map_or_else(|| self.text.clone(), |m| m.render(lang))
+    }
 }
 
 /// What a tick has effected.
@@ -153,11 +169,17 @@ pub enum Tick {
 /// What the agent intends to do. Derived from ticket, hints and files.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Plan {
+    /// German text of `summary_msg`.
     pub summary: String,
     pub files: Vec<String>,
+    /// German texts of `steps_msg`.
     pub steps: Vec<String>,
-    /// The rules of the repo that apply to this run (one line per rule).
+    /// The rules of the repo that apply to this run (one line per rule), in German.
     pub rules: Vec<String>,
+    /// The summary as code and parameters (the UI renders it in its language).
+    pub summary_msg: Msg,
+    pub steps_msg: Vec<Msg>,
+    pub rules_msg: Vec<Msg>,
     /// Files of the plan that violate the path rules. As long as there are any, the
     /// plan cannot be approved.
     pub violations: Vec<PathViolation>,
@@ -172,9 +194,47 @@ pub enum StepState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Step {
+    /// German text of `title_msg`.
     pub title: String,
+    /// German text of `text_msg`.
     pub text: String,
+    pub title_msg: Msg,
+    pub text_msg: Msg,
     pub state: StepState,
     /// Consumption of the step once it is completed.
     pub usage: Option<Usage>,
+}
+
+impl Step {
+    pub(super) fn new(title: Msg, text: Msg, state: StepState, usage: Option<Usage>) -> Self {
+        Self {
+            title: title.de(),
+            text: text.de(),
+            title_msg: title,
+            text_msg: text,
+            state,
+            usage,
+        }
+    }
+}
+
+impl Plan {
+    pub(super) fn new(
+        summary: Msg,
+        files: Vec<String>,
+        steps: Vec<Msg>,
+        rules: Vec<Msg>,
+        violations: Vec<PathViolation>,
+    ) -> Self {
+        Self {
+            summary: summary.de(),
+            files,
+            steps: steps.iter().map(Msg::de).collect(),
+            rules: rules.iter().map(Msg::de).collect(),
+            summary_msg: summary,
+            steps_msg: steps,
+            rules_msg: rules,
+            violations,
+        }
+    }
 }
