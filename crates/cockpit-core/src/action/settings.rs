@@ -50,15 +50,9 @@ impl Workspace {
                     return Err(ActionError::Unchanged);
                 }
                 self.language = Some(language);
-<<<<<<< HEAD
                 Ok(vec![Note::coded(
                     Target::Settings,
                     cockpit_i18n::msg!(CoreSettingsLanguageSet, language = language.name()),
-=======
-                Ok(vec![Note::new(
-                    Target::Settings,
-                    format!("Sprache der Oberfläche: {}", language.name()),
->>>>>>> origin/main
                 )])
             }
             Action::SetAgentLimits { limits } => {

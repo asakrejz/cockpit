@@ -95,7 +95,7 @@ fn every_key_is_used_in_the_code() {
                 .unwrap()
                 .to_string_lossy()
                 .to_string();
-            if rel.starts_with("crates/i18n/") && !rel.ends_with("time.rs") {
+            if rel.starts_with("crates/i18n/src/tests") || rel.starts_with("crates/i18n/build.rs") {
                 continue;
             }
             source.push_str(&fs::read_to_string(&file).unwrap());

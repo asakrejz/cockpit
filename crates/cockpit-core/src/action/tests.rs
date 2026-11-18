@@ -247,7 +247,6 @@ fn the_language_is_chosen_and_stored_in_the_workspace() {
     let loaded: Workspace = serde_json::from_str(&saved).unwrap();
     assert_eq!(loaded.language, None);
 }
-<<<<<<< HEAD
 
 #[test]
 fn a_coded_log_entry_reads_in_both_languages_and_keeps_the_german_text() {
@@ -269,5 +268,3 @@ fn a_coded_log_entry_reads_in_both_languages_and_keeps_the_german_text() {
     };
     assert_eq!(old.text_in(Lang::En), "Etwas passiert");
 }
-=======
->>>>>>> origin/main

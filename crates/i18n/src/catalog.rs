@@ -2,11 +2,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-<<<<<<< HEAD
 use crate::Lang;
-=======
-use crate::{Arg, Lang};
->>>>>>> origin/main
 
 pub(crate) fn table(lang: Lang) -> &'static HashMap<String, String> {
     &crate::tables()[&lang]
@@ -66,7 +62,6 @@ pub fn plural_forms() -> [&'static str; 3] {
     ["zero", "one", "other"]
 }
 
-<<<<<<< HEAD
 /// The text for an id (as stored in a [`crate::Msg`]). Unknown ids come back as the id.
 pub(crate) fn text_by_id(lang: Lang, id: &str, args: &[(String, String)]) -> String {
     let entry = |lang: Lang, id: &str| table(lang).get(id).cloned();
@@ -96,9 +91,6 @@ pub(crate) fn text_by_id(lang: Lang, id: &str, args: &[(String, String)]) -> Str
 }
 
 fn fill_strings(raw: &str, args: &[(String, String)]) -> String {
-=======
-pub(crate) fn fill(raw: &str, args: &[Arg]) -> String {
->>>>>>> origin/main
     let mut out = raw.to_string();
     for (name, value) in args {
         out = out.replace(&format!("{{{name}}}"), value);
