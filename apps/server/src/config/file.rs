@@ -58,6 +58,9 @@ pub(super) struct FileAgentRepo {
     /// `claude/{ticket}-{slug}` if missing.
     #[serde(default)]
     pub(super) branch_pattern: Option<String>,
+    /// Language of the pull request title and text: `en` (default) or `de`.
+    #[serde(default)]
+    pub(super) pr_language: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -195,11 +198,22 @@ pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>,
                 reason = Msg::raw(m)
             ))
         })?;
+        let pr_language = match r.pr_language.as_deref().map(str::trim) {
+            None | Some("") => cockpit_i18n::Lang::En,
+            Some(code) => cockpit_i18n::Lang::from_code(code).ok_or_else(|| {
+                ConfigError::Wert(msg!(
+                    ServerConfigReposPrLanguage,
+                    repo = &repo,
+                    value = code
+                ))
+            })?,
+        };
         out.push(AgentRepo {
             repo,
             base_branch: base.to_string(),
             projects,
             branch_pattern: pattern.to_string(),
+            pr_language,
         });
     }
     Ok(out)

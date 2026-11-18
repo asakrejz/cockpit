@@ -398,19 +398,31 @@ impl Workspace {
             .take(20)
             .map(|f| format!("- `{f}`"))
             .collect();
-        let mut body = format!("## Was\n{}\n", run.summary.trim());
+        // The text follows the language of the repo (the team language), not the interface.
+        let lang = run.options.pr_language;
+        let text = |msg: cockpit_i18n::Msg| msg.render(lang);
+        let mut body = format!(
+            "## {}\n{}\n",
+            text(cockpit_i18n::msg!(CorePrWhat)),
+            run.summary.trim()
+        );
         body.push_str(&format!(
-            "\n## Ticket\n{}: {}\n",
-            run.ticket_key, run.ticket_title
+            "\n## {}\n{}: {}\n",
+            text(cockpit_i18n::msg!(CorePrTicket)),
+            run.ticket_key,
+            run.ticket_title
         ));
         if !files.is_empty() {
             body.push_str(&format!(
-                "\n## Geänderte Dateien ({})\n{}\n",
-                run.files.len(),
+                "\n## {}\n{}\n",
+                text(cockpit_i18n::msg!(CorePrFiles, n = run.files.len())),
                 files.join("\n")
             ));
         }
-        body.push_str("\n---\nVom Cockpit-Agenten umgesetzt. Gemergt wird von Hand.\n");
+        body.push_str(&format!(
+            "\n---\n{}\n",
+            text(cockpit_i18n::msg!(CorePrFooter))
+        ));
         Some(PullRequestDraft {
             title: format!("{}: {}", run.ticket_key, run.ticket_title),
             body,

@@ -544,3 +544,23 @@ fn pull_request_limits_default_and_come_from_the_sync_section() {
         assert!(Config::parse(Some(bad), no_env).is_err(), "{bad}");
     }
 }
+
+#[test]
+fn the_pull_request_language_is_english_unless_a_repo_says_german() {
+    let toml = r#"
+        [[agent.repos]]
+        repo = "firma/web"
+        pr_language = "de"
+
+        [[agent.repos]]
+        repo = "firma/app"
+    "#;
+    let c = Config::parse(Some(toml), no_env).unwrap();
+    assert_eq!(c.agent_repos[0].pr_language, cockpit_i18n::Lang::De);
+    assert_eq!(c.agent_repos[1].pr_language, cockpit_i18n::Lang::En);
+    let bad = "[[agent.repos]]\nrepo = \"a/b\"\npr_language = \"fr\"";
+    assert!(matches!(
+        Config::parse(Some(bad), no_env),
+        Err(ConfigError::Wert(_))
+    ));
+}

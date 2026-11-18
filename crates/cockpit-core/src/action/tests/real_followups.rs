@@ -277,6 +277,10 @@ fn the_draft_names_the_ticket_and_the_summary() {
     let w = done_ws();
     let d = w.pull_request_draft("BAU-142").unwrap();
     assert!(d.title.starts_with("BAU-142: "));
+    // The text of the pull request follows the language of the repo; English is the default.
+    assert!(d.body.starts_with("## What\n"));
+    assert!(d.body.contains("## Changed files (1)"));
+    assert!(d.body.contains("Implemented by the Cockpit agent."));
     assert!(d.body.contains("Fokus-Ring ergänzt."));
     assert!(d.body.contains("src/ring.rs"));
     assert_eq!(d.head, "claude/BAU-142-toggle-fokus-ring-fehlt");
@@ -380,4 +384,19 @@ fn the_new_fields_are_backward_compatible() {
         back.run("BAU-142").unwrap().pull_request,
         w.run("BAU-142").unwrap().pull_request
     );
+}
+
+#[test]
+fn the_draft_text_can_be_german_when_the_repo_says_so() {
+    let mut w = done_ws();
+    w.runs
+        .iter_mut()
+        .find(|r| r.key() == "BAU-142")
+        .unwrap()
+        .options
+        .pr_language = cockpit_i18n::Lang::De;
+    let d = w.pull_request_draft("BAU-142").unwrap();
+    assert!(d.body.starts_with("## Was\n"));
+    assert!(d.body.contains("## Geänderte Dateien (1)"));
+    assert!(d.body.contains("Vom Cockpit-Agenten umgesetzt."));
 }

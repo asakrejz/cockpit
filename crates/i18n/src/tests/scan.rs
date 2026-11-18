@@ -192,7 +192,7 @@ fn looks_visible(text: &str) -> bool {
 }
 
 /// All string literals of a source with the text in front of them on the same line.
-fn literals(source: &str) -> Vec<(usize, String, String)> {
+pub(super) fn literals(source: &str) -> Vec<(usize, String, String)> {
     let mut out = Vec::new();
     for (n, line) in source.lines().enumerate() {
         let trimmed = line.trim_start();
@@ -235,7 +235,7 @@ fn literals(source: &str) -> Vec<(usize, String, String)> {
     out
 }
 
-fn production_part(source: &str) -> &str {
+pub(super) fn production_part(source: &str) -> &str {
     source.split("#[cfg(test)]").next().unwrap_or(source)
 }
 

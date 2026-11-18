@@ -28,3 +28,4 @@ server_config.files_not_ignored = Die Datei {file} ist nicht durch .gitignore ge
 server_config.env_loose = Die Datei {path} ist für andere Benutzer lesbar (Rechte {mode}). Sie sollte nur dir gehören (600); beim nächsten Start des Servers wird das korrigiert.
 server_config.env_tracked = Die Datei {file} wird von Git verfolgt. Ein Commit würde deine Zugangsdaten veröffentlichen. Entferne sie mit „git rm --cached {name}“, committe sie nie und tausche die darin liegenden Schlüssel aus, falls sie schon einmal committet wurden.
 server_config.env_not_ignored = Die Datei {file} ist nicht durch .gitignore geschützt. Trage „{name}“ in die .gitignore ein, damit sie nie versehentlich committet wird.
+server_config.repos_pr_language = Repo {repo}: Die Sprache "{value}" für Pull Requests gibt es nicht. Nimm "en" oder "de".

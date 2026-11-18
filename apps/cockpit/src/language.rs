@@ -16,11 +16,19 @@ const OPTIONS: &[(&str, &str)] = &[
 ];
 
 /// Keeps the language signal in line with the workspace: the saved choice wins over the browser.
+/// When nothing is chosen yet, the browser language is saved once, so the server (and with it the
+/// agents) know which language to write in.
 pub fn follow_workspace() {
     let store = use_store();
+    let saved = StoredValue::new(false);
     Effect::new(move |_| {
         let chosen = store.ws.with(|w| w.language);
-        set_lang(chosen.unwrap_or_else(browser_lang));
+        let language = chosen.unwrap_or_else(browser_lang);
+        set_lang(language);
+        if chosen.is_none() && store.loaded.get() && !saved.get_value() {
+            saved.set_value(true);
+            let _ = store.dispatch(Action::SetLanguage { language });
+        }
     });
 }
 

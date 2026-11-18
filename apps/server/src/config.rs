@@ -55,6 +55,7 @@
 //! base_branch = "develop"              # optional, default "main"
 //! projects = ["WEB", "SHOP"]           # Jira projects whose tickets go to this repo
 //! branch_pattern = "feature/{ticket}-{slug}"   # optional, default "claude/{ticket}-{slug}"
+//! pr_language = "de"                           # optional language of PR title and text, default "en"
 //!
 //! [[agent.repos]]
 //! repo = "firma/app"                   # a repo without projects is only a choice

@@ -283,6 +283,9 @@ pub(super) fn agent_repos_write(doc: &mut DocumentMut, input: &AgentReposInput) 
             if !pattern.is_empty() && pattern != cockpit_core::branch::DEFAULT_PATTERN {
                 e.insert("branch_pattern", value(pattern));
             }
+            if r.pr_language != cockpit_i18n::Lang::En {
+                e.insert("pr_language", value(r.pr_language.code()));
+            }
             all.push(e);
         }
         t.insert("repos", Item::ArrayOfTables(all));

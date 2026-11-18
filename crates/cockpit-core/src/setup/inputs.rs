@@ -162,6 +162,7 @@ pub fn agent_repos_read(
             base_branch: base.to_string(),
             projects,
             branch_pattern: pattern.to_string(),
+            pr_language: cockpit_i18n::Lang::En,
         });
     }
     let default = default.trim();

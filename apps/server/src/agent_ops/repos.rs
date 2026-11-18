@@ -81,6 +81,7 @@ impl AppState {
         };
         // Pattern and type come from the configuration and the ticket, never from the request.
         options.branch_pattern = DEFAULT_PATTERN.into();
+        options.pr_language = cockpit_i18n::Lang::En;
         options.branch_type = BranchType::Feature.as_str().into();
         if let Some(chosen) = options.repo.clone().filter(|r| !r.is_empty()) {
             if !repos.allows(&chosen) {
@@ -89,6 +90,7 @@ impl AppState {
             // The base branch always belongs to the repo, whatever the request carries.
             options.base_branch = repos.base_branch(&chosen);
             options.branch_pattern = repos.branch_pattern(&chosen);
+            options.pr_language = repos.pr_language(&chosen);
         } else {
             let ws = self.inner.live.copy();
             let project = ws
@@ -99,6 +101,7 @@ impl AppState {
                 RepoChoice::Rule(r) | RepoChoice::Default(r) => {
                     options.base_branch = repos.base_branch(&r);
                     options.branch_pattern = repos.branch_pattern(&r);
+                    options.pr_language = repos.pr_language(&r);
                     options.repo = Some(r);
                 }
                 RepoChoice::None if self.agent_real() => {
@@ -133,5 +136,6 @@ impl AppState {
             .unwrap_or_default();
         options.base_branch = repos.base_branch(&repo);
         options.branch_pattern = repos.branch_pattern(&repo);
+        options.pr_language = repos.pr_language(&repo);
     }
 }

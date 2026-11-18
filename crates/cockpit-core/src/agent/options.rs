@@ -24,6 +24,10 @@ pub struct AgentOptions {
     /// configuration at the start; whatever a request carries is replaced.
     #[serde(skip_serializing_if = "is_default_pattern")]
     pub branch_pattern: String,
+    /// Language of the pull request title and text. The backend sets it from the repo's
+    /// configuration at the start.
+    #[serde(skip_serializing_if = "crate::repos::is_english")]
+    pub pr_language: cockpit_i18n::Lang,
     /// The `{type}` of the branch: `feature`, `fix` or `chore`. Set by the backend from the
     /// Jira issue type.
     #[serde(skip_serializing_if = "is_feature")]
@@ -44,6 +48,7 @@ impl Default for AgentOptions {
             hint: String::new(),
             base_branch: "main".into(),
             branch_pattern: crate::branch::DEFAULT_PATTERN.into(),
+            pr_language: cockpit_i18n::Lang::En,
             branch_type: crate::branch::BranchType::Feature.as_str().into(),
             plan_first: true,
             repo: None,
