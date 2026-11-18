@@ -57,7 +57,7 @@ pub(super) async fn agent_image_read(State(state): State<AppState>) -> Response 
 pub(super) async fn agent_image_build(State(state): State<AppState>) -> Response {
     match tokio::task::spawn_blocking(move || state.image_build()).await {
         Ok(Ok(b)) => Json(b).into_response(),
-        Ok(Err(m)) => error(StatusCode::UNPROCESSABLE_ENTITY, m),
+        Ok(Err(m)) => error_msg(StatusCode::UNPROCESSABLE_ENTITY, m),
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }
@@ -165,17 +165,20 @@ pub(super) fn action_error(e: ActionFailure) -> Response {
     match e {
         // All rejections by the rules are 422 – without listing individual errors.
         ActionFailure::Rule(e) => error(StatusCode::UNPROCESSABLE_ENTITY, e.message()),
-        ActionFailure::Plan(m) => error(StatusCode::UNPROCESSABLE_ENTITY, m),
+        ActionFailure::Plan(m) => error_msg(StatusCode::UNPROCESSABLE_ENTITY, m),
         // The service has rejected or is not reachable.
-        ActionFailure::Service(m) => error(StatusCode::BAD_GATEWAY, m),
+        ActionFailure::Service(m) => error_msg(StatusCode::BAD_GATEWAY, m),
         ActionFailure::Save(m) => {
             tracing::error!("Workspace not saved: {m}");
-            error(
+            error_msg(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Der Stand konnte nicht gespeichert werden",
+                cockpit_i18n::msg!(ServerAgentSaveFailed),
             )
         }
-        ActionFailure::Intern => error(StatusCode::INTERNAL_SERVER_ERROR, "Interner Fehler"),
+        ActionFailure::Intern => error_msg(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            cockpit_i18n::msg!(ServerAgentInternal),
+        ),
     }
 }
 

@@ -12,6 +12,7 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use cockpit_core::api::ContainerStatus;
+use cockpit_i18n::{Msg, msg};
 
 /// This long `<cli> info` may take before it counts as "not running".
 const INFO_TIME: Duration = Duration::from_secs(8);
@@ -26,17 +27,20 @@ fn chosen(config: Option<&str>, env: Option<&str>) -> Option<(String, &'static s
         .or_else(|| config.map(|l| (l.to_string(), "config")))
 }
 
-fn not_found(cli: &str) -> String {
-    format!(
-        "„{cli}“ steht nicht im PATH. Installiere es (Docker: Rancher Desktop mit Engine „dockerd (moby)“, oder Podman) – die Anleitung steht im Schritt „Container“ – oder wähle die andere Laufzeit."
-    )
+fn not_found(cli: &str) -> Msg {
+    msg!(ServerRunCliNotInPath, cli = cli)
 }
 
-fn not_started(cli: &str) -> String {
+fn not_started(cli: &str) -> Msg {
     match cli {
-        "podman" => "„podman info“ schlägt fehl. Starte die Podman-Maschine, die Anleitung steht im Schritt „Container“.".into(),
-        _ => "„docker info“ schlägt fehl. Starte Rancher Desktop und stelle die Engine auf „dockerd (moby)“ (nicht „containerd“).".into(),
+        "podman" => msg!(ServerRunPodmanNotRunning),
+        _ => msg!(ServerRunDockerNotRunning),
     }
+}
+
+/// The hint as plain German text and as a message.
+fn hint(m: Msg) -> (Option<String>, Option<Msg>) {
+    (Some(m.de()), Some(m))
 }
 
 /// The decision as a pure function: `present(cli)` says whether the program is in the `PATH`,
@@ -49,16 +53,24 @@ pub fn choose(
 ) -> ContainerStatus {
     if let Some((cli, source)) = chosen(config, env) {
         if !present(&cli) {
+            let (hint, hint_msg) = hint(not_found(&cli));
             return ContainerStatus {
-                hint: Some(not_found(&cli)),
+                hint,
+                hint_msg,
                 runtime: Some(cli),
                 engine_running: false,
                 source: source.into(),
             };
         }
         let engine_running = running(&cli);
+        let (hint, hint_msg) = if engine_running {
+            (None, None)
+        } else {
+            hint(not_started(&cli))
+        };
         return ContainerStatus {
-            hint: (!engine_running).then(|| not_started(&cli)),
+            hint,
+            hint_msg,
             runtime: Some(cli),
             engine_running,
             source: source.into(),
@@ -75,26 +87,32 @@ pub fn choose(
                 engine_running: true,
                 source: "detected".into(),
                 hint: None,
+                hint_msg: None,
             };
         }
         first.get_or_insert(cli);
     }
     match first {
-        Some(cli) => ContainerStatus {
-            runtime: Some(cli.into()),
-            engine_running: false,
-            source: "detected".into(),
-            hint: Some(not_started(cli)),
-        },
-        None => ContainerStatus {
-            runtime: None,
-            engine_running: false,
-            source: "none".into(),
-            hint: Some(
-                "Weder podman noch docker im PATH. Installiere Rancher Desktop (Engine „dockerd (moby)“) oder Podman."
-                    .into(),
-            ),
-        },
+        Some(cli) => {
+            let (hint, hint_msg) = hint(not_started(cli));
+            ContainerStatus {
+                runtime: Some(cli.into()),
+                engine_running: false,
+                source: "detected".into(),
+                hint,
+                hint_msg,
+            }
+        }
+        None => {
+            let (hint, hint_msg) = hint(msg!(ServerRunNoCliAtAll));
+            ContainerStatus {
+                runtime: None,
+                engine_running: false,
+                source: "none".into(),
+                hint,
+                hint_msg,
+            }
+        }
     }
 }
 

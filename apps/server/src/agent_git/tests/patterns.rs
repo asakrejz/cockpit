@@ -38,7 +38,9 @@ fn a_branch_of_a_custom_pattern_is_cloned_and_pushed() {
 fn a_branch_outside_the_pattern_is_never_cloned_or_pushed() {
     let a = layout();
     // The default name does not fit the repo's pattern.
-    let e = clone(&a.url, &a.clone, None, &with("claude/BAU-1-x", FEATURE)).unwrap_err();
+    let e = clone(&a.url, &a.clone, None, &with("claude/BAU-1-x", FEATURE))
+        .unwrap_err()
+        .de();
     assert!(e.contains("passt nicht zum Muster"), "{e}");
     assert!(!a.clone.exists());
 
@@ -56,7 +58,8 @@ fn a_branch_outside_the_pattern_is_never_cloned_or_pushed() {
         &RepoRules::default(),
         &wrong,
     )
-    .unwrap_err();
+    .unwrap_err()
+    .de();
     assert!(e.contains("passt nicht zum Muster"), "{e}");
     assert_eq!(heads(&a.remote), ["main"]);
 }
@@ -110,7 +113,7 @@ fn an_existing_foreign_branch_is_never_used() {
     g(&a.remote, &["branch", "feature/BAU-7-fremd", "main"]);
     let foreign = g(&a.remote, &["rev-parse", "feature/BAU-7-fremd"]);
     let r = with("feature/BAU-7-fremd", FEATURE);
-    let e = clone(&a.url, &a.clone, None, &r).unwrap_err();
+    let e = clone(&a.url, &a.clone, None, &r).unwrap_err().de();
     assert!(e.contains("gibt es im Repo schon"), "{e}");
     assert!(!a.clone.exists());
 
@@ -128,7 +131,8 @@ fn an_existing_foreign_branch_is_never_used() {
         &RepoRules::default(),
         &r2,
     )
-    .unwrap_err();
+    .unwrap_err()
+    .de();
     assert!(e.contains("gibt es im Repo schon"), "{e}");
     assert_eq!(g(&a.remote, &["rev-parse", "feature/BAU-7-fremd"]), foreign);
 }

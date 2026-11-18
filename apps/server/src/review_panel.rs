@@ -13,7 +13,10 @@ use cockpit_integrations::github::{panel_commits, panel_diff};
 use serde::Deserialize;
 
 use crate::agent_followup::github_message;
-use crate::app::{AppState, error};
+use cockpit_i18n::{Msg, msg};
+
+use crate::app::AppState;
+use crate::app::error_msg;
 
 #[derive(Deserialize)]
 pub(crate) struct PanelQuery {
@@ -30,7 +33,7 @@ fn valid_sha(sha: &str) -> bool {
 
 impl AppState {
     /// The pull request must be in the synced state.
-    fn panel_known(&self, repo: &str, number: u32) -> Result<(), String> {
+    fn panel_known(&self, repo: &str, number: u32) -> Result<(), Msg> {
         let known = self
             .inner
             .live
@@ -40,23 +43,21 @@ impl AppState {
         if known {
             Ok(())
         } else {
-            Err(format!(
-                "Der Pull Request {repo}#{number} ist nicht bekannt. Gleiche zuerst ab."
+            Err(msg!(
+                ServerAgentPanelUnknownPr,
+                repo = repo,
+                number = number
             ))
         }
     }
 
-    pub(crate) async fn panel_commits(
-        &self,
-        repo: &str,
-        number: u32,
-    ) -> Result<PanelCommits, String> {
+    pub(crate) async fn panel_commits(&self, repo: &str, number: u32) -> Result<PanelCommits, Msg> {
         self.panel_known(repo, number)?;
         let client = self.github_client_async().await?;
         let list = client
             .commits(repo, number)
             .await
-            .map_err(|e| github_message("Die Commits lassen sich nicht lesen", &e))?;
+            .map_err(|e| github_message(msg!(ServerAgentWhatCommitsRead), &e))?;
         Ok(panel_commits(&list))
     }
 
@@ -66,13 +67,13 @@ impl AppState {
         number: u32,
         sha: &str,
         path: Option<&str>,
-    ) -> Result<PanelCommitDiff, String> {
+    ) -> Result<PanelCommitDiff, Msg> {
         self.panel_known(repo, number)?;
         let client = self.github_client_async().await?;
         let detail = client
             .commit(repo, sha)
             .await
-            .map_err(|e| github_message("Der Commit lässt sich nicht lesen", &e))?;
+            .map_err(|e| github_message(msg!(ServerAgentWhatCommitRead), &e))?;
         Ok(panel_diff(&detail, path))
     }
 }
@@ -84,23 +85,20 @@ pub(crate) async fn commits(
 ) -> Response {
     match state.panel_commits(&q.repo, q.number).await {
         Ok(c) => Json(c).into_response(),
-        Err(m) => error(StatusCode::BAD_GATEWAY, m),
+        Err(m) => error_msg(StatusCode::BAD_GATEWAY, m),
     }
 }
 
 /// `GET /api/review/commit?repo=…&number=…&sha=…[&path=…]`
 pub(crate) async fn commit(State(state): State<AppState>, Query(q): Query<PanelQuery>) -> Response {
     let Some(sha) = q.sha.as_deref().filter(|s| valid_sha(s)) else {
-        return error(
-            StatusCode::BAD_REQUEST,
-            "Die Commit-ID (sha) fehlt oder ist ungültig",
-        );
+        return error_msg(StatusCode::BAD_REQUEST, msg!(ServerAgentShaInvalid));
     };
     match state
         .panel_commit_diff(&q.repo, q.number, sha, q.path.as_deref())
         .await
     {
         Ok(d) => Json(d).into_response(),
-        Err(m) => error(StatusCode::BAD_GATEWAY, m),
+        Err(m) => error_msg(StatusCode::BAD_GATEWAY, m),
     }
 }

@@ -218,7 +218,8 @@ fn rules_the_repos_prevent_the_push() {
         &rules,
         &rule("claude/BAU-3-r"),
     )
-    .unwrap_err();
+    .unwrap_err()
+    .de();
     assert!(e.contains("verstoßen gegen die Regeln"), "{e}");
     assert_eq!(heads(&a.remote), ["main"]);
 }
@@ -236,7 +237,8 @@ fn without_commit_and_with_foreign_history_is_not_pushed() {
         &RepoRules::default(),
         &rule("claude/BAU-4-leer"),
     )
-    .unwrap_err();
+    .unwrap_err()
+    .de();
     assert!(e.contains("nichts committet"), "{e}");
 
     // Rewritten history: a branch without the starting state.
@@ -256,7 +258,8 @@ fn without_commit_and_with_foreign_history_is_not_pushed() {
         &RepoRules::default(),
         &rule("claude/BAU-5-fremd2"),
     )
-    .unwrap_err();
+    .unwrap_err()
+    .de();
     assert!(e.contains("baut nicht auf"), "{e}");
     assert_eq!(heads(&b.remote), ["main"]);
 }
@@ -326,7 +329,8 @@ fn clone_fails_in_plain_text() {
         None,
         &rule("claude/BAU-2-x"),
     )
-    .unwrap_err();
+    .unwrap_err()
+    .de();
     assert!(!e.is_empty());
     let evil = BranchRule {
         base: "--evil",
@@ -403,7 +407,9 @@ fn a_followup_never_clones_a_foreign_branch() {
         "claude/a;b",
         "develop",
     ] {
-        let e = clone_branch(&a.url, &a.clone, None, &follow(bad)).unwrap_err();
+        let e = clone_branch(&a.url, &a.clone, None, &follow(bad))
+            .unwrap_err()
+            .de();
         assert!(!e.is_empty(), "{bad}");
     }
     // A branch that does not exist: a plain error, nothing is created.

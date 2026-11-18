@@ -9,6 +9,7 @@ use std::time::Duration;
 
 use cockpit_core::api::{ActionResponse, JiraProject, JiraProjectsResponse, SyncResponse};
 use cockpit_core::{Action, ActionError, Actor, Source};
+use cockpit_i18n::{Msg, msg};
 use cockpit_integrations::github::{GitHubClient, PrLimits};
 use cockpit_integrations::jira::{JiraClient, jql_for_selection};
 use cockpit_integrations::oauth::{Endpoints, Service};
@@ -79,9 +80,9 @@ pub enum ActionFailure {
     /// The rules of the workspace reject it.
     Rule(ActionError),
     /// It cannot be mapped to the outside (e.g. no repo for branches).
-    Plan(String),
+    Plan(Msg),
     /// The service rejected the call or was not reachable. Nothing was changed.
-    Service(String),
+    Service(Msg),
     Save(String),
     Intern,
 }
@@ -181,10 +182,15 @@ impl AppState {
         let Some(client) = client else {
             return Ok(JiraProjectsResponse::default());
         };
-        let client = client.map_err(|e| ActionFailure::Plan(format!("Jira: {e}")))?;
+        let client = client.map_err(|e| {
+            ActionFailure::Plan(msg!(ServerRunJiraError, error = Msg::raw(e.to_string())))
+        })?;
         let projects = client.projects().await.map_err(|e| {
             tracing::warn!("Jira projects: {e}");
-            ActionFailure::Service(format!("Jira liefert keine Projekte: {e}"))
+            ActionFailure::Service(msg!(
+                ServerRunJiraNoProjects,
+                error = Msg::raw(e.to_string())
+            ))
         })?;
         Ok(JiraProjectsResponse {
             active: true,
@@ -220,7 +226,7 @@ impl AppState {
             s.inner.live.apply(&s.inner.db, action, actor, now_ms())
         })
         .await
-        .unwrap_or_else(|_| Err(LiveError::Save("Interner Fehler".into())))
+        .unwrap_or_else(|_| Err(LiveError::Save("Internal error".into())))
     }
 
     /// Applies an action of the interface (as "Du"). If it acts to the outside, the
@@ -262,14 +268,15 @@ impl AppState {
         let services = self.services().await;
         if !services.is_empty() {
             match plane(&before, &afterwards, &action, &services.targets()) {
-                Err(e) => return Err(ActionFailure::Plan(e.0)),
+                Err(e) => return Err(ActionFailure::Plan(Msg::raw(e.0))),
                 Ok(None) => {}
                 Ok(Some(call)) => {
                     services.execute(&call).await.map_err(|e| {
                         tracing::warn!("{}: call failed: {e}", call.service());
-                        ActionFailure::Service(format!(
-                            "{} hat die Aktion nicht ausgeführt: {e}. Es wurde nichts geändert.",
-                            call.service()
+                        ActionFailure::Service(msg!(
+                            ServerRunServiceFailed,
+                            service = call.service().to_string(),
+                            error = Msg::raw(e.to_string())
                         ))
                     })?;
                     inner
@@ -281,8 +288,9 @@ impl AppState {
         }
         match self.local_apply(action, Actor::User).await {
             Ok(answer) => Ok(answer),
-            Err(LiveError::Action(e)) if outside => Err(ActionFailure::Service(format!(
-                "Beim Dienst ausgeführt, lokal aber nicht übernommen ({e}). Der nächste Abgleich holt es nach."
+            Err(LiveError::Action(e)) if outside => Err(ActionFailure::Service(msg!(
+                ServerRunServiceDoneNotApplied,
+                error = Msg::raw(e.to_string())
             ))),
             Err(LiveError::Action(e)) => Err(ActionFailure::Rule(e)),
             Err(LiveError::Save(m)) => Err(ActionFailure::Save(m)),

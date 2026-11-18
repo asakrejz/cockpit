@@ -106,11 +106,11 @@ fn node_modules_and_ds_store_are_ignored() {
 #[test]
 fn missing_folder_or_input_is_an_error() {
     let t = tempfile::tempdir().unwrap();
-    let e = fingerprint(&t.path().join("nope")).unwrap_err();
+    let e = fingerprint(&t.path().join("nope")).unwrap_err().de();
     assert!(e.contains("fehlt"), "{e}");
     layout(t.path());
     std::fs::remove_file(t.path().join("clis/package-lock.json")).unwrap();
-    let e = fingerprint(t.path()).unwrap_err();
+    let e = fingerprint(t.path()).unwrap_err().de();
     assert!(e.contains("clis/package-lock.json"), "{e}");
 }
 

@@ -18,6 +18,7 @@
 
 use std::path::{Path, PathBuf};
 
+use cockpit_i18n::{Msg, msg};
 use sha2::{Digest, Sha256};
 
 /// Fixed name of the agent image (fully named so that Podman does not search the network for it).
@@ -41,11 +42,11 @@ const TREE: &str = "runner/src";
 
 /// The fingerprint of the sources in `dir` (the `apps/agent` folder), lowercase hex.
 /// `Err` with a plain-text reason if an input is missing or unreadable.
-pub fn fingerprint(dir: &Path) -> Result<String, String> {
+pub fn fingerprint(dir: &Path) -> Result<String, Msg> {
     if !dir.is_dir() {
-        return Err(format!(
-            "Der Ordner mit den Agent-Dateien fehlt: {}. Starte Cockpit aus dem Repo-Ordner oder setze COCKPIT_AGENT_DIR.",
-            dir.display()
+        return Err(msg!(
+            ServerRunAgentDirMissing,
+            dir = dir.display().to_string()
         ));
     }
     let mut files: Vec<(String, PathBuf)> = FILES
@@ -54,7 +55,11 @@ pub fn fingerprint(dir: &Path) -> Result<String, String> {
         .collect();
     let tree = dir.join(TREE);
     if !tree.is_dir() {
-        return Err(format!("Der Ordner {TREE} fehlt in {}.", dir.display()));
+        return Err(msg!(
+            ServerRunAgentTreeMissing,
+            tree = TREE,
+            dir = dir.display().to_string()
+        ));
     }
     collect(&tree, TREE, &mut files)?;
     files.sort_by(|a, b| a.0.cmp(&b.0));
@@ -62,8 +67,13 @@ pub fn fingerprint(dir: &Path) -> Result<String, String> {
     let mut h = Sha256::new();
     h.update(format!("cockpit-agent-image\ncontract={CONTRACT}\n"));
     for (name, path) in files {
-        let bytes = std::fs::read(&path)
-            .map_err(|e| format!("Die Datei {name} ist nicht lesbar ({e})."))?;
+        let bytes = std::fs::read(&path).map_err(|e| {
+            msg!(
+                ServerRunFileUnreadable,
+                name = name.as_str(),
+                error = e.to_string()
+            )
+        })?;
         let bytes = normalize(&bytes);
         h.update(name.as_bytes());
         h.update([0]);
@@ -89,11 +99,12 @@ fn normalize(bytes: &[u8]) -> Vec<u8> {
     out
 }
 
-fn collect(dir: &Path, rel: &str, out: &mut Vec<(String, PathBuf)>) -> Result<(), String> {
-    let entries =
-        std::fs::read_dir(dir).map_err(|e| format!("Der Ordner {rel} ist nicht lesbar ({e})."))?;
+fn collect(dir: &Path, rel: &str, out: &mut Vec<(String, PathBuf)>) -> Result<(), Msg> {
+    let unreadable =
+        |e: std::io::Error| msg!(ServerRunDirUnreadable, dir = rel, error = e.to_string());
+    let entries = std::fs::read_dir(dir).map_err(unreadable)?;
     for entry in entries {
-        let entry = entry.map_err(|e| format!("Der Ordner {rel} ist nicht lesbar ({e})."))?;
+        let entry = entry.map_err(unreadable)?;
         let name = entry.file_name().to_string_lossy().into_owned();
         if name == "node_modules" || name == ".DS_Store" {
             continue;

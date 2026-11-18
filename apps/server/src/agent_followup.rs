@@ -8,10 +8,11 @@
 //!   pull request for the branch is found and linked instead of creating a second one.
 //!   Nothing here merges, changes the draft state or requests reviews.
 //!
-//! Errors come back as German sentences that say what to do; a token never appears in them.
+//! Errors come back as messages (code and parameters) that say what to do; a token never appears in them.
 
 use cockpit_core::api::PullRequestPreview;
 use cockpit_core::{Action, Actor, FollowupTask, PullRequestRef, RunKind, Workspace};
+use cockpit_i18n::{Msg, msg};
 use cockpit_integrations::Error as ServiceError;
 use cockpit_integrations::github::GitHubClient;
 use cockpit_integrations::github::dto::PullSummary;
@@ -22,50 +23,53 @@ use crate::config::DEFAULT_GITHUB_API;
 use crate::live::Error as LiveError;
 use crate::sync::ActionFailure;
 
-/// A sentence for the person: what failed at GitHub and what to do about it.
-pub(crate) fn github_message(what: &str, e: &ServiceError) -> String {
+/// A message for the person: what failed at GitHub and what to do about it.
+pub(crate) fn github_message(what: Msg, e: &ServiceError) -> Msg {
     match e {
-        ServiceError::NotSignedIn => format!(
-            "{what}: GitHub hat den Zugang abgelehnt (401). Melde dich unter „Einrichten“ › „GitHub“ neu an oder trage einen gültigen Token ein."
+        ServiceError::NotSignedIn => msg!(ServerAgentGithub401, what = what),
+        ServiceError::NoPermission => msg!(ServerAgentGithub403, what = what),
+        ServiceError::NotFound => msg!(ServerAgentGithub404, what = what),
+        ServiceError::Rejected(m) if m.is_empty() => msg!(ServerAgentGithub422, what = what),
+        ServiceError::Rejected(m) => {
+            msg!(
+                ServerAgentGithub422Detail,
+                what = what,
+                detail = Msg::raw(m)
+            )
+        }
+        other => msg!(
+            ServerAgentGithubOther,
+            what = what,
+            error = Msg::raw(other.to_string())
         ),
-        ServiceError::NoPermission => format!(
-            "{what}: GitHub erlaubt das nicht (403). Der Zugang braucht für dieses Repo die Berechtigung „Pull requests“ (lesen und schreiben) und „Checks“ (lesen)."
-        ),
-        ServiceError::NotFound => format!(
-            "{what}: GitHub kennt das Repo, den Branch oder den Pull Request nicht (404). Prüfe das Repo unter „Einrichten“ › „GitHub“."
-        ),
-        ServiceError::Rejected(m) => format!(
-            "{what}: GitHub lehnt die Anfrage ab (422){}",
-            if m.is_empty() {
-                String::new()
-            } else {
-                format!(": {m}")
-            }
-        ),
-        other => format!("{what}: {other}"),
     }
 }
 
 impl AppState {
     /// The client for the GitHub of the person (sign-in via OAuth or token). Blocking (.env file).
-    pub(crate) fn github_client(&self) -> Result<GitHubClient, String> {
-        let token = self.github_access().ok_or_else(|| {
-            "GitHub ist nicht verbunden. Melde dich unter „Einrichten“ › „GitHub“ an.".to_string()
-        })?;
+    pub(crate) fn github_client(&self) -> Result<GitHubClient, Msg> {
+        let token = self
+            .github_access()
+            .ok_or_else(|| msg!(ServerAgentGithubNotConnected))?;
         let sources = self.sources();
         let api = sources
             .github
             .as_ref()
             .map_or(DEFAULT_GITHUB_API, |g| g.api_url.as_str());
-        GitHubClient::new(api, token).map_err(|e| format!("Der GitHub-Zugang ist ungültig: {e}"))
+        GitHubClient::new(api, token).map_err(|e| {
+            msg!(
+                ServerAgentGithubAccessInvalid,
+                error = Msg::raw(e.to_string())
+            )
+        })
     }
 
-    pub(crate) async fn github_client_async(&self) -> Result<GitHubClient, String> {
+    pub(crate) async fn github_client_async(&self) -> Result<GitHubClient, Msg> {
         self.oauth_refresh().await;
         let s = self.clone();
         tokio::task::spawn_blocking(move || s.github_client())
             .await
-            .map_err(|_| "Interner Fehler".to_string())?
+            .map_err(|_| msg!(ServerAgentInternal))?
     }
 
     /// Reads the inputs of a follow-up job from GitHub. `Ok(None)` for jobs that need none
@@ -75,30 +79,35 @@ impl AppState {
         &self,
         ws: &Workspace,
         kind: &RunKind,
-    ) -> Result<Option<FollowupJob>, String> {
+    ) -> Result<Option<FollowupJob>, Msg> {
         let RunKind::Followup { review, task } = kind else {
             return Ok(None);
         };
-        let link = ws.sync.pr(review).ok_or_else(|| {
-            format!("Der Pull Request {review} ist noch nicht mit GitHub abgeglichen. Gleiche zuerst ab.")
-        })?;
+        let link = ws
+            .sync
+            .pr(review)
+            .ok_or_else(|| msg!(ServerAgentPrNotSynced, review = review.to_string()))?;
         // The pull request says which repo it lives in; the agent must be allowed to work there.
         let repo = link.repo.clone();
         let number = link.number;
         if !self.agent_repos().allows(&repo) {
-            return Err(format!(
-                "Der Pull Request {review} gehört zu {repo}, der Agent darf dort aber nicht arbeiten. Trage das Repo unter „Einrichten“ › „GitHub“ ein."
+            return Err(msg!(
+                ServerAgentPrOtherRepo,
+                review = review.to_string(),
+                repo = repo
             ));
         }
         let client = self.github_client_async().await?;
         match task {
             FollowupTask::ReviewThreads => {
-                let input = client.review_input(&repo, number).await.map_err(|e| {
-                    github_message("Die Review-Kommentare lassen sich nicht lesen", &e)
-                })?;
+                let input = client
+                    .review_input(&repo, number)
+                    .await
+                    .map_err(|e| github_message(msg!(ServerAgentWhatReviewCommentsRead), &e))?;
                 if input.is_empty() {
-                    return Err(format!(
-                        "Zu #{review} gibt es keine Review-Kommentare, die der Agent umsetzen könnte."
+                    return Err(msg!(
+                        ServerAgentNoReviewComments,
+                        review = review.to_string()
                     ));
                 }
                 Ok(Some(FollowupJob {
@@ -114,11 +123,9 @@ impl AppState {
                 let checks = client
                     .failed_checks(&repo, number)
                     .await
-                    .map_err(|e| github_message("Die Checks lassen sich nicht lesen", &e))?;
+                    .map_err(|e| github_message(msg!(ServerAgentWhatChecksRead), &e))?;
                 if checks.is_empty() {
-                    return Err(format!(
-                        "Bei GitHub ist in #{review} gerade kein Check rot (vielleicht läuft schon ein neuer Durchlauf). Gleiche ab und versuche es erneut."
-                    ));
+                    return Err(msg!(ServerAgentNoRedCheck, review = review.to_string()));
                 }
                 Ok(Some(FollowupJob {
                     kind: task.id(),
@@ -154,8 +161,10 @@ impl AppState {
     // ---------- Pull request ----------
 
     /// The finished real run behind `key`, or the sentence why there is no pull request to create.
-    fn pull_request_run(&self, ws: &Workspace, key: &str) -> Result<(), String> {
-        ws.check_pull_request(key).map_err(|e| e.message())
+    fn pull_request_run(&self, ws: &Workspace, key: &str) -> Result<(), Msg> {
+        // The text comes from `cockpit-core` and has no code yet.
+        ws.check_pull_request(key)
+            .map_err(|e| Msg::raw(e.message()))
     }
 
     /// `GET /api/agent/pull-request?run=<key>`: title, text and branches as they would be created,
@@ -167,11 +176,11 @@ impl AppState {
         let ws = self.inner.live.copy();
         let draft = ws
             .pull_request_draft(key)
-            .ok_or_else(|| ActionFailure::Plan("Diesen Lauf gibt es nicht.".into()))?;
+            .ok_or_else(|| ActionFailure::Plan(msg!(ServerAgentRunNotFound)))?;
         let run = ws.runs.iter().find(|r| r.key() == key);
         // The pull request goes into the repo the run worked in – not into "the" configured repo.
         let repo = run
-            .ok_or_else(|| ActionFailure::Plan("Diesen Lauf gibt es nicht.".into()))
+            .ok_or_else(|| ActionFailure::Plan(msg!(ServerAgentRunNotFound)))
             .and_then(|r| self.run_repo(r).map_err(ActionFailure::Plan))?;
         let mut preview = PullRequestPreview {
             repo: repo.clone(),
@@ -195,7 +204,7 @@ impl AppState {
             .pull_for_branch(&repo, &draft.head)
             .await
             .map_err(|e| {
-                ActionFailure::Service(github_message("GitHub liefert den Pull Request nicht", &e))
+                ActionFailure::Service(github_message(msg!(ServerAgentWhatPullRead), &e))
             })?;
         preview.existing = found.map(|p| link(&p, true));
         Ok(preview)
@@ -251,9 +260,9 @@ impl AppState {
             .map_err(ActionFailure::Plan)?;
         let service = |e: ServiceError| {
             tracing::warn!("Pull Request: {e}");
-            ActionFailure::Service(format!(
-                "{} Es wurde nichts geändert.",
-                github_message("Der Pull Request wurde nicht angelegt", &e)
+            ActionFailure::Service(msg!(
+                ServerAgentNothingChanged,
+                text = github_message(msg!(ServerAgentWhatPullNotCreated), &e)
             ))
         };
         // Idempotent: an open pull request for the branch is linked, not duplicated.
@@ -301,7 +310,7 @@ impl AppState {
                 .apply(&s.inner.db, applied, Actor::User, now_ms())
         })
         .await
-        .unwrap_or_else(|_| Err(LiveError::Save("Interner Fehler".into())));
+        .unwrap_or_else(|_| Err(LiveError::Save("Internal error".into())));
         match result {
             Ok(answer) => {
                 // The new pull request should show up as a review soon.
@@ -313,8 +322,9 @@ impl AppState {
                 });
                 Ok(answer)
             }
-            Err(LiveError::Action(e)) => Err(ActionFailure::Service(format!(
-                "Bei GitHub erledigt, lokal aber nicht übernommen ({e}). Der nächste Abgleich holt es nach."
+            Err(LiveError::Action(e)) => Err(ActionFailure::Service(msg!(
+                ServerAgentGithubDoneNotApplied,
+                error = Msg::raw(e.to_string())
             ))),
             Err(LiveError::Save(m)) => Err(ActionFailure::Save(m)),
         }
