@@ -144,17 +144,21 @@ fn merge_items(ws: &mut Workspace, source: Source, remote: &[Item], changes: &mu
             ws.sync.items.push(r.id.clone());
         }
     }
-    collapse(added, changes, "neue Einträge");
-    collapse(removed, changes, "Einträge nicht mehr dabei");
+    collapse(added, changes, |n| {
+        cockpit_i18n::msg!(CoreSyncSummaryAdded, n = n)
+    });
+    collapse(removed, changes, |n| {
+        cockpit_i18n::msg!(CoreSyncSummaryRemoved, n = n)
+    });
 }
 
 /// Up to [`MAX_SINGLE`] individually, above that a collective line (the first change as carrier).
-fn collapse(list: Vec<Change>, out: &mut Vec<Change>, noun: &str) {
+fn collapse(list: Vec<Change>, out: &mut Vec<Change>, summary: fn(usize) -> cockpit_i18n::Msg) {
     if list.len() <= MAX_SINGLE {
         out.extend(list);
         return;
     }
-    out.push(Change::Summary(format!("{} {noun}", list.len())));
+    out.push(Change::Summary(summary(list.len())));
 }
 
 /// The local entry `old` gets the values of the service; local state stays.

@@ -164,7 +164,7 @@ pub(super) async fn jira_projects(State(state): State<AppState>) -> Response {
 pub(super) fn action_error(e: ActionFailure) -> Response {
     match e {
         // All rejections by the rules are 422 – without listing individual errors.
-        ActionFailure::Rule(e) => error(StatusCode::UNPROCESSABLE_ENTITY, e.message()),
+        ActionFailure::Rule(e) => error_msg(StatusCode::UNPROCESSABLE_ENTITY, e.msg()),
         ActionFailure::Plan(m) => error(StatusCode::UNPROCESSABLE_ENTITY, m),
         // The service has rejected or is not reachable.
         ActionFailure::Service(m) => error(StatusCode::BAD_GATEWAY, m),

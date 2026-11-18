@@ -1,3 +1,5 @@
+use cockpit_i18n::msg;
+
 use super::*;
 
 impl Workspace {
@@ -13,9 +15,9 @@ impl Workspace {
                     return Err(ActionError::Unchanged);
                 }
                 self.mark_done(&item);
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Item(item),
-                    format!("{key} als erledigt markiert"),
+                    msg!(CoreActionLogMarkDone, key = key),
                 )])
             }
             Action::SetStatus { item, status } => {
@@ -27,17 +29,21 @@ impl Workspace {
                     _ => {}
                 }
                 self.set_status(&item, status);
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Item(item),
-                    format!("Status von {key} auf „{}“ gesetzt", status_label(status)),
+                    msg!(
+                        CoreActionLogStatusSet,
+                        key = key,
+                        status = labels::status(status)
+                    ),
                 )])
             }
             Action::CreateBranch { item } => {
                 let key = self.key_of(&item)?;
                 let name = self.create_branch(&item).ok_or(ActionError::BranchExists)?;
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Item(item),
-                    format!("Branch {name} für {key} erstellt"),
+                    msg!(CoreActionLogBranchCreated, name = name, key = key),
                 )])
             }
             Action::Reply { item, text } => {
@@ -45,9 +51,9 @@ impl Workspace {
                 if !self.reply(&item, &text) {
                     return Err(ActionError::InvalidInput);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Item(item),
-                    format!("Antwort an {key} gesendet"),
+                    msg!(CoreActionLogReplySent, key = key),
                 )])
             }
             Action::Snooze { item, until_ms } => {
@@ -57,19 +63,19 @@ impl Workspace {
                 }
                 self.snooze(&item, until_ms);
                 let text = match until_ms {
-                    Some(_) => format!("{key} zurückgestellt"),
-                    None => format!("{key} zurückgestellt, bis sich etwas ändert"),
+                    Some(_) => msg!(CoreActionLogSnoozed, key = key),
+                    None => msg!(CoreActionLogSnoozedUntilChange, key = key),
                 };
-                Ok(vec![Note::new(Target::Item(item), text)])
+                Ok(vec![Note::coded(Target::Item(item), text)])
             }
             Action::Unsnooze { item } => {
                 let key = self.key_of(&item)?;
                 if !self.unsnooze(&item) {
                     return Err(ActionError::NothingToDo);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Item(item),
-                    format!("{key} aus der Zurückstellung geholt"),
+                    msg!(CoreActionLogUnsnoozed, key = key),
                 )])
             }
             Action::WakeSnoozed => {
@@ -81,7 +87,7 @@ impl Workspace {
                     .into_iter()
                     .map(|id| {
                         let key = self.item(&id).map_or(id.clone(), |i| i.key.clone());
-                        Note::new(Target::Item(id), format!("{key} ist zurück in der Inbox"))
+                        Note::coded(Target::Item(id), msg!(CoreActionLogWoke, key = key))
                             .by(Actor::System)
                     })
                     .collect())
@@ -90,14 +96,10 @@ impl Workspace {
                 if !self.set_rule(rule, enabled) {
                     return Err(ActionError::Unchanged);
                 }
-                Ok(vec![Note::general(format!(
-                    "Regel „{}“ {}",
-                    rule.label(),
-                    if enabled {
-                        "eingeschaltet"
-                    } else {
-                        "ausgeschaltet"
-                    }
+                Ok(vec![Note::coded_general(msg!(
+                    CoreActionLogRule,
+                    rule = labels::rule(rule),
+                    state = labels::on_off(enabled)
                 ))])
             }
             Action::EditTicket {
@@ -119,15 +121,12 @@ impl Workspace {
                     return Err(ActionError::Unchanged);
                 }
                 self.edit_ticket(&item, &title, &description);
-                let what = match (title_changed, description_changed) {
-                    (true, true) => "Titel und Beschreibung",
-                    (true, false) => "Titel",
-                    _ => "Beschreibung",
+                let text = match (title_changed, description_changed) {
+                    (true, true) => msg!(CoreActionLogEditedBoth, key = key),
+                    (true, false) => msg!(CoreActionLogEditedTitle, key = key),
+                    _ => msg!(CoreActionLogEditedDescription, key = key),
                 };
-                Ok(vec![Note::new(
-                    Target::Item(item),
-                    format!("{what} von {key} geändert"),
-                )])
+                Ok(vec![Note::coded(Target::Item(item), text)])
             }
             Action::AssignTicket { item, person } => {
                 let key = self.key_of(&item)?;
@@ -143,11 +142,11 @@ impl Workspace {
                 }
                 self.assign(&item, &person);
                 let text = if person == Person::me() {
-                    format!("{key} dir zugewiesen")
+                    msg!(CoreActionLogAssignedMe, key = key)
                 } else {
-                    format!("{key} an {} zugewiesen", person.name)
+                    msg!(CoreActionLogAssigned, key = key, name = &person.name)
                 };
-                Ok(vec![Note::new(Target::Item(item), text)])
+                Ok(vec![Note::coded(Target::Item(item), text)])
             }
             Action::SetPriority { item, priority } => {
                 let key = self.key_of(&item)?;
@@ -157,9 +156,13 @@ impl Workspace {
                     _ => {}
                 }
                 self.set_priority(&item, priority);
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Item(item),
-                    format!("Priorität von {key} auf „{}“ gesetzt", priority.label()),
+                    msg!(
+                        CoreActionLogPrioritySet,
+                        key = key,
+                        priority = labels::priority(priority)
+                    ),
                 )])
             }
             Action::LinkPr { item, pr } => {
@@ -171,9 +174,9 @@ impl Workspace {
                     LinkError::Same => ActionError::Unchanged,
                     e => ActionError::Link(e),
                 })?;
-                let mut notes = vec![Note::new(
+                let mut notes = vec![Note::coded(
                     Target::Item(item),
-                    format!("{key} mit {pr} verknüpft"),
+                    msg!(CoreActionLogLinked, key = key, pr = pr.to_string()),
                 )];
                 notes.extend(status_notes(self.follow_status()));
                 Ok(notes)
@@ -184,9 +187,9 @@ impl Workspace {
                     return Err(ActionError::NotATicket);
                 }
                 let number = self.unlink_pr(&item).ok_or(ActionError::NothingToDo)?;
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Item(item),
-                    format!("Verknüpfung von {key} mit {number} gelöst"),
+                    msg!(CoreActionLogUnlinked, key = key, pr = number.to_string()),
                 )])
             }
             Action::AutoLinkPrs => {
@@ -197,9 +200,9 @@ impl Workspace {
                 let mut notes: Vec<Note> = linked
                     .into_iter()
                     .map(|(id, key, number)| {
-                        Note::new(
+                        Note::coded(
                             Target::Item(id),
-                            format!("{key} automatisch mit {number} verknüpft"),
+                            msg!(CoreActionLogAutoLinked, key = key, pr = number.to_string()),
                         )
                         .by(Actor::System)
                     })
@@ -212,9 +215,9 @@ impl Workspace {
                 if !self.request_review(&review) {
                     return Err(ActionError::Unchanged);
                 }
-                let mut notes = vec![Note::new(
+                let mut notes = vec![Note::coded(
                     Target::Review(review.clone()),
-                    format!("Review für {review} angefragt"),
+                    msg!(CoreActionLogReviewRequested, review = review.to_string()),
                 )];
                 notes.extend(status_notes(self.follow_status()));
                 Ok(notes)
@@ -231,16 +234,9 @@ impl Workspace {
                 if !self.set_status_follows_pr(enabled) {
                     return Err(ActionError::Unchanged);
                 }
-                let mut notes = vec![Note::new(
+                let mut notes = vec![Note::coded(
                     Target::Settings,
-                    format!(
-                        "Status folgt dem Pull Request: {}",
-                        if enabled {
-                            "eingeschaltet"
-                        } else {
-                            "ausgeschaltet"
-                        }
-                    ),
+                    msg!(CoreActionLogStatusFollows, state = labels::on_off(enabled)),
                 )];
                 // Switched on again: whatever has moved in the meantime is brought in line.
                 notes.extend(status_notes(self.follow_status()));
@@ -257,24 +253,24 @@ impl Workspace {
                     return Err(ActionError::InvalidInput);
                 }
                 let text = match &project {
-                    Some(p) => format!("Jira-Projekt gewählt: {p}"),
-                    None => "Jira-Projekt: alle".to_string(),
+                    Some(p) => msg!(CoreActionLogJiraProject, project = p),
+                    None => msg!(CoreActionLogJiraProjectAll),
                 };
                 if !self.set_jira_project(project) {
                     return Err(ActionError::Unchanged);
                 }
-                Ok(vec![Note::new(Target::Settings, text)])
+                Ok(vec![Note::coded(Target::Settings, text)])
             }
             Action::SetInboxFilter { filter } => {
                 let text = if filter.is_default() {
-                    "Filter zurückgesetzt"
+                    msg!(CoreActionLogFilterReset)
                 } else {
-                    "Filter angewendet"
+                    msg!(CoreActionLogFilterApplied)
                 };
                 if !self.set_inbox_filter(filter) {
                     return Err(ActionError::Unchanged);
                 }
-                Ok(vec![Note::new(Target::Settings, text.to_string())])
+                Ok(vec![Note::coded(Target::Settings, text)])
             }
             _ => unreachable!("inbox: dispatched by perform"),
         }

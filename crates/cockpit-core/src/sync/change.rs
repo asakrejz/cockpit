@@ -1,5 +1,7 @@
 //! What changed from outside, as the log shows it.
 
+use cockpit_i18n::{Msg, msg};
+
 use super::*;
 
 /// What changed from outside during the sync. The log entries arise from it.
@@ -47,43 +49,58 @@ pub enum Change {
         source: Source,
     },
     /// Collective line when many entries come or go at once.
-    Summary(String),
+    Summary(Msg),
 }
 
 impl Change {
-    /// Short German sentence for the log.
-    pub fn text(&self) -> String {
+    /// The sentence for the log as code and parameters.
+    pub fn msg(&self) -> Msg {
         match self {
-            Change::ItemAdded { key, title, .. } => format!("{key} neu: {title}"),
-            Change::ItemRemoved { key, .. } => {
-                format!("{key} ist nicht mehr dabei (erledigt oder entfernt)")
+            Change::ItemAdded { key, title, .. } => {
+                msg!(CoreSyncItemAdded, key = key, title = title)
             }
-            Change::NewComment { key, author, .. } => format!("{author} hat {key} kommentiert"),
-            Change::StatusChanged { key, to, .. } => {
-                format!(
-                    "Status von {key} ist jetzt „{}“ (von außen geändert)",
-                    label(*to)
-                )
+            Change::ItemRemoved { key, .. } => msg!(CoreSyncItemRemoved, key = key),
+            Change::NewComment { key, author, .. } => {
+                msg!(CoreSyncNewComment, author = author, key = key)
             }
-            Change::ChecksChanged { number, to, .. } => {
-                format!("Checks für {number}: {}", to.label())
-            }
+            Change::StatusChanged { key, to, .. } => msg!(
+                CoreSyncStatusChanged,
+                key = key,
+                status = crate::action::labels::status(*to)
+            ),
+            Change::ChecksChanged { number, to, .. } => msg!(
+                CoreSyncChecksChanged,
+                number = number.to_string(),
+                state = checks_msg(*to)
+            ),
             Change::ChangesRequested { number, .. } => {
-                format!("Änderungen angefordert in {number}")
+                msg!(CoreSyncChangesRequested, number = number.to_string())
             }
             Change::DraftDropped {
                 number,
                 place,
                 text,
-            } => format!(
-                "Dein Entwurf an {place} in {number} passt nicht mehr zum geänderten Diff und entfällt: „{text}“"
+            } => msg!(
+                CoreSyncDraftDropped,
+                place = place,
+                number = number.to_string(),
+                text = text
             ),
-            Change::SourceProblem { source, problem } => {
-                format!("{}: {}", source.label(), problem.text())
+            Change::SourceProblem { source, problem } => msg!(
+                CoreSyncSourceProblem,
+                source = Msg::raw(source.label()),
+                problem = problem.msg()
+            ),
+            Change::SourceRecovered { source } => {
+                msg!(CoreSyncSourceRecovered, source = Msg::raw(source.label()))
             }
-            Change::SourceRecovered { source } => format!("{}: wieder verbunden", source.label()),
-            Change::Summary(text) => text.clone(),
+            Change::Summary(msg) => msg.clone(),
         }
+    }
+
+    /// Short German sentence for the log (for readers without a language).
+    pub fn text(&self) -> String {
+        self.msg().de()
     }
 
     pub fn target(&self) -> Option<Target> {
@@ -102,9 +119,10 @@ impl Change {
     }
 }
 
-pub(super) fn label(status: TicketStatus) -> &'static str {
-    TicketStatus::OPTIONS
-        .iter()
-        .find(|(id, _)| *id == status.id())
-        .map_or("", |(_, l)| l)
+fn checks_msg(checks: Checks) -> Msg {
+    match checks {
+        Checks::Passed => msg!(CoreSyncChecksPassed),
+        Checks::Failed => msg!(CoreSyncChecksFailed),
+        Checks::Running => msg!(CoreSyncChecksRunning),
+    }
 }

@@ -142,7 +142,13 @@ fn a_review_number_from_the_demo_or_simulation_does_not_leak_into_real_state() {
 fn many_new_entries_become_one_log_line() {
     let many: Vec<Item> = (1..=8).map(|n| ticket(&format!("ABC-{n}"), "t")).collect();
     let (_, changes) = merge(&Workspace::default(), &jira(many), T);
-    assert_eq!(changes, vec![Change::Summary("8 neue Einträge".into())]);
+    assert_eq!(
+        changes,
+        vec![Change::Summary(cockpit_i18n::msg!(
+            CoreSyncSummaryAdded,
+            n = 8
+        ))]
+    );
 }
 
 #[test]

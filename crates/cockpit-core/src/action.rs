@@ -16,7 +16,7 @@ use crate::demo;
 use crate::model::{Checks, Item, Person, PrKey, Priority, TicketStatus};
 use crate::notify::{Channel, NotifyReason, QuietHours};
 use crate::review::{Decision, MergeBlocker, MergeMethod, SendError, Verdict};
-use crate::rules::{PathViolation, RepoRules};
+use crate::rules::{PathViolation, RepoRules, ViolationKind};
 use crate::sync::{self, Remote};
 use crate::usage::{AgentLimits, StopReason, format_euro};
 use crate::workspace::{AgentError, LinkError, ResumeError, StatusChange, Workspace};
@@ -336,6 +336,7 @@ impl Action {
 mod agent;
 mod error;
 mod inbox;
+pub(crate) mod labels;
 mod note;
 mod review;
 mod settings;
@@ -344,7 +345,7 @@ mod tests;
 
 pub use error::ActionError;
 use error::agent_error;
-use note::{Note, plural, status_label, status_notes};
+use note::{Note, status_notes};
 
 mod log;
 pub use log::*;

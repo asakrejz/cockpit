@@ -120,7 +120,7 @@ fn Limits() -> impl IntoView {
         message.set(Some(
             match store.dispatch(Action::SetAgentLimits { limits }) {
                 Ok(_) => (t!(LimitsSaved), false),
-                Err(e) => (e.message(), true),
+                Err(e) => (e.msg().render(feature_ui::lang_untracked()), true),
             },
         ));
     };
@@ -219,7 +219,7 @@ fn Rules(repo: String) -> impl IntoView {
         });
         message.set(Some(match result {
             Ok(_) => (t!(LimitsRulesSaved), false),
-            Err(e) => (e.message(), true),
+            Err(e) => (e.msg().render(feature_ui::lang_untracked()), true),
         }));
     };
 

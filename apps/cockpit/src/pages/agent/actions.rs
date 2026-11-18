@@ -8,7 +8,11 @@ use super::context::AgentCtx;
 impl AgentCtx {
     /// Shows the message of the last action that did not work (or clears it).
     fn note_result(self, result: Result<cockpit_core::Applied, cockpit_core::ActionError>) {
-        self.problem.set(result.err().map(|e| e.message()));
+        self.problem.set(
+            result
+                .err()
+                .map(|e| e.msg().render(feature_ui::lang_untracked())),
+        );
     }
 
     pub(super) fn start(self) {

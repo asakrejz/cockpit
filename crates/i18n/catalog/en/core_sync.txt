@@ -1,0 +1,20 @@
+# What the sync reports from outside, and why a source does not answer.
+core_sync.item_added = {key} is new: {title}
+core_sync.item_removed = {key} is no longer there (done or removed)
+core_sync.new_comment = {author} commented on {key}
+core_sync.status_changed = Status of {key} is now "{status}" (changed from outside)
+core_sync.checks_changed = Checks for {number}: {state}
+core_sync.changes_requested = Changes requested in {number}
+core_sync.draft_dropped = Your draft at {place} in {number} no longer fits the changed diff and is dropped: "{text}"
+core_sync.source_problem = {source}: {problem}
+core_sync.source_recovered = {source}: connected again
+core_sync.summary_added = {n} new entries
+core_sync.summary_removed = {n} entries no longer there
+core_sync.checks_passed = Checks passed
+core_sync.checks_failed = Checks failed
+core_sync.checks_running = Checks running
+core_sync.problem_unauthorized = Token rejected: expired or revoked. Renew it under "Set up"
+core_sync.problem_no_permission = The token lacks a permission. Check under "Set up" what it may do
+core_sync.problem_rate_limited_paused = Quota used up. The sync pauses
+core_sync.problem_rate_limited = Quota used up
+core_sync.problem_offline = No connection to the service
