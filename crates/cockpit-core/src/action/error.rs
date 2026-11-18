@@ -1,3 +1,5 @@
+use cockpit_i18n::{ArgValue, Msg, msg};
+
 use super::*;
 
 /// Why an action was not applied. The workspace then stays unchanged.
@@ -53,108 +55,82 @@ pub enum ActionError {
 }
 
 impl ActionError {
-    /// Explanation for the UI.
-    pub fn message(&self) -> String {
+    /// Explanation for the UI: code and parameters, the UI renders it in its language.
+    pub fn msg(&self) -> Msg {
+        use super::labels;
         match self {
-            ActionError::UnknownItem(id) => format!("Eintrag „{id}“ gibt es nicht"),
-            ActionError::UnknownReview(n) => format!("Review {n} gibt es nicht"),
-            ActionError::UnknownSuggestion(id) => format!("Vorschlag „{id}“ gibt es nicht"),
-            ActionError::UnknownComment(id) => format!("Kommentar „{id}“ gibt es nicht"),
-            ActionError::UnknownTicket(key) => format!("Ticket „{key}“ gibt es nicht"),
-            ActionError::InvalidInput => "Die Eingabe passt nicht".into(),
-            ActionError::NotATicket => "Pull Requests haben keinen Status".into(),
-            ActionError::BranchExists => "Es gibt schon einen Branch".into(),
-            ActionError::Unchanged => "Es ändert sich nichts".into(),
-            ActionError::NothingToDo => "Dafür gibt es gerade nichts zu tun".into(),
-            ActionError::Send(SendError::Undecided(n)) => {
-                format!("{n} Vorschläge sind noch nicht entschieden")
+            ActionError::UnknownItem(id) => msg!(CoreActionErrUnknownItem, id = id),
+            ActionError::UnknownReview(n) => {
+                msg!(CoreActionErrUnknownReview, review = n.to_string())
             }
-            ActionError::Send(SendError::AlreadySent) => "Das Review ist schon gesendet".into(),
-            ActionError::Send(SendError::UnknownReview) => "Das Review gibt es nicht".into(),
-            ActionError::Agent(AgentError::UnknownTicket) => "Dieses Ticket gibt es nicht".into(),
-            ActionError::Agent(AgentError::AlreadyRunning) => {
-                "Der Agent arbeitet hier schon".into()
-            }
-            ActionError::Agent(AgentError::UnknownReview) => "Das Review gibt es nicht".into(),
-            ActionError::Agent(AgentError::Merged) => {
-                "Der Pull Request ist schon gemergt und bleibt, wie er ist".into()
-            }
-            ActionError::Agent(AgentError::NoComments) => {
-                "Wähle mindestens einen offenen Kommentar aus".into()
-            }
-            ActionError::Agent(AgentError::NotAgentBranch) => {
-                "Der Branch dieses Pull Requests passt nicht zum Namensmuster des Repos – dort arbeitet der Agent nicht weiter"
-                    .into()
-            }
+            ActionError::UnknownSuggestion(id) => msg!(CoreActionErrUnknownSuggestion, id = id),
+            ActionError::UnknownComment(id) => msg!(CoreActionErrUnknownComment, id = id),
+            ActionError::UnknownTicket(key) => msg!(CoreActionErrUnknownTicket, key = key),
+            ActionError::InvalidInput => msg!(CoreActionErrInvalidInput),
+            ActionError::NotATicket => msg!(CoreActionErrNotATicket),
+            ActionError::BranchExists => msg!(CoreActionErrBranchExists),
+            ActionError::Unchanged => msg!(CoreActionErrUnchanged),
+            ActionError::NothingToDo => msg!(CoreActionErrNothingToDo),
+            ActionError::Send(SendError::Undecided(n)) => msg!(CoreActionErrUndecided, n = *n),
+            ActionError::Send(SendError::AlreadySent) => msg!(CoreActionErrAlreadySent),
+            ActionError::Send(SendError::UnknownReview) => msg!(CoreActionErrNoReview),
+            ActionError::Agent(AgentError::UnknownTicket) => msg!(CoreActionErrNoTicket),
+            ActionError::Agent(AgentError::AlreadyRunning) => msg!(CoreActionErrAlreadyRunning),
+            ActionError::Agent(AgentError::UnknownReview) => msg!(CoreActionErrNoReview),
+            ActionError::Agent(AgentError::Merged) => msg!(CoreActionErrPrMerged),
+            ActionError::Agent(AgentError::NoComments) => msg!(CoreActionErrNoComments),
+            ActionError::Agent(AgentError::NotAgentBranch) => msg!(CoreActionErrNotAgentBranch),
             ActionError::Agent(AgentError::NothingToReview) => {
-                "Zu diesem Pull Request gibt es noch keine Änderungen zum Durchsehen. Gleiche zuerst ab."
-                    .into()
+                msg!(CoreActionErrNothingToReview)
             }
-            ActionError::Agent(AgentError::CheckNotFailed) => {
-                "Untersuchen lässt sich nur ein roter Check".into()
-            }
+            ActionError::Agent(AgentError::CheckNotFailed) => msg!(CoreActionErrCheckNotFailed),
             ActionError::Agent(AgentError::ParallelLimit(n)) | ActionError::ParallelLimit(n) => {
-                format!(
-                    "Es arbeiten schon {n} Agenten – mehr erlaubt die Grenze nicht. Warte, bis einer fertig ist, oder erhöhe die Grenze unter „Grenzen & Regeln“."
-                )
+                msg!(CoreActionErrParallelLimit, n = *n)
             }
-            ActionError::PlanViolatesRules(violations) => {
-                let reasons: Vec<String> = violations.iter().map(PathViolation::reason).collect();
-                format!(
-                    "Der Plan lässt sich nicht freigeben: {}. Ändere die Regeln des Repos oder lehne den Plan ab.",
-                    reasons.join("; ")
-                )
-            }
-            ActionError::LimitStillReached(reason) => format!(
-                "{} – auch mit dieser Erhöhung. Erhöhe um mehr.",
-                reason.label()
+            ActionError::PlanViolatesRules(violations) => msg!(
+                CoreActionErrPlanViolates,
+                reasons = ArgValue::joined(violations.iter().map(labels::violation), "; ")
             ),
-            ActionError::UnknownRepo(repo) => format!("Repo „{repo}“ gibt es nicht"),
-            ActionError::UnknownCheck(name) => format!("Check „{name}“ gibt es nicht"),
-            ActionError::UnknownPerson(name) => format!("{name} gibt es im Team nicht"),
-            ActionError::Link(LinkError::UnknownPr(n)) => {
-                format!("Pull Request #{n} gibt es nicht")
+            ActionError::LimitStillReached(reason) => {
+                msg!(
+                    CoreActionErrLimitStillReached,
+                    reason = labels::stop(*reason)
+                )
             }
-            ActionError::Link(LinkError::Same) => "Beide sind schon verknüpft".into(),
+            ActionError::UnknownRepo(repo) => msg!(CoreActionErrUnknownRepo, repo = repo),
+            ActionError::UnknownCheck(name) => msg!(CoreActionErrUnknownCheck, check = name),
+            ActionError::UnknownPerson(name) => msg!(CoreActionErrUnknownPerson, name = name),
+            ActionError::Link(LinkError::UnknownPr(n)) => {
+                msg!(CoreActionErrLinkUnknownPr, n = n.to_string())
+            }
+            ActionError::Link(LinkError::Same) => msg!(CoreActionErrLinkSame),
             ActionError::Link(LinkError::TicketHasPr(n)) => {
-                format!("Das Ticket hängt schon an #{n} – löse das zuerst")
+                msg!(CoreActionErrLinkTicketHasPr, n = n.to_string())
             }
             ActionError::Link(LinkError::PrHasTicket(key)) => {
-                format!("Der Pull Request gehört schon zu {key}")
+                msg!(CoreActionErrLinkPrHasTicket, key = key)
             }
-            ActionError::Merged(n) => format!("{n} ist schon gemergt und bleibt, wie es ist"),
-            ActionError::MergeNotAllowed(actor) => format!(
-                "Nur du darfst mergen – {} nicht",
-                match actor {
-                    Actor::Agent => "der Agent",
-                    Actor::System => "das System",
-                    Actor::User => "du",
-                }
+            ActionError::Merged(n) => msg!(CoreActionErrMerged, review = n.to_string()),
+            ActionError::MergeNotAllowed(actor) => {
+                msg!(CoreActionErrMergeNotAllowed, who = labels::who(*actor))
+            }
+            ActionError::SystemOnly => msg!(CoreActionErrSystemOnly),
+            ActionError::AgentOnly => msg!(CoreActionErrAgentOnly),
+            ActionError::UserOnly(actor) => {
+                msg!(CoreActionErrUserOnly, who = labels::who(*actor))
+            }
+            ActionError::PullRequestNotReady => msg!(CoreActionErrPrNotReady),
+            ActionError::PullRequestExists(n) => msg!(CoreActionErrPrExists, n = *n),
+            ActionError::MergeBlocked(blockers) => msg!(
+                CoreActionErrMergeBlocked,
+                reasons = ArgValue::joined(blockers.iter().map(|b| labels::blocker(*b)), " ")
             ),
-            ActionError::SystemOnly => {
-                "Das macht nur das System – der Abgleich läuft im Server".into()
-            }
-            ActionError::AgentOnly => "Das meldet nur der Agent aus seinem Container".into(),
-            ActionError::UserOnly(actor) => format!(
-                "Das darfst nur du auslösen – {} nicht",
-                match actor {
-                    Actor::Agent => "der Agent",
-                    Actor::System => "das System",
-                    Actor::User => "du",
-                }
-            ),
-            ActionError::PullRequestNotReady => {
-                "Einen Pull Request gibt es erst, wenn der Agent fertig ist und seinen Branch gepusht hat"
-                    .into()
-            }
-            ActionError::PullRequestExists(n) => {
-                format!("Zu diesem Lauf gehört schon der Pull Request #{n}")
-            }
-            ActionError::MergeBlocked(blockers) => {
-                let reasons: Vec<&str> = blockers.iter().map(|b| b.reason()).collect();
-                format!("Mergen geht noch nicht: {}", reasons.join(" "))
-            }
         }
+    }
+
+    /// The German text, for readers without a language (logs, tests).
+    pub fn message(&self) -> String {
+        self.msg().de()
     }
 }
 

@@ -108,9 +108,9 @@ impl Workspace {
     /// Cancels a waiting or running agent.
     /// The pull request of the run is merged or closed: the run becomes „erledigt“. `None` if
     /// the run does not wait for this (unknown, working, or already done with).
-    pub fn close_run(&mut self, key: &str, closure: Closure) -> Option<String> {
+    pub fn close_run(&mut self, key: &str, closure: Closure) -> Option<cockpit_i18n::Msg> {
         let run = self.runs.iter_mut().find(|r| r.key() == key)?;
-        let label = run.label();
+        let label = crate::action::labels::run_label(run);
         if !run.close(closure) {
             return None;
         }

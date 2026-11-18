@@ -19,7 +19,11 @@ fn subtitle(state: &SourceState, now: u64) -> String {
             Some(w) => t!(SyncLastWarning, last = last, warning = w),
             None => last,
         },
-        Some(p) => t!(SyncLastProblem, problem = p.text(), last = last),
+        Some(p) => t!(
+            SyncLastProblem,
+            problem = p.msg().render(lang()),
+            last = last
+        ),
     }
 }
 

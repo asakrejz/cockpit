@@ -549,7 +549,7 @@ fn JiraProjectChoice(ctx: Context) -> impl IntoView {
     let switch = move |key: String| {
         let project = (!key.is_empty()).then_some(key);
         if let Err(e) = ctx.store.dispatch(Action::SelectJiraProject { project }) {
-            back.set(Some((false, e.message())));
+            back.set(Some((false, e.msg().render(feature_ui::lang_untracked()))));
         } else {
             back.set(Some((true, t!(SetupJiraChoiceSaved))));
         }
