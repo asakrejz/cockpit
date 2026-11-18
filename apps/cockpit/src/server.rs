@@ -57,9 +57,13 @@ async fn rejection(resp: gloo_net::http::Response) -> CallError {
 /// already say in plain text what is wrong, e.g. which token problem).
 async fn rejection_own(resp: gloo_net::http::Response) -> CallError {
     match resp.json::<ErrorBody>().await {
+<<<<<<< HEAD
         Ok(e) if !e.error.trim().is_empty() => {
             CallError::Rejected(e.in_lang(feature_ui::lang_untracked()))
         }
+=======
+        Ok(e) if !e.error.trim().is_empty() => CallError::Rejected(e.error),
+>>>>>>> origin/main
         _ => CallError::Rejected(t!(ServerGithubUnavailable)),
     }
 }

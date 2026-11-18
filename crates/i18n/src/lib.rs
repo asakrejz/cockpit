@@ -12,11 +12,17 @@ use std::{collections::HashMap, sync::OnceLock};
 use serde::{Deserialize, Serialize};
 
 mod catalog;
+<<<<<<< HEAD
 mod msg;
 mod time;
 
 pub use catalog::{placeholders, plural_forms};
 pub use msg::{ArgValue, Msg};
+=======
+mod time;
+
+pub use catalog::{placeholders, plural_forms};
+>>>>>>> origin/main
 pub use time::{ago, ago_ms};
 
 include!(concat!(env!("OUT_DIR"), "/keys.rs"));
@@ -70,11 +76,39 @@ pub type Arg = (&'static str, String);
 /// The text of `key` in `lang`. Plural keys use the parameter `n`.
 /// A missing text falls back to English and then to the id (a test makes sure that never happens).
 pub fn text(lang: Lang, key: Key, args: &[Arg]) -> String {
+<<<<<<< HEAD
     let args: Vec<(String, String)> = args
         .iter()
         .map(|(k, v)| (k.to_string(), v.clone()))
         .collect();
     catalog::text_by_id(lang, key.id(), &args)
+=======
+    let entry = |lang: Lang, id: &str| catalog::table(lang).get(id).cloned();
+    let id = key.id();
+    let plural = catalog::table(Lang::En).contains_key(&format!("{id}.other"));
+    let pick = |lang: Lang| -> Option<String> {
+        if !plural {
+            return entry(lang, id);
+        }
+        let n: u64 = args
+            .iter()
+            .find(|(k, _)| *k == "n")
+            .and_then(|(_, v)| v.parse().ok())
+            .unwrap_or(0);
+        let form = if n == 0 && entry(lang, &format!("{id}.zero")).is_some() {
+            "zero"
+        } else if n == 1 {
+            "one"
+        } else {
+            "other"
+        };
+        entry(lang, &format!("{id}.{form}"))
+    };
+    let raw = pick(lang)
+        .or_else(|| pick(Lang::En))
+        .unwrap_or_else(|| id.to_string());
+    catalog::fill(&raw, args)
+>>>>>>> origin/main
 }
 
 /// `text` without parameters.
