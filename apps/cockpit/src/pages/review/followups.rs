@@ -43,13 +43,13 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
         let blocked = Signal::derive(move || store.conn.get().agent_blocked().is_some());
         let state = active.map(|run| {
             let (label, tone) = if run.is_awaiting() {
-                ("Wartet auf Freigabe des Plans", StatusTone::Orange)
+                (t!(ReviewStateAwaiting), StatusTone::Orange)
             } else if run.is_asking() {
-                ("Wartet auf deine Antwort", StatusTone::Orange)
+                (t!(ReviewStateAsking), StatusTone::Orange)
             } else if run.is_paused() {
-                ("Pausiert", StatusTone::Gray)
+                (t!(ReviewStatePaused), StatusTone::Gray)
             } else {
-                ("Agent arbeitet", StatusTone::Blue)
+                (t!(ReviewStateWorking), StatusTone::Blue)
             };
             let key = run.key();
             view! {
@@ -57,7 +57,7 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
                     <Status tone=tone>{label}</Status>
                     <span class="t-footnote t-secondary">{run.label()}</span>
                     <span class="ui-spacer"></span>
-                    <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>"Lauf ansehen"</a>
+                    <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>{t!(ReviewRunView)}</a>
                 </div>
             }
         });
@@ -67,10 +67,10 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
                 let key = run.key();
                 view! {
                     <div class="ui-hstack" style="--spacing: 8px">
-                        <Status tone=StatusTone::Green>"Erledigt"</Status>
+                        <Status tone=StatusTone::Green>{t!(ReviewDone)}</Status>
                         <span class="t-footnote t-secondary">{run.label()}</span>
                         <span class="ui-spacer"></span>
-                        <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>"Lauf ansehen"</a>
+                        <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>{t!(ReviewRunView)}</a>
                     </div>
                 }
             })
@@ -110,15 +110,15 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
             }
         };
         Some(view! {
-            <div class="ui-vstack" style="--spacing: 10px" role="region" aria-label="Folgeaufträge für den Agenten">
-                <h3 class="t-headline">"Folgeaufträge"</h3>
+            <div class="ui-vstack" style="--spacing: 10px" role="region" aria-label=t!(ReviewFollowupsRegion)>
+                <h3 class="t-headline">{t!(ReviewFollowupsTitle)}</h3>
                 {state}
                 {finished}
                 {agent_branch
                     .then(|| {
                         view! {
                             <p class="t-footnote t-secondary">
-                                "Der Agent arbeitet auf demselben Branch weiter und pusht neue Commits – ohne neuen Pull Request, ohne Merge. Die Kommentare und die Ausgabe der Checks liest das Cockpit von GitHub."
+                                {t!(ReviewFollowupsIntro)}
                             </p>
                             <div class="ui-hstack" style="--spacing: 8px; flex-wrap: wrap">
                                 <Button
@@ -128,7 +128,7 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
                                     on_click=threads
                                 >
                                     <Icon path=icons::SPARKLES />
-                                    "Review-Kommentare umsetzen"
+                                    {t!(ReviewCommentsTitle)}
                                 </Button>
                                 {(failed > 0)
                                     .then(|| {
@@ -139,10 +139,7 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
                                                 on_click=fixes
                                             >
                                                 <Icon path=icons::SPARKLES />
-                                                {match failed {
-                                                    1 => "Roten Check beheben".to_string(),
-                                                    n => format!("{n} rote Checks beheben"),
-                                                }}
+                                                {t!(ReviewFollowupsFix, n = failed)}
                                             </Button>
                                         }
                                     })}

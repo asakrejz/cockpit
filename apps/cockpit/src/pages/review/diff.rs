@@ -12,7 +12,7 @@ pub(super) fn suggestion_view(diff: &SuggestionDiff) -> impl IntoView {
         kind: DiffKind::Add,
         text: text.clone(),
     }));
-    view! { <Diff rows=rows label="Änderungsvorschlag" /> }
+    view! { <Diff rows=rows label=t!(ReviewSuggestion) /> }
 }
 
 /// Switch and field for the replacement code. When switching on, the old line is in it.
@@ -34,7 +34,7 @@ pub(super) fn suggestion_editor(
                     on.update(|v| *v = !*v);
                 }
             >
-                {move || if on.get() { "Ohne Änderungsvorschlag" } else { "Änderung vorschlagen" }}
+                {move || if on.get() { t!(ReviewDiffSuggestOff) } else { t!(ReviewDiffSuggestOn) }}
             </Button>
         </div>
         {move || {
@@ -43,8 +43,8 @@ pub(super) fn suggestion_editor(
                     view! {
                         <Textarea
                             value=code
-                            label="Ersatz-Code für diese Zeile"
-                            placeholder="So soll die Zeile aussehen …"
+                            label=t!(ReviewDiffCodeLabel)
+                            placeholder=t!(ReviewDiffCodePlaceholder)
                             min_height="64px"
                         />
                     }
@@ -84,15 +84,15 @@ pub(super) fn line_notes(
             let author = c
                 .author
                 .as_ref()
-                .map_or_else(|| "Dein Kommentar".to_string(), |p| format!("Kommentar von {}", p.name));
-            let label = if diff.is_some() { format!("{author} · Änderungsvorschlag") } else { author };
+                .map_or_else(|| t!(ReviewDiffYourComment), |p| t!(ReviewDiffCommentBy, name = p.name));
+            let label = if diff.is_some() { t!(ReviewDiffWithSuggestion, author = author) } else { author };
             let editing = move || ui.editing.get().is_some_and(|e| e == id.get_value());
             view! {
-                <div class="ui-diff__note" role="group" aria-label="Eigener Kommentar">
+                <div class="ui-diff__note" role="group" aria-label=t!(ReviewDiffOwnComment)>
                     {move || {
                         if editing() && !sent && own && open {
                             view! {
-                                <Textarea value=ui.edit_text label="Kommentar bearbeiten" min_height="64px" />
+                                <Textarea value=ui.edit_text label=t!(ReviewEditComment) min_height="64px" />
                                 {suggestion_editor(ui.edit_suggest, ui.edit_code, original.clone())}
                                 <div class="ui-hstack" style="--spacing: 8px">
                                     <Button
@@ -120,14 +120,14 @@ pub(super) fn line_notes(
                                             }
                                         }
                                     >
-                                        "Sichern"
+                                        {t!(ReviewSave)}
                                     </Button>
                                     <Button
                                         variant=ButtonStyle::Borderless
                                         size=ControlSize::Small
                                         on_click=move |_| ui.editing.set(None)
                                     >
-                                        "Abbrechen"
+                                        {t!(ReviewCancel)}
                                     </Button>
                                 </div>
                             }
@@ -140,9 +140,9 @@ pub(super) fn line_notes(
                                         .clone()
                                         .map(|run| {
                                             view! {
-                                                <Status tone=StatusTone::Green>"Erledigt"</Status>
+                                                <Status tone=StatusTone::Green>{t!(ReviewDone)}</Status>
                                                 <a class="ui-link" href=Route::Agent(Some(run.clone())).hash()>
-                                                    {format!("Lauf {run}")}
+                                                    {t!(ReviewDiffRun, run = run)}
                                                 </a>
                                             }
                                         })}
@@ -165,7 +165,7 @@ pub(super) fn line_notes(
                                                         ui.editing.set(Some(id.get_value()));
                                                     }
                                                 >
-                                                    "Bearbeiten"
+                                                    {t!(ReviewEdit)}
                                                 </Button>
                                                 <Button
                                                     variant=ButtonStyle::Borderless
@@ -178,7 +178,7 @@ pub(super) fn line_notes(
                                                         });
                                                     }
                                                 >
-                                                    "Löschen"
+                                                    {t!(ReviewDiffDelete)}
                                                 </Button>
                                             </div>
                                         }
@@ -204,8 +204,8 @@ pub(super) fn line_notes(
                 <div class="ui-diff__note">
                     <Textarea
                         value=ui.draft
-                        label="Kommentar zu dieser Zeile"
-                        placeholder="Kommentar zu dieser Zeile …"
+                        label=t!(ReviewDiffLineComment)
+                        placeholder=t!(ReviewDiffLinePlaceholder)
                         min_height="64px"
                     />
                     {suggestion_editor(ui.suggest, ui.code, original.get_value())}
@@ -234,14 +234,14 @@ pub(super) fn line_notes(
                                 }
                             }
                         >
-                            "Hinzufügen"
+                            {t!(ReviewDiffAdd)}
                         </Button>
                         <Button
                             variant=ButtonStyle::Borderless
                             size=ControlSize::Small
                             on_click=move |_| ui.open.set(None)
                         >
-                            "Abbrechen"
+                            {t!(ReviewCancel)}
                         </Button>
                     </div>
                 </div>
@@ -274,29 +274,29 @@ pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi, panel: PanelUi) -> 
                         store.open_item(&id);
                     }
                 >
-                    {format!("Ticket {key} öffnen")}
+                    {t!(ReviewDiffOpenTicket, key = key)}
                 </a>
             }
             .into_any(),
             None => {
-                view! { <span class="t-subheadline t-secondary">{format!("Ticket {key}")}</span> }
+                view! { <span class="t-subheadline t-secondary">{t!(ReviewDiffTicket, key = key)}</span> }
                     .into_any()
             }
         }
     });
     let body = panel_body(store, r.clone(), ui, panel);
     view! {
-        <Pane label="Pull Request">
+        <Pane label=t!(ReviewPane)>
             <PaneHeader>
                 <div class="ui-hstack" style="--spacing: 10px">
                     <Badge variant=BadgeVariant::Neutral>"GitHub"</Badge>
                     <span class="t-subheadline t-mono t-secondary">{r.key().to_string()}</span>
-                    <Status tone=view::tone(r.checks.tone())>{r.checks.label()}</Status>
+                    <Status tone=view::tone(r.checks.tone())>{checks_label(r.checks)}</Status>
                     {r
                         .merged
                         .map(|m| {
                             view! {
-                                <Status tone=StatusTone::Indigo>{format!("Gemergt ({})", m.label())}</Status>
+                                <Status tone=StatusTone::Indigo>{t!(ReviewMerged, method = m.label())}</Status>
                             }
                         })}
                     <span class="ui-spacer"></span>

@@ -1,0 +1,5 @@
+review_comments.title = Implement review comments
+review_comments.intro = The agent implements the selected comments and pushes to the same branch, without a new pull request.
+review_comments.toggle = Implement comment {id}
+review_comments.start.one = Agent: implement {n} comment
+review_comments.start.other = Agent: implement {n} comments

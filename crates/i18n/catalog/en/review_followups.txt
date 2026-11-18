@@ -1,0 +1,5 @@
+review_followups.title = Follow-up jobs
+review_followups.region = Follow-up jobs for the agent
+review_followups.intro = The agent keeps working on the same branch and pushes new commits. There is no new pull request and no merge. Cockpit reads the comments and the check output from GitHub.
+review_followups.fix.one = Fix the red check
+review_followups.fix.other = Fix {n} red checks

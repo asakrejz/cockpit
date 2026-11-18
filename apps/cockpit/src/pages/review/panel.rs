@@ -14,8 +14,6 @@ mod storage;
 pub(super) use commits::commits_tab;
 pub(super) use files::files_tab;
 
-const TABS: &[(&str, &str)] = &[("files", "Dateien"), ("commits", "Commits")];
-
 /// Something that is fetched from the server on demand.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) enum Load<T> {
@@ -64,7 +62,13 @@ pub(super) fn panel_body(store: Store, r: Review, lines: LineUi, ui: PanelUi) ->
     let r = StoredValue::new(r);
     view! {
         <div class="ui-vstack" style="--spacing: 12px">
-            <SegmentedPicker options=TABS value=ui.tab on_change=on_change aria_label="Ansicht" />
+            {segmented(
+                vec![("files", t!(ReviewPanelTabFiles)), ("commits", t!(ReviewPanelTabCommits))],
+                move || ui.tab.get(),
+                move |id| on_change.run(id),
+                t!(ReviewPanelView),
+                false,
+            )}
             {move || {
                 let r = r.get_value();
                 match ui.tab.get() {
@@ -96,7 +100,7 @@ pub(super) fn failure(message: String, retry: impl Fn() + Send + Sync + 'static)
         <div class="ui-vstack" style="--spacing: 8px; align-items: flex-start">
             <p class="t-subheadline ck-problem">{message}</p>
             <Button size=ControlSize::Small on_click=move |_| retry()>
-                "Erneut versuchen"
+                {t!(ReviewPanelRetry)}
             </Button>
         </div>
     }

@@ -1,0 +1,15 @@
+review_diff.suggest_off = Ohne Änderungsvorschlag
+review_diff.suggest_on = Änderung vorschlagen
+review_diff.code_label = Ersatz-Code für diese Zeile
+review_diff.code_placeholder = So soll die Zeile aussehen …
+review_diff.your_comment = Dein Kommentar
+review_diff.comment_by = Kommentar von {name}
+review_diff.with_suggestion = {author} · Änderungsvorschlag
+review_diff.own_comment = Eigener Kommentar
+review_diff.run = Lauf {run}
+review_diff.delete = Löschen
+review_diff.line_comment = Kommentar zu dieser Zeile
+review_diff.line_placeholder = Kommentar zu dieser Zeile …
+review_diff.add = Hinzufügen
+review_diff.open_ticket = Ticket {key} öffnen
+review_diff.ticket = Ticket {key}

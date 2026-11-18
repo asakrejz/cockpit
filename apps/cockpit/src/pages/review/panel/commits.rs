@@ -59,7 +59,7 @@ pub(in super::super) fn commits_tab(r: Review, ui: PanelUi) -> AnyView {
     if r.repo.is_empty() {
         return view! {
             <p class="t-subheadline t-secondary">
-                "Das Repo dieses Pull Requests ist nicht bekannt. Gleiche ab, dann lassen sich die Commits laden."
+                {t!(ReviewPanelCommitsUnknownRepo)}
             </p>
         }
         .into_any();
@@ -81,18 +81,19 @@ pub(in super::super) fn commits_tab(r: Review, ui: PanelUi) -> AnyView {
 fn list_view(repo: String, number: u32, ui: PanelUi) -> AnyView {
     match ui.commits.get() {
         Load::Idle | Load::Loading => {
-            view! { <p class="t-subheadline t-secondary">"Commits werden geladen …"</p> }.into_any()
+            view! { <p class="t-subheadline t-secondary">{t!(ReviewPanelCommitsLoading)}</p> }
+                .into_any()
         }
         Load::Failed(m) => failure(m, move || load_commits(repo.clone(), number, ui)),
         Load::Done(list) if list.commits.is_empty() => {
-            view! { <p class="t-subheadline t-secondary">"Dieser Pull Request hat keine Commits."</p> }
+            view! { <p class="t-subheadline t-secondary">{t!(ReviewPanelCommitsEmpty)}</p> }
                 .into_any()
         }
         Load::Done(list) => {
             let note = list.truncated.then(|| {
                 view! {
                     <p class="t-footnote t-secondary">
-                        "Es gibt noch mehr Commits; die ältesten stehen hier."
+                        {t!(ReviewPanelCommitsMore)}
                     </p>
                 }
             });
@@ -120,7 +121,7 @@ fn list_view(repo: String, number: u32, ui: PanelUi) -> AnyView {
                 .collect_view();
             view! {
                 {note}
-                <ul class="ck-commits" aria-label="Commits">
+                <ul class="ck-commits" aria-label=t!(ReviewPanelTabCommits)>
                     {items}
                 </ul>
             }
@@ -144,7 +145,7 @@ fn commit_head(sha: &str, ui: PanelUi) -> AnyView {
                     ui.commit_diff.set(Load::Idle);
                 }
             >
-                "← Alle Commits"
+                {t!(ReviewPanelCommitsBack)}
             </Button>
             {info
                 .map(|c| {
@@ -166,7 +167,7 @@ fn commit_view(repo: String, number: u32, sha: String, ui: PanelUi) -> AnyView {
     let head = commit_head(&sha, ui);
     let body = match ui.commit_diff.get() {
         Load::Idle | Load::Loading => {
-            view! { <p class="t-subheadline t-secondary">"Der Commit wird geladen …"</p> }
+            view! { <p class="t-subheadline t-secondary">{t!(ReviewPanelCommitLoading)}</p> }
                 .into_any()
         }
         Load::Failed(m) => {
@@ -177,7 +178,7 @@ fn commit_view(repo: String, number: u32, sha: String, ui: PanelUi) -> AnyView {
         }
         Load::Done(d) => {
             let note = d.truncated_files.then(|| {
-                view! { <p class="t-footnote t-secondary">"Der Commit ändert mehr Dateien, als hier stehen."</p> }
+                view! { <p class="t-footnote t-secondary">{t!(ReviewPanelCommitTruncated)}</p> }
             });
             let files = d
                 .files
@@ -236,7 +237,7 @@ fn commit_file(
                 if f.no_patch {
                     return view! {
                         <p class="t-footnote t-secondary">
-                            "Für diese Datei gibt es keine Textansicht (Binärdatei oder sehr große Änderung)."
+                            {t!(ReviewPanelNoText)}
                         </p>
                     }
                     .into_any();
@@ -254,7 +255,7 @@ fn commit_file(
                                         load_rest(repo.clone(), number, sha.clone(), name.clone(), ui)
                                     }
                                 >
-                                    {format!("Rest laden ({rest} weitere Zeilen)")}
+                                    {t!(ReviewPanelLoadRest, rest = rest)}
                                 </Button>
                             }
                         })}
