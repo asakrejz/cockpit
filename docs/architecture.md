@@ -113,6 +113,8 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `GET /api/agent/image`, `POST /api/agent/image` | state of "build image" `{running, present, error, lines}`, or start the build in the background |
 | `GET /api/agent/check` | connection test to the endpoint: `{configured, reachable, key_ok, model_present, hint}` |
 | `GET /api/agent/pull-request?run=<key>` | preview of the pull request for a finished real run: `{repo, head, base, title, body, draft, existing}`; creates nothing |
+| `GET /api/agent/cleanup`, `POST /api/agent/cleanup` | "Aufräumen": preview `{containers: [{id, name}], folders, engine_missing}` (removes nothing), then `{containers: [id], folders: [name]}` removes what is confirmed and still an orphan → `{containers, folders}` |
+| `GET /api/agent/branch?run=<key>`, `POST /api/agent/branch` | "Branch löschen": `{branch, allowed, reason}` (reads only), then `{run}` deletes that one branch on GitHub after the same check → `{branch}` |
 | `GET /api/review/commits?repo=&number=` | commits of a synced pull request `{commits: [{sha, title, body, author, date}], truncated}`; read only (`GET pulls/{n}/commits`) |
 | `GET /api/review/commit?repo=&number=&sha=[&path=]` | diff of one commit `{sha, files: [{name, status, additions, deletions, lines, total_lines, truncated, no_patch}], truncated_files}`; every file cut at 300 lines, with `path` that one file up to 5000 lines; read only (`GET commits/{sha}`); only for pull requests the app knows |
 | `GET /api/agent/check/container` | the same test from a container: `{checked, mac_reached, container_reached, key_ok, hint}` |

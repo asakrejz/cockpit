@@ -310,6 +310,8 @@ impl AppState {
     }
 }
 
+mod branch_delete;
+mod cleanup;
 mod container_check;
 mod image_build;
 mod lines;

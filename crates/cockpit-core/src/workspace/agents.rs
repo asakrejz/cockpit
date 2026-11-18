@@ -106,6 +106,27 @@ impl Workspace {
     }
 
     /// Cancels a waiting or running agent.
+    /// The pull request of the run is merged or closed: the run becomes „erledigt“. `None` if
+    /// the run does not wait for this (unknown, working, or already done with).
+    pub fn close_run(&mut self, key: &str, closure: Closure) -> Option<String> {
+        let run = self.runs.iter_mut().find(|r| r.key() == key)?;
+        let label = run.label();
+        if !run.close(closure) {
+            return None;
+        }
+        self.clear_agent_note(key);
+        Some(label)
+    }
+
+    /// The runs whose pull request the backend should ask GitHub about (see
+    /// [`AgentRun::pr_to_watch`]), with the key of the run.
+    pub fn runs_to_watch(&self) -> Vec<(String, PrKey)> {
+        self.runs
+            .iter()
+            .filter_map(|r| r.pr_to_watch().map(|k| (r.key(), k)))
+            .collect()
+    }
+
     pub fn cancel_agent(&mut self, ticket_key: &str) {
         let Some(run) = self.active_run_mut(ticket_key) else {
             return;

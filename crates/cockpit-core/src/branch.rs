@@ -10,6 +10,8 @@
 //! again before it pushes: a branch that does not match the pattern, or that is a protected
 //! name, never leaves the machine. Everything here is pure.
 
+mod delete;
+pub use delete::{DeleteFacts, deletable};
 mod suggest;
 pub use suggest::{GUIDELINE_FILES, Suggestion, suggest};
 

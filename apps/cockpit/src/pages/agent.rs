@@ -7,6 +7,8 @@ use crate::route::Route;
 
 mod actions;
 mod activity;
+mod branch;
+mod cleanup;
 mod context;
 mod controls;
 mod decisions;
@@ -16,6 +18,7 @@ mod labels;
 mod progress;
 mod pull_request;
 mod sidebar;
+mod texts;
 
 use context::AgentCtx;
 
@@ -29,6 +32,8 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
     };
     let ctx = AgentCtx::new(ticket);
     let run = ctx.run;
+    // Finished runs whose pull request is merged or closed stay out of the list until asked for.
+    let show_closed = RwSignal::new(false);
 
     view! {
         <SplitView
@@ -38,7 +43,11 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
             back_href=Route::Agent(None).hash()
         >
             <PickerPane label=t!(AgentRuns) title=t!(AgentRuns)>
-                <ul class="ui-sidebar__nav">{move || sidebar::sidebar_runs(ctx)}</ul>
+                {sidebar::closed_switch(ctx, show_closed)}
+                <ul class="ui-sidebar__nav">{move || sidebar::sidebar_runs(ctx, show_closed.get())}</ul>
+                <div class="ck-cleanup">
+                    <cleanup::CleanupButton />
+                </div>
             </PickerPane>
 
             <Show
@@ -74,6 +83,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                         {controls::controls(ctx)}
                         {move || controls::blocked_hint(ctx)}
                         <pull_request::PullRequestPanel run=run />
+                        <branch::BranchPanel run=run />
                         {move || controls::ended_banner(ctx)}
 
                         {move || controls::problem_alert(ctx)}

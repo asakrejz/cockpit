@@ -16,9 +16,18 @@ pub(super) fn status_of(ctx: AgentCtx) -> (String, StatusTone) {
         diagnosed,
         stopped,
         done,
+        run,
         ..
     } = ctx;
-    if done.get() {
+    if let Some(closure) = run.with(|r| r.as_ref().and_then(|r| r.closure)) {
+        (
+            match closure {
+                cockpit_core::Closure::Merged => t!(AgentHeaderClosedMerged),
+                cockpit_core::Closure::Closed => t!(AgentHeaderClosedClosed),
+            },
+            StatusTone::Gray,
+        )
+    } else if done.get() {
         (t!(AgentHeaderDone), StatusTone::Green)
     } else if diagnosed.get() {
         (t!(AgentHeaderDecision), StatusTone::Orange)

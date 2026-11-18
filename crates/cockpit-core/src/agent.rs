@@ -121,6 +121,9 @@ pub struct AgentRun {
     /// approved it. `None` until then.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pull_request: Option<PullRequestRef>,
+    /// The pull request of the run is merged or closed: the run is „erledigt“. Old states have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub closure: Option<Closure>,
 }
 
 impl AgentRun {
@@ -153,6 +156,7 @@ impl AgentRun {
             ended: None,
             summary: String::new(),
             pull_request: None,
+            closure: None,
         }
     }
 
@@ -204,6 +208,53 @@ impl AgentRun {
             },
             RunKind::ReviewPr { review } => format!("Review von {review}"),
         }
+    }
+
+    /// The pull request that decides when the run is „erledigt“: the one that was created or
+    /// found for an implementation, the one a follow-up job works on. `None` while there is none
+    /// or the repo is unknown (old states).
+    pub fn related_pr(&self) -> Option<PrKey> {
+        if self.repo.is_empty() {
+            return None;
+        }
+        match (&self.kind, &self.pull_request) {
+            (RunKind::Implement, Some(p)) => Some(PrKey::new(&self.repo, p.number)),
+            (RunKind::Implement, None) => None,
+            (kind, _) => kind.review(),
+        }
+    }
+
+    /// The pull request to ask GitHub about: the run is not yet „erledigt“ and does not work
+    /// right now (done, ready, paused or halted).
+    pub fn pr_to_watch(&self) -> Option<PrKey> {
+        let quiet = self.is_done() || self.is_idle() || self.is_paused() || self.is_stopped();
+        if self.closure.is_some() || !quiet {
+            return None;
+        }
+        self.related_pr()
+    }
+
+    /// The run is „erledigt“ (its pull request is merged or closed).
+    pub fn is_closed(&self) -> bool {
+        self.closure.is_some()
+    }
+
+    /// Marks the run as „erledigt“. A paused or halted run is ended first. `false` if the run is
+    /// not waiting for this (see [`AgentRun::pr_to_watch`]).
+    pub fn close(&mut self, closure: Closure) -> bool {
+        if self.pr_to_watch().is_none() {
+            return false;
+        }
+        if self.is_active() {
+            self.reset();
+        }
+        self.closure = Some(closure);
+        let text = match closure {
+            Closure::Merged => "Der Pull Request ist gemergt. Der Lauf ist erledigt.",
+            Closure::Closed => "Der Pull Request ist geschlossen. Der Lauf ist erledigt.",
+        };
+        self.say(Speaker::Agent, MessageKind::Info, text.into());
+        true
     }
 
     pub fn is_followup(&self) -> bool {

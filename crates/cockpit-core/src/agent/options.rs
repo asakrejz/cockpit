@@ -69,6 +69,23 @@ pub enum RunState {
     Done,
 }
 
+/// How the pull request of a run ended. A run whose pull request is merged or closed is „erledigt“.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Closure {
+    Merged,
+    Closed,
+}
+
+impl Closure {
+    /// The state as the interface shows it.
+    pub fn label(self) -> &'static str {
+        match self {
+            Closure::Merged => "Erledigt (gemergt)",
+            Closure::Closed => "Erledigt (geschlossen)",
+        }
+    }
+}
+
 /// What the run does.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub enum RunKind {

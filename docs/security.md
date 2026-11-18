@@ -117,6 +117,17 @@ off by default (`[server] webhooks = false`: `404`).
   the declined or undecided ones. The verdict stays "Kommentieren" (`COMMENT`) unless you pick "Genehmigen" or
   "Änderungen" yourself – the agent cannot set it. The agent's summary also stays local; it goes out only if you copy it
   into your own comment.
+- **Deleting a branch happens only on your click, one branch at a time.** After a pull request of a run is merged or
+  closed, "Branch löschen" can delete the agent's branch on GitHub (`DELETE /repos/{repo}/git/refs/heads/{branch}`). The
+  backend refuses unless all of this holds, read from GitHub at the click and not taken from the browser: the pull
+  request is merged or closed; the branch matches the repo's `branch_pattern`; it is not the base branch, the default
+  branch of the repo, a main-branch name or anything under `refs/`; GitHub does not mark it protected; it is the head
+  of that pull request and the branch the run pushed (so a run can never name another branch); the run is a real
+  implementation run of the Cockpit (not a review of somebody else's pull request). Marking a run "erledigt" only reads
+  the pull request; it deletes no branch. "Aufräumen" shows a preview first and then removes only the listed items
+  that are still orphans: containers with the label `cockpit.run` that belong to no working run (command line
+  `ps --filter label=…` and `rm -f`, never the socket) and folders directly under `<data>/agent/runs`. It never
+  touches the image, other containers or any other path.
 - **One repo per run, only configured ones.** A run clones and pushes in exactly one repo. The repo comes from the
   routing rules or from your choice in the interface, and the backend refuses (at start and again when the container
   starts) any repo that is not in `[[agent.repos]]` / `[agent] repo` / `[github] repos`. The repo check in the assistant

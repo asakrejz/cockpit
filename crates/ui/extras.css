@@ -740,3 +740,7 @@ body.ui-scroll-locked { overflow: hidden; }
 .ui-rich__status[data-color="yellow"] { background: color-mix(in oklab, var(--sys-color-yellow) 28%, transparent); }
 .ui-rich__status[data-color="blue"] { background: color-mix(in oklab, var(--sys-color-blue) 22%, transparent); }
 .ui-rich__date { padding: 1px var(--ref-space-6, 6px); border-radius: var(--ref-radius-6); background: var(--sys-color-tertiary-fill); }
+
+/* Agent runs: the „Aufräumen“ button under the list and the lists in its dialog. */
+.ck-cleanup { padding: var(--ref-space-8) var(--ref-space-12); }
+.ck-cleanup__list { margin: 0; padding-inline-start: var(--ref-space-16); overflow-wrap: anywhere; }

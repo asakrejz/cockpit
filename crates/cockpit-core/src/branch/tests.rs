@@ -187,3 +187,5 @@ fn types_follow_the_issue_type() {
     assert_eq!(BranchType::from_word("fix"), BranchType::Fix);
     assert_eq!(BranchType::from_word("zzz"), BranchType::Feature);
 }
+
+mod deletable_rules;

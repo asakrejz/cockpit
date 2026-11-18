@@ -487,3 +487,54 @@ async fn services_route_to_the_right_client() {
             .is_err()
     );
 }
+
+// ---------- Deleting a branch ----------
+
+#[tokio::test]
+async fn deleting_a_branch_is_one_delete_on_that_ref_with_the_token() {
+    let server = MockServer::start().await;
+    Mock::given(method("DELETE"))
+        .and(path("/repos/acme/app/git/refs/heads/claude/BAU-1-x"))
+        .and(bearer())
+        .respond_with(ResponseTemplate::new(204))
+        .expect(1)
+        .mount(&server)
+        .await;
+    github(&server)
+        .await
+        .branch_delete("acme/app", "claude/BAU-1-x")
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn a_refused_branch_delete_is_an_error_without_the_key() {
+    let server = MockServer::start().await;
+    Mock::given(method("DELETE"))
+        .respond_with(ResponseTemplate::new(422).set_body_json(json!({"message": TOKEN})))
+        .mount(&server)
+        .await;
+    let e = github(&server)
+        .await
+        .branch_delete("acme/app", "claude/BAU-1-x")
+        .await
+        .unwrap_err();
+    assert!(!e.to_string().contains(TOKEN), "{e}");
+}
+
+#[tokio::test]
+async fn the_protection_of_a_branch_is_read_without_writing() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/repos/acme/app/branches/claude/BAU-1-x"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"protected": true})))
+        .mount(&server)
+        .await;
+    assert!(
+        github(&server)
+            .await
+            .branch_protected("acme/app", "claude/BAU-1-x")
+            .await
+            .unwrap()
+    );
+}

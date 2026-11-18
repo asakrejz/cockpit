@@ -5,9 +5,9 @@ use cockpit_core::Item;
 use serde::de::DeserializeOwned;
 
 use super::dto::{
-    Annotation, CheckRun, CheckRuns, CommitDetail, ContentFile, GitRefResponse, InstallationRepos,
-    Installations, IssueComment, Pull, PullCommit, PullFile, PullReview, PullSummary, Repo,
-    RepoListEntry, ReviewComment, SearchItem, SearchResult, User,
+    Annotation, BranchInfo, CheckRun, CheckRuns, CommitDetail, ContentFile, GitRefResponse,
+    InstallationRepos, Installations, IssueComment, Pull, PullCommit, PullFile, PullReview,
+    PullSummary, Repo, RepoListEntry, ReviewComment, SearchItem, SearchResult, User,
 };
 use super::followup::{self, FailedCheck, ReviewInput};
 use super::map;
@@ -481,6 +481,22 @@ impl GitHubClient {
         self.send(&branch_request(repo, name, &r#ref.object.sha))
             .await
             .map(|_| ())
+    }
+
+    /// Deletes the branch `name`. **Only on the user's click**, after
+    /// `cockpit_core::branch::deletable` allowed it. Never touches anything else.
+    pub async fn branch_delete(&self, repo: &str, name: &str) -> Result<(), Error> {
+        self.send(&crate::outbound::branch_delete_request(repo, name))
+            .await
+            .map(|_| ())
+    }
+
+    /// Is the branch protected on GitHub? Read-only.
+    pub async fn branch_protected(&self, repo: &str, name: &str) -> Result<bool, Error> {
+        let info: BranchInfo = self
+            .lies_json(self.get(&format!("/repos/{repo}/branches/{name}")))
+            .await?;
+        Ok(info.protected)
     }
 
     /// Read-only look at a repo: does it exist, may the key holder see it and push to it?

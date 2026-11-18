@@ -10,7 +10,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::agent::{AgentOptions, AgentReport, AgentRun, PullRequestRef, RunKind, STEPS};
+use crate::agent::{AgentOptions, AgentReport, AgentRun, Closure, PullRequestRef, RunKind, STEPS};
 use crate::attention::Rule;
 use crate::demo;
 use crate::model::{Checks, Item, Person, PrKey, Priority, TicketStatus};
@@ -208,6 +208,12 @@ pub enum Action {
         run: String,
         report: AgentReport,
     },
+    /// The pull request of the run is merged or closed (seen by the backend): the run is
+    /// „erledigt“. Only the system triggers it.
+    CloseAgentRun {
+        run: String,
+        closure: Closure,
+    },
     /// Follow-up job: the agent implements comments of a review (IDs of the line comments)
     /// and pushes to the pull request's branch. The run is then called `review-<number>`.
     AddressReview {
@@ -303,7 +309,10 @@ pub enum Action {
 impl Action {
     /// Actions that only the backend itself may trigger (never the UI).
     pub fn system_only(&self) -> bool {
-        matches!(self, Action::SyncRemote { .. })
+        matches!(
+            self,
+            Action::SyncRemote { .. } | Action::CloseAgentRun { .. }
+        )
     }
 
     /// Actions that only the agent (container, via the backend) may trigger.
@@ -480,6 +489,7 @@ impl Workspace {
             | Action::ResumeAgent { .. }
             | Action::AdvanceAgents
             | Action::ReportAgent { .. }
+            | Action::CloseAgentRun { .. }
             | Action::AddressReview { .. }
             | Action::InvestigateCheck { .. }
             | Action::ApplyFix { .. }

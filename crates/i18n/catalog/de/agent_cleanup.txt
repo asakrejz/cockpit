@@ -1,0 +1,23 @@
+# "Finished runs", "Delete branch" and "Clean up" of the agent page
+agent_cleanup.show_closed = Erledigte anzeigen
+agent_cleanup.closed_badge = erledigt
+agent_cleanup.branch_title = Branch
+agent_cleanup.branch_button = Branch löschen
+agent_cleanup.branch_checking = Das Cockpit prüft bei GitHub, ob der Branch weg darf …
+agent_cleanup.branch_deleted = Der Branch ist auf GitHub gelöscht.
+agent_cleanup.branch_dialog_title = Branch löschen?
+agent_cleanup.cancel = Abbrechen
+agent_cleanup.branch_final = Das lässt sich im Cockpit nicht rückgängig machen.
+agent_cleanup.cleanup_button = Aufräumen
+agent_cleanup.cleanup_title = Aufräumen
+agent_cleanup.cleanup_loading = Das Cockpit sucht nach Resten …
+agent_cleanup.cleanup_intro = Das wird entfernt. Das Image des Agenten und fremde Container bleiben, ebenso Läufe, die gerade arbeiten oder warten.
+agent_cleanup.cleanup_nothing = Nichts zu tun. Es gibt keine Reste.
+agent_cleanup.cleanup_containers = Container ohne laufenden Lauf
+agent_cleanup.cleanup_folders = Ordner ohne laufenden Lauf
+agent_cleanup.cleanup_no_engine = Das Container-Programm ist nicht erreichbar. Container werden deshalb nicht angezeigt.
+agent_cleanup.cleanup_run = Jetzt entfernen
+agent_cleanup.close = Schließen
+agent_cleanup.show_closed_count = Erledigte anzeigen ({n})
+agent_cleanup.branch_question = Soll der Branch „{branch}“ auf GitHub gelöscht werden? Nur dieser eine Branch geht weg. Der Pull Request und seine Änderungen bleiben auf GitHub sichtbar.
+agent_cleanup.cleanup_done = Entfernt: {containers} Container, {folders} Ordner.
