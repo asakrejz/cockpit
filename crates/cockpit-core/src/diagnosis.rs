@@ -5,9 +5,10 @@
 //! timeout) and stays deterministic; a real agent would ask a
 //! language model here, the shape of the result would stay the same.
 //!
-//! None of this changes the branch. Only „Fix übernehmen“ (a separate step of the run)
+//! None of this changes the branch. Only "apply fix" (a separate step of the run)
 //! applies the [`Fix`].
 
+use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};
 
 use crate::review::{CheckRun, DiffLine, FileDiff, LineKind, Review};
@@ -30,8 +31,11 @@ pub struct Fix {
 pub struct Diagnosis {
     /// Name of the check.
     pub check: String,
-    /// The cause in one sentence.
+    /// The cause in one sentence (German; [`Diagnosis::cause_msg`] reads in either language).
     pub cause: String,
+    /// The cause as code and parameters; the interface renders it in its language.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cause_msg: Option<Msg>,
     /// Affected file and line, as far as the log names them.
     #[serde(default)]
     pub file: Option<String>,
@@ -39,22 +43,54 @@ pub struct Diagnosis {
     pub line: Option<u32>,
     /// What the agent proposes, in one sentence.
     pub remedy: String,
+    /// The proposal as code and parameters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remedy_msg: Option<Msg>,
     /// The proposal as a diff (line with surroundings). `None` if there is no code to change.
     #[serde(default)]
     pub patch: Option<FileDiff>,
-    /// The change that „Fix übernehmen“ brings onto the branch.
+    /// The change that "apply fix" brings onto the branch.
     #[serde(default)]
     pub fix: Option<Fix>,
 }
 
 impl Diagnosis {
-    /// `list.rs · Zeile 62`
-    pub fn location(&self) -> Option<String> {
+    /// `list.rs · line 62`
+    pub fn location(&self) -> Option<Msg> {
         let file = self.file.as_ref()?;
         Some(match self.line {
-            Some(line) => format!("{file} · Zeile {line}"),
-            None => file.clone(),
+            Some(line) => msg!(CoreDiagnosisLocation, file = file, line = line),
+            None => Msg::raw(file.clone()),
         })
+    }
+
+    /// The cause as a message (old stored diagnoses only have the German text).
+    pub fn cause_message(&self) -> Msg {
+        self.cause_msg
+            .clone()
+            .unwrap_or_else(|| Msg::raw(self.cause.clone()))
+    }
+
+    /// The proposal as a message (old stored diagnoses only have the German text).
+    pub fn remedy_message(&self) -> Msg {
+        self.remedy_msg
+            .clone()
+            .unwrap_or_else(|| Msg::raw(self.remedy.clone()))
+    }
+
+    fn say(&mut self, cause: Msg, remedy: Msg) {
+        self.set_cause(cause);
+        self.set_remedy(remedy);
+    }
+
+    fn set_cause(&mut self, m: Msg) {
+        self.cause = m.de();
+        self.cause_msg = Some(m);
+    }
+
+    fn set_remedy(&mut self, m: Msg) {
+        self.remedy = m.de();
+        self.remedy_msg = Some(m);
     }
 
     /// Does the proposal change code? Otherwise it is enough to restart the check.
@@ -146,9 +182,11 @@ pub fn diagnose(review: &Review, check: &CheckRun) -> Diagnosis {
     let mut d = Diagnosis {
         check: check.name.clone(),
         cause: String::new(),
+        cause_msg: None,
         file: None,
         line: None,
-        remedy: "Check neu starten".into(),
+        remedy: String::new(),
+        remedy_msg: None,
         patch: None,
         fix: None,
     };
@@ -163,16 +201,12 @@ pub fn diagnose(review: &Review, check: &CheckRun) -> Diagnosis {
             .into_iter()
             .find(|k| message.starts_with(&format!("unused {k}")));
         if let (Some(kind), Some(name)) = (kind, quoted(message)) {
-            let noun = if kind == "variable" {
-                "Variable"
+            let cause = if kind == "variable" {
+                msg!(CoreDiagnosisUnusedVariable, name = name)
             } else {
-                "Import"
+                msg!(CoreDiagnosisUnusedImport, name = name)
             };
-            d.cause = format!(
-                "Ungenutzt{} {noun} `{name}`: Mit `-D warnings` bricht der Lint-Lauf dort ab.",
-                if kind == "variable" { "e" } else { "er" }
-            );
-            d.remedy = "Die ungenutzte Zeile entfernen".into();
+            d.say(cause, msg!(CoreDiagnosisRemedyRemoveUnused));
             // The fix only applies if the line is in the pull request and matches the log.
             if let (Some(file), Some(line)) = (d.file.as_deref(), d.line)
                 && let Some(code) = excerpt_of(log, line)
@@ -188,11 +222,17 @@ pub fn diagnose(review: &Review, check: &CheckRun) -> Diagnosis {
                     before: diff.lines[index].text.clone(),
                     after: None,
                 });
-                d.remedy = format!("Zeile {line} in {file} entfernen");
+                d.set_remedy(msg!(
+                    CoreDiagnosisRemedyRemoveLine,
+                    line = line,
+                    file = file
+                ));
             }
         } else {
-            d.cause = format!("Der Lauf meldet: {message}");
-            d.remedy = "Ursache im Code prüfen – dafür gibt es keinen automatischen Fix".into();
+            d.say(
+                msg!(CoreDiagnosisCauseReported, message = Msg::raw(message)),
+                msg!(CoreDiagnosisRemedyCheckCode),
+            );
         }
         return d;
     }
@@ -203,17 +243,19 @@ pub fn diagnose(review: &Review, check: &CheckRun) -> Diagnosis {
     }) {
         let reason = log
             .lines()
-            .find_map(|l| l.trim().strip_prefix("thread panicked: "))
-            .unwrap_or("siehe Log");
+            .find_map(|l| l.trim().strip_prefix("thread panicked: "));
         // A timeout when starting the environment says nothing about the code.
-        if reason.contains("timeout") {
-            d.cause = format!(
-                "`{test}` hat zu lange gebraucht: Der Headless-Browser ist nicht rechtzeitig gestartet – das sieht nach einem wackligen Check aus, nicht nach einem Fehler im Code."
+        if reason.is_some_and(|r| r.contains("timeout")) {
+            d.say(
+                msg!(CoreDiagnosisCauseSlowTest, test = test),
+                msg!(CoreDiagnosisRemedyFlaky),
             );
-            d.remedy = "Kein Code-Fix nötig – Check neu starten".into();
         } else {
-            d.cause = format!("Test `{test}` schlägt fehl: {reason}");
-            d.remedy = "Test und Code prüfen – dafür gibt es keinen automatischen Fix".into();
+            let reason = reason.map_or_else(|| msg!(CoreDiagnosisSeeLog), Msg::raw);
+            d.say(
+                msg!(CoreDiagnosisCauseTestFailed, test = test, reason = reason),
+                msg!(CoreDiagnosisRemedyCheckTest),
+            );
         }
         return d;
     }
@@ -222,11 +264,11 @@ pub fn diagnose(review: &Review, check: &CheckRun) -> Diagnosis {
         .lines()
         .map(str::trim)
         .rfind(|l| !l.is_empty() && !l.starts_with('$'));
-    d.cause = match last {
-        Some(line) => format!("Das Log endet mit: {line}"),
-        None => "Das Log ist leer – die Ursache lässt sich nicht eingrenzen.".into(),
+    let cause = match last {
+        Some(line) => msg!(CoreDiagnosisCauseLogEnds, line = Msg::raw(line)),
+        None => msg!(CoreDiagnosisCauseLogEmpty),
     };
-    d.remedy = "Check neu starten und das Log beobachten".into();
+    d.say(cause, msg!(CoreDiagnosisRemedyWatchLog));
     d
 }
 

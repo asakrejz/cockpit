@@ -1,22 +1,21 @@
 //! Parsing and checking what the user typed (names, URLs, lists).
 
+use cockpit_i18n::{Msg, msg};
+
 use super::*;
 
 /// Checks a key before sending. Returns the cleaned value (whitespace at the edges
 /// removed, e.g. from pasting). The messages never name the value.
-pub fn key_verify(value: &str) -> Result<String, String> {
+pub fn key_verify(value: &str) -> Result<String, Msg> {
     let value = value.trim();
     if value.is_empty() {
-        return Err("Das Feld ist leer.".into());
+        return Err(msg!(CoreSetupKeyEmpty));
     }
     if value.chars().count() > MAX_KEYS {
-        return Err("Der Schlüssel ist ungewöhnlich lang – wurde zu viel eingefügt?".into());
+        return Err(msg!(CoreSetupKeyTooLong));
     }
     if value.chars().any(char::is_control) {
-        return Err(
-            "Der Schlüssel enthält Zeilenumbrüche oder Steuerzeichen – bitte nur den Schlüssel selbst einfügen."
-                .into(),
-        );
+        return Err(msg!(CoreSetupKeyControl));
     }
     Ok(value.to_string())
 }
@@ -24,24 +23,21 @@ pub fn key_verify(value: &str) -> Result<String, String> {
 /// Checks the public address of the tunnel (`[server] public_url`): `https://host[:port][/path]`,
 /// no spaces, no user name, query or fragment. Returns it without a trailing slash; empty
 /// stays empty (= remove). The address is only displayed, the server never calls it.
-pub fn public_url_read(text: &str) -> Result<String, String> {
+pub fn public_url_read(text: &str) -> Result<String, Msg> {
     let text = text.trim();
     if text.is_empty() {
         return Ok(String::new());
     }
-    let rest = text.strip_prefix("https://").ok_or(
-        "Die öffentliche Adresse muss mit https:// beginnen, z. B. https://cockpit.example.",
-    )?;
+    let rest = text
+        .strip_prefix("https://")
+        .ok_or_else(|| msg!(CoreSetupPublicUrlHttps))?;
     let host = rest.split('/').next().unwrap_or("");
     if host.is_empty()
         || text.len() > 200
         || text.chars().any(|c| c.is_whitespace() || c.is_control())
         || text.contains(['?', '#', '@', '\\'])
     {
-        return Err(
-            "Das ist keine gültige Adresse. Erwartet wird etwas wie https://cockpit.example (ohne Leerzeichen, Zugangsdaten oder Parameter)."
-                .into(),
-        );
+        return Err(msg!(CoreSetupPublicUrlInvalid));
     }
     Ok(text.trim_end_matches('/').to_string())
 }
@@ -49,13 +45,13 @@ pub fn public_url_read(text: &str) -> Result<String, String> {
 /// The site of a Jira Cloud instance as an address: `firma` → `https://firma.atlassian.net`,
 /// `firma.atlassian.net` and `https://firma.atlassian.net/jira/…` → `https://firma.atlassian.net`.
 /// Empty stays empty.
-pub fn jira_site_read(text: &str) -> Result<String, String> {
+pub fn jira_site_read(text: &str) -> Result<String, Msg> {
     let t = text.trim();
     if t.is_empty() {
         return Ok(String::new());
     }
     if t.chars().any(char::is_whitespace) {
-        return Err("Die Adresse darf keine Leerzeichen enthalten.".into());
+        return Err(msg!(CoreSetupAddressSpaces));
     }
     // The own machine (for tests with a dummy) may be addressed without https.
     if let Some((s, r)) = t.split_once("://")
@@ -73,14 +69,14 @@ pub fn jira_site_read(text: &str) -> Result<String, String> {
     let (scheme, rest) = match t.split_once("://") {
         Some((s, r)) if s.eq_ignore_ascii_case("https") => ("https", r),
         Some((s, _)) if s.eq_ignore_ascii_case("http") => {
-            return Err("Jira Cloud erreichst du nur über https://.".into());
+            return Err(msg!(CoreSetupJiraHttpsOnly));
         }
-        Some(_) => return Err("Die Adresse muss mit https:// beginnen.".into()),
+        Some(_) => return Err(msg!(CoreSetupJiraHttpsStart)),
         None => ("https", t),
     };
     let host = rest.split(['/', '?', '#']).next().unwrap_or_default();
     if host.is_empty() {
-        return Err("In der Adresse fehlt der Name der Site.".into());
+        return Err(msg!(CoreSetupJiraNoSite));
     }
     let host = host.to_ascii_lowercase();
     let host = if host.contains('.') {
@@ -92,14 +88,12 @@ pub fn jira_site_read(text: &str) -> Result<String, String> {
         .split('.')
         .all(|t| !t.is_empty() && t.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'));
     if !valid {
-        return Err(format!(
-            "„{host}“ sieht nicht wie eine Jira-Adresse aus, z. B. firma.atlassian.net."
-        ));
+        return Err(msg!(CoreSetupJiraBadHost, host = host));
     }
     Ok(format!("{scheme}://{host}"))
 }
 
-/// Jira project keys from a text („bau, web“ or one line per project), uppercased
+/// Jira project keys from a text ("bau, web" or one line per project), uppercased
 /// and without duplicates.
 pub fn projects_read(text: &str) -> Vec<String> {
     let mut from: Vec<String> = Vec::new();
@@ -119,7 +113,7 @@ pub fn projects_read(text: &str) -> Vec<String> {
 pub fn agent_repos_read(
     rows: &[(String, String, String, String)],
     default: &str,
-) -> Result<crate::api::AgentReposInput, String> {
+) -> Result<crate::api::AgentReposInput, Msg> {
     let mut repos: Vec<crate::AgentRepo> = Vec::new();
     for (repo, base, projects, pattern) in rows {
         if repo.trim().is_empty() {
@@ -127,10 +121,10 @@ pub fn agent_repos_read(
         }
         let name = match repos_read(repo)?.as_slice() {
             [one] => one.clone(),
-            _ => return Err(format!("„{}“: bitte ein Repo pro Zeile.", repo.trim())),
+            _ => return Err(msg!(CoreSetupRepoOnePerLine, repo = repo.trim())),
         };
         if repos.iter().any(|r| r.repo == name) {
-            return Err(format!("Das Repo „{name}“ steht doppelt in der Liste."));
+            return Err(msg!(CoreSetupRepoTwice, name = &name));
         }
         let base = base.trim();
         let base = if base.is_empty() {
@@ -144,20 +138,15 @@ pub fn agent_repos_read(
                 .chars()
                 .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'))
         {
-            return Err(format!(
-                "Der Basis-Branch „{base}“ von {name} ist nicht gültig."
-            ));
+            return Err(msg!(CoreSetupBaseInvalid, base = base, name = &name));
         }
         let projects = projects_read(projects);
         for p in &projects {
             if !crate::model::is_project_key(p) {
-                return Err(format!("„{p}“ ist kein Jira-Projektschlüssel (z. B. WEB)."));
+                return Err(msg!(CoreSetupNotProjectKey, project = p));
             }
             if let Some(other) = repos.iter().find(|r| r.projects.contains(p)) {
-                return Err(format!(
-                    "Das Jira-Projekt {p} ist schon dem Repo „{}“ zugeordnet.",
-                    other.repo
-                ));
+                return Err(msg!(CoreSetupProjectTaken, project = p, repo = &other.repo));
             }
         }
         let pattern = pattern.trim();
@@ -166,7 +155,8 @@ pub fn agent_repos_read(
         } else {
             pattern
         };
-        crate::branch::validate(pattern).map_err(|m| format!("{name}: {m}"))?;
+        crate::branch::validate(pattern)
+            .map_err(|m| msg!(CoreSetupRepoPattern, name = &name, message = m))?;
         repos.push(crate::AgentRepo {
             repo: name,
             base_branch: base.to_string(),
@@ -180,7 +170,7 @@ pub fn agent_repos_read(
     } else {
         let d = repos_read(default)?.into_iter().next().unwrap_or_default();
         if !repos.iter().any(|r| r.repo == d) {
-            return Err(format!("Das Standard-Repo „{d}“ muss in der Liste stehen."));
+            return Err(msg!(CoreSetupDefaultRepoMissing, name = &d));
         }
         Some(d)
     };
@@ -189,7 +179,7 @@ pub fn agent_repos_read(
 
 /// GitHub repos from a text. Allows `owner/name`, full addresses (`https://github.com/o/n`,
 /// also with `.git`) and separation by comma, space or lines.
-pub fn repos_read(text: &str) -> Result<Vec<String>, String> {
+pub fn repos_read(text: &str) -> Result<Vec<String>, Msg> {
     let mut from: Vec<String> = Vec::new();
     for part in text.split(|c: char| c == ',' || c == ';' || c.is_whitespace()) {
         let mut r = part.trim();
@@ -207,9 +197,7 @@ pub fn repos_read(text: &str) -> Result<Vec<String>, String> {
         // For a full address only the first two parts count (`…/o/n/pull/3`).
         let mut parts = r.split('/');
         let (Some(o), Some(n)) = (parts.next(), parts.next()) else {
-            return Err(format!(
-                "„{part}“ ist kein Repo – gebraucht wird die Form firma/app."
-            ));
+            return Err(msg!(CoreSetupNotRepo, part = part));
         };
         let chars = |t: &str| {
             !t.is_empty()
@@ -217,9 +205,7 @@ pub fn repos_read(text: &str) -> Result<Vec<String>, String> {
                     .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
         };
         if !chars(o) || !chars(n) {
-            return Err(format!(
-                "„{part}“ ist kein Repo – gebraucht wird die Form firma/app."
-            ));
+            return Err(msg!(CoreSetupNotRepo, part = part));
         }
         let repo = format!("{o}/{n}");
         if !from.contains(&repo) {
@@ -230,12 +216,10 @@ pub fn repos_read(text: &str) -> Result<Vec<String>, String> {
 }
 
 /// A client ID from the input field: without whitespace at the edges, without spaces inside.
-pub fn client_id_read(text: &str) -> Result<String, String> {
+pub fn client_id_read(text: &str) -> Result<String, Msg> {
     let t = text.trim();
     if t.chars().any(char::is_whitespace) {
-        return Err(
-            "Die Client-ID enthält Leerzeichen – bitte genau so kopieren, wie sie dasteht.".into(),
-        );
+        return Err(msg!(CoreSetupClientIdSpaces));
     }
     Ok(t.to_string())
 }
@@ -243,13 +227,13 @@ pub fn client_id_read(text: &str) -> Result<String, String> {
 /// The address of the endpoint (LiteLLM, another compatible service): without `http://` or
 /// `https://`, `http://` is added (`localhost:4000` → `http://localhost:4000`), a
 /// trailing slash is dropped. Empty stays empty (= directly at the provider).
-pub fn endpoint_url_read(text: &str) -> Result<String, String> {
+pub fn endpoint_url_read(text: &str) -> Result<String, Msg> {
     let t = text.trim();
     if t.is_empty() {
         return Ok(String::new());
     }
     if t.chars().any(char::is_whitespace) {
-        return Err("Die Adresse darf keine Leerzeichen enthalten.".into());
+        return Err(msg!(CoreSetupAddressSpaces));
     }
     let url = if t.contains("://") {
         t.to_string()
@@ -259,21 +243,21 @@ pub fn endpoint_url_read(text: &str) -> Result<String, String> {
     let rest = url
         .strip_prefix("http://")
         .or_else(|| url.strip_prefix("https://"))
-        .ok_or("Die Adresse muss mit http:// oder https:// beginnen.")?;
+        .ok_or_else(|| msg!(CoreSetupUrlScheme))?;
     if rest.trim_matches('/').is_empty() {
-        return Err("In der Adresse fehlt der Rechnername, z. B. localhost:4000.".into());
+        return Err(msg!(CoreSetupUrlNoHost));
     }
     Ok(url.trim_end_matches('/').to_string())
 }
 
 /// Checks a model name typed by hand: not empty, without whitespace and control characters, not too long.
-pub fn model_name_read(text: &str) -> Result<String, String> {
+pub fn model_name_read(text: &str) -> Result<String, Msg> {
     let t = text.trim();
     if t.chars().any(|c| c.is_whitespace() || c.is_control()) {
-        return Err("Der Modellname enthält Leerzeichen oder Sonderzeichen.".into());
+        return Err(msg!(CoreSetupModelNameSpaces));
     }
     if t.chars().count() > 200 {
-        return Err("Der Modellname ist zu lang.".into());
+        return Err(msg!(CoreSetupModelNameLong));
     }
     Ok(t.to_string())
 }

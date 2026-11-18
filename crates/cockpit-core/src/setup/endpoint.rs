@@ -1,9 +1,11 @@
 //! Kinds of model endpoints and the model selection.
 
+use cockpit_i18n::{Msg, msg};
+
 use super::*;
 
 /// Where the agent sends its model requests. In `config.toml` the only difference is whether an
-/// address is entered; „Proxy“ and „other endpoint“ differ only in the hints in the assistant.
+/// address is entered; "proxy" and "other endpoint" differ only in the hints in the assistant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EndpointKind {
     /// Directly at the provider of the model (no address): Anthropic, for Codex OpenAI.
@@ -34,11 +36,11 @@ impl EndpointKind {
     }
 
     /// The text in the drop-down; the direct way is named after the provider of the chosen tool.
-    pub fn label(self, tool: Provider) -> String {
+    pub fn label(self, tool: Provider) -> Msg {
         match self {
-            EndpointKind::Direct => format!("Direkt bei {}", tool.vendor()),
-            EndpointKind::Proxy => "Eigener Proxy (z. B. LiteLLM)".into(),
-            EndpointKind::Compatible => "Anderer kompatibler Endpunkt".into(),
+            EndpointKind::Direct => msg!(SetupModelKindDirect, vendor = tool.vendor()),
+            EndpointKind::Proxy => msg!(SetupModelKindProxy),
+            EndpointKind::Compatible => msg!(SetupModelKindCompatible),
         }
     }
 
@@ -57,19 +59,12 @@ impl EndpointKind {
     }
 
     /// Explanation under the selection.
-    pub fn explanation(self, tool: Provider) -> String {
+    pub fn explanation(self, tool: Provider) -> Msg {
         let vendor = tool.vendor();
         match self {
-            EndpointKind::Direct => format!(
-                "Der Agent spricht ohne Zwischenstation mit {vendor}. Du brauchst einen API-Key aus der Konsole von {vendor}."
-            ),
-            EndpointKind::Proxy => {
-                "Eine Zwischenstation, die dein Team betreibt (z. B. LiteLLM). Du bekommst Adresse und Key vom Betreiber."
-                    .into()
-            }
-            EndpointKind::Compatible => format!(
-                "Ein Dienst, der die Schnittstelle von {vendor} nachbildet. Trage seine Adresse und seinen Key ein."
-            ),
+            EndpointKind::Direct => msg!(SetupModelExplainDirect, vendor = vendor),
+            EndpointKind::Proxy => msg!(SetupModelExplainProxy),
+            EndpointKind::Compatible => msg!(SetupModelExplainCompatible, vendor = vendor),
         }
     }
 
@@ -77,16 +72,16 @@ impl EndpointKind {
         match self {
             EndpointKind::Direct => "",
             EndpointKind::Proxy => "https://litellm.example",
-            EndpointKind::Compatible => "https://endpunkt.example",
+            EndpointKind::Compatible => "https://endpoint.example",
         }
     }
 
-    pub fn key_label(self, tool: Provider) -> &'static str {
+    pub fn key_label(self, tool: Provider) -> Msg {
         match self {
-            EndpointKind::Direct if tool.openai_compatible() => "OpenAI-API-Key",
-            EndpointKind::Direct => "Anthropic-API-Key",
-            EndpointKind::Proxy => "Key des Proxys",
-            EndpointKind::Compatible => "Key des Endpunkts",
+            EndpointKind::Direct if tool.openai_compatible() => msg!(SetupModelKeyOpenai),
+            EndpointKind::Direct => msg!(SetupModelKeyAnthropic),
+            EndpointKind::Proxy => msg!(SetupModelKeyProxy),
+            EndpointKind::Compatible => msg!(SetupModelKeyEndpoint),
         }
     }
 }
@@ -118,41 +113,25 @@ pub fn model_selection(list: &[String], stored: &str) -> Vec<ModelOption> {
 }
 
 /// The hint under the drop-down when the stored model is not in the list.
-pub fn model_hint(list: &[String], stored: &str) -> Option<String> {
+pub fn model_hint(list: &[String], stored: &str) -> Option<Msg> {
     let g = stored.trim();
-    (!g.is_empty() && !list.is_empty() && !list.iter().any(|m| m == g)).then(|| {
-        format!("„{g}“ steht nicht in der Liste des Endpunkts. Wähle ein Modell aus der Liste, oder lass es, wenn du den Namen sicher kennst.")
-    })
+    (!g.is_empty() && !list.is_empty() && !list.iter().any(|m| m == g))
+        .then(|| msg!(CoreSetupModelNotInList, model = g))
 }
 
 /// Result of the connection test in one sentence of plain text.
-pub fn check_plain_text(p: &EndpointCheck) -> (Tone, String) {
+pub fn check_plain_text(p: &EndpointCheck) -> (Tone, Msg) {
     if !p.configured {
-        return (Tone::Open, "Noch nichts eingetragen.".into());
+        return (Tone::Open, msg!(CoreSetupCheckNothing));
     }
     if !p.reachable {
-        return (
-            Tone::Problem,
-            "Der Endpunkt antwortet nicht. Stimmt die Adresse, und bist du im richtigen Netz oder VPN?"
-                .into(),
-        );
+        return (Tone::Problem, msg!(CoreSetupCheckUnreachable));
     }
     if !p.key_ok {
-        return (
-            Tone::Problem,
-            "Der Endpunkt ist erreichbar, nimmt den Key aber nicht an. Prüfe, ob du den ganzen Key kopiert hast."
-                .into(),
-        );
+        return (Tone::Problem, msg!(CoreSetupCheckKeyRejected));
     }
     if !p.model_present {
-        return (
-            Tone::Problem,
-            "Verbindung und Key sind in Ordnung, aber der Endpunkt kennt den Modellnamen nicht. Lade die Modelle und wähle eines aus der Liste."
-                .into(),
-        );
+        return (Tone::Problem, msg!(CoreSetupCheckModelUnknown));
     }
-    (
-        Tone::Good,
-        "Verbindung, Key und Modell sind in Ordnung.".into(),
-    )
+    (Tone::Good, msg!(CoreSetupCheckOk))
 }

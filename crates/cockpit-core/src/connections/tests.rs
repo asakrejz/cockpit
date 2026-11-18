@@ -36,9 +36,9 @@ fn agent_needs_connection_and_permissions() {
     c.agent = true;
     assert_eq!(c.agent_blocked(), None);
     c.may_open_pr = false;
-    assert!(c.agent_blocked().unwrap().contains("Pull Requests"));
+    assert!(c.agent_blocked().unwrap().de().contains("Pull Requests"));
     c.may_branch = false;
-    assert!(c.agent_blocked().unwrap().contains("Branches"));
+    assert!(c.agent_blocked().unwrap().de().contains("Branches"));
     c.may_branch = true;
     c.may_open_pr = true;
     c.may_run_tests = false;

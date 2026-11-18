@@ -20,11 +20,11 @@ pub enum AuthKind {
 
 impl AuthKind {
     /// Short text for the UI.
-    pub fn label(self) -> &'static str {
+    pub fn label(self) -> cockpit_i18n::Msg {
         match self {
-            AuthKind::None => "Getrennt",
-            AuthKind::Token => "Token",
-            AuthKind::OAuth => "OAuth",
+            AuthKind::None => cockpit_i18n::msg!(CoreMiscAuthNone),
+            AuthKind::Token => cockpit_i18n::msg!(CoreMiscAuthToken),
+            AuthKind::OAuth => cockpit_i18n::msg!(CoreMiscAuthOauth),
         }
     }
 }
@@ -85,13 +85,14 @@ impl Connections {
     }
 
     /// Why the agent may not implement a ticket – or `None` if it may.
-    pub fn agent_blocked(&self) -> Option<&'static str> {
+    pub fn agent_blocked(&self) -> Option<cockpit_i18n::Msg> {
+        use cockpit_i18n::msg;
         if !self.agent {
-            Some("Der Agent ist nicht verbunden.")
+            Some(msg!(CoreMiscAgentNotConnected))
         } else if !self.may_branch {
-            Some("Der Agent darf keine Branches erstellen.")
+            Some(msg!(CoreMiscAgentNoBranches))
         } else if !self.may_open_pr {
-            Some("Der Agent darf keine Pull Requests erstellen.")
+            Some(msg!(CoreMiscAgentNoPullRequests))
         } else {
             None
         }

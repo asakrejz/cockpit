@@ -1,6 +1,8 @@
 //! The setup assistant: order of the steps, reading and checking inputs, and the
-//! summary in plain text. Pure logic without UI and network; the „Einrichten“ page
+//! summary in plain text. Pure logic without UI and network; the setup page
 //! merely wires it up.
+
+use cockpit_i18n::{Lang, Msg, msg};
 
 use crate::api::{
     AgentStatus, ContainerStatus, EndpointCheck, EndpointStatus, GitHubCause, JiraCause, Provider,
@@ -62,15 +64,20 @@ impl Step {
         Step::Done,
     ];
 
+    /// Short name for the progress display (German).
+    pub fn name(self) -> String {
+        self.msg().de()
+    }
+
     /// Short name for the progress display.
-    pub fn name(self) -> &'static str {
+    pub fn msg(self) -> Msg {
         match self {
-            Step::Container => "Container",
-            Step::Jira => "Jira",
-            Step::GitHub => "GitHub",
-            Step::Model => "Modell",
-            Step::Live => "Live-Update",
-            Step::Done => "Fertig",
+            Step::Container => msg!(SetupStepContainer),
+            Step::Jira => msg!(SetupStepJira),
+            Step::GitHub => msg!(SetupStepGithub),
+            Step::Model => msg!(SetupStepModel),
+            Step::Live => msg!(SetupStepLive),
+            Step::Done => msg!(SetupStepDone),
         }
     }
 
@@ -123,16 +130,37 @@ pub fn first_open_step(lines: &[Line]) -> Step {
         .map_or(Step::Done, |l| l.step)
 }
 
-/// The step that a message names as `Schritt „GitHub“` (or `Schritt „Modell“` …). The interface
-/// uses it to put a link to that step under the message.
+/// The step that a message names, quoted as `Schritt „GitHub“` or `Step "GitHub"` (in either
+/// language, with the older short name `Live`). The interface uses it to put a link to that
+/// step under the message.
 pub fn step_mentioned(text: &str) -> Option<Step> {
-    const MARK: &str = "Schritt „";
-    let start = text.find(MARK)? + MARK.len();
-    let end = start + text[start..].find('“')?;
-    let name = &text[start..end];
-    Step::ALL
-        .into_iter()
-        .find(|s| s.name() == name || (*s == Step::Live && name == "Live"))
+    const QUOTES: [(&str, char); 3] = [("Schritt „", '“'), ("step “", '”'), ("step \"", '"')];
+    let lower = text.to_lowercase();
+    for (mark, close) in QUOTES {
+        let Some(at) = lower.find(&mark.to_lowercase()) else {
+            continue;
+        };
+        // The lowercase text can differ in byte length for odd characters; stay on the original.
+        let start = at + mark.len();
+        let Some(rest) = text.get(start..) else {
+            continue;
+        };
+        let Some(end) = rest.find(close) else {
+            continue;
+        };
+        let name = rest[..end].trim();
+        let found = Step::ALL.into_iter().find(|s| {
+            Lang::ALL
+                .into_iter()
+                .any(|l| s.msg().render(l).eq_ignore_ascii_case(name))
+                || (*s == Step::Live && name.eq_ignore_ascii_case("live"))
+                || (*s == Step::Model && name.eq_ignore_ascii_case("modell"))
+        });
+        if found.is_some() {
+            return found;
+        }
+    }
+    None
 }
 
 /// Which sign-in way the Jira step shows first: the way that is already connected; if none is,
@@ -163,7 +191,7 @@ pub fn nothing_set_up(
         || !setup.jira_site.is_empty())
 }
 
-/// GitHub events the webhook should send (Settings › Webhooks › „Let me select individual events“).
+/// GitHub events the webhook should send (Settings > Webhooks > "Let me select individual events").
 pub const GITHUB_WEBHOOK_EVENTS: &[&str] = &[
     "Pull requests",
     "Pull request reviews",
@@ -186,19 +214,19 @@ pub fn webhook_target(public_url: Option<&str>, path: &str) -> String {
         "{}{path}",
         public_url
             .filter(|u| !u.is_empty())
-            .unwrap_or("<öffentliche Adresse>")
+            .unwrap_or("<public address>")
     )
 }
 
-/// "Zuletzt empfangen vor 3 Min. (pull_request)" – only time and event type, never content.
-pub fn webhook_received_text(last_ms: Option<u64>, event: Option<&str>, now_ms: u64) -> String {
+/// "Last received 3 minutes ago (pull_request)": only time and event type, never content.
+pub fn webhook_received_text(last_ms: Option<u64>, event: Option<&str>, now_ms: u64) -> Msg {
     match last_ms {
-        None => "Noch nichts empfangen (seit dem Start von Cockpit).".into(),
+        None => msg!(CoreSetupWebhookNone),
         Some(t) => {
-            let when = crate::notice::ago(t, now_ms);
+            let when = crate::notice::ago_msg(t, now_ms);
             match event.filter(|e| !e.is_empty()) {
-                Some(e) => format!("Zuletzt empfangen {when} ({e})."),
-                None => format!("Zuletzt empfangen {when}."),
+                Some(e) => msg!(CoreSetupWebhookEvent, when = when, event = e),
+                None => msg!(CoreSetupWebhookAt, when = when),
             }
         }
     }
@@ -210,7 +238,7 @@ pub fn key_name_allowed(name: &str) -> bool {
 }
 
 /// Whether `name` is a key that the interface may delete from the .env file again: the tokens
-/// („Trennen“) and the client secrets of the OAuth apps („Client-ID entfernen“). The model key
+/// ("Disconnect") and the client secrets of the OAuth apps ("Remove client ID"). The model key
 /// does not belong to it.
 pub fn key_deletable(name: &str) -> bool {
     matches!(name, "jira" | "github" | "atlassian-oauth" | "github-oauth")

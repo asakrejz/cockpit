@@ -1,0 +1,25 @@
+# Reasons why an entry needs attention
+core_misc.hit_mention = {name} mentioned you
+core_misc.hit_review = Review requested by {name}
+core_misc.hit_changes = Changes requested in #{number}
+core_misc.hit_checks = Checks failed in #{number}
+core_misc.hit_overdue.one = Overdue since yesterday
+core_misc.hit_overdue.other = Overdue for {n} days
+core_misc.hit_agent = Agent finished · pull request #{number} created
+core_misc.hit_assigned = Assigned to you
+core_misc.stuck_diagnosis = The agent's diagnosis waits for your decision: {cause}
+core_misc.stuck_checks_me = The checks of {pr} have failed. You cannot move on.
+core_misc.stuck_checks_other = The checks of {pr} have failed. {name} cannot move on.
+core_misc.stuck_stopped = The agent is stopped: {reason}. Raise the limit and resume it, or cancel.
+core_misc.stuck_question = The agent asks: "{text}"
+core_misc.stuck_plan = The agent has presented a plan and waits for your approval.
+core_misc.stuck_agent_done = The agent is done and waits for your review of {pr}.
+core_misc.stuck_review = {name} waits for your review of {pr}.
+core_misc.stuck_no_branch_me = The ticket is in progress but has no branch yet. Create one.
+core_misc.stuck_no_branch_other = The ticket is in progress but has no branch yet. {name} has to create one.
+core_misc.auth_none = Disconnected
+core_misc.auth_token = Token
+core_misc.auth_oauth = OAuth
+core_misc.agent_not_connected = The agent is not connected.
+core_misc.agent_no_branches = The agent is not allowed to create branches.
+core_misc.agent_no_pull_requests = The agent is not allowed to create pull requests.

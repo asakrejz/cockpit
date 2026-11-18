@@ -1,68 +1,38 @@
 //! The plain-text summary of the whole setup.
 
+use cockpit_i18n::{ArgValue, Msg, msg};
+
 use super::*;
 
 /// The plain text for the result of the GitHub connection test. Never names the token.
-pub fn github_check_text(cause: GitHubCause, user: Option<&str>) -> String {
+pub fn github_check_text(cause: GitHubCause, user: Option<&str>) -> Msg {
     match cause {
         GitHubCause::Ok => match user.filter(|n| !n.is_empty()) {
-            Some(n) => format!("GitHub antwortet und kennt dich als {n}."),
-            None => "GitHub antwortet.".into(),
+            Some(n) => msg!(CoreSetupGithubOkUser, name = n),
+            None => msg!(CoreSetupGithubOk),
         },
-        GitHubCause::NotConnected => {
-            "GitHub ist noch nicht verbunden. Lege zuerst den Token ab (oder melde dich mit der GitHub App an)."
-                .into()
-        }
-        GitHubCause::Token => {
-            "GitHub lehnt den Token ab. Er ist falsch kopiert, abgelaufen oder widerrufen – erzeuge einen neuen."
-                .into()
-        }
-        GitHubCause::Permission => {
-            "Der Token ist gültig, aber GitHub verweigert den Zugriff. Prüfe die Rechte des Tokens und ob die Organisation ihn zulässt."
-                .into()
-        }
-        GitHubCause::RateLimit => {
-            "GitHub bremst gerade (zu viele Anfragen). Versuche es in einigen Minuten noch einmal."
-                .into()
-        }
-        GitHubCause::Network => {
-            "GitHub ist nicht erreichbar. Bist du im Netz, und stimmt die API-Adresse?".into()
-        }
-        GitHubCause::Other => {
-            "GitHub hat unerwartet geantwortet. Versuche es in einer Minute noch einmal.".into()
-        }
+        GitHubCause::NotConnected => msg!(CoreSetupGithubNotConnected),
+        GitHubCause::Token => msg!(CoreSetupGithubToken),
+        GitHubCause::Permission => msg!(CoreSetupGithubPermission),
+        GitHubCause::RateLimit => msg!(CoreSetupGithubRateLimit),
+        GitHubCause::Network => msg!(CoreSetupGithubNetwork),
+        GitHubCause::Other => msg!(CoreSetupGithubOther),
     }
 }
 
 /// The plain text for the result of the Jira connection test. Never names the token.
-pub fn jira_check_text(cause: JiraCause, name: Option<&str>) -> String {
+pub fn jira_check_text(cause: JiraCause, name: Option<&str>) -> Msg {
     match cause {
         JiraCause::Ok => match name.filter(|n| !n.is_empty()) {
-            Some(n) => format!("Jira antwortet und kennt dich: {n}."),
-            None => "Jira antwortet und kennt dich.".into(),
+            Some(n) => msg!(CoreSetupJiraOkName, name = n),
+            None => msg!(CoreSetupJiraOk),
         },
-        JiraCause::Details => {
-            "Es fehlen noch Angaben: Adresse der Site, E-Mail-Adresse und Token.".into()
-        }
-        JiraCause::Address => {
-            "Unter dieser Adresse antwortet kein Jira. Prüfe die Adresse – sie steht in der Adresszeile, wenn du Jira im Browser öffnest (z. B. firma.atlassian.net)."
-                .into()
-        }
-        JiraCause::Token => {
-            "Jira lehnt den Token ab. Prüfe die E-Mail-Adresse (die deines Atlassian-Kontos) und erzeuge im Zweifel einen neuen Token. Ist er abgelaufen, hilft ebenfalls ein neuer."
-                .into()
-        }
-        JiraCause::Permission => {
-            "Der Token ist gültig, aber Jira verweigert den Zugriff. Dein Konto braucht Zugang zu dieser Site – frag die Administration."
-                .into()
-        }
-        JiraCause::Reachable => {
-            "Jira ist nicht erreichbar. Stimmt die Adresse, und bist du im richtigen Netz oder VPN?"
-                .into()
-        }
-        JiraCause::Other => {
-            "Jira hat unerwartet geantwortet. Versuche es in einer Minute noch einmal.".into()
-        }
+        JiraCause::Details => msg!(CoreSetupJiraDetails),
+        JiraCause::Address => msg!(CoreSetupJiraAddress),
+        JiraCause::Token => msg!(CoreSetupJiraToken),
+        JiraCause::Permission => msg!(CoreSetupJiraPermission),
+        JiraCause::Reachable => msg!(CoreSetupJiraReachable),
+        JiraCause::Other => msg!(CoreSetupJiraOther),
     }
 }
 
@@ -80,10 +50,10 @@ pub enum Tone {
 /// A row of the summary.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Line {
-    pub name: &'static str,
+    pub name: Msg,
     pub tone: Tone,
     /// Plain text of what is going on.
-    pub text: String,
+    pub text: Msg,
     /// The step in which this can be fixed.
     pub step: Step,
 }
@@ -103,33 +73,27 @@ pub struct Snapshot {
 }
 
 pub(super) fn service_line(
-    name: &'static str,
+    name: Msg,
+    provider: &str,
     step: Step,
     status: &ServiceStatus,
     client_id: bool,
     secret: bool,
-    token_way: &str,
+    token_way: Option<Msg>,
 ) -> Line {
     let (tone, text) = match (status.connected, status.kind) {
-        (true, AuthKind::OAuth) => (Tone::Good, format!("Verbunden – du bist über {name} angemeldet.")),
-        (true, _) => (Tone::Good, "Verbunden – mit API-Token.".to_string()),
+        (true, AuthKind::OAuth) => (Tone::Good, msg!(CoreSetupConnectedOauth, name = provider)),
+        (true, _) => (Tone::Good, msg!(CoreSetupConnectedToken)),
         (false, _) if !client_id && !secret => (
             Tone::Open,
-            format!("Noch nicht eingerichtet. {token_way}"),
+            match token_way {
+                Some(hint) => msg!(CoreSetupNotSetUpHint, hint = hint),
+                None => msg!(CoreSetupNotSetUp),
+            },
         ),
-        (false, _) if !client_id => (
-            Tone::Problem,
-            "Die Client-ID fehlt noch. Du findest sie in der Entwicklerseite deiner App.".into(),
-        ),
-        (false, _) if !secret => (
-            Tone::Problem,
-            "Das Client-Secret fehlt noch. Es wird nur einmal angezeigt – ist es weg, erzeuge in deiner App ein neues."
-                .into(),
-        ),
-        (false, _) => (
-            Tone::Open,
-            format!("Fast fertig: Klicke auf „Mit {name} anmelden“."),
-        ),
+        (false, _) if !client_id => (Tone::Problem, msg!(CoreSetupClientIdMissing)),
+        (false, _) if !secret => (Tone::Problem, msg!(CoreSetupSecretMissing)),
+        (false, _) => (Tone::Open, msg!(CoreSetupAlmostDone, name = provider)),
     };
     Line {
         name,
@@ -145,44 +109,45 @@ pub(super) fn jira_line(s: &Snapshot) -> Line {
     let client_id = e.atlassian_client_id.is_some();
     let secret = e.has_key("atlassian-oauth");
     let (tone, text) = match (s.jira.connected, s.jira.kind) {
-        (true, AuthKind::OAuth) => (
-            Tone::Good,
-            "Verbunden – mit OAuth (über deine Atlassian-App angemeldet).".to_string(),
-        ),
-        (true, _) => (Tone::Good, "Verbunden – mit API-Token.".to_string()),
+        (true, AuthKind::OAuth) => (Tone::Good, msg!(CoreSetupJiraConnectedOauth)),
+        (true, _) => (Tone::Good, msg!(CoreSetupConnectedToken)),
         // The way via the Atlassian app is started: say what is missing, as before.
         (false, _) if client_id || secret => {
-            let z = service_line("Atlassian", Step::Jira, &s.jira, client_id, secret, "");
+            let z = service_line(
+                msg!(CoreSetupNameJira),
+                "Atlassian",
+                Step::Jira,
+                &s.jira,
+                client_id,
+                secret,
+                None,
+            );
             (z.tone, z.text)
         }
         (false, _) => {
-            let missing: Vec<&str> = [
-                (e.jira_site.is_empty(), "die Adresse der Site"),
-                (e.jira_email.is_empty(), "die E-Mail-Adresse"),
-                (!e.has_key("jira"), "der Token"),
+            let missing: Vec<Msg> = [
+                (e.jira_site.is_empty(), msg!(CoreSetupMissingSite)),
+                (e.jira_email.is_empty(), msg!(CoreSetupMissingEmail)),
+                (!e.has_key("jira"), msg!(CoreSetupMissingToken)),
             ]
             .into_iter()
-            .filter_map(|(missing, name)| missing.then_some(name))
+            .filter_map(|(missing, what)| missing.then_some(what))
             .collect();
             if missing.len() == 3 {
-                (
-                    Tone::Open,
-                    "Noch nicht eingerichtet. Am einfachsten geht es mit einem API-Token."
-                        .to_string(),
-                )
+                (Tone::Open, msg!(CoreSetupJiraNotSetUp))
             } else {
                 (
                     Tone::Open,
-                    format!(
-                        "Die Anmeldung mit API-Token ist noch nicht fertig: Es fehlt {}.",
-                        missing.join(" und ")
+                    msg!(
+                        CoreSetupJiraTokenMissing,
+                        what = ArgValue::joined(missing, ", ")
                     ),
                 )
             }
         }
     };
     Line {
-        name: "Jira",
+        name: msg!(CoreSetupNameJira),
         tone,
         text,
         step: Step::Jira,
@@ -194,65 +159,50 @@ pub fn summary(s: &Snapshot) -> Vec<Line> {
     let e = &s.setup;
     let container = match (&s.container.runtime, s.container.engine_running) {
         // If the real agent runs, one step is still missing without an image.
-        (Some(l), true) if s.agent.mode == "real" && !s.agent.image => (
-            Tone::Open,
-            format!(
-                "{l} läuft. Das Agent-Image ist noch nicht gebaut – klicke im Schritt „Container“ auf „Image bauen“."
-            ),
-        ),
-        (Some(l), true) => (Tone::Good, format!("{l} ist installiert und läuft.")),
-        (Some(l), false) => (
-            Tone::Problem,
-            format!(
-                "{l} ist installiert, aber nicht gestartet. Öffne das Programm und warte, bis es bereit ist."
-            ),
-        ),
-        (None, _) => (
-            Tone::Open,
-            "Noch kein Docker oder Podman gefunden. Du brauchst es erst für den Agenten.".into(),
-        ),
+        (Some(l), true) if s.agent.mode == "real" && !s.agent.image => {
+            (Tone::Open, msg!(CoreSetupContainerNoImage, runtime = l))
+        }
+        (Some(l), true) => (Tone::Good, msg!(CoreSetupContainerOk, runtime = l)),
+        (Some(l), false) => (Tone::Problem, msg!(CoreSetupContainerStopped, runtime = l)),
+        (None, _) => (Tone::Open, msg!(CoreSetupContainerNone)),
     };
     let jira = jira_line(s);
     let mut github = service_line(
+        msg!(CoreSetupNameGithub),
         "GitHub",
         Step::GitHub,
         &s.github,
         e.github_client_id.is_some(),
         e.has_key("github-oauth"),
-        "Dafür brauchst du eine GitHub App.",
+        Some(msg!(CoreSetupGithubAppNeeded)),
     );
-    github.name = "GitHub";
     if github.tone == Tone::Good && e.github_repos.is_empty() {
         github.tone = Tone::Problem;
-        github.text =
-            "Angemeldet, aber ohne Repos: Trage ein, welche Repos Cockpit abgleichen soll.".into();
+        github.text = msg!(CoreSetupGithubNoRepos);
     }
 
     let model = {
         let (tone, text) = match (&s.check, s.endpoint.configured || s.endpoint.key) {
             (Some(p), _) => check_plain_text(p),
-            (None, false) => (Tone::Open, "Noch nicht eingerichtet.".to_string()),
-            (None, true) if !s.endpoint.key => (
-                Tone::Problem,
-                "Eingetragen, aber der Key fehlt noch.".to_string(),
-            ),
-            (None, true) if s.endpoint.model.is_none() => (
-                Tone::Problem,
-                "Key ist da, aber der Modellname fehlt noch.".to_string(),
-            ),
-            (None, true) => (
-                Tone::Open,
-                "Eingetragen, aber noch nicht getestet. Starte den Verbindungstest.".to_string(),
-            ),
+            (None, false) => (Tone::Open, msg!(CoreSetupModelNotSetUp)),
+            (None, true) if !s.endpoint.key => (Tone::Problem, msg!(CoreSetupModelKeyMissing)),
+            (None, true) if s.endpoint.model.is_none() => {
+                (Tone::Problem, msg!(CoreSetupModelNameMissing))
+            }
+            (None, true) => (Tone::Open, msg!(CoreSetupModelUntested)),
         };
         // Name the chosen tool as soon as something is entered.
         let text = if s.endpoint.configured || s.endpoint.key {
-            format!("{}: {text}", s.endpoint.provider.label())
+            msg!(
+                CoreSetupModelWithTool,
+                tool = s.endpoint.provider.label(),
+                text = text
+            )
         } else {
             text
         };
         Line {
-            name: "Modellzugang",
+            name: msg!(CoreSetupNameModel),
             tone,
             text,
             step: Step::Model,
@@ -261,7 +211,7 @@ pub fn summary(s: &Snapshot) -> Vec<Line> {
 
     vec![
         Line {
-            name: "Container",
+            name: msg!(CoreSetupNameContainer),
             tone: container.0,
             text: container.1,
             step: Step::Container,

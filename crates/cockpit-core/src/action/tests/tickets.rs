@@ -109,8 +109,8 @@ fn assigning_to_me_triggers_the_assigned_rule() {
     assert!(!item.read, "newly assigned means unread again");
     let hits = w.hits(item, T);
     assert_eq!(
-        hits.first().map(|h| (h.rule, h.text.as_str())),
-        Some((Rule::Assigned, "Dir zugewiesen"))
+        hits.first().map(|h| (h.rule, h.text.de())),
+        Some((Rule::Assigned, "Dir zugewiesen".to_string()))
     );
     assert!(
         w.attention(Filter::Mine, T)

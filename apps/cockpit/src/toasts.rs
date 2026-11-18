@@ -15,14 +15,15 @@ pub fn Toasts() -> impl IntoView {
                 {
                     let id = toast.id;
                     let event = toast.event;
+                    let (title, text) = (event.title.clone(), event.text.clone());
                     view! {
                         <div class="ck-toast">
                             <span class="ck-toast__icon" aria-hidden="true">
                                 <Icon path=view::notify_icon(event.reason) size=18 />
                             </span>
                             <div class="ui-vstack" style="--spacing: 2px; min-width: 0; flex: 1 1 auto">
-                                <p class="t-headline">{event.title}</p>
-                                <p class="t-subheadline t-secondary">{event.text}</p>
+                                <p class="t-headline">{move || title.render(lang())}</p>
+                                <p class="t-subheadline t-secondary">{move || text.render(lang())}</p>
                             </div>
                             <Button size=ControlSize::Small href=event.route on_click=move |_| store.dismiss(id)>
                                 {t!(ToastOpen)}

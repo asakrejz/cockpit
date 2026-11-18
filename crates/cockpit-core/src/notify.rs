@@ -14,6 +14,7 @@
 //! are `serde`-capable so that the backend can use them later; there is no sending code.
 //! Addresses and webhook URLs never appear in these types – they belong in the backend.
 
+use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};
 
 use crate::agent::AgentRun;
@@ -63,34 +64,38 @@ impl NotifyReason {
         Self::ALL.into_iter().find(|r| r.id() == id)
     }
 
-    pub fn label(self) -> &'static str {
+    pub fn msg(self) -> Msg {
         match self {
-            NotifyReason::ReviewRequested => "Review-Anfrage an mich",
-            NotifyReason::Mention => "Erwähnung",
-            NotifyReason::AgentWaiting => "Agent wartet auf mich",
-            NotifyReason::AgentFinished => "Agent fertig",
-            NotifyReason::ChecksFailed => "Checks fehlgeschlagen",
-            NotifyReason::Assigned => "Ticket mir zugewiesen",
-            NotifyReason::AgentStopped => "Agent angehalten",
+            NotifyReason::ReviewRequested => msg!(CoreNotifyReasonReview),
+            NotifyReason::Mention => msg!(CoreNotifyReasonMention),
+            NotifyReason::AgentWaiting => msg!(CoreNotifyReasonWaiting),
+            NotifyReason::AgentFinished => msg!(CoreNotifyReasonFinished),
+            NotifyReason::ChecksFailed => msg!(CoreNotifyReasonChecks),
+            NotifyReason::Assigned => msg!(CoreNotifyReasonAssigned),
+            NotifyReason::AgentStopped => msg!(CoreNotifyReasonStopped),
         }
     }
 
+    /// The name in German (for log lines that are kept as plain text).
+    pub fn label(self) -> String {
+        self.msg().de()
+    }
+
     /// A sentence on when it reports.
-    pub fn hint(self) -> &'static str {
+    pub fn hint(self) -> String {
+        self.hint_msg().de()
+    }
+
+    /// A sentence on when it reports.
+    pub fn hint_msg(self) -> Msg {
         match self {
-            NotifyReason::ReviewRequested => "Jemand bittet dich um ein Review",
-            NotifyReason::Mention => "Dein Name oder dein Kürzel steht in einem Kommentar (@Du)",
-            NotifyReason::AgentWaiting => {
-                "Ein Plan liegt zur Freigabe vor, der Agent hat eine Rückfrage oder eine Diagnose wartet auf deine Entscheidung"
-            }
-            NotifyReason::AgentFinished => {
-                "Der Agent hat einen Pull Request erstellt, Review-Kommentare umgesetzt oder einen Fix gepusht"
-            }
-            NotifyReason::ChecksFailed => "Die Checks deines Pull Requests werden rot",
-            NotifyReason::Assigned => "Dir wird ein Ticket zugewiesen",
-            NotifyReason::AgentStopped => {
-                "Eine Grenze (Budget oder Zeitlimit) hat einen Lauf angehalten"
-            }
+            NotifyReason::ReviewRequested => msg!(CoreNotifyReasonReviewHint),
+            NotifyReason::Mention => msg!(CoreNotifyReasonMentionHint),
+            NotifyReason::AgentWaiting => msg!(CoreNotifyReasonWaitingHint),
+            NotifyReason::AgentFinished => msg!(CoreNotifyReasonFinishedHint),
+            NotifyReason::ChecksFailed => msg!(CoreNotifyReasonChecksHint),
+            NotifyReason::Assigned => msg!(CoreNotifyReasonAssignedHint),
+            NotifyReason::AgentStopped => msg!(CoreNotifyReasonStoppedHint),
         }
     }
 }
@@ -121,12 +126,17 @@ impl Channel {
         Self::ALL.into_iter().find(|c| c.id() == id)
     }
 
-    pub fn label(self) -> &'static str {
+    pub fn msg(self) -> Msg {
         match self {
-            Channel::Browser => "Browser",
-            Channel::Email => "E-Mail",
-            Channel::Slack => "Slack",
+            Channel::Browser => msg!(CoreNotifyChannelBrowser),
+            Channel::Email => msg!(CoreNotifyChannelEmail),
+            Channel::Slack => msg!(CoreNotifyChannelSlack),
         }
+    }
+
+    /// The name in German (for log lines that are kept as plain text).
+    pub fn label(self) -> String {
+        self.msg().de()
     }
 
     /// Is it sent by the backend (not built yet), not by the browser?
@@ -282,8 +292,8 @@ impl NotifySettings {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Event {
     pub reason: NotifyReason,
-    pub title: String,
-    pub text: String,
+    pub title: Msg,
+    pub text: Msg,
     /// Target as an address of the app, e.g. `#/review/87`.
     pub route: String,
 }
@@ -316,7 +326,7 @@ pub fn deliveries(events: &[Event], settings: &NotifySettings, minute: u16) -> V
         .collect()
 }
 
-/// Is `@Name` or `@Kürzel` of the person in the text? Case does not matter.
+/// Is `@Name` or `@Initials` of the person in the text? Case does not matter.
 pub fn mentions(text: &str, who: &Person) -> bool {
     text.split('@').skip(1).any(|rest| {
         let word: String = rest
@@ -357,16 +367,20 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
         if fresh(old, item, ReasonKind::ReviewRequested) {
             out.push(Event {
                 reason: NotifyReason::ReviewRequested,
-                title: format!("Review angefragt: {}", item.title),
-                text: format!("{} · {}", item.key, item.reason_text),
+                title: msg!(CoreNotifyReviewTitle, title = &item.title),
+                text: msg!(
+                    CoreNotifyReviewText,
+                    key = &item.key,
+                    reason = Msg::raw(item.reason_text.clone())
+                ),
                 route: route_of(item),
             });
         }
         if fresh(old, item, ReasonKind::Assigned) {
             out.push(Event {
                 reason: NotifyReason::Assigned,
-                title: format!("Ticket zugewiesen: {}", item.key),
-                text: item.title.clone(),
+                title: msg!(CoreNotifyAssignedTitle, key = &item.key),
+                text: Msg::raw(item.title.clone()),
                 route: route_of(item),
             });
         }
@@ -376,8 +390,8 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
             if !comment.own && !comment.author.is_agent() && mentions(&comment.text, &me) {
                 out.push(Event {
                     reason: NotifyReason::Mention,
-                    title: format!("{} hat dich erwähnt", comment.author.name),
-                    text: format!("{}: {}", item.key, comment.text),
+                    title: msg!(CoreNotifyMentionTitle, name = &comment.author.name),
+                    text: msg!(CoreNotifyMentionText, key = &item.key, text = &comment.text),
                     route: route_of(item),
                 });
             }
@@ -388,8 +402,8 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
             let pr = item.pr.as_ref().map(PrRef::key).unwrap_or_default();
             out.push(Event {
                 reason: NotifyReason::ChecksFailed,
-                title: format!("Checks fehlgeschlagen: {pr}"),
-                text: item.title.clone(),
+                title: msg!(CoreNotifyChecksTitle, pr = pr.to_string()),
+                text: Msg::raw(item.title.clone()),
                 route: format!("#/review/{}", pr.route()),
             });
         }
@@ -401,29 +415,29 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
         if run.is_awaiting() && !old.is_some_and(AgentRun::is_awaiting) {
             out.push(Event {
                 reason: NotifyReason::AgentWaiting,
-                title: format!("Agent wartet: {label}"),
-                text: "Der Plan wartet auf deine Freigabe".into(),
+                title: msg!(CoreNotifyWaitingTitle, label = &label),
+                text: msg!(CoreNotifyPlanText),
                 route: format!("#/agent/{key}"),
             });
         }
         if run.is_asking() && !old.is_some_and(AgentRun::is_asking) {
             out.push(Event {
                 reason: NotifyReason::AgentWaiting,
-                title: format!("Agent fragt: {label}"),
+                title: msg!(CoreNotifyAsksTitle, label = &label),
                 text: run
                     .question
                     .as_ref()
-                    .map_or_else(|| "Der Agent hat eine Rückfrage".into(), |q| q.text.clone()),
+                    .map_or_else(|| msg!(CoreNotifyAsksDefault), |q| Msg::raw(q.text.clone())),
                 route: format!("#/agent/{key}"),
             });
         }
         if run.is_diagnosed() && !old.is_some_and(AgentRun::is_diagnosed) {
             out.push(Event {
                 reason: NotifyReason::AgentWaiting,
-                title: format!("Agent wartet: {label}"),
+                title: msg!(CoreNotifyWaitingTitle, label = &label),
                 text: run.diagnosis.as_ref().map_or_else(
-                    || "Die Diagnose wartet auf deine Entscheidung".into(),
-                    |d| format!("Diagnose: {} – Fix übernehmen?", d.cause),
+                    || msg!(CoreNotifyDiagnosisDefault),
+                    |d| msg!(CoreNotifyDiagnosisText, cause = d.cause_message()),
                 ),
                 route: format!("#/agent/{key}"),
             });
@@ -433,29 +447,34 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
         {
             out.push(Event {
                 reason: NotifyReason::AgentStopped,
-                title: format!("Agent angehalten: {}", run.ticket_key),
-                text: format!("{} – setze den Lauf fort oder brich ihn ab", reason.label()),
+                title: msg!(CoreNotifyStoppedTitle, key = &run.ticket_key),
+                text: msg!(CoreNotifyStoppedText, reason = reason.label()),
                 route: format!("#/agent/{}", run.ticket_key),
             });
         }
         if run.is_done() && !old.is_some_and(AgentRun::is_done) {
             let (text, route) = match run.pr_key() {
                 Some(n) if run.is_followup() => (
-                    format!("{} · {n} wartet wieder auf dein Review", run.ticket_title),
-                    format!("#/review/{}", n.route()),
-                ),
-                Some(n) => (
-                    format!(
-                        "{} · Pull Request {n} wartet auf dein Review",
-                        run.ticket_title
+                    msg!(
+                        CoreNotifyDoneFollowup,
+                        title = &run.ticket_title,
+                        pr = n.to_string()
                     ),
                     format!("#/review/{}", n.route()),
                 ),
-                None => (run.ticket_title.clone(), format!("#/agent/{key}")),
+                Some(n) => (
+                    msg!(
+                        CoreNotifyDonePr,
+                        title = &run.ticket_title,
+                        pr = n.to_string()
+                    ),
+                    format!("#/review/{}", n.route()),
+                ),
+                None => (Msg::raw(run.ticket_title.clone()), format!("#/agent/{key}")),
             };
             out.push(Event {
                 reason: NotifyReason::AgentFinished,
-                title: format!("Agent fertig: {label}"),
+                title: msg!(CoreNotifyDoneTitle, label = &label),
                 text,
                 route,
             });

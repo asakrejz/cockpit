@@ -42,7 +42,7 @@ fn new_review_request_is_reported_once() {
     let e = only(events(&before, &after));
     assert_eq!(e.reason, NotifyReason::ReviewRequested);
     assert_eq!(e.route, "#/review/99");
-    assert!(e.title.contains("Neuer Button"));
+    assert!(e.title.de().contains("Neuer Button"));
     // Not again afterwards.
     assert!(events(&after, &after).is_empty());
 }
@@ -72,7 +72,7 @@ fn assignment_is_reported() {
     item.reason = ReasonKind::Assigned;
     let e = only(events(&before, &after));
     assert_eq!(e.reason, NotifyReason::Assigned);
-    assert!(e.title.contains("BAU-142"));
+    assert!(e.title.de().contains("BAU-142"));
     assert_eq!(e.route, "#/");
 }
 
@@ -94,7 +94,7 @@ fn mention_needs_a_new_foreign_comment_with_my_name() {
     comments(&mut after).push(Comment::new(lena, "gerade eben", "Was meinst du, @du?"));
     let e = only(events(&before, &after));
     assert_eq!(e.reason, NotifyReason::Mention);
-    assert!(e.title.contains("Lena"));
+    assert!(e.title.de().contains("Lena"));
     // Own comments and old comments report nothing.
     let mut own = before.clone();
     own.reply("bau142", "@Du bin das selbst");
@@ -182,7 +182,7 @@ fn agent_question_is_reported_once() {
     let e = found.expect("follow-up question is reported");
     assert_eq!(e.reason, NotifyReason::AgentWaiting);
     assert_eq!(e.route, "#/agent/BAU-142");
-    assert!(e.text.contains("deprecated"), "{e:?}");
+    assert!(e.text.de().contains("deprecated"), "{e:?}");
     // As long as it is open, it does not come again.
     assert!(events(&after, &after.clone()).is_empty());
 }
@@ -222,7 +222,7 @@ fn agent_waiting_and_finished() {
     let e = only(events(&prev, &after));
     assert_eq!(e.reason, NotifyReason::AgentFinished);
     assert!(e.route.starts_with("#/review/"), "{}", e.route);
-    assert!(e.text.contains("Review"));
+    assert!(e.text.de().contains("Review"));
 }
 
 #[test]
@@ -323,8 +323,8 @@ fn quiet_times_format_and_parse() {
 fn deliveries_follow_settings_and_quiet_hours() {
     let event = |reason| Event {
         reason,
-        title: "t".into(),
-        text: "x".into(),
+        title: cockpit_i18n::Msg::raw("t"),
+        text: cockpit_i18n::Msg::raw("x"),
         route: "#/".into(),
     };
     let evs = [event(NotifyReason::Mention), event(NotifyReason::Assigned)];

@@ -236,7 +236,10 @@ fn a_red_check_is_diagnosed_and_nothing_changes_before_you_accept() {
     let run = w.run(key).unwrap();
     assert!(run.is_diagnosed(), "waits for the decision");
     let d = run.diagnosis.clone().unwrap();
-    assert_eq!(d.location().as_deref(), Some("list.rs · Zeile 62"));
+    assert_eq!(
+        d.location().map(|m| m.de()).as_deref(),
+        Some("list.rs · Zeile 62")
+    );
     assert!(d.patch.is_some());
     assert_eq!(
         w.review(85).unwrap().files,
@@ -401,6 +404,7 @@ fn followups_notify_when_waiting_and_when_done() {
     assert_eq!(e[0].reason, NotifyReason::AgentWaiting);
     assert!(
         e[0].title
+            .de()
             .contains("Check „Lint“ in asakrejz/rust-playground#85")
     );
     assert_eq!(e[0].route, "#/agent/check-asakrejz~rust-playground-85-lint");

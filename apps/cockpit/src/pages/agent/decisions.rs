@@ -19,10 +19,10 @@ pub(super) fn diagnosis(ctx: AgentCtx) -> Option<impl IntoView> {
                     <Badge variant=BadgeVariant::Tint>{check_badge}</Badge>
                     {d
                         .location()
-                        .map(|l| view! { <span class="t-footnote t-mono t-secondary">{l}</span> })}
+                        .map(|l| view! { <span class="t-footnote t-mono t-secondary">{l.render(lang())}</span> })}
                 </div>
-                <p class="t-headline">{d.cause.clone()}</p>
-                <p class="t-footnote t-secondary">{t!(AgentDecisionsSuggestion, text = d.remedy)}</p>
+                <p class="t-headline">{d.cause_message().render(lang())}</p>
+                <p class="t-footnote t-secondary">{t!(AgentDecisionsSuggestion, text = d.remedy_message().render(lang()))}</p>
                 {d
                     .patch
                     .clone()

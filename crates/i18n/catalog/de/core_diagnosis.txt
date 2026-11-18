@@ -1,0 +1,17 @@
+# Diagnose eines roten Checks
+core_diagnosis.location = {file} · Zeile {line}
+core_diagnosis.unused_variable = Die Variable `{name}` wird nicht benutzt. Mit `-D warnings` bricht der Lint-Lauf dort ab.
+core_diagnosis.unused_import = Der Import `{name}` wird nicht benutzt. Mit `-D warnings` bricht der Lint-Lauf dort ab.
+core_diagnosis.remedy_remove_unused = Die ungenutzte Zeile entfernen
+core_diagnosis.remedy_remove_line = Zeile {line} in {file} entfernen
+core_diagnosis.cause_reported = Der Lauf meldet: {message}
+core_diagnosis.remedy_check_code = Die Ursache im Code prüfen. Dafür gibt es keinen automatischen Fix.
+core_diagnosis.cause_slow_test = `{test}` hat zu lange gebraucht. Der Headless-Browser ist nicht rechtzeitig gestartet. Das sieht nach einem wackligen Check aus, nicht nach einem Fehler im Code.
+core_diagnosis.remedy_flaky = Kein Code-Fix nötig. Starte den Check neu.
+core_diagnosis.cause_test_failed = Test `{test}` schlägt fehl: {reason}
+core_diagnosis.see_log = siehe Log
+core_diagnosis.remedy_check_test = Test und Code prüfen. Dafür gibt es keinen automatischen Fix.
+core_diagnosis.cause_log_ends = Das Log endet mit: {line}
+core_diagnosis.cause_log_empty = Das Log ist leer. Die Ursache lässt sich nicht eingrenzen.
+core_diagnosis.remedy_watch_log = Starte den Check neu und beobachte das Log.
+core_diagnosis.cause_default = Der Agent hat den Check untersucht.

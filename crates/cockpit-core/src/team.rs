@@ -1,9 +1,12 @@
 //! Team view: who works on what and where something is stuck.
 //!
 //! Everything here is pure functions over the [`Workspace`]. They change nothing and
-//! know no UI; the „Übersicht“ page only shows their result.
+//! know no UI; the overview page only shows their result.
+
+use cockpit_i18n::{Msg, msg};
 
 use crate::agent::AgentRun;
+use crate::diagnosis::Diagnosis;
 use crate::model::{Item, Person, PrKey, PrRef, TicketStatus, Tone};
 use crate::workspace::Workspace;
 use crate::{Checks, Kind};
@@ -20,16 +23,6 @@ pub enum LoadLevel {
     Busy,
     /// At the limit or above.
     Full,
-}
-
-impl LoadLevel {
-    pub fn label(self) -> &'static str {
-        match self {
-            LoadLevel::Free => "Hat Luft",
-            LoadLevel::Busy => "Gut ausgelastet",
-            LoadLevel::Full => "Voll ausgelastet",
-        }
-    }
 }
 
 /// A person with their open entries.
@@ -185,21 +178,6 @@ pub enum StuckKind {
     NoBranch,
 }
 
-impl StuckKind {
-    pub fn label(self) -> &'static str {
-        match self {
-            StuckKind::ChecksFailed => "Checks fehlgeschlagen",
-            StuckKind::AgentStopped => "Agent angehalten",
-            StuckKind::QuestionWaiting => "Frage wartet",
-            StuckKind::DiagnosisWaiting => "Diagnose wartet",
-            StuckKind::PlanWaiting => "Plan wartet",
-            StuckKind::AgentWaiting => "Agent wartet",
-            StuckKind::ReviewWaiting => "Review wartet",
-            StuckKind::NoBranch => "Ohne Branch",
-        }
-    }
-}
-
 /// An entry that blocks someone.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stuck {
@@ -210,7 +188,7 @@ pub struct Stuck {
     /// Who has to do something for things to move on.
     pub who: Person,
     /// The reason as a full sentence.
-    pub reason: String,
+    pub reason: Msg,
     /// The pull request, if it is about the review.
     pub review: Option<PrKey>,
     /// Ticket whose agent plan waits for approval.
@@ -222,7 +200,7 @@ pub struct Stuck {
 }
 
 /// The first rule that matches the entry. An entry is stuck only once.
-fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> {
+fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, Msg)> {
     let me = Person::me();
     let pr = item.pr.as_ref();
 
@@ -235,11 +213,11 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
         let cause = run
             .diagnosis
             .as_ref()
-            .map_or("Der Agent hat den Check untersucht.", |d| d.cause.as_str());
+            .map_or_else(|| msg!(CoreDiagnosisCauseDefault), Diagnosis::cause_message);
         return Some((
             StuckKind::DiagnosisWaiting,
             me,
-            format!("Diagnose des Agenten wartet auf deine Entscheidung: {cause}"),
+            msg!(CoreMiscStuckDiagnosis, cause = cause),
         ));
     }
 
@@ -247,11 +225,15 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
         return Some((
             StuckKind::ChecksFailed,
             item.owner.clone(),
-            format!(
-                "Die Checks von {} sind fehlgeschlagen – {} kommt nicht weiter.",
-                pr.key(),
-                who_name(&item.owner)
-            ),
+            if item.owner == Person::me() {
+                msg!(CoreMiscStuckChecksMe, pr = pr.key().to_string())
+            } else {
+                msg!(
+                    CoreMiscStuckChecksOther,
+                    pr = pr.key().to_string(),
+                    name = &item.owner.name
+                )
+            },
         ));
     }
 
@@ -264,10 +246,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
         return Some((
             StuckKind::AgentStopped,
             me,
-            format!(
-                "Der Agent ist angehalten: {}. Erhöhe das Limit und setze ihn fort – oder brich ab.",
-                reason.label()
-            ),
+            msg!(CoreMiscStuckStopped, reason = reason.label()),
         ));
     }
 
@@ -280,7 +259,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
         return Some((
             StuckKind::QuestionWaiting,
             me,
-            format!("Der Agent fragt: „{}“", question.text),
+            msg!(CoreMiscStuckQuestion, text = &question.text),
         ));
     }
 
@@ -289,11 +268,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
         .iter()
         .any(|r| item.matches_run_key(&r.ticket_key) && r.is_awaiting())
     {
-        return Some((
-            StuckKind::PlanWaiting,
-            me,
-            "Der Agent hat einen Plan vorgelegt und wartet auf deine Freigabe.".to_string(),
-        ));
+        return Some((StuckKind::PlanWaiting, me, msg!(CoreMiscStuckPlan)));
     }
 
     let waiting_run = ws.runs.iter().find(|r| {
@@ -305,7 +280,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
         return Some((
             StuckKind::AgentWaiting,
             me,
-            format!("Der Agent ist fertig und wartet auf dein Review von {number}."),
+            msg!(CoreMiscStuckAgentDone, pr = number.to_string()),
         ));
     }
 
@@ -319,10 +294,10 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
         return Some((
             StuckKind::ReviewWaiting,
             me,
-            format!(
-                "{} wartet auf dein Review von {}.",
-                item.owner.name,
-                pr.key()
+            msg!(
+                CoreMiscStuckReview,
+                name = &item.owner.name,
+                pr = pr.key().to_string()
             ),
         ));
     }
@@ -340,26 +315,14 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, String)> 
         return Some((
             StuckKind::NoBranch,
             item.owner.clone(),
-            format!(
-                "Das Ticket ist in Arbeit, hat aber noch keinen Branch – {}.",
-                if item.owner == me {
-                    "lege einen an".to_string()
-                } else {
-                    format!("{} muss einen anlegen", item.owner.name)
-                }
-            ),
+            if item.owner == Person::me() {
+                msg!(CoreMiscStuckNoBranchMe)
+            } else {
+                msg!(CoreMiscStuckNoBranchOther, name = &item.owner.name)
+            },
         ));
     }
     None
-}
-
-/// "Du" in the sentence sounds wrong ("Du kommt nicht weiter"), so it is adjusted.
-fn who_name(person: &Person) -> String {
-    if *person == Person::me() {
-        "du".into()
-    } else {
-        person.name.clone()
-    }
 }
 
 /// Entries that are stuck, most urgent first. Done entries do not count.

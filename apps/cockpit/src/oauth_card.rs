@@ -88,7 +88,7 @@ fn describe(status: &ServiceStatus) -> String {
             Some(site) => t!(OauthConnectedSite, site = site),
             None => t!(OauthConnected),
         },
-        (true, kind) => t!(OauthConnectedKind, kind = kind.label()),
+        (true, kind) => t!(OauthConnectedKind, kind = kind.label().render(lang())),
         (false, _) => t!(OauthDisconnected),
     }
 }
