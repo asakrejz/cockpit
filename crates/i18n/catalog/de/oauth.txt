@@ -1,0 +1,15 @@
+oauth.signed_in = Angemeldet
+oauth.sign_in_failed = Die Anmeldung ist fehlgeschlagen
+oauth.connected_site = Verbunden per OAuth (Site {site})
+oauth.connected = Verbunden per OAuth
+oauth.connected_kind = Verbunden ({kind})
+oauth.disconnected = Getrennt
+oauth.disconnected_forgot = Von {service} getrennt. Client-ID und Client-Secret sind vergessen.
+oauth.disconnected_note = Von {service} getrennt
+oauth.server_unreachable = Der Server ist nicht erreichbar
+oauth.sign_in = Mit {service} anmelden
+oauth.need_client = Speichere zuerst oben die Client-ID und lege das Client-Secret ab.
+oauth.sign_in_to = Anmeldung bei {service}
+oauth.disconnect = Trennen
+oauth.forget = Auch Client-ID und Secret vergessen
+store.unreachable_change = Der Server ist nicht erreichbar. Die Änderung ging nicht durch.

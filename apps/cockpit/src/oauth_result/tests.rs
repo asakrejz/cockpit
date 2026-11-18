@@ -10,11 +10,8 @@ fn reads_success_and_error() {
         parse("?oauth=error&service=atlassian&message=Site%20%C3%A4%20nicht+frei"),
         Some((false, "Site ä nicht frei".into()))
     );
-    assert_eq!(parse("?oauth=ok"), Some((true, "Angemeldet".into())));
-    assert_eq!(
-        parse("?oauth=error"),
-        Some((false, "Die Anmeldung ist fehlgeschlagen".into()))
-    );
+    assert_eq!(parse("?oauth=ok"), Some((true, String::new())));
+    assert_eq!(parse("?oauth=error"), Some((false, String::new())));
 }
 
 #[test]

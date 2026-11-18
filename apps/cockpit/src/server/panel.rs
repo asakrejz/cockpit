@@ -1,6 +1,7 @@
 //! Review panel: commits of a pull request and the diff of one commit (`/api/review/…`).
 
 use cockpit_core::api::{PanelCommitDiff, PanelCommits};
+use feature_ui::t;
 use gloo_net::http::Request;
 
 use super::{CallError, rejection};
@@ -19,7 +20,7 @@ async fn get_json<T: serde::de::DeserializeOwned>(
     }
     resp.json::<T>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// The commits of a pull request (`GET /api/review/commits`).

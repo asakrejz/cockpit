@@ -1,0 +1,12 @@
+sync.never = noch nie abgeglichen
+sync.last = zuletzt abgeglichen {ago}
+sync.last_warning = {last} · Hinweis: {warning}
+sync.last_problem = {problem} · {last}
+sync.no_source = Keine Quelle verbunden. Richte Jira oder GitHub unter „Einrichten“ ein.
+sync.empty_title = Keine Quelle abgeglichen
+sync.empty_text = Jira und GitHub richtest du unter „Einrichten“ ein. Bis dahin bleibt der Workspace leer.
+sync.connected = verbunden
+sync.problem = Problem
+sync.header = Abgleich
+sync.footer = Das Backend fragt Jira und GitHub regelmäßig ab (Standard: alle 2 Minuten). Aktionen wie Antworten, Status ändern, Review oder Mergen gehen zuerst an den Dienst. Danach siehst du sie hier.
+sync.now_hint = Holt Tickets, Pull Requests, Kommentare und Checks sofort
