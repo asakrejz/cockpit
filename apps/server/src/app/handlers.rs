@@ -91,13 +91,12 @@ pub(super) async fn api_unknown() -> (StatusCode, Json<serde_json::Value>) {
 }
 
 pub(crate) fn error(status: StatusCode, message: impl Into<String>) -> Response {
-    (
-        status,
-        Json(ErrorBody {
-            error: message.into(),
-        }),
-    )
-        .into_response()
+    (status, Json(ErrorBody::text(message))).into_response()
+}
+
+/// Like [`error`], with the message as code and parameters (the UI shows it in its language).
+pub(crate) fn error_msg(status: StatusCode, msg: cockpit_i18n::Msg) -> Response {
+    (status, Json(ErrorBody::coded(msg))).into_response()
 }
 
 /// `GET /api/workspace`: the current state, shape of `cockpit_core::persist` plus `revision`.

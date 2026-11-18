@@ -62,7 +62,35 @@ pub fn plural_forms() -> [&'static str; 3] {
     ["zero", "one", "other"]
 }
 
-pub(crate) fn fill(raw: &str, args: &[Arg]) -> String {
+/// The text for an id (as stored in a [`crate::Msg`]). Unknown ids come back as the id.
+pub(crate) fn text_by_id(lang: Lang, id: &str, args: &[(String, String)]) -> String {
+    let entry = |lang: Lang, id: &str| table(lang).get(id).cloned();
+    let plural = table(Lang::En).contains_key(&format!("{id}.other"));
+    let pick = |lang: Lang| -> Option<String> {
+        if !plural {
+            return entry(lang, id);
+        }
+        let n: u64 = args
+            .iter()
+            .find(|(k, _)| k == "n")
+            .and_then(|(_, v)| v.parse().ok())
+            .unwrap_or(0);
+        let form = if n == 0 && entry(lang, &format!("{id}.zero")).is_some() {
+            "zero"
+        } else if n == 1 {
+            "one"
+        } else {
+            "other"
+        };
+        entry(lang, &format!("{id}.{form}"))
+    };
+    let raw = pick(lang)
+        .or_else(|| pick(Lang::En))
+        .unwrap_or_else(|| id.to_string());
+    fill_strings(&raw, args)
+}
+
+fn fill_strings(raw: &str, args: &[(String, String)]) -> String {
     let mut out = raw.to_string();
     for (name, value) in args {
         out = out.replace(&format!("{{{name}}}"), value);

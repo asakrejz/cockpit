@@ -246,3 +246,24 @@ fn the_language_is_chosen_and_stored_in_the_workspace() {
     let loaded: Workspace = serde_json::from_str(&saved).unwrap();
     assert_eq!(loaded.language, None);
 }
+
+#[test]
+fn a_coded_log_entry_reads_in_both_languages_and_keeps_the_german_text() {
+    use cockpit_i18n::Lang;
+    let mut w = Workspace::default();
+    ok(&mut w, Action::SetLanguage { language: Lang::En }, 1);
+    let entry = w.log.last().unwrap();
+    assert_eq!(entry.text, "Sprache der Oberfläche: English");
+    assert_eq!(entry.text_in(Lang::En), "Interface language: English");
+    assert_eq!(entry.text_in(Lang::De), "Sprache der Oberfläche: English");
+    // An old entry without a code is shown as it is.
+    let old = LogEntry {
+        id: 1,
+        at_ms: 0,
+        actor: Actor::User,
+        target: None,
+        text: "Etwas passiert".into(),
+        msg: None,
+    };
+    assert_eq!(old.text_in(Lang::En), "Etwas passiert");
+}

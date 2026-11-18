@@ -109,9 +109,7 @@ fn parse_service(id: &str) -> Result<Service, ()> {
 fn unknown_service() -> Response {
     (
         StatusCode::NOT_FOUND,
-        Json(ErrorBody {
-            error: "Unbekannter Dienst".into(),
-        }),
+        Json(ErrorBody::text("Unbekannter Dienst")),
     )
         .into_response()
 }
@@ -169,11 +167,7 @@ pub async fn revoke(State(state): State<AppState>, Path(service): Path<String>) 
     };
     match state.oauth_revoke(d).await {
         Ok(a) => Json(a).into_response(),
-        Err(m) => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody { error: m }),
-        )
-            .into_response(),
+        Err(m) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorBody::text(m))).into_response(),
     }
 }
 

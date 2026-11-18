@@ -8,6 +8,7 @@ description = "Lesende Clients für GitHub und Jira Cloud und die Abbildung auf 
 # Native only (backend) – does not compile for WebAssembly.
 [dependencies]
 cockpit-core = { workspace = true }
+cockpit-i18n = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 # rustls instead of OpenSSL: no system library needed.

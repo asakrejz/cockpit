@@ -48,9 +48,9 @@ impl Workspace {
                     return Err(ActionError::Unchanged);
                 }
                 self.language = Some(language);
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Settings,
-                    format!("Sprache der Oberfläche: {}", language.name()),
+                    cockpit_i18n::msg!(CoreSettingsLanguageSet, language = language.name()),
                 )])
             }
             Action::SetAgentLimits { limits } => {
@@ -99,6 +99,7 @@ impl Workspace {
                         actor: Some(Actor::System),
                         target: c.target(),
                         text: c.text(),
+                        msg: None,
                     })
                     .collect();
                 // The sentence in the result comes from the first change; without a change it stays empty.

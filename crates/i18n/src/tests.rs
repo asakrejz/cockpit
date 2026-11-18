@@ -155,3 +155,36 @@ fn language_from_the_browser() {
 fn language_survives_the_wire() {
     assert_eq!(serde_json::to_string(&Lang::De).unwrap(), "\"de\"");
 }
+
+#[test]
+fn messages_render_in_both_languages_and_nest() {
+    let inner = msg!(TimeAgoMinutes, n = 5);
+    let outer = msg!(TimeAgoDays, n = ArgValue::from(inner.clone()));
+    assert_eq!(inner.render(Lang::En), "5 minutes ago");
+    assert_eq!(inner.render(Lang::De), "vor 5 Minuten");
+    assert_eq!(inner.de(), "vor 5 Minuten");
+    // The nested text is filled into the outer one in the same language.
+    assert_eq!(outer.render(Lang::De), "vor vor 5 Minuten Tagen");
+    let joined = ArgValue::joined([inner.clone(), inner.clone()], "; ");
+    let list = Msg::new(Key::TimeAgoDays, vec![("n", joined)]);
+    assert_eq!(
+        list.render(Lang::En),
+        "5 minutes ago; 5 minutes ago days ago"
+    );
+}
+
+#[test]
+fn a_message_survives_the_wire_and_an_unknown_code_renders_as_the_code() {
+    let m = msg!(TimeAgoMinutes, n = 2);
+    let json = serde_json::to_string(&m).unwrap();
+    assert_eq!(serde_json::from_str::<Msg>(&json).unwrap(), m);
+    assert_eq!(
+        serde_json::to_string(&msg!(TimeJustNow)).unwrap(),
+        "{\"code\":\"time.just_now\"}"
+    );
+    let unknown = Msg {
+        code: "future.code".into(),
+        args: vec![],
+    };
+    assert_eq!(unknown.render(Lang::De), "future.code");
+}

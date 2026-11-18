@@ -282,6 +282,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "cockpit-core",
+ "cockpit-i18n",
  "getrandom 0.4.3",
  "reqwest",
  "serde",
@@ -298,6 +299,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "cockpit-core",
+ "cockpit-i18n",
  "cockpit-integrations",
  "dirs",
  "getrandom 0.4.3",

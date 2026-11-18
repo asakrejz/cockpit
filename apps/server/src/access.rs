@@ -109,13 +109,7 @@ pub async fn protect(State(access): State<Access>, request: Request, next: Next)
         access.dev,
     ) {
         Ok(()) => next.run(request).await,
-        Err((status, message)) => (
-            status,
-            Json(ErrorBody {
-                error: message.into(),
-            }),
-        )
-            .into_response(),
+        Err((status, message)) => (status, Json(ErrorBody::text(message))).into_response(),
     }
 }
 

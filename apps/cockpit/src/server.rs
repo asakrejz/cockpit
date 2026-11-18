@@ -39,7 +39,11 @@ impl CallError {
 /// The message from an error response, otherwise a general one.
 async fn rejection(resp: gloo_net::http::Response) -> CallError {
     let status = resp.status();
-    let server_message = resp.json::<ErrorBody>().await.map(|e| e.error).ok();
+    let server_message = resp
+        .json::<ErrorBody>()
+        .await
+        .map(|e| e.in_lang(feature_ui::lang_untracked()))
+        .ok();
     CallError::Rejected(cockpit_core::notice::http_failure_text(
         status,
         server_message.as_deref(),
@@ -50,7 +54,9 @@ async fn rejection(resp: gloo_net::http::Response) -> CallError {
 /// already say in plain text what is wrong, e.g. which token problem).
 async fn rejection_own(resp: gloo_net::http::Response) -> CallError {
     match resp.json::<ErrorBody>().await {
-        Ok(e) if !e.error.trim().is_empty() => CallError::Rejected(e.error),
+        Ok(e) if !e.error.trim().is_empty() => {
+            CallError::Rejected(e.in_lang(feature_ui::lang_untracked()))
+        }
         _ => CallError::Rejected(t!(ServerGithubUnavailable)),
     }
 }

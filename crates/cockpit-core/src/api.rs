@@ -87,10 +87,38 @@ pub struct RevokeResponse {
     pub hint: Option<String>,
 }
 
-/// Error response (4xx/5xx) with German message for the UI.
+/// Error response (4xx/5xx) for the UI. `error` is the German sentence (for readers that only know
+/// plain text); `msg` is the same as code and parameters, which the UI shows in its language.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct ErrorBody {
     pub error: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub msg: Option<cockpit_i18n::Msg>,
+}
+
+impl ErrorBody {
+    /// A sentence without a code (text from outside, for example a message of GitHub).
+    pub fn text(error: impl Into<String>) -> Self {
+        Self {
+            error: error.into(),
+            msg: None,
+        }
+    }
+
+    /// A message by code; the German sentence is filled in next to it.
+    pub fn coded(msg: cockpit_i18n::Msg) -> Self {
+        Self {
+            error: msg.de(),
+            msg: Some(msg),
+        }
+    }
+
+    /// The text for people in `lang`.
+    pub fn in_lang(&self, lang: cockpit_i18n::Lang) -> String {
+        self.msg
+            .as_ref()
+            .map_or_else(|| self.error.clone(), |m| m.render(lang))
+    }
 }
 
 /// An event on `GET /api/events`.

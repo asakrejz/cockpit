@@ -5,6 +5,8 @@ pub(super) struct Note {
     pub(super) actor: Option<Actor>,
     pub(super) target: Option<Target>,
     pub(super) text: String,
+    /// The same sentence as code and parameters; the UI renders it in its language.
+    pub(super) msg: Option<cockpit_i18n::Msg>,
 }
 
 impl Note {
@@ -13,6 +15,28 @@ impl Note {
             actor: None,
             target: Some(target),
             text: text.into(),
+            msg: None,
+        }
+    }
+
+    /// An entry as code and parameters (`msg!`). `text` keeps the German rendering next to it,
+    /// for readers that only know plain text.
+    pub(super) fn coded(target: Target, msg: cockpit_i18n::Msg) -> Self {
+        Self {
+            actor: None,
+            target: Some(target),
+            text: msg.de(),
+            msg: Some(msg),
+        }
+    }
+
+    /// Like [`Note::coded`], without a target (settings).
+    pub(super) fn coded_general(msg: cockpit_i18n::Msg) -> Self {
+        Self {
+            actor: None,
+            target: None,
+            text: msg.de(),
+            msg: Some(msg),
         }
     }
 
@@ -22,6 +46,7 @@ impl Note {
             actor: None,
             target: None,
             text: text.into(),
+            msg: None,
         }
     }
 
