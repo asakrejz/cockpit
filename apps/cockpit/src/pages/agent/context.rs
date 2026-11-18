@@ -1,6 +1,7 @@
 //! The state of the agent page: all signals in one `Copy` struct that the sections receive.
 
 use cockpit_core::{AgentOptions, AgentRepos, AgentRun, Item, PathViolation};
+use feature_ui::*;
 use leptos::prelude::*;
 
 use crate::store::{Store, use_store};
@@ -147,7 +148,7 @@ impl AgentCtx {
             }
         });
         let repo_options = Signal::derive(move || {
-            let mut list = vec![(String::new(), "Repo wählen …".to_string())];
+            let mut list = vec![(String::new(), t!(AgentContextChooseRepo))];
             list.extend(
                 agent_repos
                     .get()

@@ -10,15 +10,15 @@ use super::context::AgentCtx;
 fn bubble(m: RunMessage) -> impl IntoView {
     let own = m.from == Speaker::User;
     let who = match (m.from, m.kind) {
-        (Speaker::Agent, MessageKind::Question) => "Agent fragt",
-        (Speaker::Agent, _) => "Agent",
-        (Speaker::User, MessageKind::Answer) => "Du antwortest",
-        (Speaker::User, MessageKind::Hint) => "Du schickst einen Hinweis",
-        (Speaker::User, _) => "Du",
+        (Speaker::Agent, MessageKind::Question) => t!(AgentActivityWhoAgentAsks),
+        (Speaker::Agent, _) => t!(AgentActivityWhoAgent),
+        (Speaker::User, MessageKind::Answer) => t!(AgentActivityWhoYouAnswer),
+        (Speaker::User, MessageKind::Hint) => t!(AgentActivityWhoYouHint),
+        (Speaker::User, _) => t!(AgentActivityWhoYou),
     };
     let time = match m.step {
-        0 => "Start".to_string(),
-        n => format!("nach Schritt {n}"),
+        0 => t!(AgentActivityTimeStart),
+        n => t!(AgentActivityTimeStep, n = n),
     };
     view! {
         <CommentBubble
@@ -37,7 +37,7 @@ pub(super) fn history(ctx: AgentCtx) -> AnyView {
     let AgentCtx { run, .. } = ctx;
     let messages = run.get().map(|r| r.messages).unwrap_or_default();
     if messages.is_empty() {
-        return view! { <p class="t-footnote t-secondary">"Noch nichts gesagt."</p> }.into_any();
+        return view! { <p class="t-footnote t-secondary">{t!(AgentActivityEmpty)}</p> }.into_any();
     }
     messages.into_iter().map(bubble).collect_view().into_any()
 }
@@ -55,7 +55,7 @@ pub(super) fn changed_files(ctx: AgentCtx) -> Option<impl IntoView> {
     let files = files.unwrap_or_else(|| cockpit_core::demo::agent_changes(&run.ticket_key));
     Some(view! {
         <List>
-            <ListSection header="Geänderte Dateien" nested=true>
+            <ListSection header=t!(AgentActivityChangedFiles) nested=true>
                 {files
                     .into_iter()
                     .map(|f| {
@@ -90,14 +90,14 @@ pub(super) fn result_card(ctx: AgentCtx) -> Option<impl IntoView> {
                     <Badge variant=BadgeVariant::Neutral>"GitHub"</Badge>
                     <span class="t-footnote t-mono t-secondary">{format!("#{number}")}</span>
                     <span class="ui-spacer"></span>
-                    <Status tone=StatusTone::Green>"Gepusht"</Status>
+                    <Status tone=StatusTone::Green>{t!(AgentActivityPushed)}</Status>
                 </div>
-                <p class="t-headline">{run.label()}</p>
+                <p class="t-headline">{super::labels::run_label(&run)}</p>
                 <span style="align-self: flex-start; max-width: 100%">
                     <Chip>{run.branch()}</Chip>
                 </span>
                 <p class="t-footnote t-secondary">
-                    "Kein neuer Pull Request, der Agent merged nie. Das Review liegt wieder bei dir."
+                    {t!(AgentActivityFollowupNote)}
                 </p>
             </SuggestionCard>
         });
@@ -109,14 +109,18 @@ pub(super) fn result_card(ctx: AgentCtx) -> Option<impl IntoView> {
                 <span class="t-footnote t-mono t-secondary">{format!("#{number}")}</span>
                 <span class="ui-spacer"></span>
                 <Status tone=StatusTone::Green>
-                    {if run.options.draft_pr { "Entwurf erstellt" } else { "Erstellt" }}
+                    {if run.options.draft_pr {
+                        t!(AgentActivityDraftCreated)
+                    } else {
+                        t!(AgentActivityCreated)
+                    }}
                 </Status>
             </div>
             <p class="t-headline">{run.ticket_title.clone()}</p>
             <span style="align-self: flex-start; max-width: 100%">
                 <Chip>{run.branch()}</Chip>
             </span>
-            <p class="t-footnote t-secondary">"Der Agent führt keinen Merge aus. Das Review liegt bei dir."</p>
+            <p class="t-footnote t-secondary">{t!(AgentActivityNoMerge)}</p>
         </SuggestionCard>
     })
 }
@@ -125,13 +129,13 @@ pub(super) fn result_card(ctx: AgentCtx) -> Option<impl IntoView> {
 pub(super) fn pane(ctx: AgentCtx) -> impl IntoView {
     let AgentCtx { run, .. } = ctx;
     view! {
-        <Pane label="Aktivität">
+        <Pane label=t!(AgentActivityActivity)>
             <PaneHeader>
-                <h2 class="t-title3 t-bold">"Aktivität"</h2>
+                <h2 class="t-title3 t-bold">{t!(AgentActivityActivity)}</h2>
             </PaneHeader>
             <PaneBody>
-                <div class="ui-list__section" role="region" aria-label="Verlauf">
-                    <p class="ui-list__header">"Verlauf"</p>
+                <div class="ui-list__section" role="region" aria-label=t!(AgentActivityHistory)>
+                    <p class="ui-list__header">{t!(AgentActivityHistory)}</p>
                     <div class="ck-thread">{move || history(ctx)}</div>
                 </div>
                 <Log text=Signal::derive(move || run.get().map(|r| r.log()).unwrap_or_default()) />

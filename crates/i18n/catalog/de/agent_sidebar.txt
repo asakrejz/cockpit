@@ -1,0 +1,8 @@
+agent_sidebar.waiting = wartet
+agent_sidebar.asking = fragt
+agent_sidebar.paused = pausiert
+agent_sidebar.halted = angehalten
+agent_sidebar.running = läuft
+agent_sidebar.done = fertig
+agent_sidebar.ready = bereit
+agent_sidebar.new = neu

@@ -31,19 +31,19 @@ pub(super) fn job(ctx: AgentCtx) -> impl IntoView {
     view! {
         <Show when=move || !followup.get()>
         <div class="ui-list__section">
-            <p class="ui-list__header">"Auftrag"</p>
+            <p class="ui-list__header">{t!(AgentJobJob)}</p>
             <div class="ui-vstack" style="--spacing: 10px">
                 <Textarea
                     value=hint
-                    label="Hinweise für den Agenten"
-                    placeholder="Zusätzliche Hinweise für den Agenten (optional), z. B.: Auch den Slider-Thumb prüfen."
+                    label=t!(AgentJobHintLabel)
+                    placeholder=t!(AgentJobHintPlaceholder)
                     min_height="72px"
                     disabled=locked
                 />
                 <List>
                     <ListSection nested=true>
                         <Show when=move || !agent_repos.get().is_empty()>
-                            <ListRow title="Repo">
+                            <ListRow title=t!(AgentJobRepo)>
                                 <Select
                                     options=repo_options
                                     value=Signal::derive(move || repo.get())
@@ -51,15 +51,15 @@ pub(super) fn job(ctx: AgentCtx) -> impl IntoView {
                                         repo_touched.set(true);
                                         repo.set(v);
                                     }
-                                    aria_label="Repo für den Agenten"
+                                    aria_label=t!(AgentJobRepoAria)
                                     disabled=locked
                                 />
                             </ListRow>
                             <Show when=move || repo.get().is_empty() && !locked.get()>
                                 <p class="t-footnote t-secondary" role="status">
                                     {move || match project.get() {
-                                        Some(p) => format!("Für das Jira-Projekt {p} ist kein Repo zugeordnet und es gibt kein Standard-Repo. Wähle ein Repo aus."),
-                                        None => "Es gibt kein Standard-Repo. Wähle ein Repo aus.".to_string(),
+                                        Some(p) => t!(AgentJobNoRepoProject, project = p),
+                                        None => t!(AgentJobNoRepo),
                                     }}
                                 </p>
                             </Show>
@@ -69,30 +69,30 @@ pub(super) fn job(ctx: AgentCtx) -> impl IntoView {
                                     && project.get().is_some()
                             }>
                                 <p class="t-footnote t-secondary">
-                                    "Keine Zuordnungsregel für dieses Jira-Projekt – das Standard-Repo ist vorgewählt."
+                                    {t!(AgentJobNoRule)}
                                 </p>
                             </Show>
                         </Show>
-                        <ListRow title="Basis-Branch">
+                        <ListRow title=t!(AgentJobBaseBranch)>
                             <Chip>{move || agent_repos.with(|a| a.base_branch(&repo.get()))}</Chip>
                         </ListRow>
                         <Show when=move || !repo.get().is_empty()>
                             <p class="t-footnote t-secondary" role="status">
                                 {move || {
-                                    format!(
-                                        "Arbeitet in {} auf Basis {}.",
-                                        repo.get(),
-                                        agent_repos.with(|a| a.base_branch(&repo.get())),
+                                    t!(
+                                        AgentJobWorksIn,
+                                        repo = repo.get(),
+                                        base = agent_repos.with(|a| a.base_branch(&repo.get())),
                                     )
                                 }}
                             </p>
                         </Show>
-                        <ListRow title="Tests vor dem Pull Request ausführen" toggle_row=true>
+                        <ListRow title=t!(AgentJobRunTests) toggle_row=true>
                             <Show when=move || !tests_allowed.get()>
-                                <span class="t-footnote t-secondary">"In den Einstellungen aus"</span>
+                                <span class="t-footnote t-secondary">{t!(AgentJobOffInSettings)}</span>
                             </Show>
                             <Show when=move || tests_forced.get()>
-                                <span class="t-footnote t-secondary">"Pflicht laut Regeln"</span>
+                                <span class="t-footnote t-secondary">{t!(AgentJobRequired)}</span>
                             </Show>
                             <Toggle
                                 checked=run_tests
@@ -101,12 +101,12 @@ pub(super) fn job(ctx: AgentCtx) -> impl IntoView {
                                 })
                             />
                         </ListRow>
-                        <ListRow title="Pull Request als Entwurf anlegen" toggle_row=true>
+                        <ListRow title=t!(AgentJobDraftPr) toggle_row=true>
                             <Toggle checked=draft_pr disabled=locked />
                         </ListRow>
-                        <ListRow title="Plan vor dem Start zeigen" toggle_row=true>
+                        <ListRow title=t!(AgentJobPlanFirst) toggle_row=true>
                             <Show when=move || plan_forced.get()>
-                                <span class="t-footnote t-secondary">"Pflicht laut Regeln"</span>
+                                <span class="t-footnote t-secondary">{t!(AgentJobRequired)}</span>
                             </Show>
                             <Toggle
                                 checked=plan_first

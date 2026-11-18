@@ -1,0 +1,6 @@
+agent_progress.usage = Usage
+agent_progress.this_run = This run: {usage}
+agent_progress.this_run_budget = This run: {usage} (budget {budget})
+agent_progress.totals = Today {today} · this month {month}
+agent_progress.totals_budget = Today {today} · this month {month} of {budget}
+agent_progress.limits_link = Limits & rules

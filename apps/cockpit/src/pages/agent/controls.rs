@@ -46,7 +46,7 @@ pub(super) fn controls(ctx: AgentCtx) -> impl IntoView {
                     on_click=start
                 >
                     <Icon path=icons::SPARKLES />
-                    "Agent starten"
+                    {t!(AgentControlsStart)}
                 </Button>
             </Show>
             <Show when=move || awaiting.get()>
@@ -56,39 +56,39 @@ pub(super) fn controls(ctx: AgentCtx) -> impl IntoView {
                     disabled=Signal::derive(move || !violations.get().is_empty())
                     on_click=approve
                 >
-                    "Plan freigeben"
+                    {t!(AgentControlsApprove)}
                 </Button>
                 <Button size=ControlSize::Large destructive=true on_click=reject>
-                    "Plan ablehnen"
+                    {t!(AgentControlsReject)}
                 </Button>
             </Show>
             <Show when=move || running.get()>
                 <Button size=ControlSize::Large on_click=pause>
-                    "Pausieren"
+                    {t!(AgentControlsPause)}
                 </Button>
             </Show>
             <Show when=move || paused.get()>
                 <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large on_click=resume>
-                    "Fortsetzen"
+                    {t!(AgentControlsResume)}
                 </Button>
             </Show>
             <Show when=move || diagnosed.get()>
                 <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large on_click=apply_fix>
                     {move || {
                         if run.get().and_then(|r| r.diagnosis).is_some_and(|d| !d.changes_code()) {
-                            "Check neu starten"
+                            t!(AgentControlsRerunCheck)
                         } else {
-                            "Fix übernehmen"
+                            t!(AgentControlsApplyFix)
                         }
                     }}
                 </Button>
                 <Button size=ControlSize::Large destructive=true on_click=discard_fix>
-                    "Verwerfen"
+                    {t!(AgentControlsDiscard)}
                 </Button>
             </Show>
             <Show when=move || working.get() && !diagnosed.get()>
                 <Button size=ControlSize::Large destructive=true on_click=cancel>
-                    "Abbrechen"
+                    {t!(AgentControlsCancel)}
                 </Button>
             </Show>
             {move || {
@@ -100,13 +100,13 @@ pub(super) fn controls(ctx: AgentCtx) -> impl IntoView {
                             size=ControlSize::Large
                             href=Route::Review(Some(number)).hash()
                         >
-                            {move || if followup.get() { "Zum Review" } else { "Pull Request prüfen" }}
+                            {move || if followup.get() { t!(AgentControlsToReview) } else { t!(AgentControlsCheckPr) }}
                         </Button>
                     },
                 )
             }}
             <Button variant=ButtonStyle::Borderless size=ControlSize::Large on_click=to_ticket>
-                {move || if followup.get() { "Zum Eintrag" } else { "Zum Ticket" }}
+                {move || if followup.get() { t!(AgentControlsToEntry) } else { t!(AgentControlsToTicket) }}
             </Button>
         </div>
     }
@@ -130,7 +130,7 @@ pub(super) fn blocked_hint(ctx: AgentCtx) -> Option<impl IntoView> {
         view! {
             <p class="t-footnote t-secondary">
                 {exactly.unwrap_or_else(|| reason.to_string())} " "
-                <a class="ui-link" href=Route::Setup.hash()>"Zur Einrichtung"</a>
+                <a class="ui-link" href=Route::Setup.hash()>{t!(AgentControlsToSetup)}</a>
             </p>
         }
     })
@@ -147,11 +147,11 @@ pub(super) fn ended_banner(ctx: AgentCtx) -> Option<impl IntoView> {
             view! {
                 <StatusBanner
                     tone=BannerTone::Error
-                    title="Der letzte Lauf endete ohne Ergebnis"
+                    title=t!(AgentControlsEndedTitle)
                     text=text
                 >
                     <Button size=ControlSize::Small href=Route::Setup.hash()>
-                        "Einrichtung prüfen"
+                        {t!(AgentControlsCheckSetup)}
                     </Button>
                 </StatusBanner>
             }

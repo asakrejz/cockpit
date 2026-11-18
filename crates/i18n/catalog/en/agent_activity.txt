@@ -1,0 +1,16 @@
+agent_activity.who_agent_asks = Agent asks
+agent_activity.who_agent = Agent
+agent_activity.who_you_answer = You answer
+agent_activity.who_you_hint = You send a hint
+agent_activity.who_you = You
+agent_activity.time_start = Start
+agent_activity.time_step = after step {n}
+agent_activity.empty = Nothing said yet.
+agent_activity.changed_files = Changed files
+agent_activity.pushed = Pushed
+agent_activity.followup_note = No new pull request. The agent never merges. The review is up to you again.
+agent_activity.draft_created = Draft created
+agent_activity.created = Created
+agent_activity.no_merge = The agent does not merge. The review is up to you.
+agent_activity.activity = Activity
+agent_activity.history = History

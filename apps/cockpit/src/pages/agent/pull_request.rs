@@ -64,12 +64,16 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
             let has_review = store.ws.with(|w| w.review(&key).is_some());
             return Some(
                 view! {
-                    <div class="ui-list__section" role="region" aria-label="Pull Request">
-                        <p class="ui-list__header">"Pull Request"</p>
+                    <div class="ui-list__section" role="region" aria-label=t!(AgentPullRequestPullRequest)>
+                        <p class="ui-list__header">{t!(AgentPullRequestPullRequest)}</p>
                         <div class="ui-hstack" style="--spacing: 8px">
-                            <Status tone=StatusTone::Green>{format!("Pull Request #{number}")}</Status>
+                            <Status tone=StatusTone::Green>{t!(AgentPullRequestNumber, number = number)}</Status>
                             <span class="t-footnote t-secondary">
-                                {if p.existed { "gab es schon, verlinkt" } else { "angelegt" }}
+                                {if p.existed {
+                                    t!(AgentPullRequestExisted)
+                                } else {
+                                    t!(AgentPullRequestCreated)
+                                }}
                             </span>
                         </div>
                         <div class="ui-hstack" style="--spacing: 12px; flex-wrap: wrap">
@@ -77,7 +81,7 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
                                 .then(|| {
                                     view! {
                                         <a class="ui-link" href=p.url.clone() target="_blank" rel="noopener noreferrer">
-                                            "Auf GitHub öffnen"
+                                            {t!(AgentPullRequestOpenGithub)}
                                         </a>
                                     }
                                 })}
@@ -85,7 +89,7 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
                                 .then(|| {
                                     view! {
                                         <a class="ui-link" href=Route::Review(Some(key.clone())).hash()>
-                                            "Zum Review"
+                                            {t!(AgentPullRequestToReview)}
                                         </a>
                                     }
                                 })}
@@ -97,18 +101,16 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
         }
         let form = preview.get().map(|p| {
             let existing = p.existing.clone();
-            let route = format!(
-                "Von {} nach {}{} in {}.",
-                p.head,
-                p.base,
-                if p.draft { " (als Entwurf)" } else { "" },
-                p.repo
-            );
+            let route = if p.draft {
+                t!(AgentPullRequestRouteDraft, head = p.head, base = p.base, repo = p.repo)
+            } else {
+                t!(AgentPullRequestRoute, head = p.head, base = p.base, repo = p.repo)
+            };
             match existing {
                 Some(e) => view! {
                     <div class="ui-vstack" style="--spacing: 10px">
                         <p class="t-subheadline">
-                            {format!("Zu diesem Branch gibt es schon den Pull Request #{}. Es wird kein zweiter angelegt – er wird nur verknüpft.", e.number)}
+                            {t!(AgentPullRequestExisting, number = e.number)}
                         </p>
                         <div class="ui-hstack" style="--spacing: 8px; flex-wrap: wrap">
                             <Button
@@ -117,10 +119,10 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
                                 disabled=sending
                                 on_click=create
                             >
-                                {format!("#{} verknüpfen", e.number)}
+                                {t!(AgentPullRequestLink, number = e.number)}
                             </Button>
                             <Button variant=ButtonStyle::Borderless size=ControlSize::Large on_click=move |_| preview.set(None)>
-                                "Abbrechen"
+                                {t!(AgentPullRequestCancel)}
                             </Button>
                         </div>
                     </div>
@@ -129,10 +131,10 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
                 None => view! {
                     <div class="ui-vstack" style="--spacing: 10px">
                         <p class="t-footnote t-secondary" style="overflow-wrap: anywhere">{route}</p>
-                        <TextField label="Titel" value=title />
-                        <Textarea value=body label="Beschreibung" min_height="160px" />
+                        <TextField label=t!(AgentPullRequestTitleLabel) value=title />
+                        <Textarea value=body label=t!(AgentPullRequestBodyLabel) min_height="160px" />
                         <p class="t-footnote t-secondary">
-                            "Das ist die Vorschau. Erst mit deinem Klick legt das Cockpit den Pull Request bei GitHub an. Gemergt wird nie automatisch."
+                            {t!(AgentPullRequestPreviewNote)}
                         </p>
                         <div class="ui-hstack" style="--spacing: 8px; flex-wrap: wrap">
                             <Button
@@ -141,10 +143,10 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
                                 disabled=Signal::derive(move || sending.get() || title.get().trim().is_empty())
                                 on_click=create
                             >
-                                "Pull Request anlegen"
+                                {t!(AgentPullRequestCreate)}
                             </Button>
                             <Button variant=ButtonStyle::Borderless size=ControlSize::Large on_click=move |_| preview.set(None)>
-                                "Abbrechen"
+                                {t!(AgentPullRequestCancel)}
                             </Button>
                         </div>
                     </div>
@@ -154,10 +156,10 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
         });
         Some(
             view! {
-                <div class="ui-list__section" role="region" aria-label="Pull Request anlegen">
-                    <p class="ui-list__header">"Pull Request"</p>
+                <div class="ui-list__section" role="region" aria-label=t!(AgentPullRequestCreate)>
+                    <p class="ui-list__header">{t!(AgentPullRequestPullRequest)}</p>
                     <p class="t-footnote t-secondary">
-                        "Der Branch ist gepusht. Der Pull Request ist noch nicht angelegt."
+                        {t!(AgentPullRequestPushedNote)}
                     </p>
                     {form}
                     {move || {
@@ -173,7 +175,13 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
                                             disabled=loading
                                             on_click=open_preview
                                         >
-                                            {move || if loading.get() { "Lade Vorschau …" } else { "Pull Request anlegen …" }}
+                                            {move || {
+                                                if loading.get() {
+                                                    t!(AgentPullRequestLoading)
+                                                } else {
+                                                    t!(AgentPullRequestCreatePreview)
+                                                }
+                                            }}
                                         </Button>
                                     </div>
                                 }
@@ -186,11 +194,11 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
                                 view! {
                                     <StatusBanner
                                         tone=BannerTone::Error
-                                        title="Die Vorschau lässt sich nicht laden"
+                                        title=t!(AgentPullRequestPreviewFailed)
                                         text=t
                                     >
                                         <Button size=ControlSize::Small on_click=open_preview>
-                                            "Erneut versuchen"
+                                            {t!(AgentPullRequestRetry)}
                                         </Button>
                                     </StatusBanner>
                                 }
