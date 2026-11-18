@@ -14,6 +14,9 @@ use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
 use web_sys::wasm_bindgen::{JsCast, closure::Closure};
 
+mod cleanup;
+pub use cleanup::*;
+
 mod panel;
 pub use panel::*;
 

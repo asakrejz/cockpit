@@ -143,8 +143,8 @@ pub fn for_container(url: &str) -> String {
     url.to_string()
 }
 
-/// A name for the container: only allowed characters, unique through the time.
-pub fn container_name(run: &str, now_ms: u64) -> String {
+/// The part of the container name that belongs to the run (without the time).
+pub fn container_name_prefix(run: &str) -> String {
     let clean: String = run
         .chars()
         .map(|c| {
@@ -156,7 +156,12 @@ pub fn container_name(run: &str, now_ms: u64) -> String {
         })
         .take(40)
         .collect();
-    format!("cockpit-run-{clean}-{now_ms}")
+    format!("cockpit-run-{clean}-")
+}
+
+/// A name for the container: only allowed characters, unique through the time.
+pub fn container_name(run: &str, now_ms: u64) -> String {
+    format!("{}{now_ms}", container_name_prefix(run))
 }
 
 /// A folder name for the run (the key contains characters such as `#`).
