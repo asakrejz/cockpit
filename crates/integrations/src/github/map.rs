@@ -174,6 +174,7 @@ pub fn pull_to_review(pull: &Pull, files: &[PullFile], checks: Checks) -> Review
         checks,
         files: files.iter().map(file_to_diff).collect(),
         agent_reviewed: false,
+        agent_summary: String::new(),
         suggestions: Vec::new(),
         line_comments: Vec::new(),
         verdict: Verdict::default(),

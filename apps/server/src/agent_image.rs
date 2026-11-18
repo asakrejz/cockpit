@@ -26,7 +26,7 @@ pub const IMAGE: &str = "localhost/cockpit-agent:local";
 pub const FINGERPRINT_LABEL: &str = "cockpit.fingerprint";
 /// Raise this when the format of jobs or events between server and runner changes without any
 /// file of the image changing (rare). It is part of the fingerprint.
-pub const CONTRACT: u32 = 5;
+pub const CONTRACT: u32 = 6;
 
 /// Files that must exist, relative to the agent folder.
 const FILES: [&str; 5] = [

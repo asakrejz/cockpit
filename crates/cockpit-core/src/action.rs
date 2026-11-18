@@ -227,6 +227,11 @@ pub enum Action {
     /// Follow-up job of the **real** agent: implement the review comments (threads) of the
     /// pull request. The backend reads them from GitHub; the agent continues on the same `claude/…`
     /// branch. The run is then called `threads-<number>`.
+    /// The real agent reads the pull request and prepares review comments as drafts. Nothing goes
+    /// to GitHub; the drafts wait for your decision.
+    StartPrReview {
+        review: PrKey,
+    },
     AddressReviewThreads {
         review: PrKey,
         options: AgentOptions,
@@ -303,6 +308,7 @@ impl Action {
             self,
             Action::AddressReviewThreads { .. }
                 | Action::FixFailedChecks { .. }
+                | Action::StartPrReview { .. }
                 | Action::CreatePullRequest { .. }
         )
     }
@@ -455,6 +461,7 @@ impl Workspace {
             | Action::DiscardFix { .. }
             | Action::AddressReviewThreads { .. }
             | Action::FixFailedChecks { .. }
+            | Action::StartPrReview { .. }
             | Action::CreatePullRequest { .. }
             | Action::ResumeStopped { .. } => self.perform_agent(action, at_ms),
             Action::SetNotifyChannel { .. }

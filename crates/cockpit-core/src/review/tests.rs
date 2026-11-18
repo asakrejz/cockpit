@@ -23,6 +23,7 @@ fn review() -> Review {
             ],
         )],
         agent_reviewed: true,
+        agent_summary: String::new(),
         suggestions: vec![
             Suggestion::new("a", "a.css · Zeile 2", Level::Note, "Erster"),
             Suggestion::new("b", "a.css · Zeile 3", Level::Important, "Zweiter"),

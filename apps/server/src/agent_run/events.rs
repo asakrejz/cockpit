@@ -9,6 +9,8 @@ pub enum Mode {
     Plan,
     /// Implement the ticket (after approval) and commit.
     Implement,
+    /// Read a pull request and report review comments. Read-only like the plan, never pushes.
+    Review,
 }
 
 impl Mode {
@@ -16,6 +18,7 @@ impl Mode {
         match self {
             Mode::Plan => "plan",
             Mode::Implement => "implement",
+            Mode::Review => "review",
         }
     }
 }
@@ -51,6 +54,20 @@ pub enum Event {
         suggestions: Vec<String>,
     },
     HintsArrived,
+    /// A draft review comment; the backend checks it against the diff before it is kept.
+    ReviewComment {
+        path: String,
+        line: u32,
+        #[serde(default)]
+        start_line: Option<u32>,
+        side: String,
+        text: String,
+        #[serde(default)]
+        suggestion: Option<String>,
+    },
+    ReviewSummary {
+        text: String,
+    },
     Result {
         text: String,
         branch: String,
@@ -121,6 +138,24 @@ pub fn line_read(line: &str) -> Result<Event, Discarded> {
             ms: ms.min(MAX_MS),
         },
         Event::Files { files } => Event::Files { files: list(files) },
+        Event::ReviewComment {
+            path,
+            line,
+            start_line,
+            side,
+            text,
+            suggestion,
+        } => Event::ReviewComment {
+            path: truncate(&path, 300),
+            line: line.min(MAX_LINE_NO),
+            start_line: start_line.map(|s| s.min(MAX_LINE_NO)),
+            side: truncate(&side, 10),
+            text: truncate(&text, MAX_TEXT),
+            suggestion: suggestion.map(|s| truncate(&s, MAX_TEXT)),
+        },
+        Event::ReviewSummary { text } => Event::ReviewSummary {
+            text: truncate(&text, 4_000),
+        },
         Event::Question { text, suggestions } => Event::Question {
             text: truncate(&text, MAX_TEXT),
             suggestions: list(suggestions).into_iter().take(6).collect(),
@@ -174,7 +209,7 @@ pub fn as_message(e: &Event, mode: Mode) -> Option<AgentReport> {
                 tokens_out,
                 ms,
             },
-            Mode::Plan | Mode::Implement,
+            Mode::Plan | Mode::Implement | Mode::Review,
         ) => Some(AgentReport::Step {
             title: title.clone(),
             text: text.clone(),
@@ -190,6 +225,27 @@ pub fn as_message(e: &Event, mode: Mode) -> Option<AgentReport> {
             suggestions: suggestions.clone(),
         }),
         (Event::HintsArrived, Mode::Implement) => Some(AgentReport::HintsDelivered { count: 1 }),
+        (
+            Event::ReviewComment {
+                path,
+                line,
+                start_line,
+                side,
+                text,
+                suggestion,
+            },
+            Mode::Review,
+        ) => Some(AgentReport::ReviewComment {
+            path: path.clone(),
+            line: *line,
+            start_line: *start_line,
+            side: DiffSide::from_id(side)?,
+            text: text.clone(),
+            suggestion: suggestion.clone(),
+        }),
+        (Event::ReviewSummary { text }, Mode::Review) => {
+            Some(AgentReport::ReviewSummary { text: text.clone() })
+        }
         _ => None,
     }
 }

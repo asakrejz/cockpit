@@ -16,7 +16,9 @@ impl AgentRun {
             }
             RunKind::Diagnose { review, check } => self.diagnose_texts(review, check),
             // Real jobs report their own steps; this is only the fallback for the plan texts.
-            RunKind::Followup { review, .. } => self.address_texts(review, 0),
+            RunKind::Followup { review, .. } | RunKind::ReviewPr { review } => {
+                self.address_texts(review, 0)
+            }
         };
         self.build_steps(texts)
     }

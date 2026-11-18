@@ -274,6 +274,21 @@ force-push). The container never gets the GitHub token. The image has the fixed 
 `followup`, and `repo` – the `owner/name` the backend cloned; follow-up jobs and the pull request always use the repo of the
 pull request / run, never "the" configured repo).
 
+**Agent review of a pull request** (`RunKind::ReviewPr`, action `StartPrReview`, only you; without the real agent the
+button falls back to the demo rules `review::suggest`, action `RequestAgentReview`). The run key is `prreview-…`. The job
+(`mode: "review"`) carries title, description and the diff from the workspace (`agent_run::review_input`, limited,
+secrets redacted); the clone is the PR's branch (`agent_git::clone_for_review`, any safe branch name, token only during
+the clone) and is mounted `:ro` like in plan mode (`RunCommand::clone_only_read`). The runner emits `review_comment` /
+`review_summary` events (`agent_run::Event`, limited again), which become `AgentReport::ReviewComment` /
+`ReviewSummary`. `Workspace::report_agent` books them on the review: `Review::add_agent_comment` accepts a draft only if
+file, line and side exist in the diff, and replaces nothing but adds a `Suggestion` with `origin: Agent`, structured
+`path`/`line`/`start_line`/`side`/`code` (all with serde defaults, old data loads) and an id `a1`, `a2` …; the summary goes
+to `Review::agent_summary`. A new run replaces the old suggestions (`begin_agent_review`). The drafts use the same
+`Decide` / `EditSuggestion` actions as the demo suggestions; `outbound::review_data` turns the approved ones into line
+comments (range via `start_line`, `suggestion` block from `code`) of **one** `POST /repos/{repo}/pulls/{n}/reviews`, event
+`COMMENT` unless you choose otherwise. Nothing is sent before `SendReview`, and not while a draft is undecided. The run
+never pushes (no publish step; `finish_review_run` only marks the review as looked through). `CONTRACT` is 6.
+
 **Pull request of a finished real run** (`Action::CreatePullRequest`, only you). The run is `Done` only after the
 backend pushed the branch. `GET /api/agent/pull-request` returns the preview (`Workspace::pull_request_draft`, plus the
 open pull request GitHub already has for the branch). The action is checked on a copy first (`check_pull_request`), then

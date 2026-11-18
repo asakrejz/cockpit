@@ -88,7 +88,69 @@ pub enum Decision {
     Declined,
 }
 
-/// Comment the agent has prepared.
+/// Which side of the diff a comment sits on (GitHub's `side`).
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DiffSide {
+    /// Added and unchanged lines (the new file).
+    #[default]
+    Right,
+    /// Removed lines (the old file).
+    Left,
+}
+
+fn is_zero(n: &u32) -> bool {
+    *n == 0
+}
+
+impl DiffSide {
+    fn is_right(&self) -> bool {
+        *self == DiffSide::Right
+    }
+
+    /// The value GitHub expects: `RIGHT` or `LEFT`.
+    pub fn id(self) -> &'static str {
+        match self {
+            DiffSide::Right => "RIGHT",
+            DiffSide::Left => "LEFT",
+        }
+    }
+
+    /// Reads `RIGHT` or `LEFT` (any case).
+    pub fn from_id(id: &str) -> Option<DiffSide> {
+        match id.trim().to_ascii_uppercase().as_str() {
+            "RIGHT" => Some(DiffSide::Right),
+            "LEFT" => Some(DiffSide::Left),
+            _ => None,
+        }
+    }
+
+    /// Does a line of this kind exist on this side?
+    pub fn has(self, kind: LineKind) -> bool {
+        match self {
+            DiffSide::Right => kind != LineKind::Del,
+            DiffSide::Left => kind == LineKind::Del,
+        }
+    }
+}
+
+/// Who made a suggestion.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Origin {
+    /// The built-in rules of the demo (no real agent).
+    #[default]
+    Demo,
+    /// The real agent from the container (a draft, checked against the diff).
+    Agent,
+}
+
+impl Origin {
+    fn is_demo(&self) -> bool {
+        *self == Origin::Demo
+    }
+}
+
+/// Comment the agent has prepared. A draft stays on this machine until you approve it and send the
+/// review.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Suggestion {
     #[serde(default)]
@@ -102,6 +164,23 @@ pub struct Suggestion {
     /// `None` = not decided yet.
     #[serde(default)]
     pub decision: Option<Decision>,
+    /// Name of the file in the diff. Empty = no structured position (old data, demo rules): then
+    /// only `location` tells where it belongs.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub path: String,
+    /// Line number on `side` (the last line of a range). 0 = unknown.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub line: u32,
+    /// First line of a range of lines, on the same side.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub start_line: Option<u32>,
+    #[serde(default, skip_serializing_if = "DiffSide::is_right")]
+    pub side: DiffSide,
+    /// Replacement code (like GitHub's „suggestion“ block). Only on the right side.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    #[serde(default, skip_serializing_if = "Origin::is_demo")]
+    pub origin: Origin,
 }
 
 impl Suggestion {
@@ -112,7 +191,28 @@ impl Suggestion {
             level,
             text: text.into(),
             decision: None,
+            path: String::new(),
+            line: 0,
+            start_line: None,
+            side: DiffSide::Right,
+            code: None,
+            origin: Origin::Demo,
         }
+    }
+
+    /// The comment as it goes to GitHub: the text, then the replacement code as a
+    /// ```` ```suggestion ````-block.
+    pub fn body(&self) -> String {
+        with_suggestion(&self.text, self.code.as_deref())
+    }
+}
+
+/// Text and optional replacement code as one comment body.
+pub(crate) fn with_suggestion(text: &str, code: Option<&str>) -> String {
+    match code {
+        Some(code) if text.is_empty() => format!("```suggestion\n{code}\n```"),
+        Some(code) => format!("{text}\n\n```suggestion\n{code}\n```"),
+        None => text.to_string(),
     }
 }
 
@@ -153,11 +253,7 @@ impl LineComment {
     /// The comment as it goes to GitHub: text, then the suggestion as a
     /// ```` ```suggestion ````-Block.
     pub fn body(&self) -> String {
-        match &self.suggestion {
-            Some(code) if self.text.is_empty() => format!("```suggestion\n{code}\n```"),
-            Some(code) => format!("{}\n\n```suggestion\n{code}\n```", self.text),
-            None => self.text.clone(),
-        }
+        with_suggestion(&self.text, self.suggestion.as_deref())
     }
 }
 
@@ -248,6 +344,10 @@ pub struct Review {
     pub agent_reviewed: bool,
     #[serde(default)]
     pub suggestions: Vec<Suggestion>,
+    /// What the real agent said about the pull request in its own words. Stays local; it goes out
+    /// only if you copy it into your own comment.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub agent_summary: String,
     /// Own comments on diff lines.
     #[serde(default)]
     pub line_comments: Vec<LineComment>,
@@ -346,6 +446,7 @@ impl Review {
     }
 }
 
+mod agent_draft;
 mod checks;
 mod commit_info;
 mod line_comments;
@@ -357,6 +458,7 @@ mod tests;
 mod tree;
 mod viewed;
 
+pub use agent_draft::{AgentComment, MAX_AGENT_COMMENTS};
 pub use checks::{CHECK_STEPS, CheckRun};
 pub use commit_info::{commit_date, short_sha};
 pub use merge::{MergeBlocker, MergeMethod, merge_blockers};

@@ -52,7 +52,7 @@ pub(super) async fn run_task(
         .join(agent_run::run_dir(&key));
     if mode == Mode::Plan {
         let _ = tokio::fs::remove_dir_all(dir.join("plan")).await;
-    } else if !halted {
+    } else if mode == Mode::Review || !halted {
         let _ = tokio::fs::remove_dir_all(&dir).await;
     }
     lock(&state.inner.agent.running).remove(&key);
@@ -133,7 +133,11 @@ pub(super) async fn run_run(
 
     let branch = run.branch();
     let base_dir = state.agent_dir().join("runs").join(agent_run::run_dir(key));
-    let clone = base_dir.join(if mode == Mode::Plan { "plan" } else { "run" });
+    let clone = base_dir.join(match mode {
+        Mode::Plan => "plan",
+        Mode::Review => "review",
+        Mode::Implement => "run",
+    });
     let base_file = base_dir.join("base");
     let url = agent_git::clone_url(&access.git_base, &repo);
 
@@ -153,6 +157,7 @@ pub(super) async fn run_run(
             branch.clone(),
         );
         let on_existing_branch = run.kind.review().is_some();
+        let read_only_review = mode == Mode::Review;
         let bd = base_file.clone();
         let cloned = tokio::task::spawn_blocking(move || {
             let _ = std::fs::remove_dir_all(&k);
@@ -160,7 +165,10 @@ pub(super) async fn run_run(
                 std::fs::create_dir_all(p).map_err(|e| format!("Ordner nicht anlegbar: {e}"))?;
             }
             // A follow-up job continues on the branch of the pull request; a new run branches off.
-            let sha = if on_existing_branch {
+            let sha = if read_only_review {
+                // Any branch of the pull request: the agent only reads this clone.
+                agent_git::clone_for_review(&u, &k, Some(&t), &br)?
+            } else if on_existing_branch {
                 agent_git::clone_branch(&u, &k, Some(&t), &br)?
             } else {
                 agent_git::clone(&u, &k, Some(&t), &b, &br)?
@@ -187,6 +195,13 @@ pub(super) async fn run_run(
     if let Some((_, redacted)) = &followup {
         job["followup"] = redacted.clone();
     }
+    // The diff and the description come from third parties: whatever looks like one of our keys goes.
+    if let Some(review) = job.get("review").filter(|v| !v.is_null()) {
+        let text = agent_git::redact(&review.to_string(), &secret_refs);
+        if let Ok(v) = serde_json::from_str::<serde_json::Value>(&text) {
+            job["review"] = v;
+        }
+    }
     if let Err(e) = job_write(&job_dir, &job) {
         return End::Error(format!("Der Auftrag lässt sich nicht schreiben: {e}"));
     }
@@ -197,7 +212,8 @@ pub(super) async fn run_run(
         name: &name,
         run: key,
         clone: &clone,
-        clone_only_read: mode == Mode::Plan,
+        // Plan and review runs only read: the clone is mounted `:ro`.
+        clone_only_read: mode != Mode::Implement,
         job: &job_dir,
         stdin_open: true,
         provider: access.provider,
@@ -254,6 +270,7 @@ pub(super) async fn run_run(
                 "Container gestartet ({runtime}, {}), Modell {}.",
                 match (mode, &run.kind) {
                     (Mode::Plan, _) => "Plan erarbeiten",
+                    (Mode::Review, _) => "Pull Request durchsehen",
                     (Mode::Implement, RunKind::Followup { task, .. }) => match task {
                         FollowupTask::ReviewThreads => "Review-Kommentare umsetzen",
                         FollowupTask::FailedChecks { .. } => "Rote Checks beheben",
@@ -402,6 +419,10 @@ pub(super) async fn run_run(
     };
     if mode == Mode::Plan {
         return End::Error("Der Container hat statt eines Plans ein Ergebnis gemeldet.".into());
+    }
+    if mode == Mode::Review {
+        // Nothing to push: the drafts are already booked on the review.
+        return End::Done(text);
     }
     if result_branch != branch {
         return End::Error(format!(

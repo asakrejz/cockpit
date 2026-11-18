@@ -10,7 +10,8 @@
 //! The rule „only you may merge“ is checked by `Workspace::apply` and runs **before** the call.
 
 use cockpit_core::{
-    Action, Decision, LineKind, MergeMethod, PrKey, Review, TicketStatus, Verdict, Workspace,
+    Action, Decision, DiffSide, LineKind, MergeMethod, PrKey, Review, TicketStatus, Verdict,
+    Workspace,
 };
 use serde_json::{Value, json};
 
@@ -83,6 +84,8 @@ pub struct ReviewData {
 pub struct LineComment {
     pub path: String,
     pub line: u32,
+    /// First line of a range of lines (on the same side). `None` = a single line.
+    pub start_line: Option<u32>,
     /// `RIGHT` (added and unchanged lines) or `LEFT` (removed).
     pub page: &'static str,
     pub text: String,
@@ -239,22 +242,23 @@ pub fn review_data(review: &Review, comment: &str, sha: &str) -> ReviewData {
         .iter()
         .filter(|s| s.decision == Some(Decision::Approved))
     {
-        let line = location_read(&s.location).filter(|(file, nr)| {
-            review.files.iter().any(|f| {
-                f.name == *file
-                    && f.lines
-                        .iter()
-                        .any(|l| l.no == *nr && l.kind != LineKind::Del)
-            })
-        });
-        match line {
-            Some((file, nr)) => lines.push(LineComment {
+        // Structured position (real agent) first, the old „datei · Zeile N“ for the demo rules.
+        let place = if s.path.is_empty() {
+            location_read(&s.location).map(|(file, nr)| (file, nr, None, DiffSide::Right))
+        } else {
+            Some((s.path.as_str(), s.line, s.start_line, s.side))
+        }
+        .filter(|(file, nr, _, side)| review.has_line(file, *side, *nr));
+        match place {
+            Some((file, nr, start, side)) => lines.push(LineComment {
                 path: file.into(),
                 line: nr,
-                page: "RIGHT",
-                text: s.text.clone(),
+                // A range only goes out if its first line exists on the same side, too.
+                start_line: start.filter(|&st| st < nr && review.has_line(file, side, st)),
+                page: side.id(),
+                text: s.body(),
             }),
-            None => lose.push(format!("{}: {}", s.location, s.text)),
+            None => lose.push(format!("{}: {}", s.location, s.body())),
         }
     }
     for c in &review.line_comments {
@@ -267,6 +271,7 @@ pub fn review_data(review: &Review, comment: &str, sha: &str) -> ReviewData {
             Some(l) => lines.push(LineComment {
                 path: c.file.clone(),
                 line: l.no,
+                start_line: None,
                 page: if l.kind == LineKind::Del {
                     "LEFT"
                 } else {
@@ -316,7 +321,15 @@ impl ReviewData {
             b["comments"] = self
                 .comments
                 .iter()
-                .map(|k| json!({"path": k.path, "line": k.line, "side": k.page, "body": k.text}))
+                .map(|k| {
+                    let mut c =
+                        json!({"path": k.path, "line": k.line, "side": k.page, "body": k.text});
+                    if let Some(start) = k.start_line {
+                        c["start_line"] = json!(start);
+                        c["start_side"] = json!(k.page);
+                    }
+                    c
+                })
                 .collect();
         }
         b

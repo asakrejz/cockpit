@@ -86,6 +86,10 @@ impl ActionError {
                 "Der Branch dieses Pull Requests beginnt nicht mit „claude/“ – dort arbeitet der Agent nicht weiter"
                     .into()
             }
+            ActionError::Agent(AgentError::NothingToReview) => {
+                "Zu diesem Pull Request gibt es noch keine Änderungen zum Durchsehen. Gleiche zuerst ab."
+                    .into()
+            }
             ActionError::Agent(AgentError::CheckNotFailed) => {
                 "Untersuchen lässt sich nur ein roter Check".into()
             }

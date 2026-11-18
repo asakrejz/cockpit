@@ -46,7 +46,7 @@ impl Review {
             .suggestions
             .iter()
             .filter(|s| s.decision == Some(Decision::Approved))
-            .map(|s| s.text.clone());
+            .map(Suggestion::body);
         let own = self.outgoing().map(LineComment::body);
         Ok(approved.chain(own).collect())
     }

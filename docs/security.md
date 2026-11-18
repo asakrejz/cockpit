@@ -94,6 +94,16 @@ off by default (`[server] webhooks = false`: `404`).
   clone. The backend checks the branch in a fresh bare repo (never in the clone the container wrote to) against the repo's
   path rules and then pushes it. **Never** the main branch, **never** a force-push, **never** a merge. You create the pull
   request yourself.
+- **Reviews by the agent only read, and only you send.** "PR reviewen" starts a run whose clone of the pull request's
+  branch is mounted read-only (`:ro`); the agent has only reading tools (Codex: `read-only` sandbox), no GitHub token,
+  and cannot push or merge. The repo must be configured for the agent like for any run. Title, description and diff are
+  given to the model as data of third parties, with a size limit. What the agent finds comes back as **drafts**: the
+  backend checks each draft against the pull request's diff (file, line, side, size, count) and drops what does not fit.
+  Drafts stay on your machine. Nothing goes to GitHub until you decided every draft and click "Review senden"; then
+  **one** review goes out with the drafts you approved (with the text you edited) and your own line comments, never
+  the declined or undecided ones. The verdict stays "Kommentieren" (`COMMENT`) unless you pick "Genehmigen" or
+  "Änderungen" yourself – the agent cannot set it. The agent's summary also stays local; it goes out only if you copy it
+  into your own comment.
 - **One repo per run, only configured ones.** A run clones and pushes in exactly one repo. The repo comes from the
   routing rules or from your choice in the interface, and the backend refuses (at start and again when the container
   starts) any repo that is not in `[[agent.repos]]` / `[agent] repo` / `[github] repos`. The repo check in the assistant
