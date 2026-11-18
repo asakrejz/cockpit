@@ -203,8 +203,9 @@
    Layout: the shell is exactly as tall as the viewport, the columns scroll on their own.
 
    - above 1280 px: up to three columns (picker or list, detail, context), equal height;
-   - 1101-1280 px: the third column moves below the second one (context under detail);
-   - up to 1100 px: one column; the panes stack and the page scrolls (two levels, see below).
+   - 768-1280 px: the third column moves below the second one (context under detail);
+   - below 768 px: one level at a time like an iOS navigation stack (see "Two levels" below);
+     the page scrolls.
    The floating pill (`.ui-bottomnav`) never covers content: the shell ends above it.
    --------------------------------------------------------------------- */
 :root { --ui-nav-space: calc(var(--comp-tabbar-height) + var(--ref-space-24) + env(safe-area-inset-bottom)); }
@@ -234,7 +235,7 @@
 .ui-pane[data-kind="picker"] .ui-pane__body { padding-inline: var(--ref-space-8); }
 
 /* Narrower desktop: the context column sits below the detail instead of beside it. */
-@media (min-width: 1101px) and (max-width: 1280px) {
+@media (min-width: 768px) and (max-width: 1280px) {
   .ui-splitview:has(> .ui-pane:nth-of-type(3)),
   .ui-splitview[data-layout="detail-wide"]:has(> .ui-pane:nth-of-type(3)) {
     grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
@@ -245,7 +246,8 @@
   .ui-splitview:has(> .ui-pane:nth-of-type(3)) > .ui-pane:nth-of-type(3) { grid-column: 2; grid-row: 2; }
 }
 
-@media (max-width: 1100px) {
+/* Below 768 px: one column, the page scrolls. Which pane is on screen: "Two levels" below. */
+@media (max-width: 767px) {
   .ui-splitview,
   .ui-splitview[data-layout="detail-wide"]:has(> .ui-pane:nth-of-type(n)),
   .ui-splitview:has(> .ui-pane:nth-of-type(n)) {
@@ -254,32 +256,15 @@
     height: auto;
     min-height: 100dvh;
     overflow: visible;
+    overflow-x: clip;
     gap: var(--ref-space-12);
     padding-block: max(var(--ref-space-12), env(safe-area-inset-top)) var(--ui-nav-space);
     padding-inline: max(var(--ref-space-12), env(safe-area-inset-left), env(safe-area-inset-right));
   }
   .ui-splitview > .ui-pane { overflow: visible; flex: none; width: 100%; max-width: 960px; margin-inline: auto; box-sizing: border-box; grid-area: auto; }
+}
 
-  /* Picker: one row of chips that scrolls sideways. */
-  .ui-pane[data-kind="picker"] { background: none; overflow: visible; }
-  .ui-pane[data-kind="picker"] .ui-pane__header { padding: 0 var(--ref-space-4) var(--ref-space-4); }
-  .ui-pane[data-kind="picker"] .ui-pane__body { padding: 0; }
-  .ui-pane[data-kind="picker"] .ui-sidebar__nav {
-    flex-direction: row;
-    gap: var(--ref-space-8);
-    overflow-x: auto;
-    padding-bottom: var(--ref-space-4);
-    padding-inline-end: var(--ref-space-32);
-    scrollbar-width: none;
-    /* The strip fades out on the right: more chips wait behind a swipe. */
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-  }
-  .ui-pane[data-kind="picker"] .ui-sidebar__nav::-webkit-scrollbar { display: none; }
-  .ui-pane[data-kind="picker"] .ui-sidebar__nav > li { flex: none; max-width: 240px; }
-  .ui-pane[data-kind="picker"] .ui-sidebar__item { background: var(--sys-color-secondary-grouped-background); border-radius: var(--ref-radius-full); }
-  .ui-pane[data-kind="picker"] .ui-sidebar__item[aria-current="page"] { background: var(--sys-color-tint-fill); }
-
+@media (max-width: 1100px) {
   .ui-pane__header { padding: var(--ref-space-16) var(--ref-space-16) var(--ref-space-12); }
   .ui-pane__body { padding: 0 var(--ref-space-16) var(--ref-space-16); }
 }
@@ -489,12 +474,49 @@ body.ui-scroll-locked { overflow: hidden; }
   }
 }
 
-/* Two levels (SplitView with `detail_open`): list or detail, never both. */
-@media (max-width: 1100px) {
-  .ui-splitview[data-level="list"] > .ui-pane:nth-of-type(2),
-  .ui-splitview[data-level="detail"] > .ui-pane:nth-of-type(1),
-  .ui-splitview[data-level="detail"] > .ui-sidebar > div:not([data-role]) { display: none; }
+/* Two levels (SplitView with `level`): list or detail, never both. The detail slides in from the
+   right, the list comes back from the left. Own tokens for the slide; tokens.css stays as it is. */
+:root, [data-theme] {
+  --ui-stack-duration: var(--ref-duration-350);
+  --ui-stack-ease: var(--ref-ease-smooth);
 }
+.ui-splitview__back { display: none; }
+@media (max-width: 767px) {
+  .ui-splitview[data-level="list"] > .ui-pane:nth-of-type(n+2),
+  .ui-splitview[data-level="detail"] > .ui-pane:nth-of-type(1) { display: none; }
+
+  .ui-splitview[data-level="detail"] > .ui-splitview__back {
+    display: block;
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 2;
+    margin-inline: calc(-1 * var(--ref-space-12));
+    padding: var(--ref-space-4) var(--ref-space-12);
+    background: var(--sys-material-thick, var(--sys-color-background));
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+  }
+  .ui-splitview__back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ref-space-4);
+    min-height: var(--sys-size-hit);
+    max-width: 100%;
+    color: var(--sys-color-tint);
+    font: var(--sys-type-body);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ui-splitview__back-link > span { font-size: 1.6em; line-height: 1; transform: translateY(-1px); }
+}
+@media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+  .ui-splitview[data-motion="forward"][data-level="detail"] > .ui-pane { animation: ui-stack-in-right var(--ui-stack-duration) var(--ui-stack-ease); }
+  .ui-splitview[data-motion="back"][data-level="list"] > .ui-pane { animation: ui-stack-in-left var(--ui-stack-duration) var(--ui-stack-ease); }
+}
+@keyframes ui-stack-in-right { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes ui-stack-in-left { from { transform: translateX(-30%); opacity: 0.4; } to { transform: none; opacity: 1; } }
 
 /* Touch: selectable diff lines are comfortable to hit (the diff scrolls sideways inside its box). */
 @media (max-width: 1100px), (pointer: coarse) {
@@ -567,3 +589,154 @@ body.ui-scroll-locked { overflow: hidden; }
 
 /* Long addresses in running text break instead of being cut off by their card. */
 .ui-link { overflow-wrap: anywhere; }
+
+/* Dialog (`Dialog`): a sheet from the bottom on narrow screens, a centered card on wide ones. */
+.ui-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--ref-z-sheet);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: var(--sys-color-overlay, rgb(0 0 0 / 0.35));
+}
+.ui-dialog {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: 88dvh;
+  padding: var(--ref-space-8) var(--ref-space-16) var(--ref-space-16);
+  border-radius: var(--sys-radius-sheet) var(--sys-radius-sheet) 0 0;
+  background: var(--sys-color-secondary-grouped-background);
+  color: var(--sys-color-label);
+  box-shadow: 0 -8px 40px rgb(0 0 0 / 0.18);
+}
+.ui-dialog__grabber {
+  flex: none;
+  width: 36px;
+  height: 5px;
+  margin: 0 auto var(--ref-space-8);
+  border-radius: 3px;
+  background: var(--sys-color-tertiary-label);
+}
+.ui-dialog__head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ref-space-8);
+  margin-bottom: var(--ref-space-12);
+}
+.ui-dialog__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.ui-dialog__foot {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--ref-space-8);
+  padding-top: var(--ref-space-12);
+}
+@media (min-width: 768px) {
+  .ui-dialog-overlay { align-items: center; }
+  .ui-dialog {
+    width: min(560px, calc(100vw - 2 * var(--ref-space-24)));
+    max-height: 80dvh;
+    padding-top: var(--ref-space-16);
+    border-radius: var(--sys-radius-sheet);
+  }
+  .ui-dialog__grabber { display: none; }
+}
+
+/* Inbox: active filters as removable chips under the filter button. */
+.ck-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ref-space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ck-chip { font-family: inherit; }
+.ck-chip__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ref-space-4);
+  border: 0;
+  border-radius: var(--ref-radius-full);
+  background: transparent;
+  color: var(--sys-color-secondary-label);
+  cursor: pointer;
+}
+.ck-chip__remove:hover { color: var(--sys-color-label); }
+.ck-chip__remove:focus-visible { outline: none; box-shadow: var(--sys-focus-ring); }
+
+/* Filter dialog: one field per filter, the select fills the width. */
+.ck-dialog { display: flex; flex-direction: column; gap: var(--ref-space-12); }
+.ck-dialog__field .ui-select-field,
+.ck-dialog__field .ui-field { display: flex; flex-direction: column; width: 100%; }
+.ck-dialog__field .ui-select { width: 100%; }
+.ck-dialog__heading { margin: var(--ref-space-8) 0 0; }
+
+/* Dropdown with search field: the list opens below the button, inside the dialog. */
+.ck-combo { display: flex; flex-direction: column; gap: var(--ref-space-4); }
+.ck-combo__button { width: 100%; text-align: start; }
+.ck-combo__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ref-space-8);
+  padding: var(--ref-space-8);
+  border-radius: var(--ref-radius-12, 12px);
+  background: var(--sys-color-tertiary-fill);
+}
+.ck-combo__list { max-height: 220px; margin: 0; padding: 0; overflow-y: auto; list-style: none; }
+.ck-combo__option {
+  display: block;
+  width: 100%;
+  padding: var(--ref-space-8) var(--ref-space-12);
+  border: 0;
+  border-radius: var(--ref-radius-8, 8px);
+  background: transparent;
+  color: var(--sys-color-label);
+  font: var(--sys-type-subheadline);
+  text-align: start;
+  cursor: pointer;
+}
+.ck-combo__option:hover { background: var(--sys-color-secondary-fill); }
+.ck-combo__option:focus-visible { outline: none; box-shadow: var(--sys-focus-ring); }
+.ck-combo__option[data-selected] { color: var(--sys-color-tint); font-weight: 600; }
+.ck-combo__empty { padding: var(--ref-space-8) var(--ref-space-12); }
+/* ---------- Formatted Jira text (ADF) ---------- */
+.ui-rich { display: flex; flex-direction: column; gap: var(--ref-space-8); min-width: 0; overflow-wrap: anywhere; }
+.ui-rich > *, .ui-rich li > *, .ui-rich blockquote > *, .ui-rich td > *, .ui-rich th > * { margin: 0; }
+.ui-rich ul, .ui-rich ol { margin: 0; padding-inline-start: var(--ref-space-20, 20px); display: flex; flex-direction: column; gap: var(--ref-space-4); }
+.ui-rich li { display: list-item; }
+.ui-rich li > * + * { margin-top: var(--ref-space-4); }
+.ui-rich a { color: var(--sys-color-tint); text-decoration: underline; }
+.ui-rich code { font-family: var(--sys-font-mono); font-size: 0.9em; padding: 1px var(--ref-space-4); border-radius: var(--ref-radius-6); background: var(--sys-color-tertiary-fill); }
+.ui-rich__code { margin: 0; padding: var(--ref-space-12); overflow-x: auto; border-radius: var(--ref-radius-12, 12px); background: var(--sys-color-tertiary-fill); font-family: var(--sys-font-mono); font-size: 0.9em; }
+.ui-rich__code code { padding: 0; background: none; font-size: inherit; }
+.ui-rich blockquote { margin: 0; padding-inline-start: var(--ref-space-12); border-inline-start: 3px solid var(--sys-color-separator); color: var(--sys-color-secondary-label); }
+.ui-rich hr { width: 100%; border: 0; border-top: 1px solid var(--sys-color-separator); }
+.ui-rich__table { overflow-x: auto; }
+.ui-rich table { border-collapse: collapse; min-width: 100%; }
+.ui-rich th, .ui-rich td { padding: var(--ref-space-4) var(--ref-space-8); border: 1px solid var(--sys-color-separator); text-align: start; vertical-align: top; }
+.ui-rich th { background: var(--sys-color-tertiary-fill); font-weight: 600; }
+.ui-rich__panel { padding: var(--ref-space-8) var(--ref-space-12); border-radius: var(--ref-radius-12, 12px); background: color-mix(in oklab, var(--sys-color-blue) 14%, transparent); display: flex; flex-direction: column; gap: var(--ref-space-8); }
+.ui-rich__panel[data-kind="note"] { background: color-mix(in oklab, var(--sys-color-purple, var(--sys-color-blue)) 14%, transparent); }
+.ui-rich__panel[data-kind="success"] { background: color-mix(in oklab, var(--sys-color-green) 16%, transparent); }
+.ui-rich__panel[data-kind="warning"] { background: color-mix(in oklab, var(--sys-color-orange) 18%, transparent); }
+.ui-rich__panel[data-kind="error"] { background: color-mix(in oklab, var(--sys-color-red) 16%, transparent); }
+.ui-rich__mention { color: var(--sys-color-tint); font-weight: 600; }
+.ui-rich__media { padding: var(--ref-space-8) var(--ref-space-12); border-radius: var(--ref-radius-12, 12px); border: 1px dashed var(--sys-color-separator); color: var(--sys-color-secondary-label); }
+.ui-rich__status { padding: 1px var(--ref-space-8); border-radius: var(--ref-radius-6); background: var(--sys-color-tertiary-fill); font-size: 0.8em; font-weight: 700; text-transform: uppercase; }
+.ui-rich__status[data-color="green"] { background: color-mix(in oklab, var(--sys-color-green) 22%, transparent); }
+.ui-rich__status[data-color="red"] { background: color-mix(in oklab, var(--sys-color-red) 22%, transparent); }
+.ui-rich__status[data-color="yellow"] { background: color-mix(in oklab, var(--sys-color-yellow) 28%, transparent); }
+.ui-rich__status[data-color="blue"] { background: color-mix(in oklab, var(--sys-color-blue) 22%, transparent); }
+.ui-rich__date { padding: 1px var(--ref-space-6, 6px); border-radius: var(--ref-radius-6); background: var(--sys-color-tertiary-fill); }

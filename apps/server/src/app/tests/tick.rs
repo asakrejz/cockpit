@@ -16,7 +16,7 @@ async fn tick_lets_the_agents_work_as_agent() {
         .items
         .iter()
         .find(|i| i.key.starts_with("BAU-"))
-        .expect("Ticket in den Beispieldaten")
+        .expect("ticket in the sample data")
         .key
         .clone();
     let start = serde_json::to_string(&ActionRequest {
@@ -62,7 +62,7 @@ async fn tick_linked_pull_requests_and_leads_the_status_after() {
         Some("BAU-150")
     );
     assert!(ws.log.iter().all(|e| e.actor == Actor::System));
-    assert!(ws.log.len() >= 2, "Verknüpfung und Status: {:?}", ws.log);
+    assert!(ws.log.len() >= 2, "link and status: {:?}", ws.log);
     // On the second tick there is nothing left to do.
     let before = state.inner.live.revision();
     let s = state.clone();

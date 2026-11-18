@@ -1,8 +1,11 @@
 //! The inbox filters as data: one list says which filters exist, what they are called, which
-//! choices they offer and what they start with. The filter bar renders this list; a later
-//! filter dialog renders the same list. The values live in [`InboxFilter`](crate::InboxFilter),
+//! choices they offer and what they start with. The filter dialog renders this list. The values
+//! live in [`InboxFilter`](crate::InboxFilter),
 //! which reads and writes them by filter ID (`get`/`set`), always as text where the empty text
 //! means „all“.
+//!
+//! The chosen values are part of the workspace ([`Workspace::inbox_filter`](crate::Workspace))
+//! and change only by [`Action::SetInboxFilter`](crate::Action).
 //!
 //! Filters whose choices come from the data (repos, people, projects, labels) have
 //! [`Choices::FromData`]; [`Workspace::filter_choices`](crate::Workspace::filter_choices) lists
@@ -10,7 +13,7 @@
 
 /// Whose entries are listed. „Meine“ keeps what needs your attention (the inbox as before);
 /// „Alle“ also lists the entries of colleagues, without attention.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Ownership {
     #[default]
     Mine,
@@ -38,7 +41,7 @@ impl Ownership {
 }
 
 /// Which tickets count by their sprint.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SprintView {
     /// Tickets of the active sprint.
     #[default]
@@ -86,6 +89,30 @@ pub const RECENT_DAYS: u64 = 14;
 /// The value of the project filter for pull requests without a ticket key.
 pub const NO_TICKET: &str = "-";
 
+/// The value of the person filter for „assigned to me“.
+pub const ASSIGNED_TO_ME: &str = "@me";
+
+/// The value of the person filter for tickets nobody is assigned to.
+pub const UNASSIGNED: &str = "@none";
+
+/// The name Jira tickets without an assignee carry as owner.
+pub const UNASSIGNED_NAME: &str = "Nicht zugewiesen";
+
+/// The ID the chip of the chosen Jira project carries (it is no inbox filter, but a setting of
+/// the workspace).
+pub const JIRA_PROJECT_FILTER: &str = "jira_project";
+
+/// A filter that is not at its start value, as shown in the chip under the filter button.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ActiveFilter {
+    /// Filter ID, or [`JIRA_PROJECT_FILTER`].
+    pub id: &'static str,
+    /// Name of the filter (German).
+    pub label: &'static str,
+    /// The chosen value as the person reads it.
+    pub value: String,
+}
+
 /// Which entries a filter acts on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Applies {
@@ -125,6 +152,14 @@ const DONE_OPTIONS: &[(&str, &str)] =
 /// All inbox filters, in display order.
 pub const FILTERS: &[FilterDef] = &[
     FilterDef {
+        id: "source",
+        label: "Quelle",
+        all_label: None,
+        choices: Choices::Fixed(crate::SourceFilter::OPTIONS),
+        default: "all",
+        applies: Applies::Both,
+    },
+    FilterDef {
         id: "ownership",
         label: "Besitz",
         all_label: None,
@@ -158,8 +193,8 @@ pub const FILTERS: &[FilterDef] = &[
     },
     FilterDef {
         id: "person",
-        label: "Person",
-        all_label: Some("Alle Personen"),
+        label: "Zugewiesen an",
+        all_label: Some("Alle"),
         choices: Choices::FromData,
         default: "",
         applies: Applies::Both,

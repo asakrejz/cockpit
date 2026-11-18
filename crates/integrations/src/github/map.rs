@@ -113,6 +113,7 @@ pub fn pull_to_item_for(
         key: format!("#{}", pull.number),
         title: pull.title.clone(),
         description: pull.body.clone().unwrap_or_default(),
+        description_rich: None,
         reason,
         reason_text,
         time: time::relative(&pull.updated_at, now),
@@ -245,6 +246,7 @@ pub fn comments_with_reviews(
                 author,
                 time: time::relative(time_iso, now),
                 text: if own { body } else { mention_for(&body, me) },
+                rich: None,
                 own,
             },
         ));

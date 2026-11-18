@@ -3,6 +3,8 @@
 use feature_ui::*;
 use leptos::prelude::*;
 
+use crate::route::Route;
+
 mod actions;
 mod activity;
 mod context;
@@ -18,11 +20,22 @@ use context::AgentCtx;
 
 #[component]
 pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
+    // On a narrow screen the list of runs is the level without a ticket in the address.
+    let level = if ticket.is_some() {
+        StackLevel::Detail
+    } else {
+        StackLevel::List
+    };
     let ctx = AgentCtx::new(ticket);
     let run = ctx.run;
 
     view! {
-        <SplitView layout=SplitLayout::DetailWide>
+        <SplitView
+            layout=SplitLayout::DetailWide
+            level=level
+            back_label="Agenten-Läufe"
+            back_href=Route::Agent(None).hash()
+        >
             <PickerPane label="Agenten-Läufe" title="Agenten-Läufe">
                 <ul class="ui-sidebar__nav">{move || sidebar::sidebar_runs(ctx)}</ul>
             </PickerPane>

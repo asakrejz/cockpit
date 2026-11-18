@@ -133,7 +133,7 @@ impl World {
             }
             assert!(
                 Instant::now() < end,
-                "Zeitüberschreitung beim Warten auf: {was}\n{:#?}",
+                "Timed out waiting for: {was}\n{:#?}",
                 self.run()
             );
             tokio::time::sleep(Duration::from_millis(40)).await;
@@ -143,7 +143,7 @@ impl World {
         let end = Instant::now() + Duration::from_secs(15);
         while !lock(&self.state.inner.agent.running).is_empty() {
             self.state.watch().await;
-            assert!(Instant::now() < end, "der Lauf endet nicht");
+            assert!(Instant::now() < end, "the run does not end");
             tokio::time::sleep(Duration::from_millis(40)).await;
         }
     }

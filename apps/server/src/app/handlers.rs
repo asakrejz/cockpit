@@ -121,13 +121,18 @@ pub(super) async fn action(State(state): State<AppState>, body: Bytes) -> Respon
     };
     // Another Jira project: sync right away so that its tickets arrive. The result
     // reaches the app through the event stream.
+    let sprint_before = state.inner.live.copy().inbox_filter.sprint;
     let project_switched = matches!(
         request.action,
         cockpit_core::Action::SelectJiraProject { .. }
     );
+    let filter_action = matches!(request.action, cockpit_core::Action::SetInboxFilter { .. });
     match state.action_run(request.action).await {
         Ok(answer) => {
-            if project_switched {
+            // Another sprint view asks Jira for other tickets (all open ones, the backlog …).
+            let sprint_switched =
+                filter_action && state.inner.live.copy().inbox_filter.sprint != sprint_before;
+            if project_switched || sprint_switched {
                 let s = state.clone();
                 tokio::spawn(async move {
                     if let Err(e) = s.sync().await {

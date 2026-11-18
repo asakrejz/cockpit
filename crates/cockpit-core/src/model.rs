@@ -84,7 +84,7 @@ impl Filter {
 }
 
 /// Inbox filter by source: all, only Jira or only GitHub.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SourceFilter {
     #[default]
     All,
@@ -135,6 +135,10 @@ pub struct Item {
     pub title: String,
     #[serde(default)]
     pub description: String,
+    /// The description as formatted Jira text (ADF); `None` = only [`Item::description`]
+    /// exists (older data, pull requests, an edited description).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description_rich: Option<crate::adf::Doc>,
     pub reason: ReasonKind,
     #[serde(default)]
     pub reason_text: String,

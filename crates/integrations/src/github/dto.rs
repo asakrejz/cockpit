@@ -72,6 +72,12 @@ pub struct Label {
 #[derive(Debug, Clone, Deserialize)]
 pub struct PullFile {
     pub filename: String,
+    #[serde(default)]
+    pub status: String,
+    #[serde(default)]
+    pub additions: u32,
+    #[serde(default)]
+    pub deletions: u32,
     /// Missing for binary files and very large changes.
     #[serde(default)]
     pub patch: Option<String>,
@@ -270,4 +276,38 @@ pub struct GitRefResponse {
 #[derive(Debug, Clone, Deserialize)]
 pub struct GitObject {
     pub sha: String,
+}
+
+/// `GET /repos/{owner}/{repo}/pulls/{number}/commits` (one entry)
+#[derive(Debug, Clone, Deserialize)]
+pub struct PullCommit {
+    pub sha: String,
+    pub commit: CommitData,
+    /// The GitHub account, if the e-mail of the commit belongs to one.
+    #[serde(default)]
+    pub author: Option<User>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CommitData {
+    #[serde(default)]
+    pub message: String,
+    #[serde(default)]
+    pub author: Option<CommitAuthor>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CommitAuthor {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub date: String,
+}
+
+/// `GET /repos/{owner}/{repo}/commits/{sha}`: the files of one commit.
+#[derive(Debug, Clone, Deserialize)]
+pub struct CommitDetail {
+    pub sha: String,
+    #[serde(default)]
+    pub files: Vec<PullFile>,
 }

@@ -77,8 +77,8 @@ async fn read_events(body: Body, n: usize) -> Vec<serde_json::Value> {
     while data.len() < n {
         let frame = tokio::time::timeout(Duration::from_secs(5), body.frame())
             .await
-            .expect("Ereignis kam nicht")
-            .expect("Strom zu Ende")
+            .expect("event did not arrive")
+            .expect("stream ended")
             .unwrap();
         if let Some(chunk) = frame.data_ref() {
             text.push_str(&String::from_utf8_lossy(chunk));

@@ -204,7 +204,7 @@ fn branch_is_named_after_key_and_title() {
         w.create_branch("bau150").as_deref(),
         Some("feature/BAU-150-sheet-detents-mittel-und")
     );
-    assert_eq!(w.create_branch("bau150"), None, "es gibt schon einen");
+    assert_eq!(w.create_branch("bau150"), None, "there already is one");
     assert_eq!(w.create_branch("pr87"), None);
 }
 

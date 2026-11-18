@@ -28,6 +28,7 @@ mod container;
 mod db;
 mod live;
 mod oauth;
+mod review_panel;
 mod secrets;
 mod setup;
 mod sync;

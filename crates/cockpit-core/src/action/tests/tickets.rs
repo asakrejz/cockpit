@@ -15,7 +15,7 @@ fn editing_a_ticket_changes_title_and_description() {
     let item = w.item("bau150").unwrap();
     assert_eq!(
         item.title, "Sheet: Detents",
-        "Titel ohne Leerraum an den Rändern"
+        "title without whitespace at the edges"
     );
     assert_eq!(item.description, "Neuer Text");
     let entry = w.log.last().unwrap();

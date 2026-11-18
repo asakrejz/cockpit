@@ -39,6 +39,9 @@ pub struct Comment {
     pub time: String,
     #[serde(default)]
     pub text: String,
+    /// The comment as formatted Jira text (ADF); `None` = only [`Comment::text`] exists.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rich: Option<crate::adf::Doc>,
     /// Written by me.
     #[serde(default)]
     pub own: bool,
@@ -50,6 +53,7 @@ impl Comment {
             author,
             time: time.into(),
             text: text.into(),
+            rich: None,
             own: false,
         }
     }

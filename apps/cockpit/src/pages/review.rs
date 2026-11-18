@@ -12,6 +12,7 @@ use leptos::prelude::*;
 
 use crate::{
     route::Route,
+    server,
     store::{Store, use_store},
     view,
 };
@@ -22,6 +23,12 @@ const REVIEW_TIME: Duration = Duration::from_millis(1200);
 #[component]
 pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
     let store = use_store();
+    // On a narrow screen the list is the level without a number in the address.
+    let level = if number.is_some() {
+        StackLevel::Detail
+    } else {
+        StackLevel::List
+    };
     // Without a number: the first review that has not been sent yet.
     let number = number.or_else(|| {
         store.ws.with_untracked(|w| {
@@ -52,6 +59,9 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
         edit_suggest: RwSignal::new(false),
         edit_code: RwSignal::new(String::new()),
     };
+
+    // State of the review panel (tabs, viewed files, commits).
+    let panel_ui = PanelUi::new(number.get_value().as_ref());
 
     // State of the right column. It survives when the review changes.
     let panel = Panel {
@@ -97,7 +107,12 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
     let no_reviews = move || store.ws.with(|w| w.reviews.is_empty());
 
     view! {
-        <SplitView layout=SplitLayout::DetailWide>
+        <SplitView
+            layout=SplitLayout::DetailWide
+            level=level
+            back_label="Reviews"
+            back_href=Route::Review(None).hash()
+        >
             <PickerPane label="Pull Requests" title="Reviews">
                 <Show when=move || store.ws.with(|w| w.reviews.iter().any(|r| !w.review_is_mine(r)))>
                     <Select
@@ -114,7 +129,7 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
                 </Show>
             </PickerPane>
             {move || match review.get() {
-                Some(r) => view! { {diff_pane(store, r.clone(), lines)} {agent_pane(store, r, panel)} }.into_any(),
+                Some(r) => view! { {diff_pane(store, r.clone(), lines, panel_ui)} {agent_pane(store, r, panel)} }.into_any(),
                 None => {
                     view! {
                         <Pane label="Pull Request">
@@ -203,6 +218,7 @@ mod comments;
 mod diff;
 mod followups;
 mod merge;
+mod panel;
 mod suggestions;
 
 use checks::checks_section;
@@ -210,4 +226,5 @@ use comments::comments_section;
 use diff::diff_pane;
 use followups::followup_section;
 use merge::merge_section;
+use panel::{PanelUi, panel_body};
 use suggestions::agent_pane;

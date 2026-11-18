@@ -26,6 +26,7 @@
 //! GitHub and the agent and write the result into the workspace.
 
 pub mod action;
+pub mod adf;
 pub mod agent;
 pub mod api;
 pub mod attention;
@@ -60,7 +61,8 @@ pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::{AuthKind, Connections, ServiceStatus};
 pub use diagnosis::{Diagnosis, Fix};
 pub use filters::{
-    Applies, Choices, FILTERS, FilterDef, NO_TICKET, Ownership, RECENT_DAYS, SprintView, filter_def,
+    ASSIGNED_TO_ME, ActiveFilter, Applies, Choices, FILTERS, FilterDef, JIRA_PROJECT_FILTER,
+    NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED, UNASSIGNED_NAME, filter_def,
 };
 pub use model::*;
 pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};
@@ -70,8 +72,8 @@ pub use notify::{
 pub use repos::{AgentRepo, AgentRepos, RepoChoice};
 pub use review::{
     CHECK_STEPS, CheckRun, Decision, DiffLine, FileDiff, Level, LineComment, LineKind,
-    MergeBlocker, MergeMethod, Review, SendError, Suggestion, SuggestionDiff, Verdict,
-    merge_blockers,
+    MergeBlocker, MergeMethod, Review, SHOWN_LINES, SendError, Suggestion, SuggestionDiff, TreeRow,
+    Verdict, Viewed, commit_date, file_tree, merge_blockers, short_sha,
 };
 pub use rules::{DEMO_REPO, PathViolation, RepoRules, ViolationKind, glob_match};
 pub use search::InboxFilter;

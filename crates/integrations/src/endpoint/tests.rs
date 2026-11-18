@@ -103,7 +103,7 @@ async fn a_response_beyond_the_size_limit_is_refused() {
     let server = proxy(ResponseTemplate::new(200).set_body_string(gross)).await;
     let l = models_load(&target(&server), Some(&Secret::new(KEY))).await;
     assert!(!l.loaded && l.models.is_empty());
-    assert!(l.hint.unwrap().contains("kein Modellverzeichnis"));
+    assert!(l.hint.unwrap().contains("keine Modellliste"));
 }
 
 #[tokio::test]
@@ -122,10 +122,7 @@ async fn rejected_key_empty_list_and_broken_json_say_so() {
         let server = proxy(ResponseTemplate::new(200).set_body_string(broken)).await;
         let l = models_load(&target(&server), Some(&Secret::new(KEY))).await;
         assert!(!l.loaded && l.reachable, "{broken}");
-        assert!(
-            l.hint.unwrap().contains("kein Modellverzeichnis"),
-            "{broken}"
-        );
+        assert!(l.hint.unwrap().contains("keine Modellliste"), "{broken}");
     }
 
     let server = proxy(ResponseTemplate::new(500)).await;

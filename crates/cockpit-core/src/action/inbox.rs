@@ -106,7 +106,7 @@ impl Workspace {
                 description,
             } => {
                 let key = self.key_of(&item)?;
-                let current = self.item(&item).expect("key_of kennt den Eintrag");
+                let current = self.item(&item).expect("key_of knows the entry");
                 if !current.is_ticket() {
                     return Err(ActionError::NotATicket);
                 }
@@ -131,7 +131,7 @@ impl Workspace {
             }
             Action::AssignTicket { item, person } => {
                 let key = self.key_of(&item)?;
-                let current = self.item(&item).expect("key_of kennt den Eintrag");
+                let current = self.item(&item).expect("key_of knows the entry");
                 if !current.is_ticket() {
                     return Err(ActionError::NotATicket);
                 }
@@ -264,6 +264,17 @@ impl Workspace {
                     return Err(ActionError::Unchanged);
                 }
                 Ok(vec![Note::new(Target::Settings, text)])
+            }
+            Action::SetInboxFilter { filter } => {
+                let text = if filter.is_default() {
+                    "Filter zurückgesetzt"
+                } else {
+                    "Filter angewendet"
+                };
+                if !self.set_inbox_filter(filter) {
+                    return Err(ActionError::Unchanged);
+                }
+                Ok(vec![Note::new(Target::Settings, text.to_string())])
             }
             _ => unreachable!("inbox: dispatched by perform"),
         }

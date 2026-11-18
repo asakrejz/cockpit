@@ -27,8 +27,8 @@ pub fn status_from(s: &super::dto::Status) -> TicketStatus {
 /// A Jira issue as an inbox entry. `me` is the `accountId` of the user.
 ///
 /// Assigned to me → `Scope::Mine`, reason `Assigned`. Only watched → `Scope::Team`, reason
-/// `Comment` (provisional, the attention rules follow later). Without an assignee the
-/// reporter is the owner. Comments are empty – they come through [`comments_to_core`].
+/// `Comment` (provisional, the attention rules follow later). Without an assignee the owner is
+/// „Nicht zugewiesen“ (the filter „Nicht zugewiesen“ relies on it). Comments are empty – they come through [`comments_to_core`].
 pub fn issue_to_item(issue: &Issue, me: &str, now: i64) -> Item {
     issue_to_item_with(issue, me, now, None)
 }
@@ -38,10 +38,10 @@ pub fn issue_to_item(issue: &Issue, me: &str, now: i64) -> Item {
 pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Option<&str>) -> Item {
     let f = &issue.fields;
     let me_assigned = f.assignee.as_ref().is_some_and(|a| a.account_id == me);
-    let owner = match f.assignee.as_ref().or(f.reporter.as_ref()) {
+    let owner = match f.assignee.as_ref() {
         Some(u) if u.account_id == me => Person::me(),
         Some(u) => text::person(&u.display_name),
-        None => Person::new("Nicht zugewiesen", "–"),
+        None => Person::new(cockpit_core::UNASSIGNED_NAME, "–"),
     };
     let (reason, reason_text, scope) = if me_assigned {
         (ReasonKind::Assigned, "Dir zugewiesen", Scope::Mine)
@@ -55,6 +55,7 @@ pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Optio
         key: issue.key.clone(),
         title: f.summary.clone(),
         description: adf_to_text(&f.description),
+        description_rich: cockpit_core::adf::parse(&f.description, me),
         reason,
         reason_text: reason_text.into(),
         time: time::relative(&f.updated, now),
@@ -139,6 +140,7 @@ pub fn comments_to_core(comments: &[JiraComment], me: &str, now: i64) -> Vec<Com
                 },
                 time: time::relative(&c.created, now),
                 text: adf_to_text_for(&c.body, me),
+                rich: cockpit_core::adf::parse(&c.body, me),
                 own,
             }
         })

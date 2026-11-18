@@ -18,6 +18,7 @@ fn item(id: &str, key: &str, source: Source) -> Item {
         key: key.into(),
         title: "Avatar Größe".into(),
         description: String::new(),
+        description_rich: None,
         reason: ReasonKind::Assigned,
         reason_text: String::new(),
         time: String::new(),
@@ -285,7 +286,7 @@ fn status_branch_merge_and_check() {
         },
         &all(),
     ) else {
-        panic!("Branch erwartet");
+        panic!("expected branch");
     };
     assert_eq!(repo, "a/x");
     assert_eq!(name, "feature/ABC-1-avatar-groesse");

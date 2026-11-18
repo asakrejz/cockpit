@@ -256,7 +256,7 @@ pub(super) fn line_notes(
 }
 
 /// Middle: head of the pull request and the diff.
-pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi) -> impl IntoView {
+pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi, panel: PanelUi) -> impl IntoView {
     let ticket = r.ticket_key.clone().map(|key| {
         // If the ticket is in the inbox, the link leads there.
         let id = store
@@ -282,55 +282,7 @@ pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi) -> impl IntoView {
             }
         }
     });
-    let sent = r.sent;
-    let files = r
-        .files
-        .iter()
-        .map(|file| {
-            let name = StoredValue::new(file.name.clone());
-            let selected = Signal::derive(move || {
-                ui.open.with(|o| {
-                    o.as_ref()
-                        .filter(|(f, _)| *f == name.get_value())
-                        .map(|(_, i)| *i)
-                })
-            });
-            // After sending there is nothing left to comment on; the comments stay visible.
-            let on_select = (!sent).then(|| {
-                Callback::new(move |index: usize| {
-                    ui.editing.set(None);
-                    ui.suggest.set(false);
-                    let same = ui.open.with_untracked(|o| {
-                        o.as_ref()
-                            .is_some_and(|(f, i)| *f == name.get_value() && *i == index)
-                    });
-                    ui.open.set((!same).then(|| (name.get_value(), index)));
-                })
-            });
-            let notes = {
-                let r = r.clone();
-                Callback::new(move |index: usize| {
-                    line_notes(store, &r, &name.get_value(), index, ui)
-                })
-            };
-            view! {
-                <div class="ui-vstack" style="--spacing: 8px">
-                    <div class="ui-hstack" style="justify-content: space-between">
-                        <span class="t-subheadline t-semibold t-mono">{file.name.clone()}</span>
-                        <span class="t-footnote t-secondary t-mono">{file.stat()}</span>
-                    </div>
-                    <Diff
-                        rows=view::diff_rows(file)
-                        label=file.name.clone()
-                        on_select=on_select
-                        selected=selected
-                        below=Some(notes)
-                    />
-                </div>
-            }
-        })
-        .collect_view();
-
+    let body = panel_body(store, r.clone(), ui, panel);
     view! {
         <Pane label="Pull Request">
             <PaneHeader>
@@ -366,7 +318,7 @@ pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi) -> impl IntoView {
                 </div>
                 <p class="t-body t-secondary">{r.description.clone()}</p>
             </PaneHeader>
-            <PaneBody>{files}</PaneBody>
+            <PaneBody>{body}</PaneBody>
         </Pane>
     }
 }

@@ -5,9 +5,9 @@ use cockpit_core::Item;
 use serde::de::DeserializeOwned;
 
 use super::dto::{
-    Annotation, CheckRun, CheckRuns, ContentFile, GitRefResponse, InstallationRepos, Installations,
-    IssueComment, Pull, PullFile, PullReview, PullSummary, Repo, RepoListEntry, ReviewComment,
-    SearchItem, SearchResult, User,
+    Annotation, CheckRun, CheckRuns, CommitDetail, ContentFile, GitRefResponse, InstallationRepos,
+    Installations, IssueComment, Pull, PullCommit, PullFile, PullReview, PullSummary, Repo,
+    RepoListEntry, ReviewComment, SearchItem, SearchResult, User,
 };
 use super::followup::{self, FailedCheck, ReviewInput};
 use super::map;
@@ -283,6 +283,18 @@ impl GitHubClient {
     /// Changed files with patch.
     pub async fn files(&self, repo: &str, nr: u32) -> Result<Vec<PullFile>, Error> {
         self.pages(&format!("/repos/{repo}/pulls/{nr}/files")).await
+    }
+
+    /// The commits of a pull request (oldest first; GitHub delivers at most 250).
+    pub async fn commits(&self, repo: &str, nr: u32) -> Result<Vec<PullCommit>, Error> {
+        self.pages(&format!("/repos/{repo}/pulls/{nr}/commits"))
+            .await
+    }
+
+    /// One commit with its files and patches (GitHub lists at most 300 files here).
+    pub async fn commit(&self, repo: &str, sha: &str) -> Result<CommitDetail, Error> {
+        self.lies_json(self.get(&format!("/repos/{repo}/commits/{sha}")))
+            .await
     }
 
     pub async fn comments(&self, repo: &str, nr: u32) -> Result<Vec<IssueComment>, Error> {

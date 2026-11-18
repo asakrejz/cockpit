@@ -294,7 +294,7 @@ pub fn LiveStep(ctx: Context) -> impl IntoView {
                 </li>
             </SourceSection>
             <p class="t-footnote t-secondary" style="padding-inline: 4px">
-                "„Lokal testen“ schickt eine unterschriebene Nachricht von Cockpit an sich selbst und prüft so Secret und Verdrahtung, ohne GitHub oder Jira. Ob dich die Dienste über den Tunnel erreichen, zeigt „Zuletzt empfangen“ erst nach einer echten Zustellung (bei GitHub: „Recent Deliveries“ › „Redeliver“)."
+                "„Lokal testen“ schickt eine unterschriebene Nachricht von Cockpit an sich selbst und prüft so Secret und Einrichtung, ohne GitHub oder Jira. Ob dich die Dienste über den Tunnel erreichen, zeigt „Zuletzt empfangen“ erst nach einer echten Zustellung (bei GitHub: „Recent Deliveries“ › „Redeliver“)."
             </p>
         </VStack>
     }

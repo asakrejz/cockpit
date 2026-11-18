@@ -105,6 +105,12 @@ pub enum Action {
     SelectJiraProject {
         project: Option<String>,
     },
+    /// Apply the inbox filters (see [`crate::filters`]). A display filter only: nothing is
+    /// written to Jira or GitHub. In server mode a changed sprint view makes the next sync
+    /// fetch other tickets.
+    SetInboxFilter {
+        filter: crate::InboxFilter,
+    },
     // Review
     Decide {
         review: PrKey,
@@ -426,7 +432,8 @@ impl Workspace {
             | Action::RequestReview { .. }
             | Action::SyncTicketStatus
             | Action::SetStatusFollowsPr { .. }
-            | Action::SelectJiraProject { .. } => self.perform_inbox(action, at_ms),
+            | Action::SelectJiraProject { .. }
+            | Action::SetInboxFilter { .. } => self.perform_inbox(action, at_ms),
             Action::Decide { .. }
             | Action::EditSuggestion { .. }
             | Action::AddLineComment { .. }

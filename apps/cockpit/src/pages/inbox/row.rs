@@ -1,18 +1,13 @@
 use super::*;
 
 /// A row of the inbox.
-pub(super) fn row(
-    store: Store,
-    item: Item,
-    selected: bool,
-    detail_open: RwSignal<bool>,
-) -> impl IntoView {
+pub(super) fn row(store: Store, item: Item, selected: bool, filter: Filter) -> impl IntoView {
     let id = item.id.clone();
     view! {
         <InboxRow selected=selected on_select=move |_| {
             store.selected.set(id.clone());
-            // Only has an effect on narrow screens, which show list and detail as two levels.
-            detail_open.set(true);
+            // The entry gets its own address: on narrow screens that opens the detail level.
+            navigate(&Route::InboxItem(filter, id.clone()));
         }>
             <UnreadDot read=item.read />
             <span class="ui-vstack" style="--spacing: 4px; flex: 1 1 auto; min-width: 0">

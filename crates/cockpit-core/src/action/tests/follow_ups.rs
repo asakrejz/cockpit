@@ -196,11 +196,7 @@ fn address_review_waits_for_plan_approval_and_can_be_steered() {
 fn foreign_comments_stay_out_of_my_review_and_cannot_be_edited() {
     let mut w = ws();
     let r = w.review(91).unwrap();
-    assert_eq!(
-        r.comment_count(),
-        0,
-        "fremde Kommentare gehen nicht mit hinaus"
-    );
+    assert_eq!(r.comment_count(), 0, "comments of others do not go out");
     fails(
         &mut w,
         Action::EditLineComment {
@@ -245,7 +241,7 @@ fn a_red_check_is_diagnosed_and_nothing_changes_before_you_accept() {
     assert_eq!(
         w.review(85).unwrap().files,
         branch_before,
-        "Branch unberührt"
+        "branch untouched"
     );
     assert_eq!(w.review(85).unwrap().checks, Checks::Failed);
     assert_eq!(w.waiting_agents(), 1);
@@ -264,7 +260,7 @@ fn a_red_check_is_diagnosed_and_nothing_changes_before_you_accept() {
     let list = review.files.iter().find(|f| f.name == "list.rs").unwrap();
     assert!(list.lines.iter().all(|l| !l.text.contains("let inset")));
     let lint = review.check_runs.iter().find(|c| c.name == "Lint").unwrap();
-    assert_eq!(lint.status, Checks::Running, "Check neu gestartet");
+    assert_eq!(lint.status, Checks::Running, "check restarted");
     // The tick of the checks turns it green; the browser test stays red.
     while w.running_checks() > 0 {
         w.apply(Action::AdvanceChecks, Actor::System, T).unwrap();
@@ -282,7 +278,7 @@ fn a_red_check_is_diagnosed_and_nothing_changes_before_you_accept() {
     assert_eq!(
         review.checks,
         Checks::Failed,
-        "Tests (Browser) ist weiter rot"
+        "Tests (Browser) is still red"
     );
     assert!(
         w.item_by_key("#85")
@@ -439,7 +435,7 @@ fn nobody_but_you_merges_after_followups_and_followups_count_for_the_team() {
     assert_eq!(
         (agent.in_progress, agent.review),
         (1, 0),
-        "BAU-138 zählt einmal, jetzt in Arbeit"
+        "BAU-138 counts once, now in progress"
     );
     assert_eq!(agent.item_ids, ["bau138"]);
     run_to_end(&mut w);

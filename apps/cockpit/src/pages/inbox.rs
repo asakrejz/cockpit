@@ -2,8 +2,8 @@
 //! with status, branch, comments and the way to the agent.
 
 use cockpit_core::{
-    Action, Applies, Choices, FILTERS, Filter, FilterDef, InboxFilter, Item, Person, Priority,
-    Rule, SnoozeChoice, SourceFilter, TicketStatus,
+    Action, Filter, InboxFilter, Item, Person, Priority, Rule, SnoozeChoice, SourceFilter,
+    TicketStatus,
 };
 use feature_ui::*;
 use leptos::{ev, prelude::*, wasm_bindgen::JsCast};
@@ -12,7 +12,6 @@ use web_sys::{HtmlElement, KeyboardEvent, ScrollIntoViewOptions, ScrollLogicalPo
 use crate::{
     route::Route,
     server::{self, CallError},
-    sidebar::MoreSection,
     store::{Store, navigate, now_ms, use_store, utc_offset_min},
     sync_status::sync_now,
     view,
@@ -24,18 +23,17 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
 
     // The memos only fire when their result really changes. A ticking
     // agent on another ticket therefore does not rebuild the detail.
-    // Search text and source belong only to this page; they do not persist across navigation.
+    // The search text belongs only to this page; it does not persist across navigation.
     let query = RwSignal::new(String::new());
-    let source = RwSignal::new(SourceFilter::All);
-    // The other filters (definitions: `cockpit_core::FILTERS`) live together in one value that
-    // starts at the defaults: own entries, active sprint, done tickets hidden, rest „all“.
-    let by = RwSignal::new(InboxFilter::default());
-    let inbox_filter = Memo::new(move |_| by.get());
+    // The filters (definitions: `cockpit_core::FILTERS`) are part of the workspace and change
+    // in the filter dialog by `Action::SetInboxFilter`.
+    let inbox_filter = Memo::new(move |_| store.ws.with(|w| w.inbox_filter.clone()));
+    let filter_open = RwSignal::new(false);
     let items = Memo::new(move |_| {
-        let (source, query, now) = (source.get(), query.get(), store.now.get());
+        let (query, now) = (query.get(), store.now.get());
         let inbox_filter = inbox_filter.get();
         store.ws.with(|w| {
-            w.inbox(filter, source, &query, now, &inbox_filter)
+            w.inbox(filter, SourceFilter::All, &query, now, &inbox_filter)
                 .into_iter()
                 .map(|item| with_reason(w, item, filter, now))
                 .collect::<Vec<Item>>()
@@ -55,13 +53,22 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
         draft.set(String::new());
     });
 
-    // Narrow screens show list and detail as two levels; this says which one is on.
-    let detail_open = RwSignal::new(false);
-    Effect::new(move |previous: Option<bool>| {
-        let open = detail_open.get();
-        if previous.is_some() {
+    // Narrow screens show list and detail as two levels; the address says which one is on.
+    // An address with an entry also chooses that entry.
+    let level = Signal::derive(move || store.route.with(Route::level));
+    Effect::new(move |_| {
+        if let Route::InboxItem(_, id) = store.route.get() {
+            store.selected.set(id);
+        }
+    });
+    let was_detail = StoredValue::new(false);
+    Effect::new(move |_| {
+        let detail = level.get() == StackLevel::Detail;
+        let before = was_detail.get_value();
+        was_detail.set_value(detail);
+        if detail != before {
             request_animation_frame(move || {
-                if open {
+                if detail {
                     window().scroll_to_with_x_and_y(0.0, 0.0);
                 } else if let Some(row) = query_html(".ck-inbox [aria-pressed=\"true\"]") {
                     let options = ScrollIntoViewOptions::new();
@@ -70,7 +77,6 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                 }
             });
         }
-        open
     });
 
     // Edit mode of a ticket: draft of title and description. With every change
@@ -111,17 +117,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
         Filter::Snoozed => ("Zurückgestellt", "Nichts ist zurückgestellt."),
     };
     view! {
-        <SplitView detail_open=detail_open>
-            // The rules live in the "Mehr" sheet of the navigation.
-            <MoreSection>
-                <p class="ui-sidebar__label">"Regeln"</p>
-                <ul class="ui-sidebar__nav">
-                    {Rule::ALL.into_iter().map(|rule| rule_switch(store, rule)).collect_view()}
-                </ul>
-                <p class="ui-sidebar__label">"Tickets"</p>
-                <ul class="ui-sidebar__nav">{status_follow_switch(store)}</ul>
-            </MoreSection>
-
+        <SplitView level=level back_label=title back_href=Route::Inbox(filter).hash()>
             <Pane label=title>
                 <PaneHeader>
                     <div class="ui-hstack" style="justify-content: space-between; flex-wrap: nowrap">
@@ -143,26 +139,8 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                         }
                         aria_label="Filter"
                     />
-                    <SegmentedPicker
-                        options=SourceFilter::OPTIONS
-                        value=Signal::derive(move || source.get().id())
-                        on_change=move |id: &'static str| {
-                            source.set(SourceFilter::from_id(id).unwrap_or_default());
-                        }
-                        aria_label="Quelle"
-                    />
-                    {project_picker(store)}
-                    <div class="ck-filters">
-                        {filter_bar(store, by)}
-                        <Show when=move || !by.with(InboxFilter::is_default)>
-                            <Button
-                                size=ControlSize::Small
-                                on_click=move |_| by.set(InboxFilter::default())
-                            >
-                                "Filter zurücksetzen"
-                            </Button>
-                        </Show>
-                    </div>
+                    <div class="ck-filters">{filter_button(store, filter_open)}</div>
+                    {filter_chips(store)}
                     <div class="ck-search">
                         <SearchField value=query placeholder="Inbox durchsuchen" />
                     </div>
@@ -173,11 +151,13 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                 <ul class="ck-inbox">
                     {move || {
                         let list = items.get();
-                        if list.is_empty() && is_narrowed(&query.get(), source.get(), &inbox_filter.get()) {
+                        if list.is_empty() && is_narrowed(&query.get(), &inbox_filter.get()) {
                             let reset = move |_| {
                                 query.set(String::new());
-                                source.set(SourceFilter::All);
-                                by.set(InboxFilter::default());
+                                let _ = store
+                                    .dispatch(Action::SetInboxFilter {
+                                        filter: InboxFilter::default(),
+                                    });
                             };
                             view! {
                                 <li class="ck-empty">
@@ -256,7 +236,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                             list.into_iter()
                                 .map(|item| {
                                     let selected = active.as_deref() == Some(item.id.as_str());
-                                    row(store, item, selected, detail_open)
+                                    row(store, item, selected, filter)
                                 })
                                 .collect_view()
                                 .into_any()
@@ -274,9 +254,6 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
             </Pane>
 
             <Pane label="Details">
-                <div class="ck-back">
-                    <Button on_click=move |_| detail_open.set(false)>"‹ Zur Liste"</Button>
-                </div>
                 {move || match current.get() {
                     Some(item) => detail(store, item, items, draft, edit).into_any(),
                     None => {
@@ -293,6 +270,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                 }}
             </Pane>
         </SplitView>
+        {filter_dialog(store, filter_open)}
     }
 }
 
@@ -369,10 +347,12 @@ fn snooze(store: Store, items: Memo<Vec<Item>>, id: &str, choice: SnoozeChoice) 
 
 mod controls;
 mod detail;
+mod filters;
 mod keyboard;
 mod row;
 
-use controls::{filter_bar, is_narrowed, project_picker, rule_switch, status_follow_switch};
+use controls::is_narrowed;
 use detail::detail;
+use filters::{filter_button, filter_chips, filter_dialog};
 use keyboard::{on_key, query_html};
 use row::{row, row_icon};

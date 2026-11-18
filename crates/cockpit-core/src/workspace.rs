@@ -137,6 +137,9 @@ pub struct Workspace {
     /// tickets, and the sync fetches all open tickets of the project. `None` = all.
     #[serde(default)]
     pub jira_project: Option<String>,
+    /// The chosen inbox filters (see [`crate::filters`]); change by `Action::SetInboxFilter`.
+    #[serde(default)]
+    pub inbox_filter: InboxFilter,
 }
 
 impl Workspace {
@@ -262,7 +265,7 @@ impl Workspace {
             .collect()
     }
 
-    /// Inbox entries for the filter bar: like [`Workspace::search`], then narrowed by the
+    /// Inbox entries for the filter dialog: like [`Workspace::search`], then narrowed by the
     /// [`InboxFilter`].
     ///
     /// With the ownership „Meine“ the list is the attention list as before. With „Alle“ the
@@ -315,7 +318,7 @@ impl Workspace {
         let same = |v: String| (v.clone(), v);
         match id {
             "repo" => self.item_repos().into_iter().map(same).collect(),
-            "person" => self.owners().into_iter().map(|p| same(p.name)).collect(),
+            "person" => self.person_choices(),
             "label" => self.labels().into_iter().map(same).collect(),
             "project" => {
                 let mut list: Vec<String> = self
@@ -496,6 +499,7 @@ impl Workspace {
 mod agents;
 pub use agents::PullRequestDraft;
 mod followups;
+mod inbox_filter;
 mod limits;
 mod repos;
 mod review;

@@ -134,19 +134,19 @@ impl MemoryStore {
 #[cfg(test)]
 impl SecretStore for MemoryStore {
     fn get(&self, name: &str) -> Result<Option<Secret>, SecretError> {
-        Ok(self.0.lock().expect("Sperre vergiftet").get(name).cloned())
+        Ok(self.0.lock().expect("lock poisoned").get(name).cloned())
     }
 
     fn set(&self, name: &str, value: &Secret) -> Result<(), SecretError> {
         self.0
             .lock()
-            .expect("Sperre vergiftet")
+            .expect("lock poisoned")
             .insert(name.into(), value.clone());
         Ok(())
     }
 
     fn delete(&self, name: &str) -> Result<(), SecretError> {
-        self.0.lock().expect("Sperre vergiftet").remove(name);
+        self.0.lock().expect("lock poisoned").remove(name);
         Ok(())
     }
 }

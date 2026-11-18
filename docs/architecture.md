@@ -108,11 +108,13 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `POST /api/actions` | body `{"action": <Action>}`; applied as the user. Answer `{revision, summary, logged}`; a rejected action is `422` (unknown shape `400`) with `{"error": "…"}`; a failed outward call is `502` |
 | `POST /api/sync` | "sync now" with Jira and GitHub. Answer `{active, revision, logged}`; `active: false` when no source is set up |
 | `GET /api/events` | server-sent events: first the current revision, then one event per action with the new revision and new log entries, plus keep-alive |
-| `GET /api/jira/projects` | Jira projects for the inbox drop-down: `{active, projects: [{key, name}]}` |
+| `GET /api/jira/projects` | Jira projects for the filter dialog of the inbox: `{active, projects: [{key, name}]}` |
 | `POST /api/jira/check` | connection test for Jira with an API token, read only (`GET /rest/api/3/myself`): `{ok, cause, message, name}`; `cause` is `ok`, `details`, `address`, `token`, `permission`, `reachable` or `other`; never the token |
 | `GET /api/agent/image`, `POST /api/agent/image` | state of "build image" `{running, present, error, lines}`, or start the build in the background |
 | `GET /api/agent/check` | connection test to the endpoint: `{configured, reachable, key_ok, model_present, hint}` |
 | `GET /api/agent/pull-request?run=<key>` | preview of the pull request for a finished real run: `{repo, head, base, title, body, draft, existing}`; creates nothing |
+| `GET /api/review/commits?repo=&number=` | commits of a synced pull request `{commits: [{sha, title, body, author, date}], truncated}`; read only (`GET pulls/{n}/commits`) |
+| `GET /api/review/commit?repo=&number=&sha=[&path=]` | diff of one commit `{sha, files: [{name, status, additions, deletions, lines, total_lines, truncated, no_patch}], truncated_files}`; every file cut at 300 lines, with `path` that one file up to 5000 lines; read only (`GET commits/{sha}`); only for pull requests the app knows |
 | `GET /api/agent/check/container` | the same test from a container: `{checked, mac_reached, container_reached, key_ok, hint}` |
 | `GET /api/agent/models` | model IDs of the endpoint for the drop-down: `{loaded, reachable, key_ok, models, hint}`; only IDs, sorted (Claude models first), at most 200 |
 | `GET /api/setup` | what the assistant prefills: Jira site/email/projects, client IDs, repos, provider, endpoint address and model, both callback addresses, and per key only `{name, set}` |
@@ -209,6 +211,14 @@ workspace (also "only you may merge", "review only after deciding on every sugge
 All other actions, and every entry that came from a seed, stay local. The action `SyncRemote` may only be triggered by
 the backend; `POST /api/actions` rejects it.
 
+**Formatted Jira text.** Jira (REST v3) delivers descriptions and comments as ADF. The sync does not flatten it: `cockpit_core::adf::parse`
+turns it into the typed model `adf::Doc` (paragraphs, headings 1–6, nested lists, code blocks with language, quotes, rules, tables, panels,
+media placeholders; marks strong/em/code/strike/underline/link; mention, emoji, inline card, status, date). It is stored in
+`Item.description_rich` and `Comment.rich` (`None` for older data, pull requests and edited descriptions, which fall back to the plain text
+in `description`/`text`; that text is still filled for search and the agent). Unknown nodes become the text of their content, never an
+error. Links are kept only for `http`/`https`. The UI (`feature_ui::RichText`) builds real elements, never `inner_html`; links get
+`target="_blank"` and `rel="noopener noreferrer"`; media show their file name only. No `expand=renderedFields` and no HTML from Jira.
+
 ## Empty, loading and error states
 
 The browser decides what to show from three things it already has: the link to the server (`Link`: connecting,
@@ -296,7 +306,7 @@ first. Required tests cannot be switched off. Changed rules apply to new runs an
 comments and reviews only after your approval; the agent never merges.
 
 **Status follows the pull request.** A ticket's status follows its linked pull request (draft/open → In Arbeit, review
-requested → Review, merged → Fertig); switchable in the "Mehr" menu, author in the log: System. Ticket and pull request are
+requested → Review, merged → Fertig); switchable in the inbox's filter dialog, author in the log: System. Ticket and pull request are
 linked automatically by the key in branch or title (`BAU-142`), otherwise by hand.
 
 **Review mechanics.** For a line comment, "Änderung vorschlagen" lets you enter replacement code for the line
@@ -327,7 +337,7 @@ blocks) and `apps/cockpit/style.css` (Cockpit specifics), only with existing tok
 and `--ui-nav-space`, are defined in `extras.css`; `tokens.css` is untouched). The `viewport` meta tag is set and fixed
 elements respect `env(safe-area-inset-*)`.
 
-**Shell.** Above 1100 px the shell is exactly the viewport (`100dvh`, `overflow: hidden`, no page scroll). The columns of
+**Shell.** From 768 px on the shell is exactly the viewport (`100dvh`, `overflow: hidden`, no page scroll). The columns of
 `SplitView` are grid tracks of equal height; each pane scrolls on its own (`min-height: 0`, `overflow-y: auto`,
 `overscroll-behavior: contain`). The shell ends above the navigation pill (`--ui-nav-space`), so no scroll area runs
 behind it.
@@ -335,8 +345,8 @@ behind it.
 | Width | Columns |
 | --- | --- |
 | above 1280 px | up to three: picker or list `minmax(240px, 320px)` (inbox list 320–420 px), detail `1fr`, context `minmax(300px, 380px)`. Pages with one pane (overview, log, limits, notifications) use one centred column of at most 960 px. |
-| 1101–1280 px | The context column moves **below the detail** (picker on the left over the full height; detail and context share the right side, 3 : 2). |
-| up to 1100 px | One column; the panes stack and the page scrolls. The picker becomes a chip strip above the content. Inbox: list and detail are two levels (`detail_open`). |
+| 768–1280 px | The context column moves **below the detail** (picker on the left over the full height; detail and context share the right side, 3 : 2). Pages with two columns keep both beside each other. There is no back button. |
+| below 768 px | One level at a time, like an iOS navigation stack (see below). The page scrolls. |
 
 Which columns a page has: inbox = list + detail; pull requests = picker + diff + agent review; agent = picker + run +
 activity (with no run: picker + empty state); the other pages = one pane. The setup assistant is one scrolling column.
@@ -370,20 +380,25 @@ close button, a followed link and `hashchange` close it, focus returns to the bu
 | Brand "Cockpit" + badge "Lokal" | top of the "Mehr" sheet |
 | Entries (11 targets) | pill (4) and "Mehr" sheet (7) |
 | Connections Jira / GitHub / agent | "Mehr" sheet, section "Verbindungen" (each leads to the setup) |
-| Inbox: rules (6 switches) and "Tickets" (follow status) | "Mehr" sheet while the inbox is open (`MoreSection`) |
+| Inbox: rules (6 switches) and "Status folgt dem Pull Request" | filter dialog of the inbox (button "Filter") |
 | Pull-request list ("Reviews") | first column of the pull-request page (`PickerPane`) |
 | Agent-run list | first column of the agent page (`PickerPane`) |
 
 - **Phone details:** `viewport-fit=cover`, `dvh` instead of `vh`; notices (toasts) sit above the pill; long button
-  labels and addresses wrap; the filter bar of the inbox wraps instead of scrolling.
-- **List and detail as two levels:** the inbox passes `detail_open` to `SplitView`; up to 1100 px either the list or
-  the detail shows (tapping a row opens it, "‹ Zur Liste" goes back).
+  labels and addresses wrap; the filter dialog is a sheet from the bottom, its chips wrap instead of scrolling.
+- **List and detail as two levels (`StackLevel`):** below 768 px a page with list and detail shows one level. `SplitView`
+  takes `level` (from `Route::level()`), `back_label` and `back_href`. The first pane is the list level, all further
+  panes are the detail level. A tap on an entry goes to its own address, the detail slides in from the right
+  (`--ui-stack-duration`, `--ui-stack-ease`; no slide with `prefers-reduced-motion`), the top bar shows
+  "‹ name of the list", and a swipe from the left edge does the same. Addresses: `#/item/<id>`, `#/mine/item/<id>`
+  (inbox), `#/overview/<name>`, `#/review/<repo>/<nr>`, `#/agent/<ticket>`; the list is the address without the last
+  part. Browser back and reload therefore work. Free text in an address is escaped (`route/segment.rs`).
 - **Shortcuts:** the key hints of the inbox are hidden when narrow; every shortcut has a button.
-- **Wide content scrolls inside its box:** the diff, logs and the picker strips scroll sideways inside their
+- **Wide content scrolls inside its box:** the diff and logs scroll sideways inside their
   container, never the page. Segmented pickers wrap; status texts wrap.
 - **Checked in the browser pane** at 320, 375, 768, 1100, 1280×720, 1440×900, 1920×1080, 2560×1440, 1280×600 and
-  812×375 on every page: no horizontal page scroll; above 1100 px no page scroll, equal pane heights, panes end above
-  the pill; up to 1100 px the last content ends above the pill; the pill stays inside the viewport. Not checked: real
+  812×375 on every page: no horizontal page scroll; from 768 px on no page scroll, equal pane heights, panes end above
+  the pill; below 768 px the last content ends above the pill; the pill stays inside the viewport. Not checked: real
   devices (touch behaviour, notch, iOS address bar, on-screen keyboard) and real glass refraction.
 
 ## Working with several agents

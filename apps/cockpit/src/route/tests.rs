@@ -14,7 +14,11 @@ fn every_route_survives_a_roundtrip() {
         Route::Inbox(Filter::Mine),
         Route::Inbox(Filter::Team),
         Route::Inbox(Filter::Snoozed),
+        Route::InboxItem(Filter::All, "bau142".into()),
+        Route::InboxItem(Filter::Mine, "gh:acme/app#12".into()),
+        Route::InboxItem(Filter::Snoozed, "ä b".into()),
         Route::Overview,
+        Route::OverviewMember("Ada Lovelace".into()),
         Route::Log,
         Route::Notifications,
         Route::Limits,
@@ -102,4 +106,54 @@ fn all_setup_steps_are_one_page() {
     assert_eq!(Route::Log.page(), Route::Log);
     assert!(Route::SetupStep(Step::Done).is_setup() && Route::Setup.is_setup());
     assert!(!Route::Log.is_setup());
+}
+
+#[test]
+fn only_an_entry_is_the_detail_level() {
+    for (route, level) in [
+        (Route::Inbox(Filter::All), StackLevel::List),
+        (
+            Route::InboxItem(Filter::All, "a".into()),
+            StackLevel::Detail,
+        ),
+        (Route::Overview, StackLevel::List),
+        (Route::OverviewMember("Ada".into()), StackLevel::Detail),
+        (Route::Review(None), StackLevel::List),
+        (Route::Review(Some(PrKey::from(87))), StackLevel::Detail),
+        (Route::Agent(None), StackLevel::List),
+        (Route::Agent(Some("BAU-142".into())), StackLevel::Detail),
+        (Route::Log, StackLevel::List),
+        (Route::Setup, StackLevel::List),
+    ] {
+        assert_eq!(route.level(), level, "{route:?}");
+    }
+}
+
+#[test]
+fn list_and_detail_are_one_page() {
+    let list = Route::Inbox(Filter::Mine);
+    let detail = Route::InboxItem(Filter::Mine, "a".into());
+    assert_eq!(detail.page(), list.page());
+    assert_eq!(
+        Route::OverviewMember("Ada".into()).page(),
+        Route::Overview.page()
+    );
+    // Another filter is another page.
+    assert_ne!(
+        Route::InboxItem(Filter::Team, "a".into()).page(),
+        list.page()
+    );
+}
+
+#[test]
+fn item_addresses_read_like_the_list_plus_the_entry() {
+    assert_eq!(
+        Route::InboxItem(Filter::All, "bau142".into()).hash(),
+        "#/item/bau142"
+    );
+    assert_eq!(
+        Route::InboxItem(Filter::Mine, "bau142".into()).hash(),
+        "#/mine/item/bau142"
+    );
+    assert_eq!(Route::parse("#/mine/item"), Route::Inbox(Filter::Mine));
 }

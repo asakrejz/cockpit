@@ -56,7 +56,7 @@ fn mention_needs_a_whole_name() {
     assert!(mentions_me("danke @Du!"));
     assert!(mentions_me("@as"));
     assert!(!mentions_me("@Dutzend Fehler"));
-    assert!(!mentions_me("Du hast Post"), "ohne @ keine Erwähnung");
+    assert!(!mentions_me("Du hast Post"), "no mention without @");
 }
 
 #[test]
@@ -267,7 +267,7 @@ fn snooze_until_change_wakes_on_comment_status_or_checks() {
     let snooze = Snooze::new(&item, None);
     assert!(
         snooze.holds(&item, now() + 100 * DAY_MS),
-        "Zeit allein weckt nicht"
+        "time alone does not wake"
     );
 
     let mut commented = item.clone();

@@ -119,7 +119,7 @@ fn fixed_pixel_values() {
     assert!(has_fixed_px("  left: 46px;"));
     assert!(
         !has_fixed_px("  --comp-slider-thumb-w: 38px;"),
-        "Tokens dürfen Werte festlegen"
+        "tokens may set values"
     );
     assert!(!has_fixed_px("  left: var(--sep-inset);"));
     assert!(!has_fixed_px("  display: flex; /* px */"));
