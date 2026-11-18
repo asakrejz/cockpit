@@ -162,6 +162,9 @@ fn looks_visible(text: &str) -> bool {
     {
         return false;
     }
+    if text.starts_with("(prefers-") {
+        return false;
+    }
     if text.starts_with("--")
         || text.contains("px")
         || text.contains("%)")
