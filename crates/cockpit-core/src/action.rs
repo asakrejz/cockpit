@@ -266,6 +266,10 @@ pub enum Action {
         run: String,
         extra: u64,
     },
+    /// Choose the language of the interface (German or English).
+    SetLanguage {
+        language: cockpit_i18n::Lang,
+    },
     /// Set prices and limits of the agents.
     SetAgentLimits {
         limits: AgentLimits,
@@ -473,6 +477,7 @@ impl Workspace {
             | Action::ResumeStopped { .. } => self.perform_agent(action, at_ms),
             Action::SetNotifyChannel { .. }
             | Action::SetQuietHours { .. }
+            | Action::SetLanguage { .. }
             | Action::SetAgentLimits { .. }
             | Action::SetRepoRules { .. }
             | Action::SyncRemote { .. }

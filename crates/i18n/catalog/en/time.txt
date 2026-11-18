@@ -1,0 +1,7 @@
+time.just_now = just now
+time.ago_minutes.one = {n} minute ago
+time.ago_minutes.other = {n} minutes ago
+time.ago_hours.one = {n} hour ago
+time.ago_hours.other = {n} hours ago
+time.ago_days.one = {n} day ago
+time.ago_days.other = {n} days ago

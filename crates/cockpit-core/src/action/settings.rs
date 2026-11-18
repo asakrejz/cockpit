@@ -43,6 +43,16 @@ impl Workspace {
                 };
                 Ok(vec![Note::new(Target::Settings, text)])
             }
+            Action::SetLanguage { language } => {
+                if self.language == Some(language) {
+                    return Err(ActionError::Unchanged);
+                }
+                self.language = Some(language);
+                Ok(vec![Note::new(
+                    Target::Settings,
+                    format!("Sprache der Oberfläche: {}", language.name()),
+                )])
+            }
             Action::SetAgentLimits { limits } => {
                 if !limits.is_valid() {
                     return Err(ActionError::InvalidInput);
@@ -104,9 +114,11 @@ impl Workspace {
                 let repo_rules = std::mem::take(&mut self.repo_rules);
                 let jira_project = self.jira_project.take();
                 let inbox_filter = std::mem::take(&mut self.inbox_filter);
+                let language = self.language;
                 *self = demo::workspace();
                 self.jira_project = jira_project;
                 self.inbox_filter = inbox_filter;
+                self.language = language;
                 self.notifications = notifications;
                 self.pr_status_off = pr_status_off;
                 self.limits = limits;

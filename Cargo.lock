@@ -248,6 +248,7 @@ name = "cockpit"
 version = "0.1.0"
 dependencies = [
  "cockpit-core",
+ "cockpit-i18n",
  "console_error_panic_hook",
  "feature-ui",
  "gloo-net",
@@ -260,6 +261,15 @@ dependencies = [
 
 [[package]]
 name = "cockpit-core"
+version = "0.1.0"
+dependencies = [
+ "cockpit-i18n",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cockpit-i18n"
 version = "0.1.0"
 dependencies = [
  "serde",
@@ -643,6 +653,7 @@ name = "feature-ui"
 version = "0.1.0"
 dependencies = [
  "cockpit-core",
+ "cockpit-i18n",
  "leptos",
  "web-sys",
 ]

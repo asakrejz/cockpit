@@ -1,0 +1,7 @@
+time.just_now = gerade eben
+time.ago_minutes.one = vor {n} Minute
+time.ago_minutes.other = vor {n} Minuten
+time.ago_hours.one = vor {n} Stunde
+time.ago_hours.other = vor {n} Stunden
+time.ago_days.one = vor {n} Tag
+time.ago_days.other = vor {n} Tagen
