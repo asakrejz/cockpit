@@ -149,3 +149,6 @@ body { margin: 0; }
 .pg-bottomnav-frame .ui-bottomnav { position: absolute; }
 .pg-bottomnav-frame .ui-bottomnav-overlay { position: absolute; }
 .pg-bottomnav-backdrop { position: absolute; inset: 0; background: linear-gradient(135deg, #ff6b6b 0%, #4dabf7 45%, #51cf66 100%); }
+
+/* Frame with a real narrow window (story "Ebenen"). */
+.pg-stack-frame { width: 375px; max-width: 100%; height: 640px; border: 0; border-radius: 32px; box-shadow: 0 0 0 8px var(--sys-color-label), var(--ref-shadow-3); background: var(--sys-color-grouped-background); }

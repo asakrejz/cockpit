@@ -3,6 +3,9 @@
 
 use cockpit_core::setup::Step;
 use cockpit_core::{Filter, PrKey};
+use feature_ui::StackLevel;
+
+mod segment;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Route {
@@ -12,8 +15,13 @@ pub enum Route {
     SetupStep(Step),
     /// The inbox with a filter.
     Inbox(Filter),
+    /// One entry of the inbox (`#/mine/item/bau142`): the detail level on a narrow screen.
+    InboxItem(Filter, String),
     /// Team overview: who works on what and what is stuck.
     Overview,
+    /// The overview with one person chosen (`#/overview/Ada%20L`): the detail level on a
+    /// narrow screen.
+    OverviewMember(String),
     /// Log of all changes.
     Log,
     /// Settings for notifications.
@@ -33,7 +41,22 @@ impl Route {
     pub fn page(&self) -> Route {
         match self {
             Route::SetupStep(_) => Route::Setup,
+            // Going from the list to the detail keeps the page, so it can slide.
+            Route::InboxItem(filter, _) => Route::Inbox(*filter),
+            Route::OverviewMember(_) => Route::Overview,
             other => other.clone(),
+        }
+    }
+
+    /// The level of the page a narrow screen shows: the list, or one entry of it. Wide screens
+    /// show every level at once.
+    pub fn level(&self) -> StackLevel {
+        match self {
+            Route::InboxItem(..)
+            | Route::OverviewMember(_)
+            | Route::Review(Some(_))
+            | Route::Agent(Some(_)) => StackLevel::Detail,
+            _ => StackLevel::List,
         }
     }
 
@@ -42,23 +65,33 @@ impl Route {
     }
 
     pub fn parse(hash: &str) -> Route {
-        let mut parts = hash
+        let parts: Vec<&str> = hash
             .trim_start_matches('#')
             .split('/')
-            .filter(|p| !p.is_empty());
-        let (first, second) = (parts.next(), parts.next());
+            .filter(|p| !p.is_empty())
+            .collect();
+        let (first, second) = (parts.first().copied(), parts.get(1).copied());
         // What follows `review/`: `acme/app/87` or `87`.
-        let rest: Vec<&str> = std::iter::once(second).flatten().chain(parts).collect();
+        let rest: Vec<&str> = parts.iter().skip(1).copied().collect();
+        // `item/<id>` after the filter (`#/mine/item/bau142`, `#/item/bau142`).
+        let item = |filter: Filter, at: usize| match (parts.get(at), parts.get(at + 1)) {
+            (Some(&"item"), Some(id)) => Route::InboxItem(filter, segment::decode(id)),
+            _ => Route::Inbox(filter),
+        };
         match (first, second) {
             // The older German addresses keep working (bookmarks).
             (Some("setup" | "einrichten"), step) => match step.and_then(Step::from_id) {
                 Some(step) => Route::SetupStep(step),
                 None => Route::Setup,
             },
-            (Some("mine" | "meine"), _) => Route::Inbox(Filter::Mine),
-            (Some("team"), _) => Route::Inbox(Filter::Team),
-            (Some("snoozed" | "zurueckgestellt"), _) => Route::Inbox(Filter::Snoozed),
-            (Some("overview" | "uebersicht"), _) => Route::Overview,
+            (Some("mine" | "meine"), _) => item(Filter::Mine, 1),
+            (Some("team"), _) => item(Filter::Team, 1),
+            (Some("snoozed" | "zurueckgestellt"), _) => item(Filter::Snoozed, 1),
+            (Some("item"), _) => item(Filter::All, 0),
+            (Some("overview" | "uebersicht"), Some(name)) => {
+                Route::OverviewMember(segment::decode(name))
+            }
+            (Some("overview" | "uebersicht"), None) => Route::Overview,
             (Some("log" | "protokoll"), _) => Route::Log,
             (Some("notifications" | "benachrichtigungen"), _) => Route::Notifications,
             (Some("limits" | "grenzen"), _) => Route::Limits,
@@ -76,7 +109,16 @@ impl Route {
             Route::Inbox(Filter::Mine) => "#/mine".into(),
             Route::Inbox(Filter::Team) => "#/team".into(),
             Route::Inbox(Filter::Snoozed) => "#/snoozed".into(),
+            Route::InboxItem(filter, id) => {
+                let list = Route::Inbox(*filter).hash();
+                format!(
+                    "{}/item/{}",
+                    list.trim_end_matches('/'),
+                    segment::encode(id)
+                )
+            }
             Route::Overview => "#/overview".into(),
+            Route::OverviewMember(name) => format!("#/overview/{}", segment::encode(name)),
             Route::Log => "#/log".into(),
             Route::Notifications => "#/notifications".into(),
             Route::Limits => "#/limits".into(),

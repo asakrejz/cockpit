@@ -91,6 +91,9 @@ fn App() -> impl IntoView {
                 Route::Limits => view! { <LimitsPage /> }.into_any(),
                 Route::Review(number) => view! { <ReviewPage number=number /> }.into_any(),
                 Route::Agent(ticket) => view! { <AgentPage ticket=ticket /> }.into_any(),
+                // `page()` never returns the detail levels; they belong to the pages above.
+                Route::InboxItem(filter, _) => view! { <InboxPage filter=filter /> }.into_any(),
+                Route::OverviewMember(_) => view! { <OverviewPage /> }.into_any(),
                 }
             }}
             <Show when=move || store.loaded.get()>

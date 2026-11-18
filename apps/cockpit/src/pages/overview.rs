@@ -7,7 +7,7 @@ use leptos::prelude::*;
 
 use crate::{
     route::Route,
-    store::{Store, use_store},
+    store::{Store, navigate, use_store},
     view,
 };
 
@@ -78,6 +78,13 @@ pub fn OverviewPage() -> impl IntoView {
 
     // Chosen person, by name. If they disappear (nothing open any more), "Du" applies.
     let chosen = RwSignal::new(Person::me().name);
+    // The address chooses the person; on a narrow screen it also opens the detail level.
+    let level = Signal::derive(move || store.route.with(Route::level));
+    Effect::new(move |_| {
+        if let Route::OverviewMember(name) = store.route.get() {
+            chosen.set(name);
+        }
+    });
     let current = Memo::new(move |_| {
         let name = chosen.get();
         let list = members.get();
@@ -88,7 +95,7 @@ pub fn OverviewPage() -> impl IntoView {
     });
 
     view! {
-           <SplitView>
+           <SplitView level=level back_label="Übersicht" back_href=Route::Overview.hash()>
 
                <Pane label="Team">
                    <PaneHeader>
@@ -152,7 +159,10 @@ fn member_row(m: Member, selected: bool, chosen: RwSignal<String>) -> impl IntoV
         team::CAPACITY
     );
     view! {
-        <InboxRow selected=selected on_select=move |_| chosen.set(name.clone())>
+        <InboxRow selected=selected on_select=move |_| {
+            chosen.set(name.clone());
+            navigate(&Route::OverviewMember(name.clone()));
+        }>
             {person_avatar(&m.person)}
             <span class="ui-vstack" style="--spacing: 6px; flex: 1 1 auto; min-width: 0">
                 <span class="ui-hstack" style="--spacing: 8px; flex-wrap: nowrap">

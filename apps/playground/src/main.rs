@@ -11,6 +11,17 @@ use stories::{STORIES, Story};
 fn main() {
     // Rust panics end up readable in the browser console.
     console_error_panic_hook::set_once();
+    if stories::is_stack_demo() {
+        // The page inside the frame of the "Ebenen" story: a real narrow window.
+        leptos::mount::mount_to_body(|| {
+            view! {
+                <Root theme=Theme::ALL.into_iter().find(|t| t.id() == system_theme()).unwrap_or_default()>
+                    <stories::StackDemo />
+                </Root>
+            }
+        });
+        return;
+    }
     leptos::mount::mount_to_body(App);
 }
 
