@@ -63,7 +63,7 @@ async function main(): Promise<number> {
 main().then(
   (code) => process.exit(code),
   (e) => {
-    stdoutSink()({ t: "error", text: `Unerwarteter Fehler im Läufer: ${(e as Error).message}` });
+    stdoutSink()({ t: "error", text: tx("error_unexpected", { message: (e as Error).message }) });
     process.exit(2);
   },
 );

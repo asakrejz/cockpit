@@ -4,6 +4,7 @@
 
 import type { Sink } from "../event.ts";
 import { truncate } from "../event.ts";
+import { tx } from "../texts.ts";
 
 /** A message (only the fields we read). */
 export interface SdkMessage {
@@ -19,13 +20,13 @@ export interface SdkMessage {
 export function describe(name: string, input: Record<string, any>): { title: string; text: string } {
   const path = String(input.file_path ?? input.path ?? input.pattern ?? "");
   switch (name) {
-    case "Read": return { title: "Datei lesen", text: path };
-    case "Write": return { title: "Datei schreiben", text: path };
+    case "Read": return { title: tx("step_read"), text: path };
+    case "Write": return { title: tx("step_write"), text: path };
     case "Edit":
-    case "MultiEdit": return { title: "Datei ändern", text: path };
+    case "MultiEdit": return { title: tx("step_change"), text: path };
     case "Glob":
-    case "Grep": return { title: "Code durchsuchen", text: path };
-    case "Bash": return { title: "Befehl ausführen", text: String(input.command ?? "") };
+    case "Grep": return { title: tx("step_search"), text: path };
+    case "Bash": return { title: tx("step_run"), text: String(input.command ?? "") };
     default: return { title: name, text: "" };
   }
 }
@@ -110,12 +111,12 @@ export class ClaudeTranslator {
         }
       }
       if (first && (ein > 0 || aus > 0)) {
-        this.sink({ t: "step", title: "Überlegt", text: "", tokens_in: ein, tokens_out: aus, ms });
+        this.sink({ t: "step", title: tx("step_think"), text: "", tokens_in: ein, tokens_out: aus, ms });
       }
     } else if (m.type === "result") {
       this.finished = true;
       if (m.subtype === "success" && !m.is_error) this.endText = m.result ?? this.endText;
-      else this.error = (m.errors ?? []).join("; ") || `Das Modell hat den Lauf mit „${m.subtype ?? "Fehler"}“ beendet.`;
+      else this.error = (m.errors ?? []).join("; ") || tx("error_model_ended", { reason: m.subtype ?? "error" });
     }
   }
 }
