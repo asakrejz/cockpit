@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 use crate::action::ActionError;
 use crate::action::LogEntry;
 use crate::agent::{
-    AgentOptions, AgentReport, AgentRun, FollowupTask, PullRequestRef, ReportEffect, RunKind, Tick,
+    AgentOptions, AgentReport, AgentRun, Closure, FollowupTask, PullRequestRef, ReportEffect,
+    RunKind, Tick,
 };
 use crate::attention::{self, Hit, Rule, Rules, Snooze};
 use crate::demo;

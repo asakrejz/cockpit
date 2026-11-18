@@ -53,7 +53,7 @@ pub mod workspace;
 
 pub use action::{Action, ActionError, Actor, Applied, LogEntry, MAX_LOG, Target};
 pub use agent::{
-    AgentOptions, AgentPlan, AgentReport, AgentRun, FollowupTask, MessageKind, Plan,
+    AgentOptions, AgentPlan, AgentReport, AgentRun, Closure, FollowupTask, MessageKind, Plan,
     PullRequestRef, Question, ReportEffect, RunKind, RunMessage, RunState, Speaker, Step,
     StepState, Tick,
 };

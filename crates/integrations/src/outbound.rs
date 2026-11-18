@@ -417,6 +417,16 @@ pub fn branch_request(repo: &str, name: &str, sha: &str) -> Request {
     }
 }
 
+/// Deletes one branch (`DELETE /repos/{repo}/git/refs/heads/{name}`). The caller checks the name
+/// first (see `cockpit_core::branch::deletable`); this only builds the request.
+pub fn branch_delete_request(repo: &str, name: &str) -> Request {
+    Request {
+        method: "DELETE",
+        path: format!("/repos/{repo}/git/refs/heads/{name}"),
+        body: None,
+    }
+}
+
 pub fn pull_request_request(
     repo: &str,
     head: &str,

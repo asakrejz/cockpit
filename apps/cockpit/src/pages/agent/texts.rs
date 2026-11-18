@@ -1,0 +1,96 @@
+//! The visible texts of "finished runs", "Delete branch" and "Clean up". The texts live in the
+//! catalog `agent_cleanup`; this module gives them the short names the pages use.
+
+use feature_ui::t;
+
+pub(super) fn show_closed() -> String {
+    t!(AgentCleanupShowClosed)
+}
+
+pub(super) fn closed_badge() -> String {
+    t!(AgentCleanupClosedBadge)
+}
+
+pub(super) fn branch_title() -> String {
+    t!(AgentCleanupBranchTitle)
+}
+
+pub(super) fn branch_button() -> String {
+    t!(AgentCleanupBranchButton)
+}
+
+pub(super) fn branch_checking() -> String {
+    t!(AgentCleanupBranchChecking)
+}
+
+pub(super) fn branch_deleted() -> String {
+    t!(AgentCleanupBranchDeleted)
+}
+
+pub(super) fn branch_dialog_title() -> String {
+    t!(AgentCleanupBranchDialogTitle)
+}
+
+pub(super) fn cancel() -> String {
+    t!(AgentCleanupCancel)
+}
+
+pub(super) fn branch_final() -> String {
+    t!(AgentCleanupBranchFinal)
+}
+
+pub(super) fn cleanup_button() -> String {
+    t!(AgentCleanupCleanupButton)
+}
+
+pub(super) fn cleanup_title() -> String {
+    t!(AgentCleanupCleanupTitle)
+}
+
+pub(super) fn cleanup_loading() -> String {
+    t!(AgentCleanupCleanupLoading)
+}
+
+pub(super) fn cleanup_intro() -> String {
+    t!(AgentCleanupCleanupIntro)
+}
+
+pub(super) fn cleanup_nothing() -> String {
+    t!(AgentCleanupCleanupNothing)
+}
+
+pub(super) fn cleanup_containers() -> String {
+    t!(AgentCleanupCleanupContainers)
+}
+
+pub(super) fn cleanup_folders() -> String {
+    t!(AgentCleanupCleanupFolders)
+}
+
+pub(super) fn cleanup_no_engine() -> String {
+    t!(AgentCleanupCleanupNoEngine)
+}
+
+pub(super) fn cleanup_run() -> String {
+    t!(AgentCleanupCleanupRun)
+}
+
+pub(super) fn close() -> String {
+    t!(AgentCleanupClose)
+}
+
+pub(super) fn show_closed_count(n: usize) -> String {
+    t!(AgentCleanupShowClosedCount, n = n)
+}
+
+pub(super) fn branch_question(branch: &str) -> String {
+    t!(AgentCleanupBranchQuestion, branch = branch)
+}
+
+pub(super) fn cleanup_done(containers: usize, folders: usize) -> String {
+    t!(
+        AgentCleanupCleanupDone,
+        containers = containers,
+        folders = folders
+    )
+}

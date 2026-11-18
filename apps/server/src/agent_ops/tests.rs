@@ -18,7 +18,7 @@ const DOCKER: &str = r#"#!/bin/sh
 d="$(dirname "$0")"
 echo "$@" >> "$d/calls.log"
 case "$1" in
-  info) exit 0 ;;
+  info) [ -e "$d/no-engine" ] && exit 1; exit 0 ;;
   image) [ -e "$d/no-image" ] && exit 1; [ -e "$d/inspect-error" ] && { echo "boom" >&2; exit 125; }; cat "$d/label.out" 2>/dev/null; exit 0 ;;
   build) cat "$d/build.out" 2>/dev/null; [ -e "$d/build.error" ] && { echo "write: no space left on device" >&2; exit 1; }; exit 0 ;;
   ps) cat "$d/ps.out" 2>/dev/null; exit 0 ;;
@@ -296,7 +296,9 @@ fn with_choice(w: &World, choice: AgentChoice) -> AppState {
 }
 
 mod agent_review;
+mod branch_delete;
 mod branch_pattern;
+mod cleanup;
 mod container_check;
 mod followup;
 mod maintenance;

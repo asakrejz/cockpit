@@ -26,6 +26,7 @@ impl AgentRun {
         self.diagnosis = None;
         self.agent_plan = None;
         self.ended = None;
+        self.closure = None;
         self.summary.clear();
         self.clear_usage();
         self.clear_conversation();

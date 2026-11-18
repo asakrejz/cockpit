@@ -22,7 +22,7 @@ Pages (hash routes):
 | Review | `#/review/87` | tabs „Dateien“ (file tree with +/− counts, one collapsible diff per file, „Angesehen“ per file, long diffs cut at 300 lines with „Mehr anzeigen“) and „Commits“ (list; a click shows only that commit's diff, read only); select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you) |
 | Übersicht | `#/overview` | open entries and load per person; "Hängt" shows failed checks, waiting reviews, tickets without a branch and agents waiting for you |
 | Benachrichtigungen | `#/notifications` | per occasion choose browser, email and Slack; quiet hours; permission request by button; test notification |
-| Agent | `#/agent/BAU-142` | assignment with options; plan for approval; five-step flow; answer questions, send hints, pause; history as a conversation; for a finished real run "Pull Request anlegen" (preview, editable) |
+| Agent | `#/agent/BAU-142` | assignment with options; plan for approval; five-step flow; answer questions, send hints, pause; history as a conversation; for a finished real run "Pull Request anlegen" (preview, editable); finished runs whose pull request is merged or closed (see below); "Aufräumen" |
 | Grenzen & Regeln | `#/limits` | prices per million tokens, budget per run and month, time limit, parallel runs; per repo allowed/forbidden paths, required tests, instructions and plan requirement; usage today and this month |
 
 Inbox filters: the button "Filter" at the top of the inbox shows the number of active filters as a badge and opens the
@@ -57,6 +57,31 @@ open pull requests of the configured repos.
 Notifications are derived purely from comparing the workspace before and after an action
 (`crates/cockpit-core/src/notify.rs`). In the **browser** Cockpit never asks for permission by itself, only via the
 button. Email and Slack are only prepared: the choice is stored, sending will go through the backend later.
+
+## What a run leaves behind
+
+Containers are started with `--rm`, and the clone under `<data>/agent/runs/<run>` is deleted when a run ends (it only
+stays while a run is halted by a limit or waits for you). What can remain is the branch on GitHub, the run in the list
+and, after a pause or a cancel, a clone.
+
+- **„Erledigt“.** The sync (every interval, and after each pass) asks GitHub about the pull request of every quiet run
+  (finished, ready, paused or halted – never one that works). If it is merged the run gets the state **„Erledigt
+  (gemergt)“**, if it is closed without merging **„Erledigt (geschlossen)“**. A paused or halted run is ended first,
+  and its clone is deleted. The core does this as the action `CloseAgentRun` (system only, never the interface); old
+  data without the field load unchanged. Starting the ticket again clears the state.
+- **Hidden by default.** The list of runs hides done runs. The switch **„Erledigte anzeigen (n)“** above the list
+  (only shown when there are any) brings them back with their number; the run you have open stays visible.
+- **„Branch löschen“.** On a done run that the Cockpit implemented, the pane shows the branch and the button. Pressing
+  it opens a question that names the branch; only on confirmation the backend deletes exactly that branch on GitHub.
+  The button is off, with the reason next to it, unless **all** hold: the pull request is merged or closed, the branch
+  fits the branch pattern of the repo, it is not the base branch, the default branch of the repo or a protected
+  branch, it is the head of that pull request and the branch the run pushed. The backend reads this from GitHub again
+  at the click. Nothing deletes a branch by itself.
+- **„Aufräumen“.** The button under the list of runs first shows a preview: containers with the label `cockpit.run`
+  that belong to no working run, and folders under `<data>/agent/runs` that no active run uses. Only after „Jetzt
+  entfernen“ they are removed (containers with `docker`/`podman rm -f`, never via the socket). The image and containers
+  without the label are never touched. If the container program is not reachable, only folders are listed. The
+  removal re-checks every item and skips whatever started working in the meantime.
 
 More about agent behaviour (questions, steering, follow-up jobs, costs, limits, rules per repo) is in
 [docs/architecture.md](architecture.md#agent-behaviour).

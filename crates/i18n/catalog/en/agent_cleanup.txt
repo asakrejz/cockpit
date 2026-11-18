@@ -1,0 +1,23 @@
+# "Finished runs", "Delete branch" and "Clean up" of the agent page
+agent_cleanup.show_closed = Show finished
+agent_cleanup.closed_badge = finished
+agent_cleanup.branch_title = Branch
+agent_cleanup.branch_button = Delete branch
+agent_cleanup.branch_checking = Cockpit is asking GitHub whether the branch can go …
+agent_cleanup.branch_deleted = The branch is deleted on GitHub.
+agent_cleanup.branch_dialog_title = Delete branch?
+agent_cleanup.cancel = Cancel
+agent_cleanup.branch_final = This cannot be undone in Cockpit.
+agent_cleanup.cleanup_button = Clean up
+agent_cleanup.cleanup_title = Clean up
+agent_cleanup.cleanup_loading = Cockpit is looking for leftovers …
+agent_cleanup.cleanup_intro = This will be removed. The agent image and containers of other tools stay, and so do runs that are working or waiting.
+agent_cleanup.cleanup_nothing = Nothing to do. There are no leftovers.
+agent_cleanup.cleanup_containers = Containers without a running run
+agent_cleanup.cleanup_folders = Folders without a running run
+agent_cleanup.cleanup_no_engine = The container program cannot be reached, so containers are not shown.
+agent_cleanup.cleanup_run = Remove now
+agent_cleanup.close = Close
+agent_cleanup.show_closed_count = Show finished ({n})
+agent_cleanup.branch_question = Delete the branch “{branch}” on GitHub? Only this one branch goes. The pull request and its changes stay visible on GitHub.
+agent_cleanup.cleanup_done = Removed: {containers} containers, {folders} folders.

@@ -7,3 +7,5 @@ agent_header.halted = Halted
 agent_header.working = Agent is working
 agent_header.ready = Ready
 agent_header.progress = Progress
+agent_header.closed_merged = Finished (merged)
+agent_header.closed_closed = Finished (closed)
