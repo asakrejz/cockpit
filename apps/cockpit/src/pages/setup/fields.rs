@@ -175,7 +175,7 @@ pub fn KeyField(
         let checked = match key_verify(&value.get_untracked()) {
             Ok(w) => w,
             Err(m) => {
-                back.set(Some((false, m)));
+                back.set(Some((false, m.render(lang_untracked()))));
                 return;
             }
         };

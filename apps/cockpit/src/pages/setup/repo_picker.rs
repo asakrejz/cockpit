@@ -181,7 +181,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
             manual.set(String::new());
             manual_feedback.set(None);
         }
-        Err(m) => manual_feedback.set(Some((false, m))),
+        Err(m) => manual_feedback.set(Some((false, m.render(lang_untracked())))),
     };
 
     let feedback: Feedback = RwSignal::new(None);
@@ -216,7 +216,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                     || {},
                 );
             }
-            Err(m) => feedback.set(Some((false, m))),
+            Err(m) => feedback.set(Some((false, m.render(lang_untracked())))),
         }
     };
 
@@ -248,7 +248,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                     .map(|(found, truncated, via)| {
                         view! {
                             <p class="t-footnote t-secondary" role="status">
-                                {repo_summary(found, filtered.with(Vec::len), chosen.with(Vec::len), truncated)}
+                                {repo_summary(found, filtered.with(Vec::len), chosen.with(Vec::len), truncated).render(lang())}
                                 {(via == "app").then(|| format!(" {}", t!(SetupReposViaApp)))}
                             </p>
                         }

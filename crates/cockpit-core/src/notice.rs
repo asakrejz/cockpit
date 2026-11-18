@@ -5,6 +5,8 @@
 //! renders the result. No message contains a key: problems come from [`Problem`], which is
 //! free of secrets by construction.
 
+use cockpit_i18n::{Msg, msg};
+
 use crate::model::Source;
 use crate::sync::{Problem, SourceState, SyncState};
 
@@ -22,9 +24,9 @@ pub enum NoticeTone {
 /// What the user can do about it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NoticeAction {
-    /// Go to "Einrichten" and renew the token.
+    /// Go to the setup page and renew the token.
     OpenSetup,
-    /// Try again now ("Jetzt abgleichen").
+    /// Try again now ("Sync now").
     RetryNow,
     /// Nothing to do, the sync resumes by itself.
     Wait,
@@ -35,10 +37,10 @@ pub enum NoticeAction {
 pub struct SourceNotice {
     pub source: Source,
     pub tone: NoticeTone,
-    /// Short headline, e.g. "GitHub nicht erreichbar".
-    pub title: String,
+    /// Short headline, e.g. "GitHub not reachable".
+    pub title: Msg,
     /// Cause, how long the data is old and what to do.
-    pub detail: String,
+    pub detail: Msg,
     pub action: NoticeAction,
     /// Since when the problem lasts.
     pub since_ms: Option<u64>,
@@ -46,25 +48,25 @@ pub struct SourceNotice {
     pub retry_at_ms: Option<u64>,
 }
 
-/// "gerade eben", "vor 5 Min.", "vor 2 Std.", "vor 3 Tagen".
-pub fn ago(then_ms: u64, now_ms: u64) -> String {
+/// How long ago, as a message: "just now", "5 minutes ago" ...
+pub fn ago_msg(then_ms: u64, now_ms: u64) -> Msg {
     let s = now_ms.saturating_sub(then_ms) / 1000;
     match s {
-        0..=59 => "gerade eben".into(),
-        60..=3599 => format!("vor {} Min.", s / 60),
-        3600..=86_399 => format!("vor {} Std.", s / 3600),
-        _ => format!("vor {} Tagen", s / 86_400),
+        0..=59 => msg!(TimeJustNow),
+        60..=3599 => msg!(TimeAgoMinutes, n = s / 60),
+        3600..=86_399 => msg!(TimeAgoHours, n = s / 3600),
+        _ => msg!(TimeAgoDays, n = s / 86_400),
     }
 }
 
-/// "in 20 Sek.", "in 5 Min.", "in 2 Std." – the wait until `until_ms`.
-pub fn wait_text(until_ms: u64, now_ms: u64) -> String {
+/// "in 20 sec.", "in 5 min.", "in 2 h": the wait until `until_ms`, as a message.
+pub fn wait_msg(until_ms: u64, now_ms: u64) -> Msg {
     let s = until_ms.saturating_sub(now_ms).div_ceil(1000);
     match s {
-        0 => "gleich".into(),
-        1..=59 => format!("in {s} Sek."),
-        60..=3599 => format!("in {} Min.", s.div_ceil(60)),
-        _ => format!("in {} Std.", s.div_ceil(3600)),
+        0 => msg!(CoreNoticeWaitNow),
+        1..=59 => msg!(CoreNoticeWaitSeconds, n = s),
+        60..=3599 => msg!(CoreNoticeWaitMinutes, n = s.div_ceil(60)),
+        _ => msg!(CoreNoticeWaitHours, n = s.div_ceil(3600)),
     }
 }
 
@@ -75,77 +77,66 @@ fn name(source: Source) -> &'static str {
     }
 }
 
-fn stand(st: &SourceState, now_ms: u64) -> String {
+fn stand(st: &SourceState, now_ms: u64) -> Msg {
     match st.last_ok_ms {
-        Some(t) => {
-            let when = ago(t, now_ms);
-            let dot = if when.ends_with('.') { "" } else { "." };
-            format!("Letzter Stand: {when}{dot}")
-        }
-        None => "Es gibt noch keinen abgeglichenen Stand.".into(),
+        Some(t) => msg!(CoreNoticeStandAt, when = ago_msg(t, now_ms)),
+        None => msg!(CoreNoticeStandNone),
     }
 }
 
 /// The notice for one source, `None` while it is healthy.
 pub fn source_notice(st: &SourceState, now_ms: u64) -> Option<SourceNotice> {
     let problem = st.problem.as_ref()?;
-    let n = name(st.source);
+    let source = name(st.source);
+    let stand = stand(st, now_ms);
     let (tone, title, detail, action, retry_at_ms) = match problem {
         Problem::Unauthorized => (
             NoticeTone::Error,
-            format!("{n}: Token abgelehnt"),
-            format!(
-                "Der Token ist abgelaufen oder wurde widerrufen. Erneuere ihn unter „Einrichten“. {}",
-                stand(st, now_ms)
-            ),
+            msg!(CoreNoticeTitleUnauthorized, source = source),
+            msg!(CoreNoticeDetailUnauthorized, stand = stand),
             NoticeAction::OpenSetup,
             None,
         ),
         Problem::NoPermission => (
             NoticeTone::Error,
-            format!("{n}: Berechtigung fehlt"),
-            format!(
-                "Der Token ist gültig, darf das aber nicht lesen. Prüfe unter „Einrichten“, welche Rechte er braucht. {}",
-                stand(st, now_ms)
-            ),
+            msg!(CoreNoticeTitleNoPermission, source = source),
+            msg!(CoreNoticeDetailNoPermission, stand = stand),
             NoticeAction::OpenSetup,
             None,
         ),
         Problem::RateLimited { until_ms: Some(t) } if *t > now_ms => (
             NoticeTone::Info,
-            format!("{n}: Abgleich pausiert"),
-            format!(
-                "Das Kontingent des Dienstes ist aufgebraucht. Cockpit fragt {} wieder an. {}",
-                wait_text(*t, now_ms),
-                stand(st, now_ms)
+            msg!(CoreNoticeTitlePaused, source = source),
+            msg!(
+                CoreNoticeDetailPaused,
+                wait = wait_msg(*t, now_ms),
+                stand = stand
             ),
             NoticeAction::Wait,
             Some(*t),
         ),
         Problem::RateLimited { .. } => (
             NoticeTone::Info,
-            format!("{n}: Kontingent aufgebraucht"),
-            format!(
-                "Der Dienst bremst Anfragen. Cockpit versucht es beim nächsten Abgleich erneut. {}",
-                stand(st, now_ms)
-            ),
+            msg!(CoreNoticeTitleQuota, source = source),
+            msg!(CoreNoticeDetailQuota, stand = stand),
             NoticeAction::RetryNow,
             None,
         ),
         Problem::Offline => (
             NoticeTone::Warning,
-            format!("{n} nicht erreichbar"),
-            format!(
-                "Der Dienst antwortet nicht rechtzeitig (oder das Netz ist weg). {} Cockpit versucht es weiter.",
-                stand(st, now_ms)
-            ),
+            msg!(CoreNoticeTitleOffline, source = source),
+            msg!(CoreNoticeDetailOffline, stand = stand),
             NoticeAction::RetryNow,
             None,
         ),
         Problem::Other(m) => (
             NoticeTone::Warning,
-            format!("{n}: Abgleich fehlgeschlagen"),
-            format!("{m}. {}", stand(st, now_ms)),
+            msg!(CoreNoticeTitleFailed, source = source),
+            msg!(
+                CoreNoticeDetailFailed,
+                message = Msg::raw(m.clone()),
+                stand = stand
+            ),
             NoticeAction::RetryNow,
             None,
         ),
@@ -170,11 +161,19 @@ pub fn source_notices(sync: &SyncState, now_ms: u64) -> Vec<SourceNotice> {
 }
 
 /// Headline and cause when the browser cannot reach the local server.
-pub const SERVER_UNREACHABLE_TITLE: &str = "Der Server ist nicht erreichbar";
-pub const SERVER_UNREACHABLE_TEXT: &str = "Cockpit versucht es automatisch erneut. Läuft der Server noch? Starte ihn sonst neu (start-cockpit.command oder scripts/start.sh).";
+pub fn server_unreachable_title() -> Msg {
+    msg!(CoreNoticeServerUnreachableTitle)
+}
+pub fn server_unreachable_text() -> Msg {
+    msg!(CoreNoticeServerUnreachableText)
+}
 /// Headline and cause when the browser itself has no network.
-pub const BROWSER_OFFLINE_TITLE: &str = "Du bist offline";
-pub const BROWSER_OFFLINE_TEXT: &str = "Dieser Rechner hat gerade kein Netz. Lokale Daten bleiben sichtbar, Jira und GitHub werden wieder abgeglichen, sobald das Netz zurück ist.";
+pub fn browser_offline_title() -> Msg {
+    msg!(CoreNoticeBrowserOfflineTitle)
+}
+pub fn browser_offline_text() -> Msg {
+    msg!(CoreNoticeBrowserOfflineText)
+}
 
 /// Seconds to wait before reconnect attempt number `attempt` (0-based): 2, 4, 8, 15, 30, 30 …
 pub fn reconnect_delay_s(attempt: u32) -> u32 {
@@ -188,24 +187,19 @@ pub fn reconnect_delay_s(attempt: u32) -> u32 {
 }
 
 /// Text for a failed request to the local backend, by HTTP status. `server_message` is the
-/// German text of the backend, if it sent one; it wins for client errors because it knows more.
-pub fn http_failure_text(status: u16, server_message: Option<&str>) -> String {
-    let msg = server_message.map(str::trim).filter(|m| !m.is_empty());
+/// text of the backend, if it sent one (already in the language of the reader); it wins for
+/// client errors because it knows more.
+pub fn http_failure_msg(status: u16, server_message: Option<&str>) -> Msg {
+    let own = server_message
+        .map(str::trim)
+        .filter(|m| !m.is_empty())
+        .map(|m| msg!(CommonRaw, text = m));
     match status {
-        401 => "Die Anfrage wurde abgelehnt – Anmeldung oder Token prüfen (unter „Einrichten“)".into(),
-        403 => msg.map_or_else(
-            || "Das ist nicht erlaubt – die Berechtigung fehlt".into(),
-            str::to_string,
-        ),
-        429 => "Zu viele Anfragen – bitte kurz warten und noch einmal versuchen".into(),
-        500..=599 => msg.map_or_else(
-            || format!("Der Server hat einen Fehler gemeldet ({status}). Versuche es gleich noch einmal"),
-            str::to_string,
-        ),
-        _ => msg.map_or_else(
-            || format!("Der Server antwortet mit Fehler {status}"),
-            str::to_string,
-        ),
+        401 => msg!(CoreNoticeHttp401),
+        403 => own.unwrap_or_else(|| msg!(CoreNoticeHttp403)),
+        429 => msg!(CoreNoticeHttp429),
+        500..=599 => own.unwrap_or_else(|| msg!(CoreNoticeHttp5xx, status = status)),
+        _ => own.unwrap_or_else(|| msg!(CoreNoticeHttpOther, status = status)),
     }
 }
 

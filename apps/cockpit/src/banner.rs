@@ -3,7 +3,7 @@
 //! All wording comes from `cockpit_core::notice`.
 
 use cockpit_core::notice::{
-    BROWSER_OFFLINE_TEXT, BROWSER_OFFLINE_TITLE, SERVER_UNREACHABLE_TEXT, SERVER_UNREACHABLE_TITLE,
+    browser_offline_text, browser_offline_title, server_unreachable_text, server_unreachable_title,
 };
 use cockpit_core::{NoticeAction, NoticeTone, SourceNotice, source_notices};
 use feature_ui::*;
@@ -43,7 +43,11 @@ fn source_banner(store: Store, n: SourceNotice, busy: RwSignal<bool>) -> impl In
         NoticeAction::Wait => ().into_any(),
     };
     view! {
-        <StatusBanner tone=tone(n.tone) title=n.title text=n.detail>
+        <StatusBanner
+            tone=tone(n.tone)
+            title=Signal::derive(move || n.title.render(lang()))
+            text=Signal::derive(move || n.detail.render(lang()))
+        >
             {action}
         </StatusBanner>
     }
@@ -60,10 +64,16 @@ pub fn ServerBanner() -> impl IntoView {
             return None;
         }
         if !store.browser_online.get() {
-            return Some(view! {
-                <StatusBanner tone=BannerTone::Warning title=BROWSER_OFFLINE_TITLE text=BROWSER_OFFLINE_TEXT />
-            }
-            .into_any());
+            return Some(
+                view! {
+                    <StatusBanner
+                        tone=BannerTone::Warning
+                        title=Signal::derive(move || browser_offline_title().render(lang()))
+                        text=Signal::derive(move || browser_offline_text().render(lang()))
+                    />
+                }
+                .into_any(),
+            );
         }
         match store.link.get() {
             Link::Online => None,
@@ -77,8 +87,10 @@ pub fn ServerBanner() -> impl IntoView {
                 view! {
                     <StatusBanner
                         tone=BannerTone::Warning
-                        title=SERVER_UNREACHABLE_TITLE
-                        text=t!(BannerStaleData, text = SERVER_UNREACHABLE_TEXT)
+                        title=Signal::derive(move || server_unreachable_title().render(lang()))
+                        text=Signal::derive(move || {
+                            t!(BannerStaleData, text = server_unreachable_text().render(lang()))
+                        })
                     >
                         <Button
                             size=ControlSize::Small
@@ -108,7 +120,7 @@ pub fn ServerBanner() -> impl IntoView {
             {link_banner}
             <For
                 each=sources
-                key=|n| (n.source as u8, n.title.clone(), n.detail.clone())
+                key=|n| (n.source as u8, n.title.de(), n.detail.de())
                 children=move |n| source_banner(store, n, busy)
             />
             <Show when=move || store.notice.get().is_some()>

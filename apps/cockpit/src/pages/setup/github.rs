@@ -153,7 +153,7 @@ fn AppWay(ctx: Context) -> impl IntoView {
             }
             Ok(id) => id,
             Err(m) => {
-                back.set(Some((false, m)));
+                back.set(Some((false, m.render(lang_untracked()))));
                 return;
             }
         };
@@ -169,7 +169,7 @@ fn AppWay(ctx: Context) -> impl IntoView {
             match cockpit_core::setup::key_verify(&typed) {
                 Ok(v) => Some(v),
                 Err(m) => {
-                    back.set(Some((false, m)));
+                    back.set(Some((false, m.render(lang_untracked()))));
                     return;
                 }
             }

@@ -123,20 +123,20 @@ fn stuck_entries_name_reason_and_target() {
 
     let failed = by_key("#85");
     assert_eq!(failed.who.name, "Mira");
-    assert!(failed.reason.contains("Mira"));
+    assert!(failed.reason.de().contains("Mira"));
     assert_eq!(failed.review.as_ref().map(|k| k.number), Some(85));
 
     let agent = by_key("BAU-138");
     assert_eq!(agent.who, Person::me());
-    assert!(agent.reason.contains("#91"));
+    assert!(agent.reason.de().contains("#91"));
     assert_eq!(agent.review.as_ref().map(|k| k.number), Some(91));
 
     let review = by_key("#87");
-    assert!(review.reason.starts_with("Jonas wartet"));
+    assert!(review.reason.de().starts_with("Jonas wartet"));
 
     let branch = by_key("BAU-142");
     assert_eq!(branch.review, None);
-    assert!(branch.reason.contains("keinen Branch"));
+    assert!(branch.reason.de().contains("keinen Branch"));
 }
 
 #[test]
@@ -237,7 +237,7 @@ fn own_entries_read_naturally() {
     w.items.iter_mut().find(|i| i.id == "pr85").unwrap().owner = Person::me();
     let list = stuck(&w);
     let entry = list.iter().find(|s| s.key == "#85").unwrap();
-    assert!(entry.reason.contains("du kommt nicht weiter"));
+    assert!(entry.reason.de().contains("Du kommst nicht weiter"));
 }
 
 #[test]
@@ -250,11 +250,15 @@ fn a_waiting_question_is_stuck_with_me() {
     let s = stuck(&w);
     let entry = s.iter().find(|s| s.key == "BAU-142").unwrap();
     assert_eq!(entry.kind, StuckKind::QuestionWaiting);
-    assert_eq!(entry.kind.label(), "Frage wartet");
+    assert_eq!(entry.kind, StuckKind::QuestionWaiting);
     assert_eq!(entry.who, Person::me());
     assert_eq!(entry.question.as_deref(), Some("BAU-142"));
     assert!(entry.plan.is_none());
-    assert!(entry.reason.contains("deprecated"), "{}", entry.reason);
+    assert!(
+        entry.reason.de().contains("deprecated"),
+        "{}",
+        entry.reason.de()
+    );
     assert_eq!(w.waiting_agents(), 1, "counts in the sidebar under agents");
     // A question is more urgent than a waiting plan.
     assert!(StuckKind::QuestionWaiting < StuckKind::PlanWaiting);

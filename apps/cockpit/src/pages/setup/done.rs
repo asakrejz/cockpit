@@ -87,9 +87,9 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                                     Tone::Problem => (StatusTone::Red, t!(SetupDoneToneProblem), "! "),
                                 };
                                 let step = z.step;
-                                let jira_connected = z.name == "Jira" && z.tone == Tone::Good;
+                                let jira_connected = z.step == Step::Jira && z.tone == Tone::Good;
                                 view! {
-                                    <ListRow title=format!("{symbol}{}", z.name) subtitle=z.text wrap=true>
+                                    <ListRow title=format!("{symbol}{}", z.name.render(lang())) subtitle=z.text.render(lang()) wrap=true>
                                         <Status tone=tone>{label}</Status>
                                         {(z.tone != Tone::Good)
                                             .then(|| {

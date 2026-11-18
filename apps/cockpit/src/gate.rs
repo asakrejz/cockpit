@@ -3,7 +3,7 @@
 //! Afterwards the pages take over and a banner (`banner.rs`) reports later interruptions.
 
 use cockpit_core::notice::{
-    BROWSER_OFFLINE_TEXT, BROWSER_OFFLINE_TITLE, SERVER_UNREACHABLE_TEXT, SERVER_UNREACHABLE_TITLE,
+    browser_offline_text, browser_offline_title, server_unreachable_text, server_unreachable_title,
 };
 use feature_ui::*;
 use leptos::prelude::*;
@@ -18,10 +18,11 @@ pub fn Gate() -> impl IntoView {
             {move || {
                 if store.link.get() == Link::Offline {
                     let (title, text) = if store.browser_online.get() {
-                        (SERVER_UNREACHABLE_TITLE, SERVER_UNREACHABLE_TEXT)
+                        (server_unreachable_title(), server_unreachable_text())
                     } else {
-                        (BROWSER_OFFLINE_TITLE, BROWSER_OFFLINE_TEXT)
+                        (browser_offline_title(), browser_offline_text())
                     };
+                    let (title, text) = (title.render(lang()), text.render(lang()));
                     view! {
                         <ErrorState title=title text=text>
                             <Button

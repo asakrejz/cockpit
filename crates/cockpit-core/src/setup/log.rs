@@ -18,13 +18,3 @@ pub fn log_visible(lines: &[String], expanded: bool) -> String {
 pub fn log_hidden(lines: &[String]) -> usize {
     lines.len().saturating_sub(LOG_TAIL_LINES)
 }
-
-/// Label of the toggle button, e.g. "Alles anzeigen (42 Zeilen)". Without hidden lines the
-/// button only says what it does.
-pub fn log_toggle_label(lines: &[String], expanded: bool) -> String {
-    match (expanded, log_hidden(lines)) {
-        (true, _) => "Ausgabe einklappen".into(),
-        (false, 0) => "Ausgabe aufklappen".into(),
-        (false, n) => format!("Ausgabe aufklappen ({n} frühere Zeilen)"),
-    }
-}

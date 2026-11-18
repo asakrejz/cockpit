@@ -1,0 +1,17 @@
+# Diagnosis of a red check
+core_diagnosis.location = {file} · line {line}
+core_diagnosis.unused_variable = The variable `{name}` is not used. With `-D warnings` the lint run stops there.
+core_diagnosis.unused_import = The import `{name}` is not used. With `-D warnings` the lint run stops there.
+core_diagnosis.remedy_remove_unused = Remove the unused line
+core_diagnosis.remedy_remove_line = Remove line {line} in {file}
+core_diagnosis.cause_reported = The run reports: {message}
+core_diagnosis.remedy_check_code = Check the cause in the code. There is no automatic fix for this.
+core_diagnosis.cause_slow_test = `{test}` took too long. The headless browser did not start in time. This looks like a flaky check, not a bug in the code.
+core_diagnosis.remedy_flaky = No code fix needed. Restart the check.
+core_diagnosis.cause_test_failed = Test `{test}` fails: {reason}
+core_diagnosis.see_log = see log
+core_diagnosis.remedy_check_test = Check the test and the code. There is no automatic fix for this.
+core_diagnosis.cause_log_ends = The log ends with: {line}
+core_diagnosis.cause_log_empty = The log is empty. The cause cannot be narrowed down.
+core_diagnosis.remedy_watch_log = Restart the check and watch the log.
+core_diagnosis.cause_default = The agent has examined the check.

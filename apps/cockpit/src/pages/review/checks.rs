@@ -145,14 +145,14 @@ pub(super) fn investigation(
                             </a>
                         </div>
                         <p class="t-subheadline">
-                            {d.as_ref().map(|d| d.cause.clone()).unwrap_or_default()}
+                            {d.as_ref().map(|d| d.cause_message().render(lang())).unwrap_or_default()}
                         </p>
                         {d
                             .as_ref()
                             .and_then(|d| d.location())
-                            .map(|l| view! { <span class="t-footnote t-mono t-secondary">{l}</span> })}
+                            .map(|l| view! { <span class="t-footnote t-mono t-secondary">{l.render(lang())}</span> })}
                         <p class="t-footnote t-secondary">
-                            {t!(ReviewChecksRemedy, text = d.as_ref().map(|d| d.remedy.clone()).unwrap_or_default())}
+                            {t!(ReviewChecksRemedy, text = d.as_ref().map(|d| d.remedy_message().render(lang())).unwrap_or_default())}
                         </p>
                         {d
                             .and_then(|d| d.patch)

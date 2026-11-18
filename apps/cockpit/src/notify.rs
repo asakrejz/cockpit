@@ -73,10 +73,11 @@ pub fn show_system(event: &NotifyEvent) {
         return;
     }
     let options = NotificationOptions::new();
-    options.set_body(&event.text);
+    let lang = feature_ui::lang_untracked();
+    options.set_body(&event.text.render(lang));
     // Equal events replace each other instead of piling up.
     options.set_tag(&format!("{}{}", event.reason.id(), event.route));
-    let Ok(note) = Notification::new_with_options(&event.title, &options) else {
+    let Ok(note) = Notification::new_with_options(&event.title.render(lang), &options) else {
         return;
     };
     let route = event.route.clone();

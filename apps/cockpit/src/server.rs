@@ -34,7 +34,8 @@ impl CallError {
     pub fn message(&self) -> String {
         match self {
             CallError::Rejected(m) => m.clone(),
-            CallError::Unreachable => cockpit_core::notice::SERVER_UNREACHABLE_TITLE.into(),
+            CallError::Unreachable => cockpit_core::notice::server_unreachable_title()
+                .render(feature_ui::lang_untracked()),
         }
     }
 }
@@ -47,10 +48,10 @@ async fn rejection(resp: gloo_net::http::Response) -> CallError {
         .await
         .map(|e| e.in_lang(feature_ui::lang_untracked()))
         .ok();
-    CallError::Rejected(cockpit_core::notice::http_failure_text(
-        status,
-        server_message.as_deref(),
-    ))
+    CallError::Rejected(
+        cockpit_core::notice::http_failure_msg(status, server_message.as_deref())
+            .render(feature_ui::lang_untracked()),
+    )
 }
 
 /// Like [`rejection`], but the server's own sentence wins (the GitHub calls of the assistant
