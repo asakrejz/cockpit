@@ -147,11 +147,7 @@ fn filters_by_person_status_and_label() {
         label: Some("A11Y".into()),
         ..Default::default()
     };
-    assert_eq!(
-        keys_of(&f),
-        ["BAU-142", "BAU-138"],
-        "ohne Groß-/Kleinschreibung"
-    );
+    assert_eq!(keys_of(&f), ["BAU-142", "BAU-138"], "case-insensitive");
 }
 
 #[test]

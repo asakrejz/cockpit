@@ -153,7 +153,7 @@ pub(super) async fn repo_lookup(
             "Dem GitHub-Zugang fehlt die Berechtigung für dieses Repo.",
         ),
         Err(e) => {
-            tracing::warn!("Repo-Prüfung {repo}: {e}");
+            tracing::warn!("Repo check {repo}: {e}");
             repo_check(
                 repo,
                 RepoState::Failed,

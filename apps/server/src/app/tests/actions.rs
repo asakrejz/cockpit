@@ -60,7 +60,7 @@ async fn review_send_with_open_suggestions_is_4_xx() {
         .reviews
         .iter()
         .find(|r| r.suggestions.iter().any(|s| s.decision.is_none()))
-        .expect("Beispieldaten haben ein Review mit offenen Vorschlägen")
+        .expect("sample data has a review with open suggestions")
         .number;
     let body = format!(r#"{{"action":{{"SendReview":{{"review":{number},"comment":""}}}}}}"#);
     let (status, answer) = send(app_without_dist(), &body).await;

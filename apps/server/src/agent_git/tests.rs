@@ -65,7 +65,7 @@ fn the_token_goes_only_at_https_and_only_via_the_env() {
     let env = auth_env("https://github.com/x.git", Some(&t));
     assert_eq!(env.len(), 3);
     assert!(env[2].1.starts_with("Authorization: Basic "));
-    assert!(!env[2].1.contains("ghp_geheim"), "nur base64-kodiert");
+    assert!(!env[2].1.contains("ghp_geheim"), "only base64-encoded");
 }
 
 #[test]
@@ -155,7 +155,11 @@ fn clone_work_check_push_only_on_claude_branches() {
         g(&a.clone, &["rev-parse", "--abbrev-ref", "HEAD"]).trim(),
         "claude/BAU-1-x"
     );
-    assert_eq!(g(&a.clone, &["remote"]).trim(), "", "kein Remote im Klon");
+    assert_eq!(
+        g(&a.clone, &["remote"]).trim(),
+        "",
+        "no remote in the clone"
+    );
     agent_works(&a.clone, "src/neu.rs");
     let v = publish(
         &a.clone,
@@ -304,7 +308,7 @@ fn a_tampered_clone_leads_on_the_machine_nothing_out() {
         &RepoRules::default(),
     )
     .unwrap();
-    assert!(!mark.exists(), "im Klon darf nichts ausgeführt werden");
+    assert!(!mark.exists(), "nothing may run in the clone");
     assert_eq!(heads(&a.remote).len(), 2);
 }
 
@@ -358,7 +362,7 @@ fn a_followup_continues_on_the_existing_branch_and_pushes_normally() {
     assert_eq!(
         g(&again.clone, &["remote"]).trim(),
         "",
-        "kein Remote im Klon"
+        "no remote in the clone"
     );
     agent_works(&again.clone, "neu.txt");
     let v = publish(

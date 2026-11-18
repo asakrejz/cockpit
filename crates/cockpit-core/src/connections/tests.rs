@@ -42,5 +42,5 @@ fn agent_needs_connection_and_permissions() {
     c.may_branch = true;
     c.may_open_pr = true;
     c.may_run_tests = false;
-    assert_eq!(c.agent_blocked(), None, "Tests sind optional");
+    assert_eq!(c.agent_blocked(), None, "tests are optional");
 }

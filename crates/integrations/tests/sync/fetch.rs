@@ -15,7 +15,7 @@ async fn fetches_pull_requests_tickets_comments_checks_and_diffs() {
     let pr91 = ws.item("gh-acme-baukasten-91").expect("PR 91");
     assert!(
         pr91.pr.as_ref().unwrap().changes_requested,
-        "Urteil von mkeller"
+        "verdict of mkeller"
     );
     assert!(
         pr91.comments
@@ -109,10 +109,10 @@ async fn unchanged_pr_does_not_reload_the_diff() {
         .iter()
         .filter(|r| r.url.path().ends_with("/pulls/87/files"))
         .count();
-    assert_eq!((before, after), (1, 1), "gleicher Commit: kein neuer Abruf");
+    assert_eq!((before, after), (1, 1), "same commit: no new fetch");
     // And the diff is still in the remote.
     let Outcome::Loaded(l) = &remote.sources[0].outcome else {
-        panic!("geladen erwartet")
+        panic!("expected loaded")
     };
     assert!(
         !l.reviews

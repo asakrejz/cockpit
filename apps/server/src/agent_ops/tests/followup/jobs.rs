@@ -30,7 +30,7 @@ async fn review_comments_run_on_the_same_branch_and_push_normally() {
 
     // The job file carries the threads, the review text and the branch – nothing secret.
     let job: serde_json::Value =
-        serde_json::from_str(&w.log("job-copy.json")).expect("job.json wurde kopiert");
+        serde_json::from_str(&w.log("job-copy.json")).expect("job.json was copied");
     assert_eq!(job["branch"], PR_BRANCH);
     assert_eq!(job["followup"]["kind"], "review_comments");
     assert_eq!(job["followup"]["pull_request"], 85);

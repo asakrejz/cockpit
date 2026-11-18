@@ -61,6 +61,6 @@ async fn lines_are_limited_read() {
     assert!(read_line(&mut r, &mut buffer).await.unwrap().is_none());
     assert!(
         buffer.capacity() < MAX_LINE * 2,
-        "es wird nie mehr als eine Zeile Maximum gepuffert"
+        "never more than one line of maximum is buffered"
     );
 }

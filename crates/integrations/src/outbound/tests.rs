@@ -285,7 +285,7 @@ fn status_branch_merge_and_check() {
         },
         &all(),
     ) else {
-        panic!("Branch erwartet");
+        panic!("expected branch");
     };
     assert_eq!(repo, "a/x");
     assert_eq!(name, "feature/ABC-1-avatar-groesse");

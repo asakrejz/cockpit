@@ -209,7 +209,7 @@ fn agent_waiting_and_finished() {
     assert!(running.approve_plan(&key));
     assert!(
         events(&waiting, &running).is_empty(),
-        "Freigabe meldet nichts"
+        "approval reports nothing"
     );
 
     let mut after = running.clone();
@@ -261,7 +261,7 @@ fn channels_are_set_per_reason() {
     assert!(s.set(NotifyReason::Mention, Channel::Email, true));
     assert!(
         !s.set(NotifyReason::Mention, Channel::Email, true),
-        "nichts ändert sich"
+        "nothing changes"
     );
     assert!(s.set(NotifyReason::Mention, Channel::Browser, false));
     assert!(s.enabled(NotifyReason::Mention, Channel::Email));
@@ -302,7 +302,7 @@ fn quiet_hours_over_midnight_and_within_a_day() {
             to: 60
         }
         .contains(60),
-        "gleiche Zeit: keine Ruhe"
+        "same time: no quiet period"
     );
 }
 
@@ -375,6 +375,6 @@ fn settings_json_is_stable_and_old_data_loads() {
     );
     assert!(
         !text.contains('@') && !text.contains("http"),
-        "keine Adressen"
+        "no addresses"
     );
 }

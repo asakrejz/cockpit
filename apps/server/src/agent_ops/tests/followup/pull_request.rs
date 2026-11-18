@@ -42,8 +42,8 @@ async fn preview_shows_title_text_and_creates_nothing() {
         .iter()
         .filter(|r| r.method.as_str() == "POST")
         .count();
-    assert_eq!(posts, 0, "die Vorschau legt nichts an");
-    assert!(w.run().pull_request.is_none(), "und ändert nichts");
+    assert_eq!(posts, 0, "the preview creates nothing");
+    assert!(w.run().pull_request.is_none(), "and changes nothing");
 }
 
 #[tokio::test]
@@ -77,7 +77,7 @@ async fn the_pull_request_is_created_only_on_the_action_and_with_the_edited_text
     assert_eq!(
         (pull.number, pull.existed),
         (31, false),
-        "GitHub entscheidet, nicht der Browser"
+        "GitHub decides, not the browser"
     );
     assert_eq!(pull.url, "https://github.example/firma/app/pull/31");
     assert_eq!(run.pr_number, Some(31));

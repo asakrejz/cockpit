@@ -229,7 +229,7 @@ async fn chosen_project_determines_the_query() {
     let (ws, _) = snapshot(&state).await;
     let item = ws
         .item_by_key("WEB-7")
-        .expect("Ticket aus dem gewählten Projekt");
+        .expect("ticket from the selected project");
     assert_eq!(item.reason_text, "Im Projekt");
     assert_eq!(ws.jira_project.as_deref(), Some("WEB"));
 }
@@ -269,7 +269,7 @@ async fn post_sync_fetches_pull_requests_and_shows_the_state() {
 
     let (ws, _) = snapshot(&state).await;
     assert!(ws.item("gh-a-x-7").is_some());
-    assert!(ws.item("bau142").is_none(), "Beispieldaten sind weg");
+    assert!(ws.item("bau142").is_none(), "sample data is gone");
     assert_eq!(ws.sync.pr(7).unwrap().repo, "a/x");
     assert_eq!(ws.review(7).unwrap().files[0].name, "a.rs");
     let h = health(&state).await;
@@ -423,10 +423,7 @@ async fn fails_the_call_missing_changes_itself_nothing() {
         "{body}"
     );
     assert!(body.contains("Es wurde nichts geändert"));
-    assert!(
-        !body.contains(TOKEN),
-        "der Schlüssel taucht nie auf: {body}"
-    );
+    assert!(!body.contains(TOKEN), "the key never shows up: {body}");
     let (afterwards, rev2) = snapshot(&state).await;
     assert_eq!((before, rev), (afterwards, rev2));
 

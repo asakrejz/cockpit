@@ -136,7 +136,7 @@ pub fn source_notice(st: &SourceState, now_ms: u64) -> Option<SourceNotice> {
             NoticeTone::Warning,
             format!("{n} nicht erreichbar"),
             format!(
-                "Keine Antwort vom Dienst (Netz oder Zeitüberschreitung). {} Cockpit versucht es weiter.",
+                "Der Dienst antwortet nicht rechtzeitig (oder das Netz ist weg). {} Cockpit versucht es weiter.",
                 stand(st, now_ms)
             ),
             NoticeAction::RetryNow,

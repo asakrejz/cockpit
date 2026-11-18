@@ -26,6 +26,6 @@ fn never_cuts_inside_a_word() {
     assert_eq!(
         slug("abcdefgh", 5),
         "",
-        "ein einzelnes zu langes Wort passt nicht"
+        "a single word that is too long does not fit"
     );
 }

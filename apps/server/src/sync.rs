@@ -182,7 +182,7 @@ impl AppState {
         };
         let client = client.map_err(|e| ActionFailure::Plan(format!("Jira: {e}")))?;
         let projects = client.projects().await.map_err(|e| {
-            tracing::warn!("Jira-Projekte: {e}");
+            tracing::warn!("Jira projects: {e}");
             ActionFailure::Service(format!("Jira liefert keine Projekte: {e}"))
         })?;
         Ok(JiraProjectsResponse {

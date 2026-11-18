@@ -308,7 +308,7 @@ impl AppState {
                 let s = self.clone();
                 tokio::spawn(async move {
                     if let Err(e) = s.sync().await {
-                        tracing::warn!("Abgleich nach dem Anlegen des Pull Requests: {e:?}");
+                        tracing::warn!("Sync after creating the pull request: {e:?}");
                     }
                 });
                 Ok(answer)
