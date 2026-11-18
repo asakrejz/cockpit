@@ -66,6 +66,8 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/agent/models", get(agent_models))
         .route("/api/agent/check", get(endpoint_check))
         .route("/api/agent/pull-request", get(pull_request_preview))
+        .route("/api/review/commits", get(crate::review_panel::commits))
+        .route("/api/review/commit", get(crate::review_panel::commit))
         .route("/api/agent/check/container", get(endpoint_check_container))
         .route("/api/jira/check", post(crate::setup::jira_check))
         .route("/api/github/repos/check", post(crate::setup::repos_check))

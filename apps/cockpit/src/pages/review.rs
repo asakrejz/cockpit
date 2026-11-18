@@ -12,6 +12,7 @@ use leptos::prelude::*;
 
 use crate::{
     route::Route,
+    server,
     store::{Store, use_store},
     view,
 };
@@ -52,6 +53,9 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
         edit_suggest: RwSignal::new(false),
         edit_code: RwSignal::new(String::new()),
     };
+
+    // State of the review panel (tabs, viewed files, commits).
+    let panel_ui = PanelUi::new(number.get_value().as_ref());
 
     // State of the right column. It survives when the review changes.
     let panel = Panel {
@@ -114,7 +118,7 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
                 </Show>
             </PickerPane>
             {move || match review.get() {
-                Some(r) => view! { {diff_pane(store, r.clone(), lines)} {agent_pane(store, r, panel)} }.into_any(),
+                Some(r) => view! { {diff_pane(store, r.clone(), lines, panel_ui)} {agent_pane(store, r, panel)} }.into_any(),
                 None => {
                     view! {
                         <Pane label="Pull Request">
@@ -203,6 +207,7 @@ mod comments;
 mod diff;
 mod followups;
 mod merge;
+mod panel;
 mod suggestions;
 
 use checks::checks_section;
@@ -210,4 +215,5 @@ use comments::comments_section;
 use diff::diff_pane;
 use followups::followup_section;
 use merge::merge_section;
+use panel::{PanelUi, panel_body};
 use suggestions::agent_pane;
