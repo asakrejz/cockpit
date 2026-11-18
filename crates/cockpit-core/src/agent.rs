@@ -182,6 +182,7 @@ impl AgentRun {
                 FollowupTask::ReviewThreads => format!("threads-{}", review.slug()),
                 FollowupTask::FailedChecks { .. } => format!("fixes-{}", review.slug()),
             },
+            RunKind::ReviewPr { review } => format!("prreview-{}", review.slug()),
         }
     }
 
@@ -201,6 +202,7 @@ impl AgentRun {
                 FollowupTask::ReviewThreads => format!("Review-Kommentare in {review}"),
                 FollowupTask::FailedChecks { .. } => format!("Rote Checks in {review}"),
             },
+            RunKind::ReviewPr { review } => format!("Review von {review}"),
         }
     }
 

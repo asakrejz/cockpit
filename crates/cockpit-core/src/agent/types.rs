@@ -1,6 +1,7 @@
 //! The data that belong to a run: report, messages, plan and steps.
 
 use super::*;
+use crate::review::DiffSide;
 
 /// A pull request on GitHub that belongs to the branch of a run.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
@@ -64,6 +65,20 @@ pub enum AgentReport {
     },
     /// This many hints of the user (the oldest) have arrived at the agent.
     HintsDelivered { count: usize },
+    /// A draft review comment (only in a review run). The workspace checks it against the diff
+    /// of the pull request and drops it if it does not fit.
+    ReviewComment {
+        path: String,
+        line: u32,
+        #[serde(default)]
+        start_line: Option<u32>,
+        side: DiffSide,
+        text: String,
+        #[serde(default)]
+        suggestion: Option<String>,
+    },
+    /// The agent's summary of the pull request (only in a review run); stays local.
+    ReviewSummary { text: String },
     /// Done: the branch is pushed.
     Done { summary: String },
     /// The run ended without result (error, timeout, restart). `reason` in plain text.

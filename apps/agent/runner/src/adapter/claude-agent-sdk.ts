@@ -6,6 +6,7 @@ import { type Sink, truncate } from "../event.ts";
 import { type Run, record } from "../git.ts";
 import { type Policy, decide } from "../policy.ts";
 import type { Adapter, Input } from "./interface.ts";
+import { finishReview } from "../review.ts";
 import { ClaudeTranslator, type SdkMessage, describe, planFromAnswer } from "./claude-messages.ts";
 
 export { describe, planFromAnswer };
@@ -82,7 +83,9 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
     d.sink({ t: "error", text: "Es ist kein Modell eingestellt (ANTHROPIC_MODEL fehlt)." });
     return 1;
   }
-  const plan = a.mode === "plan";
+  const review = a.mode === "review";
+  // Plan and review only read.
+  const plan = a.mode === "plan" || review;
   const input = new Queue<unknown>();
   const cancel = new AbortController();
   const deadline = setTimeout(() => cancel.abort(), a.max_seconds * 1000);
@@ -165,6 +168,10 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
   if (error) {
     d.sink({ t: "error", text: error });
     return 1;
+  }
+  if (review) {
+    finishReview(d.sink, a, endText);
+    return 0;
   }
   if (plan) {
     const p = planFromAnswer(endText);

@@ -220,6 +220,7 @@ impl AppState {
                 action,
                 Action::AddressReviewThreads { .. }
                     | Action::FixFailedChecks { .. }
+                    | Action::StartPrReview { .. }
                     | Action::CreatePullRequest { .. }
             )
             .then(|| {
@@ -237,6 +238,28 @@ impl AppState {
                     format!(
                         "Der Agent kann noch nicht starten. {}",
                         st.missing.join(" ")
+                    )
+                })
+            }
+            Action::StartPrReview { review } => {
+                let st = self.agent_status();
+                if !st.ready {
+                    return Some(format!(
+                        "Der Agent kann noch nicht starten. {}",
+                        st.missing.join(" ")
+                    ));
+                }
+                // The repo must be configured for the agent, and the pull request must be synced.
+                let ws = self.inner.live.copy();
+                let Some(link) = ws.sync.pr(review) else {
+                    return Some(format!(
+                        "Der Pull Request {review} ist noch nicht mit GitHub abgeglichen. Gleiche zuerst ab."
+                    ));
+                };
+                (!self.agent_repos().allows(&link.repo)).then(|| {
+                    format!(
+                        "Der Pull Request {review} gehört zu {}, der Agent darf dort aber nicht arbeiten. Trage das Repo unter „Einrichten“ › „GitHub“ ein.",
+                        link.repo
                     )
                 })
             }

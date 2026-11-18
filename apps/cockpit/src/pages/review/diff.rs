@@ -248,7 +248,9 @@ pub(super) fn line_notes(
             }
         })
     };
+    let drafts = super::draft_notes(store, r, file.get_value().as_str(), index);
     view! {
+        {drafts}
         {comments}
         {composer}
     }

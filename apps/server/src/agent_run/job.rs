@@ -93,11 +93,61 @@ pub fn job_json(
             "instructions": instructions,
         },
         "followup": followup.map(FollowupJob::to_json),
+        "review": if mode == Mode::Review { review_input(ws, run) } else { None },
         "run_tests": run.options.run_tests,
         "branch": branch,
         "base_branch": run.options.base_branch,
         "repo": run.repo,
     })
+}
+
+/// Largest diff text (characters) that goes into a review job; further files are left out.
+const REVIEW_BUDGET: usize = 80_000;
+/// Longest single line of the diff.
+const REVIEW_LINE: usize = 300;
+/// Most lines of one file.
+const REVIEW_FILE_LINES: usize = 1_500;
+
+/// What a review run gets to look at: title, description and the diff of the pull request, taken
+/// from the state of the workspace (nothing is fetched from GitHub). These are texts of third
+/// parties – the runner puts them into the prompt as data. Limited in size.
+pub fn review_input(ws: &Workspace, run: &AgentRun) -> Option<Value> {
+    let key = run.kind.review()?;
+    let r = ws.review(&key)?;
+    let mut budget = REVIEW_BUDGET;
+    let mut files = Vec::new();
+    let mut omitted = 0usize;
+    for f in &r.files {
+        if budget == 0 {
+            omitted += 1;
+            continue;
+        }
+        let mut lines = Vec::new();
+        for l in f.lines.iter().take(REVIEW_FILE_LINES) {
+            let text = truncate(&l.text, REVIEW_LINE);
+            let cost = text.chars().count() + 12;
+            if cost > budget {
+                break;
+            }
+            budget -= cost;
+            let kind = match l.kind {
+                cockpit_core::LineKind::Add => "add",
+                cockpit_core::LineKind::Del => "del",
+                cockpit_core::LineKind::Context => "ctx",
+            };
+            lines.push(json!({ "no": l.no, "kind": kind, "text": text }));
+        }
+        files.push(json!({ "name": truncate(&f.name, 300), "lines": lines }));
+    }
+    Some(json!({
+        "pull_request": r.number,
+        "title": truncate(&r.title, 300),
+        "description": truncate(&r.description, 6_000),
+        "branch": truncate(&r.branch, 200),
+        "base": truncate(&r.base, 200),
+        "files": files,
+        "omitted_files": omitted,
+    }))
 }
 
 /// The job for the reachability check.

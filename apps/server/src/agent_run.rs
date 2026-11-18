@@ -11,7 +11,9 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use cockpit_core::api::{AgentStatus, ContainerStatus, ImageState, Provider};
-use cockpit_core::{AgentRepo, AgentReport, AgentRepos, AgentRun, RunState, Workspace};
+use cockpit_core::{
+    AgentRepo, AgentReport, AgentRepos, AgentRun, DiffSide, RunKind, RunState, Workspace,
+};
 use cockpit_integrations::github::followup;
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -40,6 +42,8 @@ pub const HOST_NAME: &str = "cockpit-host";
 pub const MAX_LINE: usize = 64 * 1024;
 const MAX_TEXT: usize = 2_000;
 const MAX_LIST: usize = 200;
+/// No diff has more lines per file than this.
+const MAX_LINE_NO: u32 = 10_000_000;
 /// No single step credibly reports more tokens or time.
 const MAX_TOKEN: u64 = 50_000_000;
 const MAX_MS: u64 = 3_600_000;

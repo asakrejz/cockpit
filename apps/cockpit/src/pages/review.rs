@@ -216,6 +216,7 @@ struct LineUi {
 mod checks;
 mod comments;
 mod diff;
+mod drafts;
 mod followups;
 mod merge;
 mod panel;
@@ -224,6 +225,7 @@ mod suggestions;
 use checks::checks_section;
 use comments::comments_section;
 use diff::diff_pane;
+use drafts::{code_rows, draft_notes, location_label};
 use followups::followup_section;
 use merge::merge_section;
 use panel::{PanelUi, panel_body};

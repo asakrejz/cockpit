@@ -120,6 +120,13 @@ impl AgentRun {
                     self.label()
                 ));
             }
+            // Booked on the review by the workspace, which has the diff. Only a running
+            // review run takes them.
+            AgentReport::ReviewComment { .. } | AgentReport::ReviewSummary { .. } => {
+                if !self.is_running() || !matches!(self.kind, RunKind::ReviewPr { .. }) {
+                    return None;
+                }
+            }
             AgentReport::HintsDelivered { count } => {
                 let count = count.min(self.pending_hints.len());
                 for hint in self.pending_hints.drain(..count).collect::<Vec<_>>() {

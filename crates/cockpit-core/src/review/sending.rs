@@ -27,7 +27,7 @@ impl Review {
         }
         let n = self.comment_count();
         format!(
-            "Review senden · {n} {}",
+            "Review absenden · {n} {}",
             if n == 1 { "Kommentar" } else { "Kommentare" }
         )
     }
@@ -46,7 +46,7 @@ impl Review {
             .suggestions
             .iter()
             .filter(|s| s.decision == Some(Decision::Approved))
-            .map(|s| s.text.clone());
+            .map(Suggestion::body);
         let own = self.outgoing().map(LineComment::body);
         Ok(approved.chain(own).collect())
     }

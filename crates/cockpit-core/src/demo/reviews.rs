@@ -17,6 +17,7 @@ pub(super) fn reviews(pr87: &Item, bau138: &Item, pr85: &Item) -> [Review; 3] {
             checks: item.pr.as_ref().map_or(Checks::Running, |p| p.checks),
             files,
             agent_reviewed: false,
+            agent_summary: String::new(),
             suggestions: Vec::new(),
             line_comments: Vec::new(),
             verdict: Verdict::Comment,
@@ -34,6 +35,7 @@ pub(super) fn reviews(pr87: &Item, bau138: &Item, pr85: &Item) -> [Review; 3] {
             "Stellt den Slider-Thumb auf die Kapselform um und gleicht die Maße an den Toggle an."
                 .into(),
         agent_reviewed: true,
+        agent_summary: String::new(),
         suggestions: vec![
             Suggestion::new(
                 "a",

@@ -352,6 +352,7 @@ fn review_contains_verdict_text_suggestions_and_line_comments() {
             path: "a.rs".into(),
             line: 2,
             page: "RIGHT",
+            start_line: None,
             text: "Name prüfen".into()
         }
     );

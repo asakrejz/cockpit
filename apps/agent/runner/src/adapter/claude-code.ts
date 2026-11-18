@@ -103,7 +103,8 @@ export function claudeCode(): Adapter {
       return runCli(job, d, (sink): Spec | string => {
         const model = d.env.ANTHROPIC_MODEL ?? "";
         if (!model) return "Es ist kein Modell eingestellt (ANTHROPIC_MODEL fehlt).";
-        const plan = job.mode === "plan";
+        // Plan and review only read.
+        const plan = job.mode === "plan" || job.mode === "review";
         const dir = mkdtempSync(join(tmpdir(), "cockpit-claude-"));
         const policy: Policy = { root: d.root, allowed: job.rules.allowed_paths, forbidden: job.rules.forbidden_paths };
         const policyFile = join(dir, "policy.json");

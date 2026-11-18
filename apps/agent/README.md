@@ -107,7 +107,9 @@ from the person's shell ends up in the container.
 | `files` | `files` | files changed so far |
 | `question` | `text`, `suggestions` | question; the runner waits for `answer` on stdin |
 | `hints_arrived` | none | a hint from the user reached the agent |
-| `result` | `text`, `branch`, `commit` | done; the commit is on the branch in the clone |
+| `review_comment` | `path`, `line`, `start_line?`, `side` (`RIGHT`\|`LEFT`), `text`, `suggestion?` | a draft review comment (mode `review`); the backend checks it against the diff |
+| `review_summary` | `text` | the agent's summary of the pull request (mode `review`); stays local |
+| `result` | `text`, `branch`, `commit` | done; the commit is on the branch in the clone (mode `review`: no commit, `commit` is empty) |
 | `check` | `reachable`, `key_ok`, `hint` | result of the check mode |
 | `error` | `text` | abort with a reason |
 
@@ -122,6 +124,23 @@ checked out in `/work`. The runner puts the texts into the prompt as data of thi
 (`LIMITS` in `job.ts`) and commits with a message that names the task. Everything else (events, no push, rules) is
 unchanged; old jobs without `followup` work as before.
 
+## Review runs (mode `review`)
+
+For "PR reviewen" `job.json` has `mode: "review"` and `review`: `{pull_request, title, description, branch, base,
+files: [{name, lines: [{no, kind: "add" | "del" | "ctx", text}]}], omitted_files}`. The diff comes from the state the
+backend already holds (nothing is fetched at run time) and is limited in size (`REVIEW_LIMITS` in `job.ts`; the backend
+limits first). The runner puts title, description and diff into the prompt as data of third parties, marks every line
+as `[R12]` (line 12 of the new file) or `[L10]` (line 10 of the old file), and asks for one JSON object
+`{"summary", "comments": [{path, line, start_line?, side, text, suggestion?}]}`.
+
+* **Read only.** `/work` is the clone of the pull request's branch (any branch, not only `claude/…`), mounted `:ro`.
+  Claude Agent SDK: permission mode `plan`, tools `Read`/`Glob`/`Grep`, no `ask_user`. Claude Code: only the reading
+  tools. Codex: `--sandbox read-only`. A CLI that changes a file anyway discards the whole review. No commit, no push.
+* **Events.** The runner emits one `review_comment` per usable entry (at most 40; malformed ones are dropped, a
+  `suggestion` only with `side: "RIGHT"`), then `review_summary`, then `result`. The backend again checks every comment:
+  the file must be in the diff, the line must exist on that side, texts and counts are limited, duplicates dropped.
+  What passes becomes a **draft** of the review; the runner and the container never talk to GitHub.
+
 ## Rules in the container
 
 The container has **no GitHub token**: it cannot push. It commits to a branch in the mounted
@@ -129,7 +148,8 @@ clone, named by the repo's `branch_pattern` (`claude/<ticket>-…` by default); 
 (name and path rules of the repo, never the main branch, never a merge). If the repo has a `CONTRIBUTING.md`, the job
 names it (`contributing`) and the system text tells the agent to follow its commit conventions.
 The runner additionally blocks writing outside `/work`, `.git`, forbidden paths and commands such as `git push` and
-`curl` (see the adapters above for how each tool enforces it). The agent asks questions through the tool `ask_user`.
+`curl` (see the adapters above for how each tool enforces it). A review run is stricter still: read-only clone, no
+commit. The agent asks questions through the tool `ask_user`.
 
 ## Tests
 

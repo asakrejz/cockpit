@@ -23,6 +23,7 @@ fn review() -> Review {
             ],
         )],
         agent_reviewed: true,
+        agent_summary: String::new(),
         suggestions: vec![
             Suggestion::new("a", "a.css · Zeile 2", Level::Note, "Erster"),
             Suggestion::new("b", "a.css · Zeile 3", Level::Important, "Zweiter"),
@@ -55,7 +56,7 @@ fn only_approved_comments_are_sent() {
     let mut r = review();
     r.decide("a", Some(Decision::Approved));
     r.decide("b", Some(Decision::Declined));
-    assert_eq!(r.send_label(), "Review senden · 1 Kommentar");
+    assert_eq!(r.send_label(), "Review absenden · 1 Kommentar");
     assert_eq!(r.send(), Ok(vec!["Erster".to_string()]));
     assert_eq!(r.send_label(), "Gesendet");
     assert_eq!(r.send(), Err(SendError::AlreadySent));
@@ -65,7 +66,7 @@ fn only_approved_comments_are_sent() {
 fn a_review_without_suggestions_can_be_sent() {
     let mut r = review();
     r.suggestions.clear();
-    assert_eq!(r.send_label(), "Review senden · 0 Kommentare");
+    assert_eq!(r.send_label(), "Review absenden · 0 Kommentare");
     assert_eq!(r.send(), Ok(vec![]));
 }
 
@@ -183,12 +184,12 @@ fn own_comments_are_sent_and_counted_without_approval() {
     let mut r = review();
     r.add_line_comment("a.css", 2, "Eigener", None);
     assert_eq!(r.comment_count(), 1);
-    assert_eq!(r.send_label(), "Review senden · 1 Kommentar");
+    assert_eq!(r.send_label(), "Review absenden · 1 Kommentar");
     // The rule stays: first decide on all suggestions.
     assert_eq!(r.send(), Err(SendError::Undecided(2)));
     r.decide("a", Some(Decision::Approved));
     r.decide("b", Some(Decision::Declined));
-    assert_eq!(r.send_label(), "Review senden · 2 Kommentare");
+    assert_eq!(r.send_label(), "Review absenden · 2 Kommentare");
     assert_eq!(
         r.send(),
         Ok(vec!["Erster".to_string(), "Eigener".to_string()])
