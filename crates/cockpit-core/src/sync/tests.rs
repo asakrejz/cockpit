@@ -20,6 +20,7 @@ fn ticket(key: &str, title: &str) -> Item {
         key: key.into(),
         title: title.into(),
         description: String::new(),
+        description_rich: None,
         reason: ReasonKind::Assigned,
         reason_text: "Dir zugewiesen".into(),
         time: "vor 5 Min.".into(),

@@ -272,6 +272,7 @@ pub(super) fn detail(
                     initials=c.author.initials.clone()
                     time=c.time.clone()
                     text=c.text.clone()
+                    rich=c.rich.clone().unwrap_or_default()
                     own=c.own
                 />
             }
@@ -352,7 +353,12 @@ pub(super) fn detail(
 
         <PaneBody>
             {edit_form}
-            <p class="t-body" hidden=move || edit.on.get() && is_ticket>{item.description.clone()}</p>
+            <div hidden=move || edit.on.get() && is_ticket>
+                {match item.description_rich.clone() {
+                    Some(doc) => view! { <RichText doc=doc /> }.into_any(),
+                    None => view! { <p class="t-body">{item.description.clone()}</p> }.into_any(),
+                }}
+            </div>
 
             <List>{ticket_props}</List>
 

@@ -55,7 +55,7 @@ impl AppState {
                 | Error::NoPermission
                 | Error::Response(_)),
             ) => {
-                tracing::warn!("{}: Auffrischen abgelehnt ({f}) – getrennt", d.id());
+                tracing::warn!("{}: refresh rejected ({f}) - disconnected", d.id());
                 let _ = tokio::task::spawn_blocking(move || s.oauth_tokens_delete(d)).await;
             }
             Err(f) => tracing::warn!("{}: refresh failed: {f}", d.id()),

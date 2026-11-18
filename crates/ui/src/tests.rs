@@ -36,7 +36,7 @@ fn ids_match_css_selectors() {
         if style != ButtonStyle::Bordered {
             assert!(
                 css.contains(&format!("data-style=\"{}\"", style.id())),
-                "kein CSS für data-style={}",
+                "no CSS for data-style={}",
                 style.id()
             );
         }
@@ -45,7 +45,7 @@ fn ids_match_css_selectors() {
         if let Some(id) = size.attr() {
             assert!(
                 css.contains(&format!("data-control-size=\"{id}\"")),
-                "kein CSS für {id}"
+                "no CSS for {id}"
             );
         }
     }
@@ -58,14 +58,14 @@ fn ids_match_css_selectors() {
         if let Some(id) = tone.attr() {
             assert!(
                 css.contains(&format!("data-tone=\"{id}\"")),
-                "kein CSS für Ton {id}"
+                "no CSS for tone {id}"
             );
         }
     }
     for style in TextStyle::ALL {
         assert!(
             css.contains(&format!(".t-{} ", style.id())),
-            "kein CSS für .t-{}",
+            "no CSS for .t-{}",
             style.id()
         );
     }

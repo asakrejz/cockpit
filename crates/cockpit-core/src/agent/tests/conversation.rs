@@ -85,7 +85,7 @@ fn a_hint_is_taken_into_account_at_the_next_step() {
     assert_eq!(r.pending_hints, ["Auch den Slider prüfen"]);
     assert!(
         !r.messages.iter().any(|m| m.kind == MessageKind::Ack),
-        "noch nicht berücksichtigt"
+        "not yet taken into account"
     );
     assert_eq!(r.tick(), Tick::Stepped);
     assert!(r.pending_hints.is_empty());
@@ -111,7 +111,7 @@ fn hints_only_work_while_the_agent_works() {
     r.start(AgentOptions::default(), 92);
     assert!(
         !r.steer("Plan noch offen"),
-        "dafür gibt es die Plan-Anmerkung"
+        "that is what the plan note is for"
     );
     r.approve();
     assert!(r.steer("jetzt"));

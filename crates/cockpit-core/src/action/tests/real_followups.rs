@@ -134,7 +134,7 @@ fn failed_checks_are_named_in_the_run() {
         ..
     } = &run.kind
     else {
-        panic!("falsche Art: {:?}", run.kind);
+        panic!("wrong kind: {:?}", run.kind);
     };
     assert!(!checks.is_empty());
     assert!(
@@ -358,10 +358,7 @@ fn the_new_fields_are_backward_compatible() {
     // A run saved before this feature has no `pull_request` and loads.
     let w = done_ws();
     let json = serde_json::to_value(w.run("BAU-142").unwrap()).unwrap();
-    assert!(
-        json.get("pull_request").is_none(),
-        "leer wird nicht geschrieben"
-    );
+    assert!(json.get("pull_request").is_none(), "empty is not written");
     let back: AgentRun = serde_json::from_value(json).unwrap();
     assert_eq!(back.pull_request, None);
     // The actions travel as JSON; `pull` may be missing.

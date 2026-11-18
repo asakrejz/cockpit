@@ -27,10 +27,10 @@ exit 0
     let run = w.run();
     assert!(run.is_awaiting());
     assert_eq!(run.plan().unwrap().summary, "Fokus-Ring ergänzen");
-    assert_eq!(run.usage().input_tokens, 500, "auch das Planen kostet");
+    assert_eq!(run.usage().input_tokens, 500, "planning costs too");
     assert!(
         w.branches() == ["main"],
-        "vor der Freigabe entsteht nichts im Remote"
+        "nothing is created in the remote before approval"
     );
     // The plan container gets the clone read-only.
     assert!(
@@ -82,7 +82,7 @@ exit 137
         w.log("calls.log")
             .lines()
             .any(|z| z.starts_with("rm -f cockpit-run-BAU-142-")),
-        "der Container wurde entfernt"
+        "the container was removed"
     );
     let run = w.run();
     assert!(
@@ -125,7 +125,7 @@ exit 137
     );
     let run = w.run();
     assert!(run.is_idle());
-    assert_eq!(run.ended, None, "ein Abbruch durch dich ist kein Fehler");
+    assert_eq!(run.ended, None, "an abort by the user is not an error");
     assert!(!w.state.agent_dir().join("runs/BAU-142").exists());
     assert_eq!(w.branches(), ["main"]);
 }

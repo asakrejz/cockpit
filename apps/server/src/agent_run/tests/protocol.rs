@@ -87,7 +87,7 @@ fn command_line_without_secrets_and_with_the_shared_switches() {
         "-e COCKPIT_PROVIDER -e ANTHROPIC_BASE_URL -e ANTHROPIC_AUTH_TOKEN -e ANTHROPIC_MODEL -e ANTHROPIC_API_KEY",
         "--cap-drop ALL",
     ] {
-        assert!(text.contains(muss), "{muss} fehlt in {text}");
+        assert!(text.contains(muss), "{muss} is missing in {text}");
     }
     assert_eq!(a.last().unwrap(), IMAGE);
     // Fully named image, no SELinux addition, no --user (it is in the Containerfile).

@@ -641,6 +641,7 @@ checksum = "da7c62ceae207dd37ea5b845da6a0696c799f85e97da1ab5b7910be3c1c80223"
 name = "feature-ui"
 version = "0.1.0"
 dependencies = [
+ "cockpit-core",
  "leptos",
  "web-sys",
 ]
@@ -1642,9 +1643,11 @@ checksum = "f6b464fbc74e149a392436b17d523f769e057cb6877f6a5c4618bc6f11800548"
 name = "playground"
 version = "0.1.0"
 dependencies = [
+ "cockpit-core",
  "console_error_panic_hook",
  "feature-ui",
  "leptos",
+ "serde_json",
  "web-sys",
 ]
 

@@ -208,7 +208,7 @@ pub fn diagnose(review: &Review, check: &CheckRun) -> Diagnosis {
         // A timeout when starting the environment says nothing about the code.
         if reason.contains("timeout") {
             d.cause = format!(
-                "Zeitüberschreitung bei `{test}`: Der Headless-Browser ist nicht rechtzeitig gestartet – das sieht nach einem wackligen Check aus, nicht nach einem Fehler im Code."
+                "`{test}` hat zu lange gebraucht: Der Headless-Browser ist nicht rechtzeitig gestartet – das sieht nach einem wackligen Check aus, nicht nach einem Fehler im Code."
             );
             d.remedy = "Kein Code-Fix nötig – Check neu starten".into();
         } else {
