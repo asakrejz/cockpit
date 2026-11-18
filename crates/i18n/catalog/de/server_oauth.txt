@@ -1,0 +1,18 @@
+# Messages of the sign-in with OAuth (GitHub, Atlassian)
+server_oauth.unknown_service = Unbekannter Dienst
+server_oauth.internal_error = Interner Fehler
+server_oauth.secret_missing = Das Client-Secret fehlt – trage es im Schritt „{step}“ im Feld „Client-Secret“ ein.
+server_oauth.client_missing = {service}-Anmeldung ist nicht eingerichtet – trage die Client-ID im Schritt „{step}“ im Feld „Client ID“ ein.
+server_oauth.client_missing_callback = {service}-Anmeldung ist nicht eingerichtet – trage die Client-ID im Schritt „{step}“ ein.
+server_oauth.client_rejected = {service} lehnt die Zugangsdaten ab – prüfe Client-ID und Client-Secret im Schritt „{step}“.
+server_oauth.unreachable = {service} ist nicht erreichbar
+server_oauth.service_error = {service}: {reason}
+server_oauth.declined = {service}-Anmeldung abgebrochen oder abgelehnt: {reason}
+server_oauth.no_running = Keine laufende Anmeldung – bitte in Cockpit unter „Einrichten“ auf „Mit {service} anmelden“ klicken
+server_oauth.no_code = {service} hat keinen Code geschickt
+server_oauth.tokens_not_stored = Die Tokens ließen sich nicht in der .env-Datei ablegen: {reason}
+server_oauth.site_not_stored = Die Site ließ sich nicht speichern: {reason}
+server_oauth.signed_in = Mit {service} angemeldet
+server_oauth.signed_in_site = Mit Atlassian angemeldet (Site {site})
+server_oauth.revoke_not_confirmed = Lokal getrennt, aber der Dienst hat den Widerruf nicht bestätigt ({reason}). Zugriff bitte in den Einstellungen bei {service} entziehen.
+server_oauth.revoke_atlassian = Lokal getrennt. Atlassian bietet keinen Widerruf per Aufruf – den Zugriff entziehst du unter id.atlassian.com/manage-profile/apps.

@@ -219,6 +219,9 @@ pub struct EndpointCheck {
     /// What to do next or what the cause was.
     #[serde(default)]
     pub hint: Option<String>,
+    /// The same as code and parameters, rendered in the chosen language.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub msg: Option<cockpit_i18n::Msg>,
 }
 
 /// Response to `GET /api/agent/models`: the model IDs of the endpoint (IDs only, Claude models
@@ -237,6 +240,9 @@ pub struct ModelList {
     /// Plain text if something did not work.
     #[serde(default)]
     pub hint: Option<String>,
+    /// The same as code and parameters, rendered in the chosen language.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub msg: Option<cockpit_i18n::Msg>,
 }
 
 /// The list delivers at most this many model IDs.

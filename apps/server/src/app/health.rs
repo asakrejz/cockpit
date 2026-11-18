@@ -191,9 +191,9 @@ impl AppState {
             Ok(Ok(k)) => Ok(k),
             Ok(Err(e)) => {
                 tracing::warn!("Agent endpoint key not readable: {e}");
-                Err(Box::new(error(
+                Err(Box::new(error_msg(
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "Die .env-Datei im Projektordner ist nicht lesbar",
+                    cockpit_i18n::msg!(ServerMiscEnvNotReadable),
                 )))
             }
             Err(_) => Err(Box::new(StatusCode::INTERNAL_SERVER_ERROR.into_response())),

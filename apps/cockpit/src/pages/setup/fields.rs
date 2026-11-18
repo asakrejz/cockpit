@@ -145,7 +145,7 @@ pub fn config_save(
                 }
                 if let Some(h) = answer.hint {
                     text.push(' ');
-                    text.push_str(&h);
+                    text.push_str(&server::shown(&h, answer.msg.as_ref()));
                 }
                 feedback.set(Some((true, text)));
                 ctx.reload();

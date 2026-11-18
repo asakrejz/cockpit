@@ -8,12 +8,11 @@ use super::*;
 pub(super) async fn endpoint_check(State(state): State<AppState>) -> Response {
     let choice = state.agent_choice();
     let Some(e) = choice.endpoint.clone() else {
+        let not_set_up = cockpit_i18n::msg!(ServerMiscEndpointNotSetUp);
         // Without an entry there is nothing to check (not even "direct": first the person chooses a model).
         return Json(cockpit_core::api::EndpointCheck {
-            hint: Some(
-                "Der Endpunkt ist nicht eingerichtet. Wähle im Schritt „Modell“ Anbieter, Endpunkt und Modell."
-                    .into(),
-            ),
+            hint: Some(not_set_up.de()),
+            msg: Some(not_set_up),
             ..Default::default()
         })
         .into_response();
@@ -75,7 +74,10 @@ pub(super) async fn pull_request_preview(
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Response {
     let Some(run) = q.get("run").filter(|r| !r.is_empty()) else {
-        return error(StatusCode::BAD_REQUEST, "Es fehlt der Lauf (run)");
+        return error_msg(
+            StatusCode::BAD_REQUEST,
+            cockpit_i18n::msg!(ServerMiscRunMissing),
+        );
     };
     match state.pull_request_preview(run).await {
         Ok(p) => Json(p).into_response(),
@@ -84,14 +86,14 @@ pub(super) async fn pull_request_preview(
 }
 
 pub(super) async fn api_unknown() -> (StatusCode, Json<serde_json::Value>) {
+    let msg = cockpit_i18n::msg!(ServerMiscUnknownAddress);
     (
         StatusCode::NOT_FOUND,
-        Json(serde_json::json!({ "error": "Unbekannte Adresse" })),
+        Json(serde_json::json!({
+            "error": msg.de(),
+            "msg": msg,
+        })),
     )
-}
-
-pub(crate) fn error(status: StatusCode, message: impl Into<String>) -> Response {
-    (status, Json(ErrorBody::text(message))).into_response()
 }
 
 /// Like [`error`], with the message as code and parameters (the UI shows it in its language).
@@ -113,9 +115,9 @@ pub(super) async fn workspace(State(state): State<AppState>) -> Response {
 /// changes. We read the body ourselves so that an unknown action gets a German message.
 pub(super) async fn action(State(state): State<AppState>, body: Bytes) -> Response {
     let Ok(request) = serde_json::from_slice::<ActionRequest>(&body) else {
-        return error(
+        return error_msg(
             StatusCode::BAD_REQUEST,
-            "Die Anfrage ist keine bekannte Aktion",
+            cockpit_i18n::msg!(ServerMiscActionUnknown),
         );
     };
     // Another Jira project: sync right away so that its tickets arrive. The result

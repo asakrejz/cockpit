@@ -5,3 +5,4 @@ time.ago_hours.one = vor {n} Stunde
 time.ago_hours.other = vor {n} Stunden
 time.ago_days.one = vor {n} Tag
 time.ago_days.other = vor {n} Tagen
+time.yesterday = gestern

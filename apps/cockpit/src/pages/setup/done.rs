@@ -131,8 +131,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                                 {t!(SetupDoneEnvFile)} " "
                                 <code>{datei.path}</code>
                             </p>
-                            {datei
-                                .warnings
+                            {server::shown_list(&datei.warnings, &datei.warning_msgs)
                                 .into_iter()
                                 .map(|w| {
                                     view! {
@@ -156,8 +155,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                                 {t!(SetupDoneConfigFiles)} " "
                                 <code>{ordner.path}</code>
                             </p>
-                            {ordner
-                                .warnings
+                            {server::shown_list(&ordner.warnings, &ordner.warning_msgs)
                                 .into_iter()
                                 .map(|w| {
                                     view! {
@@ -167,8 +165,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                                     }
                                 })
                                 .collect_view()}
-                            {ordner
-                                .notices
+                            {server::shown_list(&ordner.notices, &ordner.notice_msgs)
                                 .into_iter()
                                 .map(|n| {
                                     view! {

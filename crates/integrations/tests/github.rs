@@ -68,7 +68,7 @@ fn pull_becomes_an_item_with_review_request() {
     assert_eq!(item.status, TicketStatus::Review);
     assert_eq!(item.owner.name, "tobias-lang");
     assert_eq!(item.owner.initials, "TL");
-    assert_eq!(item.time, "vor 2 Std.");
+    assert_eq!(item.time, "vor 2 Stunden");
     assert_eq!(
         item.branch.as_deref(),
         Some("feature/BAU-142-avatar-tokens")
@@ -167,7 +167,7 @@ fn comments_sorted_with_own_and_line_reference() {
     );
     assert_eq!(c[3].author.name, "tobias-lang");
     assert!(!c[3].own);
-    assert_eq!(c[3].time, "vor 5 Min.");
+    assert_eq!(c[3].time, "vor 5 Minuten");
 }
 
 // ---------- Client against mock server ----------
@@ -324,6 +324,6 @@ async fn unreachable_is_a_network_error_without_key() {
 fn insecure_address_is_rejected() {
     assert!(matches!(
         GitHubClient::new("http://api.github.com", Secret::new("x")),
-        Err(Error::Config(_))
+        Err(Error::Config(_) | Error::Coded(_))
     ));
 }

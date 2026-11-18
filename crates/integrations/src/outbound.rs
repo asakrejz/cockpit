@@ -101,7 +101,14 @@ pub struct Request {
 
 /// Why an action cannot be mapped to the outside (German message).
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PlanError(pub String);
+pub struct PlanError(pub String, pub cockpit_i18n::Msg);
+
+impl PlanError {
+    /// From a message: the German text next to the code.
+    pub fn new(msg: cockpit_i18n::Msg) -> Self {
+        PlanError(msg.de(), msg)
+    }
+}
 
 impl std::fmt::Display for PlanError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -170,14 +177,12 @@ pub fn plane(
                 .repo()
                 .and_then(|r| targets.repos.iter().find(|c| c.as_str() == r));
             let Some(repo) = routed.or_else(|| targets.repos.first()) else {
-                return Err(PlanError(
-                    "Für Branches ist kein GitHub-Repo konfiguriert".into(),
-                ));
+                return Err(PlanError::new(cockpit_i18n::msg!(IntegrationsPlanNoRepo)));
             };
             let name = after
                 .item(item)
                 .and_then(|n| n.branch.clone())
-                .ok_or_else(|| PlanError("Der Branch-Name steht nicht fest".into()))?;
+                .ok_or_else(|| PlanError::new(cockpit_i18n::msg!(IntegrationsPlanNoBranchName)))?;
             Some(Outbound::GitHubBranch {
                 repo: repo.clone(),
                 name,

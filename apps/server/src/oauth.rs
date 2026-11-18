@@ -13,6 +13,7 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use cockpit_core::api::{ErrorBody, RevokeResponse};
 use cockpit_core::{AuthKind, ServiceStatus};
+use cockpit_i18n::{Msg, msg};
 use cockpit_integrations::jira::JiraClient;
 use cockpit_integrations::oauth::{
     self, App, Service, SignIns, Site, Tokens, jira_base, site_choose,
@@ -52,12 +53,9 @@ pub(crate) fn step_name(d: Service) -> &'static str {
     }
 }
 
-/// "Das Client-Secret fehlt …" – names the field in the assistant, never a terminal command.
-pub(crate) fn secret_missing(d: Service) -> String {
-    format!(
-        "Das Client-Secret fehlt – trage es im Schritt „{}“ im Feld „Client-Secret“ ein.",
-        step_name(d)
-    )
+/// "The client secret is missing …" – names the field in the assistant, never a terminal command.
+pub(crate) fn secret_missing_msg(d: Service) -> Msg {
+    msg!(ServerOauthSecretMissing, step = step_name(d))
 }
 
 /// The callback address as it is entered in the app of the service. GitHub: `127.0.0.1`,
@@ -75,15 +73,21 @@ fn now_s() -> u64 {
 }
 
 /// A message for the interface; never contains a key.
-fn service_error(d: Service, f: &Error) -> String {
+fn service_error(d: Service, f: &Error) -> Msg {
     match f {
-        Error::NotSignedIn => format!(
-            "{} lehnt die Zugangsdaten ab – prüfe Client-ID und Client-Secret im Schritt „{}“.",
-            d.name(),
-            step_name(d)
+        Error::NotSignedIn => {
+            msg!(
+                ServerOauthClientRejected,
+                service = d.name(),
+                step = step_name(d)
+            )
+        }
+        Error::Network(_) => msg!(ServerOauthUnreachable, service = d.name()),
+        other => msg!(
+            ServerOauthServiceError,
+            service = d.name(),
+            reason = other.msg()
         ),
-        Error::Network(_) => format!("{} ist nicht erreichbar", d.name()),
-        other => format!("{}: {other}", d.name()),
     }
 }
 
@@ -109,28 +113,28 @@ fn parse_service(id: &str) -> Result<Service, ()> {
 fn unknown_service() -> Response {
     (
         StatusCode::NOT_FOUND,
-        Json(ErrorBody::text("Unbekannter Dienst")),
+        Json(ErrorBody::coded(msg!(ServerOauthUnknownService))),
     )
         .into_response()
 }
 
 /// Back into the app – via the address `127.0.0.1` so that the stored mode of the browser
 /// applies, even if the service redirected to `localhost`.
-fn back(port: u16, d: Service, result: &Result<String, String>) -> Redirect {
+/// The message travels twice: as German text (`message`) and as code and parameters (`msg`,
+/// JSON), which the app shows in its language.
+fn back(port: u16, d: Service, result: &Result<Msg, Msg>) -> Redirect {
     let base = format!("http://127.0.0.1:{port}/");
-    let target = match result {
-        Ok(m) => format!(
-            "{base}?oauth=ok&service={}&message={}#/setup",
-            d.id(),
-            encoded(m)
-        ),
-        Err(m) => format!(
-            "{base}?oauth=error&service={}&message={}#/setup",
-            d.id(),
-            encoded(m)
-        ),
+    let (state, m) = match result {
+        Ok(m) => ("ok", m),
+        Err(m) => ("error", m),
     };
-    Redirect::to(&target)
+    let coded = serde_json::to_string(m).unwrap_or_default();
+    Redirect::to(&format!(
+        "{base}?oauth={state}&service={}&message={}&msg={}#/setup",
+        d.id(),
+        encoded(&m.de()),
+        encoded(&coded)
+    ))
 }
 
 /// `GET /api/oauth/{service}/start`: redirects to the sign-in of the service.
@@ -155,7 +159,11 @@ pub async fn callback(
     };
     let result = state.oauth_callback(d, &q).await;
     if let Err(m) = &result {
-        tracing::warn!("{}: sign-in failed: {m}", d.id());
+        tracing::warn!(
+            "{}: sign-in failed: {}",
+            d.id(),
+            m.render(cockpit_i18n::Lang::En)
+        );
     }
     back(state.inner.port, d, &result).into_response()
 }
@@ -167,7 +175,7 @@ pub async fn revoke(State(state): State<AppState>, Path(service): Path<String>) 
     };
     match state.oauth_revoke(d).await {
         Ok(a) => Json(a).into_response(),
-        Err(m) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorBody::text(m))).into_response(),
+        Err(m) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorBody::coded(m))).into_response(),
     }
 }
 

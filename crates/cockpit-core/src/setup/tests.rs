@@ -265,6 +265,7 @@ fn container_and_model_lines() {
         key_ok: true,
         model_present: true,
         hint: None,
+        msg: None,
     });
     assert_eq!(summary(&s)[3].tone, Tone::Good);
 }

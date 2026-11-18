@@ -88,6 +88,9 @@ pub struct RevokeResponse {
     /// What the user can do otherwise or why the service did not revoke.
     #[serde(default)]
     pub hint: Option<String>,
+    /// The same as code and parameters, rendered in the chosen language.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub msg: Option<cockpit_i18n::Msg>,
 }
 
 /// Error response (4xx/5xx) for the UI. `error` is the German sentence (for readers that only know

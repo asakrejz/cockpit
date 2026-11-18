@@ -5,6 +5,7 @@
 //! [`Problem`] of the source. The fetch itself writes nothing.
 
 use cockpit_core::{Loaded, Outcome, PrKey, PrLink, Remote, Review, Source, SourceData, Workspace};
+use cockpit_i18n::msg;
 
 use crate::Error;
 use crate::github::dto::Pull;
@@ -63,12 +64,12 @@ impl Services {
         if jira {
             match &self.jira {
                 Some(j) => j.client.execute(a).await,
-                None => Err(Error::Config("Jira ist nicht eingerichtet".into())),
+                None => Err(Error::Coded(msg!(IntegrationsJiraNotSetUp))),
             }
         } else {
             match &self.github {
                 Some(g) => g.client.execute(a).await,
-                None => Err(Error::Config("GitHub ist nicht eingerichtet".into())),
+                None => Err(Error::Coded(msg!(IntegrationsGithubNotSetUp))),
             }
         }
     }

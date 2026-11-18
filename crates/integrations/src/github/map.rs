@@ -4,6 +4,7 @@ use cockpit_core::{
     Checks, Comment, FileDiff, Item, Kind, Person, PrRef, ReasonKind, Review, Scope, Source,
     TicketStatus, Verdict,
 };
+use cockpit_i18n::Lang;
 
 use super::Relation;
 use super::dto::{CheckRun, IssueComment, Pull, PullFile, PullReview, ReviewComment};
@@ -116,7 +117,7 @@ pub fn pull_to_item_for(
         description_rich: None,
         reason,
         reason_text,
-        time: time::relative(&pull.updated_at, now),
+        time: time::relative(&pull.updated_at, now, Lang::De),
         scope: if relation.mine() {
             Scope::Mine
         } else {
@@ -245,7 +246,7 @@ pub fn comments_with_reviews(
             sorting,
             Comment {
                 author,
-                time: time::relative(time_iso, now),
+                time: time::relative(time_iso, now, Lang::De),
                 text: if own { body } else { mention_for(&body, me) },
                 rich: None,
                 own,

@@ -180,7 +180,9 @@ async fn start() -> Result<(), String> {
         app::Settings::from_config(&config),
     );
     // Take over addresses and accounts from the configuration into the database (without keys).
-    state.connections_adopt(&config)?;
+    state
+        .connections_adopt(&config)
+        .map_err(|m| m.render(cockpit_i18n::Lang::En))?;
     let router = app::router(state.clone(), config.dist.clone());
 
     // Only reachable locally – deliberately not configurable.

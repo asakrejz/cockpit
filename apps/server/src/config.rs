@@ -95,6 +95,7 @@ use std::path::{Path, PathBuf};
 
 use cockpit_core::api::Provider;
 use cockpit_core::{AgentRepo, is_project_key};
+use cockpit_i18n::{Msg, msg};
 use serde::Deserialize;
 
 mod file;
@@ -187,8 +188,9 @@ impl Seed {
         match text.trim().to_lowercase().as_str() {
             "" | "empty" | "leer" => Ok(Seed::Empty),
             "demo" => Ok(Seed::Demo),
-            other => Err(ConfigError::Wert(format!(
-                "seed „{other}“ ist unbekannt, erlaubt sind empty und demo"
+            other => Err(ConfigError::Wert(msg!(
+                ServerConfigSeedUnknown,
+                value = other
             ))),
         }
     }
@@ -270,8 +272,10 @@ impl Config {
         }
         if let Some(i) = d.interval_s {
             if i < MIN_INTERVAL_S {
-                return Err(ConfigError::Wert(format!(
-                    "interval_s = {i} ist zu kurz, mindestens {MIN_INTERVAL_S} Sekunden"
+                return Err(ConfigError::Wert(msg!(
+                    ServerConfigIntervalShort,
+                    interval = i,
+                    min = MIN_INTERVAL_S
                 )));
             }
             c.interval_s = i;
@@ -279,8 +283,9 @@ impl Config {
         if let Some(g) = d.github {
             for r in &g.repos {
                 if !repo_valid(r) {
-                    return Err(ConfigError::Wert(format!(
-                        "GitHub-Repo „{r}“ ist nicht von der Form owner/name"
+                    return Err(ConfigError::Wert(msg!(
+                        ServerConfigGithubRepoForm,
+                        repo = r
                     )));
                 }
             }
@@ -292,8 +297,9 @@ impl Config {
         let client_id = |wer: &str, id: String| {
             let id = id.trim().to_string();
             if id.is_empty() || id.chars().any(char::is_whitespace) {
-                Err(ConfigError::Wert(format!(
-                    "{wer}: client_id fehlt oder enthält Leerzeichen"
+                Err(ConfigError::Wert(msg!(
+                    ServerConfigClientIdInvalid,
+                    who = wer
                 )))
             } else {
                 Ok(id)
@@ -324,15 +330,13 @@ impl Config {
         });
         if let Some(j) = jira {
             if c.atlassian.is_none() && (j.site.trim().is_empty() || j.email.trim().is_empty()) {
-                return Err(ConfigError::Wert(
-                    "[jira] braucht site und email – oder [atlassian] für die Anmeldung per OAuth"
-                        .into(),
-                ));
+                return Err(ConfigError::Wert(msg!(ServerConfigJiraNeedsSite)));
             }
             for p in &j.projects {
                 if cockpit_integrations::jira::jql_for(std::slice::from_ref(p), None).is_err() {
-                    return Err(ConfigError::Wert(format!(
-                        "Jira-Projekt „{p}“ ist kein gültiger Schlüssel"
+                    return Err(ConfigError::Wert(msg!(
+                        ServerConfigJiraProjectInvalid,
+                        project = p
                     )));
                 }
             }
@@ -352,10 +356,7 @@ impl Config {
         if let Some(a) = d.agent {
             if let Some(text) = a.provider {
                 c.provider = Provider::from_id(&text).ok_or_else(|| {
-                    ConfigError::Wert(format!(
-                        "[agent] provider „{}“ ist unbekannt, erlaubt sind claude-agent-sdk, claude-code und codex",
-                        text.trim()
-                    ))
+                    ConfigError::Wert(msg!(ServerConfigProviderUnknown, provider = text.trim()))
                 })?;
             }
             if let Some(e) = a.endpoint {
@@ -369,9 +370,7 @@ impl Config {
             if let Some(r) = &c.agent_repo
                 && !crate::agent_git::repo_name_ok(r)
             {
-                return Err(ConfigError::Wert(format!(
-                    "[agent] repo „{r}“ muss die Form owner/name haben"
-                )));
+                return Err(ConfigError::Wert(msg!(ServerConfigAgentRepoForm, repo = r)));
             }
             c.agent_repos = agent_repos_read(&a.repos)?;
             c.agent_dir = a.dir;
@@ -402,8 +401,9 @@ impl Config {
                             !rest.is_empty() && !rest.contains(char::is_whitespace)
                         });
                     if !valid {
-                        return Err(ConfigError::Wert(format!(
-                            "{wo} url muss mit http:// oder https:// beginnen, z. B. http://localhost:4000"
+                        return Err(ConfigError::Wert(msg!(
+                            ServerConfigEndpointUrlScheme,
+                            place = wo
                         )));
                     }
                     Some(u)
@@ -433,8 +433,11 @@ impl Config {
                 if let Some(n) = value
                     && !(1..=MAX_PRS_LIMIT).contains(&n)
                 {
-                    return Err(ConfigError::Wert(format!(
-                        "[sync] {name} = {n} muss zwischen 1 und {MAX_PRS_LIMIT} liegen"
+                    return Err(ConfigError::Wert(msg!(
+                        ServerConfigSyncLimit,
+                        name = name,
+                        value = n,
+                        max = MAX_PRS_LIMIT
                     )));
                 }
             }
@@ -447,9 +450,11 @@ impl Config {
         }
         if let Some(i) = d.sync.and_then(|s| s.webhook_fallback_interval_s) {
             if !(c.interval_s..=WEBHOOK_FALLBACK_LIMIT_S).contains(&i) {
-                return Err(ConfigError::Wert(format!(
-                    "[sync] webhook_fallback_interval_s = {i} muss zwischen interval_s ({}) und {WEBHOOK_FALLBACK_LIMIT_S} liegen",
-                    c.interval_s
+                return Err(ConfigError::Wert(msg!(
+                    ServerConfigWebhookFallbackRange,
+                    value = i,
+                    interval = c.interval_s,
+                    max = WEBHOOK_FALLBACK_LIMIT_S
                 )));
             }
             c.webhook_fallback_interval_s = Some(i);
@@ -471,13 +476,12 @@ impl Config {
             c.container_env = Some(runtime(&p)?);
         }
         if let Some(p) = env("COCKPIT_DEV_PORT").filter(|s| !s.trim().is_empty()) {
-            let nr: u16 = p.trim().parse().map_err(|_| {
-                ConfigError::Wert(format!("COCKPIT_DEV_PORT={p} ist keine Portnummer"))
-            })?;
+            let nr: u16 = p
+                .trim()
+                .parse()
+                .map_err(|_| ConfigError::Wert(msg!(ServerConfigDevPortInvalid, value = &p)))?;
             if nr == 0 {
-                return Err(ConfigError::Wert(
-                    "COCKPIT_DEV_PORT 0 ist nicht erlaubt".into(),
-                ));
+                return Err(ConfigError::Wert(msg!(ServerConfigDevPortZero)));
             }
             c.dev_port = Some(nr);
         }
@@ -485,7 +489,7 @@ impl Config {
             c.port = p
                 .trim()
                 .parse()
-                .map_err(|_| ConfigError::Wert(format!("COCKPIT_PORT={p} ist keine Portnummer")))?;
+                .map_err(|_| ConfigError::Wert(msg!(ServerConfigPortInvalid, value = &p)))?;
         }
         if let Some(p) = env("COCKPIT_DIST").filter(|s| !s.is_empty()) {
             c.dist = p.into();
@@ -494,7 +498,7 @@ impl Config {
             c.db = p.into();
         }
         if c.port == 0 {
-            return Err(ConfigError::Wert("Port 0 ist nicht erlaubt".into()));
+            return Err(ConfigError::Wert(msg!(ServerConfigPortZero)));
         }
         Ok(c)
     }
@@ -504,8 +508,8 @@ impl Config {
     pub fn load() -> Result<Self, ConfigError> {
         let env = |k: &str| std::env::var(k).ok();
         let project = location::project_dir();
-        let notes =
-            location::prepare(&project, &env, location::is_macos()).map_err(ConfigError::Wert)?;
+        let notes = location::prepare(&project, &env, location::is_macos())
+            .map_err(|m| ConfigError::Wert(cockpit_i18n::Msg::raw(m)))?;
         for n in notes {
             tracing::info!("{n}");
         }

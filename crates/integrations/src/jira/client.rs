@@ -1,6 +1,7 @@
 //! Reading client for Jira Cloud (REST v3).
 
 use cockpit_core::Item;
+use cockpit_i18n::msg;
 
 use serde::de::DeserializeOwned;
 
@@ -35,7 +36,10 @@ pub fn jql_for(projects: &[String], own: Option<&str>) -> Result<String, Error> 
     }
     for p in projects {
         if !cockpit_core::is_project_key(p) {
-            return Err(Error::Config(format!("Ungültiger Projektschlüssel: {p}")));
+            return Err(Error::Coded(msg!(
+                IntegrationsJiraBadProjectKey,
+                project = p
+            )));
         }
     }
     Ok(format!(
@@ -47,8 +51,9 @@ pub fn jql_for(projects: &[String], own: Option<&str>) -> Result<String, Error> 
 /// The tickets of the active sprint of a project. Applies when a project is chosen in the app.
 pub fn jql_for_project(project: &str) -> Result<String, Error> {
     if !cockpit_core::is_project_key(project) {
-        return Err(Error::Config(format!(
-            "Ungültiger Projektschlüssel: {project}"
+        return Err(Error::Coded(msg!(
+            IntegrationsJiraBadProjectKey,
+            project = project
         )));
     }
     Ok(format!("project = {project} AND {SPRINT_CLAUSE} {ORDER}"))
@@ -94,7 +99,10 @@ pub fn jql_for_selection(
     let keys = keys.as_deref().unwrap_or(projects);
     for p in keys {
         if !cockpit_core::is_project_key(p) {
-            return Err(Error::Config(format!("Ungültiger Projektschlüssel: {p}")));
+            return Err(Error::Coded(msg!(
+                IntegrationsJiraBadProjectKey,
+                project = p
+            )));
         }
     }
     let mut clauses = Vec::new();
@@ -363,7 +371,7 @@ impl JiraClient {
             Outbound::JiraStatus { key, status } => self.status_set(key, *status).await,
             other => match other.request() {
                 Some(request) => self.send(&request).await.map(|_| ()),
-                None => Err(Error::Config("Kein Jira-Aufruf".into())),
+                None => Err(Error::Config("not a Jira call".into())),
             },
         }
     }
@@ -378,9 +386,7 @@ impl JiraClient {
                 .iter()
                 .find(|(id, _)| *id == target.id())
                 .map_or("", |(_, l)| l);
-            Error::NotPossible(format!(
-                "Jira bietet für {key} keine Transition nach „{name}“ an"
-            ))
+            Error::Coded(msg!(IntegrationsJiraNoTransition, key = key, name = name))
         })?;
         self.send(&transition_request(key, &transition.id))
             .await

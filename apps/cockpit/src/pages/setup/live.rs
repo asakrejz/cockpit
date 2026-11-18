@@ -71,7 +71,7 @@ fn SourceSection(
         back.set(None);
         spawn_local(async move {
             match server::post_webhook_test(id).await {
-                Ok(a) => back.set(Some((a.ok, a.message))),
+                Ok(a) => back.set(Some((a.ok, server::shown(&a.message, a.msg.as_ref())))),
                 Err(e) => back.set(Some((false, error_text(&e)))),
             }
             ctx.reload();

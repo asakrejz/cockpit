@@ -23,6 +23,15 @@ pub fn parse(search: &str) -> Option<(bool, String)> {
     ok.map(|ok| (ok, message))
 }
 
+/// The message as code and parameters (`msg`, JSON), if the backend sent one.
+pub fn parse_msg(search: &str) -> Option<cockpit_i18n::Msg> {
+    search
+        .trim_start_matches('?')
+        .split('&')
+        .find_map(|pair| pair.strip_prefix("msg="))
+        .and_then(|value| serde_json::from_str(&decode(value)).ok())
+}
+
 /// Undo percent encoding (UTF-8). Unreadable parts stay as they are.
 fn decode(value: &str) -> String {
     let bytes = value.as_bytes();
@@ -60,7 +69,9 @@ pub fn announce(store: Store) {
     let Some((ok, message)) = parse(&search) else {
         return;
     };
-    let message = if !message.is_empty() {
+    let message = if let Some(coded) = parse_msg(&search) {
+        coded.render(feature_ui::lang_untracked())
+    } else if !message.is_empty() {
         message
     } else if ok {
         t!(OauthSignedIn)

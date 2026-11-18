@@ -5,6 +5,7 @@
 //! Git is asked through the `git` program; without it (or outside a repository) the checks are
 //! skipped silently. Nothing here reads the file's content.
 
+use cockpit_i18n::{Msg, msg};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
@@ -17,40 +18,52 @@ const CACHE_TTL: Duration = Duration::from_secs(15);
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct EnvFileStatus {
     pub path: String,
+    /// German text of the warnings (for readers that only know plain text).
     pub warnings: Vec<String>,
+    /// The same warnings as code and parameters; the interface shows them in its language.
+    pub warning_msgs: Vec<Msg>,
 }
 
 /// Checks the file without changing anything (cached for a few seconds).
 pub fn status(path: &Path) -> EnvFileStatus {
-    static CACHE: Mutex<Option<(std::path::PathBuf, Instant, Vec<String>)>> = Mutex::new(None);
+    static CACHE: Mutex<Option<(std::path::PathBuf, Instant, Vec<Msg>)>> = Mutex::new(None);
     let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
     if let Some((p, at, w)) = cache.as_ref()
         && p == path
         && at.elapsed() < CACHE_TTL
     {
-        return EnvFileStatus {
-            path: path.display().to_string(),
-            warnings: w.clone(),
-        };
+        return status_of(path, w.clone());
     }
-    let warnings = check(path);
+    let warnings = check_msgs(path);
     *cache = Some((path.to_path_buf(), Instant::now(), warnings.clone()));
+    status_of(path, warnings)
+}
+
+fn status_of(path: &Path, warning_msgs: Vec<Msg>) -> EnvFileStatus {
     EnvFileStatus {
         path: path.display().to_string(),
-        warnings,
+        warnings: warning_msgs.iter().map(Msg::de).collect(),
+        warning_msgs,
     }
 }
 
-/// All warnings for the file at `path`; changes nothing.
+/// All warnings for the file at `path` in German; changes nothing.
+#[cfg(test)]
 pub fn check(path: &Path) -> Vec<String> {
+    check_msgs(path).iter().map(Msg::de).collect()
+}
+
+/// All warnings for the file at `path` as messages; changes nothing.
+pub fn check_msgs(path: &Path) -> Vec<Msg> {
     let mut warnings = Vec::new();
     if let Some(mode) = loose_mode(path) {
-        warnings.push(format!(
-            "Die Datei {} ist für andere Benutzer lesbar (Rechte {mode:o}). Sie sollte nur dir gehören (600); beim nächsten Start des Servers wird das korrigiert.",
-            path.display()
+        warnings.push(msg!(
+            ServerConfigEnvLoose,
+            path = path.display().to_string(),
+            mode = format!("{mode:o}")
         ));
     }
-    warnings.extend(git_warnings(path));
+    warnings.extend(git_messages(path));
     warnings
 }
 
@@ -70,7 +83,7 @@ pub fn check_and_fix(path: &Path) -> Vec<String> {
             )),
         }
     }
-    notes.extend(git_warnings_in(path, Language::English));
+    notes.extend(git_findings(path).iter().map(Finding::english));
     notes
 }
 
@@ -115,18 +128,47 @@ fn git(dir: &Path, args: &[&str]) -> Option<(bool, i32, String)> {
     ))
 }
 
-/// Language of a warning: German for the web app, English for the terminal at startup.
-#[derive(Clone, Copy)]
-enum Language {
-    German,
-    English,
+/// What is wrong with the file in Git terms.
+enum Finding {
+    Tracked { shown: String, name: String },
+    NotIgnored { shown: String, name: String },
 }
 
+impl Finding {
+    fn msg(&self) -> Msg {
+        match self {
+            Finding::Tracked { shown, name } => {
+                msg!(ServerConfigEnvTracked, file = shown, name = name)
+            }
+            Finding::NotIgnored { shown, name } => {
+                msg!(ServerConfigEnvNotIgnored, file = shown, name = name)
+            }
+        }
+    }
+
+    /// The line for the terminal at startup.
+    fn english(&self) -> String {
+        match self {
+            Finding::Tracked { shown, name } => format!(
+                "File {shown} is tracked by Git. A commit would publish your credentials. Remove it with `git rm --cached {name}`, never commit it, and replace the keys in it if it was ever committed."
+            ),
+            Finding::NotIgnored { shown, name } => format!(
+                "File {shown} is not protected by .gitignore. Add `{name}` to .gitignore so it is never committed by accident."
+            ),
+        }
+    }
+}
+
+#[cfg(test)]
 fn git_warnings(path: &Path) -> Vec<String> {
-    git_warnings_in(path, Language::German)
+    git_messages(path).iter().map(Msg::de).collect()
 }
 
-fn git_warnings_in(path: &Path, language: Language) -> Vec<String> {
+fn git_messages(path: &Path) -> Vec<Msg> {
+    git_findings(path).iter().map(Finding::msg).collect()
+}
+
+fn git_findings(path: &Path) -> Vec<Finding> {
     let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
         return Vec::new();
     };
@@ -139,28 +181,15 @@ fn git_warnings_in(path: &Path, language: Language) -> Vec<String> {
         Some((true, _, out)) if out == "true" => {}
         _ => return Vec::new(),
     }
-    let shown = path.display();
+    let shown = path.display().to_string();
+    let name = name.to_string();
     // Tracked: a commit would publish the keys.
-    if let Some((true, _, _)) = git(dir, &["ls-files", "--error-unmatch", "--", name]) {
-        return vec![match language {
-            Language::English => format!(
-                "File {shown} is tracked by Git. A commit would publish your credentials. Remove it with `git rm --cached {name}`, never commit it, and replace the keys in it if it was ever committed."
-            ),
-            Language::German => format!(
-                "Die Datei {shown} wird von Git verfolgt. Ein Commit würde deine Zugangsdaten veröffentlichen. Entferne sie mit „git rm --cached {name}“, committe sie nie und tausche die darin liegenden Schlüssel aus, falls sie schon einmal committet wurden."
-            ),
-        }];
+    if let Some((true, _, _)) = git(dir, &["ls-files", "--error-unmatch", "--", &name]) {
+        return vec![Finding::Tracked { shown, name }];
     }
     // Exit code 1: not ignored (0: ignored, 128: error – then say nothing).
-    if let Some((false, 1, _)) = git(dir, &["check-ignore", "-q", "--", name]) {
-        return vec![match language {
-            Language::English => format!(
-                "File {shown} is not protected by .gitignore. Add `{name}` to .gitignore so it is never committed by accident."
-            ),
-            Language::German => format!(
-                "Die Datei {shown} ist nicht durch .gitignore geschützt. Trage „{name}“ in die .gitignore ein, damit sie nie versehentlich committet wird."
-            ),
-        }];
+    if let Some((false, 1, _)) = git(dir, &["check-ignore", "-q", "--", &name]) {
+        return vec![Finding::NotIgnored { shown, name }];
     }
     Vec::new()
 }

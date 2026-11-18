@@ -71,7 +71,7 @@ pub fn BranchPatternField(
                         <div role="status">
                             <p class="ui-hint">
                                 {s.source.as_ref().map(|f| t!(SetupBranchFromFile, file = f) + " ").unwrap_or_default()}
-                                {s.message.clone()}
+                                {server::shown(&s.message, s.msg.as_ref())}
                             </p>
                             {proposed
                                 .map(|p| {

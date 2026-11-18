@@ -27,15 +27,16 @@ use cockpit_core::api::{
     RepoCheck, RepoCheckRequest, RepoCheckResponse, RepoState, Setup,
 };
 use cockpit_core::setup::{
-    KEY_NAMES, client_id_read, endpoint_url_read, jira_check_text, jira_site_read, key_deletable,
-    key_name_allowed, key_verify, projects_read, repos_read,
+    KEY_NAMES, client_id_read, endpoint_url_read, jira_site_read, key_deletable, key_name_allowed,
+    key_verify, projects_read, repos_read,
 };
+use cockpit_i18n::{Msg, msg};
 use cockpit_integrations::jira::JiraClient;
 use cockpit_integrations::oauth::Service;
 use cockpit_integrations::{Error, Secret};
 use toml_edit::{Array, DocumentMut, Item, Table, value};
 
-use crate::app::{AppState, error};
+use crate::app::{AppState, error_msg};
 use crate::config::{Config, ConfigError};
 use crate::db;
 use crate::oauth::redirect_uri;
@@ -50,40 +51,42 @@ pub use checks::*;
 mod github;
 pub use github::*;
 
+mod messages;
+use messages::{github_cause_msg, jira_cause_msg};
+
 impl AppState {
     /// Takes over the addresses and accounts from the configuration into the database (without keys).
     /// Blockierend.
-    pub(crate) fn connections_adopt(&self, config: &Config) -> Result<(), String> {
+    pub(crate) fn connections_adopt(&self, config: &Config) -> Result<(), Msg> {
         let conn = self
             .inner
             .db
             .lock()
-            .map_err(|_| "Datenbank gesperrt".to_string())?;
+            .map_err(|_| msg!(ServerSetupDbLocked))?;
         if let Some(g) = &config.github {
             db::connection_set(&conn, secrets::GITHUB, &g.api_url, None)
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| Msg::raw(e.to_string()))?;
         }
         // With OAuth Jira has no address of its own; the sign-in chooses the site.
         if let Some(j) = config.jira.as_ref().filter(|j| !j.site.is_empty()) {
             db::connection_set(&conn, secrets::JIRA, &j.site, Some(&j.email))
-                .map_err(|e| e.to_string())?;
+                .map_err(|e| Msg::raw(e.to_string()))?;
         }
         Ok(())
     }
 
     /// Changes `config.toml` and applies the result. Blocking.
-    fn config_change(&self, a: &ConfigChange) -> Result<ConfigResponse, (StatusCode, String)> {
+    fn config_change(&self, a: &ConfigChange) -> Result<ConfigResponse, (StatusCode, Msg)> {
         let Some(path) = self.inner.settings.config_path.clone() else {
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Dieser Rechner hat keinen Ort für die Konfigurationsdatei. Setze COCKPIT_CONFIG auf einen Dateipfad."
-                    .into(),
+                msg!(ServerSetupNoConfigPath),
             ));
         };
         let _lock = self.inner.config_lock.lock().map_err(|_| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Interner Fehler".to_string(),
+                msg!(ServerSetupInternalError),
             )
         })?;
         let alt = match std::fs::read_to_string(&path) {
@@ -93,7 +96,10 @@ impl AppState {
                 tracing::warn!("config.toml not readable: {e}");
                 return Err((
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!("Die Datei {} lässt sich nicht lesen.", path.display()),
+                    msg!(
+                        ServerSetupConfigUnreadable,
+                        path = path.display().to_string()
+                    ),
                 ));
             }
         };
@@ -105,10 +111,10 @@ impl AppState {
                 tracing::warn!("config.toml not written: {e}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    format!(
-                        "Die Datei {} lässt sich nicht schreiben ({}).",
-                        path.display(),
-                        e.kind()
+                    msg!(
+                        ServerSetupConfigUnwritable,
+                        path = path.display().to_string(),
+                        kind = e.kind().to_string()
                     ),
                 )
             })?;
@@ -126,14 +132,13 @@ impl AppState {
         let id_new_g = config.github_oauth.as_ref().map(|o| &o.client_id);
         let id_alt_a = before.atlassian.as_ref().map(|o| &o.client_id);
         let id_new_a = config.atlassian.as_ref().map(|o| &o.client_id);
-        let hint = (other_app(id_alt_g, id_new_g) || other_app(id_alt_a, id_new_a)).then(|| {
-            "Du hast die Client-ID einer App geändert. Melde dich danach neu an, damit die Anmeldung zur neuen App gehört."
-                .to_string()
-        });
+        let hint = (other_app(id_alt_g, id_new_g) || other_app(id_alt_a, id_new_a))
+            .then(|| msg!(ServerSetupClientIdChanged));
         Ok(ConfigResponse {
             stored: true,
             takes_effect_immediately: true,
-            hint,
+            hint: hint.as_ref().map(Msg::de),
+            msg: hint,
         })
     }
 
@@ -193,11 +198,11 @@ pub async fn read(State(state): State<AppState>) -> Response {
 /// `PUT /api/config`.
 pub async fn config(State(state): State<AppState>, body: Bytes) -> Response {
     let Ok(a) = serde_json::from_slice::<ConfigChange>(&body) else {
-        return error(StatusCode::BAD_REQUEST, "Die Eingaben sind nicht lesbar");
+        return error_msg(StatusCode::BAD_REQUEST, msg!(ServerSetupInputsUnreadable));
     };
     match tokio::task::spawn_blocking(move || state.config_change(&a)).await {
         Ok(Ok(answer)) => Json(answer).into_response(),
-        Ok(Err((status, message))) => error(status, message),
+        Ok(Err((status, message))) => error_msg(status, message),
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }
@@ -210,17 +215,17 @@ pub async fn key(
     body: Bytes,
 ) -> Response {
     if !key_name_allowed(&name) {
-        return error(
+        return error_msg(
             StatusCode::NOT_FOUND,
-            format!("Einen Schlüssel „{name}“ gibt es nicht"),
+            msg!(ServerSetupKeyUnknown, name = &name),
         );
     }
     let Ok(input) = serde_json::from_slice::<KeyInput>(&body) else {
-        return error(StatusCode::BAD_REQUEST, "Die Eingabe ist nicht lesbar");
+        return error_msg(StatusCode::BAD_REQUEST, msg!(ServerSetupInputUnreadable));
     };
     let value = match key_verify(&input.value) {
         Ok(w) => w,
-        Err(m) => return error(StatusCode::UNPROCESSABLE_ENTITY, m),
+        Err(m) => return error_msg(StatusCode::UNPROCESSABLE_ENTITY, m),
     };
     let secrets = state.inner.secrets.clone();
     let n = name.clone();
@@ -232,9 +237,9 @@ pub async fn key(
         }
         Ok(Err(e)) => {
             tracing::warn!("Key for {name} not stored: {e}");
-            error(
+            error_msg(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Die .env-Datei im Projektordner ließ sich nicht beschreiben. Prüfe die Rechte von Ordner und Datei.",
+                msg!(ServerSetupEnvNotWritable),
             )
         }
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
@@ -245,9 +250,9 @@ pub async fn key(
 /// `jira` and `github` are allowed; a key that does not exist is no error.
 pub async fn key_delete(State(state): State<AppState>, UrlPath(name): UrlPath<String>) -> Response {
     if !key_deletable(&name) {
-        return error(
+        return error_msg(
             StatusCode::NOT_FOUND,
-            format!("Einen löschbaren Schlüssel „{name}“ gibt es nicht"),
+            msg!(ServerSetupKeyNotDeletable, name = &name),
         );
     }
     let secrets = state.inner.secrets.clone();
@@ -259,9 +264,9 @@ pub async fn key_delete(State(state): State<AppState>, UrlPath(name): UrlPath<St
         }
         Ok(Err(e)) => {
             tracing::warn!("Key for {name} not deleted: {e}");
-            error(
+            error_msg(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Die .env-Datei im Projektordner ließ sich nicht beschreiben. Prüfe die Rechte von Ordner und Datei.",
+                msg!(ServerSetupEnvNotWritable),
             )
         }
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
