@@ -10,6 +10,7 @@ fn state(problem: Option<Problem>) -> SourceState {
         last_try_ms: NOW,
         since_ms: Some(NOW - 60_000),
         warnings: Vec::new(),
+        warning_msgs: Vec::new(),
     }
 }
 

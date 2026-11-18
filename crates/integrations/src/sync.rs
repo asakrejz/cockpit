@@ -169,9 +169,10 @@ pub async fn github_load(
     let mut left = limits.total;
     for repo in repos {
         if left == 0 {
-            out.warnings.push(format!(
-                "{repo}: nicht geladen – Nur die ersten {} PRs insgesamt",
-                limits.total
+            out.warn(msg!(
+                IntegrationsSyncNotLoaded,
+                repo = repo,
+                n = limits.total
             ));
             continue;
         }
@@ -179,13 +180,19 @@ pub async fn github_load(
         match client.pulls_open(repo, max).await {
             Ok(page) => {
                 if page.truncated {
-                    let which = if max < limits.per_repo {
-                        format!("{} PRs insgesamt", limits.total)
+                    out.warn(if max < limits.per_repo {
+                        msg!(
+                            IntegrationsSyncTruncatedTotal,
+                            repo = repo,
+                            n = limits.total
+                        )
                     } else {
-                        format!("{} PRs je Repo", limits.per_repo)
-                    };
-                    out.warnings
-                        .push(format!("{repo}: Nur die ersten {which} geladen"));
+                        msg!(
+                            IntegrationsSyncTruncatedPerRepo,
+                            repo = repo,
+                            n = limits.per_repo
+                        )
+                    });
                 }
                 left -= page.pulls.len();
                 for pull in page.pulls {
@@ -194,10 +201,16 @@ pub async fn github_load(
                 }
             }
             Err(e) if all_repos(&e) => return Err(e),
-            Err(e) if only_hint(&e) => out.warnings.push(format!("{repo}: {e}")),
+            Err(e) if only_hint(&e) => out.warn(msg!(
+                IntegrationsSyncRepoHint,
+                repo = repo,
+                error = e.to_string()
+            )),
             Err(e) => {
-                out.warnings.push(format!(
-                    "{repo}: {e} – der Stand vom letzten Abgleich bleibt"
+                out.warn(msg!(
+                    IntegrationsSyncRepoStale,
+                    repo = repo,
+                    error = e.to_string()
                 ));
                 carry_over(known, repo, |_| true, &mut out, &mut taken);
             }
@@ -223,8 +236,11 @@ pub async fn github_load(
             Err(Error::NotFound) => {}
             Err(e) if all_repos(&e) => return Err(e),
             Err(e) => {
-                out.warnings.push(format!(
-                    "{repo}#{nr}: {e} – der Stand vom letzten Abgleich bleibt"
+                out.warn(msg!(
+                    IntegrationsSyncPrStale,
+                    repo = &repo,
+                    number = nr,
+                    error = e.to_string()
                 ));
                 taken.retain(|(r, n)| !(*r == repo && *n == nr));
                 carry_over(known, &repo, |n| n == nr, &mut out, &mut taken);
@@ -309,8 +325,10 @@ pub async fn jira_load(
         Ok(f) => f,
         Err(e @ (Error::RateLimit { .. } | Error::NotSignedIn)) => return Err(e),
         Err(e) => {
-            out.warnings
-                .push(format!("Sprint-Feld nicht ermittelt: {e}"));
+            out.warn(msg!(
+                IntegrationsSyncSprintFieldFailed,
+                error = e.to_string()
+            ));
             None
         }
     };
@@ -331,14 +349,11 @@ pub async fn jira_load(
                             .is_some_and(|v| jira::sprint_of(v).is_some())
                     })
                 });
-                out.warnings.push(
-                    if any_sprint {
-                        "Kein aktiver Sprint – zeige alle offenen Tickets"
-                    } else {
-                        "Dieses Projekt hat keine Sprints – zeige alle offenen Tickets"
-                    }
-                    .into(),
-                );
+                out.warn(if any_sprint {
+                    msg!(IntegrationsSyncNoActiveSprint)
+                } else {
+                    msg!(IntegrationsSyncNoSprints)
+                });
             }
             all
         }
@@ -348,8 +363,7 @@ pub async fn jira_load(
             if m.is_empty() || m.to_lowercase().contains("sprint") =>
         {
             used_fallback = true;
-            out.warnings
-                .push("Dieses Projekt hat keine Sprints – zeige alle offenen Tickets".into());
+            out.warn(msg!(IntegrationsSyncNoSprints));
             client.search_with_sprint(open, field).await?
         }
         (Err(e), _) => return Err(e),

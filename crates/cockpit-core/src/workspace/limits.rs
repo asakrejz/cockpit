@@ -79,7 +79,7 @@ impl Workspace {
         }
         self.limits = limits;
         self.runs[idx] = run;
-        self.set_agent_note(ticket_key, "Der Agent arbeitet an der Umsetzung");
+        self.set_agent_note(ticket_key, cockpit_i18n::msg!(CoreWorkspaceAgentWorking));
         Ok(reason)
     }
 

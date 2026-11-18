@@ -337,6 +337,9 @@ pub struct Review {
     pub title: String,
     #[serde(default)]
     pub description: String,
+    /// The description as code and parameters (pull requests the agent opens); `None` = only the text.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description_msg: Option<cockpit_i18n::Msg>,
     pub author: Person,
     #[serde(default)]
     pub branch: String,

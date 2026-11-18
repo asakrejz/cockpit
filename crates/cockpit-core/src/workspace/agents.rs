@@ -1,3 +1,5 @@
+use cockpit_i18n::msg;
+
 use super::*;
 
 impl Workspace {
@@ -63,10 +65,10 @@ impl Workspace {
         if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket_key) {
             // If the agent is still waiting for approval, the ticket stays unchanged.
             if waiting {
-                item.agent_note = Some("Der Agent wartet auf die Freigabe seines Plans".into());
+                item.set_note(msg!(CoreWorkspaceAgentWaitingPlan));
             } else {
                 item.status = TicketStatus::InProgress;
-                item.agent_note = Some("Der Agent arbeitet an der Umsetzung".into());
+                item.set_note(msg!(CoreWorkspaceAgentWorking));
             }
         }
         Ok(())
@@ -90,7 +92,7 @@ impl Workspace {
 
     pub(super) fn clear_agent_note(&mut self, key: &str) {
         if let Some(item) = self.run_item_mut(key) {
-            item.agent_note = None;
+            item.clear_note();
         }
     }
 
@@ -153,7 +155,7 @@ impl Workspace {
             if !followup {
                 item.status = TicketStatus::InProgress;
             }
-            item.agent_note = Some("Der Agent arbeitet an der Umsetzung".into());
+            item.set_note(msg!(CoreWorkspaceAgentWorking));
         }
         true
     }
@@ -177,9 +179,9 @@ impl Workspace {
             .is_some_and(|r| r.revise(note))
     }
 
-    pub(super) fn set_agent_note(&mut self, key: &str, note: &str) {
+    pub(super) fn set_agent_note(&mut self, key: &str, note: cockpit_i18n::Msg) {
         if let Some(item) = self.run_item_mut(key) {
-            item.agent_note = Some(note.into());
+            item.set_note(note);
         }
     }
 
@@ -191,7 +193,7 @@ impl Workspace {
         {
             return false;
         }
-        self.set_agent_note(ticket_key, "Der Agent arbeitet an der Umsetzung");
+        self.set_agent_note(ticket_key, msg!(CoreWorkspaceAgentWorking));
         true
     }
 
@@ -206,7 +208,7 @@ impl Workspace {
         if !self.active_run_mut(ticket_key).is_some_and(AgentRun::pause) {
             return false;
         }
-        self.set_agent_note(ticket_key, "Der Agent ist pausiert");
+        self.set_agent_note(ticket_key, msg!(CoreWorkspaceAgentPaused));
         true
     }
 
@@ -218,7 +220,7 @@ impl Workspace {
         {
             return false;
         }
-        self.set_agent_note(ticket_key, "Der Agent arbeitet an der Umsetzung");
+        self.set_agent_note(ticket_key, msg!(CoreWorkspaceAgentWorking));
         true
     }
 
@@ -264,12 +266,12 @@ impl Workspace {
             if let Some(reason) = reason {
                 self.set_agent_note(
                     key,
-                    &format!("Der Agent ist angehalten: {}", reason.label()),
+                    msg!(CoreWorkspaceAgentStopped, reason = reason.label_msg()),
                 );
             }
         }
         for key in &asking {
-            self.set_agent_note(key, "Der Agent hat eine Frage an dich");
+            self.set_agent_note(key, msg!(CoreWorkspaceAgentQuestion));
         }
         for key in &diagnosed {
             self.diagnose_run(key);
@@ -324,21 +326,21 @@ impl Workspace {
         } else if let Some(reason) = effect.stopped {
             self.set_agent_note(
                 key,
-                &format!("Der Agent ist angehalten: {}", reason.label()),
+                msg!(CoreWorkspaceAgentStopped, reason = reason.label_msg()),
             );
         } else if effect.asking {
-            self.set_agent_note(key, "Der Agent hat eine Frage an dich");
+            self.set_agent_note(key, msg!(CoreWorkspaceAgentQuestion));
         } else if run.is_awaiting() {
             self.set_agent_note(
                 key,
                 if run.is_drafting() {
-                    "Der Agent erarbeitet seinen Plan"
+                    msg!(CoreWorkspaceAgentDrafting)
                 } else {
-                    "Der Agent wartet auf die Freigabe seines Plans"
+                    msg!(CoreWorkspaceAgentWaitingPlan)
                 },
             );
         } else if run.is_running() {
-            self.set_agent_note(key, "Der Agent arbeitet an der Umsetzung");
+            self.set_agent_note(key, msg!(CoreWorkspaceAgentWorking));
         }
         Some(effect)
     }
@@ -353,17 +355,15 @@ impl Workspace {
             return;
         }
         if let Some(number) = run.kind.review() {
-            let what = match &run.kind {
+            let note = match &run.kind {
                 RunKind::Followup {
                     task: FollowupTask::FailedChecks { .. },
                     ..
-                } => "Der Agent hat die roten Checks bearbeitet",
-                _ => "Der Agent hat die Review-Kommentare bearbeitet",
+                } => msg!(CoreWorkspaceAgentPushedChecks, branch = &branch),
+                _ => msg!(CoreWorkspaceAgentPushedComments, branch = &branch),
             };
             if let Some(item) = self.pr_item_mut(number) {
-                item.agent_note = Some(format!(
-                    "{what} – neue Commits sind auf {branch} gepusht, bitte prüfen"
-                ));
+                item.set_note(note);
                 item.reason = ReasonKind::AgentFinished;
                 item.reason_text = format!("Agent fertig · neue Commits auf {branch}");
                 item.time = "gerade eben".into();
@@ -377,9 +377,7 @@ impl Workspace {
         }
         if let Some(item) = self.items.iter_mut().find(|i| i.key == run.ticket_key) {
             item.branch = Some(branch.clone());
-            item.agent_note = Some(format!(
-                "Vom Agenten umgesetzt – Branch {branch} ist gepusht, den Pull Request legst du mit einem Klick an"
-            ));
+            item.set_note(msg!(CoreWorkspaceAgentBranchPushed, branch = &branch));
             item.reason = ReasonKind::AgentFinished;
             item.reason_text = format!("Agent fertig · Branch {branch} gepusht");
             item.time = "gerade eben".into();
@@ -458,9 +456,7 @@ impl Workspace {
         let number = pull.number;
         run.pull_request = Some(pull);
         if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket) {
-            item.agent_note = Some(format!(
-                "Pull Request #{number} ist angelegt – bitte prüfen"
-            ));
+            item.set_note(msg!(CoreWorkspacePrCreated, number = number));
         }
     }
 }

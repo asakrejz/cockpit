@@ -1,3 +1,5 @@
+use cockpit_i18n::msg;
+
 use super::*;
 use crate::review::AgentComment;
 
@@ -56,14 +58,14 @@ impl Workspace {
         let key = run.key();
         let waiting = run.is_awaiting();
         let note = match &run.kind {
-            _ if waiting => "Der Agent wartet auf die Freigabe seines Plans",
-            RunKind::Diagnose { .. } => "Der Agent untersucht einen roten Check",
+            _ if waiting => msg!(CoreWorkspaceAgentWaitingPlan),
+            RunKind::Diagnose { .. } => msg!(CoreWorkspaceAgentInvestigating),
             RunKind::Followup {
                 task: FollowupTask::FailedChecks { .. },
                 ..
-            } => "Der Agent behebt rote Checks",
-            RunKind::ReviewPr { .. } => "Der Agent sieht den Pull Request durch",
-            _ => "Der Agent setzt Review-Kommentare um",
+            } => msg!(CoreWorkspaceAgentFixingChecks),
+            RunKind::ReviewPr { .. } => msg!(CoreWorkspaceAgentReviewing),
+            _ => msg!(CoreWorkspaceAgentAddressing),
         };
         let pr = run.pr_key();
         match self.runs.iter_mut().find(|r| r.key() == key) {
@@ -71,7 +73,7 @@ impl Workspace {
             None => self.runs.push(run),
         }
         if let Some(item) = pr.and_then(|k| self.pr_item_mut(k)) {
-            item.agent_note = Some(note.into());
+            item.set_note(note);
         }
         key
     }
@@ -301,11 +303,7 @@ impl Workspace {
         let Some(key) = run.kind.review() else { return };
         let count = self.review_mut(&key).map_or(0, Review::finish_agent_review);
         if let Some(item) = self.pr_item_mut(&key) {
-            item.agent_note = Some(match count {
-                0 => "Der Agent hat nichts zu beanstanden".to_string(),
-                1 => "1 Kommentar vom Agenten wartet auf deine Freigabe".to_string(),
-                n => format!("{n} Kommentare vom Agenten warten auf deine Freigabe"),
-            });
+            item.set_note(drafts_note(count));
             item.time = "gerade eben".into();
             item.read = false;
         }
@@ -329,13 +327,17 @@ impl Workspace {
             Some(diagnose(r, c))
         });
         let note = match &diagnosis {
-            Some(d) => format!("Diagnose zu „{check}“ liegt vor: {}", d.cause),
-            None => format!("Der Check „{check}“ ist nicht mehr da"),
+            Some(d) => msg!(
+                CoreWorkspaceDiagnosisReady,
+                check = &check,
+                cause = &d.cause
+            ),
+            None => msg!(CoreWorkspaceCheckGone, check = &check),
         };
         if let Some(run) = self.runs.iter_mut().find(|r| r.key() == key) {
             run.diagnosis = diagnosis;
         }
-        self.set_agent_note(key, &note);
+        self.set_agent_note(key, note);
     }
 
     /// Adopts the fix of the diagnosis: the agent applies it, pushes and restarts the check.
@@ -343,7 +345,7 @@ impl Workspace {
         if !self.active_run_mut(key).is_some_and(AgentRun::accept_fix) {
             return false;
         }
-        self.set_agent_note(key, "Der Agent wendet den Fix an");
+        self.set_agent_note(key, msg!(CoreWorkspaceAgentApplyingFix));
         true
     }
 
@@ -380,25 +382,29 @@ impl Workspace {
                     r.sent = false;
                     done
                 });
-                let what = match done {
-                    1 => "1 Review-Kommentar".to_string(),
-                    n => format!("{n} Review-Kommentare"),
-                };
+                let what = msg!(CoreWorkspaceReviewCommentsDone, n = done);
+                let what_de = what.de();
                 if let Some(item) = self.pr_item_mut(&number) {
                     if let Some(pr) = item.pr.as_mut() {
                         pr.changes_requested = false;
                     }
-                    item.agent_note = Some(format!("Neuer Commit {sha}: {what} umgesetzt"));
+                    item.set_note(msg!(
+                        CoreWorkspaceNewCommitNote,
+                        sha = &sha,
+                        what = what.clone()
+                    ));
                     item.reason = ReasonKind::ReviewRequested;
-                    item.reason_text = format!("Review angefragt · Agent hat {what} umgesetzt");
+                    item.reason_text = format!("Review angefragt · Agent hat {what_de} umgesetzt");
                     item.time = "gerade eben".into();
                     item.read = false;
-                    item.comments.push(Comment::new(
+                    item.comments.push(Comment::coded(
                         Person::agent(),
                         "gerade eben",
-                        &format!(
-                            "Commit {sha} auf {}: {what} umgesetzt. Bitte noch einmal prüfen.",
-                            run.branch()
+                        msg!(
+                            CoreWorkspaceNewCommitComment,
+                            sha = &sha,
+                            branch = run.branch(),
+                            what = what
                         ),
                     ));
                 }
@@ -419,17 +425,22 @@ impl Workspace {
                 self.restart_check(&number, check);
                 let sha = short_sha(&format!("{}:{check}", run.key()));
                 let note = if pushed {
-                    format!("Fix {sha} gepusht, „{check}“ läuft erneut")
+                    msg!(CoreWorkspaceFixPushed, sha = &sha, check = check)
                 } else {
-                    format!("„{check}“ neu gestartet")
+                    msg!(CoreWorkspaceCheckRestarted, check = check)
                 };
                 if let Some(item) = self.pr_item_mut(&number) {
-                    item.agent_note = Some(note.clone());
+                    item.set_note(note.clone());
                     if pushed {
-                        item.comments.push(Comment::new(
+                        item.comments.push(Comment::coded(
                             Person::agent(),
                             "gerade eben",
-                            &format!("Commit {sha} auf {}: {note}.", run.branch()),
+                            msg!(
+                                CoreWorkspaceFixComment,
+                                sha = &sha,
+                                branch = run.branch(),
+                                note = note
+                            ),
                         ));
                     }
                 }
@@ -448,11 +459,16 @@ impl Workspace {
             Checks::Running
         };
         let tests = if run.options.run_tests {
-            "Tests bestanden"
+            msg!(CoreWorkspaceTestsPassed)
         } else {
-            "Tests übersprungen"
+            msg!(CoreWorkspaceTestsSkipped)
         };
 
+        let description = msg!(
+            CoreWorkspaceImplementedDescription,
+            key = &run.ticket_key,
+            tests = tests.clone()
+        );
         let mut seen = None;
         if let Some(item) = self.items.iter_mut().find(|i| i.key == run.ticket_key) {
             item.branch = Some(run.branch());
@@ -475,7 +491,7 @@ impl Workspace {
                 .as_ref()
                 .map_or(TicketStatus::Review, PrRef::target_status);
             seen = Some((item.key.clone(), item.status));
-            item.agent_note = Some(format!("Vom Agenten umgesetzt · {tests}"));
+            item.set_note(msg!(CoreWorkspaceImplementedNote, tests = tests.clone()));
             item.reason = ReasonKind::AgentFinished;
             item.reason_text = format!("Agent fertig · Pull Request #{number} erstellt");
             item.time = "gerade eben".into();
@@ -488,10 +504,8 @@ impl Workspace {
             number,
             repo: run.repo.clone(),
             title: run.ticket_title.clone(),
-            description: format!(
-                "Vom Agenten für {} umgesetzt · {tests}. Der Agent führt keinen Merge aus.",
-                run.ticket_key
-            ),
+            description: description.de(),
+            description_msg: Some(description),
             author: Person::agent(),
             branch: run.branch(),
             base: run.options.base_branch.clone(),
@@ -512,11 +526,19 @@ impl Workspace {
                 {
                     tests.status = Checks::Running;
                     tests.remaining = CHECK_STEPS;
-                    tests.log = "$ cargo test\nwird ausgeführt …\n".into();
+                    tests.log = format!("$ cargo test\n{}\n", msg!(CoreWorkspaceTestRunning).de());
                 }
                 runs
             },
             merged: None,
         });
+    }
+}
+
+/// The note after an agent review: nothing to object to, or how many drafts wait for approval.
+pub(super) fn drafts_note(count: usize) -> cockpit_i18n::Msg {
+    match count {
+        0 => msg!(CoreWorkspaceAgentFoundNothing),
+        n => msg!(CoreWorkspaceAgentDraftsWaiting, n = n),
     }
 }

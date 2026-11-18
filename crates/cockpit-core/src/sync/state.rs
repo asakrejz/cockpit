@@ -57,6 +57,9 @@ pub struct SourceState {
     /// Hints from the last successful fetch.
     #[serde(default)]
     pub warnings: Vec<String>,
+    /// The same hints as code and parameters (shown in the current language); empty for old data.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warning_msgs: Vec<cockpit_i18n::Msg>,
 }
 
 impl SourceState {
@@ -125,6 +128,18 @@ impl SyncState {
         now_ms: u64,
         warn: &[String],
     ) {
+        self.set_state_with(source, problem, now_ms, warn, &[]);
+    }
+
+    /// Like [`SyncState::set_state`], with the hints also as code and parameters.
+    pub(crate) fn set_state_with(
+        &mut self,
+        source: Source,
+        problem: Option<Problem>,
+        now_ms: u64,
+        warn: &[String],
+        warn_msgs: &[cockpit_i18n::Msg],
+    ) {
         let entry = match self.sources.iter().position(|s| s.source == source) {
             Some(i) => &mut self.sources[i],
             None => {
@@ -135,6 +150,7 @@ impl SyncState {
                     last_try_ms: now_ms,
                     since_ms: None,
                     warnings: Vec::new(),
+                    warning_msgs: Vec::new(),
                 });
                 self.sources.last_mut().expect("just inserted")
             }
@@ -143,6 +159,7 @@ impl SyncState {
         if problem.is_none() {
             entry.last_ok_ms = Some(now_ms);
             entry.warnings = warn.iter().take(MAX_WARNINGS).cloned().collect();
+            entry.warning_msgs = warn_msgs.iter().take(MAX_WARNINGS).cloned().collect();
         }
         entry.since_ms = match (&problem, &entry.problem) {
             (None, _) => None,

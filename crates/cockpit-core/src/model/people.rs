@@ -39,6 +39,9 @@ pub struct Comment {
     pub time: String,
     #[serde(default)]
     pub text: String,
+    /// The text as code and parameters (comments the agent writes); `None` = only [`Comment::text`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub text_msg: Option<cockpit_i18n::Msg>,
     /// The comment as formatted Jira text (ADF); `None` = only [`Comment::text`] exists.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rich: Option<crate::adf::Doc>,
@@ -48,11 +51,20 @@ pub struct Comment {
 }
 
 impl Comment {
+    /// A comment as code and parameters; `text` keeps the German rendering next to it.
+    pub fn coded(author: Person, time: &str, msg: cockpit_i18n::Msg) -> Self {
+        Self {
+            text_msg: Some(msg.clone()),
+            ..Self::new(author, time, &msg.de())
+        }
+    }
+
     pub fn new(author: Person, time: &str, text: &str) -> Self {
         Self {
             author,
             time: time.into(),
             text: text.into(),
+            text_msg: None,
             rich: None,
             own: false,
         }

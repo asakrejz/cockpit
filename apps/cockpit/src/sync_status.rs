@@ -15,10 +15,18 @@ fn subtitle(state: &SourceState, now: u64) -> String {
         .last_ok_ms
         .map_or(t!(SyncNever), |t| t!(SyncLast, ago = ago(t, now)));
     match &state.problem {
-        None => match state.warnings.first() {
-            Some(w) => t!(SyncLastWarning, last = last, warning = w),
-            None => last,
-        },
+        None => {
+            // The structured hint reads in the current language; old data only has the text.
+            let warning = state
+                .warning_msgs
+                .first()
+                .map(|m| m.render(lang()))
+                .or_else(|| state.warnings.first().cloned());
+            match warning {
+                Some(w) => t!(SyncLastWarning, last = last, warning = w),
+                None => last,
+            }
+        }
         Some(p) => t!(
             SyncLastProblem,
             problem = p.msg().render(lang()),

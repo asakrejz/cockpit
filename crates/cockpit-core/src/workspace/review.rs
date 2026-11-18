@@ -63,11 +63,7 @@ impl Workspace {
         let key = number.into();
         let count = self.review_mut(&key).map_or(0, Review::run_agent_review);
         if let Some(item) = self.pr_item_mut(&key) {
-            item.agent_note = Some(match count {
-                0 => "Der Agent hat nichts zu beanstanden".to_string(),
-                1 => "1 Kommentar vom Agenten wartet auf deine Freigabe".to_string(),
-                n => format!("{n} Kommentare vom Agenten warten auf deine Freigabe"),
-            });
+            item.set_note(super::followups::drafts_note(count));
         }
         count
     }
@@ -107,7 +103,7 @@ impl Workspace {
                 own: true,
                 ..Comment::new(Person::me(), "gerade eben", &text)
             });
-            item.agent_note = None;
+            item.clear_note();
             item.read = true;
             // The review is submitted; the request is answered.
             if item.reason == ReasonKind::ReviewRequested {
@@ -237,7 +233,7 @@ impl Workspace {
                 pr.draft = false;
             }
             item.read = true;
-            item.agent_note = None;
+            item.clear_note();
             if item.kind == Kind::PullRequest {
                 item.reason_text = format!("Gemergt ({})", method.label());
             }

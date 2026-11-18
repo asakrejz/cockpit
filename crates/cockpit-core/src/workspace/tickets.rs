@@ -336,7 +336,7 @@ impl Workspace {
             item.status = target;
             if target == TicketStatus::Done {
                 item.read = true;
-                item.agent_note = None;
+                item.clear_note();
             }
         }
         changes

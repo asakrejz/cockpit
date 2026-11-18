@@ -4,7 +4,7 @@ use cockpit_core::{
     Checks, Comment, FileDiff, Item, Kind, Person, PrRef, ReasonKind, Review, Scope, Source,
     TicketStatus, Verdict,
 };
-use cockpit_i18n::Lang;
+use cockpit_i18n::{Lang, Msg};
 
 use super::Relation;
 use super::dto::{CheckRun, IssueComment, Pull, PullFile, PullReview, ReviewComment};
@@ -104,7 +104,7 @@ pub fn pull_to_item_for(
     } else {
         (
             ReasonKind::Comment,
-            format!("Pull Request von {}", pull.user.login),
+            cockpit_i18n::msg!(IntegrationsSyncPrBy, author = &pull.user.login).de(),
         )
     };
     Item {
@@ -141,6 +141,7 @@ pub fn pull_to_item_for(
             assigned_me: relation.assigned,
         }),
         agent_note: None,
+        agent_note_msg: None,
         comments: Vec::new(),
         read: false,
         due: None,
@@ -170,6 +171,7 @@ pub fn pull_to_review(pull: &Pull, files: &[PullFile], checks: Checks) -> Review
         repo: String::new(),
         title: pull.title.clone(),
         description: pull.body.clone().unwrap_or_default(),
+        description_msg: None,
         author: text::person(&pull.user.login),
         branch: pull.head.name.clone(),
         base: pull.base.name.clone(),
@@ -234,7 +236,7 @@ pub fn comments_with_reviews(
     now: i64,
 ) -> Vec<Comment> {
     let mut all: Vec<(i64, Comment)> = Vec::new();
-    let mut add = |login: &str, time_iso: &str, body: String| {
+    let mut add = |login: &str, time_iso: &str, body: String, coded: Option<(Msg, String)>| {
         let own = login.eq_ignore_ascii_case(me);
         let author = if own {
             Person::me()
@@ -248,6 +250,14 @@ pub fn comments_with_reviews(
                 author,
                 time: time::relative(time_iso, now, Lang::De),
                 text: if own { body } else { mention_for(&body, me) },
+                text_msg: coded.map(|(verdict, text)| {
+                    let text = if own { text } else { mention_for(&text, me) };
+                    cockpit_i18n::msg!(
+                        IntegrationsSyncReviewComment,
+                        verdict = verdict,
+                        text = text
+                    )
+                }),
                 rich: None,
                 own,
             },
@@ -258,6 +268,7 @@ pub fn comments_with_reviews(
             &c.user.login,
             &c.created_at,
             c.body.clone().unwrap_or_default(),
+            None,
         );
     }
     for c in review {
@@ -269,18 +280,26 @@ pub fn comments_with_reviews(
             &c.user.login,
             &c.created_at,
             format!("{location}\n{}", c.body.as_deref().unwrap_or_default()),
+            None,
         );
     }
     for r in reviews {
         let text = r.body.as_deref().unwrap_or_default().trim();
         let verdict = match r.state.as_str() {
-            "APPROVED" => "Review: genehmigt",
-            "CHANGES_REQUESTED" => "Review: Änderungen angefordert",
+            "APPROVED" => cockpit_i18n::msg!(IntegrationsSyncReviewApproved),
+            "CHANGES_REQUESTED" => cockpit_i18n::msg!(IntegrationsSyncReviewChangesRequested),
             // Pure comments are already among the comments; without text there is nothing to show.
-            "COMMENTED" | "DISMISSED" if !text.is_empty() => "Review",
+            "COMMENTED" | "DISMISSED" if !text.is_empty() => {
+                cockpit_i18n::msg!(IntegrationsSyncReviewPlain)
+            }
             _ => continue,
         };
-        add(&r.user.login, &r.submitted_at, format!("{verdict}\n{text}"));
+        add(
+            &r.user.login,
+            &r.submitted_at,
+            format!("{}\n{text}", verdict.de()),
+            Some((verdict, text.to_string())),
+        );
     }
     all.sort_by_key(|(t, _)| *t);
     all.into_iter().map(|(_, c)| c).collect()

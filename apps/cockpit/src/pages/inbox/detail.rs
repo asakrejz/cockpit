@@ -272,7 +272,7 @@ pub(super) fn detail(
                     who=c.author.name.clone()
                     initials=c.author.initials.clone()
                     time=c.time.clone()
-                    text=c.text.clone()
+                    text=c.text_msg.as_ref().map_or_else(|| c.text.clone(), |m| m.render(lang()))
                     rich=c.rich.clone().unwrap_or_default()
                     own=c.own
                 />
@@ -384,8 +384,10 @@ pub(super) fn detail(
                     </li>
                     {linked_ticket}
                     {item
-                        .agent_note
-                        .clone()
+                        .agent_note_msg
+                        .as_ref()
+                        .map(|m| m.render(lang()))
+                        .or_else(|| item.agent_note.clone())
                         .map(|note| {
                             view! {
                                 <li>

@@ -12,7 +12,7 @@ fn head(pairs: &[(&'static str, &'static str)]) -> HeaderMap {
     k
 }
 
-fn post(pairs: &[(&'static str, &'static str)]) -> Result<(), (StatusCode, &'static str)> {
+fn post(pairs: &[(&'static str, &'static str)]) -> Result<(), (StatusCode, cockpit_i18n::Msg)> {
     check(LOCAL, &Method::POST, &head(pairs), &[PORT], false)
 }
 
