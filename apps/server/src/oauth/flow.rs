@@ -99,7 +99,7 @@ impl AppState {
         let tokens = oauth::code_exchange(e, d, &app, code, &verifier, now_s())
             .await
             .map_err(|f| {
-                tracing::warn!("{}: Austausch fehlgeschlagen: {f}", d.id());
+                tracing::warn!("{}: token exchange failed: {f}", d.id());
                 service_error(d, &f)
             })?;
 
@@ -107,7 +107,7 @@ impl AppState {
         let site: Option<Site> = if d == Service::Atlassian {
             let wanted = sources.atlassian.as_ref().and_then(|a| a.site.clone());
             let list = oauth::sites(e, &tokens.access).await.map_err(|f| {
-                tracing::warn!("Atlassian: accessible-resources fehlgeschlagen: {f}");
+                tracing::warn!("Atlassian: accessible-resources failed: {f}");
                 service_error(d, &f)
             })?;
             Some(site_choose(&list, wanted.as_deref()).map_err(|f| f.to_string())?)
@@ -139,7 +139,7 @@ impl AppState {
         })
         .await
         .map_err(|_| "Interner Fehler".to_string())??;
-        tracing::info!("{}: angemeldet", d.id());
+        tracing::info!("{}: signed in", d.id());
 
         // Sync right away; the result comes through the event stream.
         let s = self.clone();
@@ -180,7 +180,7 @@ impl AppState {
             match oauth::revoked(d, &app, api, tokens).await {
                 Ok(at_service) => answer.at_service = at_service,
                 Err(f) => {
-                    tracing::warn!("{}: Widerruf beim Dienst fehlgeschlagen: {f}", d.id());
+                    tracing::warn!("{}: revoking at the service failed: {f}", d.id());
                     answer.hint = Some(format!(
                         "Lokal getrennt, aber der Dienst hat den Widerruf nicht bestätigt ({f}). Zugriff bitte in den Einstellungen bei {} entziehen.",
                         d.name()
@@ -199,7 +199,7 @@ impl AppState {
             .await
             .map_err(|_| "Interner Fehler".to_string())?;
         answer.disconnected = true;
-        tracing::info!("{}: getrennt", d.id());
+        tracing::info!("{}: disconnected", d.id());
         Ok(answer)
     }
 }

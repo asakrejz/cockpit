@@ -18,6 +18,8 @@
 //! * `GET /api/agent/check/container`: the same check from a container, [`ContainerCheck`]
 //! * `GET /api/agent/pull-request?run=<key>`: title and text of the pull request that would be created for the
 //!   branch of a finished real run, and the one that already exists for it, [`PullRequestPreview`]
+//! * `GET /api/review/commits?repo=&number=` and `GET /api/review/commit?repo=&number=&sha=[&path=]`: commits of a
+//!   pull request and the diff of one commit, [`PanelCommits`], [`PanelCommitDiff`]
 //! * `GET /api/health`: under `agent` an [`AgentStatus`], under `endpoint` an [`EndpointStatus`], under `container` a [`ContainerStatus`]
 //!
 //! Both sides use these types so that the shapes do not drift apart.
@@ -40,6 +42,9 @@ pub use repos::*;
 
 mod config;
 pub use config::*;
+
+mod panel;
+pub use panel::*;
 
 /// Body of `POST /api/actions`.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]

@@ -29,7 +29,7 @@ async fn without_setup_starts_no_run_and_the_message_says_where() {
         error.contains("Der Agent kann noch nicht starten") && error.contains("Einrichten"),
         "{error}"
     );
-    assert!(w.run().is_idle(), "es wurde nichts gestartet");
+    assert!(w.run().is_idle(), "nothing was started");
     // The simulated follow-up jobs (own comments, diagnosis) do not exist with the real agent.
     let f = w
         .action(Action::InvestigateCheck {
@@ -107,7 +107,7 @@ async fn a_run_from_the_approval_until_to_push() {
     let run_line = calls
         .lines()
         .find(|z| z.starts_with("run "))
-        .expect("run aufgerufen");
+        .expect("run was called");
     for muss in [
         "--rm",
         "--label cockpit.run=BAU-142",
@@ -117,7 +117,7 @@ async fn a_run_from_the_approval_until_to_push() {
         "-e ANTHROPIC_AUTH_TOKEN",
         "localhost/cockpit-agent:local",
     ] {
-        assert!(run_line.contains(muss), "{muss} fehlt: {run_line}");
+        assert!(run_line.contains(muss), "{muss} is missing: {run_line}");
     }
     assert!(
         !calls.contains(TOKEN) && !calls.contains(GITHUB),
@@ -125,7 +125,7 @@ async fn a_run_from_the_approval_until_to_push() {
     );
     assert!(
         !calls.contains("https://litellm.example"),
-        "auch die Adresse steht nur in der Umgebung"
+        "the address is only in the environment too"
     );
     // The value arrives through the environment of the child process.
     let env = w.log("env.log");

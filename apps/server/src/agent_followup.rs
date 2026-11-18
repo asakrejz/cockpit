@@ -60,7 +60,7 @@ impl AppState {
         GitHubClient::new(api, token).map_err(|e| format!("Der GitHub-Zugang ist ungültig: {e}"))
     }
 
-    async fn github_client_async(&self) -> Result<GitHubClient, String> {
+    pub(crate) async fn github_client_async(&self) -> Result<GitHubClient, String> {
         self.oauth_refresh().await;
         let s = self.clone();
         tokio::task::spawn_blocking(move || s.github_client())
@@ -308,7 +308,7 @@ impl AppState {
                 let s = self.clone();
                 tokio::spawn(async move {
                     if let Err(e) = s.sync().await {
-                        tracing::warn!("Abgleich nach dem Anlegen des Pull Requests: {e:?}");
+                        tracing::warn!("Sync after creating the pull request: {e:?}");
                     }
                 });
                 Ok(answer)

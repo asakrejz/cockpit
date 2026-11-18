@@ -51,6 +51,11 @@ impl FileDiff {
         self.lines.iter().filter(|l| l.kind == kind).count()
     }
 
+    /// Added and removed lines.
+    pub fn counts(&self) -> (usize, usize) {
+        (self.count(LineKind::Add), self.count(LineKind::Del))
+    }
+
     /// Short statistics: `+5 −2`.
     pub fn stat(&self) -> String {
         format!(
@@ -342,13 +347,19 @@ impl Review {
 }
 
 mod checks;
+mod commit_info;
 mod line_comments;
 mod merge;
 mod sending;
 mod suggest;
 #[cfg(test)]
 mod tests;
+mod tree;
+mod viewed;
 
 pub use checks::{CHECK_STEPS, CheckRun};
+pub use commit_info::{commit_date, short_sha};
 pub use merge::{MergeBlocker, MergeMethod, merge_blockers};
 pub use suggest::suggest;
+pub use tree::{SHOWN_LINES, TreeRow, file_tree};
+pub use viewed::Viewed;

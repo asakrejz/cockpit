@@ -17,6 +17,7 @@ mod media_card;
 mod navigation;
 mod pager;
 mod phone;
+mod rich_text;
 mod stack_nav;
 mod states;
 
@@ -54,6 +55,7 @@ pub static STORIES: &[Story] = &[
     stack_nav::STORY,
     phone::STORY,
     app_blocks::STORY,
+    rich_text::STORY,
     states::STORY,
 ];
 

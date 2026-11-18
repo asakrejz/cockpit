@@ -113,6 +113,8 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `GET /api/agent/image`, `POST /api/agent/image` | state of "build image" `{running, present, error, lines}`, or start the build in the background |
 | `GET /api/agent/check` | connection test to the endpoint: `{configured, reachable, key_ok, model_present, hint}` |
 | `GET /api/agent/pull-request?run=<key>` | preview of the pull request for a finished real run: `{repo, head, base, title, body, draft, existing}`; creates nothing |
+| `GET /api/review/commits?repo=&number=` | commits of a synced pull request `{commits: [{sha, title, body, author, date}], truncated}`; read only (`GET pulls/{n}/commits`) |
+| `GET /api/review/commit?repo=&number=&sha=[&path=]` | diff of one commit `{sha, files: [{name, status, additions, deletions, lines, total_lines, truncated, no_patch}], truncated_files}`; every file cut at 300 lines, with `path` that one file up to 5000 lines; read only (`GET commits/{sha}`); only for pull requests the app knows |
 | `GET /api/agent/check/container` | the same test from a container: `{checked, mac_reached, container_reached, key_ok, hint}` |
 | `GET /api/agent/models` | model IDs of the endpoint for the drop-down: `{loaded, reachable, key_ok, models, hint}`; only IDs, sorted (Claude models first), at most 200 |
 | `GET /api/setup` | what the assistant prefills: Jira site/email/projects, client IDs, repos, provider, endpoint address and model, both callback addresses, and per key only `{name, set}` |
@@ -208,6 +210,14 @@ workspace (also "only you may merge", "review only after deciding on every sugge
 
 All other actions, and every entry that came from a seed, stay local. The action `SyncRemote` may only be triggered by
 the backend; `POST /api/actions` rejects it.
+
+**Formatted Jira text.** Jira (REST v3) delivers descriptions and comments as ADF. The sync does not flatten it: `cockpit_core::adf::parse`
+turns it into the typed model `adf::Doc` (paragraphs, headings 1–6, nested lists, code blocks with language, quotes, rules, tables, panels,
+media placeholders; marks strong/em/code/strike/underline/link; mention, emoji, inline card, status, date). It is stored in
+`Item.description_rich` and `Comment.rich` (`None` for older data, pull requests and edited descriptions, which fall back to the plain text
+in `description`/`text`; that text is still filled for search and the agent). Unknown nodes become the text of their content, never an
+error. Links are kept only for `http`/`https`. The UI (`feature_ui::RichText`) builds real elements, never `inner_html`; links get
+`target="_blank"` and `rel="noopener noreferrer"`; media show their file name only. No `expand=renderedFields` and no HTML from Jira.
 
 ## Empty, loading and error states
 

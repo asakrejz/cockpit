@@ -15,7 +15,7 @@ async fn fetches_pull_requests_tickets_comments_checks_and_diffs() {
     let pr91 = ws.item("gh-acme-baukasten-91").expect("PR 91");
     assert!(
         pr91.pr.as_ref().unwrap().changes_requested,
-        "Urteil von mkeller"
+        "verdict of mkeller"
     );
     assert!(
         pr91.comments
@@ -109,10 +109,10 @@ async fn unchanged_pr_does_not_reload_the_diff() {
         .iter()
         .filter(|r| r.url.path().ends_with("/pulls/87/files"))
         .count();
-    assert_eq!((before, after), (1, 1), "gleicher Commit: kein neuer Abruf");
+    assert_eq!((before, after), (1, 1), "same commit: no new fetch");
     // And the diff is still in the remote.
     let Outcome::Loaded(l) = &remote.sources[0].outcome else {
-        panic!("geladen erwartet")
+        panic!("expected loaded")
     };
     assert!(
         !l.reviews
@@ -146,4 +146,45 @@ async fn remote_disappears() {
     assert!(after.item("gh-acme-baukasten-91").is_none());
     assert!(after.review(91).is_none() && after.sync.pr(91).is_none());
     assert!(after.item("gh-acme-baukasten-87").is_some());
+}
+
+#[tokio::test]
+async fn sync_keeps_the_formatted_jira_text() {
+    use cockpit_core::adf::{Block, Inline};
+
+    let j = jira_server().await;
+    let d = services(None, Some(&j));
+    let (ws, _) = sync(&d, &cockpit_core::demo::workspace(), NOW_MS).await;
+    let jira = ws.item("bau-142").expect("BAU-142");
+
+    // The description keeps its list instead of a flat text; the plain text stays for search.
+    let rich = jira
+        .description_rich
+        .as_ref()
+        .expect("formatted description");
+    assert!(matches!(&rich[0], Block::Paragraph { .. }));
+    assert!(matches!(&rich[1], Block::BulletList { items } if items.len() == 1));
+    assert!(jira.description.contains("Light und Dark prüfen"));
+
+    // A mention of the user in a comment shows as `@Du`.
+    let first = &jira.comments[0];
+    let Block::Paragraph { content } = &first.rich.as_ref().expect("formatted comment")[0] else {
+        panic!("paragraph expected")
+    };
+    assert_eq!(content[0], Inline::Mention { text: "@Du".into() });
+    assert!(first.text.starts_with("@Du"));
+
+    // Tickets without a description have none, and a stored old state without the field
+    // still reads (plain text only).
+    assert!(ws.item("bau-150").unwrap().description_rich.is_none());
+    let old: cockpit_core::Item = serde_json::from_value(
+        serde_json::to_value(jira)
+            .map(|mut v| {
+                v.as_object_mut().unwrap().remove("description_rich");
+                v
+            })
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(old.description_rich.is_none() && !old.description.is_empty());
 }

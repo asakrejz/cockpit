@@ -79,7 +79,7 @@ fn status_and_checks_changes_from_outside_are_reported() {
     )));
     assert!(
         !after.item("abc-1").unwrap().read,
-        "Änderung von außen holt zurück"
+        "a change from outside brings it back"
     );
     // Same state once more: no changes.
     let (_, again) = merge(&after, &remote, T + 2);

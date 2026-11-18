@@ -76,7 +76,7 @@ fn pull_becomes_an_item_with_review_request() {
     assert!(item.description.contains("Closes BAU-142"));
     assert_eq!(item.repo.as_deref(), Some("acme/baukasten"));
     assert_eq!(item.labels, ["design", "bug"]);
-    let pr = item.pr.expect("PrRef gesetzt");
+    let pr = item.pr.expect("PrRef is set");
     assert_eq!(
         (pr.number, pr.draft, pr.checks),
         (87, false, Checks::Passed)

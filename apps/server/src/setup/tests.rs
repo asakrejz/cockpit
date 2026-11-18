@@ -143,7 +143,7 @@ async fn check(app: &Router) -> serde_json::Value {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    assert!(!body.contains(TOKEN), "Token in der Antwort: {body}");
+    assert!(!body.contains(TOKEN), "token in the response: {body}");
     serde_json::from_str(&body).unwrap()
 }
 

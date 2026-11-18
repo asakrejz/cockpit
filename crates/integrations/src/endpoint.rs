@@ -132,13 +132,10 @@ impl Failed {
             Failed::Status(s) => format!("{who} antwortet mit Status {s}."),
             Failed::NoDirectory => {
                 if target.direct {
-                    format!(
-                        "Die Antwort von {} ist kein Modellverzeichnis.",
-                        target.vendor()
-                    )
+                    format!("Die Antwort von {} ist keine Modellliste.", target.vendor())
                 } else {
                     format!(
-                        "Die Antwort von {} ist kein Modellverzeichnis. Ist das die Adresse eines {}-kompatiblen Endpunkts (z. B. eines LiteLLM-Proxys)?",
+                        "Die Antwort von {} ist keine Modellliste. Ist das die Adresse eines {}-kompatiblen Endpunkts (z. B. eines LiteLLM-Proxys)?",
                         target.base,
                         target.vendor()
                     )

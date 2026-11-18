@@ -4,6 +4,7 @@ mod client;
 pub mod dto;
 pub mod followup;
 mod map;
+mod panel;
 mod patch;
 
 pub use client::{
@@ -14,4 +15,5 @@ pub use map::{
     comments_with_reviews, file_to_diff, mention_for, pull_to_item, pull_to_item_for,
     pull_to_review,
 };
+pub use panel::{panel_commits, panel_diff};
 pub use patch::parse_patch;

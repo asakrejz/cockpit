@@ -32,7 +32,7 @@ fn the_demo_lint_error_is_found_with_file_line_and_fix() {
 fn a_browser_timeout_is_flaky_and_needs_no_code_change() {
     let r = review(85);
     let d = diagnose(&r, check(&r, "Tests (Browser)"));
-    assert!(d.cause.contains("Zeitüberschreitung"), "{}", d.cause);
+    assert!(d.cause.contains("zu lange gebraucht"), "{}", d.cause);
     assert!(!d.changes_code());
     assert!(d.patch.is_none() && d.fix.is_none());
     assert!(d.remedy.contains("neu starten"));

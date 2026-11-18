@@ -58,7 +58,7 @@ fn failed_source_keeps_its_data_and_reports_the_problem() {
         }],
     };
     let (ws, changes) = merge(&ws, &failed(Problem::Unauthorized), T + 5);
-    assert!(ws.item("abc-1").is_some(), "nichts geht verloren");
+    assert!(ws.item("abc-1").is_some(), "nothing is lost");
     let state = ws.sync.state_of(Source::Jira).unwrap();
     assert_eq!(state.problem, Some(Problem::Unauthorized));
     assert_eq!(state.id(), "unauthorized");
