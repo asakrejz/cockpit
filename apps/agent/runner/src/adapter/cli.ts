@@ -10,6 +10,7 @@ import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { type Event, type Sink, truncate } from "../event.ts";
 import { type Job, commitMessage } from "../job.ts";
+import { tx } from "../texts.ts";
 import { changedFiles, record } from "../git.ts";
 import { type Policy, violations } from "../policy.ts";
 import { finishReview } from "../review.ts";
@@ -148,17 +149,18 @@ export async function runCli(job: Job, d: AdapterEnv, make: (sink: Sink) => Spec
     await read.catch(() => {});
 
     if (missing) {
-      sink({ t: "error", text: `${spec.label} ist im Image nicht vorhanden. Image neu bauen?` });
+      sink({ t: "error", text: tx("error_cli_missing", { tool: spec.label }) });
       return 2;
     }
     const out = spec.translator.outcome();
     let error = out.error;
-    if (timedOut) error = `Das Zeitlimit von ${Math.round(job.max_seconds / 60)} Minuten im Container ist überschritten.`;
+    if (timedOut) error = tx("error_timeout", { minutes: Math.round(job.max_seconds / 60) });
     else if (!error && !out.finished) {
       const tail = scrub(truncate(stderrTail.join(" ").trim(), 300), secrets);
-      error = `${spec.label} hat den Lauf ${code === 0 ? "ohne Ergebnis" : `mit Status ${code ?? "?"}`} beendet${broken ? ` (${broken} unlesbare Zeilen)` : ""}.${tail ? ` ${tail}` : ""}`;
+      const params = { tool: spec.label, code: code ?? "?", broken: broken ? tx("broken_lines", { n: broken }) : "", tail: tail ? ` ${tail}` : "" };
+      error = tx(code === 0 ? "error_cli_no_result" : "error_cli_status", params);
     } else if (!error && code !== 0 && code !== null) {
-      error = `${spec.label} hat sich mit Status ${code} beendet.`;
+      error = tx("error_cli_exit", { tool: spec.label, code });
     }
     if (error) {
       sink({ t: "error", text: error });
@@ -179,12 +181,12 @@ export async function runCli(job: Job, d: AdapterEnv, make: (sink: Sink) => Spec
       return 1;
     }
     if (plan && files.length > 0) {
-      sink({ t: "error", text: `${spec.label} hat im ${review ? "Review" : "Planmodus"} Dateien verändert (${files.slice(0, 5).join(", ")}). ${review ? "Das Review" : "Der Plan"} wird verworfen.` });
+      sink({ t: "error", text: tx(review ? "error_review_changed" : "error_plan_changed", { tool: spec.label, files: files.slice(0, 5).join(", ") }) });
       return 1;
     }
     const bad = violations(policy, files);
     if (bad.length > 0) {
-      sink({ t: "error", text: truncate(`${spec.label} hat gegen die Regeln verstoßen, nichts wird übernommen: ${bad.slice(0, 5).join(" ")}`, 1500) });
+      sink({ t: "error", text: truncate(tx("error_rules", { tool: spec.label, list: bad.slice(0, 5).join(" ") }), 1500) });
       return 1;
     }
 
@@ -199,11 +201,11 @@ export async function runCli(job: Job, d: AdapterEnv, make: (sink: Sink) => Spec
     }
     const f = await record(d.git, d.root, job.branch, commitMessage(job));
     if (!f) {
-      sink({ t: "error", text: "Der Agent hat nichts geändert, es gibt nichts zu pushen." });
+      sink({ t: "error", text: tx("error_nothing_changed") });
       return 1;
     }
     sink({ t: "files", files: f.files });
-    sink({ t: "result", text: truncate(out.text.trim() || `${job.ticket.key} umgesetzt.`, 1500), branch: job.branch, commit: f.commit });
+    sink({ t: "result", text: truncate(out.text.trim() || tx("result_done", { key: job.ticket.key }), 1500), branch: job.branch, commit: f.commit });
     return 0;
   } catch (e) {
     sink({ t: "error", text: scrub((e as Error).message, secrets) });

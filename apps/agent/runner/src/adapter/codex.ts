@@ -16,6 +16,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Job, systemText, tasksText } from "../job.ts";
+import { tx } from "../texts.ts";
 import { type Outcome, type Spec, type Translator, baseEnv, runCli } from "./cli.ts";
 import type { Adapter } from "./interface.ts";
 import type { Sink } from "../event.ts";

@@ -119,8 +119,29 @@ test("an unknown kind of follow-up is rejected, garbage is ignored", () => {
   assert.deepEqual(a.followup!.notes, []);
 });
 
-test("commit message names what was done", () => {
+test("commit message names what was done, in the language of the pull request", () => {
   assert.match(commitMessage(job()), /^BAU-142: Fokus-Ring fehlt/);
-  assert.match(commitMessage(job({ followup: followupReview })), /^BAU-142: Review-Kommentare umsetzen \(#85\)/);
-  assert.match(commitMessage(job({ followup: { ...followupReview, kind: "failed_checks" } })), /Rote Checks beheben/);
+  // The pull request language is English unless the repo says otherwise.
+  assert.match(commitMessage(job({ followup: followupReview })), /^BAU-142: Address review comments \(#85\)/);
+  assert.match(commitMessage(job({ followup: { ...followupReview, kind: "failed_checks" } })), /Fix failing checks/);
+  assert.match(commitMessage(job()), /Implemented by the Cockpit agent\./);
+  const de = job({ followup: followupReview, pr_language: "de" });
+  assert.match(commitMessage(de), /^BAU-142: Review-Kommentare umsetzen \(#85\)/);
+  assert.match(commitMessage({ ...de, followup: { ...followupReview, kind: "failed_checks" } }), /Rote Checks beheben/);
+  assert.match(commitMessage(de), /Umgesetzt vom Cockpit-Agenten\./);
+});
+
+test("the language of the interface and of the pull request come from the job", () => {
+  assert.equal(job().language, "de");
+  assert.equal(job().pr_language, "en");
+  assert.equal(checkJob({ mode: "plan", language: "en", pr_language: "de" }).language, "en");
+  assert.equal(checkJob({ mode: "plan", language: "fr" }).language, "de");
+  assert.equal(checkJob({ mode: "plan", pr_language: 3 }).pr_language, "en");
+});
+
+test("the model is told to answer in the chosen language", () => {
+  assert.match(systemText(job({ language: "de" })), /Antworte auf Deutsch\./);
+  assert.match(systemText(job({ language: "en" })), /Answer in English\./);
+  assert.doesNotMatch(systemText(job({ language: "en" })), /Antworte auf Deutsch/);
+  assert.match(systemText(job({ mode: "review", language: "en" })), /Answer in English\./);
 });
