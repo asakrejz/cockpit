@@ -39,6 +39,8 @@ pub enum AgentError {
     CheckNotFailed,
     /// The agent only continues on branches `claude/…`.
     NotAgentBranch,
+    /// The pull request has no diff the agent could look at.
+    NothingToReview,
     /// As many runs are already working as the limit allows (the number).
     ParallelLimit(u32),
 }

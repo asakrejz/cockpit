@@ -295,6 +295,7 @@ fn with_choice(w: &World, choice: AgentChoice) -> AppState {
     state
 }
 
+mod agent_review;
 mod container_check;
 mod followup;
 mod maintenance;

@@ -59,6 +59,22 @@ pub fn branch_ok(branch: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'))
 }
 
+/// A branch name of a pull request that is safe to hand to `git clone --branch`: no leading `-`,
+/// no `..`, only plain characters. Unlike [`branch_ok`] it is not limited to `claude/…`, because a
+/// review run only reads.
+pub fn review_branch_ok(branch: &str) -> bool {
+    !branch.is_empty()
+        && !branch.starts_with(['-', '/', '.'])
+        && branch.len() <= 200
+        && !branch.contains("..")
+        && !branch.contains("//")
+        && !branch.ends_with(['/', '.'])
+        && !branch.ends_with(".lock")
+        && branch
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'))
+}
+
 /// The address for cloning: `<base>/<owner>/<name>.git`.
 pub fn clone_url(base: &str, repo: &str) -> String {
     format!("{}/{repo}.git", base.trim_end_matches('/'))
@@ -261,6 +277,29 @@ pub fn clone_branch(
             "Der Branch „{branch}“ ist nicht erlaubt – der Agent arbeitet nur auf claude/…."
         ));
     }
+    clone_existing(url, target, token, branch)
+}
+
+/// Clones the branch of any pull request for a **read-only** review run. The agent never pushes
+/// from this clone; it is mounted read-only into the container. Otherwise like [`clone_branch`].
+pub fn clone_for_review(
+    url: &str,
+    target: &Path,
+    token: Option<&Secret>,
+    branch: &str,
+) -> Result<String, String> {
+    if !review_branch_ok(branch) {
+        return Err(format!("Der Branch „{branch}“ ist nicht erlaubt."));
+    }
+    clone_existing(url, target, token, branch)
+}
+
+fn clone_existing(
+    url: &str,
+    target: &Path,
+    token: Option<&Secret>,
+    branch: &str,
+) -> Result<String, String> {
     let z = target.to_string_lossy().into_owned();
     git(
         &[

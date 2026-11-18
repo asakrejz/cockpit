@@ -36,7 +36,12 @@ pub fn plane(
         let key = run.key();
         match (running.get(&key), run.state) {
             (None, RunState::Running) if !blocked.contains(&key) => {
-                a.push(Instruction::Start(key, Mode::Implement));
+                let mode = if matches!(run.kind, RunKind::ReviewPr { .. }) {
+                    Mode::Review
+                } else {
+                    Mode::Implement
+                };
+                a.push(Instruction::Start(key, mode));
             }
             (None, RunState::AwaitingApproval)
                 if run.agent_plan.is_none() && !blocked.contains(&key) =>

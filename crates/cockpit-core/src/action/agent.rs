@@ -269,6 +269,14 @@ impl Workspace {
                     format!("Agent beauftragt, die Review-Kommentare in {review} umzusetzen"),
                 )])
             }
+            Action::StartPrReview { review } => {
+                self.need_open_review(&review)?;
+                self.review_pr_with_agent(&review).map_err(agent_error)?;
+                Ok(vec![Note::new(
+                    Target::Review(review.clone()),
+                    format!("Agent beauftragt, {review} durchzusehen"),
+                )])
+            }
             Action::FixFailedChecks { review, options } => {
                 self.need_open_review(&review)?;
                 self.fix_failed_checks(&review, options)

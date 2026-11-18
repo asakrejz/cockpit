@@ -1,4 +1,5 @@
 use super::*;
+use crate::review::AgentComment;
 
 impl Workspace {
     // ---------- Follow-up jobs: implement review comments, investigate red checks ----------
@@ -61,6 +62,7 @@ impl Workspace {
                 task: FollowupTask::FailedChecks { .. },
                 ..
             } => "Der Agent behebt rote Checks",
+            RunKind::ReviewPr { .. } => "Der Agent sieht den Pull Request durch",
             _ => "Der Agent setzt Review-Kommentare um",
         };
         let pr = run.pr_key();
@@ -218,6 +220,93 @@ impl Workspace {
         Ok(self.start_followup(run, options))
     }
 
+    /// Commissions the **real** agent to read the pull request and prepare review comments as
+    /// drafts. The run only reads: no push, no token, nothing goes to GitHub. Works on every
+    /// branch. The old suggestions are replaced. Returns the key of the run (`prreview-…`).
+    pub fn review_pr_with_agent(&mut self, review: impl Into<PrKey>) -> Result<String, AgentError> {
+        let review = review.into();
+        let r = self.check_followup(&review)?;
+        if r.files.is_empty() {
+            return Err(AgentError::NothingToReview);
+        }
+        let review = r.key();
+        let (title, branch) = (r.title.clone(), r.branch.clone());
+        let run = AgentRun::followup(
+            RunKind::ReviewPr {
+                review: review.clone(),
+            },
+            &self.item_key_of_pr(&review),
+            &title,
+            &branch,
+        );
+        // Reading needs no plan and no tests: your click is the approval.
+        let options = AgentOptions {
+            plan_first: false,
+            run_tests: false,
+            ..AgentOptions::default()
+        };
+        if let Some(r) = self.review_mut(&review) {
+            r.begin_agent_review();
+        }
+        Ok(self.start_followup(run, options))
+    }
+
+    /// Books a draft or the summary of a review run on the review. `false` if the run is not a
+    /// running review run or the draft does not fit the diff.
+    pub(super) fn book_review_report(&mut self, key: &str, report: &AgentReport) -> bool {
+        let Some(review) = self
+            .runs
+            .iter()
+            .find(|r| r.key() == key && r.is_running())
+            .and_then(|r| match &r.kind {
+                RunKind::ReviewPr { review } => Some(review.clone()),
+                _ => None,
+            })
+        else {
+            return false;
+        };
+        let Some(r) = self.review_mut(&review) else {
+            return false;
+        };
+        match report {
+            AgentReport::ReviewComment {
+                path,
+                line,
+                start_line,
+                side,
+                text,
+                suggestion,
+            } => r.add_agent_comment(AgentComment {
+                path: path.clone(),
+                line: *line,
+                start_line: *start_line,
+                side: *side,
+                text: text.clone(),
+                suggestion: suggestion.clone(),
+            }),
+            AgentReport::ReviewSummary { text } => {
+                r.set_agent_summary(text);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// The review run is done: the drafts wait for your decision.
+    pub(super) fn finish_review_run(&mut self, run: &AgentRun) {
+        let Some(key) = run.kind.review() else { return };
+        let count = self.review_mut(&key).map_or(0, Review::finish_agent_review);
+        if let Some(item) = self.pr_item_mut(&key) {
+            item.agent_note = Some(match count {
+                0 => "Der Agent hat nichts zu beanstanden".to_string(),
+                1 => "1 Kommentar vom Agenten wartet auf deine Freigabe".to_string(),
+                n => format!("{n} Kommentare vom Agenten warten auf deine Freigabe"),
+            });
+            item.time = "gerade eben".into();
+            item.read = false;
+        }
+    }
+
     /// The investigation has read the log: the diagnosis is created and attached to the run.
     pub(super) fn diagnose_run(&mut self, key: &str) {
         let Some((review, check)) =
@@ -341,7 +430,7 @@ impl Workspace {
                     }
                 }
             }
-            RunKind::Implement | RunKind::Followup { .. } => {}
+            RunKind::Implement | RunKind::Followup { .. } | RunKind::ReviewPr { .. } => {}
         }
     }
 
@@ -406,6 +495,7 @@ impl Workspace {
             checks,
             files: demo::agent_changes(&run.ticket_key),
             agent_reviewed: false,
+            agent_summary: String::new(),
             suggestions: Vec::new(),
             line_comments: Vec::new(),
             verdict: Verdict::Comment,

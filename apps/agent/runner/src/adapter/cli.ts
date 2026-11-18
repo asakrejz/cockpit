@@ -12,6 +12,7 @@ import { type Event, type Sink, truncate } from "../event.ts";
 import { type Job, commitMessage } from "../job.ts";
 import { changedFiles, record } from "../git.ts";
 import { type Policy, violations } from "../policy.ts";
+import { finishReview } from "../review.ts";
 import { planFromAnswer } from "./claude-messages.ts";
 import type { AdapterEnv } from "./interface.ts";
 
@@ -94,7 +95,8 @@ export async function runCli(job: Job, d: AdapterEnv, make: (sink: Sink) => Spec
     return 1;
   }
   const policy: Policy = { root: d.root, allowed: job.rules.allowed_paths, forbidden: job.rules.forbidden_paths };
-  const plan = job.mode === "plan";
+  const review = job.mode === "review";
+  const plan = job.mode === "plan" || review;
   try {
     let head = "";
     try {
@@ -177,7 +179,7 @@ export async function runCli(job: Job, d: AdapterEnv, make: (sink: Sink) => Spec
       return 1;
     }
     if (plan && files.length > 0) {
-      sink({ t: "error", text: `${spec.label} hat im Planmodus Dateien verändert (${files.slice(0, 5).join(", ")}). Der Plan wird verworfen.` });
+      sink({ t: "error", text: `${spec.label} hat im ${review ? "Review" : "Planmodus"} Dateien verändert (${files.slice(0, 5).join(", ")}). ${review ? "Das Review" : "Der Plan"} wird verworfen.` });
       return 1;
     }
     const bad = violations(policy, files);
@@ -186,6 +188,10 @@ export async function runCli(job: Job, d: AdapterEnv, make: (sink: Sink) => Spec
       return 1;
     }
 
+    if (review) {
+      finishReview(sink, job, out.text);
+      return 0;
+    }
     if (plan) {
       const p = planFromAnswer(out.text);
       sink({ t: "plan", summary: p.summary, files: p.files, steps: p.steps });

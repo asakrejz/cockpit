@@ -172,7 +172,7 @@ export function codex(): Adapter {
         return {
           label: "Codex",
           command: CODEX.command,
-          args: codexArgs({ model, plan: job.mode === "plan", root: d.root, base: codexBase(d.env) }),
+          args: codexArgs({ model, plan: job.mode === "plan" || job.mode === "review", root: d.root, base: codexBase(d.env) }),
           env: codexEnv(d.env, home),
           // Codex has no system prompt flag: the fixed rules go in front of the task.
           stdin: `${systemText(job)}\n\n${tasksText(job, { canAsk: false })}`,

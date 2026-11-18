@@ -7,6 +7,10 @@ export type Event =
   | { t: "files"; files: string[] }
   | { t: "question"; text: string; suggestions: string[] }
   | { t: "hints_arrived" }
+  // Review mode: draft comments on lines of the diff and a summary. The backend checks every line
+  // against the diff and keeps them as drafts; nothing goes to GitHub from here.
+  | { t: "review_comment"; path: string; line: number; start_line?: number; side: "RIGHT" | "LEFT"; text: string; suggestion?: string }
+  | { t: "review_summary"; text: string }
   | { t: "result"; text: string; branch: string; commit: string }
   | { t: "check"; reachable: boolean; key_ok: boolean; hint: string }
   | { t: "error"; text: string };

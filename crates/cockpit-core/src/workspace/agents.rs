@@ -97,7 +97,12 @@ impl Workspace {
     /// A follow-up job that no longer runs leaves no run behind. (For the ticket
     /// the ready run stays, as before.)
     pub(super) fn drop_idle_followups(&mut self) {
-        self.runs.retain(|r| !(r.is_followup() && r.is_idle()));
+        // A failed review run stays, so that the review page can say why it ended.
+        self.runs.retain(|r| {
+            !(r.is_followup()
+                && r.is_idle()
+                && !(matches!(r.kind, RunKind::ReviewPr { .. }) && r.ended.is_some()))
+        });
     }
 
     /// Cancels a waiting or running agent.
@@ -274,6 +279,17 @@ impl Workspace {
             .iter_mut()
             .find(|r| r.key() == key && r.is_active())?;
         let ticket = run.ticket_key.clone();
+        if matches!(
+            report,
+            AgentReport::ReviewComment { .. } | AgentReport::ReviewSummary { .. }
+        ) && !self.book_review_report(key, &report)
+        {
+            return None;
+        }
+        let run = self
+            .runs
+            .iter_mut()
+            .find(|r| r.key() == key && r.is_active())?;
         let effect = run.report(report, &limits, month_spent)?;
         let run = run.clone();
         if let Some(usage) = effect.usage {
@@ -311,6 +327,10 @@ impl Workspace {
     /// the branch of an existing pull request.
     pub(super) fn finish_real(&mut self, run: &AgentRun) {
         let branch = run.branch();
+        if matches!(run.kind, RunKind::ReviewPr { .. }) {
+            self.finish_review_run(run);
+            return;
+        }
         if let Some(number) = run.kind.review() {
             let what = match &run.kind {
                 RunKind::Followup {

@@ -80,6 +80,13 @@ pub enum RunKind {
         review: PrKey,
         task: FollowupTask,
     },
+    /// The **real** agent reads a pull request and prepares review comments as drafts. It only
+    /// reads: the clone of the branch is mounted read-only, nothing is pushed, nothing goes to
+    /// GitHub. The drafts become suggestions of the review and wait for your decision.
+    ReviewPr {
+        /// The pull request (repo and number).
+        review: PrKey,
+    },
 }
 
 /// What a real follow-up job does.
@@ -108,12 +115,16 @@ impl RunKind {
             RunKind::Implement => None,
             RunKind::AddressReview { review, .. }
             | RunKind::Diagnose { review, .. }
-            | RunKind::Followup { review, .. } => Some(review.clone()),
+            | RunKind::Followup { review, .. }
+            | RunKind::ReviewPr { review } => Some(review.clone()),
         }
     }
 
     /// Does the real agent run this job in a container (as opposed to the simulation)?
     pub fn runs_in_container(&self) -> bool {
-        matches!(self, RunKind::Implement | RunKind::Followup { .. })
+        matches!(
+            self,
+            RunKind::Implement | RunKind::Followup { .. } | RunKind::ReviewPr { .. }
+        )
     }
 }

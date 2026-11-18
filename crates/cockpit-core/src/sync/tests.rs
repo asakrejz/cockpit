@@ -85,6 +85,7 @@ fn review(number: u32, files: Vec<FileDiff>) -> Review {
         checks: Checks::Passed,
         files,
         agent_reviewed: false,
+        agent_summary: String::new(),
         suggestions: Vec::new(),
         line_comments: Vec::new(),
         verdict: Verdict::default(),
