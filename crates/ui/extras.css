@@ -203,8 +203,9 @@
    Layout: the shell is exactly as tall as the viewport, the columns scroll on their own.
 
    - above 1280 px: up to three columns (picker or list, detail, context), equal height;
-   - 1101-1280 px: the third column moves below the second one (context under detail);
-   - up to 1100 px: one column; the panes stack and the page scrolls (two levels, see below).
+   - 768-1280 px: the third column moves below the second one (context under detail);
+   - below 768 px: one level at a time like an iOS navigation stack (see "Two levels" below);
+     the page scrolls.
    The floating pill (`.ui-bottomnav`) never covers content: the shell ends above it.
    --------------------------------------------------------------------- */
 :root { --ui-nav-space: calc(var(--comp-tabbar-height) + var(--ref-space-24) + env(safe-area-inset-bottom)); }
@@ -234,7 +235,7 @@
 .ui-pane[data-kind="picker"] .ui-pane__body { padding-inline: var(--ref-space-8); }
 
 /* Narrower desktop: the context column sits below the detail instead of beside it. */
-@media (min-width: 1101px) and (max-width: 1280px) {
+@media (min-width: 768px) and (max-width: 1280px) {
   .ui-splitview:has(> .ui-pane:nth-of-type(3)),
   .ui-splitview[data-layout="detail-wide"]:has(> .ui-pane:nth-of-type(3)) {
     grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
@@ -245,7 +246,8 @@
   .ui-splitview:has(> .ui-pane:nth-of-type(3)) > .ui-pane:nth-of-type(3) { grid-column: 2; grid-row: 2; }
 }
 
-@media (max-width: 1100px) {
+/* Below 768 px: one column, the page scrolls. Which pane is on screen: "Two levels" below. */
+@media (max-width: 767px) {
   .ui-splitview,
   .ui-splitview[data-layout="detail-wide"]:has(> .ui-pane:nth-of-type(n)),
   .ui-splitview:has(> .ui-pane:nth-of-type(n)) {
@@ -254,32 +256,15 @@
     height: auto;
     min-height: 100dvh;
     overflow: visible;
+    overflow-x: clip;
     gap: var(--ref-space-12);
     padding-block: max(var(--ref-space-12), env(safe-area-inset-top)) var(--ui-nav-space);
     padding-inline: max(var(--ref-space-12), env(safe-area-inset-left), env(safe-area-inset-right));
   }
   .ui-splitview > .ui-pane { overflow: visible; flex: none; width: 100%; max-width: 960px; margin-inline: auto; box-sizing: border-box; grid-area: auto; }
+}
 
-  /* Picker: one row of chips that scrolls sideways. */
-  .ui-pane[data-kind="picker"] { background: none; overflow: visible; }
-  .ui-pane[data-kind="picker"] .ui-pane__header { padding: 0 var(--ref-space-4) var(--ref-space-4); }
-  .ui-pane[data-kind="picker"] .ui-pane__body { padding: 0; }
-  .ui-pane[data-kind="picker"] .ui-sidebar__nav {
-    flex-direction: row;
-    gap: var(--ref-space-8);
-    overflow-x: auto;
-    padding-bottom: var(--ref-space-4);
-    padding-inline-end: var(--ref-space-32);
-    scrollbar-width: none;
-    /* The strip fades out on the right: more chips wait behind a swipe. */
-    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
-  }
-  .ui-pane[data-kind="picker"] .ui-sidebar__nav::-webkit-scrollbar { display: none; }
-  .ui-pane[data-kind="picker"] .ui-sidebar__nav > li { flex: none; max-width: 240px; }
-  .ui-pane[data-kind="picker"] .ui-sidebar__item { background: var(--sys-color-secondary-grouped-background); border-radius: var(--ref-radius-full); }
-  .ui-pane[data-kind="picker"] .ui-sidebar__item[aria-current="page"] { background: var(--sys-color-tint-fill); }
-
+@media (max-width: 1100px) {
   .ui-pane__header { padding: var(--ref-space-16) var(--ref-space-16) var(--ref-space-12); }
   .ui-pane__body { padding: 0 var(--ref-space-16) var(--ref-space-16); }
 }
@@ -489,12 +474,49 @@ body.ui-scroll-locked { overflow: hidden; }
   }
 }
 
-/* Two levels (SplitView with `detail_open`): list or detail, never both. */
-@media (max-width: 1100px) {
-  .ui-splitview[data-level="list"] > .ui-pane:nth-of-type(2),
-  .ui-splitview[data-level="detail"] > .ui-pane:nth-of-type(1),
-  .ui-splitview[data-level="detail"] > .ui-sidebar > div:not([data-role]) { display: none; }
+/* Two levels (SplitView with `level`): list or detail, never both. The detail slides in from the
+   right, the list comes back from the left. Own tokens for the slide; tokens.css stays as it is. */
+:root, [data-theme] {
+  --ui-stack-duration: var(--ref-duration-350);
+  --ui-stack-ease: var(--ref-ease-smooth);
 }
+.ui-splitview__back { display: none; }
+@media (max-width: 767px) {
+  .ui-splitview[data-level="list"] > .ui-pane:nth-of-type(n+2),
+  .ui-splitview[data-level="detail"] > .ui-pane:nth-of-type(1) { display: none; }
+
+  .ui-splitview[data-level="detail"] > .ui-splitview__back {
+    display: block;
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 2;
+    margin-inline: calc(-1 * var(--ref-space-12));
+    padding: var(--ref-space-4) var(--ref-space-12);
+    background: var(--sys-material-thick, var(--sys-color-background));
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+  }
+  .ui-splitview__back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ref-space-4);
+    min-height: var(--sys-size-hit);
+    max-width: 100%;
+    color: var(--sys-color-tint);
+    font: var(--sys-type-body);
+    text-decoration: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .ui-splitview__back-link > span { font-size: 1.6em; line-height: 1; transform: translateY(-1px); }
+}
+@media (max-width: 767px) and (prefers-reduced-motion: no-preference) {
+  .ui-splitview[data-motion="forward"][data-level="detail"] > .ui-pane { animation: ui-stack-in-right var(--ui-stack-duration) var(--ui-stack-ease); }
+  .ui-splitview[data-motion="back"][data-level="list"] > .ui-pane { animation: ui-stack-in-left var(--ui-stack-duration) var(--ui-stack-ease); }
+}
+@keyframes ui-stack-in-right { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes ui-stack-in-left { from { transform: translateX(-30%); opacity: 0.4; } to { transform: none; opacity: 1; } }
 
 /* Touch: selectable diff lines are comfortable to hit (the diff scrolls sideways inside its box). */
 @media (max-width: 1100px), (pointer: coarse) {

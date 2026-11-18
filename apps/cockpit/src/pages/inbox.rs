@@ -55,13 +55,22 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
         draft.set(String::new());
     });
 
-    // Narrow screens show list and detail as two levels; this says which one is on.
-    let detail_open = RwSignal::new(false);
-    Effect::new(move |previous: Option<bool>| {
-        let open = detail_open.get();
-        if previous.is_some() {
+    // Narrow screens show list and detail as two levels; the address says which one is on.
+    // An address with an entry also chooses that entry.
+    let level = Signal::derive(move || store.route.with(Route::level));
+    Effect::new(move |_| {
+        if let Route::InboxItem(_, id) = store.route.get() {
+            store.selected.set(id);
+        }
+    });
+    let was_detail = StoredValue::new(false);
+    Effect::new(move |_| {
+        let detail = level.get() == StackLevel::Detail;
+        let before = was_detail.get_value();
+        was_detail.set_value(detail);
+        if detail != before {
             request_animation_frame(move || {
-                if open {
+                if detail {
                     window().scroll_to_with_x_and_y(0.0, 0.0);
                 } else if let Some(row) = query_html(".ck-inbox [aria-pressed=\"true\"]") {
                     let options = ScrollIntoViewOptions::new();
@@ -70,7 +79,6 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                 }
             });
         }
-        open
     });
 
     // Edit mode of a ticket: draft of title and description. With every change
@@ -111,7 +119,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
         Filter::Snoozed => ("Zurückgestellt", "Nichts ist zurückgestellt."),
     };
     view! {
-        <SplitView detail_open=detail_open>
+        <SplitView level=level back_label=title back_href=Route::Inbox(filter).hash()>
             // The rules live in the "Mehr" sheet of the navigation.
             <MoreSection>
                 <p class="ui-sidebar__label">"Regeln"</p>
@@ -256,7 +264,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                             list.into_iter()
                                 .map(|item| {
                                     let selected = active.as_deref() == Some(item.id.as_str());
-                                    row(store, item, selected, detail_open)
+                                    row(store, item, selected, filter)
                                 })
                                 .collect_view()
                                 .into_any()
@@ -274,9 +282,6 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
             </Pane>
 
             <Pane label="Details">
-                <div class="ck-back">
-                    <Button on_click=move |_| detail_open.set(false)>"‹ Zur Liste"</Button>
-                </div>
                 {move || match current.get() {
                     Some(item) => detail(store, item, items, draft, edit).into_any(),
                     None => {
