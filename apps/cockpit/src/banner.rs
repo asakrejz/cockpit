@@ -26,7 +26,7 @@ fn source_banner(store: Store, n: SourceNotice, busy: RwSignal<bool>) -> impl In
     let action = match n.action {
         NoticeAction::OpenSetup => view! {
             <Button size=ControlSize::Small variant=ButtonStyle::GlassProminent href=Route::Setup.hash()>
-                "Einrichten"
+                {t!(BannerSetup)}
             </Button>
         }
         .into_any(),
@@ -36,7 +36,7 @@ fn source_banner(store: Store, n: SourceNotice, busy: RwSignal<bool>) -> impl In
                 disabled=Signal::derive(move || busy.get())
                 on_click=move |_| sync_now(store, busy)
             >
-                {move || if busy.get() { "Gleiche ab …" } else { "Jetzt abgleichen" }}
+                {move || if busy.get() { t!(BannerSyncing) } else { t!(BannerSyncNow) }}
             </Button>
         }
         .into_any(),
@@ -67,30 +67,34 @@ pub fn ServerBanner() -> impl IntoView {
         }
         match store.link.get() {
             Link::Online => None,
-            Link::Connecting => Some(view! {
-                <StatusBanner title="Verbinde mit dem Server …" />
-            }
-            .into_any()),
-            Link::Offline => Some(view! {
-                <StatusBanner
-                    tone=BannerTone::Warning
-                    title=SERVER_UNREACHABLE_TITLE
-                    text=format!("Die Daten unten sind der letzte Stand. {SERVER_UNREACHABLE_TEXT}")
-                >
-                    <Button
-                        size=ControlSize::Small
-                        variant=ButtonStyle::GlassProminent
-                        on_click=move |_| store.connect()
+            Link::Connecting => Some(
+                view! {
+                    <StatusBanner title=t!(BannerConnecting) />
+                }
+                .into_any(),
+            ),
+            Link::Offline => Some(
+                view! {
+                    <StatusBanner
+                        tone=BannerTone::Warning
+                        title=SERVER_UNREACHABLE_TITLE
+                        text=t!(BannerStaleData, text = SERVER_UNREACHABLE_TEXT)
                     >
-                        "Jetzt erneut versuchen"
-                    </Button>
-                </StatusBanner>
-            }
-            .into_any()),
+                        <Button
+                            size=ControlSize::Small
+                            variant=ButtonStyle::GlassProminent
+                            on_click=move |_| store.connect()
+                        >
+                            {t!(BannerRetry)}
+                        </Button>
+                    </StatusBanner>
+                }
+                .into_any(),
+            ),
         }
     };
 
-    // Sources with a problem; on "Einrichten" the list there already says it.
+    // Sources with a problem; on the setup page the list there already says it.
     let sources = move || {
         if !store.loaded.get() || store.route.with(Route::is_setup) {
             return Vec::new();

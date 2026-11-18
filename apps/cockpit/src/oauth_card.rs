@@ -1,4 +1,4 @@
-//! Sign-in via OAuth on the page "Einrichten": "Mit … anmelden" and "Trennen".
+//! Sign-in via OAuth on the page "Setup": sign in and disconnect.
 //! The logic is in the backend; here is only the wiring. The browser
 //! sees neither tokens nor secrets: "Anmelden" is a navigation to `/api/oauth/…/start`.
 
@@ -10,6 +10,12 @@ use leptos::task::spawn_local;
 
 use crate::server::{self, CallError};
 use crate::store::use_store;
+
+/// Brand name (not translated).
+const ATLASSIAN: &str = concat!("Atlassian");
+
+/// Layout of the "forget" row.
+const ALIGN_CENTER: &str = "align-items:center";
 
 /// Which service: address in the backend, name, command for the client secret.
 #[derive(Clone, Copy)]
@@ -29,7 +35,7 @@ impl Service {
     fn name(self) -> &'static str {
         match self {
             Service::GitHub => "GitHub",
-            Service::Atlassian => "Atlassian",
+            Service::Atlassian => ATLASSIAN,
         }
     }
 
@@ -79,11 +85,11 @@ pub async fn forget_client(service: Service) -> Result<(), CallError> {
 fn describe(status: &ServiceStatus) -> String {
     match (status.connected, status.kind) {
         (true, AuthKind::OAuth) => match &status.site {
-            Some(site) => format!("Verbunden per OAuth (Site {site})"),
-            None => "Verbunden per OAuth".into(),
+            Some(site) => t!(OauthConnectedSite, site = site),
+            None => t!(OauthConnected),
         },
-        (true, kind) => format!("Verbunden ({})", kind.label()),
-        (false, _) => "Getrennt".into(),
+        (true, kind) => t!(OauthConnectedKind, kind = kind.label()),
+        (false, _) => t!(OauthDisconnected),
     }
 }
 
@@ -93,7 +99,7 @@ pub fn OAuthCard(
     /// Called as soon as the server reports the connection as established.
     #[prop(into)]
     on_connected: Callback<()>,
-    /// Called after a successful "Trennen".
+    /// Called after a successful disconnect.
     #[prop(into)]
     on_disconnected: Callback<()>,
 ) -> impl IntoView {
@@ -113,7 +119,7 @@ pub fn OAuthCard(
     };
     load();
 
-    // "Trennen" can also forget the app (client ID and secret) – off by default.
+    // Disconnecting can also forget the app (client ID and secret) – off by default.
     let forget = RwSignal::new(false);
     let disconnect = move |_| {
         let forget_too = forget.get_untracked();
@@ -125,22 +131,20 @@ pub fn OAuthCard(
                         match forget_client(service).await {
                             Ok(()) => {
                                 forget.set(false);
-                                hint = Some(format!(
-                                    "Von {} getrennt. Client-ID und Client-Secret sind vergessen.",
-                                    service.name()
-                                ));
+                                hint = Some(t!(OauthDisconnectedForgot, service = service.name()));
                             }
                             Err(e) => hint = Some(e.message()),
                         }
                     }
                     on_disconnected.run(());
-                    store
-                        .notify(hint.unwrap_or_else(|| format!("Von {} getrennt", service.name())));
+                    store.notify(
+                        hint.unwrap_or_else(|| t!(OauthDisconnectedNote, service = service.name())),
+                    );
                     if let Ok(services) = server::fetch_services().await {
                         status.set(Some(service.pick(&services)));
                     }
                 }
-                Err(CallError::Unreachable) => store.notify("Der Server ist nicht erreichbar"),
+                Err(CallError::Unreachable) => store.notify(t!(OauthServerUnreachable)),
                 Err(e) => store.notify(e.message()),
             }
         });
@@ -154,13 +158,13 @@ pub fn OAuthCard(
                     let tone = if s.connected { StatusTone::Green } else { StatusTone::Gray };
                     let oauth = s.kind == AuthKind::OAuth;
                     let possible = s.oauth_possible;
-                    let login_label = format!("Mit {} anmelden", service.name());
-                    let hint = "Zuerst oben die Client-ID speichern und das Client-Secret ablegen.";
+                    let login_label = t!(OauthSignIn, service = service.name());
+                    let hint = t!(OauthNeedClient);
                     view! {
                         <Card>
                             <CardBody css="gap: 12px">
                                 <HStack css="justify-content: space-between">
-                                    <span class="t-headline">{format!("Anmeldung bei {}", service.name())}</span>
+                                    <span class="t-headline">{t!(OauthSignInTo, service = service.name())}</span>
                                     <Status tone=tone>{describe(&s)}</Status>
                                 </HStack>
                                 <HStack spacing="12px">
@@ -179,7 +183,7 @@ pub fn OAuthCard(
                                         .then(|| {
                                             view! {
                                                 <Button destructive=true on_click=disconnect>
-                                                    "Trennen"
+                                                    {t!(OauthDisconnect)}
                                                 </Button>
                                             }
                                         })}
@@ -187,13 +191,13 @@ pub fn OAuthCard(
                                 {oauth
                                     .then(|| {
                                         view! {
-                                            <HStack spacing="8px" css="align-items: center">
+                                            <HStack spacing="8px" css=ALIGN_CENTER>
                                                 <Toggle
                                                     checked=forget
-                                                    aria_label="Auch Client-ID und Secret vergessen"
+                                                    aria_label=t!(OauthForget)
                                                 />
                                                 <span class="t-footnote t-secondary">
-                                                    "Auch Client-ID und Secret vergessen"
+                                                    {t!(OauthForget)}
                                                 </span>
                                             </HStack>
                                         }

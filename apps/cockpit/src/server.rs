@@ -11,6 +11,7 @@ use cockpit_core::api::{
     WebhookSecretResponse, WebhookTestResponse,
 };
 use cockpit_core::{Action, Workspace, persist};
+use feature_ui::t;
 use gloo_net::http::Request;
 use web_sys::wasm_bindgen::{JsCast, closure::Closure};
 
@@ -50,7 +51,7 @@ async fn rejection(resp: gloo_net::http::Response) -> CallError {
 async fn rejection_own(resp: gloo_net::http::Response) -> CallError {
     match resp.json::<ErrorBody>().await {
         Ok(e) if !e.error.trim().is_empty() => CallError::Rejected(e.error),
-        _ => CallError::Rejected("GitHub lässt sich gerade nicht abfragen.".into()),
+        _ => CallError::Rejected(t!(ServerGithubUnavailable)),
     }
 }
 
@@ -64,8 +65,7 @@ pub async fn fetch_workspace() -> Result<(Workspace, u64), CallError> {
         return Err(rejection(resp).await);
     }
     let text = resp.text().await.map_err(|_| CallError::Unreachable)?;
-    persist::load_with_revision(&text)
-        .map_err(|_| CallError::Rejected("Der Server schickt einen unlesbaren Stand".into()))
+    persist::load_with_revision(&text).map_err(|_| CallError::Rejected(t!(ServerUnreadableState)))
 }
 
 /// Sends an action. The server applies it as "Du".
@@ -73,14 +73,14 @@ pub async fn post_action(action: Action) -> Result<ActionResponse, CallError> {
     let request = Request::post("/api/actions")
         .header("Content-Type", "application/json")
         .json(&ActionRequest { action })
-        .map_err(|_| CallError::Rejected("Die Aktion lässt sich nicht senden".into()))?;
+        .map_err(|_| CallError::Rejected(t!(ServerActionNotSent)))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
     resp.json::<ActionResponse>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// "Jetzt abgleichen": triggers the sync with Jira and GitHub (`POST /api/sync`).
@@ -88,14 +88,14 @@ pub async fn post_sync() -> Result<SyncResponse, CallError> {
     let request = Request::post("/api/sync")
         .header("Content-Type", "application/json")
         .build()
-        .map_err(|_| CallError::Rejected("Der Abgleich lässt sich nicht starten".into()))?;
+        .map_err(|_| CallError::Rejected(t!(ServerSyncNotStarted)))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
     resp.json::<SyncResponse>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// The Jira projects for the selection in the inbox (`GET /api/jira/projects`).
@@ -109,7 +109,7 @@ pub async fn fetch_jira_projects() -> Result<JiraProjectsResponse, CallError> {
     }
     resp.json::<JiraProjectsResponse>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// Preview of the pull request for the branch of a finished real run
@@ -127,7 +127,7 @@ pub async fn fetch_pull_request_preview(
     }
     resp.json::<cockpit_core::api::PullRequestPreview>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// Open event stream. On closing (`Drop`) the connection is ended.
@@ -233,7 +233,7 @@ pub async fn fetch_health() -> Result<Health, CallError> {
     }
     resp.json::<Health>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// Kind and state of the sign-in at GitHub and Jira (`GET /api/health`).
@@ -252,7 +252,7 @@ pub async fn fetch_endpoint_check() -> Result<EndpointCheck, CallError> {
     }
     resp.json::<EndpointCheck>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// The model IDs of the saved endpoint (`GET /api/agent/models`).
@@ -266,7 +266,7 @@ pub async fn fetch_models() -> Result<ModelList, CallError> {
     }
     resp.json::<ModelList>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// State of "Image bauen" (`GET /api/agent/image`).
@@ -280,7 +280,7 @@ pub async fn fetch_image() -> Result<ImageBuild, CallError> {
     }
     resp.json::<ImageBuild>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// Starts "Image bauen" (`POST /api/agent/image`); the build continues in the server.
@@ -288,14 +288,14 @@ pub async fn post_image_build() -> Result<ImageBuild, CallError> {
     let request = Request::post("/api/agent/image")
         .header("Content-Type", "application/json")
         .build()
-        .map_err(|_| CallError::Rejected("Der Bau lässt sich nicht starten".into()))?;
+        .map_err(|_| CallError::Rejected(t!(ServerBuildNotStarted)))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
     resp.json::<ImageBuild>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// Checks whether a container reaches the endpoint (`GET /api/agent/check/container`).
@@ -309,7 +309,7 @@ pub async fn fetch_container_check() -> Result<ContainerCheck, CallError> {
     }
     resp.json::<ContainerCheck>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// "Trennen": revokes the sign-in (`POST /api/oauth/{service}/revoke`). `service`:
@@ -318,14 +318,14 @@ pub async fn post_revoke(service: &str) -> Result<RevokeResponse, CallError> {
     let request = Request::post(&format!("/api/oauth/{service}/revoke"))
         .header("Content-Type", "application/json")
         .build()
-        .map_err(|_| CallError::Rejected("Das Trennen lässt sich nicht starten".into()))?;
+        .map_err(|_| CallError::Rejected(t!(ServerDisconnectNotStarted)))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
     resp.json::<RevokeResponse>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// The current, non-secret values for the assistant (`GET /api/setup`).
@@ -339,7 +339,7 @@ pub async fn fetch_setup() -> Result<Setup, CallError> {
     }
     resp.json::<Setup>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// Writes client IDs, Jira, repos or provider and endpoint to `config.toml` (`PUT /api/config`).
@@ -347,14 +347,14 @@ pub async fn put_config(change: &ConfigChange) -> Result<ConfigResponse, CallErr
     let request = Request::put("/api/config")
         .header("Content-Type", "application/json")
         .json(change)
-        .map_err(|_| CallError::Rejected("Die Eingaben lassen sich nicht senden".into()))?;
+        .map_err(|_| CallError::Rejected(t!(ServerInputsNotSent)))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
     resp.json::<ConfigResponse>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// Stores a key in the .env file of the server (`PUT /api/secrets/{name}`). The value
@@ -364,14 +364,14 @@ pub async fn put_key(name: &str, value: String) -> Result<KeyResponse, CallError
     let request = Request::put(&format!("/api/secrets/{name}"))
         .header("Content-Type", "application/json")
         .json(&KeyInput { value })
-        .map_err(|_| CallError::Rejected("Die Eingabe lässt sich nicht senden".into()))?;
+        .map_err(|_| CallError::Rejected(t!(ServerInputNotSent)))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
     resp.json::<KeyResponse>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// Connection test for Jira via API token (`POST /api/jira/check`). Read only; the answer
@@ -380,14 +380,14 @@ pub async fn post_jira_check() -> Result<JiraCheck, CallError> {
     let request = Request::post("/api/jira/check")
         .header("Content-Type", "application/json")
         .build()
-        .map_err(|_| CallError::Rejected("Der Test lässt sich nicht starten".into()))?;
+        .map_err(|_| CallError::Rejected(t!(ServerTestNotStarted)))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
     resp.json::<JiraCheck>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// Deletes a token from the .env file (`DELETE /api/secrets/{name}`), "Trennen".
@@ -395,14 +395,14 @@ pub async fn delete_key(name: &str) -> Result<KeyResponse, CallError> {
     let request = Request::delete(&format!("/api/secrets/{name}"))
         .header("Content-Type", "application/json")
         .build()
-        .map_err(|_| CallError::Rejected("Das Trennen lässt sich nicht starten".into()))?;
+        .map_err(|_| CallError::Rejected(t!(ServerDisconnectNotStarted)))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
     resp.json::<KeyResponse>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// The repos the connected GitHub access can reach (`GET /api/github/repos`). Only reads.
@@ -416,7 +416,7 @@ pub async fn fetch_github_repos() -> Result<GitHubRepoList, CallError> {
     }
     resp.json::<GitHubRepoList>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// A branch pattern proposed from the CONTRIBUTING.md of a repo
@@ -425,14 +425,14 @@ pub async fn post_branch_suggestion(repo: &str) -> Result<BranchSuggestion, Call
     let request = Request::post("/api/github/branch-suggestion")
         .header("Content-Type", "application/json")
         .json(&BranchSuggestionRequest { repo: repo.into() })
-        .map_err(|_| CallError::Rejected("Die Anfrage lässt sich nicht starten".into()))?;
+        .map_err(|_| CallError::Rejected(t!(ServerRequestNotStarted)))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection_own(resp).await);
     }
     resp.json::<BranchSuggestion>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// The connection test of GitHub (`POST /api/github/check`): the user and the chosen repos.
@@ -440,14 +440,14 @@ pub async fn post_github_check(repos: Vec<String>) -> Result<GitHubCheck, CallEr
     let request = Request::post("/api/github/check")
         .header("Content-Type", "application/json")
         .json(&RepoCheckRequest { repos })
-        .map_err(|_| CallError::Rejected("Die Prüfung lässt sich nicht starten".into()))?;
+        .map_err(|_| CallError::Rejected(t!(ServerCheckNotStarted)))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection_own(resp).await);
     }
     resp.json::<GitHubCheck>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// Generates a new webhook secret on the server (`POST /api/setup/webhook-secret/{source}`).
@@ -456,14 +456,14 @@ pub async fn post_webhook_secret(source: &str) -> Result<WebhookSecretResponse, 
     let request = Request::post(&format!("/api/setup/webhook-secret/{source}"))
         .header("Content-Type", "application/json")
         .build()
-        .map_err(|_| CallError::Rejected("Die Anfrage lässt sich nicht starten".into()))?;
+        .map_err(|_| CallError::Rejected(t!(ServerRequestNotStarted)))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
     resp.json::<WebhookSecretResponse>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
 /// Sends a signed test request from the server to itself (`POST /api/setup/webhook-test/{source}`).
@@ -471,12 +471,12 @@ pub async fn post_webhook_test(source: &str) -> Result<WebhookTestResponse, Call
     let request = Request::post(&format!("/api/setup/webhook-test/{source}"))
         .header("Content-Type", "application/json")
         .build()
-        .map_err(|_| CallError::Rejected("Der Test lässt sich nicht starten".into()))?;
+        .map_err(|_| CallError::Rejected(t!(ServerTestNotStarted)))?;
     let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
     resp.json::<WebhookTestResponse>()
         .await
-        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }

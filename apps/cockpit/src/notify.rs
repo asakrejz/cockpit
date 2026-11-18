@@ -5,6 +5,7 @@
 //! permission is never asked for on its own, only on a button press.
 
 use cockpit_core::NotifyEvent;
+use feature_ui::t;
 use leptos::prelude::*;
 use web_sys::{
     Notification, NotificationOptions, NotificationPermission, VisibilityState,
@@ -12,6 +13,9 @@ use web_sys::{
 };
 
 use crate::{route::Route, store::navigate_hash};
+
+/// Name of the browser API on `window`.
+const API_NAME: &str = concat!("Notification");
 
 /// How the browser's permission stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -25,20 +29,19 @@ pub enum Permission {
 }
 
 impl Permission {
-    pub fn label(self) -> &'static str {
+    pub fn label(self) -> String {
         match self {
-            Permission::Unsupported => "Dieser Browser unterstützt keine Benachrichtigungen",
-            Permission::Ask => "Noch nicht erlaubt",
-            Permission::Granted => "Erlaubt",
-            Permission::Denied => "Abgelehnt – in den Browser-Einstellungen änderbar",
+            Permission::Unsupported => t!(NotifyUnsupported),
+            Permission::Ask => t!(NotifyAsk),
+            Permission::Granted => t!(NotifyGranted),
+            Permission::Denied => t!(NotifyDenied),
         }
     }
 }
 
 /// Current state. Without the API (older browsers) it says "not supported".
 pub fn permission() -> Permission {
-    let known =
-        js_sys::Reflect::has(&window(), &JsValue::from_str("Notification")).unwrap_or(false);
+    let known = js_sys::Reflect::has(&window(), &JsValue::from_str(API_NAME)).unwrap_or(false);
     if !known {
         return Permission::Unsupported;
     }

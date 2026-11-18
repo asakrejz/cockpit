@@ -25,12 +25,12 @@ pub fn Toasts() -> impl IntoView {
                                 <p class="t-subheadline t-secondary">{event.text}</p>
                             </div>
                             <Button size=ControlSize::Small href=event.route on_click=move |_| store.dismiss(id)>
-                                "Öffnen"
+                                {t!(ToastOpen)}
                             </Button>
                             <Button
                                 variant=ButtonStyle::Borderless
                                 size=ControlSize::Small
-                                aria_label="Hinweis schließen"
+                                aria_label=t!(ToastClose)
                                 on_click=move |_| store.dismiss(id)
                             >
                                 <Icon path=icons::CLOSE size=14 />

@@ -1,0 +1,13 @@
+# Errors of calls to the server
+server.github_unavailable = GitHub cannot be reached right now.
+server.unreadable_state = The server sent a state that cannot be read
+server.action_not_sent = The action cannot be sent
+server.garbled = The server answered in a way Cockpit cannot read
+server.sync_not_started = The sync cannot be started
+server.build_not_started = The build cannot be started
+server.disconnect_not_started = Disconnecting cannot be started
+server.inputs_not_sent = The entries cannot be sent
+server.input_not_sent = The entry cannot be sent
+server.test_not_started = The test cannot be started
+server.request_not_started = The request cannot be started
+server.check_not_started = The check cannot be started

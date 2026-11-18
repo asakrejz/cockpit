@@ -1,0 +1,8 @@
+# Banners, gate and sync status of the shell
+banner.setup = Set up
+banner.sync_now = Sync now
+banner.syncing = Syncing …
+banner.connecting = Connecting to the server …
+banner.stale_data = The data below is the last known state. {text}
+banner.retry = Try again now
+gate.loading = Cockpit is loading

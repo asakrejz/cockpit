@@ -1,0 +1,13 @@
+# Fehler bei Aufrufen an den Server
+server.github_unavailable = GitHub lässt sich gerade nicht abfragen.
+server.unreadable_state = Der Server schickt einen Stand, den Cockpit nicht lesen kann
+server.action_not_sent = Die Aktion lässt sich nicht senden
+server.garbled = Die Antwort des Servers ist nicht lesbar
+server.sync_not_started = Der Abgleich lässt sich nicht starten
+server.build_not_started = Der Bau lässt sich nicht starten
+server.disconnect_not_started = Das Trennen lässt sich nicht starten
+server.inputs_not_sent = Die Eingaben lassen sich nicht senden
+server.input_not_sent = Die Eingabe lässt sich nicht senden
+server.test_not_started = Der Test lässt sich nicht starten
+server.request_not_started = Die Anfrage lässt sich nicht starten
+server.check_not_started = Die Prüfung lässt sich nicht starten

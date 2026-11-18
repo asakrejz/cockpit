@@ -1,0 +1,6 @@
+toast.open = Öffnen
+toast.close = Hinweis schließen
+notify.unsupported = Dieser Browser kann keine Benachrichtigungen zeigen
+notify.ask = Noch nicht erlaubt
+notify.granted = Erlaubt
+notify.denied = Abgelehnt. Das kannst du in den Browser-Einstellungen ändern.
