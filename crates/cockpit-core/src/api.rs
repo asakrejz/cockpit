@@ -37,6 +37,9 @@ pub use jira::*;
 mod status;
 pub use status::*;
 
+mod translate;
+pub use translate::*;
+
 mod webhooks;
 pub use webhooks::*;
 

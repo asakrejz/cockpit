@@ -14,3 +14,4 @@ server_misc.webhook_rate_limited = Too many requests in a short time. Wait a min
 server_misc.webhook_rejected = The server rejected the test.
 server_misc.webhook_no_answer = The local server did not answer.
 server_misc.run_missing = The run (run) is missing
+server_misc.translate_unreadable = The translation request cannot be read
