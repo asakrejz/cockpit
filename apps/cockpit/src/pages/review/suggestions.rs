@@ -10,9 +10,34 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
         .suggestions
         .iter()
         .cloned()
-        .map(|s| suggestion(store, number, s, panel))
+        .map(|s| {
+            let rows = code_rows(&r, &s);
+            suggestion(store, number, s, panel, rows)
+        })
         .collect_view();
+    let real = store.agent_real();
+    let summary_text = r.agent_summary.clone();
 
+    // The real run: only you start it; the agent reads, nothing goes to GitHub.
+    let review_run = move |_| {
+        let _ = store.dispatch(Action::StartPrReview {
+            review: number.get_value(),
+        });
+    };
+    let run_busy = Signal::derive(move || {
+        store
+            .ws
+            .with(|w| w.active_followup(number.get_value()).is_some())
+    });
+    let run_state = move || {
+        store.ws.with(|w| {
+            w.runs
+                .iter()
+                .find(|run| matches!(&run.kind, RunKind::ReviewPr { review } if number.get_value().same(review)))
+                .cloned()
+        })
+    };
+    let blocked = Signal::derive(move || store.conn.get().agent_blocked().is_some());
     let request_review = move |_| {
         panel.agent_reading.set(true);
         set_timeout(
@@ -37,7 +62,9 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
         }
     };
 
-    let intro = if !r.agent_reviewed {
+    let intro = if !r.agent_reviewed && real {
+        "Der Agent liest den Pull Request und bereitet Kommentare vor. Er ändert nichts und sendet nichts."
+    } else if !r.agent_reviewed {
         "Der Agent hat diesen Pull Request noch nicht durchgesehen."
     } else if r.suggestions.is_empty() {
         "Der Agent hat nichts zu beanstanden."
@@ -59,7 +86,71 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
             </PaneHeader>
 
             <PaneBody>
-                {(!agent_reviewed)
+                {real
+                    .then(|| {
+                        view! {
+                            <Button
+                                variant=ButtonStyle::BorderedProminent
+                                size=ControlSize::Large
+                                disabled=Signal::derive(move || run_busy.get() || blocked.get())
+                                on_click=review_run
+                            >
+                                <Icon path=icons::SPARKLES />
+                                {move || if run_busy.get() { "Agent liest …" } else { "PR reviewen" }}
+                            </Button>
+                        }
+                    })}
+                {move || {
+                    (if real { run_state() } else { None }).map(|run| {
+                        if run.is_active() {
+                            let key = run.key();
+                            view! {
+                                <div class="ui-hstack" style="--spacing: 8px">
+                                    <Status tone=StatusTone::Blue>"Agent arbeitet"</Status>
+                                    <span class="ui-spacer"></span>
+                                    <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>"Lauf ansehen"</a>
+                                </div>
+                            }
+                            .into_any()
+                        } else if let Some(reason) = run.ended.clone() {
+                            view! {
+                                <p class="t-footnote t-secondary">
+                                    {format!("Der letzte Lauf endete ohne Ergebnis: {reason}")}
+                                </p>
+                            }
+                            .into_any()
+                        } else {
+                            ().into_any()
+                        }
+                    })
+                }}
+                {(!summary_text.is_empty())
+                    .then(|| {
+                        let text = StoredValue::new(summary_text.clone());
+                        view! {
+                            <div class="ui-vstack" style="--spacing: 8px" role="region" aria-label="Zusammenfassung des Agenten">
+                                <span class="t-footnote t-secondary" style="padding-inline: 4px">
+                                    "Zusammenfassung des Agenten (bleibt bei dir)"
+                                </span>
+                                <p class="t-subheadline">{text.get_value()}</p>
+                                <Button
+                                    variant=ButtonStyle::Borderless
+                                    size=ControlSize::Small
+                                    on_click=move |_| {
+                                        panel.own_comment.update(|c| {
+                                            if !c.trim().is_empty() {
+                                                c.push_str("\n\n");
+                                            }
+                                            c.push_str(&text.get_value());
+                                        });
+                                    }
+                                >
+                                    "In meinen Kommentar übernehmen"
+                                </Button>
+                            </div>
+                        }
+                    })}
+                {(!agent_reviewed && !real)
                     .then(|| {
                         view! {
                             <Button
@@ -146,6 +237,7 @@ pub(super) fn suggestion(
     number: StoredValue<PrKey>,
     s: Suggestion,
     panel: Panel,
+    code: Vec<DiffRow>,
 ) -> impl IntoView {
     let id = StoredValue::new(s.id.clone());
     let text = StoredValue::new(s.text.clone());
@@ -215,7 +307,7 @@ pub(super) fn suggestion(
                     "Freigeben"
                 </Button>
                 <Button size=ControlSize::Small destructive=true on_click=decide(Some(Decision::Declined))>
-                    "Ablehnen"
+                    "Verwerfen"
                 </Button>
                 <Button
                     variant=ButtonStyle::Borderless
@@ -233,7 +325,7 @@ pub(super) fn suggestion(
         Some(decision) => {
             let (label, tone) = match decision {
                 Decision::Approved => ("Freigegeben – wird gesendet", StatusTone::Green),
-                Decision::Declined => ("Abgelehnt – wird verworfen", StatusTone::Gray),
+                Decision::Declined => ("Verworfen – wird nicht gesendet", StatusTone::Gray),
             };
             view! {
                 <div class="ui-hstack" style="justify-content: space-between">
@@ -251,7 +343,7 @@ pub(super) fn suggestion(
     view! {
         <SuggestionCard state=state>
             <div class="ui-hstack" style="--spacing: 8px">
-                <span class="t-footnote t-mono t-secondary">{s.location.clone()}</span>
+                <span class="t-footnote t-mono t-secondary">{location_label(&s)}</span>
                 <span class="ui-spacer"></span>
                 <Badge variant=badge>{s.level.label()}</Badge>
             </div>
@@ -261,6 +353,8 @@ pub(super) fn suggestion(
                 } else {
                     view! {
                         <p class="t-subheadline">{text.get_value()}</p>
+                        {(!code.is_empty())
+                            .then(|| view! { <Diff rows=code.clone() label="Änderungsvorschlag" /> })}
                         {actions()}
                     }
                         .into_any()

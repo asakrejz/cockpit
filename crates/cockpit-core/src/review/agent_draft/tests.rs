@@ -43,7 +43,10 @@ fn a_draft_needs_a_line_on_the_right_side_of_the_diff() {
     assert!(!r.add_agent_comment(other));
     assert_eq!(r.agent_drafts(), 2);
     let s = &r.suggestions[0];
-    assert_eq!((s.id.as_str(), s.location.as_str()), ("a1", "a.rs · Zeile 3"));
+    assert_eq!(
+        (s.id.as_str(), s.location.as_str()),
+        ("a1", "a.rs · Zeile 3")
+    );
     assert_eq!(s.origin, Origin::Agent);
     assert_eq!(s.decision, None);
 }
@@ -55,10 +58,19 @@ fn ranges_suggestions_and_duplicates() {
     c.start_line = Some(2);
     c.suggestion = Some("    a();\n    b();\n\n".into());
     assert!(r.add_agent_comment(c));
-    assert!(!r.add_agent_comment(draft(3, DiffSide::Right, "Bereich")), "same draft twice");
+    assert!(
+        !r.add_agent_comment(draft(3, DiffSide::Right, "Bereich")),
+        "same draft twice"
+    );
     let s = &r.suggestions[0];
-    assert_eq!((s.start_line, s.code.as_deref()), (Some(2), Some("    a();\n    b();")));
-    assert_eq!(s.body(), "Bereich\n\n```suggestion\n    a();\n    b();\n```");
+    assert_eq!(
+        (s.start_line, s.code.as_deref()),
+        (Some(2), Some("    a();\n    b();"))
+    );
+    assert_eq!(
+        s.body(),
+        "Bereich\n\n```suggestion\n    a();\n    b();\n```"
+    );
     // A start line that does not exist or lies behind the end is dropped, the draft stays.
     let mut c = draft(3, DiffSide::Right, "kaputter Bereich");
     c.start_line = Some(8);

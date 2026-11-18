@@ -27,7 +27,7 @@ impl Review {
         }
         let n = self.comment_count();
         format!(
-            "Review senden · {n} {}",
+            "Review absenden · {n} {}",
             if n == 1 { "Kommentar" } else { "Kommentare" }
         )
     }

@@ -99,7 +99,7 @@ off by default (`[server] webhooks = false`: `404`).
   and cannot push or merge. The repo must be configured for the agent like for any run. Title, description and diff are
   given to the model as data of third parties, with a size limit. What the agent finds comes back as **drafts**: the
   backend checks each draft against the pull request's diff (file, line, side, size, count) and drops what does not fit.
-  Drafts stay on your machine. Nothing goes to GitHub until you decided every draft and click "Review senden"; then
+  Drafts stay on your machine. Nothing goes to GitHub until you decided every draft and click "Review absenden"; then
   **one** review goes out with the drafts you approved (with the text you edited) and your own line comments, never
   the declined or undecided ones. The verdict stays "Kommentieren" (`COMMENT`) unless you pick "Genehmigen" or
   "Änderungen" yourself – the agent cannot set it. The agent's summary also stays local; it goes out only if you copy it

@@ -64,3 +64,59 @@ async fn lines_are_limited_read() {
         "never more than one line of maximum is buffered"
     );
 }
+
+// ---------- review run ----------
+
+#[test]
+fn review_events_are_limited_and_only_count_in_review_mode() {
+    use crate::agent_run::{Event, as_message, line_read};
+    let long = "x".repeat(5_000);
+    let line = format!(
+        r#"{{"t":"review_comment","path":"a.rs","line":4294967295,"side":"RIGHT","text":"{long}","suggestion":"{long}"}}"#
+    );
+    let Ok(Event::ReviewComment {
+        line: n,
+        text,
+        suggestion,
+        ..
+    }) = line_read(&line)
+    else {
+        panic!("unreadable");
+    };
+    assert!(n <= 10_000_000);
+    assert!(text.chars().count() <= 2_000);
+    assert!(suggestion.unwrap().chars().count() <= 2_000);
+    let e = line_read(r#"{"t":"review_comment","path":"a.rs","line":3,"side":"left","text":"t"}"#)
+        .unwrap();
+    assert!(as_message(&e, Mode::Review).is_some());
+    // Not in the other modes, and not with a side that is neither RIGHT nor LEFT.
+    assert!(as_message(&e, Mode::Implement).is_none());
+    assert!(as_message(&e, Mode::Plan).is_none());
+    let bad = line_read(r#"{"t":"review_comment","path":"a.rs","line":3,"side":"UP","text":"t"}"#)
+        .unwrap();
+    assert!(as_message(&bad, Mode::Review).is_none());
+    let sum = line_read(r#"{"t":"review_summary","text":"s"}"#).unwrap();
+    assert!(as_message(&sum, Mode::Review).is_some() && as_message(&sum, Mode::Plan).is_none());
+}
+
+#[test]
+fn only_safe_branch_names_are_cloned_for_a_review() {
+    use crate::agent_git::review_branch_ok;
+    for ok in ["feature/x", "fix-1.2", "claude/BAU-1-x", "user/a_b"] {
+        assert!(review_branch_ok(ok), "{ok}");
+    }
+    for bad in [
+        "",
+        "-f",
+        "--upload-pack=x",
+        "a..b",
+        "a b",
+        "a;b",
+        "/x",
+        "x/",
+        "x.lock",
+        "$(x)",
+    ] {
+        assert!(!review_branch_ok(bad), "{bad}");
+    }
+}

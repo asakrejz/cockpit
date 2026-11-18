@@ -48,12 +48,8 @@ fn started() -> Workspace {
 fn only_the_user_starts_a_review_run_and_it_is_a_read_only_job() {
     let mut w = ws();
     assert!(
-        w.apply(
-            Action::StartPrReview { review: 91.into() },
-            Actor::Agent,
-            T
-        )
-        .is_err()
+        w.apply(Action::StartPrReview { review: 91.into() }, Actor::Agent, T)
+            .is_err()
     );
     ok(&mut w, Action::StartPrReview { review: 91.into() }, 1);
     let run = w.runs.iter().find(|r| r.key() == KEY).unwrap();
@@ -100,7 +96,10 @@ fn drafts_are_checked_against_the_diff_and_wait_for_a_decision() {
         .iter()
         .find(|s| s.origin == Origin::Agent)
         .unwrap();
-    assert_eq!((d.path.as_str(), d.line, d.decision), (file.as_str(), add, None));
+    assert_eq!(
+        (d.path.as_str(), d.line, d.decision),
+        (file.as_str(), add, None)
+    );
     // Nothing goes out while a draft is undecided.
     assert!(!r.can_send());
     // After the run nothing more is accepted.
@@ -128,7 +127,14 @@ fn a_failed_review_run_leaves_the_reason_and_the_old_state_is_replaced_on_restar
     // A new run replaces the old drafts.
     ok(&mut w, Action::StartPrReview { review: 91.into() }, 1);
     assert_eq!(w.review(91).unwrap().agent_drafts(), 0);
-    assert!(w.runs.iter().find(|r| r.key() == KEY).unwrap().ended.is_none());
+    assert!(
+        w.runs
+            .iter()
+            .find(|r| r.key() == KEY)
+            .unwrap()
+            .ended
+            .is_none()
+    );
 }
 
 #[test]
@@ -166,7 +172,14 @@ fn approved_drafts_are_the_only_ones_that_go_out_with_code_and_verdict_comment()
         )
         .unwrap();
     }
-    report(&mut w, KEY, AgentReport::Done { summary: "ok".into() }).unwrap();
+    report(
+        &mut w,
+        KEY,
+        AgentReport::Done {
+            summary: "ok".into(),
+        },
+    )
+    .unwrap();
     let r = w.review(91).unwrap();
     let ids: Vec<String> = r
         .suggestions
