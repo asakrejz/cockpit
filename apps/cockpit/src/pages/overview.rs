@@ -1,36 +1,62 @@
 //! Overview: on the left who works on what and how full they are; on the right what is stuck, and
 //! the entries of the chosen person. The rules for it are in `cockpit_core::team`.
 
-use cockpit_core::{Item, Member, Person, Stuck, StuckKind, Tone, team};
+use cockpit_core::{Item, Kind, LoadLevel, Member, Person, Stuck, StuckKind, Tone, team};
 use feature_ui::*;
 use leptos::prelude::*;
 
 use crate::{
+    pages::inbox::labels,
     route::Route,
     store::{Store, navigate, use_store},
     view,
 };
 
-/// Line "1 Offen · 2 In Arbeit" – only what exists.
+/// Line "1 open · 2 in progress" – only what exists.
 fn counts(m: &Member) -> String {
     let parts: Vec<String> = [
-        (m.open, "Offen"),
-        (m.in_progress, "In Arbeit"),
-        (m.review, "Review"),
-        (m.pull_requests, "Pull Request"),
+        (m.open > 0).then(|| t!(OverviewCountOpen, n = m.open)),
+        (m.in_progress > 0).then(|| t!(OverviewCountProgress, n = m.in_progress)),
+        (m.review > 0).then(|| t!(OverviewCountReview, n = m.review)),
+        (m.pull_requests > 0).then(|| t!(OverviewCountPrs, n = m.pull_requests)),
     ]
     .into_iter()
-    .filter(|(n, _)| *n > 0)
-    .map(|(n, label)| match (n, label) {
-        (1, _) => format!("{n} {label}"),
-        (_, "Pull Request") => format!("{n} Pull Requests"),
-        _ => format!("{n} {label}"),
-    })
+    .flatten()
     .collect();
     if parts.is_empty() {
-        "Nichts offen".into()
+        t!(OverviewNothingOpen)
     } else {
         parts.join(" · ")
+    }
+}
+
+fn kind_label(kind: StuckKind) -> String {
+    match kind {
+        StuckKind::ChecksFailed => t!(OverviewKindChecks),
+        StuckKind::AgentStopped => t!(OverviewKindStopped),
+        StuckKind::QuestionWaiting => t!(OverviewKindQuestion),
+        StuckKind::DiagnosisWaiting => t!(OverviewKindDiagnosis),
+        StuckKind::PlanWaiting => t!(OverviewKindPlan),
+        StuckKind::AgentWaiting => t!(OverviewKindAgent),
+        StuckKind::ReviewWaiting => t!(OverviewKindReview),
+        StuckKind::NoBranch => t!(OverviewKindNoBranch),
+    }
+}
+
+fn load_label(level: LoadLevel) -> String {
+    match level {
+        LoadLevel::Free => t!(OverviewLoadFree),
+        LoadLevel::Busy => t!(OverviewLoadBusy),
+        LoadLevel::Full => t!(OverviewLoadFull),
+    }
+}
+
+/// What the entry is: the status of a ticket, or the state of a pull request.
+fn state_text(item: &Item) -> String {
+    match (item.kind, &item.pr) {
+        (Kind::PullRequest, Some(pr)) => labels::pr_status(pr),
+        (Kind::PullRequest, None) => t!(OverviewPullRequest),
+        (Kind::Ticket, _) => labels::ticket_status(item.status),
     }
 }
 
@@ -95,13 +121,13 @@ pub fn OverviewPage() -> impl IntoView {
     });
 
     view! {
-           <SplitView level=level back_label="Übersicht" back_href=Route::Overview.hash()>
+           <SplitView level=level back_label=t!(OverviewTitle) back_href=Route::Overview.hash()>
 
-               <Pane label="Team">
+               <Pane label=t!(OverviewTeam)>
                    <PaneHeader>
-                       <h1 class="t-large-title t-bold">"Übersicht"</h1>
+                       <h1 class="t-large-title t-bold">{t!(OverviewTitle)}</h1>
                        <p class="t-subheadline t-secondary">
-                           "Wer woran arbeitet und wie viel gerade offen ist."
+                           {t!(OverviewSubtitle)}
                        </p>
                    </PaneHeader>
                    <ul class="ck-inbox">
@@ -119,10 +145,10 @@ pub fn OverviewPage() -> impl IntoView {
                    </ul>
                </Pane>
 
-               <Pane label="Details">
+               <Pane label=t!(OverviewDetails)>
                    <PaneHeader>
                        <div class="ui-hstack" style="justify-content: space-between; flex-wrap: nowrap">
-                           <h2 class="t-title1 t-bold">"Hängt"</h2>
+                           <h2 class="t-title1 t-bold">{t!(OverviewStuck)}</h2>
                            <Badge variant=BadgeVariant::Count>{move || stuck.get().len().to_string()}</Badge>
                        </div>
                    </PaneHeader>
@@ -152,11 +178,11 @@ fn member_row(m: Member, selected: bool, chosen: RwSignal<String>) -> impl IntoV
     let name = m.person.name.clone();
     let total = m.total();
     let level = m.load_level();
-    let summary = format!(
-        "{}: {} von {} Plätzen belegt",
-        m.person.name,
-        total.min(team::CAPACITY),
-        team::CAPACITY
+    let summary = t!(
+        OverviewCapacity,
+        name = m.person.name,
+        used = total.min(team::CAPACITY),
+        total = team::CAPACITY
     );
     view! {
         <InboxRow selected=selected on_select=move |_| {
@@ -171,7 +197,7 @@ fn member_row(m: Member, selected: bool, chosen: RwSignal<String>) -> impl IntoV
                 </span>
                 <span class="t-subheadline t-secondary">{counts(&m)}</span>
                 <Progress value=total.min(team::CAPACITY) max=team::CAPACITY label=summary />
-                <span class="t-footnote t-secondary">{level.label()}</span>
+                <span class="t-footnote t-secondary">{load_label(level)}</span>
             </span>
         </InboxRow>
     }
@@ -181,8 +207,8 @@ fn member_row(m: Member, selected: bool, chosen: RwSignal<String>) -> impl IntoV
 fn empty_state() -> impl IntoView {
     view! {
         <EmptyState
-            title="Nichts hängt"
-            text="Keine fehlgeschlagenen Checks, keine wartenden Reviews und kein Ticket ohne Branch."
+            title=t!(OverviewNoneStuckTitle)
+            text=t!(OverviewNoneStuckText)
             icon=icons::CHECK
         />
     }
@@ -204,14 +230,14 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
             </span>
             <div class="ui-vstack" style="--spacing: 6px; min-width: 0">
                 <div class="ui-hstack" style="--spacing: 6px">
-                    <Badge variant=BadgeVariant::Neutral>{s.kind.label()}</Badge>
+                    <Badge variant=BadgeVariant::Neutral>{kind_label(s.kind)}</Badge>
                     <span class="t-footnote t-mono t-secondary">{s.key}</span>
                 </div>
                 <p class="t-headline">{s.title}</p>
                 <p class="t-subheadline t-secondary">{s.reason}</p>
                 <div class="ui-hstack" style="--spacing: 8px">
                     <Button size=ControlSize::Small on_click=move |_| store.open_item(&id)>
-                        "Zum Eintrag"
+                        {t!(OverviewToEntry)}
                     </Button>
                     {s
                         .plan
@@ -219,7 +245,7 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
                         .map(|key| {
                             view! {
                                 <Button size=ControlSize::Small href=Route::Agent(Some(key)).hash()>
-                                    "Plan ansehen"
+                                    {t!(OverviewViewPlan)}
                                 </Button>
                             }
                         })}
@@ -229,7 +255,7 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
                         .map(|key| {
                             view! {
                                 <Button size=ControlSize::Small href=Route::Agent(Some(key)).hash()>
-                                    "Frage beantworten"
+                                    {t!(OverviewAnswerQuestion)}
                                 </Button>
                             }
                         })}
@@ -237,7 +263,7 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
                         .then(|| {
                             view! {
                                 <Button size=ControlSize::Small href=Route::Agent(Some(key.clone())).hash()>
-                                    "Limit erhöhen oder abbrechen"
+                                    {t!(OverviewRaiseLimit)}
                                 </Button>
                             }
                         })}
@@ -247,7 +273,7 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
                         .map(|key| {
                             view! {
                                 <Button size=ControlSize::Small href=Route::Agent(Some(key)).hash()>
-                                    "Diagnose ansehen"
+                                    {t!(OverviewViewDiagnosis)}
                                 </Button>
                             }
                         })}
@@ -256,13 +282,13 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
                         .map(|n| {
                             view! {
                                 <Button size=ControlSize::Small href=Route::Review(Some(n)).hash()>
-                                    "Review öffnen"
+                                    {t!(OverviewOpenReview)}
                                 </Button>
                             }
                         })}
                     <span class="ui-spacer"></span>
                     <span class="ui-hstack t-footnote t-secondary" style="--spacing: 6px">
-                        "Liegt bei" {person_avatar(&s.who)}
+                        {t!(OverviewWaitingOn)} {person_avatar(&s.who)}
                         <span>{s.who.name.clone()}</span>
                     </span>
                 </div>
@@ -279,9 +305,9 @@ fn person_items(store: Store, m: Member) -> impl IntoView {
             .filter_map(|id| w.item(id).cloned())
             .collect()
     });
-    let heading = format!("Einträge von {}", m.person.name);
+    let heading = t!(OverviewEntriesOf, name = m.person.name);
     let body = if items.is_empty() {
-        view! { <p class="t-subheadline t-secondary">{format!("{} hat nichts offen.", m.person.name)}</p> }
+        view! { <p class="t-subheadline t-secondary">{t!(OverviewNothingOpenFor, name = m.person.name)}</p> }
             .into_any()
     } else {
         view! {
@@ -290,7 +316,8 @@ fn person_items(store: Store, m: Member) -> impl IntoView {
                     .into_iter()
                     .map(|item| {
                         let id = item.id.clone();
-                        let (state, tone) = team::state_label(&item);
+                        let (_, tone) = team::state_label(&item);
+                        let state = state_text(&item);
                         view! {
                             <li class="ck-stuck">
                                 <div class="ui-vstack" style="--spacing: 6px; min-width: 0; flex: 1 1 auto">
@@ -303,7 +330,7 @@ fn person_items(store: Store, m: Member) -> impl IntoView {
                                         <Status tone=view::tone(tone)>{state}</Status>
                                         <span class="ui-spacer"></span>
                                         <Button size=ControlSize::Small on_click=move |_| store.open_item(&id)>
-                                            "Zum Eintrag"
+                                            {t!(OverviewToEntry)}
                                         </Button>
                                     </div>
                                 </div>

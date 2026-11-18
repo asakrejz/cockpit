@@ -63,18 +63,22 @@ fn Spend() -> impl IntoView {
     view! {
         <List>
             <ListSection
-                header="Verbrauch"
-                footer="Tag und Monat zählen nach UTC. Abgebrochene Läufe zählen mit."
+                header=t!(LimitsUsage)
+                footer=t!(LimitsUsageFooter)
             >
-                <ListRow title="Heute" wrap=true>
+                <ListRow title=t!(LimitsToday) wrap=true>
                     <span class="t-footnote t-secondary">{move || today.get().line()}</span>
                 </ListRow>
-                <ListRow title="Diesen Monat" wrap=true>
+                <ListRow title=t!(LimitsThisMonth) wrap=true>
                     <span class="t-footnote t-secondary">
                         {move || {
                             let spent = month.get();
                             match budget.get() {
-                                Some(b) => format!("{} · Budget {}", spent.line(), format_euro(b)),
+                                Some(b) => t!(
+                                    LimitsMonthWithBudget,
+                                    usage = spent.line(),
+                                    budget = format_euro(b)
+                                ),
                                 None => spent.line(),
                             }
                         }}
@@ -115,7 +119,7 @@ fn Limits() -> impl IntoView {
         let Some(limits) = draft() else { return };
         message.set(Some(
             match store.dispatch(Action::SetAgentLimits { limits }) {
-                Ok(_) => ("Gespeichert.".to_string(), false),
+                Ok(_) => (t!(LimitsSaved), false),
                 Err(e) => (e.message(), true),
             },
         ));
@@ -125,53 +129,53 @@ fn Limits() -> impl IntoView {
         <Spend />
         <List>
             <ListSection
-                header="Grenzen"
-                footer="Erreicht ein Lauf eine Grenze, hält er an. Du erhöhst sie dann und setzt ihn fort – oder brichst ab. Leer lassen heißt: keine Grenze. Das Zeitlimit zählt die Arbeitszeit des Agenten, nicht die Wartezeit auf dich."
+                header=t!(LimitsLimits)
+                footer=t!(LimitsLimitsFooter)
             >
-                <ListRow title="Läufe gleichzeitig" wrap=true subtitle="Ein weiterer Lauf startet nicht, solange so viele arbeiten (auch wartend auf eine Antwort).">
+                <ListRow title=t!(LimitsParallelTitle) wrap=true subtitle=t!(LimitsParallelSubtitle)>
                     <Stepper value=parallel min=1 max=99 />
                 </ListRow>
             </ListSection>
         </List>
         <div class="ck-quiet">
             <TextField
-                label="Budget pro Lauf (€)"
+                label=t!(LimitsRunBudget)
                 value=run_budget
-                placeholder="unbegrenzt"
+                placeholder=t!(LimitsUnlimited)
                 error=invalid(bad_euro, run_budget)
-                hint="z. B. 5,00"
+                hint=t!(LimitsRunBudgetHint)
             />
             <TextField
-                label="Budget pro Monat (€)"
+                label=t!(LimitsMonthBudget)
                 value=month_budget
-                placeholder="unbegrenzt"
+                placeholder=t!(LimitsUnlimited)
                 error=invalid(bad_euro, month_budget)
-                hint="über alle Läufe"
+                hint=t!(LimitsMonthBudgetHint)
             />
             <TextField
-                label="Zeitlimit pro Lauf (Minuten)"
+                label=t!(LimitsMinutes)
                 value=minutes
-                placeholder="unbegrenzt"
+                placeholder=t!(LimitsUnlimited)
                 error=invalid(bad_minutes, minutes)
             />
         </div>
-        <p class="t-subheadline t-bold" style="padding-inline: 4px">"Preise pro Million Token"</p>
+        <p class="t-subheadline t-bold" style="padding-inline: 4px">{t!(LimitsPrices)}</p>
         <div class="ck-quiet">
             <TextField
-                label="Eingabe (€)"
+                label=t!(LimitsPriceIn)
                 value=price_in
                 error=invalid(bad_price, price_in)
             />
             <TextField
-                label="Ausgabe (€)"
+                label=t!(LimitsPriceOut)
                 value=price_out
                 error=invalid(bad_price, price_out)
-                hint="Kosten werden auf ganze Cent aufgerundet."
+                hint=t!(LimitsPriceHint)
             />
         </div>
         <HStack>
             <Button variant=ButtonStyle::GlassProminent disabled=Signal::derive(move || !can_save.get()) on_click=save>
-                "Grenzen speichern"
+                {t!(LimitsSaveLimits)}
             </Button>
             {move || {
                 message
@@ -214,10 +218,7 @@ fn Rules(repo: String) -> impl IntoView {
             rules,
         });
         message.set(Some(match result {
-            Ok(_) => (
-                "Gespeichert. Gilt für neue Läufe und wartende Pläne.".to_string(),
-                false,
-            ),
+            Ok(_) => (t!(LimitsRulesSaved), false),
             Err(e) => (e.message(), true),
         }));
     };
@@ -225,55 +226,55 @@ fn Rules(repo: String) -> impl IntoView {
     view! {
         <List>
             <ListSection
-                header=format!("Regeln für {}", repo.get_value())
-                footer="Ein Muster pro Zeile. * steht für beliebige Zeichen in einem Ordnernamen, ** für beliebig viele Ordner; ohne / gilt ein Muster in jedem Ordner (*.lock). Verboten schlägt Erlaubt."
+                header=t!(LimitsRulesFor, repo = repo.get_value())
+                footer=t!(LimitsRulesFooter)
             >
-                <ListRow title="Plan-Freigabe ist Pflicht" toggle_row=true>
+                <ListRow title=t!(LimitsPlanRequired) toggle_row=true>
                     <Toggle checked=plan_required />
                 </ListRow>
             </ListSection>
         </List>
         <div class="ck-rules">
             <div class="ui-vstack" style="--spacing: 6px">
-                <p class="t-subheadline t-bold">"Erlaubte Pfade"</p>
+                <p class="t-subheadline t-bold">{t!(LimitsAllowedTitle)}</p>
                 <Textarea
                     value=allowed
-                    label="Erlaubte Pfade"
-                    placeholder="leer = überall, z. B. src/**"
+                    label=t!(LimitsAllowedTitle)
+                    placeholder=t!(LimitsAllowedPlaceholder)
                     min_height="88px"
                 />
             </div>
             <div class="ui-vstack" style="--spacing: 6px">
-                <p class="t-subheadline t-bold">"Verbotene Pfade"</p>
+                <p class="t-subheadline t-bold">{t!(LimitsForbiddenTitle)}</p>
                 <Textarea
                     value=forbidden
-                    label="Verbotene Pfade"
-                    placeholder="z. B. .github/workflows/**"
+                    label=t!(LimitsForbiddenTitle)
+                    placeholder=t!(LimitsForbiddenPlaceholder)
                     min_height="88px"
                 />
             </div>
             <div class="ui-vstack" style="--spacing: 6px">
-                <p class="t-subheadline t-bold">"Pflicht-Tests"</p>
+                <p class="t-subheadline t-bold">{t!(LimitsTestsTitle)}</p>
                 <Textarea
                     value=tests
-                    label="Pflicht-Tests, ein Befehl pro Zeile"
-                    placeholder="Befehle vor dem Pull Request, z. B. cargo test"
+                    label=t!(LimitsTestsLabel)
+                    placeholder=t!(LimitsTestsPlaceholder)
                     min_height="88px"
                 />
             </div>
             <div class="ui-vstack" style="--spacing: 6px">
-                <p class="t-subheadline t-bold">"Anweisungen an den Agenten"</p>
+                <p class="t-subheadline t-bold">{t!(LimitsInstructionsTitle)}</p>
                 <Textarea
                     value=instructions
-                    label="Zusätzliche Anweisungen"
-                    placeholder="Freitext, z. B. Kleine Commits, deutsche Kommentare."
+                    label=t!(LimitsInstructionsLabel)
+                    placeholder=t!(LimitsInstructionsPlaceholder)
                     min_height="88px"
                 />
             </div>
         </div>
         <HStack>
             <Button variant=ButtonStyle::GlassProminent on_click=save>
-                "Regeln speichern"
+                {t!(LimitsSaveRules)}
             </Button>
             {move || {
                 message
@@ -306,11 +307,11 @@ pub fn LimitsPage() -> impl IntoView {
     view! {
         <SplitView>
 
-            <Pane label="Grenzen und Regeln">
+            <Pane label=t!(LimitsPane)>
                 <PaneHeader>
-                    <h1 class="t-large-title t-bold">"Grenzen & Regeln"</h1>
+                    <h1 class="t-large-title t-bold">{t!(LimitsPageTitle)}</h1>
                     <p class="t-subheadline t-secondary">
-                        "Was der Agent kosten darf, wie lange er arbeitet und woran er sich pro Repo halten muss."
+                        {t!(LimitsPageText)}
                     </p>
                 </PaneHeader>
                 <PaneBody>

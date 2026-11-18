@@ -7,22 +7,34 @@ use leptos::prelude::*;
 use web_sys::wasm_bindgen::JsValue;
 
 use crate::{
+    pages::inbox::picker::Picker,
     route::Route,
     store::{Store, use_store},
 };
 
 /// Filter by author. "all" shows everything.
-const ACTORS: &[(&str, &str)] = &[
-    ("all", "Alle"),
-    ("du", "Du"),
-    ("agent", "Agent"),
-    ("system", "System"),
-];
+fn actors() -> Vec<(&'static str, String)> {
+    vec![
+        ("all", t!(LogActorAll)),
+        (Actor::User.id(), actor_label(Actor::User)),
+        (Actor::Agent.id(), actor_label(Actor::Agent)),
+        (Actor::System.id(), actor_label(Actor::System)),
+    ]
+}
+
+fn actor_label(actor: Actor) -> String {
+    match actor {
+        Actor::User => t!(LogActorUser),
+        Actor::Agent => t!(LogActorAgent),
+        Actor::System => t!(LogActorSystem),
+    }
+}
 
 /// Time in the user's language, e.g. "11.11.2026, 14:03:22".
 fn when(at_ms: u64) -> String {
     let date = js_sys::Date::new(&JsValue::from_f64(at_ms as f64));
-    date.to_locale_string("de-DE", &JsValue::UNDEFINED).into()
+    date.to_locale_string(lang().code(), &JsValue::UNDEFINED)
+        .into()
 }
 
 fn badge(actor: Actor) -> BadgeVariant {
@@ -45,7 +57,7 @@ fn link(store: Store, target: Option<Target>) -> AnyView {
             }
             view! {
                 <Button size=ControlSize::Small on_click=move |_| store.open_item(&id)>
-                    "Zum Eintrag"
+                    {t!(LogToEntry)}
                 </Button>
             }
             .into_any()
@@ -56,7 +68,7 @@ fn link(store: Store, target: Option<Target>) -> AnyView {
             }
             view! {
                 <Button size=ControlSize::Small href=Route::Review(Some(number)).hash()>
-                    "Review öffnen"
+                    {t!(LogOpenReview)}
                 </Button>
             }
             .into_any()
@@ -67,14 +79,14 @@ fn link(store: Store, target: Option<Target>) -> AnyView {
             }
             view! {
                 <Button size=ControlSize::Small href=Route::Agent(Some(key)).hash()>
-                    "Lauf ansehen"
+                    {t!(LogViewRun)}
                 </Button>
             }
             .into_any()
         }
         Target::Settings => view! {
             <Button size=ControlSize::Small href=Route::Notifications.hash()>
-                "Einstellungen öffnen"
+                {t!(LogOpenSettings)}
             </Button>
         }
         .into_any(),
@@ -86,7 +98,7 @@ fn entry_row(store: Store, e: LogEntry) -> impl IntoView {
         <li class="ck-stuck">
             <div class="ui-vstack" style="--spacing: 6px; min-width: 0; flex: 1 1 auto">
                 <div class="ui-hstack" style="--spacing: 6px">
-                    <Badge variant=badge(e.actor)>{e.actor.label()}</Badge>
+                    <Badge variant=badge(e.actor)>{actor_label(e.actor)}</Badge>
                     <span class="t-footnote t-secondary">{when(e.at_ms)}</span>
                 </div>
                 <p class="t-headline">{e.text}</p>
@@ -98,17 +110,17 @@ fn entry_row(store: Store, e: LogEntry) -> impl IntoView {
 
 fn empty_state(filtered: bool, actor: RwSignal<&'static str>) -> impl IntoView {
     let text = if filtered {
-        "Von diesem Urheber gibt es noch keine Einträge."
+        t!(LogEmptyFiltered)
     } else {
-        "Sobald du etwas änderst oder der Agent arbeitet, steht es hier."
+        t!(LogEmpty)
     };
     view! {
-        <EmptyState title="Noch nichts protokolliert" text=text icon=icons::LIBRARY>
+        <EmptyState title=t!(LogEmptyTitle) text=text icon=icons::LIBRARY>
             {filtered
                 .then(|| {
                     view! {
                         <Button size=ControlSize::Small on_click=move |_| actor.set("all")>
-                            "Alle Urheber zeigen"
+                            {t!(LogShowAll)}
                         </Button>
                     }
                 })}
@@ -131,20 +143,20 @@ pub fn LogPage() -> impl IntoView {
     view! {
         <SplitView>
 
-            <Pane label="Protokoll">
+            <Pane label=t!(LogTitle)>
                 <PaneHeader>
                     <div class="ui-hstack" style="justify-content: space-between; flex-wrap: nowrap">
-                        <h1 class="t-large-title t-bold">"Protokoll"</h1>
+                        <h1 class="t-large-title t-bold">{t!(LogTitle)}</h1>
                         <Badge variant=BadgeVariant::Count>{move || entries.get().len().to_string()}</Badge>
                     </div>
                     <p class="t-subheadline t-secondary">
-                        "Jede Änderung mit Zeit und Urheber, neueste zuerst."
+                        {t!(LogSubtitle)}
                     </p>
-                    <SegmentedPicker
-                        options=ACTORS
+                    <Picker
+                        options=actors()
                         value=actor
                         on_change=move |id: &'static str| actor.set(id)
-                        aria_label="Urheber"
+                        aria_label=t!(LogAuthor)
                     />
                 </PaneHeader>
                 <PaneBody>
