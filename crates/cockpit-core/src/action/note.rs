@@ -31,6 +31,7 @@ impl Note {
     }
 
     /// Like [`Note::coded`], without a target (settings).
+    #[allow(dead_code)]
     pub(super) fn coded_general(msg: cockpit_i18n::Msg) -> Self {
         Self {
             actor: None,
