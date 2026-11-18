@@ -86,7 +86,7 @@ impl Live {
                 snapshot.ws = updated;
                 snapshot.revision = revision;
             }
-            Err(e) => tracing::warn!("Repos des alten Stands nicht gesichert: {e}"),
+            Err(e) => tracing::warn!("Repos of the old state not saved: {e}"),
         }
     }
 

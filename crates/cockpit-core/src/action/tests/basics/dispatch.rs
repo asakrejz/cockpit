@@ -161,11 +161,7 @@ fn every_action_variant_is_applied_and_logged() {
     ok(&mut w, Action::RejectPlan { ticket: key }, 1);
     let reset = w.apply(Action::ResetDemo, Actor::User, T).unwrap();
     assert_eq!(reset.logged, 1);
-    assert_eq!(
-        w.log.len(),
-        1,
-        "nach dem Zurücksetzen beginnt das Protokoll neu"
-    );
+    assert_eq!(w.log.len(), 1, "the log starts over after the reset");
     assert_eq!(w.log[0].actor, Actor::System);
     assert_eq!(w.log[0].text, "Demo-Daten zurückgesetzt");
 }

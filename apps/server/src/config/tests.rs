@@ -48,7 +48,7 @@ fn sources_and_interval() {
     assert_eq!(c.github.unwrap().repos, ["firma/app", "firma/web.v2"]);
     let j = c.jira.unwrap();
     assert_eq!(j.projects, ["BAU", "WEB"]);
-    assert_eq!(j.jql, None, "leere Abfrage zählt nicht");
+    assert_eq!(j.jql, None, "an empty query does not count");
     for broken in [
         "interval_s = 5",
         "[github]\nrepos = [\"nur-name\"]",

@@ -1,0 +1,11 @@
+{
+  "sha": "aaaa1111aaaa1111aaaa1111aaaa1111aaaa1111",
+  "files": [
+    {
+      "filename": "features/ui/components.css", "status": "modified",
+      "additions": 2, "deletions": 2,
+      "patch": "@@ -411,6 +411,6 @@ .ui-avatar {\n   display: grid;\n   place-items: center;\n-  width: 28px;\n-  height: 28px;\n+  width: var(--comp-avatar-size);\n+  height: var(--comp-avatar-size);\n   border-radius: 50%;\n }"
+    },
+    { "filename": "assets/logo.png", "status": "modified", "additions": 0, "deletions": 0 }
+  ]
+}

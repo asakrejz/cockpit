@@ -157,7 +157,7 @@ pub async fn callback(
     };
     let result = state.oauth_callback(d, &q).await;
     if let Err(m) = &result {
-        tracing::warn!("{}: Anmeldung gescheitert: {m}", d.id());
+        tracing::warn!("{}: sign-in failed: {m}", d.id());
     }
     back(state.inner.port, d, &result).into_response()
 }

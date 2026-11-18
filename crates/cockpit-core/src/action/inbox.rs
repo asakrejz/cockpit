@@ -106,7 +106,7 @@ impl Workspace {
                 description,
             } => {
                 let key = self.key_of(&item)?;
-                let current = self.item(&item).expect("key_of kennt den Eintrag");
+                let current = self.item(&item).expect("key_of knows the entry");
                 if !current.is_ticket() {
                     return Err(ActionError::NotATicket);
                 }
@@ -131,7 +131,7 @@ impl Workspace {
             }
             Action::AssignTicket { item, person } => {
                 let key = self.key_of(&item)?;
-                let current = self.item(&item).expect("key_of kennt den Eintrag");
+                let current = self.item(&item).expect("key_of knows the entry");
                 if !current.is_ticket() {
                     return Err(ActionError::NotATicket);
                 }

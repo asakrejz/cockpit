@@ -24,7 +24,7 @@ fn watcher_starts_plan_and_run_je_after_state() {
     assert_eq!(
         plane(&ws, &running(Mode::Plan), &[]),
         [Instruction::Stop("BAU-142".into())],
-        "ein fertiger Plan-Container wird nicht weiter gebraucht"
+        "a finished plan container is no longer needed"
     );
     assert!(
         plane(&ws, &HashMap::new(), &[]).is_empty(),
@@ -135,7 +135,10 @@ fn watcher_passes_pause_answer_and_hints_further() {
     .unwrap();
     m.get_mut("BAU-142").unwrap().paused = false;
     m.get_mut("BAU-142").unwrap().question_open = true;
-    assert!(plane(&ws, &m, &[]).is_empty(), "solange nicht beantwortet");
+    assert!(
+        plane(&ws, &m, &[]).is_empty(),
+        "as long as it is unanswered"
+    );
     ws.apply(
         Action::AnswerAgent {
             run: "BAU-142".into(),

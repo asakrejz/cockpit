@@ -185,7 +185,7 @@ fn the_automation_can_be_switched_off() {
     assert_eq!(
         status(&w, "bau138"),
         TicketStatus::Review,
-        "der Pull Request ist gemergt, das Ticket bleibt"
+        "the pull request is merged, the ticket stays"
     );
     assert!(w.item("bau138").unwrap().pr.as_ref().unwrap().merged);
 

@@ -135,6 +135,10 @@ pub struct Item {
     pub title: String,
     #[serde(default)]
     pub description: String,
+    /// The description as formatted Jira text (ADF); `None` = only [`Item::description`]
+    /// exists (older data, pull requests, an edited description).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description_rich: Option<crate::adf::Doc>,
     pub reason: ReasonKind,
     #[serde(default)]
     pub reason_text: String,

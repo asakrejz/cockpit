@@ -49,7 +49,12 @@ impl Workspace {
         match self.item_mut(id) {
             Some(item) if item.is_ticket() && !title.is_empty() => {
                 item.title = title.to_string();
-                item.description = description.trim().to_string();
+                let description = description.trim();
+                // An edited description is plain text; the formatting would no longer fit.
+                if description != item.description {
+                    item.description_rich = None;
+                }
+                item.description = description.to_string();
                 true
             }
             _ => false,

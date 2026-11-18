@@ -105,7 +105,7 @@ async fn build_the_images_with_progress_and_error() {
             .await
             .unwrap();
         if !b.running {
-            let f = b.error.expect("Fehler");
+            let f = b.error.expect("error");
             assert!(f.contains("gescheitert") && f.contains("Platz"), "{f}");
             break;
         }
