@@ -67,7 +67,7 @@ fn Spend() -> impl IntoView {
                 footer=t!(LimitsUsageFooter)
             >
                 <ListRow title=t!(LimitsToday) wrap=true>
-                    <span class="t-footnote t-secondary">{move || today.get().line()}</span>
+                    <span class="t-footnote t-secondary">{move || today.get().line_msg().render(lang())}</span>
                 </ListRow>
                 <ListRow title=t!(LimitsThisMonth) wrap=true>
                     <span class="t-footnote t-secondary">
@@ -76,10 +76,10 @@ fn Spend() -> impl IntoView {
                             match budget.get() {
                                 Some(b) => t!(
                                     LimitsMonthWithBudget,
-                                    usage = spent.line(),
+                                    usage = spent.line_msg().render(lang()),
                                     budget = format_euro(b)
                                 ),
-                                None => spent.line(),
+                                None => spent.line_msg().render(lang()),
                             }
                         }}
                     </span>
@@ -120,7 +120,7 @@ fn Limits() -> impl IntoView {
         message.set(Some(
             match store.dispatch(Action::SetAgentLimits { limits }) {
                 Ok(_) => (t!(LimitsSaved), false),
-                Err(e) => (e.message(), true),
+                Err(e) => (e.msg().render(feature_ui::lang_untracked()), true),
             },
         ));
     };
@@ -219,7 +219,7 @@ fn Rules(repo: String) -> impl IntoView {
         });
         message.set(Some(match result {
             Ok(_) => (t!(LimitsRulesSaved), false),
-            Err(e) => (e.message(), true),
+            Err(e) => (e.msg().render(feature_ui::lang_untracked()), true),
         }));
     };
 

@@ -32,6 +32,14 @@ pub struct AgentRepo {
     /// How the agent names its branches (`{ticket}`, `{slug}`, `{type}`); see [`crate::branch`].
     #[serde(default = "default_pattern")]
     pub branch_pattern: String,
+    /// Language of the pull request title and text (the team language). English by default.
+    #[serde(default, skip_serializing_if = "is_english")]
+    pub pr_language: cockpit_i18n::Lang,
+}
+
+/// English is the default and is not written (older files and snapshots stay as they were).
+pub(crate) fn is_english(lang: &cockpit_i18n::Lang) -> bool {
+    *lang == cockpit_i18n::Lang::En
 }
 
 impl AgentRepo {
@@ -41,6 +49,7 @@ impl AgentRepo {
             base_branch: default_base(),
             projects: Vec::new(),
             branch_pattern: default_pattern(),
+            pr_language: cockpit_i18n::Lang::En,
         }
     }
 }
@@ -88,6 +97,11 @@ impl AgentRepos {
     pub fn base_branch(&self, repo: &str) -> String {
         self.find(repo)
             .map_or_else(default_base, |r| r.base_branch.clone())
+    }
+
+    /// Language of the pull request text of a repo (English if it is unknown or sets none).
+    pub fn pr_language(&self, repo: &str) -> cockpit_i18n::Lang {
+        self.find(repo).map(|r| r.pr_language).unwrap_or_default()
     }
 
     /// Branch pattern of a repo (the default pattern if it is unknown or sets none).

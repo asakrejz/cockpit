@@ -71,7 +71,7 @@ fn a_mention_counts_until_i_answer() {
     let found = hits(&item, &Rules::default(), now());
     assert_eq!(found.len(), 1);
     assert_eq!(
-        (found[0].rule, found[0].reason, found[0].text.as_str()),
+        (found[0].rule, found[0].reason, found[0].text.de().as_str()),
         (Rule::Mention, ReasonKind::Mention, "Lena hat dich erwähnt")
     );
     // Own mentions and others' without me do not count.
@@ -97,7 +97,7 @@ fn a_mention_counts_until_i_answer() {
         "Nochmal @du",
     ));
     assert_eq!(
-        hits(&item, &Rules::default(), now())[0].text,
+        hits(&item, &Rules::default(), now())[0].text.de(),
         "Jonas hat dich erwähnt"
     );
 }
@@ -110,7 +110,7 @@ fn review_requests_come_from_others() {
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].rule, Rule::ReviewRequested);
     assert_eq!(found[0].reason, ReasonKind::ReviewRequested);
-    assert_eq!(found[0].text, "Review angefragt von Jonas");
+    assert_eq!(found[0].text.de(), "Review angefragt von Jonas");
     // A ticket with this reason does not count.
     let mut ticket = quiet(ticket());
     ticket.reason = ReasonKind::ReviewRequested;
@@ -124,7 +124,7 @@ fn my_pull_request_is_blocked_by_red_checks_or_requested_changes() {
     let a = hits(w.item("bau138").unwrap(), &Rules::default(), now());
     assert_eq!(a[0].rule, Rule::Blocked);
     assert_eq!(
-        (a[0].reason, a[0].text.as_str()),
+        (a[0].reason, a[0].text.de().as_str()),
         (
             ReasonKind::ChangesRequested,
             "Änderungen angefordert in #91"
@@ -137,7 +137,7 @@ fn my_pull_request_is_blocked_by_red_checks_or_requested_changes() {
     pr.checks = Checks::Failed;
     let b = check(Rule::Blocked, &item, now()).unwrap();
     assert_eq!(
-        (b.reason, b.text.as_str()),
+        (b.reason, b.text.de().as_str()),
         (ReasonKind::ChecksFailed, "Checks fehlgeschlagen in #91")
     );
     // Green or running checks do not block.
@@ -154,13 +154,13 @@ fn overdue_means_a_due_day_before_today() {
     let mut item = quiet(ticket());
     item.due = Some("2026-11-09".into());
     assert_eq!(
-        check(Rule::Overdue, &item, now()).unwrap().text,
+        check(Rule::Overdue, &item, now()).unwrap().text.de(),
         "Seit 2 Tagen überfällig"
     );
     item.due = Some("2026-11-10".into());
     let hit = check(Rule::Overdue, &item, now()).unwrap();
     assert_eq!(
-        (hit.reason, hit.text.as_str()),
+        (hit.reason, hit.text.de().as_str()),
         (ReasonKind::Overdue, "Seit gestern überfällig")
     );
     // Due today is not yet overdue – until the last moment of the day.
@@ -189,7 +189,7 @@ fn assigned_tickets_are_mine_and_not_done() {
     item.owner = Person::me();
     let hit = check(Rule::Assigned, &item, now()).unwrap();
     assert_eq!(
-        (hit.reason, hit.text.as_str()),
+        (hit.reason, hit.text.de().as_str()),
         (ReasonKind::Assigned, "Dir zugewiesen")
     );
     item.status = TicketStatus::Done;
@@ -201,7 +201,7 @@ fn agent_results_wait_for_me() {
     let mut w = demo::workspace();
     let item = w.item("bau138").unwrap();
     let hit = check(Rule::AgentFinished, item, now()).unwrap();
-    assert_eq!(hit.text, "Agent fertig · Pull Request #91 erstellt");
+    assert_eq!(hit.text.de(), "Agent fertig · Pull Request #91 erstellt");
     w.set_status("bau138", TicketStatus::Done);
     assert_eq!(
         check(Rule::AgentFinished, w.item("bau138").unwrap(), now()),

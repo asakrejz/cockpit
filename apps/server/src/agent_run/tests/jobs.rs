@@ -79,3 +79,20 @@ fn a_followup_job_carries_its_input_and_still_no_secrets() {
     let run = ws.run("BAU-142").unwrap();
     assert!(job_json(&ws, &run, Mode::Implement, "claude/x", None)["followup"].is_null());
 }
+
+#[test]
+fn the_job_carries_the_interface_language_and_the_language_of_the_pull_request() {
+    let mut ws = demo::workspace();
+    start(&mut ws, false);
+    let mut run = ws.run("BAU-142").unwrap();
+    // Not chosen yet: English; the pull request language is English by default.
+    let j = job_json(&ws, &run, Mode::Implement, "claude/BAU-142-x", None);
+    assert_eq!(j["language"], "en");
+    assert_eq!(j["pr_language"], "en");
+    // The agent follows the language of the interface; the pull request follows the repo.
+    ws.language = Some(cockpit_i18n::Lang::De);
+    run.options.pr_language = cockpit_i18n::Lang::De;
+    let j = job_json(&ws, &run, Mode::Implement, "claude/BAU-142-x", None);
+    assert_eq!(j["language"], "de");
+    assert_eq!(j["pr_language"], "de");
+}

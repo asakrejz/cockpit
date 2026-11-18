@@ -20,6 +20,7 @@ use cockpit_core::{
     Action, ActionError, Actor, AgentReport, AgentRepos, FollowupTask, RepoChoice, RunKind,
     RunState, Workspace,
 };
+use cockpit_i18n::{ArgValue, Msg, msg};
 use cockpit_integrations::Secret;
 use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::Command;
@@ -76,7 +77,7 @@ pub enum RunControl {
 struct ImageProbe {
     state: ImageState,
     /// Plain-text reason when `state` is `Unknown`.
-    hint: Option<String>,
+    hint: Option<Msg>,
 }
 
 struct Handle {
@@ -112,7 +113,7 @@ struct Access {
 enum End {
     /// Ended without changing the run (cancelled, halted).
     Quiet,
-    Error(String),
+    Error(Msg),
     Done(String),
 }
 
@@ -134,7 +135,7 @@ impl AppState {
             .repos
             .first()
             .map(|r| r.repo.as_str())
-            .ok_or_else(|| agent_run::NO_REPO.to_string());
+            .ok_or_else(agent_run::no_repo);
         let v = Prerequisites {
             container: &container,
             image: probe.state,
@@ -152,16 +153,16 @@ impl AppState {
     }
 
     /// Everything for a run, or the list of what is missing. Blocking.
-    fn access(&self) -> Result<Access, Vec<String>> {
+    fn access(&self) -> Result<Access, Vec<Msg>> {
         let st = self.agent_status();
         if !st.ready {
-            return Err(st.missing);
+            return Err(st.missing_msgs);
         }
         let container = self.container_status();
         let choice = self.agent_choice();
         let endpoint = choice
             .endpoint
-            .ok_or_else(|| vec!["Der Modellzugang fehlt.".to_string()])?;
+            .ok_or_else(|| vec![msg!(ServerRunAccessNoEndpoint)])?;
         let q = self.sources();
         let api = q
             .github
@@ -170,16 +171,16 @@ impl AppState {
             .to_string();
         Ok(Access {
             provider: choice.provider,
-            cli: self.cli_path(&container).ok_or_else(|| {
-                vec!["Das Container-Programm ist nicht mehr zu finden.".to_string()]
-            })?,
+            cli: self
+                .cli_path(&container)
+                .ok_or_else(|| vec![msg!(ServerRunAccessNoCli)])?,
             endpoint_url: endpoint.url,
             key: self
                 .agent_key()
-                .ok_or_else(|| vec!["Der Key des Modellzugangs fehlt.".to_string()])?,
+                .ok_or_else(|| vec![msg!(ServerRunAccessNoKey)])?,
             model: endpoint
                 .model
-                .ok_or_else(|| vec!["Der Modellname fehlt.".to_string()])?,
+                .ok_or_else(|| vec![msg!(ServerRunAccessNoModel)])?,
             git_base: self
                 .inner
                 .settings
@@ -188,7 +189,7 @@ impl AppState {
                 .unwrap_or_else(|| agent_git::base_from_api(&api)),
             github: self
                 .github_access()
-                .ok_or_else(|| vec!["GitHub ist nicht verbunden.".to_string()])?,
+                .ok_or_else(|| vec![msg!(ServerRunAccessNoGithub)])?,
         })
     }
 
@@ -213,7 +214,7 @@ impl AppState {
     /// Rejections before applying an action in real mode: runs only start when everything
     /// is set up, and the simulated follow-up jobs do not exist with the real agent. `None` if nothing
     /// speaks against it. Blocking.
-    pub(crate) fn agent_lock(&self, action: &Action) -> Option<String> {
+    pub(crate) fn agent_lock(&self, action: &Action) -> Option<Msg> {
         if !self.agent_real() {
             // The follow-up jobs and the pull request belong to the real agent.
             return matches!(
@@ -223,10 +224,7 @@ impl AppState {
                     | Action::StartPrReview { .. }
                     | Action::CreatePullRequest { .. }
             )
-            .then(|| {
-                "Das gibt es nur mit dem echten Agenten. Im Demo-Modus laufen die Folgeaufträge als Simulation direkt am Review."
-                    .to_string()
-            });
+            .then(|| msg!(ServerAgentOnlyRealAgent));
         }
         match action {
             Action::StartAgent { .. }
@@ -234,51 +232,37 @@ impl AppState {
             | Action::AddressReviewThreads { .. }
             | Action::FixFailedChecks { .. } => {
                 let st = self.agent_status();
-                (!st.ready).then(|| {
-                    format!(
-                        "Der Agent kann noch nicht starten. {}",
-                        st.missing.join(" ")
-                    )
-                })
+                (!st.ready).then(|| cannot_start(&st))
             }
             Action::StartPrReview { review } => {
                 let st = self.agent_status();
                 if !st.ready {
-                    return Some(format!(
-                        "Der Agent kann noch nicht starten. {}",
-                        st.missing.join(" ")
-                    ));
+                    return Some(cannot_start(&st));
                 }
                 // The repo must be configured for the agent, and the pull request must be synced.
                 let ws = self.inner.live.copy();
                 let Some(link) = ws.sync.pr(review) else {
-                    return Some(format!(
-                        "Der Pull Request {review} ist noch nicht mit GitHub abgeglichen. Gleiche zuerst ab."
-                    ));
+                    return Some(msg!(ServerAgentPrNotSynced, review = review.to_string()));
                 };
                 (!self.agent_repos().allows(&link.repo)).then(|| {
-                    format!(
-                        "Der Pull Request {review} gehört zu {}, der Agent darf dort aber nicht arbeiten. Trage das Repo unter „Einrichten“ › „GitHub“ ein.",
-                        link.repo
+                    msg!(
+                        ServerAgentPrOtherRepo,
+                        review = review.to_string(),
+                        repo = &link.repo
                     )
                 })
             }
             Action::ApprovePlan { ticket } => {
                 let ws = self.inner.live.copy();
-                let waits = ws.runs.iter().any(|r| {
-                    r.key() == *ticket && r.is_awaiting() && r.agent_plan.is_none()
-                });
-                waits.then(|| {
-                    "Der Agent erarbeitet den Plan noch. Warte, bis er vorliegt – dann kannst du ihn freigeben."
-                        .to_string()
-                })
+                let waits = ws
+                    .runs
+                    .iter()
+                    .any(|r| r.key() == *ticket && r.is_awaiting() && r.agent_plan.is_none());
+                waits.then(|| msg!(ServerAgentPlanPending))
             }
-            Action::AddressReview { .. } | Action::InvestigateCheck { .. } | Action::ApplyFix { .. } => {
-                Some(
-                    "Diesen Folgeauftrag gibt es mit dem echten Agenten nicht. Nutze am Review „Review-Kommentare umsetzen“ oder „Rote Checks beheben“."
-                        .to_string(),
-                )
-            }
+            Action::AddressReview { .. }
+            | Action::InvestigateCheck { .. }
+            | Action::ApplyFix { .. } => Some(msg!(ServerAgentFollowupUnknown)),
             _ => None,
         }
     }
@@ -306,8 +290,16 @@ impl AppState {
         let k = key.to_string();
         tokio::task::spawn_blocking(move || s.report_blocking(&k, report))
             .await
-            .unwrap_or_else(|_| Err(Error::Save("Interner Fehler".into())))
+            .unwrap_or_else(|_| Err(Error::Save("Internal error".into())))
     }
+}
+
+/// "The agent cannot start yet" with the list of what is missing.
+fn cannot_start(st: &AgentStatus) -> Msg {
+    msg!(
+        ServerAgentCannotStart,
+        missing = ArgValue::joined(st.missing_msgs.clone(), " ")
+    )
 }
 
 mod branch_delete;

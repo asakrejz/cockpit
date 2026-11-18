@@ -5,13 +5,14 @@
 //!
 //! * [`Rule`]: the rules, individually switchable ([`Rules`])
 //! * [`hits`]: which rules apply to an entry, each with reason and a
-//!   short German sentence; the first hit (by ranking) is the main reason
+//!   short sentence ([`Msg`]); the first hit (by ranking) is the main reason
 //! * [`Snooze`]: snooze an entry – for a time or „until something changes“
 //! * [`SnoozeChoice`]: the four choices of the UI
 //!
 //! Due dates (`Item::due`) are days without time of day. „Today“ is the UTC day of
 //! `now_ms`; around midnight this can deviate by the time zone.
 
+use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};
 
 use crate::model::{Checks, Item, Kind, ReasonKind, Scope, TicketStatus};
@@ -65,27 +66,38 @@ impl Rule {
         Rule::ALL.into_iter().find(|r| r.id() == id)
     }
 
-    pub fn label(self) -> &'static str {
+    /// Name of the rule.
+    pub fn msg(self) -> Msg {
         match self {
-            Rule::Mention => "Erwähnung",
-            Rule::ReviewRequested => "Review-Anfrage",
-            Rule::Blocked => "Blockierter Pull Request",
-            Rule::Overdue => "Überfälliges Ticket",
-            Rule::AgentFinished => "Agent fertig",
-            Rule::Assigned => "Zugewiesen",
+            Rule::Mention => msg!(InboxFiltersRuleMention),
+            Rule::ReviewRequested => msg!(InboxFiltersRuleReview),
+            Rule::Blocked => msg!(InboxFiltersRuleBlocked),
+            Rule::Overdue => msg!(InboxFiltersRuleOverdue),
+            Rule::AgentFinished => msg!(InboxFiltersRuleAgent),
+            Rule::Assigned => msg!(InboxFiltersRuleAssigned),
         }
     }
 
     /// Explanation in one sentence, for the settings.
-    pub fn describe(self) -> &'static str {
+    pub fn describe_msg(self) -> Msg {
         match self {
-            Rule::Mention => "Jemand erwähnt dich mit @Name und du hast noch nicht geantwortet",
-            Rule::ReviewRequested => "Dein Review wird für einen Pull Request angefragt",
-            Rule::Blocked => "Dein Pull Request hat rote Checks oder angeforderte Änderungen",
-            Rule::Overdue => "Das Fälligkeitsdatum eines Tickets ist vorbei",
-            Rule::AgentFinished => "Der Agent hat ein Ticket umgesetzt",
-            Rule::Assigned => "Ein offenes Ticket ist dir zugewiesen",
+            Rule::Mention => msg!(InboxFiltersRuleMentionHint),
+            Rule::ReviewRequested => msg!(InboxFiltersRuleReviewHint),
+            Rule::Blocked => msg!(InboxFiltersRuleBlockedHint),
+            Rule::Overdue => msg!(InboxFiltersRuleOverdueHint),
+            Rule::AgentFinished => msg!(InboxFiltersRuleAgentHint),
+            Rule::Assigned => msg!(InboxFiltersRuleAssignedHint),
         }
+    }
+
+    /// The name in German (for log lines that are kept as plain text).
+    pub fn label(self) -> String {
+        self.msg().de()
+    }
+
+    /// Explanation in German.
+    pub fn describe(self) -> String {
+        self.describe_msg().de()
     }
 }
 
@@ -123,8 +135,8 @@ impl Rules {
 pub struct Hit {
     pub rule: Rule,
     pub reason: ReasonKind,
-    /// Short German sentence, e.g. „Lena hat dich erwähnt“.
-    pub text: String,
+    /// Short sentence, e.g. "Lena mentioned you".
+    pub text: Msg,
 }
 
 /// All hits of the switched-on rules, in the ranking of the rules.
@@ -138,19 +150,22 @@ pub fn hits(item: &Item, rules: &Rules, now_ms: u64) -> Vec<Hit> {
 
 /// Applies a single rule, regardless of whether it is switched on.
 pub fn check(rule: Rule, item: &Item, now_ms: u64) -> Option<Hit> {
-    let hit = |reason, text: String| Hit { rule, reason, text };
+    let hit = |reason, text: Msg| Hit { rule, reason, text };
     let open_ticket = item.kind == Kind::Ticket && item.status != TicketStatus::Done;
     match rule {
         Rule::Mention => {
             let by = mentioned_by(item)?;
-            Some(hit(ReasonKind::Mention, format!("{} hat dich erwähnt", by)))
+            Some(hit(
+                ReasonKind::Mention,
+                msg!(CoreMiscHitMention, name = by),
+            ))
         }
         Rule::ReviewRequested => (item.kind == Kind::PullRequest
             && item.reason == ReasonKind::ReviewRequested)
             .then(|| {
                 hit(
                     ReasonKind::ReviewRequested,
-                    format!("Review angefragt von {}", item.owner.name),
+                    msg!(CoreMiscHitReview, name = &item.owner.name),
                 )
             }),
         Rule::Blocked => {
@@ -158,12 +173,12 @@ pub fn check(rule: Rule, item: &Item, now_ms: u64) -> Option<Hit> {
             if pr.changes_requested {
                 Some(hit(
                     ReasonKind::ChangesRequested,
-                    format!("Änderungen angefordert in #{}", pr.number),
+                    msg!(CoreMiscHitChanges, number = pr.number),
                 ))
             } else if pr.checks == Checks::Failed {
                 Some(hit(
                     ReasonKind::ChecksFailed,
-                    format!("Checks fehlgeschlagen in #{}", pr.number),
+                    msg!(CoreMiscHitChecks, number = pr.number),
                 ))
             } else {
                 None
@@ -171,25 +186,19 @@ pub fn check(rule: Rule, item: &Item, now_ms: u64) -> Option<Hit> {
         }
         Rule::Overdue => {
             let days = overdue_days(item, now_ms).filter(|_| open_ticket)?;
-            Some(hit(
-                ReasonKind::Overdue,
-                match days {
-                    1 => "Seit gestern überfällig".to_string(),
-                    n => format!("Seit {n} Tagen überfällig"),
-                },
-            ))
+            Some(hit(ReasonKind::Overdue, msg!(CoreMiscHitOverdue, n = days)))
         }
         Rule::AgentFinished => {
             let pr = item.pr.as_ref()?;
             (open_ticket && item.reason == ReasonKind::AgentFinished).then(|| {
                 hit(
                     ReasonKind::AgentFinished,
-                    format!("Agent fertig · Pull Request #{} erstellt", pr.number),
+                    msg!(CoreMiscHitAgent, number = pr.number),
                 )
             })
         }
         Rule::Assigned => (open_ticket && item.owner == crate::model::Person::me())
-            .then(|| hit(ReasonKind::Assigned, "Dir zugewiesen".to_string())),
+            .then(|| hit(ReasonKind::Assigned, msg!(CoreMiscHitAssigned))),
     }
 }
 
@@ -207,7 +216,7 @@ fn mentioned_by(item: &Item) -> Option<&str> {
         .map(|c| c.author.name.as_str())
 }
 
-/// Is `@Name` (or `@Kürzel`) of me in the text? Case does not matter; after the
+/// Is `@Name` (or `@Initials`) of me in the text? Case does not matter; after the
 /// name no letter or digit may follow (`@Dutzend` does not count).
 pub fn mentions_me(text: &str) -> bool {
     let me = crate::model::Person::me();
@@ -329,10 +338,10 @@ pub enum SnoozeChoice {
 impl SnoozeChoice {
     /// ID and label, in display order.
     pub const OPTIONS: &'static [(&'static str, &'static str)] = &[
-        ("stunde", "1 Stunde"),
-        ("morgen", "Morgen früh"),
-        ("woche", "Nächste Woche"),
-        ("aenderung", "Bis sich etwas ändert"),
+        ("stunde", "1 hour"),
+        ("morgen", "Tomorrow morning"),
+        ("woche", "Next week"),
+        ("aenderung", "Until something changes"),
     ];
 
     pub const ALL: [SnoozeChoice; 4] = [
@@ -357,7 +366,7 @@ impl SnoozeChoice {
 
     /// From when does the entry come back? `None`: only on a change.
     ///
-    /// „Morgen früh“ and „Nächste Woche“ (the next Monday) mean 8 o'clock local time.
+    /// "Tomorrow morning" and "Next week" (the next Monday) mean 8 o'clock local time.
     /// `utc_offset_min` is the difference UTC − local time in minutes, as
     /// `Date.getTimezoneOffset()` returns it in the browser (Berlin in winter: −60).
     pub fn until_ms(self, now_ms: u64, utc_offset_min: i32) -> Option<u64> {

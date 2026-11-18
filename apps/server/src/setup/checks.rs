@@ -3,10 +3,12 @@
 use super::*;
 
 pub(super) fn check(cause: JiraCause, name: Option<String>) -> JiraCheck {
+    let msg = jira_cause_msg(cause, name.as_deref());
     JiraCheck {
         ok: cause == JiraCause::Ok,
         cause,
-        message: jira_check_text(cause, name.as_deref()),
+        message: msg.de(),
+        msg: Some(msg),
         name: name.filter(|n| !n.is_empty()),
     }
 }
@@ -78,13 +80,13 @@ impl AppState {
                     repo,
                     RepoState::NotFound,
                     None,
-                    "Das ist kein Repo – gebraucht wird die Form firma/app.",
+                    msg!(ServerSetupRepoInvalid),
                 ),
                 (None, true) => repo_check(
                     repo,
                     RepoState::NoAccess,
                     None,
-                    "GitHub ist noch nicht verbunden. Melde dich zuerst an.",
+                    msg!(ServerSetupGithubNotConnectedYet),
                 ),
                 (Some((api, token)), true) => {
                     match cockpit_integrations::github::GitHubClient::new(api, token.clone()) {
@@ -92,7 +94,10 @@ impl AppState {
                             repo,
                             RepoState::Failed,
                             None,
-                            &format!("Die GitHub-Adresse ist ungültig: {e}"),
+                            msg!(
+                                ServerSetupGithubAddressInvalid,
+                                reason = Msg::raw(e.to_string())
+                            ),
                         ),
                         Ok(client) => repo_lookup(&client, repo).await,
                     }
@@ -107,13 +112,14 @@ pub(super) fn repo_check(
     repo: String,
     state: RepoState,
     default_branch: Option<String>,
-    message: &str,
+    message: Msg,
 ) -> RepoCheck {
     RepoCheck {
         repo,
         state,
         default_branch,
-        message: message.into(),
+        message: message.de(),
+        msg: Some(message),
     }
 }
 
@@ -126,40 +132,35 @@ pub(super) async fn repo_lookup(
             repo,
             RepoState::ReadOnly,
             Some(a.default_branch),
-            "Das Repo ist archiviert – der Agent kann dort nichts pushen.",
+            msg!(ServerSetupRepoArchived),
         ),
         Ok(a) if a.can_push == Some(false) => repo_check(
             repo,
             RepoState::ReadOnly,
             Some(a.default_branch),
-            "Das Repo ist lesbar, aber ohne Schreibrecht – der Agent kann dort nichts pushen.",
+            msg!(ServerSetupRepoReadOnly),
         ),
         Ok(a) => repo_check(
             repo,
             RepoState::Ok,
             Some(a.default_branch),
-            "Das Repo ist erreichbar.",
+            msg!(ServerSetupRepoOk),
         ),
         Err(Error::NotFound) => repo_check(
             repo,
             RepoState::NotFound,
             None,
-            "Das Repo gibt es nicht, oder dein Zugang sieht es nicht.",
+            msg!(ServerSetupRepoNotFound),
         ),
         Err(Error::NotSignedIn | Error::NoPermission) => repo_check(
             repo,
             RepoState::NoAccess,
             None,
-            "Dem GitHub-Zugang fehlt die Berechtigung für dieses Repo.",
+            msg!(ServerSetupRepoNoPermission),
         ),
         Err(e) => {
             tracing::warn!("Repo check {repo}: {e}");
-            repo_check(
-                repo,
-                RepoState::Failed,
-                None,
-                "Die Prüfung hat nicht geklappt. Versuche es gleich noch einmal.",
-            )
+            repo_check(repo, RepoState::Failed, None, msg!(ServerSetupCheckFailed))
         }
     }
 }

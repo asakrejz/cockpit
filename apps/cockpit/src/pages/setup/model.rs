@@ -83,7 +83,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
         if hand.trim().is_empty() {
             Ok(model.get_untracked().trim().to_string())
         } else {
-            model_name_read(&hand)
+            model_name_read(&hand).map_err(|m| m.render(lang_untracked()))
         }
     };
     let input = move |model: Option<String>| EndpointInput {
@@ -143,7 +143,11 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                     list_hint.set(Some(t!(SetupModelLoadedCount, n = l.models.len())));
                     list.set(l.models);
                 }
-                Ok(l) => list_hint.set(Some(l.hint.unwrap_or_else(|| t!(SetupModelNoModels)))),
+                Ok(l) => list_hint.set(Some(
+                    l.hint
+                        .map(|h| server::shown(&h, l.msg.as_ref()))
+                        .unwrap_or_else(|| t!(SetupModelNoModels)),
+                )),
                 Err(e) => list_hint.set(Some(error(e))),
             }
             list_loads.set(false);
@@ -332,7 +336,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                 />
                 {move || {
                     model_hint(&list.get(), &model.get())
-                        .map(|m| view! { <p class="ui-hint" role="status">{m}</p> })
+                        .map(|m| view! { <p class="ui-hint" role="status">{m.render(lang())}</p> })
                 }}
                 <TextField
                     label=t!(SetupModelHandLabel)
@@ -381,6 +385,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         .get()
                         .map(|p| {
                             let (ton, text) = check_plain_text(&p);
+                            let text = text.render(lang());
                             let tone = match ton {
                                 Tone::Good => StatusTone::Green,
                                 Tone::Open => StatusTone::Gray,

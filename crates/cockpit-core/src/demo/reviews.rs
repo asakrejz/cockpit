@@ -10,6 +10,7 @@ pub(super) fn reviews(pr87: &Item, bau138: &Item, pr85: &Item) -> [Review; 3] {
             repo: item.pr.as_ref().map(|p| p.repo.clone()).unwrap_or_default(),
             title: item.title.clone(),
             description: item.description.clone(),
+            description_msg: None,
             author,
             branch: item.branch.clone().unwrap_or_default(),
             base: "main".into(),

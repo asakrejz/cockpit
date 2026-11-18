@@ -1,0 +1,22 @@
+# Branch names and patterns: reasons the core gives
+core_branch.unclosed_brace = Eine geschweifte Klammer im Muster ist nicht geschlossen.
+core_branch.unknown_placeholder = „{name}“ kennt Cockpit nicht. Erlaubt sind {ticket}, {slug} und {kind}.
+core_branch.pattern_empty = Das Muster für Branch-Namen darf nicht leer sein.
+core_branch.pattern_too_long = Das Muster für Branch-Namen ist zu lang (höchstens {max} Zeichen).
+core_branch.pattern_chars = Das Muster darf nur Buchstaben, Ziffern und die Zeichen / - _ . sowie Platzhalter enthalten.
+core_branch.pattern_no_placeholder = Das Muster braucht mindestens einen Platzhalter, sonst zeigt es auf einen festen Branch.
+core_branch.pattern_needs_ticket = Das Muster braucht {ticket}, sonst bekämen zwei Tickets denselben Branch.
+core_branch.pattern_glued = Zwischen zwei Platzhaltern muss ein Zeichen stehen, z. B. {ticket}-{slug}.
+core_branch.pattern_edges = Das Muster darf nicht mit / - . beginnen oder mit / . enden und kein .. oder // enthalten.
+core_branch.pattern_result_invalid = Aus diesem Muster entstünde kein gültiger Branch-Name.
+core_branch.invalid = Der Branch „{branch}“ ist kein gültiger Branch-Name.
+core_branch.protected = Der Branch „{branch}“ ist geschützt – dorthin pusht der Agent nie.
+core_branch.mismatch = Der Branch „{branch}“ passt nicht zum Muster „{pattern}“ dieses Repos.
+core_branch.delete_open = Der Pull Request ist noch offen. Den Branch kannst du erst löschen, wenn er gemergt oder geschlossen ist.
+core_branch.delete_default = Der Branch „{branch}“ ist der Standard-Branch des Repos und bleibt.
+core_branch.delete_protected = Der Branch „{branch}“ ist auf GitHub geschützt und bleibt.
+core_branch.delete_foreign = Der Branch „{branch}“ gehört nicht zu diesem Lauf und seinem Pull Request.
+core_branch.suggest_both = Die Richtlinien nennen feature/ und fix/. Cockpit wählt je nach Jira-Typ feature, fix oder chore.
+core_branch.suggest_first = Die Richtlinien nennen Branches mit {first}.
+core_branch.suggest_more = {reason} Außerdem kommen {others} vor; Cockpit nutzt einen festen Vorsatz. Bitte prüfe das.
+core_branch.suggest_ticket = Die Richtlinien nennen Branches mit dem Ticket-Schlüssel, z. B. PROJ-123.

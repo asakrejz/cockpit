@@ -48,6 +48,7 @@ pub(super) fn items() -> [Item; 7] {
             assigned_me: false,
         }),
         agent_note: Some("3 Kommentare vom Agenten warten auf deine Freigabe".into()),
+        agent_note_msg: None,
         comments: vec![Comment::new(
             jonas(),
             "vor 40 Min.",
@@ -83,6 +84,7 @@ pub(super) fn items() -> [Item; 7] {
             assigned_me: false,
         }),
         agent_note: Some("Vom Agenten umgesetzt · Tests bestanden".into()),
+        agent_note_msg: None,
         ..item(
             "bau138",
             Kind::Ticket,

@@ -146,7 +146,7 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
             t!(SetupJiraClientIdSaved),
             || {},
         ),
-        Err(m) => back_id.set(Some((false, m))),
+        Err(m) => back_id.set(Some((false, m.render(lang_untracked())))),
     };
     let site_save = move |_| {
         config_save(
@@ -375,7 +375,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                 return;
             }
             Err(m) => {
-                back.set(Some((false, m)));
+                back.set(Some((false, m.render(lang_untracked()))));
                 return;
             }
         };
@@ -429,7 +429,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                 }
                 Ok(_) => ().into_any(),
                 Err(m) => {
-                    view! { <p class="ui-hint" role="alert" style="color: var(--sys-color-red)">{m}</p> }
+                    view! { <p class="ui-hint" role="alert" style="color: var(--sys-color-red)">{m.render(lang())}</p> }
                         .into_any()
                 }
             }}
@@ -494,7 +494,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                                 style=(!p.ok).then_some("color: var(--sys-color-red)")
                             >
                                 {if p.ok { "✓ " } else { "" }}
-                                {p.message}
+                                {server::shown(&p.message, p.msg.as_ref())}
                             </p>
                         }
                     })
@@ -549,7 +549,7 @@ fn JiraProjectChoice(ctx: Context) -> impl IntoView {
     let switch = move |key: String| {
         let project = (!key.is_empty()).then_some(key);
         if let Err(e) = ctx.store.dispatch(Action::SelectJiraProject { project }) {
-            back.set(Some((false, e.message())));
+            back.set(Some((false, e.msg().render(feature_ui::lang_untracked()))));
         } else {
             back.set(Some((true, t!(SetupJiraChoiceSaved))));
         }

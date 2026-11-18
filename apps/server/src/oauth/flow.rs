@@ -4,28 +4,28 @@ use super::*;
 
 impl AppState {
     /// Begins a sign-in and returns the address of the service.
-    pub async fn oauth_start(&self, d: Service) -> Result<String, String> {
+    pub async fn oauth_start(&self, d: Service) -> Result<String, Msg> {
         let Some(client_id) = self.oauth_config_id(d) else {
-            return Err(format!(
-                "{}-Anmeldung ist nicht eingerichtet – trage die Client-ID im Schritt „{}“ im Feld „Client ID“ ein.",
-                d.name(),
-                step_name(d)
+            return Err(msg!(
+                ServerOauthClientMissing,
+                service = d.name(),
+                step = step_name(d)
             ));
         };
         let s = self.clone();
         let secret = tokio::task::spawn_blocking(move || s.oauth_client_secret(d))
             .await
-            .map_err(|_| "Interner Fehler".to_string())?;
+            .map_err(|_| msg!(ServerOauthInternalError))?;
         let Some(secret) = secret else {
-            return Err(secret_missing(d));
+            return Err(secret_missing_msg(d));
         };
         let (state, challenge) = self
             .inner
             .sign_ins
             .lock()
-            .map_err(|_| "Interner Fehler".to_string())?
+            .map_err(|_| msg!(ServerOauthInternalError))?
             .begin(d, now_ms())
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| e.msg())?;
         let uri = redirect_uri(d, self.inner.port);
         let app = App {
             client_id: &client_id,
@@ -33,7 +33,7 @@ impl AppState {
             redirect_uri: &uri,
         };
         oauth::sign_in_url(&self.sources().endpoints, d, &app, &state, &challenge)
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.msg())
     }
 
     /// Processes the callback. `Ok`: a success message, `Err`: an understandable message.
@@ -41,7 +41,7 @@ impl AppState {
         &self,
         d: Service,
         q: &HashMap<String, String>,
-    ) -> Result<String, String> {
+    ) -> Result<Msg, Msg> {
         let get = |k: &str| q.get(k).map(String::as_str).filter(|v| !v.is_empty());
         let state = get("state");
         // The user declined or the service reports an error: consume `state`.
@@ -55,39 +55,37 @@ impl AppState {
                 .filter(|c| !c.is_control())
                 .take(200)
                 .collect();
-            return Err(format!(
-                "{}-Anmeldung abgebrochen oder abgelehnt: {reason}",
-                d.name()
+            return Err(msg!(
+                ServerOauthDeclined,
+                service = d.name(),
+                reason = Msg::raw(reason)
             ));
         }
         let Some(state) = state else {
-            return Err(format!(
-                "Keine laufende Anmeldung – bitte in Cockpit unter „Einrichten“ auf „Mit {} anmelden“ klicken",
-                d.name()
-            ));
+            return Err(msg!(ServerOauthNoRunning, service = d.name()));
         };
         let verifier = self
             .inner
             .sign_ins
             .lock()
-            .map_err(|_| "Interner Fehler".to_string())?
+            .map_err(|_| msg!(ServerOauthInternalError))?
             .extract(state, d, now_ms())
-            .map_err(|e| e.text().to_string())?;
+            .map_err(|e| e.msg())?;
         let Some(code) = get("code") else {
-            return Err(format!("{} hat keinen Code geschickt", d.name()));
+            return Err(msg!(ServerOauthNoCode, service = d.name()));
         };
         let Some(client_id) = self.oauth_config_id(d) else {
-            return Err(format!(
-                "{}-Anmeldung ist nicht eingerichtet – trage die Client-ID im Schritt „{}“ ein.",
-                d.name(),
-                step_name(d)
+            return Err(msg!(
+                ServerOauthClientMissingCallback,
+                service = d.name(),
+                step = step_name(d)
             ));
         };
         let s = self.clone();
         let secret = tokio::task::spawn_blocking(move || s.oauth_client_secret(d))
             .await
-            .map_err(|_| "Interner Fehler".to_string())?
-            .ok_or_else(|| secret_missing(d))?;
+            .map_err(|_| msg!(ServerOauthInternalError))?
+            .ok_or_else(|| secret_missing_msg(d))?;
         let uri = redirect_uri(d, self.inner.port);
         let app = App {
             client_id: &client_id,
@@ -110,35 +108,37 @@ impl AppState {
                 tracing::warn!("Atlassian: accessible-resources failed: {f}");
                 service_error(d, &f)
             })?;
-            Some(site_choose(&list, wanted.as_deref()).map_err(|f| f.to_string())?)
+            Some(site_choose(&list, wanted.as_deref()).map_err(|f| f.msg())?)
         } else {
             None
         };
 
         let s = self.clone();
         let name = site.as_ref().map(|x| x.name.clone());
-        tokio::task::spawn_blocking(move || -> Result<(), String> {
-            s.oauth_tokens_set(d, &tokens).map_err(|e| {
-                format!("Die Tokens ließen sich nicht in der .env-Datei ablegen: {e}")
-            })?;
+        tokio::task::spawn_blocking(move || -> Result<(), Msg> {
+            s.oauth_tokens_set(d, &tokens)
+                .map_err(|e| msg!(ServerOauthTokensNotStored, reason = Msg::raw(e.to_string())))?;
             if let Some(site) = site {
                 let conn = s
                     .inner
                     .db
                     .lock()
-                    .map_err(|_| "Interner Fehler".to_string())?;
+                    .map_err(|_| msg!(ServerOauthInternalError))?;
                 let r = db::setting_set(&conn, SITE_ID, &site.id)
                     .and_then(|()| db::setting_set(&conn, SITE_NAME, &site.name));
                 if let Err(e) = r {
                     drop(conn);
                     s.oauth_tokens_delete(d);
-                    return Err(format!("Die Site ließ sich nicht speichern: {e}"));
+                    return Err(msg!(
+                        ServerOauthSiteNotStored,
+                        reason = Msg::raw(e.to_string())
+                    ));
                 }
             }
             Ok(())
         })
         .await
-        .map_err(|_| "Interner Fehler".to_string())??;
+        .map_err(|_| msg!(ServerOauthInternalError))??;
         tracing::info!("{}: signed in", d.id());
 
         // Sync right away; the result comes through the event stream.
@@ -149,19 +149,19 @@ impl AppState {
             }
         });
         Ok(match name {
-            Some(n) => format!("Mit Atlassian angemeldet (Site {n})"),
-            None => format!("Mit {} angemeldet", d.name()),
+            Some(n) => msg!(ServerOauthSignedInSite, site = n),
+            None => msg!(ServerOauthSignedIn, service = d.name()),
         })
     }
 
     /// Disconnects the service: calls, where it exists, the revocation at the service and deletes the tokens
     /// in the .env file. Deleting always happens – even if the service does not answer.
-    pub async fn oauth_revoke(&self, d: Service) -> Result<RevokeResponse, String> {
+    pub async fn oauth_revoke(&self, d: Service) -> Result<RevokeResponse, Msg> {
         let s = self.clone();
         let (tokens, secret) =
             tokio::task::spawn_blocking(move || (s.oauth_tokens(d), s.oauth_client_secret(d)))
                 .await
-                .map_err(|_| "Interner Fehler".to_string())?;
+                .map_err(|_| msg!(ServerOauthInternalError))?;
         let mut answer = RevokeResponse::default();
         if let (Some(tokens), Some(secret), Some(client_id)) =
             (&tokens, &secret, self.oauth_config_id(d))
@@ -181,23 +181,25 @@ impl AppState {
                 Ok(at_service) => answer.at_service = at_service,
                 Err(f) => {
                     tracing::warn!("{}: revoking at the service failed: {f}", d.id());
-                    answer.hint = Some(format!(
-                        "Lokal getrennt, aber der Dienst hat den Widerruf nicht bestätigt ({f}). Zugriff bitte in den Einstellungen bei {} entziehen.",
-                        d.name()
-                    ));
+                    let m = msg!(
+                        ServerOauthRevokeNotConfirmed,
+                        reason = f.msg(),
+                        service = d.name()
+                    );
+                    answer.hint = Some(m.de());
+                    answer.msg = Some(m);
                 }
             }
         }
         if d == Service::Atlassian && answer.hint.is_none() {
-            answer.hint = Some(
-                "Lokal getrennt. Atlassian bietet keinen Widerruf per Aufruf – den Zugriff entziehst du unter id.atlassian.com/manage-profile/apps."
-                    .into(),
-            );
+            let m = msg!(ServerOauthRevokeAtlassian);
+            answer.hint = Some(m.de());
+            answer.msg = Some(m);
         }
         let s = self.clone();
         tokio::task::spawn_blocking(move || s.oauth_tokens_delete(d))
             .await
-            .map_err(|_| "Interner Fehler".to_string())?;
+            .map_err(|_| msg!(ServerOauthInternalError))?;
         answer.disconnected = true;
         tracing::info!("{}: disconnected", d.id());
         Ok(answer)

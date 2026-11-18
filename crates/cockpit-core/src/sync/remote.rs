@@ -38,6 +38,17 @@ pub struct Loaded {
     /// Hints for the state of the source (e.g. skipped pull requests).
     #[serde(default)]
     pub warnings: Vec<String>,
+    /// The same hints as code and parameters; [`Loaded::warn`] fills both.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warning_msgs: Vec<cockpit_i18n::Msg>,
+}
+
+impl Loaded {
+    /// Adds a hint: the code and, next to it, the German text.
+    pub fn warn(&mut self, msg: cockpit_i18n::Msg) {
+        self.warnings.push(msg.de());
+        self.warning_msgs.push(msg);
+    }
 }
 
 /// Which repo a pull request belongs to (and its last known commit). Reviews carry the

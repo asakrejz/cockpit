@@ -1,33 +1,54 @@
+use super::texts::{bullet, comments_msg, raw};
 use super::*;
+use cockpit_i18n::{Lang, Msg, msg};
 
 impl AgentRun {
     /// The log of a real run: what the agent and you said, plus the consumption.
-    pub(super) fn real_log(&self) -> String {
-        let mut lines: Vec<String> = self
+    fn real_log(&self) -> Vec<Msg> {
+        let mut lines: Vec<Msg> = self
             .messages
             .iter()
             .map(|m| {
-                let who = match m.from {
-                    Speaker::Agent => "Agent",
-                    Speaker::User => "Du",
-                };
-                format!("› {who}: {}", m.text)
+                let text = m.msg.clone().unwrap_or_else(|| raw(m.text.clone()));
+                bullet(match m.from {
+                    Speaker::Agent => msg!(CoreAgentLogFromAgent, text = text),
+                    Speaker::User => msg!(CoreAgentLogFromUser, text = text),
+                })
             })
             .collect();
         let usage = self.usage();
         if !usage.is_empty() {
-            lines.push(format!("› Verbrauch: {}", usage.line()));
+            lines.push(bullet(msg!(CoreAgentLogUsage, usage = usage.line_msg())));
         }
         if lines.is_empty() {
-            return "Noch keine Aktivität.".into();
+            return vec![msg!(CoreAgentLogNone)];
         }
-        lines.join("\n")
+        lines
     }
 
-    /// Log lines of a step of „implement review comments“.
+    fn plan_made_lines(&self, lines: &mut Vec<Msg>, plan: &Plan) {
+        lines.push(bullet(msg!(
+            CoreAgentLogPlanMade,
+            steps = plan.steps.len(),
+            files = plan.files.len()
+        )));
+    }
+
+    fn plan_state_lines(&self, lines: &mut Vec<Msg>) {
+        for note in &self.plan_notes {
+            lines.push(bullet(msg!(CoreAgentLogNewPlan, note = note)));
+        }
+        lines.push(bullet(if self.is_awaiting() {
+            msg!(CoreAgentLogWaitApproval)
+        } else {
+            msg!(CoreAgentLogPlanApproved)
+        }));
+    }
+
+    /// Log lines of a step of "implement review comments".
     pub(super) fn address_log(
         &self,
-        lines: &mut Vec<String>,
+        lines: &mut Vec<Msg>,
         step: usize,
         review: &PrKey,
         comments: usize,
@@ -36,68 +57,63 @@ impl AgentRun {
         let hint = o.hint.trim();
         match step {
             0 => {
-                lines.push(format!(
-                    "› Lese {} aus Review {review}",
-                    plural_comments(comments)
-                ));
+                lines.push(bullet(msg!(
+                    CoreAgentLogReadComments,
+                    comments = comments_msg(comments),
+                    review = review.to_string()
+                )));
                 if !hint.is_empty() {
-                    lines.push(format!("› Hinweis: {hint}"));
+                    lines.push(bullet(msg!(CoreAgentLogHint, hint = hint)));
                 }
                 if let Some(plan) = self.plan() {
-                    lines.push(format!(
-                        "› Plan erstellt: {} Schritte, {} Dateien",
-                        plan.steps.len(),
-                        plan.files.len()
-                    ));
-                    for note in &self.plan_notes {
-                        lines.push(format!("› Neuer Plan angefordert: {note}"));
-                    }
-                    lines.push(if self.is_awaiting() {
-                        "› Warte auf Freigabe".into()
-                    } else {
-                        "› Plan freigegeben".into()
-                    });
+                    self.plan_made_lines(lines, &plan);
+                    self.plan_state_lines(lines);
                 }
             }
-            1 => lines.push(format!("› git switch {}", self.branch())),
-            2 => lines.push(format!("› Bearbeite {}", self.files.join(", "))),
-            3 if o.run_tests => lines.push("› Starte Lint und Tests … bestanden".into()),
-            3 => lines.push("› Tests übersprungen".into()),
-            _ => lines.push(format!(
-                "› git push origin {} (kein neuer Pull Request)",
-                self.branch()
-            )),
+            1 => lines.push(bullet(raw(format!("git switch {}", self.branch())))),
+            2 => lines.push(bullet(msg!(
+                CoreAgentLogEdit,
+                files = self.files.join(", ")
+            ))),
+            3 if o.run_tests => lines.push(bullet(msg!(CoreAgentLogTestsRun))),
+            3 => lines.push(bullet(msg!(CoreAgentLogTestsSkipped))),
+            _ => lines.push(bullet(msg!(CoreAgentLogPushNoPr, branch = self.branch()))),
         }
     }
 
-    /// Log lines of a step of „investigate check“.
+    /// Log lines of a step of "investigate check".
     pub(super) fn diagnose_log(
         &self,
-        lines: &mut Vec<String>,
+        lines: &mut Vec<Msg>,
         step: usize,
         review: &PrKey,
         check: &str,
     ) {
         let code = self.diagnosis.as_ref().is_none_or(Diagnosis::changes_code);
-        match step {
-            0 => lines.push(format!("› Lese das Log von „{check}“ in {review}")),
-            1 => lines.push("› Suche Fehlermeldung, Datei und Zeile".into()),
-            2 => lines.push(match &self.diagnosis {
-                Some(d) => format!("› Diagnose: {}", d.cause),
-                None => "› Diagnose erstellt".into(),
-            }),
-            3 if code => lines.push("› Wende den Fix an, starte Lint und Tests … bestanden".into()),
-            3 => lines.push("› Kein Code-Fix nötig, der Branch bleibt unverändert".into()),
-            _ if code => lines.push(format!(
-                "› git push origin {}, starte „{check}“ neu",
-                self.branch()
-            )),
-            _ => lines.push(format!("› Starte „{check}“ neu")),
-        }
+        lines.push(bullet(match step {
+            0 => msg!(
+                CoreAgentLogReadCheck,
+                check = check,
+                review = review.to_string()
+            ),
+            1 => msg!(CoreAgentLogFindError),
+            2 => match &self.diagnosis {
+                Some(d) => msg!(CoreAgentLogDiagnosis, cause = d.cause.clone()),
+                None => msg!(CoreAgentLogDiagnosisMade),
+            },
+            3 if code => msg!(CoreAgentLogApplyFix),
+            3 => msg!(CoreAgentLogNoFix),
+            _ if code => msg!(
+                CoreAgentLogPushRestart,
+                branch = self.branch(),
+                check = check
+            ),
+            _ => msg!(CoreAgentLogRestart, check = check),
+        }));
     }
 
-    /// Log up to and including the step the agent is currently working on.
-    pub fn log(&self) -> String {
+    /// Log up to and including the step the agent is currently working on, as messages.
+    pub fn log_msgs(&self) -> Vec<Msg> {
         if self.real || self.ended.is_some() {
             return self.real_log();
         }
@@ -112,7 +128,7 @@ impl AgentRun {
         }
         .min(STEPS);
         if shown == 0 {
-            return "Noch keine Aktivität. Starte den Agenten, um das Ticket umzusetzen.".into();
+            return vec![msg!(CoreAgentLogNoneStart)];
         }
         let o = &self.options;
         let hint = o.hint.trim();
@@ -129,88 +145,89 @@ impl AgentRun {
                     self.address_log(&mut lines, step, review, 0);
                 }
                 (RunKind::Implement, 0) => {
-                    let comments = match self.comments {
-                        1 => "1 Kommentar".to_string(),
-                        n => format!("{n} Kommentare"),
-                    };
-                    lines.push(format!("› Lese {} und {comments}", self.ticket_key));
+                    lines.push(bullet(msg!(
+                        CoreAgentLogReadTicket,
+                        ticket = &self.ticket_key,
+                        comments = comments_msg(self.comments)
+                    )));
                     if !hint.is_empty() {
-                        lines.push(format!("› Hinweis: {hint}"));
+                        lines.push(bullet(msg!(CoreAgentLogHint, hint = hint)));
                     }
-                    for rule in self.rules.lines() {
-                        lines.push(format!("› Regel: {rule}"));
+                    for rule in self.rules.lines_msg() {
+                        lines.push(bullet(msg!(CoreAgentLogRule, rule = rule)));
                     }
                     if let Some(plan) = self.plan() {
-                        lines.push(format!(
-                            "› Plan erstellt: {} Schritte, {} Dateien",
-                            plan.steps.len(),
-                            plan.files.len()
-                        ));
+                        self.plan_made_lines(&mut lines, &plan);
                         for v in &plan.violations {
-                            lines.push(format!("› Regelverstoß: {}", v.reason()));
+                            lines
+                                .push(bullet(msg!(CoreAgentLogViolation, reason = v.reason_msg())));
                         }
-                        for note in &self.plan_notes {
-                            lines.push(format!("› Neuer Plan angefordert: {note}"));
-                        }
-                        lines.push(if self.is_awaiting() {
-                            "› Warte auf Freigabe".into()
-                        } else {
-                            "› Plan freigegeben".into()
-                        });
+                        self.plan_state_lines(&mut lines);
                     }
                 }
-                (RunKind::Implement, 1) => lines.push(format!("› git switch -c {}", self.branch())),
-                (RunKind::Implement, 2) => {
-                    lines.push(format!("› Bearbeite {}", self.files.join(", ")))
+                (RunKind::Implement, 1) => {
+                    lines.push(bullet(raw(format!("git switch -c {}", self.branch()))))
                 }
+                (RunKind::Implement, 2) => lines.push(bullet(msg!(
+                    CoreAgentLogEdit,
+                    files = self.files.join(", ")
+                ))),
                 (RunKind::Implement, 3) if !self.rules.required_tests.is_empty() => {
                     for cmd in &self.rules.required_tests {
-                        lines.push(format!("› $ {cmd} … bestanden"));
+                        lines.push(bullet(msg!(CoreAgentLogRequiredTest, cmd = cmd)));
                     }
                 }
                 (RunKind::Implement, 3) if o.run_tests => {
-                    lines.push("› Starte Lint und Tests … bestanden".into())
+                    lines.push(bullet(msg!(CoreAgentLogTestsRun)))
                 }
-                (RunKind::Implement, 3) => lines.push("› Tests übersprungen".into()),
-                (RunKind::Implement, _) => lines.push(format!(
-                    "› Pull Request {} erstellt{}",
-                    self.pr_label(),
-                    if o.draft_pr { " (Entwurf)" } else { "" }
-                )),
+                (RunKind::Implement, 3) => lines.push(bullet(msg!(CoreAgentLogTestsSkipped))),
+                (RunKind::Implement, _) => lines.push(bullet(if o.draft_pr {
+                    msg!(CoreAgentLogPrCreatedDraft, pr = self.pr_label())
+                } else {
+                    msg!(CoreAgentLogPrCreated, pr = self.pr_label())
+                })),
             }
             // Questions, answers and acknowledged hints of this step.
             for m in self.messages.iter().filter(|m| m.step == step) {
+                let text = m.msg.clone().unwrap_or_else(|| raw(m.text.clone()));
                 match m.kind {
-                    MessageKind::Question => lines.push(format!("› Frage: {}", m.text)),
-                    MessageKind::Answer => lines.push(format!("› Antwort: {}", m.text)),
-                    MessageKind::Ack => lines.push(format!("› {}", m.text)),
+                    MessageKind::Question => {
+                        lines.push(bullet(msg!(CoreAgentLogQuestion, text = text)))
+                    }
+                    MessageKind::Answer => {
+                        lines.push(bullet(msg!(CoreAgentLogAnswer, text = text)))
+                    }
+                    MessageKind::Ack => lines.push(bullet(text)),
                     _ => {}
                 }
             }
         }
         if self.is_diagnosed() {
-            lines.push("› Warte auf deine Entscheidung über den Fix".into());
+            lines.push(bullet(msg!(CoreAgentLogWaitFix)));
         } else if self.is_asking() {
-            lines.push("› Warte auf deine Antwort".into());
+            lines.push(bullet(msg!(CoreAgentLogWaitAnswer)));
         } else if self.is_paused() {
-            lines.push("› Pausiert".into());
+            lines.push(bullet(msg!(CoreAgentLogPaused)));
         } else if let Some(reason) = self.stop_reason() {
-            lines.push(format!("› Angehalten: {}", reason.label()));
+            lines.push(bullet(msg!(
+                CoreAgentLogHalted,
+                reason = reason.label_msg()
+            )));
         }
-        lines.join("\n")
+        lines
     }
-}
 
-pub(super) fn plural_comments(n: usize) -> String {
-    match n {
-        1 => "1 Kommentar".to_string(),
-        n => format!("{n} Kommentare"),
+    /// The log in `lang`, one line per entry.
+    pub fn log_in(&self, lang: Lang) -> String {
+        self.log_msgs()
+            .iter()
+            .map(|m| m.render(lang))
+            .collect::<Vec<_>>()
+            .join("\n")
     }
-}
 
-pub(super) fn files_label(n: usize) -> String {
-    match n {
-        1 => "1 Datei".to_string(),
-        n => format!("{n} Dateien"),
+    /// The log in German (plain-text readers, tests).
+    pub fn log(&self) -> String {
+        self.log_in(Lang::De)
     }
 }

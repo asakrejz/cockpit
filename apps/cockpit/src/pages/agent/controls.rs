@@ -129,7 +129,7 @@ pub(super) fn blocked_hint(ctx: AgentCtx) -> Option<impl IntoView> {
         });
         view! {
             <p class="t-footnote t-secondary">
-                {exactly.unwrap_or_else(|| reason.to_string())} " "
+                {exactly.unwrap_or_else(|| reason.render(lang()))} " "
                 <a class="ui-link" href=Route::Setup.hash()>{t!(AgentControlsToSetup)}</a>
             </p>
         }

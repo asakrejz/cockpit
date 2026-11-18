@@ -1,3 +1,5 @@
+use cockpit_i18n::msg;
+
 use super::*;
 
 impl Workspace {
@@ -15,13 +17,13 @@ impl Workspace {
                 if !self.notifications.set(reason, channel, on) {
                     return Err(ActionError::Unchanged);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Settings,
-                    format!(
-                        "Benachrichtigung „{}“ über {} {}",
-                        reason.label(),
-                        channel.label(),
-                        if on { "eingeschaltet" } else { "ausgeschaltet" }
+                    msg!(
+                        CoreActionLogNotify,
+                        reason = labels::reason(reason),
+                        channel = labels::channel(channel),
+                        state = labels::on_off(on)
                     ),
                 )])
             }
@@ -33,43 +35,46 @@ impl Workspace {
                     return Err(ActionError::Unchanged);
                 }
                 let text = if quiet.enabled {
-                    format!(
-                        "Ruhezeiten von {} bis {} Uhr eingeschaltet",
-                        QuietHours::format(quiet.from),
-                        QuietHours::format(quiet.to)
+                    msg!(
+                        CoreActionLogQuietOn,
+                        from = QuietHours::format(quiet.from),
+                        to = QuietHours::format(quiet.to)
                     )
                 } else {
-                    "Ruhezeiten ausgeschaltet".to_string()
+                    msg!(CoreActionLogQuietOff)
                 };
-                Ok(vec![Note::new(Target::Settings, text)])
+                Ok(vec![Note::coded(Target::Settings, text)])
             }
             Action::SetLanguage { language } => {
                 if self.language == Some(language) {
                     return Err(ActionError::Unchanged);
                 }
                 self.language = Some(language);
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Settings,
-                    format!("Sprache der Oberfläche: {}", language.name()),
+                    cockpit_i18n::msg!(CoreSettingsLanguageSet, language = language.name()),
                 )])
             }
             Action::SetAgentLimits { limits } => {
                 if !limits.is_valid() {
                     return Err(ActionError::InvalidInput);
                 }
-                let text = format!("Grenzen für Agenten geändert: {}", limits.summary());
+                let text = msg!(
+                    CoreActionLogLimits,
+                    summary = labels::limits_summary(&limits)
+                );
                 let pricing_changed = limits.pricing != self.limits.pricing;
                 if !self.set_limits(limits) {
                     return Err(ActionError::Unchanged);
                 }
-                let mut notes = vec![Note::new(Target::Settings, text)];
+                let mut notes = vec![Note::coded(Target::Settings, text)];
                 if pricing_changed {
-                    notes.push(Note::new(
+                    notes.push(Note::coded(
                         Target::Settings,
-                        format!(
-                            "Preise geändert: {} je Million Token ein, {} aus",
-                            format_euro(self.limits.pricing.input_cents_per_mtok),
-                            format_euro(self.limits.pricing.output_cents_per_mtok)
+                        msg!(
+                            CoreActionLogPricing,
+                            input = format_euro(self.limits.pricing.input_cents_per_mtok),
+                            output = format_euro(self.limits.pricing.output_cents_per_mtok)
                         ),
                     ));
                 }
@@ -82,23 +87,31 @@ impl Workspace {
                 if !self.set_repo_rules(&repo, rules) {
                     return Err(ActionError::Unchanged);
                 }
-                let lines = self.rules_for(&repo).lines();
+                let lines = labels::rule_lines(&self.rules_for(&repo));
                 let text = if lines.is_empty() {
-                    format!("Regeln für {repo} entfernt")
+                    msg!(CoreActionLogRulesRemoved, repo = repo)
                 } else {
-                    format!("Regeln für {repo} geändert: {}", lines.join(" · "))
+                    msg!(
+                        CoreActionLogRulesChanged,
+                        repo = repo,
+                        lines = cockpit_i18n::ArgValue::joined(lines, " · ")
+                    )
                 };
-                Ok(vec![Note::new(Target::Settings, text)])
+                Ok(vec![Note::coded(Target::Settings, text)])
             }
             Action::SyncRemote { remote } => {
                 let (merged, changes) = sync::merge(self, &remote, at_ms);
                 *self = merged;
                 let mut notes: Vec<Note> = changes
                     .into_iter()
-                    .map(|c| Note {
-                        actor: Some(Actor::System),
-                        target: c.target(),
-                        text: c.text(),
+                    .map(|c| {
+                        let msg = c.msg();
+                        Note {
+                            actor: Some(Actor::System),
+                            target: c.target(),
+                            text: msg.de(),
+                            msg: Some(msg),
+                        }
                     })
                     .collect();
                 // The sentence in the result comes from the first change; without a change it stays empty.
@@ -125,9 +138,9 @@ impl Workspace {
                 self.repo_rules = repo_rules;
                 self.sync.sources = sources;
                 Ok(vec![
-                    Note::new(
+                    Note::coded(
                         Target::Item(self.items.first().map(|i| i.id.clone()).unwrap_or_default()),
-                        "Demo-Daten zurückgesetzt",
+                        msg!(CoreActionLogDemoReset),
                     )
                     .by(Actor::System),
                 ])

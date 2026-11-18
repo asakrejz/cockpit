@@ -1,3 +1,5 @@
+use cockpit_i18n::{ArgValue, Lang, Msg, msg};
+
 use super::*;
 
 // ---------- A run ----------
@@ -26,8 +28,10 @@ pub(super) async fn run_task(
     match end {
         End::Quiet => {}
         End::Error(reason) => {
-            tracing::warn!("Run {key} ends with error: {reason}");
+            tracing::warn!("Run {key} ends with error: {}", reason.render(Lang::En));
             lock(&state.inner.agent.failed).insert(key.clone(), Instant::now());
+            // The report of the agent carries plain text (the workspace log has no codes there yet).
+            let reason = reason.de();
             if let Err(e) = state.report(&key, AgentReport::Failed { reason }).await {
                 tracing::debug!("Error of run {key} can no longer be reported: {e:?}");
             }
@@ -98,12 +102,12 @@ pub(super) async fn run_run(
     let access = match tokio::task::spawn_blocking(move || s.access()).await {
         Ok(Ok(z)) => z,
         Ok(Err(missing)) => {
-            return End::Error(format!(
-                "Der Agent kann nicht starten. {}",
-                missing.join(" ")
+            return End::Error(msg!(
+                ServerRunCannotStart,
+                reasons = ArgValue::joined(missing, " ")
             ));
         }
-        Err(_) => return End::Error("Interner Fehler beim Vorbereiten des Laufs.".into()),
+        Err(_) => return End::Error(msg!(ServerRunInternalPrepare)),
     };
     // The repo this run works in (always one of the configured ones).
     let repo = match state.run_repo(&run) {
@@ -165,7 +169,8 @@ pub(super) async fn run_run(
         let cloned = tokio::task::spawn_blocking(move || {
             let _ = std::fs::remove_dir_all(&k);
             if let Some(p) = k.parent() {
-                std::fs::create_dir_all(p).map_err(|e| format!("Ordner nicht anlegbar: {e}"))?;
+                std::fs::create_dir_all(p)
+                    .map_err(|e| msg!(ServerRunDirNotCreatable, error = e.to_string()))?;
             }
             // A follow-up job continues on the branch of the pull request; a new run branches off.
             let rule = agent_git::BranchRule {
@@ -182,20 +187,18 @@ pub(super) async fn run_run(
             } else {
                 agent_git::clone(&u, &k, Some(&t), &rule)?
             };
-            std::fs::write(&bd, &sha).map_err(|e| format!("Stand nicht gesichert: {e}"))?;
-            Ok::<_, String>(sha)
+            std::fs::write(&bd, &sha)
+                .map_err(|e| msg!(ServerRunStateNotSaved, error = e.to_string()))?;
+            Ok::<_, Msg>(sha)
         })
         .await;
         match cloned {
             Ok(Ok(sha)) => sha,
             Ok(Err(m)) => {
-                return End::Error(format!(
-                    "Das Klonen von {} ist fehlgeschlagen: {}",
-                    repo,
-                    agent_git::redact(&m, &secret_refs)
-                ));
+                // The git errors are redacted where they are made.
+                return End::Error(msg!(ServerRunCloneFailed, repo = &repo, reason = m));
             }
-            Err(_) => return End::Error("Interner Fehler beim Klonen.".into()),
+            Err(_) => return End::Error(msg!(ServerRunInternalClone)),
         }
     };
 
@@ -215,7 +218,7 @@ pub(super) async fn run_run(
         }
     }
     if let Err(e) = job_write(&job_dir, &job) {
-        return End::Error(format!("Der Auftrag lässt sich nicht schreiben: {e}"));
+        return End::Error(msg!(ServerRunJobNotWritable, error = e.to_string()));
     }
 
     // Start the container.
@@ -246,8 +249,9 @@ pub(super) async fn run_run(
     let mut kind = match cmd.spawn() {
         Ok(k) => k,
         Err(e) => {
-            return End::Error(format!(
-                "Der Container lässt sich nicht starten: {e}. Läuft die Container-Laufzeit?"
+            return End::Error(msg!(
+                ServerRunContainerNotStartedHint,
+                error = e.to_string()
             ));
         }
     };
@@ -278,19 +282,22 @@ pub(super) async fn run_run(
         state,
         key,
         AgentReport::Started {
-            detail: format!(
-                "Container gestartet ({runtime}, {}), Modell {}.",
-                match (mode, &run.kind) {
-                    (Mode::Plan, _) => "Plan erarbeiten",
-                    (Mode::Review, _) => "Pull Request durchsehen",
+            // The history of the run takes plain text (no codes there yet).
+            detail: msg!(
+                ServerRunStartedDetail,
+                runtime = runtime,
+                what = match (mode, &run.kind) {
+                    (Mode::Plan, _) => msg!(ServerRunModePlan),
+                    (Mode::Review, _) => msg!(ServerRunModeReview),
                     (Mode::Implement, RunKind::Followup { task, .. }) => match task {
-                        FollowupTask::ReviewThreads => "Review-Kommentare umsetzen",
-                        FollowupTask::FailedChecks { .. } => "Rote Checks beheben",
+                        FollowupTask::ReviewThreads => msg!(ServerRunModeReviewComments),
+                        FollowupTask::FailedChecks { .. } => msg!(ServerRunModeFailedChecks),
                     },
-                    (Mode::Implement, _) => "Ticket umsetzen",
+                    (Mode::Implement, _) => msg!(ServerRunModeTicket),
                 },
-                access.model
-            ),
+                model = &access.model
+            )
+            .de(),
         },
     )
     .await;
@@ -309,7 +316,7 @@ pub(super) async fn run_run(
     let mut error_text: Option<String> = None;
     let mut plan_reported = false;
     let mut quiet = false;
-    let mut too_much: Option<String> = None;
+    let mut too_much: Option<Msg> = None;
 
     loop {
         tokio::select! {
@@ -374,11 +381,11 @@ pub(super) async fn run_run(
                     still_s += 1;
                 }
                 if active_s > allowed_s {
-                    too_much = Some(format!("Das Zeitlimit ist überschritten: Der Container lief länger als {} Minuten und wurde beendet.", allowed_s / 60));
+                    too_much = Some(msg!(ServerRunTimeLimit, minutes = allowed_s / 60));
                     break;
                 }
                 if still_s > QUIET_LIMIT_S {
-                    too_much = Some(format!("Der Container hat sich seit {} Minuten nicht gemeldet und wurde beendet.", QUIET_LIMIT_S / 60));
+                    too_much = Some(msg!(ServerRunQuietLimit, minutes = QUIET_LIMIT_S / 60));
                     break;
                 }
             }
@@ -420,25 +427,42 @@ pub(super) async fn run_run(
         return End::Quiet;
     }
     let Some((text, result_branch)) = result else {
-        let reason = error_text.map(|t| agent_git::redact(&t, &secret_refs)).unwrap_or_else(|| match code {
-            Some(137) => "Der Container wurde beendet (Code 137) – meist, weil der Arbeitsspeicher der Container-Maschine nicht reicht.".to_string(),
-            Some(125..=127) => format!("Der Container ließ sich nicht starten (Code {}).{}", code.unwrap_or_default(), still_end().map(|z| format!(" Meldung: {z}")).unwrap_or_default()),
-            Some(0) => "Der Container endete, ohne ein Ergebnis zu melden.".to_string(),
-            Some(c) => format!("Der Container endete mit Fehlercode {c}.{}", still_end().map(|z| format!(" Letzte Meldung: {z}")).unwrap_or_default()),
-            None => "Der Container wurde beendet, ohne ein Ergebnis zu melden.".to_string(),
-        });
+        // The text of the container comes from outside: it has no code.
+        let reason = error_text
+            .map(|t| Msg::raw(agent_git::redact(&t, &secret_refs)))
+            .unwrap_or_else(|| {
+                let with = |head: Msg, tail: Option<Msg>| match tail {
+                    Some(t) => msg!(ServerAgentJoined, parts = ArgValue::joined([head, t], " ")),
+                    None => head,
+                };
+                match code {
+                    Some(137) => msg!(ServerRunExit137),
+                    Some(c @ 125..=127) => with(
+                        msg!(ServerRunExitNotStarted, code = c),
+                        still_end().map(|z| msg!(ServerRunExitMessage, line = z)),
+                    ),
+                    Some(0) => msg!(ServerRunExitNoResult),
+                    Some(c) => with(
+                        msg!(ServerRunExitCode, code = c),
+                        still_end().map(|z| msg!(ServerRunLastMessage, line = z)),
+                    ),
+                    None => msg!(ServerRunExitKilled),
+                }
+            });
         return End::Error(reason);
     };
     if mode == Mode::Plan {
-        return End::Error("Der Container hat statt eines Plans ein Ergebnis gemeldet.".into());
+        return End::Error(msg!(ServerRunPlanGotResult));
     }
     if mode == Mode::Review {
         // Nothing to push: the drafts are already booked on the review.
         return End::Done(text);
     }
     if result_branch != branch {
-        return End::Error(format!(
-            "Der Container meldet den Branch „{result_branch}“, erwartet war „{branch}“. Es wird nichts gepusht."
+        return End::Error(msg!(
+            ServerRunBranchMismatch,
+            got = result_branch,
+            expected = &branch
         ));
     }
 
@@ -470,12 +494,18 @@ pub(super) async fn run_run(
     })
     .await;
     match published {
-        Ok(Ok(v)) => End::Done(format!(
-            "{text} Branch {branch} ist gepusht ({} Dateien).",
-            v.files.len()
-        )),
-        Ok(Err(m)) => End::Error(agent_git::redact(&m, &secret_refs)),
-        Err(_) => End::Error("Interner Fehler beim Pushen.".into()),
+        // The summary of the run takes plain text (no codes there yet).
+        Ok(Ok(v)) => End::Done(
+            msg!(
+                ServerRunDonePushed,
+                text = text,
+                branch = &branch,
+                n = v.files.len()
+            )
+            .de(),
+        ),
+        Ok(Err(m)) => End::Error(m),
+        Err(_) => End::Error(msg!(ServerRunInternalPush)),
     }
 }
 

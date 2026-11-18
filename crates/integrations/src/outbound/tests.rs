@@ -40,6 +40,7 @@ fn item(id: &str, key: &str, source: Source) -> Item {
             assigned_me: false,
         }),
         agent_note: None,
+        agent_note_msg: None,
         comments: Vec::<Comment>::new(),
         read: false,
         priority: Default::default(),
@@ -123,6 +124,7 @@ fn ws() -> Workspace {
                         head_sha: "abc123".into(),
                     }],
                     warnings: vec![],
+                    warning_msgs: vec![],
                 }),
             },
         ],
@@ -389,12 +391,12 @@ fn empty_review_gets_a_text_where_github_requires_one() {
     r.suggestions.clear();
     r.line_comments.clear();
     r.verdict = Verdict::RequestChanges;
-    assert_eq!(review_data(&r, "", "").text, "Änderungen angefordert.");
+    assert_eq!(review_data(&r, "", "").text, "Changes requested.");
     r.verdict = Verdict::Approve;
     assert_eq!(review_data(&r, "", "").text, "");
     assert!(review_data(&r, "", "").body().get("body").is_none());
     r.verdict = Verdict::Comment;
-    assert_eq!(review_data(&r, "", "").text, "Review aus dem Cockpit.");
+    assert_eq!(review_data(&r, "", "").text, "Review from Cockpit.");
 }
 
 #[test]
@@ -469,6 +471,7 @@ fn ws_two() -> Workspace {
                     },
                 ],
                 warnings: vec![],
+                warning_msgs: vec![],
             }),
         }],
     };

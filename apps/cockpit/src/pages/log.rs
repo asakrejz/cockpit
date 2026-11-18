@@ -101,7 +101,7 @@ fn entry_row(store: Store, e: LogEntry) -> impl IntoView {
                     <Badge variant=badge(e.actor)>{actor_label(e.actor)}</Badge>
                     <span class="t-footnote t-secondary">{when(e.at_ms)}</span>
                 </div>
-                <p class="t-headline">{e.text}</p>
+                <p class="t-headline">{e.text_in(lang())}</p>
                 <div class="ui-hstack" style="--spacing: 8px">{link(store, e.target)}</div>
             </div>
         </li>

@@ -16,6 +16,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Job, systemText, tasksText } from "../job.ts";
+import { tx } from "../texts.ts";
 import { type Outcome, type Spec, type Translator, baseEnv, runCli } from "./cli.ts";
 import type { Adapter } from "./interface.ts";
 import type { Sink } from "../event.ts";
@@ -110,21 +111,21 @@ export class CodexLines implements Translator {
             if (String(item.text ?? "").trim()) this.text = String(item.text);
             break;
           case "command_execution":
-            this.sink({ t: "step", title: "Befehl ausführen", text: String(item.command ?? ""), tokens_in: 0, tokens_out: 0, ms: this.ms() });
+            this.sink({ t: "step", title: tx("step_run"), text: String(item.command ?? ""), tokens_in: 0, tokens_out: 0, ms: this.ms() });
             break;
           case "file_change": {
             const paths = (Array.isArray(item.changes) ? item.changes : []).map((c: any) => this.relative(String(c?.path ?? ""))).filter(Boolean);
-            this.sink({ t: "step", title: "Datei ändern", text: paths.join(", "), tokens_in: 0, tokens_out: 0, ms: this.ms() });
+            this.sink({ t: "step", title: tx("step_change"), text: paths.join(", "), tokens_in: 0, tokens_out: 0, ms: this.ms() });
             const before = this.changed.size;
             for (const p of paths) this.changed.add(p);
             if (this.changed.size > before) this.sink({ t: "files", files: [...this.changed] });
             break;
           }
           case "mcp_tool_call":
-            this.sink({ t: "step", title: `${String(item.server ?? "Werkzeug")}: ${String(item.tool ?? "")}`, text: "", tokens_in: 0, tokens_out: 0, ms: this.ms() });
+            this.sink({ t: "step", title: `${String(item.server ?? tx("step_tool"))}: ${String(item.tool ?? "")}`, text: "", tokens_in: 0, tokens_out: 0, ms: this.ms() });
             break;
           case "web_search":
-            this.sink({ t: "step", title: "Websuche", text: String(item.query ?? ""), tokens_in: 0, tokens_out: 0, ms: this.ms() });
+            this.sink({ t: "step", title: tx("step_web"), text: String(item.query ?? ""), tokens_in: 0, tokens_out: 0, ms: this.ms() });
             break;
           default:
             break; // reasoning, todo lists and other items carry nothing for the history
@@ -138,11 +139,11 @@ export class CodexLines implements Translator {
         this.tokensIn += ein;
         this.tokensOut += aus;
         this.finished = true;
-        if (ein > 0 || aus > 0) this.sink({ t: "step", title: "Überlegt", text: "", tokens_in: ein, tokens_out: aus, ms: this.ms() });
+        if (ein > 0 || aus > 0) this.sink({ t: "step", title: tx("step_think"), text: "", tokens_in: ein, tokens_out: aus, ms: this.ms() });
         break;
       }
       case "turn.failed":
-        this.error = String(v.error?.message ?? "") || "Das Modell hat den Lauf mit einem Fehler beendet.";
+        this.error = String(v.error?.message ?? "") || tx("error_model_failed");
         this.finished = true;
         break;
       case "error":

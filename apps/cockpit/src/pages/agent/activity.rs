@@ -25,7 +25,7 @@ fn bubble(m: RunMessage) -> impl IntoView {
             who=who
             initials=if own { "AS" } else { "AG" }
             time=time
-            text=m.text
+            text=m.text_in(lang())
             own=own
             agent=!own
         />
@@ -138,7 +138,7 @@ pub(super) fn pane(ctx: AgentCtx) -> impl IntoView {
                     <p class="ui-list__header">{t!(AgentActivityHistory)}</p>
                     <div class="ck-thread">{move || history(ctx)}</div>
                 </div>
-                <Log text=Signal::derive(move || run.get().map(|r| r.log()).unwrap_or_default()) />
+                <Log text=Signal::derive(move || run.get().map(|r| r.log_in(lang())).unwrap_or_default()) />
                 {move || changed_files(ctx)}
                 {move || result_card(ctx)}
             </PaneBody>

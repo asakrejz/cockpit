@@ -1,0 +1,5 @@
+# Text of a pull request that Cockpit creates. It follows the language of the repo.
+core_pr.what = Was
+core_pr.ticket = Ticket
+core_pr.files = Geänderte Dateien ({n})
+core_pr.footer = Vom Cockpit-Agenten umgesetzt. Gemergt wird von Hand.

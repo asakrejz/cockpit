@@ -182,7 +182,7 @@ fn a_stopped_run_needs_attention_and_notifies() {
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].reason, crate::NotifyReason::AgentStopped);
     assert_eq!(events[0].route, "#/agent/BAU-150");
-    assert!(events[0].text.contains("Budget pro Lauf erreicht"));
+    assert!(events[0].text.de().contains("Budget pro Lauf erreicht"));
     let stuck = crate::team::stuck(&w);
     let entry = stuck.iter().find(|s| s.key == "BAU-150").unwrap();
     assert_eq!(entry.kind, crate::StuckKind::AgentStopped);

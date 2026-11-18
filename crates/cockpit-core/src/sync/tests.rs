@@ -30,6 +30,7 @@ fn ticket(key: &str, title: &str) -> Item {
         branch: None,
         pr: None,
         agent_note: None,
+        agent_note_msg: None,
         comments: Vec::new(),
         read: false,
         due: None,
@@ -79,6 +80,7 @@ fn review(number: u32, files: Vec<FileDiff>) -> Review {
         number,
         title: format!("PR {number}"),
         description: String::new(),
+        description_msg: None,
         author: Person::new("Lena", "LK"),
         branch: "feature/x".into(),
         base: "main".into(),
@@ -125,6 +127,7 @@ fn github(items: Vec<Item>, reviews: Vec<Review>) -> Remote {
                 reviews,
                 prs,
                 warnings: Vec::new(),
+                warning_msgs: Vec::new(),
             }),
         }],
     }

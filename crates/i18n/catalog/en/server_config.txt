@@ -1,0 +1,31 @@
+# Errors and warnings about config.toml, the config folder and the .env file
+server_config.seed_unknown = seed "{value}" is unknown, allowed are empty and demo
+server_config.interval_short = interval_s = {interval} is too short, at least {min} seconds
+server_config.github_repo_form = GitHub repo "{repo}" is not of the form owner/name
+server_config.client_id_invalid = {who}: client_id is missing or contains spaces
+server_config.jira_needs_site = [jira] needs site and email, or [atlassian] for the sign-in with OAuth
+server_config.jira_project_invalid = Jira project "{project}" is not a valid key
+server_config.provider_unknown = [agent] provider "{provider}" is unknown, allowed are claude-agent-sdk, claude-code and codex
+server_config.agent_repo_form = [agent] repo "{repo}" must have the form owner/name
+server_config.endpoint_url_scheme = {place} url must start with http:// or https://, for example http://localhost:4000
+server_config.sync_limit = [sync] {name} = {value} must be between 1 and {max}
+server_config.webhook_fallback_range = [sync] webhook_fallback_interval_s = {value} must be between interval_s ({interval}) and {max}
+server_config.dev_port_invalid = COCKPIT_DEV_PORT={value} is not a port number
+server_config.dev_port_zero = COCKPIT_DEV_PORT 0 is not allowed
+server_config.port_invalid = COCKPIT_PORT={value} is not a port number
+server_config.port_zero = Port 0 is not allowed
+server_config.runtime_unsupported = Container runtime "{value}" is not supported, allowed are docker and podman
+server_config.repos_repo_form = [[agent.repos]] repo "{repo}" must have the form owner/name
+server_config.repos_duplicate = [[agent.repos]] names the repo "{repo}" more than once
+server_config.repos_base_branch = [[agent.repos]] base_branch "{base}" of {repo} is not a valid branch name
+server_config.repos_project_key = [[agent.repos]] {repo}: "{project}" is not a valid Jira project key
+server_config.repos_project_taken = The Jira project {project} is already assigned to the repo "{owner}", not also to {repo}
+server_config.repos_pattern = [[agent.repos]] branch_pattern of {repo}: {reason}
+server_config.legacy_folder = The old configuration is still at {path}, you can delete it. Cockpit now only uses the folder config in the project.
+server_config.files_loose = {path} is accessible to other users (permissions {mode}). It should belong only to you (folder 700, files 600); the server fixes this at the next start.
+server_config.files_tracked = The file {file} is tracked by Git. A commit would publish your configuration. Remove it with "git rm --cached config/{name}" and never commit it.
+server_config.files_not_ignored = The file {file} is not protected by .gitignore. Add "config/*" to the .gitignore so that it is never committed by accident.
+server_config.env_loose = The file {path} is readable by other users (permissions {mode}). It should belong only to you (600); the server fixes this at the next start.
+server_config.env_tracked = The file {file} is tracked by Git. A commit would publish your credentials. Remove it with "git rm --cached {name}", never commit it and replace the keys in it if it was ever committed.
+server_config.env_not_ignored = The file {file} is not protected by .gitignore. Add "{name}" to the .gitignore so that it is never committed by accident.
+server_config.repos_pr_language = Repo {repo}: the pull request language "{value}" is not known. Use "en" or "de".

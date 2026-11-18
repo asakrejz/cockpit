@@ -234,7 +234,7 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
                     <span class="t-footnote t-mono t-secondary">{s.key}</span>
                 </div>
                 <p class="t-headline">{s.title}</p>
-                <p class="t-subheadline t-secondary">{s.reason}</p>
+                <p class="t-subheadline t-secondary">{move || s.reason.render(lang())}</p>
                 <div class="ui-hstack" style="--spacing: 8px">
                     <Button size=ControlSize::Small on_click=move |_| store.open_item(&id)>
                         {t!(OverviewToEntry)}

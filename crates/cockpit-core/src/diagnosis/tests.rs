@@ -15,7 +15,7 @@ fn the_demo_lint_error_is_found_with_file_line_and_fix() {
     let d = diagnose(&r, check(&r, "Lint"));
     assert_eq!(d.file.as_deref(), Some("list.rs"));
     assert_eq!(d.line, Some(62));
-    assert_eq!(d.location().as_deref(), Some("list.rs · Zeile 62"));
+    assert_eq!(d.location().unwrap().de(), "list.rs · Zeile 62");
     assert!(d.cause.contains("`inset`"), "{}", d.cause);
     assert!(d.changes_code());
     let fix = d.fix.as_ref().unwrap();
@@ -35,7 +35,7 @@ fn a_browser_timeout_is_flaky_and_needs_no_code_change() {
     assert!(d.cause.contains("zu lange gebraucht"), "{}", d.cause);
     assert!(!d.changes_code());
     assert!(d.patch.is_none() && d.fix.is_none());
-    assert!(d.remedy.contains("neu starten"));
+    assert!(d.remedy.contains("Starte den Check neu"));
 }
 
 #[test]

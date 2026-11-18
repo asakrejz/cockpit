@@ -8,6 +8,7 @@
 //!
 //! This has not been checked against the real services yet.
 
+use cockpit_i18n::{Msg, msg};
 use std::collections::HashMap;
 
 use base64::Engine;
@@ -170,7 +171,7 @@ fn tokens_from(
     let access = a
         .access_token
         .filter(|t| !t.is_empty())
-        .ok_or_else(|| Error::Response("Kein access_token in der Antwort".into()))?;
+        .ok_or_else(|| Error::Response("no access_token in the response".into()))?;
     Ok(Tokens {
         access: Secret::new(access),
         refresh: a
@@ -187,7 +188,12 @@ fn tokens_from(
 /// `n` random bytes as URL-safe text.
 fn random(n: usize) -> Result<String, Error> {
     let mut buf = vec![0u8; n];
-    getrandom::fill(&mut buf).map_err(|e| Error::Config(format!("Kein Zufall verfügbar: {e}")))?;
+    getrandom::fill(&mut buf).map_err(|e| {
+        Error::Coded(msg!(
+            IntegrationsOauthRandomFailed,
+            reason = Msg::raw(e.to_string())
+        ))
+    })?;
     Ok(URL_SAFE_NO_PAD.encode(buf))
 }
 
@@ -225,7 +231,12 @@ pub fn sign_in_url(
     };
     reqwest::Url::parse_with_params(base, &p)
         .map(String::from)
-        .map_err(|e| Error::Config(format!("Anmelde-Adresse ungültig: {e}")))
+        .map_err(|e| {
+            Error::Coded(msg!(
+                IntegrationsOauthBadLoginUrl,
+                reason = Msg::raw(e.to_string())
+            ))
+        })
 }
 
 /// Exchanges the `code` from the callback for tokens. Runs only in the backend (with the secret).
@@ -369,10 +380,7 @@ pub fn site_choose(sites: &[Site], requested: Option<&str>) -> Result<Site, Erro
             .join(", ")
     };
     match (sites, requested.map(str::trim).filter(|g| !g.is_empty())) {
-        ([], _) => Err(Error::NotPossible(
-            "Atlassian hat keine Jira-Site freigegeben – bei der Zustimmung eine Site wählen"
-                .into(),
-        )),
+        ([], _) => Err(Error::Coded(msg!(IntegrationsOauthNoSite))),
         (list, Some(requested)) => {
             let w = requested.trim_end_matches('/').to_ascii_lowercase();
             list.iter()
@@ -383,16 +391,17 @@ pub fn site_choose(sites: &[Site], requested: Option<&str>) -> Result<Site, Erro
                 })
                 .cloned()
                 .ok_or_else(|| {
-                    Error::NotPossible(format!(
-                        "Die Site „{requested}“ ist nicht freigegeben. Freigegeben: {}",
-                        names()
+                    Error::Coded(msg!(
+                        IntegrationsOauthSiteNotShared,
+                        site = requested,
+                        sites = names()
                     ))
                 })
         }
         ([eine], None) => Ok(eine.clone()),
-        (_, None) => Err(Error::NotPossible(format!(
-            "Mehrere Sites freigegeben ({}) – wähle sie im Schritt „Jira“ im Feld „Site“ (unter OAuth)",
-            names()
+        (_, None) => Err(Error::Coded(msg!(
+            IntegrationsOauthManySites,
+            sites = names()
         ))),
     }
 }
@@ -404,7 +413,7 @@ pub fn jira_base(e: &Endpoints, cloud_id: &str) -> Result<String, Error> {
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-');
     if !ok {
-        return Err(Error::Config("Ungültige Site-Id".into()));
+        return Err(Error::Coded(msg!(IntegrationsOauthBadSiteId)));
     }
     Ok(format!(
         "{}/ex/jira/{cloud_id}",

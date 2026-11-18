@@ -131,7 +131,8 @@ async fn build_without_containerfile_and_without_runtime_says_why() {
     let e = tokio::task::spawn_blocking(move || st.image_build())
         .await
         .unwrap()
-        .unwrap_err();
+        .unwrap_err()
+        .de();
     assert!(e.contains("Containerfile fehlt"), "{e}");
     // Without a container program: new state (the cache applies for 10 seconds).
     let w = welt(true);
@@ -140,7 +141,8 @@ async fn build_without_containerfile_and_without_runtime_says_why() {
     let e = tokio::task::spawn_blocking(move || st.image_build())
         .await
         .unwrap()
-        .unwrap_err();
+        .unwrap_err()
+        .de();
     assert!(e.contains("docker") && e.contains("PATH"), "{e}");
 }
 
@@ -189,7 +191,8 @@ async fn build_refused_without_sources_and_state_after_build() {
     let e = tokio::task::spawn_blocking(move || st.image_build())
         .await
         .unwrap()
-        .unwrap_err();
+        .unwrap_err()
+        .de();
     assert!(e.contains("clis"), "{e}");
     assert!(!w.log("calls.log").contains("build "));
 }

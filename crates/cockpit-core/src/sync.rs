@@ -68,7 +68,13 @@ pub fn merge(local: &Workspace, remote: &Remote, now_ms: u64) -> (Workspace, Vec
                     ws.sync.demo_dropped = true;
                 }
                 merge_source(&mut ws, source, loaded, &mut changes);
-                ws.sync.set_state(source, None, now_ms, &loaded.warnings);
+                ws.sync.set_state_with(
+                    source,
+                    None,
+                    now_ms,
+                    &loaded.warnings,
+                    &loaded.warning_msgs,
+                );
                 if before.is_some() {
                     changes.push(Change::SourceRecovered { source });
                 }
@@ -144,17 +150,21 @@ fn merge_items(ws: &mut Workspace, source: Source, remote: &[Item], changes: &mu
             ws.sync.items.push(r.id.clone());
         }
     }
-    collapse(added, changes, "neue Einträge");
-    collapse(removed, changes, "Einträge nicht mehr dabei");
+    collapse(added, changes, |n| {
+        cockpit_i18n::msg!(CoreSyncSummaryAdded, n = n)
+    });
+    collapse(removed, changes, |n| {
+        cockpit_i18n::msg!(CoreSyncSummaryRemoved, n = n)
+    });
 }
 
 /// Up to [`MAX_SINGLE`] individually, above that a collective line (the first change as carrier).
-fn collapse(list: Vec<Change>, out: &mut Vec<Change>, noun: &str) {
+fn collapse(list: Vec<Change>, out: &mut Vec<Change>, summary: fn(usize) -> cockpit_i18n::Msg) {
     if list.len() <= MAX_SINGLE {
         out.extend(list);
         return;
     }
-    out.push(Change::Summary(format!("{} {noun}", list.len())));
+    out.push(Change::Summary(summary(list.len())));
 }
 
 /// The local entry `old` gets the values of the service; local state stays.
@@ -165,6 +175,7 @@ fn merge_item(old: Item, remote: &Item, changes: &mut Vec<Change>) -> Item {
     // branch for tickets (Jira does not know it).
     item.read = old.read;
     item.agent_note = old.agent_note.clone();
+    item.agent_note_msg = old.agent_note_msg.clone();
     if item.due.is_none() && remote.source == Source::GitHub {
         item.due = old.due.clone();
     }

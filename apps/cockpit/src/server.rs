@@ -30,11 +30,21 @@ pub enum CallError {
     Unreachable,
 }
 
+/// A text of the server in the current language: the coded message if there is one, otherwise
+/// the plain text (which comes from outside or from an older server).
+pub fn shown(text: &str, msg: Option<&cockpit_i18n::Msg>) -> String {
+    msg.map_or_else(
+        || text.to_string(),
+        |m| m.render(feature_ui::lang_untracked()),
+    )
+}
+
 impl CallError {
     pub fn message(&self) -> String {
         match self {
             CallError::Rejected(m) => m.clone(),
-            CallError::Unreachable => cockpit_core::notice::SERVER_UNREACHABLE_TITLE.into(),
+            CallError::Unreachable => cockpit_core::notice::server_unreachable_title()
+                .render(feature_ui::lang_untracked()),
         }
     }
 }
@@ -42,18 +52,24 @@ impl CallError {
 /// The message from an error response, otherwise a general one.
 async fn rejection(resp: gloo_net::http::Response) -> CallError {
     let status = resp.status();
-    let server_message = resp.json::<ErrorBody>().await.map(|e| e.error).ok();
-    CallError::Rejected(cockpit_core::notice::http_failure_text(
-        status,
-        server_message.as_deref(),
-    ))
+    let server_message = resp
+        .json::<ErrorBody>()
+        .await
+        .map(|e| e.in_lang(feature_ui::lang_untracked()))
+        .ok();
+    CallError::Rejected(
+        cockpit_core::notice::http_failure_msg(status, server_message.as_deref())
+            .render(feature_ui::lang_untracked()),
+    )
 }
 
 /// Like [`rejection`], but the server's own sentence wins (the GitHub calls of the assistant
 /// already say in plain text what is wrong, e.g. which token problem).
 async fn rejection_own(resp: gloo_net::http::Response) -> CallError {
     match resp.json::<ErrorBody>().await {
-        Ok(e) if !e.error.trim().is_empty() => CallError::Rejected(e.error),
+        Ok(e) if !e.error.trim().is_empty() => {
+            CallError::Rejected(e.in_lang(feature_ui::lang_untracked()))
+        }
         _ => CallError::Rejected(t!(ServerGithubUnavailable)),
     }
 }
@@ -212,8 +228,13 @@ pub struct ConfigFilesStatus {
     pub path: String,
     #[serde(default)]
     pub warnings: Vec<String>,
+    /// The warnings as code and parameters (shown in the current language).
+    #[serde(default)]
+    pub warning_msgs: Vec<cockpit_i18n::Msg>,
     #[serde(default)]
     pub notices: Vec<String>,
+    #[serde(default)]
+    pub notice_msgs: Vec<cockpit_i18n::Msg>,
 }
 
 /// Path of the `.env` file and warnings of the server (tracked by Git, not ignored, permissions).
@@ -223,6 +244,20 @@ pub struct EnvFileStatus {
     pub path: String,
     #[serde(default)]
     pub warnings: Vec<String>,
+    /// The warnings as code and parameters (shown in the current language).
+    #[serde(default)]
+    pub warning_msgs: Vec<cockpit_i18n::Msg>,
+}
+
+/// The texts of a list: the coded messages in the current language, or the plain texts.
+pub fn shown_list(texts: &[String], msgs: &[cockpit_i18n::Msg]) -> Vec<String> {
+    if msgs.is_empty() {
+        texts.to_vec()
+    } else {
+        msgs.iter()
+            .map(|m| m.render(feature_ui::lang_untracked()))
+            .collect()
+    }
 }
 
 /// State of the sign-in, of the agent endpoint and of the container runtime (`GET /api/health`).

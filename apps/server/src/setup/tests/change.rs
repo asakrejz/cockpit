@@ -259,7 +259,12 @@ fn change_rejects_a_default_outside_the_list_and_double_projects() {
         }),
         ..Default::default()
     };
-    assert!(change("", &outside).unwrap_err().contains("Standard-Repo"));
+    assert!(
+        change("", &outside)
+            .unwrap_err()
+            .de()
+            .contains("Standard-Repo")
+    );
     let double = ConfigChange {
         agent_repos: Some(AgentReposInput {
             repos: ["a/b", "a/c"]
@@ -272,7 +277,7 @@ fn change_rejects_a_default_outside_the_list_and_double_projects() {
         }),
         ..Default::default()
     };
-    assert!(change("", &double).unwrap_err().contains("WEB"));
+    assert!(change("", &double).unwrap_err().de().contains("WEB"));
 }
 
 #[test]

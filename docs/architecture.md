@@ -18,7 +18,7 @@ The README is the entry page; this document holds the depth.
 | Agent provider and endpoint | Selectable (decision of 2026-11-12): tool `[agent] provider` (Claude Agent SDK, Claude Code CLI or Codex CLI, selected in the runner by `COCKPIT_PROVIDER`), endpoint `[agent.endpoint] url/model` (a proxy such as LiteLLM, another compatible endpoint, or without an address directly at Anthropic). The user has no Anthropic key of their own but an LiteLLM proxy, so LiteLLM is only one possible endpoint. With an address the container gets `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`, without one `ANTHROPIC_API_KEY` (Codex: `OPENAI_BASE_URL` + `OPENAI_API_KEY`, model in `COCKPIT_MODEL`); the model name is a setting chosen in the assistant from the endpoint's list. The key lives only in `.env` (`token set agent-key`). Older `[litellm]` values and the key `litellm` are still read. |
 | Jira sign-in | API token by default (the company does not approve OAuth apps); OAuth is the folded-away alternative. |
 | Setup | The setup assistant targets people without programming knowledge: everything that can be done locally by click is done by click (`PUT /api/config`, `PUT /api/secrets/{name}`, double-click start), the manual steps (creating your own OAuth apps, tokens) are guided and documented. Every person creates their **own** OAuth apps because client secrets cannot be shared. |
-| Language | Code, naming and docs are English. The interface is German or English (see [Languages](#languages-i18n)); technical messages (logs, `expect`/`panic`, tests, CLI) are always English and are not translated. Server and core messages, the activity log and texts of the agent still come in German until they are keyed (the next step of the language work). Old German wire and config names are still read as aliases (see `crates/cockpit-core/tests/wire_compat.rs`, `apps/server/src/config/tests.rs`, `apps/cockpit/src/route.rs`). |
+| Language | Code, naming and docs are English. The interface is German or English (see [Languages](#languages-i18n)); technical messages (logs, `expect`/`panic`, tests, CLI) are always English and are not translated. Texts that core and server produce for people are structured messages (code and parameters), rendered by the UI in the chosen language; see [Languages](#languages-i18n). Old German wire and config names are still read as aliases (see `crates/cockpit-core/tests/wire_compat.rs`, `apps/server/src/config/tests.rs`, `apps/cockpit/src/route.rs`). |
 
 ## Overview
 
@@ -365,6 +365,18 @@ The interface is available in German and English and switches at once, without a
   no key is unused; a scan test (`tests/scan.rs`) fails when `apps/cockpit/src` or `crates/ui/src` contain a visible string literal
   (names like "Cockpit" or "GitHub" are on an allowlist there).
 - **German texts** are in simple German: short sentences, no word-for-word translated jargon.
+- **Messages from core and server** (log entries, errors, hints, diagnoses, notifications, setup checks) are `cockpit_i18n::Msg`
+  (`msg!(CoreActionStatusSet, key = ticket)`): a code (the catalog id) plus parameters, which may be nested messages. The UI renders
+  them with `msg.render(lang())`. Server errors travel as `ErrorBody { error, msg }` (`error` is the German sentence for plain
+  readers). Log entries keep `text` (German rendering) next to `msg`; old entries without `msg` are shown as text. Stored texts
+  that cannot change type get a parallel optional `*_msg` field (skipped when empty, so old snapshots stay byte-identical).
+  A code this build does not know renders as the code itself. Texts from outside (a message of GitHub, git stderr) use
+  `Msg::raw`. A scan test (`tests/scan_core.rs`) fails when core, server or integrations contain German literals (demo data and
+  tests excepted).
+- **Agent texts.** `job.json` carries `language` (interface language: plan, summary, questions, review comments) and
+  `pr_language` (team language of the repo: commit message, pull request title and text). The default of `pr_language` is English;
+  it is set per repo (`pr_language` in `[[agent.repos]]`, a switch in the setup assistant) and stored in the run options when the run
+  starts. The runner (`apps/agent/runner/src/texts.ts`) writes its own step titles and errors in `language`.
 
 ## Layout and navigation
 

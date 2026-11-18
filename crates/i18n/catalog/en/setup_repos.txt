@@ -26,3 +26,5 @@ setup_repos.projects_hint = Optional. Tickets of these projects go to this repo.
 setup_repos.default_repo = Default repo
 setup_repos.remove = Remove
 setup_repos.save = Save
+setup_repos.pr_language = Language for pull request title and text
+setup_repos.pr_language_hint = The team language of this repo. The agent writes the commit message and the pull request text in it. Default: English.

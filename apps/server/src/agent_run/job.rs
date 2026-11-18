@@ -98,6 +98,10 @@ pub fn job_json(
         "branch": branch,
         "base_branch": run.options.base_branch,
         "repo": run.repo,
+        // The agent writes plan, summary and comments in the language of the interface; commit
+        // message and pull request text follow the language of the repo.
+        "language": ws.language.unwrap_or_default().code(),
+        "pr_language": run.options.pr_language.code(),
     })
 }
 

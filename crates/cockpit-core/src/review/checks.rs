@@ -46,14 +46,24 @@ impl CheckRun {
     }
 
     /// `2:05 Min.` or `42 Sek.`; while running `läuft`.
-    pub fn duration_label(&self) -> String {
+    pub fn duration_msg(&self) -> cockpit_i18n::Msg {
+        use cockpit_i18n::msg;
         if self.status == Checks::Running {
-            return "läuft".into();
+            return msg!(CoreReviewDurationRunning);
         }
         match self.duration_s {
-            s if s < 60 => format!("{s} Sek."),
-            s => format!("{}:{:02} Min.", s / 60, s % 60),
+            s if s < 60 => msg!(CoreReviewDurationSeconds, n = s),
+            s => msg!(
+                CoreReviewDurationMinutes,
+                m = s / 60,
+                s = format!("{:02}", s % 60)
+            ),
         }
+    }
+
+    /// [`CheckRun::duration_msg`] in German.
+    pub fn duration_label(&self) -> String {
+        self.duration_msg().de()
     }
 
     /// Only a red check can be restarted.

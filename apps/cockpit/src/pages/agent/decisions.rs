@@ -19,10 +19,10 @@ pub(super) fn diagnosis(ctx: AgentCtx) -> Option<impl IntoView> {
                     <Badge variant=BadgeVariant::Tint>{check_badge}</Badge>
                     {d
                         .location()
-                        .map(|l| view! { <span class="t-footnote t-mono t-secondary">{l}</span> })}
+                        .map(|l| view! { <span class="t-footnote t-mono t-secondary">{l.render(lang())}</span> })}
                 </div>
-                <p class="t-headline">{d.cause.clone()}</p>
-                <p class="t-footnote t-secondary">{t!(AgentDecisionsSuggestion, text = d.remedy)}</p>
+                <p class="t-headline">{d.cause_message().render(lang())}</p>
+                <p class="t-footnote t-secondary">{t!(AgentDecisionsSuggestion, text = d.remedy_message().render(lang()))}</p>
                 {d
                     .patch
                     .clone()
@@ -53,7 +53,7 @@ pub(super) fn stopped_card(ctx: AgentCtx) -> Option<impl IntoView> {
     let (limits, month) = store
         .ws
         .with(|w| (w.limits.clone(), w.spent_month(store.now.get()).cost_cents));
-    let detail = limits.describe(reason, &run, month);
+    let detail = limits.describe_msg(reason, &run, month).render(lang());
     let options = reason.raise_options();
     Some(view! {
         <div class="ui-list__section" role="region" aria-label=t!(AgentDecisionsStoppedLabel)>
@@ -196,7 +196,7 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
                 }}
             </p>
             <SuggestionCard state=SuggestionState::Pending>
-                <p class="t-subheadline">{plan.summary.clone()}</p>
+                <p class="t-subheadline">{plan.summary_msg.render(lang())}</p>
                 <p class="t-footnote t-secondary">{t!(AgentDecisionsFiles)}</p>
                 <ul class="ck-plan">
                     {plan
@@ -208,9 +208,9 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
                 <p class="t-footnote t-secondary">{t!(AgentDecisionsSteps)}</p>
                 <ol class="ck-plan">
                     {plan
-                        .steps
+                        .steps_msg
                         .iter()
-                        .map(|s| view! { <li class="t-subheadline">{s.clone()}</li> })
+                        .map(|s| view! { <li class="t-subheadline">{s.render(lang())}</li> })
                         .collect_view()}
                 </ol>
                 {(!plan.rules.is_empty())
@@ -219,9 +219,9 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
                             <p class="t-footnote t-secondary">{t!(AgentDecisionsRulesApply)}</p>
                             <ul class="ck-plan" aria-label=t!(AgentDecisionsRulesApply)>
                                 {plan
-                                    .rules
+                                    .rules_msg
                                     .iter()
-                                    .map(|r| view! { <li class="t-subheadline">{r.clone()}</li> })
+                                    .map(|r| view! { <li class="t-subheadline">{r.render(lang())}</li> })
                                     .collect_view()}
                             </ul>
                         }
@@ -236,7 +236,7 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
                                 {plan
                                     .violations
                                     .iter()
-                                    .map(|v| view! { <li class="t-subheadline">{v.reason()}</li> })
+                                    .map(|v| view! { <li class="t-subheadline">{v.reason_msg().render(lang())}</li> })
                                     .collect_view()}
                             </ul>
                             <p class="t-footnote t-secondary">

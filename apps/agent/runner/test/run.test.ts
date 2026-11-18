@@ -189,7 +189,7 @@ test("follow-up: same branch, the input is in the prompt, the commit names the t
   assert.equal((s.e.at(-1) as any).t, "result");
   assert.equal((s.e.at(-1) as any).branch, "claude/BAU-142-fokus-ring");
   const commit = g.calls.find((a) => a.includes("commit"))!;
-  assert.ok(commit.some((x) => x.includes("Review-Kommentare umsetzen (#85)")));
+  assert.ok(commit.some((x) => x.includes("Address review comments (#85)")));
   assert.ok(!g.calls.some((a) => a.includes("push")));
   // No secret in the events either.
   assert.doesNotMatch(JSON.stringify(s.e), /streng-geheim|ghp_/);

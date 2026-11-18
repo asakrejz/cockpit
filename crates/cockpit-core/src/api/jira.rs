@@ -52,6 +52,9 @@ pub struct JiraCheck {
     /// Plain text for the UI.
     #[serde(default)]
     pub message: String,
+    /// The same as code and parameters, rendered in the chosen language.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub msg: Option<cockpit_i18n::Msg>,
     /// On success: the display name under which Jira knows you.
     #[serde(default)]
     pub name: Option<String>,

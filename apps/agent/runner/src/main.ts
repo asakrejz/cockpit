@@ -6,6 +6,7 @@
 
 import { createInterface } from "node:readline";
 import { readJob } from "./job.ts";
+import { setLanguage, tx } from "./texts.ts";
 import { stdoutSink } from "./event.ts";
 import { gitRun } from "./git.ts";
 import { chooseAdapter } from "./adapter/index.ts";
@@ -38,6 +39,7 @@ async function main(): Promise<number> {
   let job;
   try {
     job = readJob(path);
+    setLanguage(job.language);
   } catch (e) {
     sink({ t: "error", text: (e as Error).message });
     return 2;
@@ -63,7 +65,7 @@ async function main(): Promise<number> {
 main().then(
   (code) => process.exit(code),
   (e) => {
-    stdoutSink()({ t: "error", text: `Unerwarteter Fehler im Läufer: ${(e as Error).message}` });
+    stdoutSink()({ t: "error", text: tx("error_unexpected", { message: (e as Error).message }) });
     process.exit(2);
   },
 );

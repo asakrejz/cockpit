@@ -1,0 +1,25 @@
+# Gründe, warum ein Eintrag Aufmerksamkeit braucht
+core_misc.hit_mention = {name} hat dich erwähnt
+core_misc.hit_review = Review angefragt von {name}
+core_misc.hit_changes = Änderungen angefordert in #{number}
+core_misc.hit_checks = Checks fehlgeschlagen in #{number}
+core_misc.hit_overdue.one = Seit gestern überfällig
+core_misc.hit_overdue.other = Seit {n} Tagen überfällig
+core_misc.hit_agent = Agent fertig · Pull Request #{number} erstellt
+core_misc.hit_assigned = Dir zugewiesen
+core_misc.stuck_diagnosis = Die Diagnose des Agenten wartet auf deine Entscheidung: {cause}
+core_misc.stuck_checks_me = Die Checks von {pr} sind fehlgeschlagen. Du kommst nicht weiter.
+core_misc.stuck_checks_other = Die Checks von {pr} sind fehlgeschlagen. {name} kommt nicht weiter.
+core_misc.stuck_stopped = Der Agent ist angehalten: {reason}. Erhöhe das Limit und setze ihn fort, oder brich ab.
+core_misc.stuck_question = Der Agent fragt: „{text}“
+core_misc.stuck_plan = Der Agent hat einen Plan vorgelegt und wartet auf deine Freigabe.
+core_misc.stuck_agent_done = Der Agent ist fertig und wartet auf dein Review von {pr}.
+core_misc.stuck_review = {name} wartet auf dein Review von {pr}.
+core_misc.stuck_no_branch_me = Das Ticket ist in Arbeit, hat aber noch keinen Branch. Lege einen an.
+core_misc.stuck_no_branch_other = Das Ticket ist in Arbeit, hat aber noch keinen Branch. {name} muss einen anlegen.
+core_misc.auth_none = Getrennt
+core_misc.auth_token = Token
+core_misc.auth_oauth = OAuth
+core_misc.agent_not_connected = Der Agent ist nicht verbunden.
+core_misc.agent_no_branches = Der Agent darf keine Branches erstellen.
+core_misc.agent_no_pull_requests = Der Agent darf keine Pull Requests erstellen.

@@ -40,7 +40,14 @@ struct Row {
     base: RwSignal<String>,
     projects: RwSignal<String>,
     pattern: RwSignal<String>,
+    /// Language code of the pull request text (`en` or `de`).
+    pr_language: RwSignal<&'static str>,
 }
+
+const PR_LANGUAGES: &[(&str, &str)] = &[
+    (Lang::En.code(), Lang::En.name()),
+    (Lang::De.code(), Lang::De.name()),
+];
 
 #[component]
 pub fn RepoPicker(ctx: Context) -> impl IntoView {
@@ -57,6 +64,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
             base: RwSignal::new(base.into()),
             projects: RwSignal::new(projects.into()),
             pattern: RwSignal::new(pattern.into()),
+            pr_language: RwSignal::new(Lang::En.code()),
         };
         match owner.get_value() {
             Some(o) => o.with(make),
@@ -83,7 +91,9 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                     } else {
                         &r.branch_pattern
                     };
-                    new_row(&r.repo, &r.base_branch, &r.projects.join(", "), pattern)
+                    let row = new_row(&r.repo, &r.base_branch, &r.projects.join(", "), pattern);
+                    row.pr_language.set(r.pr_language.code());
+                    row
                 })
                 .collect(),
         );
@@ -181,7 +191,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
             manual.set(String::new());
             manual_feedback.set(None);
         }
-        Err(m) => manual_feedback.set(Some((false, m))),
+        Err(m) => manual_feedback.set(Some((false, m.render(lang_untracked())))),
     };
 
     let feedback: Feedback = RwSignal::new(None);
@@ -199,7 +209,16 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
             })
             .collect();
         match agent_repos_read(&list, &default.get_untracked()) {
-            Ok(input) => {
+            Ok(mut input) => {
+                // The language of the pull request text belongs to the row of the repo.
+                for r in &mut input.repos {
+                    let code = rows.with_untracked(|rows| {
+                        rows.iter()
+                            .find(|row| row.repo.get_untracked().trim() == r.repo)
+                            .map(|row| row.pr_language.get_untracked())
+                    });
+                    r.pr_language = code.and_then(Lang::from_code).unwrap_or_default();
+                }
                 let n = input.repos.len();
                 config_save(
                     ctx,
@@ -216,7 +235,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                     || {},
                 );
             }
-            Err(m) => feedback.set(Some((false, m))),
+            Err(m) => feedback.set(Some((false, m.render(lang_untracked())))),
         }
     };
 
@@ -248,7 +267,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                     .map(|(found, truncated, via)| {
                         view! {
                             <p class="t-footnote t-secondary" role="status">
-                                {repo_summary(found, filtered.with(Vec::len), chosen.with(Vec::len), truncated)}
+                                {repo_summary(found, filtered.with(Vec::len), chosen.with(Vec::len), truncated).render(lang())}
                                 {(via == "app").then(|| format!(" {}", t!(SetupReposViaApp)))}
                             </p>
                         }
@@ -321,6 +340,16 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                             autocomplete="off"
                         />
                         <BranchPatternField repo=row.repo pattern=row.pattern />
+                        <VStack spacing="6px">
+                            <span class="t-subheadline">{t!(SetupReposPrLanguage)}</span>
+                            <SegmentedPicker
+                                options=PR_LANGUAGES
+                                value=row.pr_language
+                                on_change=Callback::new(move |code: &'static str| row.pr_language.set(code))
+                                aria_label=t!(SetupReposPrLanguage)
+                            />
+                            <span class="t-footnote t-secondary">{t!(SetupReposPrLanguageHint)}</span>
+                        </VStack>
                         <HStack spacing="12px">
                             <label style="display: inline-flex; gap: 6px; align-items: center; cursor: pointer">
                                 <input

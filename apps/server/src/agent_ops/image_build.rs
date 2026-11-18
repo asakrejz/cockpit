@@ -1,3 +1,5 @@
+use cockpit_i18n::{ArgValue, Msg, msg};
+
 use super::*;
 
 impl AppState {
@@ -17,24 +19,20 @@ impl AppState {
     }
 
     /// Starts the build in the background. `Err` with the explanation if it cannot start.
-    /// Blockierend.
-    pub(crate) fn image_build(&self) -> Result<ImageBuild, String> {
+    /// Blocking.
+    pub(crate) fn image_build(&self) -> Result<ImageBuild, Msg> {
         let status = self.container_status();
         let Some(cli) = self.cli_path(&status) else {
-            return Err(status.hint.unwrap_or_else(|| {
-                "Es gibt keine Container-Laufzeit. Installiere Rancher Desktop oder Podman.".into()
-            }));
+            return Err(status_hint(&status).unwrap_or_else(|| msg!(ServerRunBuildNoRuntime)));
         };
         if !status.engine_running {
-            return Err(status.hint.unwrap_or_else(|| {
-                "Die Container-Laufzeit läuft nicht. Starte sie und versuche es erneut.".into()
-            }));
+            return Err(status_hint(&status).unwrap_or_else(|| msg!(ServerRunBuildRuntimeStopped)));
         }
         let source = self.agent_source();
         if !source.join("Containerfile").is_file() {
-            return Err(format!(
-                "Der Ordner mit dem Containerfile fehlt: {}. Starte Cockpit aus dem Repo-Ordner oder setze COCKPIT_AGENT_DIR.",
-                source.display()
+            return Err(msg!(
+                ServerRunBuildContainerfileMissing,
+                dir = source.display().to_string()
             ));
         }
         let fingerprint = agent_image::fingerprint(&source)?;
@@ -48,7 +46,8 @@ impl AppState {
                 present: false,
                 state: ImageState::Missing,
                 error: None,
-                lines: vec!["Der Bau startet …".into()],
+                error_msg: None,
+                lines: vec![msg!(ServerRunBuildStarting).de()],
             };
         }
         let s = self.clone();
@@ -57,16 +56,22 @@ impl AppState {
     }
 }
 
+/// The hint of the container status as a message (the old plain text counts as raw).
+pub(super) fn status_hint(status: &ContainerStatus) -> Option<Msg> {
+    status
+        .hint_msg
+        .clone()
+        .or_else(|| status.hint.clone().map(Msg::raw))
+}
+
 // ---------- Build image ----------
 
 /// Advice for the build error, from the last lines.
-pub fn build_hint(lines: &[String]) -> Option<&'static str> {
+pub fn build_hint(lines: &[String]) -> Option<Msg> {
     let everything = lines.join("\n").to_lowercase();
     let contains = |s: &str| everything.contains(s);
     if contains("no space left") {
-        Some(
-            "Auf der Container-Maschine ist kein Platz mehr. Gib in Rancher Desktop bzw. mit „podman system prune“ Platz frei.",
-        )
+        Some(msg!(ServerRunBuildNoSpace))
     } else if contains("lookup ")
         || contains("no such host")
         || contains("temporary failure in name resolution")
@@ -74,17 +79,11 @@ pub fn build_hint(lines: &[String]) -> Option<&'static str> {
         || contains("timeout")
         || contains("tls handshake")
     {
-        Some(
-            "Der Bau kommt nicht ins Netz (Pakete laden). Prüfe die Internetverbindung, ein VPN oder einen Proxy in Rancher Desktop.",
-        )
+        Some(msg!(ServerRunBuildNoNetwork))
     } else if contains("permission denied") && contains("docker.sock") {
-        Some(
-            "Der Zugriff auf Docker ist nicht erlaubt. Starte Rancher Desktop (Engine „dockerd (moby)“) neu.",
-        )
+        Some(msg!(ServerRunBuildDockerDenied))
     } else if contains("unauthorized") || contains("toomanyrequests") {
-        Some(
-            "Das Basis-Image lässt sich nicht laden (Anmeldung oder Abruflimit bei docker.io). Versuche es später erneut.",
-        )
+        Some(msg!(ServerRunBuildBaseImage))
     } else {
         None
     }
@@ -117,7 +116,7 @@ pub(super) async fn build_task(
         .stderr(Stdio::piped())
         .kill_on_drop(true);
     let kind = cmd.spawn();
-    let done = |error: Option<String>| {
+    let done = |error: Option<Msg>| {
         state.image_forget();
         let mut b = lock(&state.inner.agent.build);
         b.running = false;
@@ -127,12 +126,13 @@ pub(super) async fn build_task(
         } else {
             ImageState::Missing
         };
-        b.error = error;
+        b.error = error.as_ref().map(Msg::de);
+        b.error_msg = error;
     };
     let mut kind = match kind {
         Ok(k) => k,
         Err(e) => {
-            done(Some(format!("Der Bau lässt sich nicht starten: {e}")));
+            done(Some(msg!(ServerRunBuildNotStarted, error = e.to_string())));
             return;
         }
     };
@@ -170,20 +170,20 @@ pub(super) async fn build_task(
         Ok(s) => {
             let lines = lock(&state.inner.agent.build).lines.clone();
             let last = lines.iter().rev().find(|z| !z.trim().is_empty()).cloned();
-            let mut m = format!(
-                "Der Bau ist gescheitert (Code {}).",
-                s.code().map_or("-".into(), |c| c.to_string())
-            );
-            if let Some(h) = build_hint(&lines) {
-                m.push(' ');
-                m.push_str(h);
-            }
+            let mut parts = vec![msg!(
+                ServerRunBuildFailed,
+                code = s.code().map_or("-".into(), |c| c.to_string())
+            )];
+            parts.extend(build_hint(&lines));
             if let Some(l) = last {
-                m.push_str(&format!(" Letzte Meldung: {l}"));
+                parts.push(msg!(ServerRunLastMessage, line = l));
             }
-            done(Some(m));
+            done(Some(msg!(
+                ServerAgentJoined,
+                parts = ArgValue::joined(parts, " ")
+            )));
         }
-        Err(e) => done(Some(format!("Der Bau wurde unterbrochen: {e}"))),
+        Err(e) => done(Some(msg!(ServerRunBuildInterrupted, error = e.to_string()))),
     }
 }
 
@@ -199,7 +199,7 @@ impl Strom {
             while let Ok(Some(g)) = read_line(&mut r, &mut buffer).await {
                 let t = match g {
                     Read::Line(z) => z,
-                    Read::TooLarge => "(sehr lange Zeile ausgelassen)".into(),
+                    Read::TooLarge => msg!(ServerRunBuildLineSkipped).de(),
                 };
                 if tx.send(t).is_err() {
                     break;

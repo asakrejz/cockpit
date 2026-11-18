@@ -16,35 +16,15 @@ use crate::{
 };
 
 fn reason_label(reason: NotifyReason) -> String {
-    match reason {
-        NotifyReason::ReviewRequested => t!(NotificationsReasonReview),
-        NotifyReason::Mention => t!(NotificationsReasonMention),
-        NotifyReason::AgentWaiting => t!(NotificationsReasonWaiting),
-        NotifyReason::AgentFinished => t!(NotificationsReasonFinished),
-        NotifyReason::ChecksFailed => t!(NotificationsReasonChecks),
-        NotifyReason::Assigned => t!(NotificationsReasonAssigned),
-        NotifyReason::AgentStopped => t!(NotificationsReasonStopped),
-    }
+    reason.msg().render(lang())
 }
 
 fn reason_hint(reason: NotifyReason) -> String {
-    match reason {
-        NotifyReason::ReviewRequested => t!(NotificationsReasonReviewHint),
-        NotifyReason::Mention => t!(NotificationsReasonMentionHint),
-        NotifyReason::AgentWaiting => t!(NotificationsReasonWaitingHint),
-        NotifyReason::AgentFinished => t!(NotificationsReasonFinishedHint),
-        NotifyReason::ChecksFailed => t!(NotificationsReasonChecksHint),
-        NotifyReason::Assigned => t!(NotificationsReasonAssignedHint),
-        NotifyReason::AgentStopped => t!(NotificationsReasonStoppedHint),
-    }
+    reason.hint_msg().render(lang())
 }
 
 fn channel_label(channel: Channel) -> String {
-    match channel {
-        Channel::Browser => t!(NotificationsChannelBrowser),
-        Channel::Email => t!(NotificationsChannelEmail),
-        Channel::Slack => t!(NotificationsChannelSlack),
-    }
+    channel.msg().render(lang())
 }
 
 fn permission_label(permission: Permission) -> String {
@@ -176,8 +156,8 @@ pub fn NotificationsPage() -> impl IntoView {
         store.announce(
             NotifyEvent {
                 reason: NotifyReason::Assigned,
-                title: t!(NotificationsTestTitle),
-                text: t!(NotificationsTestText),
+                title: cockpit_i18n::msg!(NotificationsTestTitle),
+                text: cockpit_i18n::msg!(NotificationsTestText),
                 route: browser::settings_route(),
             },
             true,

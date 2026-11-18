@@ -1,3 +1,5 @@
+use cockpit_i18n::{Msg, msg};
+
 use super::*;
 
 impl Workspace {
@@ -14,15 +16,15 @@ impl Workspace {
                     .runs
                     .iter()
                     .any(|r| r.key() == ticket && r.is_awaiting());
-                let mut notes = vec![Note::new(
+                let mut notes = vec![Note::coded(
                     Target::Run(ticket.clone()),
-                    format!("Agent für {ticket} beauftragt"),
+                    msg!(CoreActionLogAgentStarted, ticket = &ticket),
                 )];
                 if plan_first {
                     notes.push(
-                        Note::new(
+                        Note::coded(
                             Target::Run(ticket.clone()),
-                            format!("Plan für {ticket} vorgelegt, wartet auf Freigabe"),
+                            msg!(CoreActionLogPlanPresented, ticket = &ticket),
                         )
                         .by(Actor::Agent),
                     );
@@ -34,14 +36,14 @@ impl Workspace {
                     .runs
                     .iter()
                     .find(|r| r.key() == ticket && r.is_active())
-                    .map(AgentRun::label)
+                    .map(labels::run_label)
                 else {
                     return Err(ActionError::NothingToDo);
                 };
                 self.cancel_agent(&ticket);
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Run(ticket),
-                    format!("Lauf des Agenten für {label} abgebrochen"),
+                    msg!(CoreActionLogRunCancelled, label = label),
                 )])
             }
             Action::ApprovePlan { ticket } => {
@@ -62,9 +64,9 @@ impl Workspace {
                 if !self.approve_plan(&ticket) {
                     return Err(ActionError::NothingToDo);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Run(ticket),
-                    format!("Plan für {label} freigegeben"),
+                    msg!(CoreActionLogPlanApproved, label = label),
                 )])
             }
             Action::RejectPlan { ticket } => {
@@ -72,9 +74,9 @@ impl Workspace {
                 if !self.reject_plan(&ticket) {
                     return Err(ActionError::NothingToDo);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Run(ticket),
-                    format!("Plan für {label} abgelehnt"),
+                    msg!(CoreActionLogPlanRejected, label = label),
                 )])
             }
             Action::RevisePlan { ticket, note } => {
@@ -89,9 +91,9 @@ impl Workspace {
                 if !self.revise_plan(&ticket, &note) {
                     return Err(ActionError::InvalidInput);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Run(ticket),
-                    format!("Neuen Plan für {label} angefordert"),
+                    msg!(CoreActionLogPlanRevised, label = label),
                 )])
             }
             Action::AnswerAgent { run, text } => {
@@ -102,11 +104,12 @@ impl Workspace {
                 if !self.answer_agent(&run, &text) {
                     return Err(ActionError::InvalidInput);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Run(run),
-                    format!(
-                        "Frage des Agenten für {label} beantwortet: „{}“",
-                        text.trim()
+                    msg!(
+                        CoreActionLogAgentAnswered,
+                        label = label,
+                        text = text.trim()
                     ),
                 )])
             }
@@ -122,9 +125,9 @@ impl Workspace {
                 if !self.steer_agent(&run, &text) {
                     return Err(ActionError::InvalidInput);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Run(run),
-                    format!("Hinweis an den Agenten für {label}: „{}“", text.trim()),
+                    msg!(CoreActionLogAgentSteered, label = label, text = text.trim()),
                 )])
             }
             Action::PauseAgent { run } => {
@@ -132,9 +135,9 @@ impl Workspace {
                 if !self.pause_agent(&run) {
                     return Err(ActionError::NothingToDo);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Run(run),
-                    format!("Agent für {label} pausiert"),
+                    msg!(CoreActionLogAgentPaused, label = label),
                 )])
             }
             Action::ResumeAgent { run } => {
@@ -147,9 +150,9 @@ impl Workspace {
                 if !self.resume_agent(&run) {
                     return Err(ActionError::NothingToDo);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Run(run),
-                    format!("Agent für {label} fortgesetzt"),
+                    msg!(CoreActionLogAgentResumed, label = label),
                 )])
             }
             Action::AdvanceAgents => self.advance_logged(at_ms),
@@ -161,15 +164,13 @@ impl Workspace {
                 let mut notes: Vec<Note> = effect
                     .notes
                     .into_iter()
-                    .map(|text| Note::new(Target::Run(run.clone()), text).by(Actor::Agent))
+                    .map(|msg| Note::coded(Target::Run(run.clone()), msg).by(Actor::Agent))
                     .collect();
                 if effect.finished {
                     notes.push(
-                        Note::new(
+                        Note::coded(
                             Target::Run(run.clone()),
-                            format!(
-                                "{label}: Fertig – Branch gepusht, der Pull Request wartet auf dich"
-                            ),
+                            msg!(CoreActionLogRunFinished, label = label),
                         )
                         .by(Actor::Agent),
                     );
@@ -181,13 +182,13 @@ impl Workspace {
                 let label = self
                     .close_run(&run, closure)
                     .ok_or(ActionError::NothingToDo)?;
-                let what = match closure {
-                    Closure::Merged => "gemergt",
-                    Closure::Closed => "geschlossen",
-                };
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Run(run),
-                    format!("Der Pull Request von {label} ist {what}, der Lauf ist erledigt"),
+                    msg!(
+                        CoreActionLogRunClosed,
+                        label = label,
+                        what = labels::closure(closure)
+                    ),
                 )])
             }
             Action::AddressReview {
@@ -208,20 +209,19 @@ impl Workspace {
                 let key = self
                     .address_review(&review, &comments, options)
                     .map_err(ActionError::Agent)?;
-                let mut notes = vec![Note::new(
+                let mut notes = vec![Note::coded(
                     Target::Review(review.clone()),
-                    format!(
-                        "Agent beauftragt, {} aus {review} umzusetzen",
-                        plural(n, "Kommentar", "Kommentare")
+                    msg!(
+                        CoreActionLogAddressRequested,
+                        comments = labels::comments(n),
+                        review = review.to_string()
                     ),
                 )];
                 if plan_first {
                     notes.push(
-                        Note::new(
+                        Note::coded(
                             Target::Run(key),
-                            format!(
-                                "Plan für die Kommentare in {review} vorgelegt, wartet auf Freigabe"
-                            ),
+                            msg!(CoreActionLogAddressPlan, review = review.to_string()),
                         )
                         .by(Actor::Agent),
                     );
@@ -238,9 +238,13 @@ impl Workspace {
                 }
                 self.investigate_check(&review, &check)
                     .map_err(ActionError::Agent)?;
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Review(review.clone()),
-                    format!("Agent beauftragt, den Check „{check}“ in {review} zu untersuchen"),
+                    msg!(
+                        CoreActionLogInvestigate,
+                        check = check,
+                        review = review.to_string()
+                    ),
                 )])
             }
             Action::ApplyFix { run } => {
@@ -255,48 +259,46 @@ impl Workspace {
                     return Err(ActionError::NothingToDo);
                 }
                 let text = if pushes {
-                    format!(
-                        "Fix für {label} übernommen: Der Agent pusht ihn und startet den Check neu"
-                    )
+                    msg!(CoreActionLogFixApplied, label = label)
                 } else {
-                    format!("Vorschlag für {label} übernommen: Der Agent startet den Check neu")
+                    msg!(CoreActionLogSuggestionApplied, label = label)
                 };
-                Ok(vec![Note::new(Target::Run(run), text)])
+                Ok(vec![Note::coded(Target::Run(run), text)])
             }
             Action::DiscardFix { run } => {
                 let label = self.label_of(&run);
                 if !self.discard_fix(&run) {
                     return Err(ActionError::NothingToDo);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Run(run),
-                    format!("Diagnose für {label} verworfen, am Branch ändert sich nichts"),
+                    msg!(CoreActionLogFixDiscarded, label = label),
                 )])
             }
             Action::AddressReviewThreads { review, options } => {
                 self.need_open_review(&review)?;
                 self.address_review_threads(&review, options)
                     .map_err(agent_error)?;
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Review(review.clone()),
-                    format!("Agent beauftragt, die Review-Kommentare in {review} umzusetzen"),
+                    msg!(CoreActionLogThreadsRequested, review = review.to_string()),
                 )])
             }
             Action::StartPrReview { review } => {
                 self.need_open_review(&review)?;
                 self.review_pr_with_agent(&review).map_err(agent_error)?;
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Review(review.clone()),
-                    format!("Agent beauftragt, {review} durchzusehen"),
+                    msg!(CoreActionLogPrReviewRequested, review = review.to_string()),
                 )])
             }
             Action::FixFailedChecks { review, options } => {
                 self.need_open_review(&review)?;
                 self.fix_failed_checks(&review, options)
                     .map_err(agent_error)?;
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Review(review.clone()),
-                    format!("Agent beauftragt, die roten Checks in {review} zu beheben"),
+                    msg!(CoreActionLogChecksFixRequested, review = review.to_string()),
                 )])
             }
             Action::CreatePullRequest {
@@ -317,14 +319,12 @@ impl Workspace {
                 let label = self.label_of(&run);
                 let n = pull.number;
                 let text = if pull.existed {
-                    format!(
-                        "Pull Request #{n} für {label} gab es schon – verlinkt, nichts neu angelegt"
-                    )
+                    msg!(CoreActionLogPrExisted, n = n, label = label)
                 } else {
-                    format!("Pull Request #{n} für {label} angelegt")
+                    msg!(CoreActionLogPrCreated, n = n, label = label)
                 };
                 self.pull_request_created(&run, pull);
-                Ok(vec![Note::new(Target::Run(run), text)])
+                Ok(vec![Note::coded(Target::Run(run), text)])
             }
             Action::ResumeStopped { run, extra } => {
                 let reason = self
@@ -335,15 +335,16 @@ impl Workspace {
                         ResumeError::StillReached(r) => ActionError::LimitStillReached(r),
                     })?;
                 let text = if extra == 0 {
-                    format!("Agent für {run} fortgesetzt")
+                    msg!(CoreActionLogResumed, run = &run)
                 } else {
-                    format!(
-                        "Agent für {run} fortgesetzt – {} um {} erhöht",
-                        reason.raises(),
-                        reason.raise_label(extra)
+                    msg!(
+                        CoreActionLogResumedRaised,
+                        run = &run,
+                        what = labels::raises(reason),
+                        amount = labels::raise_amount(reason, extra)
                     )
                 };
-                Ok(vec![Note::new(Target::Run(run.clone()), text)])
+                Ok(vec![Note::coded(Target::Run(run.clone()), text)])
             }
             _ => unreachable!("agent: dispatched by perform"),
         }
@@ -351,11 +352,11 @@ impl Workspace {
 
     /// The name of the run for log sentences: the ticket key, for follow-up jobs with
     /// plain text. An unknown key stays as it is.
-    pub(super) fn label_of(&self, key: &str) -> String {
+    pub(super) fn label_of(&self, key: &str) -> Msg {
         self.runs
             .iter()
             .find(|r| r.key() == key)
-            .map_or_else(|| key.to_string(), AgentRun::label)
+            .map_or_else(|| Msg::raw(key), labels::run_label)
     }
 
     /// The tick of the agents, with one entry per completed step or asked question.
@@ -386,16 +387,17 @@ impl Workspace {
             let Some(run) = self.runs.iter().find(|r| r.key() == key) else {
                 continue;
             };
-            let label = run.label();
+            let label = labels::run_label(run);
             let (asking, diagnosed) = (run.is_asking(), run.is_diagnosed());
             let kind = run.kind.clone();
             if hints > 0 {
                 notes.push(
-                    Note::new(
+                    Note::coded(
                         Target::Run(key.clone()),
-                        format!(
-                            "{label}: {} berücksichtigt",
-                            plural(hints, "Hinweis", "Hinweise")
+                        msg!(
+                            CoreActionLogHintsConsidered,
+                            label = label.clone(),
+                            hints = msg!(CoreActionHints, n = hints)
                         ),
                     )
                     .by(Actor::Agent),
@@ -403,41 +405,54 @@ impl Workspace {
             }
             // A limit stopped the run before it did the step.
             if let Some(reason) = run.stop_reason() {
-                notes.push(Note::new(
+                notes.push(Note::coded(
                     Target::Run(key.clone()),
-                    format!("{label}: Angehalten – {}", reason.label()),
+                    msg!(
+                        CoreActionLogStopped,
+                        label = label,
+                        reason = labels::stop(reason)
+                    ),
                 ));
                 continue;
             }
             let last = done + 1 == STEPS;
             notes.push(match (asking, diagnosed, last, pr, kind) {
-                (true, ..) => Note::new(
+                (true, ..) => Note::coded(
                     Target::Run(key.clone()),
-                    format!("{label}: Der Agent hat eine Frage und wartet auf deine Antwort"),
+                    msg!(CoreActionLogAsking, label = label),
                 ),
-                (_, true, ..) => Note::new(
+                (_, true, ..) => Note::coded(
                     Target::Run(key.clone()),
-                    format!("{label}: Diagnose liegt vor, der Agent wartet auf deine Entscheidung"),
+                    msg!(CoreActionLogDiagnosed, label = label),
                 ),
-                (_, _, true, Some(n), RunKind::AddressReview { comments, .. }) => Note::new(
+                (_, _, true, Some(n), RunKind::AddressReview { comments, .. }) => Note::coded(
                     Target::Review(n.clone()),
-                    format!(
-                        "{n}: {} umgesetzt und auf den Branch gepusht, das Review wartet wieder auf dich",
-                        plural(comments.len(), "Kommentar", "Kommentare")
+                    msg!(
+                        CoreActionLogCommentsDone,
+                        review = n.to_string(),
+                        comments = labels::comments(comments.len())
                     ),
                 ),
-                (_, _, true, Some(n), RunKind::Diagnose { check, .. }) => Note::new(
+                (_, _, true, Some(n), RunKind::Diagnose { check, .. }) => Note::coded(
                     Target::Review(n.clone()),
-                    format!("{n}: Check „{check}“ nach dem Fix neu gestartet"),
-                ),
-                (_, _, true, Some(n), RunKind::Implement) => Note::new(
-                    Target::Review(n.clone()),
-                    format!(
-                        "{key}: Pull Request {n} {}erstellt",
-                        if draft { "als Entwurf " } else { "" }
+                    msg!(
+                        CoreActionLogCheckRestartedAfterFix,
+                        review = n.to_string(),
+                        check = check
                     ),
                 ),
-                _ => Note::new(Target::Run(key.clone()), format!("{label}: {title}")),
+                (_, _, true, Some(n), RunKind::Implement) => Note::coded(
+                    Target::Review(n.clone()),
+                    if draft {
+                        msg!(CoreActionLogPrMadeDraft, key = &key, review = n.to_string())
+                    } else {
+                        msg!(CoreActionLogPrMade, key = &key, review = n.to_string())
+                    },
+                ),
+                _ => Note::coded(
+                    Target::Run(key.clone()),
+                    msg!(CoreActionLogStep, label = label, title = title),
+                ),
             });
         }
         Ok(notes)

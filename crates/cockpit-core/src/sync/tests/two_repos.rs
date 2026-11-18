@@ -30,6 +30,7 @@ fn two_repos(title_b: &str) -> Remote {
                 reviews: vec![ra, rb],
                 prs: vec![la, lb],
                 warnings: Vec::new(),
+                warning_msgs: Vec::new(),
             }),
         }],
     }

@@ -23,3 +23,17 @@ test("the sink writes exactly one line per event", () => {
   sink({ t: "files", files: ["a.rs"] });
   assert.deepEqual(out, ['{"t":"hints_arrived"}\n', '{"t":"files","files":["a.rs"]}\n']);
 });
+
+test("step titles and errors follow the language of the job", async () => {
+  const { tx, setLanguage } = await import("../src/texts.ts");
+  try {
+    setLanguage("en");
+    assert.equal(tx("step_change"), "Change file");
+    assert.equal(tx("error_timeout", { minutes: 5 }), "The time limit of 5 minutes in the container has been exceeded.");
+    setLanguage("de");
+    assert.equal(tx("step_change"), "Datei ändern");
+    assert.equal(tx("error_timeout", { minutes: 5 }), "Das Zeitlimit von 5 Minuten im Container ist überschritten.");
+  } finally {
+    setLanguage("de");
+  }
+});

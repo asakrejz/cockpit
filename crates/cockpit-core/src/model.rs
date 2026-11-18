@@ -159,6 +159,9 @@ pub struct Item {
     /// Note from the agent, e.g. „Vom Agenten umgesetzt · Tests bestanden“.
     #[serde(default)]
     pub agent_note: Option<String>,
+    /// The same note as code and parameters; the UI renders it in its language.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_note_msg: Option<cockpit_i18n::Msg>,
     #[serde(default)]
     pub comments: Vec<Comment>,
     /// Done – needs no attention any more.
@@ -220,6 +223,18 @@ pub struct Sprint {
 }
 
 impl Item {
+    /// Sets the note of the agent: the code and, next to it, the German text.
+    pub fn set_note(&mut self, msg: cockpit_i18n::Msg) {
+        self.agent_note = Some(msg.de());
+        self.agent_note_msg = Some(msg);
+    }
+
+    /// Removes the note of the agent.
+    pub fn clear_note(&mut self) {
+        self.agent_note = None;
+        self.agent_note_msg = None;
+    }
+
     pub fn is_ticket(&self) -> bool {
         self.kind == Kind::Ticket
     }

@@ -3,6 +3,7 @@
 
 import { type Job, tasksText, systemText, commitMessage } from "../job.ts";
 import { type Sink, truncate } from "../event.ts";
+import { tx } from "../texts.ts";
 import { type Run, record } from "../git.ts";
 import { type Policy, decide } from "../policy.ts";
 import type { Adapter, Input } from "./interface.ts";
@@ -156,8 +157,8 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
     error = tr.error;
   } catch (e) {
     error = cancel.signal.aborted
-      ? `Das Zeitlimit von ${Math.round(a.max_seconds / 60)} Minuten im Container ist überschritten.`
-      : `Das SDK meldet: ${(e as Error).message}`;
+      ? tx("error_timeout", { minutes: Math.round(a.max_seconds / 60) })
+      : tx("error_sdk", { message: (e as Error).message });
   } finally {
     clearTimeout(deadline);
     input.close();
@@ -181,11 +182,11 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
   try {
     const f = await record(d.git, d.root, a.branch, commitMessage(a));
     if (!f) {
-      d.sink({ t: "error", text: "Der Agent hat nichts geändert, es gibt nichts zu pushen." });
+      d.sink({ t: "error", text: tx("error_nothing_changed") });
       return 1;
     }
     d.sink({ t: "files", files: f.files });
-    d.sink({ t: "result", text: truncate(endText.trim() || `${a.ticket.key} umgesetzt.`, 1500), branch: a.branch, commit: f.commit });
+    d.sink({ t: "result", text: truncate(endText.trim() || tx("result_done", { key: a.ticket.key }), 1500), branch: a.branch, commit: f.commit });
     return 0;
   } catch (e) {
     d.sink({ t: "error", text: (e as Error).message });
@@ -226,7 +227,7 @@ export function claudeAgentSdk(sdk: () => Promise<Sdk> = loadSdk): Adapter {
       try {
         loaded = await sdk();
       } catch (e) {
-        d.sink({ t: "error", text: `Das Agent SDK lässt sich nicht laden (${(e as Error).message}). Image neu bauen?` });
+        d.sink({ t: "error", text: tx("error_sdk_load", { message: (e as Error).message }) });
         return 2;
       }
       return run(job, { ...d, sdk: loaded });

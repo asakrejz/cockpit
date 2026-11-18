@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use cockpit_core::setup::step_mentioned;
 use cockpit_integrations::oauth::Service;
 
-use crate::oauth::{secret_missing, step_name};
+use crate::oauth::{secret_missing_msg, step_name};
 
 /// Phrases of terminal commands that must not appear in a text for the interface.
 const COMMANDS: &[&str] = &["token set", "token delete", "token import", "cargo run"];
@@ -13,7 +13,7 @@ const COMMANDS: &[&str] = &["token set", "token delete", "token import", "cargo 
 #[test]
 fn oauth_messages_name_the_step_and_the_field() {
     for service in [Service::GitHub, Service::Atlassian] {
-        let text = secret_missing(service);
+        let text = secret_missing_msg(service).de();
         assert!(text.contains("Client-Secret"), "{text}");
         for command in COMMANDS {
             assert!(!text.contains(command), "{text}");

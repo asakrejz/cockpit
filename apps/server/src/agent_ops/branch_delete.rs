@@ -8,8 +8,9 @@
 //!   branch, protection). Never automatic, never another branch, never a force of any kind.
 
 use cockpit_core::api::{BranchCheck, BranchDeleted};
-use cockpit_core::branch::{DeleteFacts, deletable};
+use cockpit_core::branch::{DeleteFacts, deletable_msg};
 use cockpit_core::{Action, Actor, AgentRun, Closure, RunKind};
+use cockpit_i18n::{Msg, msg};
 use cockpit_integrations::Error as ServiceError;
 use cockpit_integrations::github::GitHubClient;
 
@@ -32,10 +33,10 @@ fn ended(pull: &cockpit_integrations::github::dto::Pull) -> Option<Closure> {
 }
 
 /// The run of an implementation whose branch the user may delete.
-fn own_branch_run(run: &AgentRun) -> Result<u32, String> {
+fn own_branch_run(run: &AgentRun) -> Result<u32, Msg> {
     match (&run.kind, &run.pull_request) {
         (RunKind::Implement, Some(p)) if run.real => Ok(p.number),
-        _ => Err("Zu diesem Lauf gehört kein Branch, den das Cockpit angelegt hat.".into()),
+        _ => Err(msg!(ServerAgentBranchNoOwn)),
     }
 }
 
@@ -43,7 +44,7 @@ struct Plan {
     client: GitHubClient,
     repo: String,
     branch: String,
-    verdict: Result<(), String>,
+    verdict: Result<(), Msg>,
 }
 
 impl AppState {
@@ -78,35 +79,33 @@ impl AppState {
         }
     }
 
-    async fn branch_plan(&self, key: &str) -> Result<Plan, String> {
+    async fn branch_plan(&self, key: &str) -> Result<Plan, Msg> {
         let ws = self.inner.live.copy();
         let run = ws
             .runs
             .iter()
             .find(|r| r.key() == key)
-            .ok_or("Diesen Lauf gibt es nicht.")?;
+            .ok_or_else(|| msg!(ServerAgentRunNotFound))?;
         let number = own_branch_run(run)?;
         let repo = self.run_repo(run)?;
         let branch = run.branch();
         let repos = self.agent_repos();
         let (pattern, base) = (repos.branch_pattern(&repo), repos.base_branch(&repo));
         let client = self.github_client_async().await?;
-        let read = |what: &str, e: ServiceError| github_message(what, &e);
+        let read = |what: Msg, e: ServiceError| github_message(what, &e);
         let pull = client
             .pull(&repo, number)
             .await
-            .map_err(|e| read("GitHub liefert den Pull Request nicht", e))?;
+            .map_err(|e| read(msg!(ServerAgentWhatPullRead), e))?;
         let default_branch = client
             .repo_access(&repo)
             .await
-            .map_err(|e| read("GitHub liefert das Repo nicht", e))?
+            .map_err(|e| read(msg!(ServerAgentWhatRepoRead), e))?
             .default_branch;
         let verdict = match client.branch_protected(&repo, &branch).await {
-            Err(ServiceError::NotFound) => Err(format!(
-                "Den Branch „{branch}“ gibt es auf GitHub nicht mehr."
-            )),
-            Err(e) => return Err(read("GitHub liefert den Branch nicht", e)),
-            Ok(protected) => deletable(&DeleteFacts {
+            Err(ServiceError::NotFound) => Err(msg!(ServerAgentBranchGone, branch = &branch)),
+            Err(e) => return Err(read(msg!(ServerAgentWhatBranchRead), e)),
+            Ok(protected) => deletable_msg(&DeleteFacts {
                 pattern: &pattern,
                 base_branch: &base,
                 default_branch: &default_branch,
@@ -128,11 +127,15 @@ impl AppState {
     /// `GET /api/agent/branch?run=`: may the branch be deleted? Reads only.
     pub(crate) async fn branch_check(&self, key: &str) -> BranchCheck {
         match self.branch_plan(key).await {
-            Ok(p) => BranchCheck {
-                branch: p.branch,
-                allowed: p.verdict.is_ok(),
-                reason: p.verdict.err(),
-            },
+            Ok(p) => {
+                let reason = p.verdict.err();
+                BranchCheck {
+                    branch: p.branch,
+                    allowed: reason.is_none(),
+                    reason: reason.as_ref().map(Msg::de),
+                    reason_msg: reason,
+                }
+            }
             Err(reason) => BranchCheck {
                 branch: self
                     .inner
@@ -144,7 +147,8 @@ impl AppState {
                     .map(AgentRun::branch)
                     .unwrap_or_default(),
                 allowed: false,
-                reason: Some(reason),
+                reason: Some(reason.de()),
+                reason_msg: Some(reason),
             },
         }
     }
@@ -157,7 +161,7 @@ impl AppState {
             .branch_delete(&plan.repo, &plan.branch)
             .await
             .map_err(|e| {
-                ActionFailure::Service(github_message("GitHub löscht den Branch nicht", &e))
+                ActionFailure::Service(github_message(msg!(ServerAgentWhatBranchDelete), &e))
             })?;
         tracing::info!(
             "Branch {} of {} deleted on the user's click",

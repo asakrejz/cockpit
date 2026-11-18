@@ -1,4 +1,7 @@
+use cockpit_i18n::{ArgValue, Msg, msg};
+
 use super::*;
+use image_build::status_hint;
 
 impl AppState {
     // ---------- Reachability from the container ----------
@@ -17,29 +20,22 @@ impl AppState {
         let Ok((status, cli, image, choice, key)) = prepared else {
             return ContainerCheck::default();
         };
-        let not = |hint: &str| ContainerCheck {
-            hint: Some(hint.into()),
+        let not = |hint: Msg| ContainerCheck {
+            hint: Some(hint.de()),
+            hint_msg: Some(hint),
             ..Default::default()
         };
         let Some(endpoint) = choice.endpoint else {
-            return not(
-                "Der Endpunkt ist nicht eingerichtet. Wähle zuerst Anbieter, Endpunkt und Modell.",
-            );
+            return not(msg!(ServerRunCheckEndpointMissing));
         };
         let Some(key) = key else {
-            return not(
-                "Es fehlt der Key. Lege ihn zuerst ab, dann lässt sich der Endpunkt prüfen.",
-            );
+            return not(msg!(ServerRunCheckKeyMissing));
         };
         let Some(cli) = cli else {
-            return not(&status.hint.unwrap_or_else(|| {
-                "Die Container-Laufzeit läuft nicht (Schritt „Container“).".into()
-            }));
+            return not(status_hint(&status).unwrap_or_else(|| msg!(ServerRunCheckRuntimeDown)));
         };
-        if let Some(problem) =
-            image.and_then(|p| agent_run::image_problem(p.state, p.hint.as_deref()))
-        {
-            return not(&format!("{problem} Danach kann der Container testen."));
+        if let Some(problem) = image.and_then(|p| agent_run::image_problem(p.state, p.hint)) {
+            return not(msg!(ServerRunCheckThenTest, problem = problem));
         }
         let mac = cockpit_integrations::endpoint::verify(
             &self.endpoint_target(),
@@ -61,39 +57,35 @@ impl AppState {
                 reachable,
                 key_ok,
                 hint,
-            }) => (*reachable, *key_ok, hint.clone()),
-            Ok(_) => (false, false, "Unerwartete Antwort des Containers.".into()),
+            }) => (*reachable, *key_ok, Msg::raw(hint)),
+            Ok(_) => (false, false, msg!(ServerRunCheckUnexpected)),
             Err(m) => (false, false, m.clone()),
         };
+        let hint = check_hint(mac.reachable, reached, key_ok, text);
         ContainerCheck {
             checked: true,
             mac_reached: mac.reachable,
             container_reached: reached,
             key_ok,
-            hint: Some(check_hint(mac.reachable, reached, key_ok, &text)),
+            hint: Some(hint.de()),
+            hint_msg: Some(hint),
         }
     }
 }
 
 /// The hint about the check from the container, with the concrete advice if the Mac reaches the proxy
 /// and the container does not (typical: VPN, DNS of the container machine).
-pub fn check_hint(mac: bool, container: bool, key_ok: bool, text: &str) -> String {
+pub fn check_hint(mac: bool, container: bool, key_ok: bool, text: Msg) -> Msg {
     match (mac, container, key_ok) {
-        (true, true, true) => "Der Proxy ist auch aus dem Container erreichbar und nimmt den Key an.".into(),
-        (_, true, false) => format!(
-            "Der Container erreicht den Proxy, aber der Key wird abgelehnt. {text}"
-        ),
-        (true, false, _) => format!(
-            "Dein Mac erreicht den Proxy, der Container aber nicht. {text} Das liegt meist daran, dass die Container-Maschine (Rancher Desktop bzw. Podman) die VPN-Verbindung oder den Namen des Proxys nicht kennt. Verbinde zuerst das VPN und starte dann Rancher Desktop bzw. die Podman-Maschine neu (Anleitung im Schritt „Container“). Hilft das nicht, frag deine IT, ob der Proxy aus Container-Maschinen erreichbar ist, oder trage in config.toml die IP-Adresse statt des Namens ein."
-        ),
-        (false, false, _) => format!(
-            "Weder dein Mac noch der Container erreichen den Proxy. Prüfe Adresse und VPN. {text}"
-        ),
-        (false, true, true) => "Der Container erreicht den Proxy, dein Mac nicht – ungewöhnlich. Prüfe die Adresse in config.toml.".into(),
+        (true, true, true) => msg!(ServerRunCheckOk),
+        (_, true, false) => msg!(ServerRunCheckKeyRejected, text = text),
+        (true, false, _) => msg!(ServerRunCheckContainerCannot, text = text),
+        (false, false, _) => msg!(ServerRunCheckNeither, text = text),
+        (false, true, true) => msg!(ServerRunCheckMacCannot),
     }
 }
 
-// ---------- Container-Hilfen ----------
+// ---------- Container helpers ----------
 
 /// Removes containers with the label of the runs (also ended ones). Returns the number. Blocking.
 pub(super) fn container_labels_remove(cli: &Path) -> usize {
@@ -172,9 +164,9 @@ pub(super) async fn check_container(
     endpoint_url: Option<&str>,
     key: &Secret,
     model: &str,
-) -> Result<Event, String> {
+) -> Result<Event, Msg> {
     let dir = state.agent_dir().join("check").join(now_ms().to_string());
-    check_job_write(&dir).map_err(|e| format!("Auftrag nicht schreibbar: {e}"))?;
+    check_job_write(&dir).map_err(|e| msg!(ServerRunCheckJobNotWritable, error = e.to_string()))?;
     let name = agent_run::container_name("check", now_ms());
     let args = agent_run::run_args(&RunCommand {
         name: &name,
@@ -196,9 +188,9 @@ pub(super) async fn check_container(
     let result = match run {
         Err(_) => {
             container_remove(cli, &name).await;
-            Err("Der Container hat nicht rechtzeitig geantwortet (60 Sekunden).".to_string())
+            Err(msg!(ServerRunCheckTimeout))
         }
-        Ok(Err(e)) => Err(format!("Der Container lässt sich nicht starten: {e}")),
+        Ok(Err(e)) => Err(msg!(ServerRunContainerNotStarted, error = e.to_string())),
         Ok(Ok(out)) => {
             let text = String::from_utf8_lossy(&out.stdout);
             let event = text
@@ -206,15 +198,23 @@ pub(super) async fn check_container(
                 .filter_map(|z| agent_run::line_read(z).ok())
                 .find(|e| matches!(e, Event::Check { .. } | Event::Error { .. }));
             match event {
-                Some(Event::Error { text }) => Err(text),
+                Some(Event::Error { text }) => Err(Msg::raw(text)),
                 Some(e) => Ok(e),
-                None => Err(format!(
-                    "Der Container hat nichts gemeldet (Code {}).{}",
-                    out.status.code().map_or("-".into(), |c| c.to_string()),
-                    last_line(&String::from_utf8_lossy(&out.stderr), &[key.expose()])
-                        .map(|z| format!(" Letzte Meldung: {z}"))
-                        .unwrap_or_default()
-                )),
+                None => {
+                    let mut parts = vec![msg!(
+                        ServerRunCheckNoReport,
+                        code = out.status.code().map_or("-".into(), |c| c.to_string())
+                    )];
+                    if let Some(z) =
+                        last_line(&String::from_utf8_lossy(&out.stderr), &[key.expose()])
+                    {
+                        parts.push(msg!(ServerRunLastMessage, line = z));
+                    }
+                    Err(msg!(
+                        ServerAgentJoined,
+                        parts = ArgValue::joined(parts, " ")
+                    ))
+                }
             }
         }
     };

@@ -71,7 +71,7 @@ fn SourceSection(
         back.set(None);
         spawn_local(async move {
             match server::post_webhook_test(id).await {
-                Ok(a) => back.set(Some((a.ok, a.message))),
+                Ok(a) => back.set(Some((a.ok, server::shown(&a.message, a.msg.as_ref())))),
                 Err(e) => back.set(Some((false, error_text(&e)))),
             }
             ctx.reload();
@@ -147,6 +147,7 @@ fn SourceSection(
                 {move || {
                     info.with(|i| {
                         webhook_received_text(i.last_received_ms, i.last_event.as_deref(), now_ms())
+                            .render(lang())
                     })
                 }}
             </p>
@@ -187,7 +188,7 @@ pub fn LiveStep(ctx: Context) -> impl IntoView {
             t!(SetupLiveSaved),
             move || synced.set(false),
         ),
-        Err(m) => back.set(Some((false, m))),
+        Err(m) => back.set(Some((false, m.render(lang_untracked())))),
     };
     let github = Signal::derive(move || ctx.setup.with(|e| e.webhooks.github.clone()));
     let jira = Signal::derive(move || ctx.setup.with(|e| e.webhooks.jira.clone()));

@@ -59,8 +59,8 @@ pub fn signature_header(secret: &[u8], body: &[u8]) -> String {
 }
 
 /// A fresh random secret: 32 bytes from the system as 64 hex characters.
-pub fn secret_generate() -> Result<String, String> {
+pub fn secret_generate() -> Result<String, cockpit_i18n::Msg> {
     let mut buf = [0u8; 32];
-    getrandom::fill(&mut buf).map_err(|_| "Kein Zufall verfügbar".to_string())?;
+    getrandom::fill(&mut buf).map_err(|_| cockpit_i18n::msg!(ServerMiscRandomUnavailable))?;
     Ok(hex(&buf))
 }

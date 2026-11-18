@@ -106,6 +106,13 @@ read-only (`GET /repos/{owner}/{name}`: exists, visible, push allowed) – it ch
 identified by `owner/name#number`: equal numbers from two repos stay separate in the inbox, review, agent view,
 log and notifications; addresses look like `#/review/acme/app/87`.
 
+## Language of pull requests
+
+`pr_language` of a `[[agent.repos]]` entry (`"en"` or `"de"`, default `"en"`) is the team language of that repo: the commit
+message the runner creates and the title and text of the pull request Cockpit builds are written in it. It is a setting of its
+own and does not depend on the language of the interface. The setup assistant has a switch for it in every repo row.
+The agent's own texts for you (plan, summary, questions, review comments) follow the language of the interface instead.
+
 ## Branch names
 
 `branch_pattern` of a `[[agent.repos]]` entry says how the agent names its branches in that repo. Without it the

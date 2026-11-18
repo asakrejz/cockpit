@@ -1,0 +1,20 @@
+# What the sync reports from outside, and why a source does not answer.
+core_sync.item_added = {key} neu: {title}
+core_sync.item_removed = {key} ist nicht mehr dabei (erledigt oder entfernt)
+core_sync.new_comment = {author} hat {key} kommentiert
+core_sync.status_changed = Status von {key} ist jetzt „{status}“ (von außen geändert)
+core_sync.checks_changed = Checks für {number}: {state}
+core_sync.changes_requested = Änderungen angefordert in {number}
+core_sync.draft_dropped = Dein Entwurf an {place} in {number} passt nicht mehr zum geänderten Diff und entfällt: „{text}“
+core_sync.source_problem = {source}: {problem}
+core_sync.source_recovered = {source}: wieder verbunden
+core_sync.summary_added = {n} neue Einträge
+core_sync.summary_removed = {n} Einträge nicht mehr dabei
+core_sync.checks_passed = Checks bestanden
+core_sync.checks_failed = Checks fehlgeschlagen
+core_sync.checks_running = Checks laufen
+core_sync.problem_unauthorized = Token abgelehnt – abgelaufen oder widerrufen. Unter „Einrichten“ erneuern
+core_sync.problem_no_permission = Dem Token fehlt eine Berechtigung – unter „Einrichten“ prüfen, was er darf
+core_sync.problem_rate_limited_paused = Kontingent aufgebraucht – der Abgleich pausiert
+core_sync.problem_rate_limited = Kontingent aufgebraucht
+core_sync.problem_offline = Keine Verbindung zum Dienst

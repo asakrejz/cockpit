@@ -1,4 +1,4 @@
-//! „Aufräumen“: what no running run needs any more. First a preview, then – after the user's
+//! "Clean up": what no running run needs any more. First a preview, then – after the user's
 //! confirmation – only what the preview named *and* is still an orphan.
 //!
 //! * Containers carrying the run label (`cockpit.run`) that belong to no run that works. Only
@@ -73,7 +73,7 @@ impl AppState {
         )
     }
 
-    /// What „Aufräumen“ would remove. Changes nothing. Blocking.
+    /// What "Clean up" would remove. Changes nothing. Blocking.
     pub(crate) fn cleanup_preview(&self) -> CleanupPreview {
         let (folders, prefixes) = self.in_use();
         let containers = self.orphan_containers(&prefixes);

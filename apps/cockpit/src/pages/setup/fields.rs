@@ -145,7 +145,7 @@ pub fn config_save(
                 }
                 if let Some(h) = answer.hint {
                     text.push(' ');
-                    text.push_str(&h);
+                    text.push_str(&server::shown(&h, answer.msg.as_ref()));
                 }
                 feedback.set(Some((true, text)));
                 ctx.reload();
@@ -175,7 +175,7 @@ pub fn KeyField(
         let checked = match key_verify(&value.get_untracked()) {
             Ok(w) => w,
             Err(m) => {
-                back.set(Some((false, m)));
+                back.set(Some((false, m.render(lang_untracked()))));
                 return;
             }
         };

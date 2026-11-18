@@ -1,0 +1,2 @@
+# A text that comes from outside (for example a message of a service) and has no code.
+common.raw = {text}

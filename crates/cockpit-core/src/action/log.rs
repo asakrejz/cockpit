@@ -57,8 +57,21 @@ pub struct LogEntry {
     pub actor: Actor,
     #[serde(default)]
     pub target: Option<Target>,
-    /// Short German sentence.
+    /// Short sentence, German for old entries. New entries also carry `msg`.
     pub text: String,
+    /// The sentence as code and parameters. Shown in the language of the interface; without it
+    /// (entries from before) `text` is shown as it is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub msg: Option<cockpit_i18n::Msg>,
+}
+
+impl LogEntry {
+    /// The sentence in `lang`.
+    pub fn text_in(&self, lang: cockpit_i18n::Lang) -> String {
+        self.msg
+            .as_ref()
+            .map_or_else(|| self.text.clone(), |m| m.render(lang))
+    }
 }
 
 /// Result of a successful action.

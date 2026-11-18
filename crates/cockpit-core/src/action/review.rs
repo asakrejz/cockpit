@@ -1,3 +1,5 @@
+use cockpit_i18n::msg;
+
 use super::*;
 
 impl Workspace {
@@ -12,18 +14,31 @@ impl Workspace {
                 if !self.decide(&review, &suggestion, decision) {
                     return Err(ActionError::UnknownSuggestion(suggestion));
                 }
+                let (suggestion, review_text) = (suggestion, review.to_string());
                 let text = match decision {
                     Some(Decision::Approved) => {
-                        format!("Vorschlag {suggestion} in {review} freigegeben")
+                        msg!(
+                            CoreActionLogDecisionApproved,
+                            suggestion = suggestion,
+                            review = review_text
+                        )
                     }
                     Some(Decision::Declined) => {
-                        format!("Vorschlag {suggestion} in {review} abgelehnt")
+                        msg!(
+                            CoreActionLogDecisionDeclined,
+                            suggestion = suggestion,
+                            review = review_text
+                        )
                     }
                     None => {
-                        format!("Entscheidung zu Vorschlag {suggestion} in {review} zurückgenommen")
+                        msg!(
+                            CoreActionLogDecisionWithdrawn,
+                            suggestion = suggestion,
+                            review = review_text
+                        )
                     }
                 };
-                Ok(vec![Note::new(Target::Review(review.clone()), text)])
+                Ok(vec![Note::coded(Target::Review(review.clone()), text)])
             }
             Action::EditSuggestion {
                 review,
@@ -40,9 +55,13 @@ impl Workspace {
                 if !self.edit_suggestion(&review, &suggestion, &text) {
                     return Err(ActionError::InvalidInput);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Review(review.clone()),
-                    format!("Vorschlag {suggestion} in {review} bearbeitet"),
+                    msg!(
+                        CoreActionLogSuggestionEdited,
+                        suggestion = suggestion,
+                        review = review.to_string()
+                    ),
                 )])
             }
             Action::AddLineComment {
@@ -59,18 +78,23 @@ impl Workspace {
                 {
                     return Err(ActionError::InvalidInput);
                 }
-                let with = if suggestion.is_some() {
-                    " mit Änderungsvorschlag"
+                let (file, line, review_text) = (file, line + 1, review.to_string());
+                let text = if suggestion.is_some() {
+                    msg!(
+                        CoreActionLogCommentAddedSuggestion,
+                        file = file,
+                        line = line,
+                        review = review_text
+                    )
                 } else {
-                    ""
+                    msg!(
+                        CoreActionLogCommentAdded,
+                        file = file,
+                        line = line,
+                        review = review_text
+                    )
                 };
-                Ok(vec![Note::new(
-                    Target::Review(review.clone()),
-                    format!(
-                        "Kommentar{with} an {file}, Zeile {}, in {review} hinzugefügt",
-                        line + 1
-                    ),
-                )])
+                Ok(vec![Note::coded(Target::Review(review.clone()), text)])
             }
             Action::EditLineComment {
                 review,
@@ -88,9 +112,9 @@ impl Workspace {
                 if !self.edit_line_comment(&review, &comment, &text, suggestion.as_deref()) {
                     return Err(ActionError::InvalidInput);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Review(review.clone()),
-                    format!("Eigenen Kommentar in {review} bearbeitet"),
+                    msg!(CoreActionLogCommentEdited, review = review.to_string()),
                 )])
             }
             Action::DeleteLineComment { review, comment } => {
@@ -98,9 +122,9 @@ impl Workspace {
                 if !self.delete_line_comment(&review, &comment) {
                     return Err(ActionError::UnknownComment(comment));
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Review(review.clone()),
-                    format!("Eigenen Kommentar in {review} gelöscht"),
+                    msg!(CoreActionLogCommentDeleted, review = review.to_string()),
                 )])
             }
             Action::SetVerdict { review, verdict } => {
@@ -109,26 +133,37 @@ impl Workspace {
                     return Err(ActionError::Unchanged);
                 }
                 self.set_verdict(&review, verdict);
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Review(review.clone()),
-                    format!("Ergebnis von {review} auf „{}“ gesetzt", verdict.label()),
+                    msg!(
+                        CoreActionLogVerdictSet,
+                        review = review.to_string(),
+                        verdict = labels::verdict(verdict)
+                    ),
                 )])
             }
             Action::RequestAgentReview { review } => {
                 self.need_open_review(&review)?;
                 let count = self.request_agent_review(&review);
                 let result = match count {
-                    0 => "Nichts zu beanstanden".to_string(),
-                    n => format!("{} vorbereitet", plural(n, "Kommentar", "Kommentare")),
+                    0 => msg!(CoreActionAgentReviewNone),
+                    n => msg!(CoreActionAgentReviewFound, comments = labels::comments(n)),
                 };
                 Ok(vec![
-                    Note::new(
+                    Note::coded(
                         Target::Review(review.clone()),
-                        format!("Agent-Review für {review} angefordert"),
+                        msg!(
+                            CoreActionLogAgentReviewRequested,
+                            review = review.to_string()
+                        ),
                     ),
-                    Note::new(
+                    Note::coded(
                         Target::Review(review.clone()),
-                        format!("{review} durchgesehen: {result}"),
+                        msg!(
+                            CoreActionLogAgentReviewDone,
+                            review = review.to_string(),
+                            result = result
+                        ),
                     )
                     .by(Actor::Agent),
                 ])
@@ -138,11 +173,12 @@ impl Workspace {
                     SendError::UnknownReview => ActionError::UnknownReview(review.clone()),
                     e => ActionError::Send(e),
                 })?;
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Review(review.clone()),
-                    format!(
-                        "Review für {review} gesendet ({})",
-                        plural(count, "Kommentar", "Kommentare")
+                    msg!(
+                        CoreActionLogReviewSent,
+                        review = review.to_string(),
+                        comments = labels::comments(count)
                     ),
                 )])
             }
@@ -157,9 +193,13 @@ impl Workspace {
                 if !self.restart_check(&review, &check) {
                     return Err(ActionError::NothingToDo);
                 }
-                Ok(vec![Note::new(
+                Ok(vec![Note::coded(
                     Target::Review(review.clone()),
-                    format!("Check „{check}“ in {review} neu gestartet"),
+                    msg!(
+                        CoreActionLogCheckRestarted,
+                        check = check,
+                        review = review.to_string()
+                    ),
                 )])
             }
             Action::AdvanceChecks => {
@@ -170,16 +210,17 @@ impl Workspace {
                     .advance_checks()
                     .into_iter()
                     .map(|(number, check, status)| {
-                        let result = if status == Checks::Passed {
-                            "bestanden"
+                        let (check, review) = (check, number.to_string());
+                        let text = if status == Checks::Passed {
+                            msg!(CoreActionLogCheckPassed, check = check, review = review)
                         } else {
-                            "wieder fehlgeschlagen"
+                            msg!(
+                                CoreActionLogCheckFailedAgain,
+                                check = check,
+                                review = review
+                            )
                         };
-                        Note::new(
-                            Target::Review(number.clone()),
-                            format!("Check „{check}“ in {number} {result}"),
-                        )
-                        .by(Actor::System)
+                        Note::coded(Target::Review(number.clone()), text).by(Actor::System)
                     })
                     .collect())
             }
@@ -188,9 +229,13 @@ impl Workspace {
                 let changes = self
                     .merge_pr(&review, method)
                     .map_err(ActionError::MergeBlocked)?;
-                let mut notes = vec![Note::new(
+                let mut notes = vec![Note::coded(
                     Target::Review(review.clone()),
-                    format!("{review} gemergt ({})", method.label()),
+                    msg!(
+                        CoreActionLogMerged,
+                        review = review.to_string(),
+                        method = labels::method(method)
+                    ),
                 )];
                 notes.extend(status_notes(changes));
                 Ok(notes)

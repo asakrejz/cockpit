@@ -4,6 +4,7 @@ use super::*;
 use cockpit_core::AgentOptions;
 use cockpit_core::branch::{BranchType, DEFAULT_PATTERN};
 use cockpit_core::model::PrKey;
+use cockpit_i18n::{Msg, msg};
 
 impl AppState {
     /// The repos the agent may work in, with the routing rules and the default.
@@ -24,7 +25,7 @@ impl AppState {
     /// The repo a run works in: the one it was started for, or the default for runs of an
     /// old state without repo (or with the placeholder repo of the sample data). Always one
     /// of the configured repos; otherwise the plain-text reason.
-    pub(crate) fn run_repo(&self, run: &cockpit_core::AgentRun) -> Result<String, String> {
+    pub(crate) fn run_repo(&self, run: &cockpit_core::AgentRun) -> Result<String, Msg> {
         let repos = self.agent_repos();
         let repo = if run.repo.is_empty() || run.repo == cockpit_core::DEMO_REPO {
             repos.default.clone()
@@ -32,15 +33,10 @@ impl AppState {
             Some(run.repo.clone())
         };
         let Some(repo) = repo else {
-            return Err(
-                "Für diesen Lauf ist kein Repo festgelegt. Starte ihn neu und wähle ein Repo aus."
-                    .into(),
-            );
+            return Err(msg!(ServerAgentRepoNoneForRun));
         };
         if !repos.allows(&repo) {
-            return Err(format!(
-                "Das Repo „{repo}“ ist für den Agenten nicht (mehr) freigegeben. Trage es unter „Einrichten“ › „GitHub“ ein."
-            ));
+            return Err(msg!(ServerAgentRepoNotAllowedAnyMore, repo = repo));
         }
         Ok(repo)
     }
@@ -61,7 +57,7 @@ impl AppState {
     /// the configured repos, otherwise the one the routing rules name for the ticket's Jira
     /// project, otherwise the default. In real mode a start without any repo is rejected with
     /// the reason; the simulation keeps its own default. Everything else passes unchanged.
-    pub(crate) fn agent_route(&self, action: Action) -> Result<Action, String> {
+    pub(crate) fn agent_route(&self, action: Action) -> Result<Action, Msg> {
         let repos = self.agent_repos();
         let (ticket, mut options) = match action {
             Action::StartAgent { ticket, options } => (ticket, options),
@@ -85,16 +81,16 @@ impl AppState {
         };
         // Pattern and type come from the configuration and the ticket, never from the request.
         options.branch_pattern = DEFAULT_PATTERN.into();
+        options.pr_language = cockpit_i18n::Lang::En;
         options.branch_type = BranchType::Feature.as_str().into();
         if let Some(chosen) = options.repo.clone().filter(|r| !r.is_empty()) {
             if !repos.allows(&chosen) {
-                return Err(format!(
-                    "Das Repo „{chosen}“ ist für den Agenten nicht freigegeben. Trage es unter „Einrichten“ › „GitHub“ ein."
-                ));
+                return Err(msg!(ServerAgentRepoNotAllowed, repo = chosen));
             }
             // The base branch always belongs to the repo, whatever the request carries.
             options.base_branch = repos.base_branch(&chosen);
             options.branch_pattern = repos.branch_pattern(&chosen);
+            options.pr_language = repos.pr_language(&chosen);
         } else {
             let ws = self.inner.live.copy();
             let project = ws
@@ -105,16 +101,13 @@ impl AppState {
                 RepoChoice::Rule(r) | RepoChoice::Default(r) => {
                     options.base_branch = repos.base_branch(&r);
                     options.branch_pattern = repos.branch_pattern(&r);
+                    options.pr_language = repos.pr_language(&r);
                     options.repo = Some(r);
                 }
                 RepoChoice::None if self.agent_real() => {
                     return Err(match project {
-                        Some(p) => format!(
-                            "Für das Jira-Projekt {p} ist kein Repo zugeordnet und es gibt kein Standard-Repo. Wähle vor dem Start ein Repo aus."
-                        ),
-                        None => {
-                            "Es gibt kein Standard-Repo. Wähle vor dem Start ein Repo aus.".into()
-                        }
+                        Some(p) => msg!(ServerAgentRepoNoRule, project = p),
+                        None => msg!(ServerAgentRepoNoDefault),
                     });
                 }
                 RepoChoice::None => {}
@@ -143,5 +136,6 @@ impl AppState {
             .unwrap_or_default();
         options.base_branch = repos.base_branch(&repo);
         options.branch_pattern = repos.branch_pattern(&repo);
+        options.pr_language = repos.pr_language(&repo);
     }
 }

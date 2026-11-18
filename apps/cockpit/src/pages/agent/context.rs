@@ -74,7 +74,7 @@ pub(super) struct AgentCtx {
     pub plan_forced: Signal<bool>,
     pub done: Signal<bool>,
     pub locked: Signal<bool>,
-    pub blocked: Signal<Option<&'static str>>,
+    pub blocked: Signal<Option<cockpit_i18n::Msg>>,
     pub answer: RwSignal<String>,
     pub steer: RwSignal<String>,
     pub answer_empty: Signal<bool>,

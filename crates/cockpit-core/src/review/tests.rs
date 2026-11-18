@@ -8,6 +8,7 @@ fn review() -> Review {
         number: 1,
         title: "Titel".into(),
         description: String::new(),
+        description_msg: None,
         author: Person::new("Jonas", "JB"),
         branch: "feature/x".into(),
         base: "main".into(),
@@ -128,9 +129,10 @@ fn fixed_pixel_values() {
 
 #[test]
 fn verdict_ids() {
-    for (id, label) in Verdict::OPTIONS {
+    for id in Verdict::IDS {
         let v = Verdict::from_id(id).unwrap();
-        assert_eq!((v.id(), v.label()), (*id, *label));
+        assert_eq!(v.id(), *id);
+        assert!(!v.label().is_empty());
     }
 }
 

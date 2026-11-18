@@ -15,7 +15,7 @@ fn report(store: Store, result: Result<cockpit_core::Applied, cockpit_core::Acti
     if let Err(e) = result
         && e != cockpit_core::ActionError::Unchanged
     {
-        store.notify(e.message());
+        store.notify(e.msg().render(feature_ui::lang_untracked()));
     }
 }
 

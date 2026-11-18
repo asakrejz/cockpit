@@ -8,12 +8,11 @@ use super::*;
 pub(super) async fn endpoint_check(State(state): State<AppState>) -> Response {
     let choice = state.agent_choice();
     let Some(e) = choice.endpoint.clone() else {
+        let not_set_up = cockpit_i18n::msg!(ServerMiscEndpointNotSetUp);
         // Without an entry there is nothing to check (not even "direct": first the person chooses a model).
         return Json(cockpit_core::api::EndpointCheck {
-            hint: Some(
-                "Der Endpunkt ist nicht eingerichtet. Wähle im Schritt „Modell“ Anbieter, Endpunkt und Modell."
-                    .into(),
-            ),
+            hint: Some(not_set_up.de()),
+            msg: Some(not_set_up),
             ..Default::default()
         })
         .into_response();
@@ -57,7 +56,7 @@ pub(super) async fn agent_image_read(State(state): State<AppState>) -> Response 
 pub(super) async fn agent_image_build(State(state): State<AppState>) -> Response {
     match tokio::task::spawn_blocking(move || state.image_build()).await {
         Ok(Ok(b)) => Json(b).into_response(),
-        Ok(Err(m)) => error(StatusCode::UNPROCESSABLE_ENTITY, m),
+        Ok(Err(m)) => error_msg(StatusCode::UNPROCESSABLE_ENTITY, m),
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     }
 }
@@ -75,7 +74,10 @@ pub(super) async fn pull_request_preview(
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Response {
     let Some(run) = q.get("run").filter(|r| !r.is_empty()) else {
-        return error(StatusCode::BAD_REQUEST, "Es fehlt der Lauf (run)");
+        return error_msg(
+            StatusCode::BAD_REQUEST,
+            cockpit_i18n::msg!(ServerMiscRunMissing),
+        );
     };
     match state.pull_request_preview(run).await {
         Ok(p) => Json(p).into_response(),
@@ -84,20 +86,19 @@ pub(super) async fn pull_request_preview(
 }
 
 pub(super) async fn api_unknown() -> (StatusCode, Json<serde_json::Value>) {
+    let msg = cockpit_i18n::msg!(ServerMiscUnknownAddress);
     (
         StatusCode::NOT_FOUND,
-        Json(serde_json::json!({ "error": "Unbekannte Adresse" })),
+        Json(serde_json::json!({
+            "error": msg.de(),
+            "msg": msg,
+        })),
     )
 }
 
-pub(crate) fn error(status: StatusCode, message: impl Into<String>) -> Response {
-    (
-        status,
-        Json(ErrorBody {
-            error: message.into(),
-        }),
-    )
-        .into_response()
+/// Like [`error`], with the message as code and parameters (the UI shows it in its language).
+pub(crate) fn error_msg(status: StatusCode, msg: cockpit_i18n::Msg) -> Response {
+    (status, Json(ErrorBody::coded(msg))).into_response()
 }
 
 /// `GET /api/workspace`: the current state, shape of `cockpit_core::persist` plus `revision`.
@@ -114,9 +115,9 @@ pub(super) async fn workspace(State(state): State<AppState>) -> Response {
 /// changes. We read the body ourselves so that an unknown action gets a German message.
 pub(super) async fn action(State(state): State<AppState>, body: Bytes) -> Response {
     let Ok(request) = serde_json::from_slice::<ActionRequest>(&body) else {
-        return error(
+        return error_msg(
             StatusCode::BAD_REQUEST,
-            "Die Anfrage ist keine bekannte Aktion",
+            cockpit_i18n::msg!(ServerMiscActionUnknown),
         );
     };
     // Another Jira project: sync right away so that its tickets arrive. The result
@@ -165,18 +166,21 @@ pub(super) async fn jira_projects(State(state): State<AppState>) -> Response {
 pub(super) fn action_error(e: ActionFailure) -> Response {
     match e {
         // All rejections by the rules are 422 – without listing individual errors.
-        ActionFailure::Rule(e) => error(StatusCode::UNPROCESSABLE_ENTITY, e.message()),
-        ActionFailure::Plan(m) => error(StatusCode::UNPROCESSABLE_ENTITY, m),
+        ActionFailure::Rule(e) => error_msg(StatusCode::UNPROCESSABLE_ENTITY, e.msg()),
+        ActionFailure::Plan(m) => error_msg(StatusCode::UNPROCESSABLE_ENTITY, m),
         // The service has rejected or is not reachable.
-        ActionFailure::Service(m) => error(StatusCode::BAD_GATEWAY, m),
+        ActionFailure::Service(m) => error_msg(StatusCode::BAD_GATEWAY, m),
         ActionFailure::Save(m) => {
             tracing::error!("Workspace not saved: {m}");
-            error(
+            error_msg(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Der Stand konnte nicht gespeichert werden",
+                cockpit_i18n::msg!(ServerAgentSaveFailed),
             )
         }
-        ActionFailure::Intern => error(StatusCode::INTERNAL_SERVER_ERROR, "Interner Fehler"),
+        ActionFailure::Intern => error_msg(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            cockpit_i18n::msg!(ServerAgentInternal),
+        ),
     }
 }
 

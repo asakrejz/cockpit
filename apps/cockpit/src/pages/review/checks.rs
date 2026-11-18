@@ -19,21 +19,6 @@ pub(super) fn checks_label(status: Checks) -> String {
     }
 }
 
-/// `2:05 min` or `42 s`; while running `running`.
-fn duration_label(c: &cockpit_core::CheckRun) -> String {
-    if c.status == Checks::Running {
-        return t!(ReviewChecksRunningShort);
-    }
-    match c.duration_s {
-        s if s < 60 => t!(ReviewChecksSeconds, n = s),
-        s => t!(
-            ReviewChecksMinutes,
-            m = s / 60,
-            s = format!("{:02}", s % 60)
-        ),
-    }
-}
-
 /// The checks of the pull request: name, state, duration; log to expand, restart red ones.
 pub(super) fn checks_section(store: Store, r: &Review, panel: Panel) -> impl IntoView + use<> {
     let number = StoredValue::new(r.key());
@@ -51,7 +36,7 @@ pub(super) fn checks_section(store: Store, r: &Review, panel: Panel) -> impl Int
                 <div class="ui-vstack" style="--spacing: 8px" role="group" aria-label=c.name.clone()>
                     <div class="ui-hstack" style="--spacing: 8px; justify-content: space-between">
                         <span class="t-subheadline t-semibold">{c.name.clone()}</span>
-                        <span class="t-footnote t-secondary t-mono">{duration_label(c)}</span>
+                        <span class="t-footnote t-secondary t-mono">{c.duration_msg().render(lang())}</span>
                     </div>
                     <div class="ui-hstack" style="--spacing: 8px">
                         <Status tone=tone>{label}</Status>
@@ -145,14 +130,14 @@ pub(super) fn investigation(
                             </a>
                         </div>
                         <p class="t-subheadline">
-                            {d.as_ref().map(|d| d.cause.clone()).unwrap_or_default()}
+                            {d.as_ref().map(|d| d.cause_message().render(lang())).unwrap_or_default()}
                         </p>
                         {d
                             .as_ref()
                             .and_then(|d| d.location())
-                            .map(|l| view! { <span class="t-footnote t-mono t-secondary">{l}</span> })}
+                            .map(|l| view! { <span class="t-footnote t-mono t-secondary">{l.render(lang())}</span> })}
                         <p class="t-footnote t-secondary">
-                            {t!(ReviewChecksRemedy, text = d.as_ref().map(|d| d.remedy.clone()).unwrap_or_default())}
+                            {t!(ReviewChecksRemedy, text = d.as_ref().map(|d| d.remedy_message().render(lang())).unwrap_or_default())}
                         </p>
                         {d
                             .and_then(|d| d.patch)

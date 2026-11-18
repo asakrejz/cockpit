@@ -1,0 +1,14 @@
+# Consumption and limits of the agents
+core_usage.line = {input} Token ein · {output} aus · {cost} · {time}
+core_usage.stop_run_budget = Budget pro Lauf erreicht
+core_usage.stop_month_budget = Monatsbudget erreicht
+core_usage.stop_time = Zeitlimit erreicht
+core_usage.raises_run_budget = das Budget dieses Laufs
+core_usage.raises_month_budget = das Monatsbudget
+core_usage.raises_time = das Zeitlimit dieses Laufs
+core_usage.minutes = {n} Min
+core_usage.unlimited = unbegrenzt
+core_usage.describe_run_budget = Der Lauf hat {used} verbraucht, erlaubt sind {allowed}.
+core_usage.describe_month_budget = In diesem Monat sind {used} verbraucht, erlaubt sind {allowed}.
+core_usage.describe_time = Der Lauf arbeitet seit {used}, erlaubt sind {allowed} Min.
+core_usage.summary = Budget pro Lauf {run}, pro Monat {month}, Zeitlimit {time}, höchstens {parallel} parallel

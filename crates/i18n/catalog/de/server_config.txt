@@ -1,0 +1,31 @@
+# Errors and warnings about config.toml, the config folder and the .env file
+server_config.seed_unknown = seed „{value}“ ist unbekannt, erlaubt sind empty und demo
+server_config.interval_short = interval_s = {interval} ist zu kurz, mindestens {min} Sekunden
+server_config.github_repo_form = GitHub-Repo „{repo}“ ist nicht von der Form owner/name
+server_config.client_id_invalid = {who}: client_id fehlt oder enthält Leerzeichen
+server_config.jira_needs_site = [jira] braucht site und email – oder [atlassian] für die Anmeldung per OAuth
+server_config.jira_project_invalid = Jira-Projekt „{project}“ ist kein gültiger Schlüssel
+server_config.provider_unknown = [agent] provider „{provider}“ ist unbekannt, erlaubt sind claude-agent-sdk, claude-code und codex
+server_config.agent_repo_form = [agent] repo „{repo}“ muss die Form owner/name haben
+server_config.endpoint_url_scheme = {place} url muss mit http:// oder https:// beginnen, z. B. http://localhost:4000
+server_config.sync_limit = [sync] {name} = {value} muss zwischen 1 und {max} liegen
+server_config.webhook_fallback_range = [sync] webhook_fallback_interval_s = {value} muss zwischen interval_s ({interval}) und {max} liegen
+server_config.dev_port_invalid = COCKPIT_DEV_PORT={value} ist keine Portnummer
+server_config.dev_port_zero = COCKPIT_DEV_PORT 0 ist nicht erlaubt
+server_config.port_invalid = COCKPIT_PORT={value} ist keine Portnummer
+server_config.port_zero = Port 0 ist nicht erlaubt
+server_config.runtime_unsupported = Container-Laufzeit „{value}“ wird nicht unterstützt, erlaubt sind docker und podman
+server_config.repos_repo_form = [[agent.repos]] repo „{repo}“ muss die Form owner/name haben
+server_config.repos_duplicate = [[agent.repos]] nennt das Repo „{repo}“ mehrfach
+server_config.repos_base_branch = [[agent.repos]] base_branch „{base}“ von {repo} ist kein gültiger Branch-Name
+server_config.repos_project_key = [[agent.repos]] {repo}: „{project}“ ist kein gültiger Jira-Projektschlüssel
+server_config.repos_project_taken = Das Jira-Projekt {project} ist schon dem Repo „{owner}“ zugeordnet, nicht noch {repo}
+server_config.repos_pattern = [[agent.repos]] branch_pattern von {repo}: {reason}
+server_config.legacy_folder = Alte Konfiguration liegt noch unter {path}, du kannst sie löschen. Cockpit nutzt nur noch den Ordner config im Projekt.
+server_config.files_loose = {path} ist für andere Benutzer zugänglich (Rechte {mode}). Sie sollte nur dir gehören (Ordner 700, Dateien 600); beim nächsten Start des Servers wird das korrigiert.
+server_config.files_tracked = Die Datei {file} wird von Git verfolgt. Ein Commit würde deine Konfiguration veröffentlichen. Entferne sie mit „git rm --cached config/{name}“ und committe sie nie.
+server_config.files_not_ignored = Die Datei {file} ist nicht durch .gitignore geschützt. Trage „config/*“ in die .gitignore ein, damit sie nie versehentlich committet wird.
+server_config.env_loose = Die Datei {path} ist für andere Benutzer lesbar (Rechte {mode}). Sie sollte nur dir gehören (600); beim nächsten Start des Servers wird das korrigiert.
+server_config.env_tracked = Die Datei {file} wird von Git verfolgt. Ein Commit würde deine Zugangsdaten veröffentlichen. Entferne sie mit „git rm --cached {name}“, committe sie nie und tausche die darin liegenden Schlüssel aus, falls sie schon einmal committet wurden.
+server_config.env_not_ignored = Die Datei {file} ist nicht durch .gitignore geschützt. Trage „{name}“ in die .gitignore ein, damit sie nie versehentlich committet wird.
+server_config.repos_pr_language = Repo {repo}: Die Sprache "{value}" für Pull Requests gibt es nicht. Nimm "en" oder "de".

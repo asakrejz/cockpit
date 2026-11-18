@@ -1,0 +1,5 @@
+# Text of a pull request that Cockpit creates. It follows the language of the repo.
+core_pr.what = What
+core_pr.ticket = Ticket
+core_pr.files = Changed files ({n})
+core_pr.footer = Implemented by the Cockpit agent. Merging is done by hand.

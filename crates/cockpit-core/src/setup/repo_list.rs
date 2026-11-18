@@ -1,5 +1,7 @@
 //! The list of repos to choose from: search and the sentence that says what was found.
 
+use cockpit_i18n::{ArgValue, Msg, msg};
+
 /// Does the repo match the search? Every word of the query has to occur in `owner/name`
 /// (case does not matter); an empty query matches everything.
 pub fn repo_matches(repo: &str, query: &str) -> bool {
@@ -9,29 +11,19 @@ pub fn repo_matches(repo: &str, query: &str) -> bool {
         .all(|w| repo.contains(&w.to_lowercase()))
 }
 
-/// The feedback above the list: „23 Repos gefunden, 2 ausgewählt“. `shown` is the number after
+/// The feedback above the list: "23 repos found, 2 selected". `shown` is the number after
 /// the search; if it differs from `found`, it is named too.
-pub fn repo_summary(found: usize, shown: usize, selected: usize, truncated: bool) -> String {
-    let repos = |n: usize| {
-        if n == 1 {
-            "1 Repo".to_string()
-        } else {
-            format!("{n} Repos")
-        }
-    };
-    let mut text = format!(
-        "{} gefunden, {} ausgewählt.",
-        repos(found),
-        match selected {
-            0 => "keins".to_string(),
-            n => n.to_string(),
-        }
-    );
+pub fn repo_summary(found: usize, shown: usize, selected: usize, truncated: bool) -> Msg {
+    let mut parts = vec![msg!(
+        CoreSetupReposFound,
+        found = found,
+        selected = selected
+    )];
     if shown != found {
-        text.push_str(&format!(" Die Suche zeigt {shown}."));
+        parts.push(msg!(CoreSetupReposShown, shown = shown));
     }
     if truncated {
-        text.push_str(" Es gibt noch mehr – trage weitere Repos von Hand ein.");
+        parts.push(msg!(CoreSetupReposMore));
     }
-    text
+    msg!(CoreSetupReposSummary, parts = ArgValue::joined(parts, " "))
 }

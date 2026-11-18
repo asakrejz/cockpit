@@ -10,8 +10,10 @@
 //! again before it pushes: a branch that does not match the pattern, or that is a protected
 //! name, never leaves the machine. Everything here is pure.
 
+use cockpit_i18n::{Msg, msg};
+
 mod delete;
-pub use delete::{DeleteFacts, deletable};
+pub use delete::{DeleteFacts, deletable, deletable_msg};
 mod suggest;
 pub use suggest::{GUIDELINE_FILES, Suggestion, suggest};
 
@@ -120,7 +122,7 @@ enum Part<'a> {
 }
 
 /// Splits a pattern into text and placeholders; an unknown or unclosed placeholder is an error.
-fn parts(pattern: &str) -> Result<Vec<Part<'_>>, String> {
+fn parts(pattern: &str) -> Result<Vec<Part<'_>>, Msg> {
     let mut out = Vec::new();
     let mut rest = pattern;
     while !rest.is_empty() {
@@ -133,7 +135,7 @@ fn parts(pattern: &str) -> Result<Vec<Part<'_>>, String> {
         }
         let tail = &rest[open..];
         let Some(close) = tail.strip_prefix('{').and_then(|t| t.find('}')) else {
-            return Err("Eine geschweifte Klammer im Muster ist nicht geschlossen.".into());
+            return Err(msg!(CoreBranchUnclosedBrace));
         };
         let name = &tail[1..=close];
         out.push(match name {
@@ -141,8 +143,12 @@ fn parts(pattern: &str) -> Result<Vec<Part<'_>>, String> {
             "slug" => Part::Slug,
             "type" => Part::Type,
             other => {
-                return Err(format!(
-                    "„{{{other}}}“ kennt Cockpit nicht. Erlaubt sind {{ticket}}, {{slug}} und {{type}}."
+                return Err(msg!(
+                    CoreBranchUnknownPlaceholder,
+                    name = format!("{{{other}}}"),
+                    ticket = "{ticket}",
+                    slug = "{slug}",
+                    kind = "{type}"
                 ));
             }
         });
@@ -164,43 +170,40 @@ fn parts(pattern: &str) -> Result<Vec<Part<'_>>, String> {
 /// assert!(validate("fix/{slug}").is_err());
 /// ```
 pub fn validate(pattern: &str) -> Result<(), String> {
+    validate_msg(pattern).map_err(|m| m.de())
+}
+
+/// [`validate`] with the reason as code and parameters.
+pub fn validate_msg(pattern: &str) -> Result<(), Msg> {
     let p = pattern.trim();
     if p.is_empty() {
-        return Err("Das Muster für Branch-Namen darf nicht leer sein.".into());
+        return Err(msg!(CoreBranchPatternEmpty));
     }
     if p.len() > MAX_PATTERN {
-        return Err(format!(
-            "Das Muster für Branch-Namen ist zu lang (höchstens {MAX_PATTERN} Zeichen)."
-        ));
+        return Err(msg!(CoreBranchPatternTooLong, max = MAX_PATTERN));
     }
     if !p
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.' | '{' | '}'))
     {
-        return Err(
-            "Das Muster darf nur Buchstaben, Ziffern und die Zeichen / - _ . sowie Platzhalter enthalten."
-                .into(),
-        );
+        return Err(msg!(CoreBranchPatternChars));
     }
     let list = parts(p)?;
     if !list.iter().any(|x| !matches!(x, Part::Text(_))) {
-        return Err(
-            "Das Muster braucht mindestens einen Platzhalter, sonst zeigt es auf einen festen Branch."
-                .into(),
-        );
+        return Err(msg!(CoreBranchPatternNoPlaceholder));
     }
     if !list.contains(&Part::Ticket) {
-        return Err(
-            "Das Muster braucht {ticket}, sonst bekämen zwei Tickets denselben Branch.".into(),
-        );
+        return Err(msg!(CoreBranchPatternNeedsTicket, ticket = "{ticket}"));
     }
     if list
         .windows(2)
         .any(|w| !matches!(w[0], Part::Text(_)) && !matches!(w[1], Part::Text(_)))
     {
-        return Err(
-            "Zwischen zwei Platzhaltern muss ein Zeichen stehen, z. B. {ticket}-{slug}.".into(),
-        );
+        return Err(msg!(
+            CoreBranchPatternGlued,
+            ticket = "{ticket}",
+            slug = "{slug}"
+        ));
     }
     if p.starts_with(['-', '/', '.'])
         || p.contains("..")
@@ -208,12 +211,11 @@ pub fn validate(pattern: &str) -> Result<(), String> {
         || p.ends_with(['/', '.'])
         || p.ends_with(".lock")
     {
-        return Err("Das Muster darf nicht mit / - . beginnen oder mit / . enden und kein .. oder // enthalten.".into());
+        return Err(msg!(CoreBranchPatternEdges));
     }
     // The shape must also hold for what the pattern renders.
     let sample = render(p, "ABC-1", "Beispiel Titel", BranchType::Feature);
-    structure(&sample)
-        .map_err(|_| "Aus diesem Muster entstünde kein gültiger Branch-Name.".to_string())
+    structure_msg(&sample).map_err(|_| msg!(CoreBranchPatternResultInvalid))
 }
 
 /// The branch for a ticket. The pattern has to be valid (see [`validate`]); an invalid one is
@@ -323,6 +325,10 @@ fn fits(list: &[Part<'_>], rest: &str) -> bool {
 
 /// Branch names Git accepts and the backend lets through: inconspicuous characters only.
 fn structure(branch: &str) -> Result<(), String> {
+    structure_msg(branch).map_err(|m| m.de())
+}
+
+fn structure_msg(branch: &str) -> Result<(), Msg> {
     let bad = branch.is_empty()
         || branch.len() > MAX_BRANCH
         || branch.starts_with(['-', '/', '.'])
@@ -335,9 +341,7 @@ fn structure(branch: &str) -> Result<(), String> {
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'));
     if bad {
-        Err(format!(
-            "Der Branch „{branch}“ ist kein gültiger Branch-Name."
-        ))
+        Err(msg!(CoreBranchInvalid, branch = branch))
     } else {
         Ok(())
     }
@@ -362,16 +366,20 @@ pub fn is_protected(branch: &str, base_branch: &str) -> bool {
 /// assert!(check(pattern, "main", "claude/BAU-1-x").is_err());
 /// ```
 pub fn check(pattern: &str, base_branch: &str, branch: &str) -> Result<(), String> {
-    structure(branch)?;
+    check_msg(pattern, base_branch, branch).map_err(|m| m.de())
+}
+
+/// [`check`] with the reason as code and parameters.
+pub fn check_msg(pattern: &str, base_branch: &str, branch: &str) -> Result<(), Msg> {
+    structure_msg(branch)?;
     if is_protected(branch, base_branch) {
-        return Err(format!(
-            "Der Branch „{branch}“ ist geschützt – dorthin pusht der Agent nie."
-        ));
+        return Err(msg!(CoreBranchProtected, branch = branch));
     }
     if !matches(pattern, branch) {
-        return Err(format!(
-            "Der Branch „{branch}“ passt nicht zum Muster „{}“ dieses Repos.",
-            pattern.trim()
+        return Err(msg!(
+            CoreBranchMismatch,
+            branch = branch,
+            pattern = pattern.trim()
         ));
     }
     Ok(())
@@ -382,7 +390,12 @@ pub fn check(pattern: &str, base_branch: &str, branch: &str) -> Result<(), Strin
 /// before the pattern was changed keep their name (and the agent only ever added to such a
 /// branch before this setting existed).
 pub fn check_existing(pattern: &str, base_branch: &str, branch: &str) -> Result<(), String> {
-    check(pattern, base_branch, branch).or_else(|first| {
+    check_existing_msg(pattern, base_branch, branch).map_err(|m| m.de())
+}
+
+/// [`check_existing`] with the reason as code and parameters.
+pub fn check_existing_msg(pattern: &str, base_branch: &str, branch: &str) -> Result<(), Msg> {
+    check_msg(pattern, base_branch, branch).or_else(|first| {
         let legacy = structure(branch).is_ok()
             && !is_protected(branch, base_branch)
             && branch

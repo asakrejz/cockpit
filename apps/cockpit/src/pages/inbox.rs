@@ -280,7 +280,7 @@ fn with_reason(w: &cockpit_core::Workspace, item: &Item, filter: Filter, now: u6
     let mut item = item.clone();
     if let Some(hit) = w.hits(&item, now).into_iter().next() {
         item.reason = hit.reason;
-        item.reason_text = hit.text;
+        item.reason_text = hit.text.render(lang());
     }
     if filter == Filter::Snoozed
         && let Some(snooze) = w.snooze_of(&item.id)

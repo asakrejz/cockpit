@@ -51,7 +51,8 @@ pub struct JiraConfig {
 pub enum ConfigError {
     Read(PathBuf, std::io::Error),
     Toml(String),
-    Wert(String),
+    /// A value that is not allowed; the message is shown to people (setup) or logged in English.
+    Wert(cockpit_i18n::Msg),
 }
 
 impl std::fmt::Display for ConfigError {
@@ -61,7 +62,9 @@ impl std::fmt::Display for ConfigError {
                 write!(f, "Configuration file {} not readable: {e}", p.display())
             }
             ConfigError::Toml(m) => write!(f, "Configuration file invalid: {m}"),
-            ConfigError::Wert(m) => write!(f, "Invalid value: {m}"),
+            ConfigError::Wert(m) => {
+                write!(f, "Invalid value: {}", m.render(cockpit_i18n::Lang::En))
+            }
         }
     }
 }

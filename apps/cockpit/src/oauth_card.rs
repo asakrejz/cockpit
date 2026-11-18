@@ -88,7 +88,7 @@ fn describe(status: &ServiceStatus) -> String {
             Some(site) => t!(OauthConnectedSite, site = site),
             None => t!(OauthConnected),
         },
-        (true, kind) => t!(OauthConnectedKind, kind = kind.label()),
+        (true, kind) => t!(OauthConnectedKind, kind = kind.label().render(lang())),
         (false, _) => t!(OauthDisconnected),
     }
 }
@@ -126,7 +126,7 @@ pub fn OAuthCard(
         spawn_local(async move {
             match server::post_revoke(service.id()).await {
                 Ok(answer) => {
-                    let mut hint = answer.hint;
+                    let mut hint = answer.hint.map(|h| server::shown(&h, answer.msg.as_ref()));
                     if forget_too {
                         match forget_client(service).await {
                             Ok(()) => {

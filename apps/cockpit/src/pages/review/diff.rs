@@ -318,7 +318,9 @@ pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi, panel: PanelUi) -> 
                     <span class="ui-spacer"></span>
                     {ticket}
                 </div>
-                <p class="t-body t-secondary">{r.description.clone()}</p>
+                <p class="t-body t-secondary">
+                    {r.description_msg.as_ref().map_or_else(|| r.description.clone(), |m| m.render(lang()))}
+                </p>
             </PaneHeader>
             <PaneBody>{body}</PaneBody>
         </Pane>

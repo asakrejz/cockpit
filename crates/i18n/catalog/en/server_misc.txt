@@ -1,0 +1,16 @@
+# Other answers of the server: unknown addresses, webhooks, general errors
+server_misc.unknown_address = Unknown address
+server_misc.unknown_source = Unknown source
+server_misc.endpoint_not_set_up = The endpoint is not set up. Choose provider, endpoint and model in the step "Model".
+server_misc.env_not_readable = The .env file in the project folder cannot be read
+server_misc.action_unknown = The request is not a known action
+server_misc.random_unavailable = No random numbers are available
+server_misc.webhook_not_enabled = Webhooks are not enabled yet. Switch them on above.
+server_misc.webhook_no_secret = There is no secret yet. Create one first.
+server_misc.webhook_ok = The secret is right and the route answers. This is a local test: whether GitHub or Jira reaches you through the tunnel only shows in "Last received" after a real delivery.
+server_misc.webhook_bad_signature = The signature was rejected. The secret does not match.
+server_misc.webhook_no_route = The route does not answer. Are webhooks enabled and a secret set?
+server_misc.webhook_rate_limited = Too many requests in a short time. Wait a minute.
+server_misc.webhook_rejected = The server rejected the test.
+server_misc.webhook_no_answer = The local server did not answer.
+server_misc.run_missing = The run (run) is missing

@@ -3,6 +3,7 @@
 use cockpit_core::{
     Comment, Item, Kind, Person, ReasonKind, Scope, Source, Sprint, SprintState, TicketStatus,
 };
+use cockpit_i18n::Lang;
 
 use super::adf::{adf_to_text, adf_to_text_for};
 use super::dto::{Issue, JiraComment};
@@ -58,7 +59,7 @@ pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Optio
         description_rich: cockpit_core::adf::parse(&f.description, me),
         reason,
         reason_text: reason_text.into(),
-        time: time::relative(&f.updated, now),
+        time: time::relative(&f.updated, now, Lang::De),
         scope,
         owner,
         status: status(issue),
@@ -66,6 +67,7 @@ pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Optio
         branch: None,
         pr: None,
         agent_note: None,
+        agent_note_msg: None,
         comments: Vec::new(),
         read: false,
         due: f.duedate.clone().filter(|d| !d.is_empty()),
@@ -138,8 +140,9 @@ pub fn comments_to_core(comments: &[JiraComment], me: &str, now: i64) -> Vec<Com
                 } else {
                     text::person(&c.author.display_name)
                 },
-                time: time::relative(&c.created, now),
+                time: time::relative(&c.created, now, Lang::De),
                 text: adf_to_text_for(&c.body, me),
+                text_msg: None,
                 rich: cockpit_core::adf::parse(&c.body, me),
                 own,
             }

@@ -11,17 +11,31 @@ fn container_timeout() {
 
 #[test]
 fn hint_to_reachability_out_the_container() {
+    let raw = |t: &str| cockpit_i18n::Msg::raw(t);
     let h = check_hint(
         true,
         false,
         false,
-        "Der Container erreicht den Proxy nicht (ENOTFOUND).",
-    );
+        raw("Der Container erreicht den Proxy nicht (ENOTFOUND)."),
+    )
+    .de();
     assert!(h.contains("Dein Mac erreicht den Proxy, der Container aber nicht"));
     assert!(h.contains("VPN") && h.contains("ENOTFOUND") && h.contains("Podman"));
-    assert!(check_hint(false, false, false, "x").contains("Weder dein Mac noch der Container"));
-    assert!(check_hint(true, true, false, "Status 401").contains("Key wird abgelehnt"));
-    assert!(check_hint(true, true, true, "").contains("auch aus dem Container erreichbar"));
+    assert!(
+        check_hint(false, false, false, raw("x"))
+            .de()
+            .contains("Weder dein Mac noch der Container")
+    );
+    assert!(
+        check_hint(true, true, false, raw("Status 401"))
+            .de()
+            .contains("Key wird abgelehnt")
+    );
+    assert!(
+        check_hint(true, true, true, raw(""))
+            .de()
+            .contains("auch aus dem Container erreichbar")
+    );
 }
 
 #[test]
@@ -30,11 +44,13 @@ fn advice_at_build() {
     assert!(
         build_hint(&z("write: no space left on device"))
             .unwrap()
+            .de()
             .contains("Platz")
     );
     assert!(
         build_hint(&z("dial tcp: lookup registry-1.docker.io: no such host"))
             .unwrap()
+            .de()
             .contains("Netz")
     );
     assert!(build_hint(&z("etwas ganz anderes")).is_none());

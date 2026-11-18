@@ -1,0 +1,18 @@
+# Messages of the sign-in with OAuth (GitHub, Atlassian)
+server_oauth.unknown_service = Unknown service
+server_oauth.internal_error = Internal error
+server_oauth.secret_missing = The client secret is missing. Enter it in the step "{step}" in the field "Client secret".
+server_oauth.client_missing = The {service} sign-in is not set up. Enter the client ID in the step "{step}" in the field "Client ID".
+server_oauth.client_missing_callback = The {service} sign-in is not set up. Enter the client ID in the step "{step}".
+server_oauth.client_rejected = {service} rejects the credentials. Check the client ID and the client secret in the step "{step}".
+server_oauth.unreachable = {service} cannot be reached
+server_oauth.service_error = {service}: {reason}
+server_oauth.declined = The {service} sign-in was cancelled or declined: {reason}
+server_oauth.no_running = No sign-in is running. In Cockpit, click "Set up" and then "Sign in with {service}".
+server_oauth.no_code = {service} did not send a code
+server_oauth.tokens_not_stored = The tokens could not be stored in the .env file: {reason}
+server_oauth.site_not_stored = The site could not be saved: {reason}
+server_oauth.signed_in = Signed in with {service}
+server_oauth.signed_in_site = Signed in with Atlassian (site {site})
+server_oauth.revoke_not_confirmed = Disconnected here, but the service did not confirm the revocation ({reason}). Please remove the access in the settings at {service}.
+server_oauth.revoke_atlassian = Disconnected here. Atlassian offers no revocation by call. You remove the access at id.atlassian.com/manage-profile/apps.

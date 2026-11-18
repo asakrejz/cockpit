@@ -25,14 +25,17 @@ pub enum StateError {
 }
 
 impl StateError {
-    pub fn text(&self) -> &'static str {
+    pub fn msg(&self) -> cockpit_i18n::Msg {
         match self {
-            StateError::Unknown => {
-                "Die Anmeldung ist unbekannt oder wurde schon verwendet – bitte neu starten"
-            }
-            StateError::Expired => "Die Anmeldung hat zu lange gedauert – bitte neu starten",
-            StateError::WrongService => "Die Anmeldung gehört zu einem anderen Dienst",
+            StateError::Unknown => cockpit_i18n::msg!(IntegrationsSignInUnknown),
+            StateError::Expired => cockpit_i18n::msg!(IntegrationsSignInExpired),
+            StateError::WrongService => cockpit_i18n::msg!(IntegrationsSignInWrongService),
         }
+    }
+
+    /// The German text.
+    pub fn text(&self) -> String {
+        self.msg().de()
     }
 }
 

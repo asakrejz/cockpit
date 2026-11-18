@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::msg;
 
 impl AgentRun {
     /// Takes a report of the real agent. `None` if it does not fit in the current state
@@ -19,7 +20,7 @@ impl AgentRun {
                 self.real = true;
                 effect
                     .notes
-                    .push(format!("{}: Container gestartet", self.label()));
+                    .push(msg!(CoreAgentNContainerStarted, label = self.label_msg()));
                 self.say(Speaker::Agent, MessageKind::Info, detail);
             }
             AgentReport::Plan {
@@ -37,15 +38,10 @@ impl AgentRun {
                     files,
                     steps,
                 });
-                self.say(
-                    Speaker::Agent,
-                    MessageKind::Info,
-                    "Der Plan liegt vor. Ich warte auf deine Freigabe.".into(),
-                );
-                effect.notes.push(format!(
-                    "Plan für {} vorgelegt, wartet auf Freigabe",
-                    self.label()
-                ));
+                self.say_msg(Speaker::Agent, MessageKind::Info, msg!(CoreAgentMPlanReady));
+                effect
+                    .notes
+                    .push(msg!(CoreAgentNPlanPresented, label = self.label_msg()));
             }
             AgentReport::Step {
                 title,
@@ -71,30 +67,35 @@ impl AgentRun {
                     if self.completed + 1 < STEPS {
                         self.completed += 1;
                     }
-                    effect.notes.push(format!("{}: {title}", self.label()));
+                    effect.notes.push(msg!(
+                        CoreAgentNStep,
+                        label = self.label_msg(),
+                        title = &title
+                    ));
                     if self.is_running()
                         && let Some(reason) =
                             limits.reached(self, month_spent_cents.saturating_add(usage.cost_cents))
                     {
                         self.state = RunState::Stopped(reason);
-                        let detail = limits.describe(
+                        let detail = limits.describe_msg(
                             reason,
                             self,
                             month_spent_cents.saturating_add(usage.cost_cents),
                         );
-                        self.say(
+                        self.say_msg(
                             Speaker::Agent,
                             MessageKind::Info,
-                            format!(
-                                "Angehalten: {}. {detail} Erhöhe {} und setze den Lauf fort – oder brich ihn ab.",
-                                reason.label(),
-                                reason.raises()
+                            msg!(
+                                CoreAgentMHalted,
+                                reason = reason.label_msg(),
+                                detail = detail,
+                                what = reason.raises_msg()
                             ),
                         );
-                        effect.notes.push(format!(
-                            "{}: Angehalten – {}",
-                            self.label(),
-                            reason.label()
+                        effect.notes.push(msg!(
+                            CoreAgentNHalted,
+                            label = self.label_msg(),
+                            reason = reason.label_msg()
                         ));
                         effect.stopped = Some(reason);
                     }
@@ -115,10 +116,9 @@ impl AgentRun {
                 self.say(Speaker::Agent, MessageKind::Question, text.clone());
                 self.question = Some(Question { text, suggestions });
                 effect.asking = true;
-                effect.notes.push(format!(
-                    "{}: Der Agent hat eine Frage und wartet auf deine Antwort",
-                    self.label()
-                ));
+                effect
+                    .notes
+                    .push(msg!(CoreAgentNQuestion, label = self.label_msg()));
             }
             // Booked on the review by the workspace, which has the diff. Only a running
             // review run takes them.
@@ -130,10 +130,10 @@ impl AgentRun {
             AgentReport::HintsDelivered { count } => {
                 let count = count.min(self.pending_hints.len());
                 for hint in self.pending_hints.drain(..count).collect::<Vec<_>>() {
-                    self.say(
+                    self.say_msg(
                         Speaker::Agent,
                         MessageKind::Ack,
-                        format!("Hinweis erhalten: {hint}"),
+                        msg!(CoreAgentMHintReceived, hint = hint),
                     );
                 }
             }
@@ -149,18 +149,18 @@ impl AgentRun {
                 effect.finished = true;
             }
             AgentReport::Failed { reason } => {
-                let label = self.label();
+                let label = self.label_msg();
                 self.reset();
                 self.ended = Some(reason.clone());
-                self.say(
+                self.say_msg(
                     Speaker::Agent,
                     MessageKind::Info,
-                    format!("Der Lauf endete ohne Ergebnis: {reason}"),
+                    msg!(CoreAgentMFailed, reason = &reason),
                 );
                 effect.failed = true;
                 effect
                     .notes
-                    .push(format!("{label}: Lauf beendet – {reason}"));
+                    .push(msg!(CoreAgentNFailed, label = label, reason = &reason));
             }
         }
         Some(effect)

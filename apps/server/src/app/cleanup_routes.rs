@@ -1,6 +1,7 @@
-//! The HTTP side of „Aufräumen“ and „Branch löschen“ (see `cockpit_core::api::cleanup`).
+//! The HTTP side of "Clean up" and "Delete branch" (see `cockpit_core::api::cleanup`).
 
 use cockpit_core::api::{BranchDeleteRequest, CleanupRequest};
+use cockpit_i18n::msg;
 
 use super::*;
 
@@ -8,7 +9,7 @@ use super::*;
 pub(super) async fn cleanup_preview(State(state): State<AppState>) -> Response {
     match tokio::task::spawn_blocking(move || state.cleanup_preview()).await {
         Ok(p) => Json(p).into_response(),
-        Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "Interner Fehler"),
+        Err(_) => error_msg(StatusCode::INTERNAL_SERVER_ERROR, msg!(ServerAgentInternal)),
     }
 }
 
@@ -19,7 +20,7 @@ pub(super) async fn cleanup_apply(
 ) -> Response {
     match tokio::task::spawn_blocking(move || state.cleanup_apply(&request)).await {
         Ok(r) => Json(r).into_response(),
-        Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "Interner Fehler"),
+        Err(_) => error_msg(StatusCode::INTERNAL_SERVER_ERROR, msg!(ServerAgentInternal)),
     }
 }
 
@@ -29,7 +30,7 @@ pub(super) async fn branch_check(
     axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Response {
     let Some(run) = q.get("run").filter(|r| !r.is_empty()) else {
-        return error(StatusCode::BAD_REQUEST, "Es fehlt der Lauf (run)");
+        return error_msg(StatusCode::BAD_REQUEST, msg!(ServerAgentRunMissing));
     };
     Json(state.branch_check(run).await).into_response()
 }
