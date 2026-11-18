@@ -1,0 +1,12 @@
+# Shared parts of the setup steps
+setup_fields.go_to_step = Go to step "{name}"
+setup_fields.unreachable = Cockpit is not answering right now. Is the start window still open? Then "Try again".
+setup_fields.restart_needed = Restart Cockpit for the change to apply.
+setup_fields.key_stored = Stored in the .env file. The field is empty again.
+setup_fields.key_hint = Stored only in the .env file in the project folder on this computer.
+setup_fields.store_safely = Store safely
+setup_fields.key_present = Is in the .env file
+setup_fields.key_missing = Nothing stored yet
+setup_fields.copied = Copied
+setup_fields.copy_failed = Copying did not work. Select the text and press Cmd+C.
+setup_fields.copy = Copy

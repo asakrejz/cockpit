@@ -1,0 +1,4 @@
+# Output of the image build
+setup_build.collapse = Collapse output
+setup_build.expand = Expand output
+setup_build.expand_hidden = Expand output ({n} earlier lines)

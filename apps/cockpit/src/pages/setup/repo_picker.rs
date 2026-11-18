@@ -17,6 +17,21 @@ use crate::server;
 /// At most this many entries are drawn; the search narrows the rest down.
 const SHOWN: usize = 100;
 
+/// `SearchField` takes a `&'static str` placeholder. A translated text is leaked once per
+/// distinct value (one per language), so the memory stays bounded.
+fn static_text(text: String) -> &'static str {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+    thread_local! {
+        static CACHE: RefCell<HashMap<String, &'static str>> = RefCell::new(HashMap::new());
+    }
+    CACHE.with(|c| {
+        *c.borrow_mut()
+            .entry(text)
+            .or_insert_with_key(|k| Box::leak(k.clone().into_boxed_str()))
+    })
+}
+
 /// One chosen repo. The signals live as long as the page.
 #[derive(Clone, Copy)]
 struct Row {
@@ -154,7 +169,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
     let manual_feedback: Feedback = RwSignal::new(None);
     let add_manual = move |_| match repos_read(&manual.get_untracked()) {
         Ok(names) if names.is_empty() => {
-            manual_feedback.set(Some((false, "Trage ein Repo ein, z. B. firma/app.".into())));
+            manual_feedback.set(Some((false, t!(SetupReposEnterRepo))));
         }
         Ok(names) => {
             for n in names {
@@ -194,9 +209,9 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                     },
                     feedback,
                     if n == 0 {
-                        "Keine Repos mehr ausgewählt."
+                        t!(SetupReposNoneLeft)
                     } else {
-                        "Gespeichert. Diese Repos gleicht Cockpit ab, und der Agent arbeitet in einem davon."
+                        t!(SetupReposSaved)
                     },
                     || {},
                 );
@@ -206,11 +221,11 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
     };
 
     view! {
-        <Section title="Repos auswählen">
+        <Section title=t!(SetupReposTitle)>
             <p class="t-subheadline t-secondary">
-                "Wähle hier die Repos aus, mit denen du arbeitest. Cockpit zeigt von ihnen die Pull Requests, und der Agent arbeitet bei jedem Ticket in einem davon. Ordne optional Jira-Projekten ein Repo zu: Tickets dieses Projekts landen dann dort, alle anderen im Standard-Repo. Vor dem Start kannst du das Repo in der Agent-Ansicht noch ändern."
+                {t!(SetupReposIntro)}
             </p>
-            <SearchField value=query placeholder="Repos durchsuchen" />
+            <SearchField value=query placeholder=static_text(t!(SetupReposSearch)) />
             <HStack spacing="12px">
                 <Button
                     on_click=move |_| load()
@@ -218,11 +233,11 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                 >
                     {move || {
                         if loading.get() {
-                            "Lade …"
+                            t!(SetupReposLoading)
                         } else if list.with(Option::is_some) {
-                            "Erneut laden"
+                            t!(SetupReposReload)
                         } else {
-                            "Repos laden"
+                            t!(SetupReposLoad)
                         }
                     }}
                 </Button>
@@ -234,12 +249,12 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                         view! {
                             <p class="t-footnote t-secondary" role="status">
                                 {repo_summary(found, filtered.with(Vec::len), chosen.with(Vec::len), truncated)}
-                                {(via == "app").then_some(" Es sind die Repos, auf denen deine GitHub App installiert ist.")}
+                                {(via == "app").then(|| format!(" {}", t!(SetupReposViaApp)))}
                             </p>
                         }
                     })
             }}
-            <ul class="ck-repo-list" aria-label="Repos von GitHub">
+            <ul class="ck-repo-list" aria-label=move || t!(SetupReposListLabel)>
                 <For
                     each=move || visible.get()
                     key=|r| r.repo.clone()
@@ -261,9 +276,9 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                                     />
                                     <span class="ck-repo-name">{name.clone()}</span>
                                     <span class="t-footnote t-secondary">
-                                        {if info.private { "privat" } else { "öffentlich" }}
-                                        {info.archived.then_some(" · archiviert")}
-                                        {(info.can_push == Some(false)).then_some(" · nur lesen")}
+                                        {if info.private { t!(SetupReposPrivate) } else { t!(SetupReposPublic) }}
+                                        {info.archived.then(|| format!(" · {}", t!(SetupReposArchived)))}
+                                        {(info.can_push == Some(false)).then(|| format!(" · {}", t!(SetupReposReadOnly)))}
                                     </span>
                                 </label>
                             </li>
@@ -273,36 +288,36 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
             </ul>
             <Show when=move || too_many.get()>
                 <p class="t-footnote t-secondary">
-                    {move || format!("Gezeigt werden die ersten {SHOWN}. Grenze die Liste mit der Suche ein.")}
+                    {move || t!(SetupReposTooMany, max = SHOWN)}
                 </p>
             </Show>
             <div class="ck-agent-repo">
                 <TextField
-                    label="Repo von Hand hinzufügen"
+                    label=t!(SetupReposManualLabel)
                     value=manual
                     placeholder="firma/app"
-                    hint="Für ein Repo, das nicht in der Liste steht. Du kannst auch die Adresse aus der Browserzeile einfügen."
+                    hint=t!(SetupReposManualHint)
                     autocomplete="off"
                 />
                 <HStack spacing="12px">
-                    <Button on_click=add_manual>"Hinzufügen"</Button>
+                    <Button on_click=add_manual>{t!(SetupReposAdd)}</Button>
                 </HStack>
                 <Message feedback=manual_feedback />
             </div>
-            <span class="t-headline">"Ausgewählt"</span>
+            <span class="t-headline">{t!(SetupReposChosen)}</span>
             <Show when=move || rows.with(Vec::is_empty)>
-                <p class="t-footnote t-secondary">"Noch kein Repo ausgewählt."</p>
+                <p class="t-footnote t-secondary">{t!(SetupReposNoneChosen)}</p>
             </Show>
             <VStack spacing="12px">
                 <For each=move || rows.get() key=|r| r.id let:row>
                     <div class="ck-agent-repo">
                         <span class="ck-repo-name">{move || row.repo.get()}</span>
-                        <TextField label="Basis-Branch" value=row.base placeholder="main" autocomplete="off" />
+                        <TextField label=t!(SetupReposBaseBranch) value=row.base placeholder="main" autocomplete="off" />
                         <TextField
-                            label="Jira-Projekte"
+                            label=t!(SetupReposProjects)
                             value=row.projects
                             placeholder="WEB, SHOP"
-                            hint="Optional. Tickets dieser Projekte gehen an dieses Repo."
+                            hint=t!(SetupReposProjectsHint)
                             autocomplete="off"
                         />
                         <BranchPatternField repo=row.repo pattern=row.pattern />
@@ -317,7 +332,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                                     }
                                     on:change=move |_| default.set(row.repo.get_untracked().trim().to_string())
                                 />
-                                "Standard-Repo"
+                                {t!(SetupReposDefaultRepo)}
                             </label>
                             <Button
                                 variant=ButtonStyle::Borderless
@@ -329,14 +344,14 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                                     rows.update(|l| l.retain(|r| r.id != row.id));
                                 }
                             >
-                                "Entfernen"
+                                {t!(SetupReposRemove)}
                             </Button>
                         </HStack>
                     </div>
                 </For>
                 <HStack spacing="12px">
                     <Button variant=ButtonStyle::GlassProminent on_click=save>
-                        "Speichern"
+                        {t!(SetupReposSave)}
                     </Button>
                 </HStack>
                 <Message feedback=feedback />

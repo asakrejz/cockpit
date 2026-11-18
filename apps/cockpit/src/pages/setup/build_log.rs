@@ -1,7 +1,7 @@
 //! Output of a long task (the image build): collapsed to the last lines, an arrow at the top right
 //! opens the complete output. Which lines are shown is decided by `cockpit_core::setup::log_*`.
 
-use cockpit_core::setup::{log_toggle_label, log_visible};
+use cockpit_core::setup::{log_hidden, log_visible};
 use feature_ui::*;
 use leptos::html::Pre;
 use leptos::prelude::*;
@@ -15,7 +15,13 @@ pub fn CollapsibleLog(
 ) -> impl IntoView {
     let pre = NodeRef::<Pre>::new();
     let text = Signal::derive(move || lines.with(|l| log_visible(l, expanded.get())));
-    let label = Signal::derive(move || lines.with(|l| log_toggle_label(l, expanded.get())));
+    let label = Signal::derive(move || {
+        lines.with(|l| match (expanded.get(), log_hidden(l)) {
+            (true, _) => t!(SetupBuildCollapse),
+            (false, 0) => t!(SetupBuildExpand),
+            (false, n) => t!(SetupBuildExpandHidden, n = n),
+        })
+    });
 
     // Follow the newest line, as long as the reader is at the bottom (or the box is collapsed).
     Effect::new(move |_| {

@@ -1,0 +1,15 @@
+# Setup page (frame, progress, navigation)
+setup.step_container = Container
+setup.step_jira = Jira
+setup.step_github = GitHub
+setup.step_model = Modell
+setup.step_live = Live
+setup.step_done = Fertig
+setup.progress = Fortschritt
+setup.badge_local = Lokal
+setup.title = Einrichten.
+setup.intro = Wir gehen Schritt für Schritt vor. Du brauchst keine Vorkenntnisse. Jeden Schritt kannst du überspringen und später nachholen.
+setup.loading = Einrichtung lädt
+setup.back = Zurück
+setup.skip = Überspringen
+setup.next = Weiter
