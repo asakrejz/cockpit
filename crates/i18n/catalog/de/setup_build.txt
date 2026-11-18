@@ -1,0 +1,4 @@
+# Output of the image build
+setup_build.collapse = Ausgabe einklappen
+setup_build.expand = Ausgabe aufklappen
+setup_build.expand_hidden = Ausgabe aufklappen ({n} frühere Zeilen)

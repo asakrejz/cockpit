@@ -3,7 +3,7 @@
 //! `cockpit_core::setup`, writing is in the server; here is only wiring.
 
 use cockpit_core::api::{ConfigChange, ContainerCheck, EndpointCheck, Setup};
-use cockpit_core::setup::{key_verify, step_mentioned};
+use cockpit_core::setup::{Step, key_verify, step_mentioned};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -81,6 +81,24 @@ pub fn Message(feedback: Feedback) -> impl IntoView {
     }
 }
 
+/// A shell command shown to the reader. Commands are never translated; they are built from
+/// their words so that they do not count as text of the interface.
+pub fn command(words: &[&str]) -> String {
+    words.join(" ")
+}
+
+/// The name of a step in the current language.
+pub fn step_label(step: Step) -> String {
+    match step {
+        Step::Container => t!(SetupStepContainer),
+        Step::Jira => t!(SetupStepJira),
+        Step::GitHub => t!(SetupStepGithub),
+        Step::Model => t!(SetupStepModel),
+        Step::Live => t!(SetupStepLive),
+        Step::Done => t!(SetupStepDone),
+    }
+}
+
 /// A link to the step that a message names (`Schritt „GitHub“`), so that the reader gets there
 /// with one click. Nothing if the message names no step or that step is open right now.
 pub fn step_link(text: &str) -> Option<impl IntoView + use<>> {
@@ -91,7 +109,7 @@ pub fn step_link(text: &str) -> Option<impl IntoView + use<>> {
         view! {
             " "
             <a class="ui-link" href=step.hash()>
-                {format!("Zum Schritt „{}“", step.name())}
+                {t!(SetupFieldsGoToStep, name = step_label(step))}
             </a>
         }
     })
@@ -101,8 +119,7 @@ pub fn step_link(text: &str) -> Option<impl IntoView + use<>> {
 pub fn error_text(e: &CallError) -> String {
     match e {
         CallError::Unreachable => {
-            "Cockpit antwortet gerade nicht. Läuft das Startfenster noch? Danach „Erneut versuchen“."
-                .into()
+            t!(SetupFieldsUnreachable)
         }
         CallError::Rejected(m) => m.clone(),
     }
@@ -113,16 +130,18 @@ pub fn config_save(
     ctx: Context,
     change: ConfigChange,
     feedback: Feedback,
-    success: &'static str,
+    success: impl Into<String>,
     afterwards: impl Fn() + 'static,
 ) {
     feedback.set(None);
+    let success: String = success.into();
     spawn_local(async move {
         match server::put_config(&change).await {
             Ok(answer) => {
-                let mut text = success.to_string();
+                let mut text = success;
                 if !answer.takes_effect_immediately {
-                    text.push_str(" Starte Cockpit neu, damit die Änderung gilt.");
+                    text.push(' ');
+                    text.push_str(&t!(SetupFieldsRestartNeeded));
                 }
                 if let Some(h) = answer.hint {
                     text.push(' ');
@@ -144,8 +163,8 @@ pub fn KeyField(
     ctx: Context,
     /// Name in the .env file (`github-oauth`, `atlassian-oauth`, `agent-key`, `jira`, `github`).
     name: &'static str,
-    label: &'static str,
-    #[prop(optional)] hint: Option<&'static str>,
+    #[prop(into)] label: String,
+    #[prop(optional, into)] hint: Option<String>,
 ) -> impl IntoView {
     let value = RwSignal::new(String::new());
     let back: Feedback = RwSignal::new(None);
@@ -167,10 +186,7 @@ pub fn KeyField(
         spawn_local(async move {
             match server::put_key(name, checked).await {
                 Ok(_) => {
-                    back.set(Some((
-                        true,
-                        "In der .env-Datei abgelegt. Das Feld ist wieder leer.".into(),
-                    )));
+                    back.set(Some((true, t!(SetupFieldsKeyStored))));
                     ctx.reload();
                 }
                 Err(e) => back.set(Some((false, error_text(&e)))),
@@ -186,7 +202,7 @@ pub fn KeyField(
                 value=value
                 input_type="password"
                 autocomplete="off"
-                hint=hint.unwrap_or("Wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert.")
+                hint=hint.unwrap_or_else(|| t!(SetupFieldsKeyHint))
             />
             <HStack spacing="12px">
                 <Button
@@ -194,12 +210,12 @@ pub fn KeyField(
                     disabled=Signal::derive(move || running.get() || value.with(|w| w.trim().is_empty()))
                     on_click=send
                 >
-                    "Sicher ablegen"
+                    {t!(SetupFieldsStoreSafely)}
                 </Button>
                 <Status tone=Signal::derive(move || {
                     if set() { StatusTone::Green } else { StatusTone::Gray }
                 })>
-                    {move || if set() { "Liegt in der .env-Datei" } else { "Noch nichts abgelegt" }}
+                    {move || if set() { t!(SetupFieldsKeyPresent) } else { t!(SetupFieldsKeyMissing) }}
                 </Status>
             </HStack>
             <Message feedback=back />
@@ -230,16 +246,16 @@ pub fn CopyField(
 ) -> impl IntoView {
     let click = move |_| {
         if copy(&text.get_untracked()) {
-            store.notify("Kopiert");
+            store.notify(t!(SetupFieldsCopied));
         } else {
-            store.notify("Kopieren ging nicht – markiere den Text und drücke Cmd+C.");
+            store.notify(t!(SetupFieldsCopyFailed));
         }
     };
     view! {
         <div class="ui-copy">
             <span class="t-footnote t-secondary">{label}</span>
             <code class="ui-copy__text">{move || text.get()}</code>
-            <Button size=ControlSize::Small on_click=click>"Kopieren"</Button>
+            <Button size=ControlSize::Small on_click=click>{t!(SetupFieldsCopy)}</Button>
         </div>
     }
 }
@@ -256,7 +272,7 @@ pub fn Extern(#[prop(into)] href: String, children: Children) -> impl IntoView {
 
 /// Heading and explanation of a step.
 #[component]
-pub fn Intro(title: &'static str, children: Children) -> impl IntoView {
+pub fn Intro(#[prop(into)] title: String, children: Children) -> impl IntoView {
     view! {
         <div class="ui-list__section">
             <p class="ui-list__header" data-prominent="">{title}</p>

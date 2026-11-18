@@ -14,7 +14,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 
 use super::fields::{
-    Context, CopyField, Extern, Feedback, Intro, Message, Section, config_save, error_text,
+    Context, CopyField, Extern, Feedback, Intro, Message, Section, command, config_save, error_text,
 };
 use crate::server;
 use crate::store::now_ms;
@@ -34,7 +34,7 @@ fn port_text() -> String {
 fn SourceSection(
     ctx: Context,
     id: &'static str,
-    title: &'static str,
+    #[prop(into)] title: String,
     #[prop(into)] info: Signal<WebhookSourceInfo>,
     children: Children,
 ) -> impl IntoView {
@@ -43,6 +43,11 @@ fn SourceSection(
     let back: Feedback = RwSignal::new(None);
     let busy = RwSignal::new(false);
     let public_url = Signal::derive(move || ctx.setup.with(|e| e.webhooks.public_url.clone()));
+    let source_name = if id == "github" {
+        t!(SetupStepGithub)
+    } else {
+        t!(SetupStepJira)
+    };
     let target = Signal::derive(move || {
         webhook_target(public_url.get().as_deref(), &info.with(|i| i.path.clone()))
     });
@@ -78,9 +83,7 @@ fn SourceSection(
         <Section title=title>
             <ol class="ui-instructions">
                 <li>
-                    "Erzeuge ein Secret. Das ist ein langes Zufalls-Passwort, mit dem "
-                    {title}
-                    " seine Nachrichten unterschreibt. Cockpit prüft die Unterschrift und nimmt sonst nichts an."
+                    {t!(SetupLiveSourceSecretBefore)} " " {source_name} " " {t!(SetupLiveSourceSecretAfter)}
                     <HStack spacing="12px" css="margin-top: 8px; flex-wrap: wrap">
                         <Button
                             variant=ButtonStyle::GlassProminent
@@ -89,9 +92,9 @@ fn SourceSection(
                         >
                             {move || {
                                 if info.with(|i| i.secret_set) {
-                                    "Neues Secret erzeugen (ersetzt das alte)"
+                                    t!(SetupLiveSecretRegenerate)
                                 } else {
-                                    "Secret erzeugen"
+                                    t!(SetupLiveSecretGenerate)
                                 }
                             }}
                         </Button>
@@ -100,9 +103,9 @@ fn SourceSection(
                         })>
                             {move || {
                                 if info.with(|i| i.secret_set) {
-                                    "Liegt in der .env-Datei"
+                                    t!(SetupLiveSecretPresent)
                                 } else {
-                                    "Noch kein Secret"
+                                    t!(SetupLiveSecretMissing)
                                 }
                             }}
                         </Status>
@@ -113,12 +116,12 @@ fn SourceSection(
                             .map(|s| {
                                 view! {
                                     <div style="margin-top: 8px">
-                                        <CopyField store=ctx.store label="Secret (nur jetzt sichtbar)" text=Signal::derive(move || s.clone()) />
+                                        <CopyField store=ctx.store label=t!(SetupLiveSecretLabel) text=Signal::derive(move || s.clone()) />
                                         <p class="ui-hint" role="status">
-                                            "Kopiere es jetzt und füge es unten ein. Cockpit zeigt es nie wieder an; es liegt nur in der .env-Datei."
+                                            {t!(SetupLiveSecretNote)}
                                         </p>
                                         <Button size=ControlSize::Small on_click=move |_| fresh.set(None)>
-                                            "Ausblenden"
+                                            {t!(SetupLiveHide)}
                                         </Button>
                                     </div>
                                 }
@@ -127,16 +130,16 @@ fn SourceSection(
                 </li>
                 {children()}
                 <li>
-                    "Ziel-Adresse (Payload URL) für den Webhook:"
-                    <CopyField store=ctx.store label="Adresse" text=target />
+                    {t!(SetupLiveTargetIntro)}
+                    <CopyField store=ctx.store label=t!(SetupLiveAddress) text=target />
                 </li>
             </ol>
-            <HStack spacing="12px" css="flex-wrap: wrap">
+            <HStack spacing="12px" css="flex-wrap:wrap">
                 <Button disabled=Signal::derive(move || busy.get()) on_click=test>
-                    "Lokal testen"
+                    {t!(SetupLiveTestLocal)}
                 </Button>
                 <Button size=ControlSize::Small on_click=move |_| ctx.reload()>
-                    "Aktualisieren"
+                    {t!(SetupLiveRefresh)}
                 </Button>
             </HStack>
             <Message feedback=back />
@@ -181,7 +184,7 @@ pub fn LiveStep(ctx: Context) -> impl IntoView {
                 ..Default::default()
             },
             back,
-            "Gespeichert.",
+            t!(SetupLiveSaved),
             move || synced.set(false),
         ),
         Err(m) => back.set(Some((false, m))),
@@ -192,82 +195,79 @@ pub fn LiveStep(ctx: Context) -> impl IntoView {
         Signal::derive(move || ctx.setup.with(|e| e.webhooks.fallback_interval_s / 60));
     let port = port_text();
     let cloudflared = format!("cloudflared tunnel --url http://127.0.0.1:{port}");
-    let ngrok = format!("ngrok http 127.0.0.1:{port}");
+    let ngrok = command(&["ngrok", "http", &format!("127.0.0.1:{port}")]);
 
     view! {
         <VStack spacing="12px">
-            <Intro title="Live-Update (optional)">
+            <Intro title=t!(SetupLiveTitle)>
                 <p>
-                    "Standardmäßig fragt Cockpit Jira und GitHub alle paar Minuten ab. Das funktioniert ohne jede Einrichtung und bleibt so. Mit Webhooks melden sich GitHub und Jira von selbst, sobald sich etwas ändert, und Cockpit gleicht sofort ab."
+                    {t!(SetupLiveIntro1)}
                 </p>
                 <p>
-                    "Dafür müssen GitHub und Jira dein Cockpit aus dem Internet erreichen können. Das geht nur über einen Tunnel, den du selbst startest. Cockpit installiert und startet nichts davon. Wenn du das nicht brauchst: überspringen."
+                    {t!(SetupLiveIntro2)}
                 </p>
                 <p>
-                    "Ein Webhook ist nur ein Signal. Cockpit übernimmt nichts aus der Nachricht, sondern holt die Daten wie immer über die angemeldete Verbindung."
+                    {t!(SetupLiveIntro3)}
                 </p>
             </Intro>
-            <Section title="1. Webhooks einschalten">
+            <Section title=t!(SetupLiveStep1Title)>
                 <List>
-                    <ListRow title="Webhooks aktivieren" toggle_row=true wrap=true>
-                        <Toggle checked=enabled aria_label="Webhooks aktivieren" />
+                    <ListRow title=t!(SetupLiveEnable) toggle_row=true wrap=true>
+                        <Toggle checked=enabled aria_label=t!(SetupLiveEnable) />
                     </ListRow>
                 </List>
                 <TextField
-                    label="Öffentliche Adresse des Tunnels"
+                    label=t!(SetupLivePublicUrlLabel)
                     value=public_url
                     placeholder="https://cockpit.example"
-                    hint="Nur zur Anzeige: Cockpit baut daraus die Adressen zum Kopieren und ruft sie nie selbst auf. Du bekommst sie von deinem Tunnel (Schritt 2). Muss mit https:// beginnen."
+                    hint=t!(SetupLivePublicUrlHint)
                     autocomplete="off"
                 />
                 <HStack spacing="12px">
                     <Button variant=ButtonStyle::GlassProminent on_click=save>
-                        "Speichern"
+                        {t!(SetupLiveSave)}
                     </Button>
                 </HStack>
                 <Message feedback=back />
                 <p class="t-footnote t-secondary">
                     {move || {
-                        format!(
-                            "Solange Webhooks regelmäßig ankommen, fragt Cockpit die jeweilige Quelle nur noch alle {} Minuten als Sicherheitsnetz ab; bleiben sie aus, gilt wieder das normale Intervall.",
-                            fallback_min.get().max(1)
-                        )
+                        t!(SetupLiveFallback, min = fallback_min.get().max(1))
                     }}
                 </p>
             </Section>
-            <Section title="2. Tunnel starten (du, nicht Cockpit)">
+            <Section title=t!(SetupLiveStep2Title)>
                 <p class="t-subheadline t-secondary">
-                    "Ein Tunnel gibt deinem Rechner eine öffentliche https-Adresse. Wähle eines und starte es in einem Terminal, das offen bleibt:"
+                    {t!(SetupLiveTunnelIntro)}
                 </p>
                 <ul class="ui-instructions">
                     <li>
                         <Extern href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/">"cloudflared"</Extern>
-                        " (Cloudflare, ohne Konto für einen Kurztunnel):"
-                        <CopyField store=ctx.store label="Befehl" text=Signal::derive(move || cloudflared.clone()) />
+                        " " {t!(SetupLiveCloudflaredNote)}
+                        <CopyField store=ctx.store label=t!(SetupLiveCommand) text=Signal::derive(move || cloudflared.clone()) />
                     </li>
                     <li>
                         <Extern href="https://ngrok.com/docs/getting-started/">"ngrok"</Extern>
-                        " (Konto nötig):"
-                        <CopyField store=ctx.store label="Befehl" text=Signal::derive(move || ngrok.clone()) />
+                        " " {t!(SetupLiveNgrokNote)}
+                        <CopyField store=ctx.store label=t!(SetupLiveCommand) text=Signal::derive(move || ngrok.clone()) />
                     </li>
                 </ul>
                 <p class="t-subheadline t-secondary">
-                    "Der Tunnel zeigt dir eine Adresse mit https://. Trage sie oben als „Öffentliche Adresse“ ein. Kurztunnel bekommen bei jedem Start eine neue Adresse; dann musst du sie auch bei GitHub und Jira ändern."
+                    {t!(SetupLiveTunnelAddress)}
                 </p>
                 <p class="t-subheadline">
-                    <strong>"Sicherheit: "</strong>
-                    "Nur die zwei Adressen /api/webhooks/github und /api/webhooks/jira sind für das Internet gedacht. Alles andere in Cockpit lehnt Anfragen mit fremdem Adressnamen ab. Besser ist trotzdem, wenn dein Tunnel nur Pfade unter /api/webhooks/ durchlässt (bei Cloudflare z. B. über eine Regel für den Pfad). Ohne Secret nimmt Cockpit nichts an."
+                    <strong>{t!(SetupLiveSecurityLabel)}</strong> " "
+                    {t!(SetupLiveSecurity)}
                 </p>
             </Section>
-            <SourceSection ctx=ctx id="github" title="3. GitHub-Webhook" info=github>
+            <SourceSection ctx=ctx id="github" title=t!(SetupLiveGithubTitle) info=github>
                 <li>
-                    "Öffne bei GitHub die Einstellungen deines Repos (Settings › Webhooks › Add webhook) oder, wenn du eine GitHub App nutzt, die Seite der App (Settings › Developer settings › GitHub Apps › deine App › General › Webhook, „Active“ anhaken)."
+                    {t!(SetupLiveGithubOpen)}
                 </li>
                 <li>
-                    "Content type: " <code>"application/json"</code> ". Füge das Secret bei „Secret“ ein."
+                    {t!(SetupLiveGithubContentType)} " " <code>"application/json"</code> ". " {t!(SetupLiveGithubSecret)}
                 </li>
                 <li>
-                    "Ereignisse („Let me select individual events“):"
+                    {t!(SetupLiveGithubEvents)}
                     <ul class="ui-checklist">
                         {GITHUB_WEBHOOK_EVENTS
                             .iter()
@@ -276,15 +276,15 @@ pub fn LiveStep(ctx: Context) -> impl IntoView {
                     </ul>
                 </li>
             </SourceSection>
-            <SourceSection ctx=ctx id="jira" title="4. Jira-Webhook" info=jira>
+            <SourceSection ctx=ctx id="jira" title=t!(SetupLiveJiraTitle) info=jira>
                 <li>
-                    "Öffne in Jira (als Administrator) Einstellungen › System › WebHooks › „Create a WebHook“."
+                    {t!(SetupLiveJiraOpen)}
                 </li>
                 <li>
-                    "Füge das Secret bei „Secret“ ein; Jira unterschreibt damit jede Nachricht. Gibt es dieses Feld bei dir nicht (ältere Jira-Versionen, Automatisierungsregeln), hänge das Secret stattdessen als " <code>"?token=…"</code> " an die Adresse. Das ist schwächer: das Secret steht dann in der Adresse und kann in Protokollen auftauchen."
+                    {t!(SetupLiveJiraSecretBefore)} <code>"?token=\u{2026}"</code> " " {t!(SetupLiveJiraSecretAfter)}
                 </li>
                 <li>
-                    "Ereignisse:"
+                    {t!(SetupLiveJiraEvents)}
                     <ul class="ui-checklist">
                         {JIRA_WEBHOOK_EVENTS
                             .iter()
@@ -294,7 +294,7 @@ pub fn LiveStep(ctx: Context) -> impl IntoView {
                 </li>
             </SourceSection>
             <p class="t-footnote t-secondary" style="padding-inline: 4px">
-                "„Lokal testen“ schickt eine unterschriebene Nachricht von Cockpit an sich selbst und prüft so Secret und Einrichtung, ohne GitHub oder Jira. Ob dich die Dienste über den Tunnel erreichen, zeigt „Zuletzt empfangen“ erst nach einer echten Zustellung (bei GitHub: „Recent Deliveries“ › „Redeliver“)."
+                {t!(SetupLiveFootnote)}
             </p>
         </VStack>
     }

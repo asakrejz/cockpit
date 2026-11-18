@@ -8,7 +8,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 
 use super::build_log::CollapsibleLog;
-use super::fields::{Context, Extern, Intro, Section};
+use super::fields::{Context, Extern, Intro, Section, command};
 use crate::server::{self, CallError};
 use crate::store::Store;
 
@@ -51,16 +51,16 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
         _ => StatusTone::Gray,
     };
     let text = move || match status() {
-        None => "Prüfe …".to_string(),
+        None => t!(SetupContainerStatusChecking),
         Some(ContainerStatus {
             runtime: Some(l),
             engine_running: true,
             ..
-        }) => format!("{l} ist installiert und läuft"),
+        }) => t!(SetupContainerStatusRunning, name = l),
         Some(ContainerStatus {
             runtime: Some(l), ..
-        }) => format!("{l} ist installiert, läuft aber nicht"),
-        Some(_) => "Noch nichts gefunden".to_string(),
+        }) => t!(SetupContainerStatusStopped, name = l),
+        Some(_) => t!(SetupContainerStatusNone),
     };
     let build = RwSignal::new(None::<ImageBuild>);
     let build_error = RwSignal::new(None::<String>);
@@ -90,9 +90,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                     build.set(Some(b));
                     build_watch(build, ctx.store);
                 }
-                Err(CallError::Unreachable) => build_error.set(Some(
-                    "Cockpit antwortet gerade nicht. Läuft das Startfenster noch?".into(),
-                )),
+                Err(CallError::Unreachable) => build_error.set(Some(t!(SetupContainerUnreachable))),
                 Err(e) => build_error.set(Some(e.message())),
             }
         });
@@ -118,18 +116,18 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
 
     view! {
         <VStack spacing="12px">
-            <Intro title="Container-Programm">
+            <Intro title=t!(SetupContainerIntroTitle)>
                 <p>
-                    "Cockpit lässt seinen Agenten später in einem „Container“ arbeiten – das ist ein abgeschlossener Arbeitsraum auf deinem Rechner. So kann der Agent Code ausprobieren, ohne an deinen Dateien etwas zu verändern."
+                    {t!(SetupContainerIntro1)}
                 </p>
                 <p>
-                    "Dafür braucht es ein kostenloses Programm, das solche Container startet. Du brauchst es erst, wenn der Agent wirklich arbeitet – du kannst diesen Schritt also auch überspringen."
+                    {t!(SetupContainerIntro2)}
                 </p>
             </Intro>
             <Card>
                 <CardBody css="gap: 12px">
                     <HStack css="justify-content: space-between">
-                        <span class="t-headline">"Stand auf diesem Rechner"</span>
+                        <span class="t-headline">{t!(SetupContainerStateTitle)}</span>
                         <Status tone=Signal::derive(tone)>{text}</Status>
                     </HStack>
                     {move || {
@@ -138,7 +136,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                             .map(|h| view! { <p class="ui-hint" role="status">{h}</p> })
                     }}
                     <HStack spacing="12px">
-                        <Button on_click=move |_| ctx.reload()>"Erneut prüfen"</Button>
+                        <Button on_click=move |_| ctx.reload()>{t!(SetupContainerRecheck)}</Button>
                     </HStack>
                 </CardBody>
             </Card>
@@ -147,9 +145,9 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                     .get()
                     .then(|| {
                         view! {
-                            <Section title="Agent-Image">
+                            <Section title=t!(SetupContainerImageTitle)>
                                 <p class="t-subheadline t-secondary">
-                                    "Der Agent arbeitet in einem Container aus einem eigenen „Image“. Das baust du einmal hier – es lädt dabei Programme aus dem Internet und dauert einige Minuten. Ändert sich die Cockpit-Version, erkennt Cockpit von selbst, dass das Image veraltet ist, und bittet dich, es neu zu bauen."
+                                    {t!(SetupContainerImageText)}
                                 </p>
                                 <HStack spacing="12px">
                                     <Status tone=Signal::derive(move || {
@@ -161,13 +159,13 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                                     })>
                                         {move || {
                                             if build_running() {
-                                                "Wird gebaut …"
+                                                t!(SetupContainerImageBuilding)
                                             } else {
                                                 match image_state() {
-                                                    ImageState::Current => "Image ist aktuell",
-                                                    ImageState::Outdated => "Image ist veraltet",
-                                                    ImageState::Unknown => "Image nicht prüfbar",
-                                                    ImageState::Missing => "Image fehlt noch",
+                                                    ImageState::Current => t!(SetupContainerImageCurrent),
+                                                    ImageState::Outdated => t!(SetupContainerImageOutdated),
+                                                    ImageState::Unknown => t!(SetupContainerImageUnknown),
+                                                    ImageState::Missing => t!(SetupContainerImageMissing),
                                                 }
                                             }
                                         }}
@@ -177,7 +175,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                                         disabled=Signal::derive(build_running)
                                         on_click=start_build
                                     >
-                                        {move || if image_da() { "Neu bauen" } else { "Image bauen" }}
+                                        {move || if image_da() { t!(SetupContainerRebuild) } else { t!(SetupContainerBuild) }}
                                     </Button>
                                 </HStack>
                                 {move || {
@@ -185,7 +183,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                                         .then(|| {
                                             view! {
                                                 <p class="ui-hint" role="status">
-                                                    "Das Image passt nicht zu dieser Cockpit-Version. Bitte neu bauen; bis dahin startet der Agent nicht."
+                                                    {t!(SetupContainerImageMismatch)}
                                                 </p>
                                             }
                                         })
@@ -222,15 +220,15 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                     .get()
                     .then(|| {
                         view! {
-                            <Section title="Das Programm ist da, aber nicht gestartet">
+                            <Section title=t!(SetupContainerStoppedTitle)>
                                 <ol class="ui-instructions">
                                     <li>
-                                        "Öffne „Rancher Desktop“ (oder Podman Desktop) aus dem Programme-Ordner und warte, bis oben „läuft“ oder ein grüner Punkt steht – das kann eine Minute dauern."
+                                        {t!(SetupContainerStopped1)}
                                     </li>
                                     <li>
-                                        "Bei Podman im Terminal: " <code>"podman machine start"</code>
+                                        {t!(SetupContainerStopped2)} " " <code>{command(&["podman", "machine", "start"])}</code>
                                     </li>
-                                    <li>"Klicke danach hier auf „Erneut prüfen“."</li>
+                                    <li>{t!(SetupContainerStopped3)}</li>
                                 </ol>
                             </Section>
                         }
@@ -241,39 +239,39 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                     .get()
                     .then(|| {
                         view! {
-                            <Section title="Option A: Rancher Desktop (empfohlen für Einsteiger)">
+                            <Section title=t!(SetupContainerATitle)>
                                 <ol class="ui-instructions">
                                     <li>
-                                        "Lade das Programm herunter: "
+                                        {t!(SetupContainerA1Before)} " "
                                         <Extern href="https://rancherdesktop.io/">"rancherdesktop.io"</Extern>
-                                        " (rund 500 MB, der Download dauert ein paar Minuten)."
+                                        " " {t!(SetupContainerA1After)}
                                     </li>
-                                    <li>"Öffne die heruntergeladene Datei und ziehe das Programm in den Ordner „Programme“."</li>
+                                    <li>{t!(SetupContainerA2)}</li>
                                     <li>
-                                        "Starte „Rancher Desktop“. Beim ersten Start fragt es nach der Container-Engine: Wähle "
-                                        <strong>"dockerd (moby)"</strong>
-                                        ". Die Frage nach Kubernetes brauchst du nicht – du kannst es abschalten."
+                                        {t!(SetupContainerA3Before)} " "
+                                        <strong>"dockerd"</strong>" (moby)"
+                                        ". " {t!(SetupContainerA3After)}
                                     </li>
                                     <li>
-                                        "Warte, bis Rancher Desktop fertig gestartet ist, und klicke oben auf „Erneut prüfen“."
+                                        {t!(SetupContainerA4)}
                                     </li>
                                 </ol>
                             </Section>
-                            <Section title="Option B: Podman">
+                            <Section title=t!(SetupContainerBTitle)>
                                 <ol class="ui-instructions">
                                     <li>
-                                        "Installiere Podman nach der Anleitung auf "
+                                        {t!(SetupContainerB1Before)} " "
                                         <Extern href="https://podman.io/docs/installation">
                                             "podman.io"
                                         </Extern>
-                                        " – oder im Terminal mit " <code>"brew install podman"</code> "."
+                                        " " {t!(SetupContainerB1After)} " " <code>{command(&["brew", "install", "podman"])}</code> "."
                                     </li>
                                     <li>
-                                        "Richte die kleine Hilfs-Maschine ein und starte sie: "
-                                        <code>"podman machine init"</code> " und danach "
-                                        <code>"podman machine start"</code> "."
+                                        {t!(SetupContainerB2Before)} " "
+                                        <code>{command(&["podman", "machine", "init"])}</code> " " {t!(SetupContainerB2After)} " "
+                                        <code>{command(&["podman", "machine", "start"])}</code> "."
                                     </li>
-                                    <li>"Klicke danach hier auf „Erneut prüfen“."</li>
+                                    <li>{t!(SetupContainerB3)}</li>
                                 </ol>
                             </Section>
                         }

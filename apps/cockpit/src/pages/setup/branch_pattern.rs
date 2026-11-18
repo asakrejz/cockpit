@@ -45,10 +45,10 @@ pub fn BranchPatternField(
     });
     view! {
         <TextField
-            label="Namensmuster für Branches"
+            label=t!(SetupBranchLabel)
             value=pattern
             placeholder=DEFAULT_PATTERN
-            hint="Der Agent benennt seine Branches nach diesem Muster. Platzhalter: {ticket} (Jira-Schlüssel, nötig), {slug} (Kurzname aus dem Titel) und {type} (feature, fix oder chore). Leer lassen für die Voreinstellung."
+            hint=t!(SetupBranchHint)
             autocomplete="off"
         />
         {move || invalid.get().map(|m| view! { <p class="ui-hint" role="alert" style="color: var(--sys-color-red)">{m}</p> })}
@@ -58,7 +58,7 @@ pub fn BranchPatternField(
                 on_click=propose
                 disabled=Signal::derive(move || loading.get())
             >
-                {move || if loading.get() { "Lese Richtlinien …" } else { "Aus Richtlinien vorschlagen" }}
+                {move || if loading.get() { t!(SetupBranchReading) } else { t!(SetupBranchPropose) }}
             </Button>
         </HStack>
         {move || problem.get().map(|m| view! { <p class="ui-hint" role="alert" style="color: var(--sys-color-red)">{m}</p> })}
@@ -70,7 +70,7 @@ pub fn BranchPatternField(
                     view! {
                         <div role="status">
                             <p class="ui-hint">
-                                {s.source.as_ref().map(|f| format!("Aus {f}: ")).unwrap_or_default()}
+                                {s.source.as_ref().map(|f| t!(SetupBranchFromFile, file = f) + " ").unwrap_or_default()}
                                 {s.message.clone()}
                             </p>
                             {proposed
@@ -78,18 +78,18 @@ pub fn BranchPatternField(
                                     let take = p.clone();
                                     view! {
                                         <p class="ui-hint">
-                                            "Vorschlag: " <code>{p}</code>
+                                            {t!(SetupBranchSuggestion)} " " <code>{p}</code>
                                         </p>
                                         <HStack spacing="12px">
                                             <Button on_click=move |_| {
                                                 pattern.set(take.clone());
                                                 suggestion.set(None);
-                                            }>"Übernehmen"</Button>
+                                            }>{t!(SetupBranchAccept)}</Button>
                                             <Button
                                                 variant=ButtonStyle::Borderless
                                                 on_click=move |_| suggestion.set(None)
                                             >
-                                                "Verwerfen"
+                                                {t!(SetupBranchDiscard)}
                                             </Button>
                                         </HStack>
                                     }

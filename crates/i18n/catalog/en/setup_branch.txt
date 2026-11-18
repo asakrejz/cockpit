@@ -1,0 +1,9 @@
+# Branch naming pattern of a repo
+setup_branch.label = Naming pattern for branches
+setup_branch.hint = The agent names its branches by this pattern. Placeholders: {ticket} (Jira key, required), {slug} (short name from the title) and {type} (feature, fix or chore). Leave empty for the default.
+setup_branch.reading = Reading guidelines …
+setup_branch.propose = Suggest from guidelines
+setup_branch.from_file = From {file}:
+setup_branch.suggestion = Suggestion:
+setup_branch.accept = Accept
+setup_branch.discard = Discard
