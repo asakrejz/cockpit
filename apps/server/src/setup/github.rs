@@ -5,7 +5,6 @@ use cockpit_core::api::{
     BranchSuggestion, BranchSuggestionRequest, GitHubCause, GitHubCheck, GitHubRepoInfo,
     GitHubRepoList,
 };
-use cockpit_core::setup::github_check_text;
 use cockpit_integrations::github::{GitHubClient, RepoList};
 
 use super::*;
@@ -18,34 +17,30 @@ struct Access {
 }
 
 /// What the plain text says for a failed call, and the status of our answer.
-pub(super) fn github_failure(e: &Error) -> (StatusCode, String) {
+pub(super) fn github_failure(e: &Error) -> (StatusCode, Msg) {
     match e {
         Error::NotSignedIn => (
             StatusCode::UNAUTHORIZED,
-            github_check_text(GitHubCause::Token, None),
+            github_cause_msg(GitHubCause::Token, None),
         ),
         Error::NoPermission => (
             StatusCode::FORBIDDEN,
-            github_check_text(GitHubCause::Permission, None),
+            github_cause_msg(GitHubCause::Permission, None),
         ),
-        Error::NotFound => (
-            StatusCode::NOT_FOUND,
-            "GitHub kennt diese Adresse nicht. Prüfe die API-Adresse, und bei einer GitHub App, ob sie installiert ist."
-                .into(),
-        ),
+        Error::NotFound => (StatusCode::NOT_FOUND, msg!(ServerSetupGithubUnknownAddress)),
         Error::RateLimit { .. } => (
             StatusCode::TOO_MANY_REQUESTS,
-            github_check_text(GitHubCause::RateLimit, None),
+            github_cause_msg(GitHubCause::RateLimit, None),
         ),
         Error::Network(_) => (
             StatusCode::BAD_GATEWAY,
-            github_check_text(GitHubCause::Network, None),
+            github_cause_msg(GitHubCause::Network, None),
         ),
         other => {
             tracing::warn!("GitHub: {other}");
             (
                 StatusCode::BAD_GATEWAY,
-                github_check_text(GitHubCause::Other, None),
+                github_cause_msg(GitHubCause::Other, None),
             )
         }
     }
@@ -100,7 +95,7 @@ impl AppState {
     }
 
     /// The repos the connected access can reach. Read-only.
-    pub async fn github_repo_list(&self) -> Result<GitHubRepoList, (StatusCode, String)> {
+    pub async fn github_repo_list(&self) -> Result<GitHubRepoList, (StatusCode, Msg)> {
         self.oauth_refresh().await;
         let s = self.clone();
         let access = tokio::task::spawn_blocking(move || s.github_assistant_access())
@@ -108,14 +103,14 @@ impl AppState {
             .map_err(|_| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "Interner Fehler".to_string(),
+                    msg!(ServerSetupInternalError),
                 )
             })?
             .map_err(|e| github_failure(&e))?;
         let Some(access) = access else {
             return Err((
                 StatusCode::CONFLICT,
-                github_check_text(GitHubCause::NotConnected, None),
+                github_cause_msg(GitHubCause::NotConnected, None),
             ));
         };
         let (list, via) = if access.app {
@@ -131,12 +126,9 @@ impl AppState {
     pub async fn branch_suggestion(
         &self,
         repo: &str,
-    ) -> Result<BranchSuggestion, (StatusCode, String)> {
+    ) -> Result<BranchSuggestion, (StatusCode, Msg)> {
         if !crate::agent_git::repo_name_ok(repo) {
-            return Err((
-                StatusCode::BAD_REQUEST,
-                "Das ist kein Repo – gebraucht wird die Form firma/app.".into(),
-            ));
+            return Err((StatusCode::BAD_REQUEST, msg!(ServerSetupRepoInvalid)));
         }
         self.oauth_refresh().await;
         let s = self.clone();
@@ -145,14 +137,14 @@ impl AppState {
             .map_err(|_| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    "Interner Fehler".to_string(),
+                    msg!(ServerSetupInternalError),
                 )
             })?
             .map_err(|e| github_failure(&e))?;
         let Some(access) = access else {
             return Err((
                 StatusCode::CONFLICT,
-                github_check_text(GitHubCause::NotConnected, None),
+                github_cause_msg(GitHubCause::NotConnected, None),
             ));
         };
         let found = access
@@ -161,26 +153,32 @@ impl AppState {
             .await
             .map_err(|e| github_failure(&e))?;
         Ok(match found {
-            None => BranchSuggestion {
-                pattern: None,
-                source: None,
-                message: format!(
-                    "In {repo} gibt es keine Datei CONTRIBUTING.md. Trage das Muster selbst ein oder lass es bei der Voreinstellung."
-                ),
-            },
+            None => {
+                let m = msg!(ServerSetupBranchNoContributing, repo = repo);
+                BranchSuggestion {
+                    pattern: None,
+                    source: None,
+                    message: m.de(),
+                    msg: Some(m),
+                }
+            }
             Some((file, text)) => match cockpit_core::branch::suggest(&text) {
                 Some(s) => BranchSuggestion {
                     pattern: Some(s.pattern),
                     source: Some(file),
+                    // The reason comes from the core as German text.
                     message: s.reason,
+                    msg: None,
                 },
-                None => BranchSuggestion {
-                    pattern: None,
-                    source: Some(file.clone()),
-                    message: format!(
-                        "In {file} steht nichts über Branch-Namen, das Cockpit erkennt. Trage das Muster selbst ein oder lass es bei der Voreinstellung."
-                    ),
-                },
+                None => {
+                    let m = msg!(ServerSetupBranchNothingFound, file = &file);
+                    BranchSuggestion {
+                        pattern: None,
+                        source: Some(file),
+                        message: m.de(),
+                        msg: Some(m),
+                    }
+                }
             },
         })
     }
@@ -195,12 +193,16 @@ impl AppState {
             .ok()
             .and_then(Result::ok)
             .flatten();
-        let done = |cause: GitHubCause, user: Option<String>, repos: Vec<RepoCheck>| GitHubCheck {
-            ok: cause == GitHubCause::Ok && repos.iter().all(|r| r.state == RepoState::Ok),
-            cause,
-            message: github_check_text(cause, user.as_deref()),
-            user,
-            repos,
+        let done = |cause: GitHubCause, user: Option<String>, repos: Vec<RepoCheck>| {
+            let m = github_cause_msg(cause, user.as_deref());
+            GitHubCheck {
+                ok: cause == GitHubCause::Ok && repos.iter().all(|r| r.state == RepoState::Ok),
+                cause,
+                message: m.de(),
+                msg: Some(m),
+                user,
+                repos,
+            }
         };
         let Some(access) = access else {
             return done(GitHubCause::NotConnected, None, Vec::new());
@@ -222,7 +224,7 @@ impl AppState {
                     repo,
                     RepoState::NotFound,
                     None,
-                    "Das ist kein Repo – gebraucht wird die Form firma/app.",
+                    msg!(ServerSetupRepoInvalid),
                 )
             });
         }
@@ -234,7 +236,7 @@ impl AppState {
 pub async fn repos_list(State(state): State<AppState>) -> Response {
     match state.github_repo_list().await {
         Ok(list) => Json(list).into_response(),
-        Err((status, message)) => error(status, message),
+        Err((status, message)) => error_msg(status, message),
     }
 }
 
@@ -245,7 +247,7 @@ pub async fn branch_suggestion_route(
 ) -> Response {
     match state.branch_suggestion(req.repo.trim()).await {
         Ok(s) => Json(s).into_response(),
-        Err((status, message)) => error(status, message),
+        Err((status, message)) => error_msg(status, message),
     }
 }
 

@@ -111,8 +111,9 @@ pub(super) struct FileJira {
 pub(super) fn runtime(text: &str) -> Result<String, ConfigError> {
     match text.trim().to_lowercase().as_str() {
         l @ ("docker" | "podman") => Ok(l.to_string()),
-        other => Err(ConfigError::Wert(format!(
-            "Container-Laufzeit „{other}“ wird nicht unterstützt, erlaubt sind docker und podman"
+        other => Err(ConfigError::Wert(msg!(
+            ServerConfigRuntimeUnsupported,
+            value = other
         ))),
     }
 }
@@ -135,13 +136,15 @@ pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>,
     for r in list {
         let repo = r.repo.trim().to_string();
         if !crate::agent_git::repo_name_ok(&repo) {
-            return Err(ConfigError::Wert(format!(
-                "[[agent.repos]] repo „{repo}“ muss die Form owner/name haben"
+            return Err(ConfigError::Wert(msg!(
+                ServerConfigReposRepoForm,
+                repo = &repo
             )));
         }
         if out.iter().any(|o| o.repo == repo) {
-            return Err(ConfigError::Wert(format!(
-                "[[agent.repos]] nennt das Repo „{repo}“ mehrfach"
+            return Err(ConfigError::Wert(msg!(
+                ServerConfigReposDuplicate,
+                repo = &repo
             )));
         }
         let base = r
@@ -151,22 +154,28 @@ pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>,
             .filter(|b| !b.is_empty())
             .unwrap_or(cockpit_core::repos::DEFAULT_BASE);
         if !crate::agent_git::base_branch_ok(base) {
-            return Err(ConfigError::Wert(format!(
-                "[[agent.repos]] base_branch „{base}“ von {repo} ist kein gültiger Branch-Name"
+            return Err(ConfigError::Wert(msg!(
+                ServerConfigReposBaseBranch,
+                base = base,
+                repo = &repo
             )));
         }
         let mut projects: Vec<String> = Vec::new();
         for p in &r.projects {
             let p = p.trim().to_ascii_uppercase();
             if !is_project_key(&p) {
-                return Err(ConfigError::Wert(format!(
-                    "[[agent.repos]] {repo}: „{p}“ ist kein gültiger Jira-Projektschlüssel"
+                return Err(ConfigError::Wert(msg!(
+                    ServerConfigReposProjectKey,
+                    repo = &repo,
+                    project = &p
                 )));
             }
             if let Some(other) = out.iter().find(|o| o.projects.contains(&p)) {
-                return Err(ConfigError::Wert(format!(
-                    "Das Jira-Projekt {p} ist schon dem Repo „{}“ zugeordnet, nicht noch {repo}",
-                    other.repo
+                return Err(ConfigError::Wert(msg!(
+                    ServerConfigReposProjectTaken,
+                    project = &p,
+                    owner = &other.repo,
+                    repo = &repo
                 )));
             }
             if !projects.contains(&p) {
@@ -180,7 +189,11 @@ pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>,
             .filter(|p| !p.is_empty())
             .unwrap_or(cockpit_core::branch::DEFAULT_PATTERN);
         cockpit_core::branch::validate(pattern).map_err(|m| {
-            ConfigError::Wert(format!("[[agent.repos]] branch_pattern von {repo}: {m}"))
+            ConfigError::Wert(msg!(
+                ServerConfigReposPattern,
+                repo = &repo,
+                reason = Msg::raw(m)
+            ))
         })?;
         out.push(AgentRepo {
             repo,

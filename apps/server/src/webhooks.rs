@@ -36,8 +36,9 @@ use cockpit_integrations::Secret;
 use sha2::{Digest, Sha256};
 use tokio::time::Instant;
 
-use crate::app::{AppState, error, now_ms};
+use crate::app::{AppState, error_msg, now_ms};
 use crate::secrets;
+use cockpit_i18n::{Msg, msg};
 
 mod management;
 pub use management::*;

@@ -39,6 +39,9 @@ pub struct RepoCheck {
     /// A sentence in plain text for the assistant.
     #[serde(default)]
     pub message: String,
+    /// The same as code and parameters, rendered in the chosen language.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub msg: Option<cockpit_i18n::Msg>,
 }
 
 /// Body of `POST /api/github/repos/check`.
@@ -75,6 +78,9 @@ pub struct BranchSuggestion {
     /// A sentence in plain text: what was found, or why there is no proposal.
     #[serde(default)]
     pub message: String,
+    /// The same as code and parameters, rendered in the chosen language.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub msg: Option<cockpit_i18n::Msg>,
 }
 
 /// One repo the connected GitHub access can reach (`GET /api/github/repos`).
@@ -132,6 +138,9 @@ pub struct GitHubCheck {
     pub cause: GitHubCause,
     /// A sentence in plain text. Never names the token.
     pub message: String,
+    /// The same as code and parameters, rendered in the chosen language.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub msg: Option<cockpit_i18n::Msg>,
     /// Login of the key holder.
     #[serde(default)]
     pub user: Option<String>,

@@ -18,11 +18,11 @@ pub async fn secret_new(
     UrlPath(source): UrlPath<String>,
 ) -> Response {
     let Some(source) = source_from(&source) else {
-        return error(StatusCode::NOT_FOUND, "Unbekannte Quelle");
+        return error_msg(StatusCode::NOT_FOUND, msg!(ServerMiscUnknownSource));
     };
     let secret = match secret_generate() {
         Ok(s) => s,
-        Err(m) => return error(StatusCode::INTERNAL_SERVER_ERROR, m),
+        Err(m) => return error_msg(StatusCode::INTERNAL_SERVER_ERROR, m),
     };
     let store = state.inner.secrets.clone();
     let value = Secret::new(secret.clone());
@@ -33,9 +33,9 @@ pub async fn secret_new(
         }
         Ok(Err(e)) => {
             tracing::warn!("Webhook secret for {} not stored: {e}", name(source));
-            error(
+            error_msg(
                 StatusCode::INTERNAL_SERVER_ERROR,
-                "Die .env-Datei im Projektordner ließ sich nicht beschreiben. Prüfe die Rechte von Ordner und Datei.",
+                msg!(ServerSetupEnvNotWritable),
             )
         }
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
@@ -46,25 +46,23 @@ pub async fn secret_new(
 /// loopback and reports what came back. Calls no external service.
 pub async fn test(State(state): State<AppState>, UrlPath(source): UrlPath<String>) -> Response {
     let Some(source) = source_from(&source) else {
-        return error(StatusCode::NOT_FOUND, "Unbekannte Quelle");
+        return error_msg(StatusCode::NOT_FOUND, msg!(ServerMiscUnknownSource));
     };
     Json(state.webhook_test(source).await).into_response()
 }
 
-pub(super) fn test_answer(ok: bool, message: &str) -> WebhookTestResponse {
+pub(super) fn test_answer(ok: bool, message: Msg) -> WebhookTestResponse {
     WebhookTestResponse {
         ok,
-        message: message.into(),
+        message: message.de(),
+        msg: Some(message),
     }
 }
 
 impl AppState {
     pub(super) async fn webhook_test(&self, source: Source) -> WebhookTestResponse {
         if !self.inner.webhooks.settings().enabled {
-            return test_answer(
-                false,
-                "Webhooks sind noch nicht aktiviert. Schalte sie oben ein.",
-            );
+            return test_answer(false, msg!(ServerMiscWebhookNotEnabled));
         }
         let s = self.clone();
         let secret = tokio::task::spawn_blocking(move || s.token(secret_name(source)))
@@ -72,7 +70,7 @@ impl AppState {
             .ok()
             .flatten();
         let Some(secret) = secret else {
-            return test_answer(false, "Es gibt noch kein Secret. Erzeuge zuerst eines.");
+            return test_answer(false, msg!(ServerMiscWebhookNoSecret));
         };
         // The body differs every time so that the replay check does not swallow a second test.
         let nonce = format!("{}-{}", now_ms(), std::process::id());
@@ -99,24 +97,12 @@ impl AppState {
             body.len()
         );
         match local_status(port, &request).await {
-            Some(200) => test_answer(
-                true,
-                "Das Secret stimmt und die Route antwortet. Das ist ein lokaler Test: ob GitHub bzw. Jira dich über den Tunnel erreicht, zeigt erst „Zuletzt empfangen“ nach einer echten Zustellung.",
-            ),
-            Some(401) => test_answer(
-                false,
-                "Die Signatur wurde abgelehnt – das Secret passt nicht.",
-            ),
-            Some(404) => test_answer(
-                false,
-                "Die Route antwortet nicht. Sind Webhooks aktiviert und ein Secret gesetzt?",
-            ),
-            Some(429) => test_answer(
-                false,
-                "Zu viele Anfragen in kurzer Zeit. Warte eine Minute.",
-            ),
-            Some(_) => test_answer(false, "Der Server hat den Test abgelehnt."),
-            None => test_answer(false, "Der lokale Server hat nicht geantwortet."),
+            Some(200) => test_answer(true, msg!(ServerMiscWebhookOk)),
+            Some(401) => test_answer(false, msg!(ServerMiscWebhookBadSignature)),
+            Some(404) => test_answer(false, msg!(ServerMiscWebhookNoRoute)),
+            Some(429) => test_answer(false, msg!(ServerMiscWebhookRateLimited)),
+            Some(_) => test_answer(false, msg!(ServerMiscWebhookRejected)),
+            None => test_answer(false, msg!(ServerMiscWebhookNoAnswer)),
         }
     }
 }

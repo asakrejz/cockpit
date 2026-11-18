@@ -9,6 +9,8 @@ use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use cockpit_i18n::{Msg, msg};
+
 use super::location::EXAMPLE_FILE;
 
 /// How long `/api/health` reuses a result (the check starts `git` a few times).
@@ -18,11 +20,57 @@ const CACHE_TTL: Duration = Duration::from_secs(15);
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct ConfigFilesStatus {
     pub path: String,
+    /// German text of the warnings (for readers that only know plain text).
     pub warnings: Vec<String>,
-    /// Hints about old files that can be deleted (German, for the interface).
+    /// The same warnings as code and parameters; the interface shows them in its language.
+    pub warning_msgs: Vec<Msg>,
+    /// Hints about old files that can be deleted (German text).
     pub notices: Vec<String>,
+    /// The same hints as code and parameters.
+    pub notice_msgs: Vec<Msg>,
 }
 
+/// One finding of the check; it is a message for the interface or an English line for the terminal.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Finding {
+    Loose { path: String, mode: u32 },
+    Tracked { shown: String, name: String },
+    NotIgnored { shown: String },
+}
+
+impl Finding {
+    fn msg(&self) -> Msg {
+        match self {
+            Finding::Loose { path, mode } => {
+                msg!(
+                    ServerConfigFilesLoose,
+                    path = path,
+                    mode = format!("{mode:o}")
+                )
+            }
+            Finding::Tracked { shown, name } => {
+                msg!(ServerConfigFilesTracked, file = shown, name = name)
+            }
+            Finding::NotIgnored { shown } => msg!(ServerConfigFilesNotIgnored, file = shown),
+        }
+    }
+
+    fn english(&self) -> String {
+        match self {
+            Finding::Loose { path, mode } => format!(
+                "{path} is accessible by other users (mode {mode:o}); it should belong to you alone."
+            ),
+            Finding::Tracked { shown, name } => format!(
+                "File {shown} is tracked by Git. A commit would publish your configuration. Remove it with `git rm --cached config/{name}` and never commit it."
+            ),
+            Finding::NotIgnored { shown } => format!(
+                "File {shown} is not protected by .gitignore. Add `config/*` to .gitignore so it is never committed by accident."
+            ),
+        }
+    }
+}
+
+#[cfg(test)]
 #[derive(Clone, Copy)]
 pub enum Language {
     German,
@@ -32,27 +80,35 @@ pub enum Language {
 /// Checks the folder without changing anything (cached for a few seconds); `legacy` are the
 /// places of the old files, reported while they still exist.
 pub fn status(dir: &Path, legacy: &[PathBuf]) -> ConfigFilesStatus {
-    static CACHE: Mutex<Option<(PathBuf, Instant, Vec<String>)>> = Mutex::new(None);
-    let warnings = {
+    static CACHE: Mutex<Option<(PathBuf, Instant, Vec<Msg>)>> = Mutex::new(None);
+    let warning_msgs = {
         let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
         match cache.as_ref() {
             Some((p, at, w)) if p == dir && at.elapsed() < CACHE_TTL => w.clone(),
             _ => {
-                let w = check(dir, Language::German);
+                let w: Vec<Msg> = findings(dir).iter().map(Finding::msg).collect();
                 *cache = Some((dir.to_path_buf(), Instant::now(), w.clone()));
                 w
             }
         }
     };
+    let notice_msgs = legacy_msgs(legacy);
     ConfigFilesStatus {
         path: dir.display().to_string(),
-        warnings,
-        notices: legacy_notices(legacy),
+        warnings: warning_msgs.iter().map(Msg::de).collect(),
+        warning_msgs,
+        notices: notice_msgs.iter().map(Msg::de).collect(),
+        notice_msgs,
     }
 }
 
 /// "Old configuration is still at …": one line per old folder that still has files.
+#[cfg(test)]
 pub fn legacy_notices(legacy: &[PathBuf]) -> Vec<String> {
+    legacy_msgs(legacy).iter().map(Msg::de).collect()
+}
+
+fn legacy_msgs(legacy: &[PathBuf]) -> Vec<Msg> {
     let mut folders: Vec<&Path> = Vec::new();
     for f in legacy.iter().filter(|f| f.is_file()) {
         if let Some(d) = f.parent()
@@ -63,12 +119,7 @@ pub fn legacy_notices(legacy: &[PathBuf]) -> Vec<String> {
     }
     folders
         .into_iter()
-        .map(|d| {
-            format!(
-                "Alte Konfiguration liegt noch unter {}, du kannst sie löschen. Cockpit nutzt nur noch den Ordner config im Projekt.",
-                d.display()
-            )
-        })
+        .map(|d| msg!(ServerConfigLegacyFolder, path = d.display().to_string()))
         .collect()
 }
 
@@ -87,18 +138,35 @@ fn private_files(dir: &Path) -> Vec<String> {
 }
 
 /// All warnings; changes nothing.
+#[cfg(test)]
 pub fn check(dir: &Path, language: Language) -> Vec<String> {
-    let mut warnings = Vec::new();
+    findings(dir)
+        .iter()
+        .map(|f| match language {
+            Language::English => f.english(),
+            Language::German => f.msg().de(),
+        })
+        .collect()
+}
+
+fn findings(dir: &Path) -> Vec<Finding> {
+    let mut found = Vec::new();
     if let Some(mode) = loose_mode(dir, 0o077) {
-        warnings.push(loose(dir, mode, language));
+        found.push(Finding::Loose {
+            path: dir.display().to_string(),
+            mode,
+        });
     }
     for name in private_files(dir) {
         if let Some(mode) = loose_mode(&dir.join(&name), 0o077) {
-            warnings.push(loose(&dir.join(&name), mode, language));
+            found.push(Finding::Loose {
+                path: dir.join(&name).display().to_string(),
+                mode,
+            });
         }
     }
-    warnings.extend(git_warnings(dir, language));
-    warnings
+    found.extend(git_findings(dir));
+    found
 }
 
 /// At startup: tightens loose permissions (`700` folder, `600` files) and returns what was
@@ -123,21 +191,8 @@ pub fn check_and_fix(dir: &Path) -> Vec<String> {
     for name in private_files(dir) {
         fix(&dir.join(name), 0o600);
     }
-    notes.extend(git_warnings(dir, Language::English));
+    notes.extend(git_findings(dir).iter().map(Finding::english));
     notes
-}
-
-fn loose(path: &Path, mode: u32, language: Language) -> String {
-    match language {
-        Language::English => format!(
-            "{} is accessible by other users (mode {mode:o}); it should belong to you alone.",
-            path.display()
-        ),
-        Language::German => format!(
-            "{} ist für andere Benutzer zugänglich (Rechte {mode:o}). Sie sollte nur dir gehören (Ordner 700, Dateien 600); beim nächsten Start des Servers wird das korrigiert.",
-            path.display()
-        ),
-    }
 }
 
 #[cfg(unix)]
@@ -180,7 +235,7 @@ fn git(dir: &Path, args: &[&str]) -> Option<(bool, i32, String)> {
     ))
 }
 
-fn git_warnings(dir: &Path, language: Language) -> Vec<String> {
+fn git_findings(dir: &Path) -> Vec<Finding> {
     if !dir.is_dir() {
         return Vec::new();
     }
@@ -200,13 +255,9 @@ fn git_warnings(dir: &Path, language: Language) -> Vec<String> {
         .collect();
     for name in &tracked {
         let shown = dir.join(name).display().to_string();
-        warnings.push(match language {
-            Language::English => format!(
-                "File {shown} is tracked by Git. A commit would publish your configuration. Remove it with `git rm --cached config/{name}` and never commit it."
-            ),
-            Language::German => format!(
-                "Die Datei {shown} wird von Git verfolgt. Ein Commit würde deine Konfiguration veröffentlichen. Entferne sie mit „git rm --cached config/{name}“ und committe sie nie."
-            ),
+        warnings.push(Finding::Tracked {
+            shown,
+            name: name.clone(),
         });
     }
     // Exit code 1: not ignored (0: ignored, 128: error – then say nothing).
@@ -216,14 +267,7 @@ fn git_warnings(dir: &Path, language: Language) -> Vec<String> {
         }
         if let Some((false, 1, _)) = git(dir, &["check-ignore", "-q", "--", &name]) {
             let shown = dir.join(&name).display().to_string();
-            warnings.push(match language {
-                Language::English => format!(
-                    "File {shown} is not protected by .gitignore. Add `config/*` to .gitignore so it is never committed by accident."
-                ),
-                Language::German => format!(
-                    "Die Datei {shown} ist nicht durch .gitignore geschützt. Trage „config/*“ in die .gitignore ein, damit sie nie versehentlich committet wird."
-                ),
-            });
+            warnings.push(Finding::NotIgnored { shown });
         }
     }
     warnings

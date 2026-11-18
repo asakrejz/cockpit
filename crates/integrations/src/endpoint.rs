@@ -13,6 +13,7 @@
 use std::time::Duration;
 
 use cockpit_core::api::{EndpointCheck, MAX_MODELS, ModelList};
+use cockpit_i18n::{Msg, msg};
 use reqwest::{StatusCode, redirect::Policy};
 
 use crate::Secret;
@@ -70,16 +71,16 @@ impl Target {
         if self.openai { "OpenAI" } else { "Anthropic" }
     }
 
-    fn who(&self) -> String {
+    fn who(&self) -> Msg {
         if self.direct {
-            self.vendor().into()
+            Msg::raw(self.vendor())
         } else {
-            format!("Der Endpunkt unter {}", self.base)
+            msg!(IntegrationsEndpointAt, base = &self.base)
         }
     }
 
-    fn key_advice(&self) -> &'static str {
-        "Speichere den richtigen Key im Schritt „Modell“ im Feld „Key“"
+    fn key_advice(&self) -> Msg {
+        msg!(IntegrationsEndpointKeyAdvice)
     }
 }
 
@@ -102,17 +103,14 @@ impl Failed {
         )
     }
 
-    fn text(&self, target: &Target) -> String {
+    fn msg(&self, target: &Target) -> Msg {
         let who = target.who();
         match self {
-            Failed::NoKey => {
-                format!(
-                    "Es liegt kein Key in der .env-Datei. {}.",
-                    target.key_advice()
-                )
+            Failed::NoKey => msg!(IntegrationsEndpointNoKey, advice = target.key_advice()),
+            Failed::ClientNotStartable(e) => {
+                msg!(IntegrationsEndpointClientFailed, reason = Msg::raw(e))
             }
-            Failed::ClientNotStartable(e) => format!("HTTP-Client nicht startbar: {e}"),
-            Failed::Timeout => format!("{who} antwortet nicht rechtzeitig."),
+            Failed::Timeout => msg!(IntegrationsEndpointTimeout, who = who),
             Failed::NotReachable => {
                 if target.direct {
                     let host = if target.openai {
@@ -120,24 +118,29 @@ impl Failed {
                     } else {
                         "api.anthropic.com"
                     };
-                    format!(
-                        "{} ist nicht erreichbar. Hast du eine Internetverbindung, und lässt dein Netz {host} durch?",
-                        target.vendor()
+                    msg!(
+                        IntegrationsEndpointUnreachableDirect,
+                        who = who,
+                        host = host
                     )
                 } else {
-                    format!("{who} ist nicht erreichbar. Läuft er, und stimmt die Adresse?")
+                    msg!(IntegrationsEndpointUnreachable, who = who)
                 }
             }
-            Failed::KeyRejected => format!("{who} lehnt den Key ab. {}.", target.key_advice()),
-            Failed::Status(s) => format!("{who} antwortet mit Status {s}."),
+            Failed::KeyRejected => msg!(
+                IntegrationsEndpointKeyRejected,
+                who = who,
+                advice = target.key_advice()
+            ),
+            Failed::Status(s) => msg!(IntegrationsEndpointStatus, who = who, status = *s),
             Failed::NoDirectory => {
                 if target.direct {
-                    format!("Die Antwort von {} ist keine Modellliste.", target.vendor())
+                    msg!(IntegrationsEndpointNotAListDirect, who = who)
                 } else {
-                    format!(
-                        "Die Antwort von {} ist keine Modellliste. Ist das die Adresse eines {}-kompatiblen Endpunkts (z. B. eines LiteLLM-Proxys)?",
-                        target.base,
-                        target.vendor()
+                    msg!(
+                        IntegrationsEndpointNotAList,
+                        base = &target.base,
+                        vendor = target.vendor()
                     )
                 }
             }
@@ -220,17 +223,42 @@ async fn fetch(target: &Target, key: Option<&Secret>) -> Result<Vec<String>, Fai
     ))
 }
 
+/// An answer that carries only a hint (German text and code).
+trait Hinted {
+    fn with(msg: Msg) -> Self;
+}
+
+impl Hinted for EndpointCheck {
+    fn with(msg: Msg) -> Self {
+        EndpointCheck {
+            hint: Some(msg.de()),
+            msg: Some(msg),
+            ..Default::default()
+        }
+    }
+}
+
+impl Hinted for ModelList {
+    fn with(msg: Msg) -> Self {
+        ModelList {
+            hint: Some(msg.de()),
+            msg: Some(msg),
+            ..Default::default()
+        }
+    }
+}
+
+fn hinted<T: Hinted>(msg: Msg) -> T {
+    T::with(msg)
+}
+
 /// The endpoint's model IDs for the drop-down. Without a key nothing is called.
 pub async fn models_load(target: &Target, key: Option<&Secret>) -> ModelList {
     match fetch(target, key).await {
         Ok(models) if models.is_empty() => ModelList {
             reachable: true,
             key_ok: true,
-            hint: Some(format!(
-                "{} bietet keine Modelle an. Trage den Modellnamen von Hand ein.",
-                target.who()
-            )),
-            ..Default::default()
+            ..hinted(msg!(IntegrationsEndpointNoModels, who = target.who()))
         },
         Ok(models) => ModelList {
             loaded: true,
@@ -238,13 +266,19 @@ pub async fn models_load(target: &Target, key: Option<&Secret>) -> ModelList {
             key_ok: true,
             models,
             hint: None,
+            msg: None,
         },
         Err(m) => ModelList {
             reachable: m.reachable(),
-            hint: Some(m.text(target)),
-            ..Default::default()
+            ..hinted(m.msg(target))
         },
     }
+}
+
+fn set_hint(mut check: EndpointCheck, msg: Msg) -> EndpointCheck {
+    check.hint = Some(msg.de());
+    check.msg = Some(msg);
+    check
 }
 
 /// Checks the endpoint: reachable, key accepted, model present. `model` is the configured name.
@@ -257,29 +291,32 @@ pub async fn verify(target: &Target, key: Option<&Secret>, model: Option<&str>) 
         Ok(n) => n,
         Err(m) => {
             result.reachable = m.reachable();
-            result.hint = Some(m.text(target));
-            return result;
+            return set_hint(result, m.msg(target));
         }
     };
     result.reachable = true;
     result.key_ok = true;
     match model {
-        None => {
-            result.hint = Some("Kein Modell eingestellt. Wähle eines im Schritt „Modell“.".into());
-        }
+        None => result = set_hint(result, msg!(IntegrationsEndpointNoModelSet)),
         Some(m) if names.iter().any(|n| n == m) => result.model_present = true,
         Some(m) => {
             let more = if names.len() > MAX_NAMES { ", …" } else { "" };
             let list: Vec<&str> = names.iter().take(MAX_NAMES).map(String::as_str).collect();
-            result.hint = Some(if names.is_empty() {
-                format!("{} bietet kein Modell an, „{m}“ fehlt.", target.who())
-            } else {
-                format!(
-                    "{} bietet „{m}“ nicht an, sondern: {}{more}",
-                    target.who(),
-                    list.join(", ")
+            let hint = if names.is_empty() {
+                msg!(
+                    IntegrationsEndpointModelMissingNone,
+                    who = target.who(),
+                    model = m
                 )
-            });
+            } else {
+                msg!(
+                    IntegrationsEndpointModelMissing,
+                    who = target.who(),
+                    model = m,
+                    models = format!("{}{more}", list.join(", "))
+                )
+            };
+            result = set_hint(result, hint);
         }
     }
     result

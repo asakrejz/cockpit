@@ -20,15 +20,13 @@ pub(super) fn set(table: &mut dyn toml_edit::TableLike, key: &str, updated: Item
 pub(super) fn table<'a>(
     doc: &'a mut DocumentMut,
     name: &str,
-) -> Result<&'a mut dyn toml_edit::TableLike, String> {
+) -> Result<&'a mut dyn toml_edit::TableLike, Msg> {
     if !doc.contains_key(name) {
         doc.insert(name, Item::Table(Table::new()));
     }
     doc.get_mut(name)
         .and_then(Item::as_table_like_mut)
-        .ok_or_else(|| {
-            format!("In config.toml ist „{name}“ keine Tabelle – bitte die Datei prüfen.")
-        })
+        .ok_or_else(|| msg!(ServerSetupTableInvalid, name = name))
 }
 
 /// Removes a table if it is empty.
@@ -63,11 +61,16 @@ pub(super) fn endpoint_values(item: Option<&Item>) -> Option<(Option<String>, Op
 pub(super) fn endpoint_write(
     doc: &mut DocumentMut,
     e: &cockpit_core::api::EndpointInput,
-) -> Result<(), String> {
-    let url = e.url.as_deref().map(endpoint_url_read).transpose()?;
+) -> Result<(), Msg> {
+    let url = e
+        .url
+        .as_deref()
+        .map(endpoint_url_read)
+        .transpose()
+        .raw_msg()?;
     let model = match e.model.as_deref().map(str::trim) {
         Some(m) if m.chars().any(|c| c.is_whitespace() || c.is_control()) => {
-            return Err("Der Modellname enthält Leerzeichen oder Sonderzeichen.".into());
+            return Err(msg!(ServerSetupModelNameInvalid));
         }
         other => other,
     };
@@ -94,7 +97,7 @@ pub(super) fn endpoint_write(
         let ep = agent
             .get_mut("endpoint")
             .and_then(Item::as_table_like_mut)
-            .ok_or("In config.toml ist „agent.endpoint“ keine Tabelle – bitte die Datei prüfen.")?;
+            .ok_or_else(|| msg!(ServerSetupTableInvalid, name = "agent.endpoint"))?;
         // Several spellings at once: the current one wins, then `[agent.endpunkt]`, then `[litellm]`.
         for (old_url, old_model) in [legacy, legacy_litellm].into_iter().flatten() {
             if !ep.contains_key("url")
@@ -133,16 +136,16 @@ pub(super) fn endpoint_write(
 
 /// Applies the change to the text of `config.toml`. The text is then checked as at
 /// start (`Config::parse`); an error means: write nothing.
-pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), String> {
+pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), Msg> {
     let mut doc: DocumentMut = text.parse().map_err(|e: toml_edit::TomlError| {
-        format!("config.toml ist fehlerhaft: {}", e.message())
+        msg!(ServerSetupTomlBroken, reason = Msg::raw(e.message()))
     })?;
 
     if let Some(j) = &a.jira {
         {
             let t = table(&mut doc, "jira")?;
             if let Some(site) = &j.site {
-                let site = jira_site_read(site)?;
+                let site = jira_site_read(site).raw_msg()?;
                 if site.is_empty() {
                     t.remove("site");
                 } else {
@@ -154,7 +157,7 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), String> 
                 if email.is_empty() {
                     t.remove("email");
                 } else if !email.contains('@') || email.contains(char::is_whitespace) {
-                    return Err("Das ist keine E-Mail-Adresse.".into());
+                    return Err(msg!(ServerSetupEmailInvalid));
                 } else {
                     set(t, "email", value(email));
                 }
@@ -175,7 +178,7 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), String> 
         ("github_oauth", &a.github_oauth),
     ] {
         if let Some(c) = input {
-            let id = client_id_read(&c.client_id)?;
+            let id = client_id_read(&c.client_id).raw_msg()?;
             if id.is_empty() {
                 doc.remove(name);
             } else {
@@ -190,18 +193,16 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), String> 
             if site.is_empty() {
                 t.remove("site");
             } else if site.chars().any(char::is_control) {
-                return Err("Der Name der Site enthält Sonderzeichen.".into());
+                return Err(msg!(ServerSetupSiteNameInvalid));
             } else {
                 set(t, "site", value(site));
             }
         } else if !site.is_empty() {
-            return Err(
-                "Trage zuerst die Client-ID ein, dann kannst du die Site festlegen.".into(),
-            );
+            return Err(msg!(ServerSetupSiteNeedsClientId));
         }
     }
     if let Some(g) = &a.github {
-        let repos = repos_read(&g.repos.join(","))?;
+        let repos = repos_read(&g.repos.join(",")).raw_msg()?;
         {
             let t = table(&mut doc, "github")?;
             if repos.is_empty() {
@@ -225,7 +226,7 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), String> 
                 set(t, "webhooks", value(on));
             }
             if let Some(url) = &w.public_url {
-                let url = cockpit_core::setup::public_url_read(url)?;
+                let url = cockpit_core::setup::public_url_read(url).raw_msg()?;
                 if url.is_empty() {
                     t.remove("public_url");
                 } else {
@@ -239,23 +240,18 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), String> 
     let updated = doc.to_string();
     let config = Config::parse(Some(&updated), |_| None).map_err(|e| match e {
         ConfigError::Wert(m) => m,
-        other => other.to_string(),
+        other => Msg::raw(other.to_string()),
     })?;
     Ok((updated, config))
 }
 
 /// Writes `[agent] repo` (the default) and `[[agent.repos]]` (the list with base branch and
 /// Jira projects). An empty list removes both. Other values of `[agent]` stay.
-pub(super) fn agent_repos_write(
-    doc: &mut DocumentMut,
-    input: &AgentReposInput,
-) -> Result<(), String> {
+pub(super) fn agent_repos_write(doc: &mut DocumentMut, input: &AgentReposInput) -> Result<(), Msg> {
     if let Some(d) = &input.default
         && !input.repos.iter().any(|r| &r.repo == d)
     {
-        return Err(format!(
-            "Das Standard-Repo „{d}“ muss auch in der Liste der Agent-Repos stehen."
-        ));
+        return Err(msg!(ServerSetupDefaultRepoMissing, repo = d));
     }
     let t = table(doc, "agent")?;
     t.remove("repos");

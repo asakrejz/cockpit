@@ -196,7 +196,7 @@ fn AppWay(ctx: Context) -> impl IntoView {
                     let mut text = t!(SetupGithubAppSaved);
                     if let Some(h) = answer.hint {
                         text.push(' ');
-                        text.push_str(&h);
+                        text.push_str(&server::shown(&h, answer.msg.as_ref()));
                     }
                     back.set(Some((true, text)));
                     ctx.reload();
@@ -365,7 +365,7 @@ fn ConnectionCheck(ctx: Context) -> impl IntoView {
                         let tone = a.ok;
                         view! {
                             <p class="ui-hint" role="status" style=(!tone).then_some("color: var(--sys-color-red)")>
-                                {a.message.clone()}
+                                {server::shown(&a.message, a.msg.as_ref())}
                             </p>
                             <ul class="ui-checklist">
                                 {a.repos
@@ -376,7 +376,7 @@ fn ConnectionCheck(ctx: Context) -> impl IntoView {
                                             RepoState::ReadOnly => "!",
                                             _ => "✗",
                                         };
-                                        view! { <li>{t!(SetupGithubRepoLine, mark = mark, repo = c.repo, message = c.message)}</li> }
+                                        view! { <li>{t!(SetupGithubRepoLine, mark = mark, repo = c.repo, message = server::shown(&c.message, c.msg.as_ref()))}</li> }
                                     })
                                     .collect_view()}
                             </ul>

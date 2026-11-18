@@ -1,6 +1,7 @@
 use std::fmt;
 
 use cockpit_core::Problem;
+use cockpit_i18n::{Msg, msg};
 
 /// What can go wrong in a call. The messages never contain a key.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -27,6 +28,8 @@ pub enum Error {
     Config(String),
     /// The service has no matching option (e.g. no Jira transition to the target status).
     NotPossible(String),
+    /// A message of this program with a code, shown to people in their language.
+    Coded(Msg),
 }
 
 impl Error {
@@ -42,6 +45,7 @@ impl Error {
             Error::Response(m) => Error::Response(pure(m)),
             Error::Config(m) => Error::Config(pure(m)),
             Error::NotPossible(m) => Error::NotPossible(pure(m)),
+            Error::Coded(m) => Error::Coded(pure_msg(m, key)),
             other => other,
         }
     }
@@ -60,36 +64,55 @@ impl Error {
     }
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Error {
+    /// The message as code and parameters; the UI renders it in the chosen language.
+    pub fn msg(&self) -> Msg {
         match self {
-            Error::Network(m) => write!(f, "Keine Verbindung zum Dienst: {m}"),
-            Error::NotSignedIn => {
-                write!(
-                    f,
-                    "Nicht angemeldet: Schlüssel fehlt, ist abgelaufen oder widerrufen"
-                )
-            }
-            Error::NoPermission => write!(f, "Dem Schlüssel fehlt die Berechtigung"),
-            Error::RateLimit { .. } => write!(
-                f,
-                "Kontingent des Dienstes aufgebraucht, später erneut versuchen"
-            ),
-            Error::NotFound => write!(f, "Nicht gefunden"),
-            Error::Rejected(m) if m.is_empty() => write!(f, "Der Dienst lehnt die Anfrage ab"),
-            Error::Rejected(m) => write!(f, "Der Dienst lehnt die Anfrage ab: {m}"),
-            Error::Status(code @ 500..=599) => {
-                write!(f, "Der Dienst hat einen Serverfehler gemeldet ({code})")
-            }
-            Error::Status(code) => write!(f, "Unerwarteter Status vom Dienst: {code}"),
-            Error::Response(m) => write!(f, "Antwort des Dienstes nicht lesbar: {m}"),
-            Error::Config(m) => write!(f, "Ungültige Einstellung: {m}"),
-            Error::NotPossible(m) => write!(f, "{m}"),
+            Error::Network(m) => msg!(IntegrationsNetwork, reason = Msg::raw(m)),
+            Error::NotSignedIn => msg!(IntegrationsNotSignedIn),
+            Error::NoPermission => msg!(IntegrationsNoPermission),
+            Error::RateLimit { .. } => msg!(IntegrationsRateLimit),
+            Error::NotFound => msg!(IntegrationsNotFound),
+            Error::Rejected(m) if m.is_empty() => msg!(IntegrationsRejected),
+            Error::Rejected(m) => msg!(IntegrationsRejectedWith, reason = Msg::raw(m)),
+            Error::Status(code @ 500..=599) => msg!(IntegrationsServerError, code = *code),
+            Error::Status(code) => msg!(IntegrationsUnexpectedStatus, code = *code),
+            Error::Response(m) => msg!(IntegrationsBadResponse, reason = Msg::raw(m)),
+            Error::Config(m) => msg!(IntegrationsBadConfig, reason = Msg::raw(m)),
+            Error::NotPossible(m) => Msg::raw(m),
+            Error::Coded(m) => m.clone(),
         }
     }
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.msg().de())
+    }
+}
+
 impl std::error::Error for Error {}
+
+/// Replaces the key in all parameters of a message.
+fn pure_msg(mut m: Msg, key: &str) -> Msg {
+    use cockpit_i18n::ArgValue;
+    fn clean(v: ArgValue, key: &str) -> ArgValue {
+        match v {
+            ArgValue::Text(t) => ArgValue::Text(t.replace(key, "***")),
+            ArgValue::Msg(m) => ArgValue::Msg(pure_msg(m, key)),
+            ArgValue::List { items, sep } => ArgValue::List {
+                items: items.into_iter().map(|i| clean(i, key)).collect(),
+                sep,
+            },
+        }
+    }
+    m.args = m
+        .args
+        .into_iter()
+        .map(|(k, v)| (k, clean(v, key)))
+        .collect();
+    m
+}
 
 #[cfg(test)]
 mod tests;

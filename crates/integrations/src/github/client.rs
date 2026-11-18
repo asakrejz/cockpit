@@ -1,6 +1,7 @@
 //! Reading client for the GitHub REST API.
 
 use cockpit_core::Item;
+use cockpit_i18n::msg;
 
 use serde::de::DeserializeOwned;
 
@@ -467,7 +468,7 @@ impl GitHubClient {
             } => self.check_again_start(repo, *number, check).await,
             other => match other.request() {
                 Some(request) => self.send(&request).await.map(|_| ()),
-                None => Err(Error::Config("Kein GitHub-Aufruf".into())),
+                None => Err(Error::Config("not a GitHub call".into())),
             },
         }
     }
@@ -607,9 +608,7 @@ impl GitHubClient {
             .iter()
             .find(|c| c.name == check)
             .map(|c| c.id)
-            .ok_or_else(|| {
-                Error::NotPossible(format!("Check „{check}“ gibt es bei GitHub nicht (mehr)"))
-            })?;
+            .ok_or_else(|| Error::Coded(msg!(IntegrationsGithubCheckGone, check = check)))?;
         self.send(&check_again_request(repo, id)).await.map(|_| ())
     }
 }

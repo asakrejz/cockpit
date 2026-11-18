@@ -494,7 +494,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                                 style=(!p.ok).then_some("color: var(--sys-color-red)")
                             >
                                 {if p.ok { "✓ " } else { "" }}
-                                {p.message}
+                                {server::shown(&p.message, p.msg.as_ref())}
                             </p>
                         }
                     })

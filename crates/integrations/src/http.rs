@@ -1,5 +1,6 @@
 //! Shared fetch: translate status into [`Error`], read JSON.
 
+use cockpit_i18n::msg;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use reqwest::header::HeaderMap;
@@ -129,9 +130,7 @@ pub(crate) fn base_url(url: &str) -> Result<String, Error> {
     {
         Ok(url.to_string())
     } else {
-        Err(Error::Config(format!(
-            "Adresse muss mit https:// beginnen: {url}"
-        )))
+        Err(Error::Coded(msg!(IntegrationsBadUrlScheme, url = url)))
     }
 }
 

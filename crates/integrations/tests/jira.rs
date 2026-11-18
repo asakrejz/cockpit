@@ -42,7 +42,7 @@ fn assigned_issue() {
     );
     assert_eq!(item.owner, cockpit_core::Person::me());
     // 09:12 +02:00 = 07:12 UTC → 4 h 48 min before 12:00 UTC
-    assert_eq!(item.time, "vor 4 Std.");
+    assert_eq!(item.time, "vor 4 Stunden");
     assert!(item.pr.is_none() && item.branch.is_none() && item.comments.is_empty());
     assert_eq!(item.labels, ["a11y", "tokens"]);
     assert_eq!(item.repo, None, "tickets have no repo");
@@ -98,7 +98,7 @@ fn comments_with_adf_and_own() {
     assert!(!c[0].own);
     assert_eq!(c[1].text, "Ja, bin dran.");
     assert!(c[1].own);
-    assert_eq!(c[1].time, "vor 4 Std.");
+    assert_eq!(c[1].time, "vor 4 Stunden");
 }
 
 // ---------- Client against mock server ----------
@@ -197,7 +197,10 @@ fn query_for_a_project() {
     );
     for broken in ["", "1AB", "A) OR (B", "BAU-1"] {
         assert!(
-            matches!(jql_for_project(broken), Err(Error::Config(_))),
+            matches!(
+                jql_for_project(broken),
+                Err(Error::Config(_) | Error::Coded(_))
+            ),
             "{broken}"
         );
     }
