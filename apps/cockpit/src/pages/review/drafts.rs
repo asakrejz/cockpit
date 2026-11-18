@@ -9,15 +9,14 @@ pub(super) fn location_label(s: &Suggestion) -> String {
         return s.location.clone();
     }
     let lines = match s.start_line {
-        Some(start) => format!("Zeilen {start}–{}", s.line),
-        None => format!("Zeile {}", s.line),
+        Some(start) => t!(ReviewDraftsLines, start = start, end = s.line),
+        None => t!(ReviewLine, n = s.line),
     };
-    let old = if s.side == DiffSide::Left {
-        " (alte Zeile)"
+    if s.side == DiffSide::Left {
+        t!(ReviewDraftsWhereOld, path = s.path, lines = lines)
     } else {
-        ""
-    };
-    format!("{} · {lines}{old}", s.path)
+        t!(ReviewDraftsWhere, path = s.path, lines = lines)
+    }
 }
 
 /// The replacement code of a draft as a small diff: the lines it replaces (red) and the new ones
@@ -78,24 +77,24 @@ pub(super) fn draft_notes(store: Store, r: &Review, file: &str, index: usize) ->
                             size=ControlSize::Small
                             on_click=decide(Some(Decision::Approved))
                         >
-                            "Freigeben"
+                            {t!(ReviewApprove)}
                         </Button>
                         <Button size=ControlSize::Small destructive=true on_click=decide(Some(Decision::Declined))>
-                            "Verwerfen"
+                            {t!(ReviewDiscard)}
                         </Button>
                     </div>
                 }
                 .into_any(),
                 Some(d) => {
                     let (label, tone) = match d {
-                        Decision::Approved => ("Freigegeben – wird mit dem Review gesendet", StatusTone::Green),
-                        Decision::Declined => ("Verworfen – wird nicht gesendet", StatusTone::Gray),
+                        Decision::Approved => (t!(ReviewDraftsApproved), StatusTone::Green),
+                        Decision::Declined => (t!(ReviewDraftsDeclined), StatusTone::Gray),
                     };
                     view! {
                         <div class="ui-hstack" style="justify-content: space-between">
                             <Status tone=tone>{label}</Status>
                             <Button variant=ButtonStyle::Borderless size=ControlSize::Small on_click=decide(None)>
-                                "Rückgängig"
+                                {t!(ReviewUndo)}
                             </Button>
                         </div>
                     }
@@ -103,12 +102,12 @@ pub(super) fn draft_notes(store: Store, r: &Review, file: &str, index: usize) ->
                 }
             };
             view! {
-                <div class="ui-diff__note" role="group" aria-label="Entwurf des Agenten">
+                <div class="ui-diff__note" role="group" aria-label=t!(ReviewDraftsGroup)>
                     <span class="ui-hstack t-footnote t-secondary" style="--spacing: 8px">
-                        "Entwurf des Agenten · noch nicht auf GitHub"
+                        {t!(ReviewDraftsNote)}
                     </span>
                     <p class="t-subheadline">{s.text.clone()}</p>
-                    {(!rows.is_empty()).then(|| view! { <Diff rows=rows.clone() label="Änderungsvorschlag" /> })}
+                    {(!rows.is_empty()).then(|| view! { <Diff rows=rows.clone() label=t!(ReviewSuggestion) /> })}
                     {controls}
                 </div>
             }

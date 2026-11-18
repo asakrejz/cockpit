@@ -1,13 +1,26 @@
 use super::*;
 
+/// Why merging is not possible yet.
+fn blocker_reason(b: cockpit_core::MergeBlocker) -> String {
+    use cockpit_core::MergeBlocker as B;
+    match b {
+        B::AlreadyMerged => t!(ReviewMergeAlreadyMerged),
+        B::Draft => t!(ReviewMergeDraft),
+        B::ChecksFailed => t!(ReviewMergeChecksFailed),
+        B::ChecksRunning => t!(ReviewMergeChecksRunning),
+        B::ReviewNotSent => t!(ReviewMergeReviewNotSent),
+        B::ChangesRequested => t!(ReviewMergeChangesRequested),
+    }
+}
+
 /// Merge: choose method, button – and why it does not work right now.
 pub(super) fn merge_section(store: Store, r: &Review, panel: Panel) -> AnyView {
     let number = StoredValue::new(r.key());
     if let Some(method) = r.merged {
         return view! {
             <div class="ui-vstack" style="--spacing: 10px">
-                <h3 class="t-headline">"Mergen"</h3>
-                <Status tone=StatusTone::Indigo>{format!("Gemergt ({})", method.label())}</Status>
+                <h3 class="t-headline">{t!(ReviewMergeTitle)}</h3>
+                <Status tone=StatusTone::Indigo>{t!(ReviewMerged, method = method.label())}</Status>
             </div>
         }
         .into_any();
@@ -19,7 +32,7 @@ pub(super) fn merge_section(store: Store, r: &Review, panel: Panel) -> AnyView {
     let can_merge = blockers.is_empty();
     let reasons = blockers
         .iter()
-        .map(|b| view! { <li class="t-footnote t-secondary">{b.reason()}</li> })
+        .map(|b| view! { <li class="t-footnote t-secondary">{blocker_reason(*b)}</li> })
         .collect_view();
     let merge = move |_| {
         let Some(method) = MergeMethod::from_id(panel.merge_method.get_untracked()) else {
@@ -32,16 +45,16 @@ pub(super) fn merge_section(store: Store, r: &Review, panel: Panel) -> AnyView {
     };
     view! {
         <div class="ui-vstack" style="--spacing: 10px">
-            <h3 class="t-headline">"Mergen"</h3>
-            <SegmentedPicker
-                options=MergeMethod::OPTIONS
-                value=panel.merge_method
-                on_change=move |id: &'static str| panel.merge_method.set(id)
-                aria_label="Merge-Methode"
-                stretch=true
-            />
+            <h3 class="t-headline">{t!(ReviewMergeTitle)}</h3>
+            {segmented(
+                MergeMethod::OPTIONS.iter().map(|(id, label)| (*id, label.to_string())).collect(),
+                move || panel.merge_method.get(),
+                move |id| panel.merge_method.set(id),
+                t!(ReviewMergeMethod),
+                true,
+            )}
             <Button variant=ButtonStyle::BorderedProminent size=ControlSize::Large disabled=!can_merge on_click=merge>
-                "Mergen"
+                {t!(ReviewMergeButton)}
             </Button>
             {(!can_merge)
                 .then(|| {

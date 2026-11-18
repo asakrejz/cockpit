@@ -1,0 +1,7 @@
+review_drafts.lines = lines {start}–{end}
+review_drafts.where = {path} · {lines}
+review_drafts.where_old = {path} · {lines} (old line)
+review_drafts.approved = Approved – will be sent with the review
+review_drafts.declined = Discarded – will not be sent
+review_drafts.group = Agent draft
+review_drafts.note = Agent draft · not on GitHub yet
