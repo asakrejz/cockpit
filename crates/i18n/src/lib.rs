@@ -42,7 +42,7 @@ impl Lang {
     }
 
     /// Code for `<html lang>` and the wire.
-    pub fn code(self) -> &'static str {
+    pub const fn code(self) -> &'static str {
         match self {
             Lang::De => "de",
             Lang::En => "en",
@@ -50,7 +50,7 @@ impl Lang {
     }
 
     /// Name of the language in the language itself (for the switcher).
-    pub fn name(self) -> &'static str {
+    pub const fn name(self) -> &'static str {
         match self {
             Lang::De => "Deutsch",
             Lang::En => "English",

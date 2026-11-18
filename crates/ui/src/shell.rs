@@ -83,10 +83,10 @@ pub fn SplitView(
     };
     let back = level.map(|_| {
         view! {
-            <nav class="ui-splitview__back" aria-label="Zurück">
+            <nav class="ui-splitview__back" aria-label=crate::t!(UiBack)>
                 <a class="ui-splitview__back-link" href=back_href.clone()>
                     <span aria-hidden="true">"‹"</span>
-                    {back_label.unwrap_or_else(|| "Zurück".into())}
+                    {back_label.unwrap_or_else(|| crate::t!(UiBack))}
                 </a>
             </nav>
         }
@@ -388,7 +388,7 @@ pub fn BottomNav(
                     <Button
                         variant=ButtonStyle::Glass
                         shape=ButtonShape::Circle
-                        aria_label="Schließen"
+                        aria_label=crate::t!(UiClose)
                         on_click=move |_| close()
                     >
                         <Icon path=icons::CLOSE size=16 stroke=2.6 />
@@ -409,7 +409,7 @@ fn BottomNavBadge(#[prop(into)] count: Signal<usize>) -> impl IntoView {
             <span class="ui-bottomnav__badge" aria-hidden="true">
                 {move || if count.get() > 99 { "99+".to_string() } else { count.get().to_string() }}
             </span>
-            <span class="ui-sr-only">{move || format!(", {} neu", count.get())}</span>
+            <span class="ui-sr-only">{move || crate::t!(UiNewCount, n = count.get())}</span>
         </Show>
     }
 }

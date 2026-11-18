@@ -1,7 +1,7 @@
 //! The navigation of the app: a floating glass pill at the bottom edge on every screen width.
 //!
 //! The navigation targets are defined once ([`TARGETS`]): those with [`Slot::Bar`] sit in the
-//! pill, the rest behind "Mehr". The pill lives in the app shell (`main.rs`) so it stays when the
+//! pill, the rest behind "More". The pill lives in the app shell (`main.rs`) so it stays when the
 //! page changes (and its capsule can slide).
 
 use cockpit_core::{Filter, team};
@@ -25,9 +25,9 @@ enum Slot {
 /// One page of the navigation.
 struct Target {
     route: fn() -> Route,
-    label: &'static str,
+    label: Key,
     /// Short label for the pill (a slot is only about 60 px wide at 320 px).
-    short: &'static str,
+    short: Key,
     icon: &'static str,
     slot: Slot,
 }
@@ -36,84 +36,92 @@ struct Target {
 const TARGETS: [Target; 11] = [
     Target {
         route: || Route::Inbox(Filter::All),
-        label: "Aufmerksamkeit",
-        short: "Inbox",
+        label: Key::NavAttention,
+        short: Key::NavAttentionShort,
         icon: icons::BELL,
         slot: Slot::Bar,
     },
     Target {
         route: || Route::Inbox(Filter::Mine),
-        label: "Meine Aufgaben",
-        short: "Aufgaben",
+        label: Key::NavMine,
+        short: Key::NavMineShort,
         icon: icons::TASKS,
         slot: Slot::Bar,
     },
     Target {
         route: || Route::Inbox(Filter::Team),
-        label: "Team",
-        short: "Team",
+        label: Key::NavTeam,
+        short: Key::NavTeamShort,
         icon: icons::USERS,
         slot: Slot::More,
     },
     Target {
         route: || Route::Inbox(Filter::Snoozed),
-        label: "Zurückgestellt",
-        short: "Zurückgestellt",
+        label: Key::NavSnoozed,
+        short: Key::NavSnoozedShort,
         icon: icons::MOON,
         slot: Slot::More,
     },
     Target {
         route: || Route::Overview,
-        label: "Übersicht",
-        short: "Übersicht",
+        label: Key::NavOverview,
+        short: Key::NavOverviewShort,
         icon: icons::CHART,
         slot: Slot::More,
     },
     Target {
         route: || Route::Review(None),
-        label: "Pull Requests",
-        short: "Reviews",
+        label: Key::NavReviews,
+        short: Key::NavReviewsShort,
         icon: icons::GIT_PR,
         slot: Slot::Bar,
     },
     Target {
         route: || Route::Agent(None),
-        label: "Agenten",
-        short: "Agenten",
+        label: Key::NavAgents,
+        short: Key::NavAgentsShort,
         icon: icons::SPARKLES,
         slot: Slot::Bar,
     },
     Target {
         route: || Route::Log,
-        label: "Protokoll",
-        short: "Protokoll",
+        label: Key::NavLog,
+        short: Key::NavLogShort,
         icon: icons::LIBRARY,
         slot: Slot::More,
     },
     Target {
         route: || Route::Limits,
-        label: "Grenzen & Regeln",
-        short: "Grenzen",
+        label: Key::NavLimits,
+        short: Key::NavLimitsShort,
         icon: icons::SETTINGS,
         slot: Slot::More,
     },
     Target {
         route: || Route::Notifications,
-        label: "Benachrichtigungen",
-        short: "Mitteilungen",
+        label: Key::NavNotifications,
+        short: Key::NavNotificationsShort,
         icon: icons::BELL,
         slot: Slot::More,
     },
     Target {
         route: || Route::Setup,
-        label: "Einrichten",
-        short: "Einrichten",
+        label: Key::NavSetup,
+        short: Key::NavSetupShort,
         icon: icons::SLIDERS,
         slot: Slot::More,
     },
 ];
 
 impl Target {
+    fn label_text(&self) -> String {
+        tr(self.label, &[])
+    }
+
+    fn short_text(&self) -> String {
+        tr(self.short, &[])
+    }
+
     /// Pull requests and agents stay current for every item they show.
     fn is_current(&self, route: &Route) -> bool {
         let own = (self.route)();
@@ -137,7 +145,7 @@ impl Target {
             Route::Inbox(filter) => store.ws.with(|w| w.unread(filter, now)).to_string(),
             Route::Overview => match store.ws.with(|w| team::stuck(w).len()) {
                 0 => String::new(),
-                n => format!("{n} hängt"),
+                n => t!(NavStuck, n = n),
             },
             Route::Review(_) => store.ws.with(|w| w.open_reviews()).to_string(),
             Route::Agent(_) => agent_summary(store),
@@ -173,16 +181,16 @@ fn agent_summary(store: Store) -> String {
     let waiting = waiting - stopped;
     let mut parts = Vec::new();
     if running > 0 {
-        parts.push(format!("{running} aktiv"));
+        parts.push(t!(NavAgentsRunning, n = running));
     }
     if waiting > 0 {
-        parts.push(format!("{waiting} wartet"));
+        parts.push(t!(NavAgentsWaiting, n = waiting));
     }
     if paused > 0 {
-        parts.push(format!("{paused} pausiert"));
+        parts.push(t!(NavAgentsPaused, n = paused));
     }
     if stopped > 0 {
-        parts.push(format!("{stopped} angehalten"));
+        parts.push(t!(NavAgentsStopped, n = stopped));
     }
     parts.join(" · ")
 }
@@ -190,17 +198,17 @@ fn agent_summary(store: Store) -> String {
 /// One state of a connection (Jira, GitHub, agent) as an entry that leads to the setup.
 #[component]
 pub fn ConnectionItem(
-    label: &'static str,
+    #[prop(into)] label: String,
     on: fn(&cockpit_core::Connections) -> bool,
-    /// What the green state says ("Verbunden", "Bereit").
-    text: &'static str,
+    /// What the green state says ("Connected", "Ready").
+    text: Key,
 ) -> impl IntoView {
     let store = use_store();
     let connected = Signal::derive(move || on(&store.conn.get()));
     let status = view! {
         <Status tone=Signal::derive(move || {
             if connected.get() { StatusTone::Green } else { StatusTone::Gray }
-        })>{move || if connected.get() { text } else { "Getrennt" }}</Status>
+        })>{move || if connected.get() { tr(text, &[]) } else { t!(NavDisconnected) }}</Status>
     };
     view! { <SidebarItem href=Route::Setup.hash() label=label trailing=status.into_any() /> }
 }
@@ -209,9 +217,9 @@ pub fn ConnectionItem(
 #[component]
 pub fn Connections() -> impl IntoView {
     view! {
-        <ConnectionItem label="Jira" on=|c| c.jira text="Verbunden" />
-        <ConnectionItem label="GitHub" on=|c| c.github text="Verbunden" />
-        <ConnectionItem label="Agent" on=|c| c.agent text="Bereit" />
+        <ConnectionItem label="Jira" on=|c| c.jira text=Key::NavConnected />
+        <ConnectionItem label="GitHub" on=|c| c.github text=Key::NavConnected />
+        <ConnectionItem label=t!(NavAgent) on=|c| c.agent text=Key::NavReady />
     }
 }
 
@@ -253,7 +261,7 @@ pub fn AppNav() -> impl IntoView {
         view! {
             <SidebarItem
                 href=(t.route)().hash()
-                label=t.label
+                label=t.label_text()
                 icon=t.icon
                 count=count
                 current=current
@@ -267,7 +275,7 @@ pub fn AppNav() -> impl IntoView {
             view! {
                 <BottomNavItem
                     href=(t.route)().hash()
-                    label=t.short
+                    label=t.short_text()
                     icon=t.icon
                     current=Signal::derive(move || t.is_current(&store.route.get()))
                     badge=Signal::derive(move || t.attention(store))
@@ -302,9 +310,9 @@ pub fn AppNav() -> impl IntoView {
 
     view! {
         <BottomNav
-            label="Hauptnavigation"
-            more_label="Mehr"
-            more_title="Mehr"
+            label=t!(NavMain)
+            more_label=t!(NavMore)
+            more_title=t!(NavMore)
             more_current=more_current
             more_badge=more_badge
             slots=bar_len + 1
@@ -313,16 +321,20 @@ pub fn AppNav() -> impl IntoView {
                 view! {
                     <SidebarBrand href="#/">
                         "Cockpit"
-                        <span title="Läuft lokal auf diesem Rechner">
-                            <Badge variant=BadgeVariant::Neutral>"Lokal"</Badge>
+                        <span title=t!(NavLocalHint)>
+                            <Badge variant=BadgeVariant::Neutral>{t!(NavLocal)}</Badge>
                         </span>
                     </SidebarBrand>
                     <ul class="ui-sidebar__nav">{more_items()}</ul>
                     {move || menu.0.get().map(|section| section.run())}
-                    <p class="ui-sidebar__label">"Verbindungen"</p>
+                    <p class="ui-sidebar__label">{t!(NavConnections)}</p>
                     <ul class="ui-sidebar__nav">
                         <Connections />
                     </ul>
+                    <p class="ui-sidebar__label">{t!(LanguageLabel)}</p>
+                    <div style="padding: 4px 12px 12px">
+                        <crate::language::LanguageSwitch stretch=true />
+                    </div>
                 }
                 .into_any()
             }

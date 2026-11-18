@@ -6,6 +6,7 @@
 mod banner;
 mod first_run;
 mod gate;
+mod language;
 mod notify;
 mod oauth_card;
 mod oauth_result;
@@ -21,7 +22,7 @@ mod view;
 use std::time::Duration;
 
 use banner::ServerBanner;
-use feature_ui::{Root, Theme};
+use feature_ui::{Root, Theme, lang};
 use leptos::prelude::*;
 use pages::{
     agent::AgentPage, inbox::InboxPage, limits::LimitsPage, log::LogPage,
@@ -54,6 +55,8 @@ fn App() -> impl IntoView {
     let store = Store::new();
     provide_context(store);
     provide_context(sidebar::PageMenu::new());
+    // The language follows the workspace (browser language until one is chosen).
+    language::follow_workspace();
     // Return from the OAuth sign-in: show success or error.
     oauth_result::announce(store);
     // On the first start, when nothing is set up yet: to the assistant.
@@ -75,31 +78,39 @@ fn App() -> impl IntoView {
     let loaded = Memo::new(move |_| store.loaded.get());
     let page = Memo::new(move |_| store.route.with(Route::page));
 
-    view! {
-        <Root theme=system_theme() class="ck-root">
+    // Changing the language rebuilds the visible tree once, so every text is read again. The state
+    // (store, workspace, route) lives above and stays.
+    let content = move || {
+        lang();
+        view! {
             <ServerBanner />
-            {move || {
-                if !loaded.get() {
-                    return view! { <gate::Gate /> }.into_any();
-                }
-                match page.get() {
-                Route::Setup | Route::SetupStep(_) => view! { <SetupPage /> }.into_any(),
-                Route::Inbox(filter) => view! { <InboxPage filter=filter /> }.into_any(),
-                Route::Overview => view! { <OverviewPage /> }.into_any(),
-                Route::Log => view! { <LogPage /> }.into_any(),
-                Route::Notifications => view! { <NotificationsPage /> }.into_any(),
-                Route::Limits => view! { <LimitsPage /> }.into_any(),
-                Route::Review(number) => view! { <ReviewPage number=number /> }.into_any(),
-                Route::Agent(ticket) => view! { <AgentPage ticket=ticket /> }.into_any(),
-                // `page()` never returns the detail levels; they belong to the pages above.
-                Route::InboxItem(filter, _) => view! { <InboxPage filter=filter /> }.into_any(),
-                Route::OverviewMember(_) => view! { <OverviewPage /> }.into_any(),
-                }
-            }}
-            <Show when=move || store.loaded.get()>
-                <sidebar::AppNav />
-            </Show>
-            <toasts::Toasts />
+                {move || {
+                    if !loaded.get() {
+                        return view! { <gate::Gate /> }.into_any();
+                    }
+                    match page.get() {
+                    Route::Setup | Route::SetupStep(_) => view! { <SetupPage /> }.into_any(),
+                    Route::Inbox(filter) => view! { <InboxPage filter=filter /> }.into_any(),
+                    Route::Overview => view! { <OverviewPage /> }.into_any(),
+                    Route::Log => view! { <LogPage /> }.into_any(),
+                    Route::Notifications => view! { <NotificationsPage /> }.into_any(),
+                    Route::Limits => view! { <LimitsPage /> }.into_any(),
+                    Route::Review(number) => view! { <ReviewPage number=number /> }.into_any(),
+                    Route::Agent(ticket) => view! { <AgentPage ticket=ticket /> }.into_any(),
+                    // `page()` never returns the detail levels; they belong to the pages above.
+                    Route::InboxItem(filter, _) => view! { <InboxPage filter=filter /> }.into_any(),
+                    Route::OverviewMember(_) => view! { <OverviewPage /> }.into_any(),
+                    }
+                }}
+                <Show when=move || store.loaded.get()>
+                    <sidebar::AppNav />
+                </Show>
+                <toasts::Toasts />
+        }
+    };
+
+    view! {
+        <Root theme=system_theme() class="ck-root">{content}
         </Root>
     }
 }

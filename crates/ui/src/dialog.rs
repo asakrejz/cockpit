@@ -38,7 +38,7 @@ pub fn Dialog(
                             variant=ButtonStyle::Glass
                             shape=ButtonShape::Circle
                             size=ControlSize::Small
-                            aria_label="Schließen"
+                            aria_label=crate::t!(UiClose)
                             on_click=move |_| open.set(false)
                         >
                             <Icon path=icons::CLOSE size=14 stroke=2.6 />

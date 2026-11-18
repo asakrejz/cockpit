@@ -56,16 +56,16 @@ pub fn Diff(
                     let line = match on_select {
                         Some(on_select) => {
                             let description = match row.kind {
-                                DiffKind::Context => "",
-                                DiffKind::Add => ", neu",
-                                DiffKind::Del => ", entfernt",
+                                DiffKind::Context => String::new(),
+                                DiffKind::Add => crate::t!(UiDiffAdded),
+                                DiffKind::Del => crate::t!(UiDiffRemoved),
                             };
                             view! {
                                 <button
                                     type="button"
                                     class="ui-diff__line ui-diff__line--select"
                                     data-kind=kind
-                                    aria-label=format!("Zeile {no}{description} auswählen")
+                                    aria-label=crate::t!(UiDiffSelect, line = no, description = description)
                                     aria-pressed=move || {
                                         (selected.get() == Some(index)).to_string()
                                     }

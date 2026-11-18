@@ -123,13 +123,44 @@ fn is_css_like(text: &str) -> bool {
     })
 }
 
+/// The text without its `{placeholders}`.
+fn without_placeholders(text: &str) -> String {
+    let mut out = String::new();
+    let mut depth = 0;
+    for c in text.chars() {
+        match c {
+            '{' => depth += 1,
+            '}' if depth > 0 => depth -= 1,
+            _ if depth == 0 => out.push(c),
+            _ => {}
+        }
+    }
+    out
+}
+
 fn looks_visible(text: &str) -> bool {
+    let text = without_placeholders(text);
+    let text = text.as_str();
     let letters = text.chars().filter(|c| c.is_alphabetic()).count();
     if letters < 2 || ALLOWED.contains(&text.trim()) {
         return false;
     }
     if text.contains(['ä', 'ö', 'ü', 'Ä', 'Ö', 'Ü', 'ß', '…', '„', '“', '·', '€']) {
         return true;
+    }
+    // SVG path data and CSS declarations (`flex-wrap: wrap`).
+    if text
+        .chars()
+        .all(|c| "MmLlHhVvCcSsQqTtAaZz0123456789 ,.-".contains(c))
+    {
+        return false;
+    }
+    let property = text.split(": ").next().unwrap_or("");
+    if text.contains(": ")
+        && !property.is_empty()
+        && property.chars().all(|c| c.is_ascii_lowercase() || c == '-')
+    {
+        return false;
     }
     if text.starts_with("--")
         || text.contains("px")
