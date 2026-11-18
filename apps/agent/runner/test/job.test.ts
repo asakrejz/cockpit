@@ -12,9 +12,26 @@ test("a job gets default values", () => {
 
 test("unknown mode and foreign branch are rejected", () => {
   assert.throws(() => checkJob({ mode: "böse" }), /Unbekannter Modus/);
-  assert.throws(() => checkJob({ mode: "implement", branch: "main" }), /claude\//);
-  assert.throws(() => checkJob({ mode: "implement", branch: "claude/../main x" }), /claude\//);
+  assert.throws(() => checkJob({ mode: "implement", branch: "main" }), /Branch-Name/);
+  assert.throws(() => checkJob({ mode: "implement", branch: "claude/../main x" }), /Branch-Name/);
+  assert.throws(() => checkJob({ mode: "implement", branch: "-x" }), /Branch-Name/);
+  assert.throws(() => checkJob({ mode: "implement", branch: "" }), /Branch-Name/);
   assert.throws(() => checkJob(null), /kein Objekt/);
+});
+
+test("a branch from another pattern of the repo is let through (the backend enforces the pattern)", () => {
+  assert.equal(checkJob({ mode: "implement", branch: "feature/BAU-1-x" }).branch, "feature/BAU-1-x");
+  assert.equal(checkJob({ mode: "implement", branch: "BAU-1-x" }).branch, "BAU-1-x");
+});
+
+test("the guidelines of the repo are pointed out to the agent, only from the usual places", () => {
+  const none = checkJob({ mode: "plan", ticket: { key: "X-1" } });
+  assert.equal(none.contributing, "");
+  assert.doesNotMatch(systemText(none), /Richtlinien/);
+  const a = checkJob({ mode: "plan", ticket: { key: "X-1" }, contributing: ".github/CONTRIBUTING.md" });
+  assert.match(systemText(a), /Richtlinien in \.github\/CONTRIBUTING\.md[\s\S]*Commit-Nachrichten/);
+  assert.equal(checkJob({ mode: "plan", ticket: { key: "X-1" }, contributing: "/etc/passwd" }).contributing, "");
+  assert.equal(checkJob({ mode: "plan", ticket: { key: "X-1" }, contributing: "../../x.md" }).contributing, "");
 });
 
 test("the fixed rules are in the system text, so are the rules of the repo", () => {

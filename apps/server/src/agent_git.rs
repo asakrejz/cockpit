@@ -1,9 +1,11 @@
 //! Git on the user's machine for the agent: cloning before the run, checking and pushing after it.
 //!
 //! The container gets **no** GitHub token. The backend clones (fresh, per run), the container
-//! commits to a branch `claude/…`, and the backend only pushes after its check:
+//! commits to a branch, and the backend only pushes after its check:
 //!
-//! * only branches with the prefix `claude/` – never the main branch, never a force push, never a merge,
+//! * only a branch that the configured pattern of the repo produces (`claude/{ticket}-{slug}` by
+//!   default, see `cockpit_core::branch`) – never the main branch, the base branch, a protected
+//!   name or a branch that already exists on the remote, never a force push, never a merge,
 //! * the branch must build on the state from which it was cloned,
 //! * the changed files must fit the rules of the repo.
 //!
@@ -45,18 +47,28 @@ pub fn base_branch_ok(branch: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'))
 }
 
-/// Only branches `claude/…` with inconspicuous characters. The main branch is thereby excluded.
-pub fn branch_ok(branch: &str) -> bool {
-    branch.starts_with("claude/")
-        && branch.len() <= 120
-        && !branch.contains("..")
-        && !branch.contains("//")
-        && !branch.ends_with('/')
-        && !branch.ends_with(".lock")
-        && !branch.ends_with('.')
-        && branch
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.'))
+/// The branch of a run and what it is checked against: the pattern of the repo (from the
+/// configuration, never from the request) and the base branch.
+#[derive(Clone, Copy, Debug)]
+pub struct BranchRule<'a> {
+    pub branch: &'a str,
+    pub pattern: &'a str,
+    pub base: &'a str,
+    /// A follow-up on the branch of an existing pull request. Otherwise the branch is new and
+    /// must not exist on the remote yet.
+    pub existing: bool,
+}
+
+impl BranchRule<'_> {
+    /// Valid name, not protected, produced by the pattern. A follow-up may also keep a name
+    /// from the default pattern.
+    pub fn check(&self) -> Result<(), String> {
+        if self.existing {
+            cockpit_core::branch::check_existing(self.pattern, self.base, self.branch)
+        } else {
+            cockpit_core::branch::check(self.pattern, self.base, self.branch)
+        }
+    }
 }
 
 /// A branch name of a pull request that is safe to hand to `git clone --branch`: no leading `-`,
@@ -218,17 +230,17 @@ pub fn clone(
     url: &str,
     target: &Path,
     token: Option<&Secret>,
-    base_branch: &str,
-    branch: &str,
+    rule: &BranchRule,
 ) -> Result<String, String> {
-    if !branch_ok(branch) {
-        return Err(format!(
-            "Der Branch „{branch}“ ist nicht erlaubt – nur claude/… wird angelegt."
-        ));
+    let (base_branch, branch) = (rule.base, rule.branch);
+    rule.check()?;
+    if rule.existing {
+        return Err("Ein neuer Lauf legt einen neuen Branch an.".into());
     }
     if !base_branch_ok(base_branch) {
         return Err(format!("Der Basis-Branch „{base_branch}“ ist ungültig."));
     }
+    branch_is_new(url, token, branch)?;
     let z = target.to_string_lossy().into_owned();
     git(
         &[
@@ -262,7 +274,40 @@ pub fn clone(
     Ok(base)
 }
 
-/// Clones the **existing** branch `branch` (a branch `claude/…` of a pull request) for a follow-up
+/// The contribution guidelines in a clone (`CONTRIBUTING.md` and the two other usual places), as
+/// the path inside the repo. Only regular files count. The job file names it so the runner can
+/// tell the agent to follow the commit conventions in it.
+pub fn guideline_file(clone: &Path) -> Option<&'static str> {
+    cockpit_core::branch::GUIDELINE_FILES
+        .into_iter()
+        .find(|f| std::fs::symlink_metadata(clone.join(f)).is_ok_and(|m| m.file_type().is_file()))
+}
+
+/// A new branch must not exist on the remote: an existing one is somebody else's work (or
+/// protected), and the agent never pushes onto it.
+fn branch_is_new(url: &str, token: Option<&Secret>, branch: &str) -> Result<(), String> {
+    let out = git(
+        &[
+            "ls-remote",
+            "--heads",
+            "--",
+            url,
+            &format!("refs/heads/{branch}"),
+        ],
+        None,
+        url,
+        token,
+    )?;
+    if out.trim().is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "Den Branch „{branch}“ gibt es im Repo schon. Der Agent legt nur neue Branches an und schreibt nie in einen vorhandenen."
+        ))
+    }
+}
+
+/// Clones the **existing** branch `branch` (the branch of a pull request) for a follow-up
 /// job and returns the commit it stands on. New commits of the agent build on it; the backend
 /// pushes them as a normal push (never a force-push). Like [`clone`], the clone has no remote and
 /// no token afterwards.
@@ -270,12 +315,12 @@ pub fn clone_branch(
     url: &str,
     target: &Path,
     token: Option<&Secret>,
-    branch: &str,
+    rule: &BranchRule,
 ) -> Result<String, String> {
-    if !branch_ok(branch) {
-        return Err(format!(
-            "Der Branch „{branch}“ ist nicht erlaubt – der Agent arbeitet nur auf claude/…."
-        ));
+    let branch = rule.branch;
+    rule.check()?;
+    if !rule.existing {
+        return Err("Ein Folgeauftrag arbeitet auf dem Branch eines Pull Requests.".into());
     }
     clone_existing(url, target, token, branch)
 }
@@ -339,17 +384,14 @@ pub struct Published {
 pub fn publish(
     clone: &Path,
     export: &Path,
-    branch: &str,
     base_sha: &str,
     url: &str,
     token: Option<&Secret>,
     rules: &RepoRules,
+    rule: &BranchRule,
 ) -> Result<Published, String> {
-    if !branch_ok(branch) {
-        return Err(format!(
-            "Der Branch „{branch}“ ist nicht erlaubt – gepusht wird nur claude/…."
-        ));
-    }
+    let branch = rule.branch;
+    rule.check()?;
     if base_sha.len() < 7 || !base_sha.chars().all(|c| c.is_ascii_hexdigit()) {
         return Err("Der Ausgangsstand des Laufs ist unbekannt.".into());
     }
@@ -422,6 +464,10 @@ pub fn publish(
             "Die Änderungen verstoßen gegen die Regeln des Repos und werden nicht gepusht: {}.",
             reasons.join("; ")
         ));
+    }
+    if !rule.existing {
+        // Somebody may have created the branch while the agent worked.
+        branch_is_new(url, token, branch)?;
     }
     git(
         &["push", "--quiet", "--", url, &format!("{ref_}:{ref_}")],

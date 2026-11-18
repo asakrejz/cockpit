@@ -131,7 +131,8 @@ pub fn open_tickets_jql(jql: &str) -> Option<String> {
 const PROJECTS_PAGE: usize = 50;
 const MAX_PROJECTS: usize = 500;
 
-const FIELDS: &str = "summary,description,status,assignee,reporter,updated,duedate,labels";
+const FIELDS: &str =
+    "summary,description,status,assignee,reporter,updated,duedate,labels,issuetype";
 
 /// This many issues per page and at most in total.
 const PAGE: usize = 50;

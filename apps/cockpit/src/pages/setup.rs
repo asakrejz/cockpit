@@ -7,6 +7,7 @@
 //! are in `cockpit_core::setup`, writing `config.toml` is in the server.
 
 mod auth_method;
+mod branch_pattern;
 mod build_log;
 mod container;
 mod done;

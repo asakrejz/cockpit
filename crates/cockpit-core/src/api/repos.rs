@@ -55,6 +55,28 @@ pub struct RepoCheckResponse {
     pub repos: Vec<RepoCheck>,
 }
 
+/// Body of `POST /api/github/branch-suggestion`.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct BranchSuggestionRequest {
+    #[serde(default)]
+    pub repo: String,
+}
+
+/// What the contribution guidelines of a repo say about branch names. Only a proposal: the
+/// user confirms it, nothing is saved by this call.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct BranchSuggestion {
+    /// The proposed pattern, `None` if the guidelines name none.
+    #[serde(default)]
+    pub pattern: Option<String>,
+    /// The file the proposal comes from (`CONTRIBUTING.md`).
+    #[serde(default)]
+    pub source: Option<String>,
+    /// A sentence in plain text: what was found, or why there is no proposal.
+    #[serde(default)]
+    pub message: String,
+}
+
 /// One repo the connected GitHub access can reach (`GET /api/github/repos`).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct GitHubRepoInfo {

@@ -30,6 +30,7 @@ pub mod adf;
 pub mod agent;
 pub mod api;
 pub mod attention;
+pub mod branch;
 pub mod connections;
 pub mod demo;
 pub mod diagnosis;

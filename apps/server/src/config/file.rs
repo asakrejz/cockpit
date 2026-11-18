@@ -55,6 +55,9 @@ pub(super) struct FileAgentRepo {
     pub(super) base_branch: Option<String>,
     #[serde(default)]
     pub(super) projects: Vec<String>,
+    /// `claude/{ticket}-{slug}` if missing.
+    #[serde(default)]
+    pub(super) branch_pattern: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -170,10 +173,20 @@ pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>,
                 projects.push(p);
             }
         }
+        let pattern = r
+            .branch_pattern
+            .as_deref()
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+            .unwrap_or(cockpit_core::branch::DEFAULT_PATTERN);
+        cockpit_core::branch::validate(pattern).map_err(|m| {
+            ConfigError::Wert(format!("[[agent.repos]] branch_pattern von {repo}: {m}"))
+        })?;
         out.push(AgentRepo {
             repo,
             base_branch: base.to_string(),
             projects,
+            branch_pattern: pattern.to_string(),
         });
     }
     Ok(out)

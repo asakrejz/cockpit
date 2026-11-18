@@ -235,5 +235,5 @@ async fn followups_need_the_real_agent_to_be_ready_and_an_agent_branch() {
         })
         .await
         .unwrap_err();
-    assert!(e.contains("claude/"), "{e}");
+    assert!(e.contains("Namensmuster"), "{e}");
 }

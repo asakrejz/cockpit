@@ -37,7 +37,7 @@ pub enum AgentError {
     NoComments,
     /// Only a red check can be investigated.
     CheckNotFailed,
-    /// The agent only continues on branches `claude/…`.
+    /// The agent only continues on branches that the pattern of the repo names (`claude/…` by default).
     NotAgentBranch,
     /// The pull request has no diff the agent could look at.
     NothingToReview,

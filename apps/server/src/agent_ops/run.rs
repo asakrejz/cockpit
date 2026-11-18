@@ -132,6 +132,8 @@ pub(super) async fn run_run(
     };
 
     let branch = run.branch();
+    // The pattern comes from the configuration of the repo, never from the run's own options.
+    let pattern = state.agent_repos().branch_pattern(&repo);
     let base_dir = state.agent_dir().join("runs").join(agent_run::run_dir(key));
     let clone = base_dir.join(match mode {
         Mode::Plan => "plan",
@@ -149,12 +151,13 @@ pub(super) async fn run_run(
             .trim()
             .to_string()
     } else {
-        let (k, u, t, b, br) = (
+        let (k, u, t, b, br, pt) = (
             clone.clone(),
             url.clone(),
             access.github.clone(),
             run.options.base_branch.clone(),
             branch.clone(),
+            pattern.clone(),
         );
         let on_existing_branch = run.kind.review().is_some();
         let read_only_review = mode == Mode::Review;
@@ -165,13 +168,19 @@ pub(super) async fn run_run(
                 std::fs::create_dir_all(p).map_err(|e| format!("Ordner nicht anlegbar: {e}"))?;
             }
             // A follow-up job continues on the branch of the pull request; a new run branches off.
+            let rule = agent_git::BranchRule {
+                branch: &br,
+                pattern: &pt,
+                base: &b,
+                existing: on_existing_branch,
+            };
             let sha = if read_only_review {
                 // Any branch of the pull request: the agent only reads this clone.
                 agent_git::clone_for_review(&u, &k, Some(&t), &br)?
             } else if on_existing_branch {
-                agent_git::clone_branch(&u, &k, Some(&t), &br)?
+                agent_git::clone_branch(&u, &k, Some(&t), &rule)?
             } else {
-                agent_git::clone(&u, &k, Some(&t), &b, &br)?
+                agent_git::clone(&u, &k, Some(&t), &rule)?
             };
             std::fs::write(&bd, &sha).map_err(|e| format!("Stand nicht gesichert: {e}"))?;
             Ok::<_, String>(sha)
@@ -194,6 +203,9 @@ pub(super) async fn run_run(
     let mut job = agent_run::job_json(&ws, &run, mode, &branch, followup.as_ref().map(|f| &f.0));
     if let Some((_, redacted)) = &followup {
         job["followup"] = redacted.clone();
+    }
+    if let Some(file) = agent_git::guideline_file(&clone) {
+        job["contributing"] = file.into();
     }
     // The diff and the description come from third parties: whatever looks like one of our keys goes.
     if let Some(review) = job.get("review").filter(|v| !v.is_null()) {
@@ -441,9 +453,20 @@ pub(super) async fn run_run(
         access.github.clone(),
         run.rules.clone(),
     );
+    let (pt, base, existing) = (
+        pattern,
+        run.options.base_branch.clone(),
+        run.kind.review().is_some(),
+    );
     let published = tokio::task::spawn_blocking(move || {
         let _ = std::fs::remove_dir_all(&e);
-        agent_git::publish(&k, &e, &b, &sha, &u, Some(&t), &rules)
+        let rule = agent_git::BranchRule {
+            branch: &b,
+            pattern: &pt,
+            base: &base,
+            existing,
+        };
+        agent_git::publish(&k, &e, &sha, &u, Some(&t), &rules, &rule)
     })
     .await;
     match published {

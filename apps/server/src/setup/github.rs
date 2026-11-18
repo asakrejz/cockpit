@@ -1,7 +1,10 @@
 //! GitHub in the assistant: the list of repos to choose from and the connection test.
 //! Both only read and never name the token.
 
-use cockpit_core::api::{GitHubCause, GitHubCheck, GitHubRepoInfo, GitHubRepoList};
+use cockpit_core::api::{
+    BranchSuggestion, BranchSuggestionRequest, GitHubCause, GitHubCheck, GitHubRepoInfo,
+    GitHubRepoList,
+};
 use cockpit_core::setup::github_check_text;
 use cockpit_integrations::github::{GitHubClient, RepoList};
 
@@ -123,6 +126,65 @@ impl AppState {
         list.map(|l| info(l, via)).map_err(|e| github_failure(&e))
     }
 
+    /// Reads the contribution guidelines of `repo` (read-only) and proposes a branch pattern.
+    /// Changes nothing; the user confirms the proposal.
+    pub async fn branch_suggestion(
+        &self,
+        repo: &str,
+    ) -> Result<BranchSuggestion, (StatusCode, String)> {
+        if !crate::agent_git::repo_name_ok(repo) {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                "Das ist kein Repo – gebraucht wird die Form firma/app.".into(),
+            ));
+        }
+        self.oauth_refresh().await;
+        let s = self.clone();
+        let access = tokio::task::spawn_blocking(move || s.github_assistant_access())
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Interner Fehler".to_string(),
+                )
+            })?
+            .map_err(|e| github_failure(&e))?;
+        let Some(access) = access else {
+            return Err((
+                StatusCode::CONFLICT,
+                github_check_text(GitHubCause::NotConnected, None),
+            ));
+        };
+        let found = access
+            .client
+            .contributing(repo)
+            .await
+            .map_err(|e| github_failure(&e))?;
+        Ok(match found {
+            None => BranchSuggestion {
+                pattern: None,
+                source: None,
+                message: format!(
+                    "In {repo} gibt es keine Datei CONTRIBUTING.md. Trage das Muster selbst ein oder lass es bei der Voreinstellung."
+                ),
+            },
+            Some((file, text)) => match cockpit_core::branch::suggest(&text) {
+                Some(s) => BranchSuggestion {
+                    pattern: Some(s.pattern),
+                    source: Some(file),
+                    message: s.reason,
+                },
+                None => BranchSuggestion {
+                    pattern: None,
+                    source: Some(file.clone()),
+                    message: format!(
+                        "In {file} steht nichts über Branch-Namen, das Cockpit erkennt. Trage das Muster selbst ein oder lass es bei der Voreinstellung."
+                    ),
+                },
+            },
+        })
+    }
+
     /// The connection test: who GitHub sees (`GET /user`) and, for every chosen repo,
     /// `GET /repos/{owner}/{name}`. Only reads; at most 20 repos.
     pub async fn github_check(&self, repos: Vec<String>) -> GitHubCheck {
@@ -172,6 +234,17 @@ impl AppState {
 pub async fn repos_list(State(state): State<AppState>) -> Response {
     match state.github_repo_list().await {
         Ok(list) => Json(list).into_response(),
+        Err((status, message)) => error(status, message),
+    }
+}
+
+/// `POST /api/github/branch-suggestion`: only reads.
+pub async fn branch_suggestion_route(
+    State(state): State<AppState>,
+    Json(req): Json<BranchSuggestionRequest>,
+) -> Response {
+    match state.branch_suggestion(req.repo.trim()).await {
+        Ok(s) => Json(s).into_response(),
         Err((status, message)) => error(status, message),
     }
 }

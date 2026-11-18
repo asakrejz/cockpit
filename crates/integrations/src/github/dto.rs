@@ -204,6 +204,19 @@ pub struct PullReview {
     pub submitted_at: String,
 }
 
+/// `GET /repos/{owner}/{repo}/contents/{path}` for a file.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ContentFile {
+    #[serde(rename = "type", default)]
+    pub kind: String,
+    #[serde(default)]
+    pub encoding: String,
+    #[serde(default)]
+    pub content: String,
+    #[serde(default)]
+    pub size: u64,
+}
+
 /// `GET /repos/{owner}/{repo}`
 #[derive(Debug, Clone, Deserialize)]
 pub struct Repo {

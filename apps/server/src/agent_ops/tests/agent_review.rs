@@ -177,3 +177,33 @@ async fn a_failing_container_ends_the_run_with_a_reason_and_no_drafts() {
     );
     assert!(!ws.review(85).unwrap().agent_reviewed);
 }
+
+#[tokio::test]
+async fn the_branch_pattern_does_not_block_a_read_only_review() {
+    let g = MockServer::start().await;
+    let w = world(&g);
+    // The repo names agent branches `fix/…`; the pull request is on `feature/liste` (not that).
+    {
+        let mut c = w.state.inner.agent_repo_config.write().unwrap();
+        c.repos = vec![cockpit_core::AgentRepo {
+            branch_pattern: "fix/{ticket}-{slug}".into(),
+            ..cockpit_core::AgentRepo::new("firma/app")
+        }];
+    }
+    let (file, line) = spot(&w);
+    w.write("scenario-plan.sh", &scenario_review(&file, line));
+    let branches_before = w.branches();
+    w.action(Action::StartPrReview {
+        review: PrKey::new("firma/app", 85),
+    })
+    .await
+    .unwrap();
+    w.wait("review finished", |ws| {
+        ws.review(85).is_some_and(|r| r.agent_reviewed)
+    })
+    .await;
+    w.wait_for_end().await;
+    // The review ran on the foreign branch, and still nothing was pushed.
+    assert!(w.ws().review(85).unwrap().agent_reviewed);
+    assert_eq!(w.branches(), branches_before);
+}

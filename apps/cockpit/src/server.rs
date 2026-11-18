@@ -4,11 +4,11 @@
 
 use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
-    ActionRequest, ActionResponse, AgentStatus, ConfigChange, ConfigResponse, ContainerCheck,
-    ContainerStatus, EndpointCheck, EndpointStatus, ErrorBody, GitHubCheck, GitHubRepoList,
-    ImageBuild, JiraCheck, JiraProjectsResponse, KeyInput, KeyResponse, ModelList,
-    RepoCheckRequest, RevokeResponse, ServerEvent, Setup, SyncResponse, WebhookSecretResponse,
-    WebhookTestResponse,
+    ActionRequest, ActionResponse, AgentStatus, BranchSuggestion, BranchSuggestionRequest,
+    ConfigChange, ConfigResponse, ContainerCheck, ContainerStatus, EndpointCheck, EndpointStatus,
+    ErrorBody, GitHubCheck, GitHubRepoList, ImageBuild, JiraCheck, JiraProjectsResponse, KeyInput,
+    KeyResponse, ModelList, RepoCheckRequest, RevokeResponse, ServerEvent, Setup, SyncResponse,
+    WebhookSecretResponse, WebhookTestResponse,
 };
 use cockpit_core::{Action, Workspace, persist};
 use gloo_net::http::Request;
@@ -415,6 +415,22 @@ pub async fn fetch_github_repos() -> Result<GitHubRepoList, CallError> {
         return Err(rejection_own(resp).await);
     }
     resp.json::<GitHubRepoList>()
+        .await
+        .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
+}
+
+/// A branch pattern proposed from the CONTRIBUTING.md of a repo
+/// (`POST /api/github/branch-suggestion`). Only reads; nothing is saved.
+pub async fn post_branch_suggestion(repo: &str) -> Result<BranchSuggestion, CallError> {
+    let request = Request::post("/api/github/branch-suggestion")
+        .header("Content-Type", "application/json")
+        .json(&BranchSuggestionRequest { repo: repo.into() })
+        .map_err(|_| CallError::Rejected("Die Anfrage lässt sich nicht starten".into()))?;
+    let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection_own(resp).await);
+    }
+    resp.json::<BranchSuggestion>()
         .await
         .map_err(|_| CallError::Rejected("Der Server antwortet unverständlich".into()))
 }

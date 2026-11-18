@@ -72,9 +72,19 @@ pub struct Fields {
     pub duedate: Option<String>,
     #[serde(default)]
     pub labels: Vec<String>,
+    /// `Bug`, `Story`, `Task` …
+    #[serde(default)]
+    pub issuetype: Option<IssueType>,
     /// All other fields, among them the sprint field of the site (its ID differs per site).
     #[serde(flatten)]
     pub extra: serde_json::Map<String, Value>,
+}
+
+/// The issue type of a ticket.
+#[derive(Debug, Clone, Deserialize)]
+pub struct IssueType {
+    #[serde(default)]
+    pub name: String,
 }
 
 /// `GET /rest/api/3/field` – one field (only what finding the sprint field needs).

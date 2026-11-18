@@ -177,6 +177,9 @@ pub struct Item {
     /// `None` = no sprint (backlog) or no sprint data.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sprint: Option<Sprint>,
+    /// Jira only: the issue type (`Bug`, `Story` …), `None` = unknown. Gives `{type}` of a branch.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub issue_type: Option<String>,
     /// Last update at the service (milliseconds since 1970), `None` = unknown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updated_ms: Option<u64>,

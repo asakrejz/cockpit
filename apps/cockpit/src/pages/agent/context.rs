@@ -36,6 +36,9 @@ impl OptionSignals {
             plan_first: plan_first.get(),
             repo: Some(repo.get()).filter(|r| !r.is_empty()),
             base_branch: agent_repos.with(|a| a.base_branch(&repo.get())),
+            // Only a preview: the backend sets the pattern from its own configuration.
+            branch_pattern: agent_repos.with(|a| a.branch_pattern(&repo.get())),
+            ..AgentOptions::default()
         }
     }
 }

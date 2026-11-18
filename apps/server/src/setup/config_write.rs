@@ -288,6 +288,10 @@ pub(super) fn agent_repos_write(
             if !r.projects.is_empty() {
                 e.insert("projects", list(&r.projects));
             }
+            let pattern = r.branch_pattern.trim();
+            if !pattern.is_empty() && pattern != cockpit_core::branch::DEFAULT_PATTERN {
+                e.insert("branch_pattern", value(pattern));
+            }
             all.push(e);
         }
         t.insert("repos", Item::ArrayOfTables(all));

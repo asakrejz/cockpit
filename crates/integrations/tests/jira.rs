@@ -213,3 +213,18 @@ fn debug_does_not_show_the_key() {
     .unwrap();
     assert!(!format!("{c:?}").contains("geheim-123"));
 }
+
+#[test]
+fn the_issue_type_is_read_for_the_branch_name() {
+    let mut s = search();
+    // Without the field (an older response) there is no type.
+    assert_eq!(
+        issue_to_item(&s.issues[0], "acc-mira", now()).issue_type,
+        None
+    );
+    s.issues[0].fields.issuetype = Some(IssueType { name: "Bug".into() });
+    let item = issue_to_item(&s.issues[0], "acc-mira", now());
+    assert_eq!(item.issue_type.as_deref(), Some("Bug"));
+    let kind = cockpit_core::branch::BranchType::of(item.issue_type.as_deref(), &item.labels);
+    assert_eq!(kind, cockpit_core::branch::BranchType::Fix);
+}

@@ -38,6 +38,7 @@ repo = "acme/app"               # default repo of the agent
 repo = "acme/web"
 base_branch = "develop"         # optional, default "main"
 projects = ["WEB"]              # tickets of these Jira projects go to this repo
+branch_pattern = "feature/{ticket}-{slug}"   # optional; default "claude/{ticket}-{slug}"; also {type} = feature/fix/chore
 
 [[agent.repos]]
 repo = "acme/app"               # a repo without projects is only a choice
