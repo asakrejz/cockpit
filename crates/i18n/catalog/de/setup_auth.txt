@@ -1,0 +1,3 @@
+# Auswahl des Anmeldewegs (Jira- und GitHub-Schritt).
+setup_auth.token = API-Token
+setup_auth.oauth = OAuth

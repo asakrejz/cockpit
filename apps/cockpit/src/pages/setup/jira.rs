@@ -55,16 +55,15 @@ pub fn JiraStep(ctx: Context) -> impl IntoView {
     // switching back and forth.
     view! {
         <VStack spacing="12px">
-            <Intro title="Jira verbinden">
+            <Intro title=t!(SetupJiraTitle)>
+                <p>{t!(SetupJiraIntro)}</p>
                 <p>
-                    "Damit zeigt dir Cockpit deine Tickets. Du kannst dich auf zwei Wegen anmelden – wähle oben, welchen du nutzen willst. Der API-Token ist der einfachere: ein Passwort nur für Programme, das du in deinem Atlassian-Konto selbst erzeugst."
-                </p>
-                <p>
-                    <strong>"Gut zu wissen:"</strong>
-                    " Der Zugang hat die Rechte deines Kontos. Solange Cockpit nur lesen soll, nimm am besten ein Konto oder eine Rolle ohne Schreibrechte. Du kannst den Zugang jederzeit entziehen."
+                    <strong>{t!(SetupJiraGoodToKnow)}</strong>
+                    " "
+                    {t!(SetupJiraGoodToKnowText)}
                 </p>
             </Intro>
-            <AuthMethodPicker chosen=chosen default=default aria_label="Anmeldeweg für Jira" />
+            <AuthMethodPicker chosen=chosen default=default aria_label=t!(SetupJiraPickerAria) />
             <div hidden=move || method.get() != AuthKind::Token>
                 <VStack spacing="12px">
                     <JiraToken ctx=ctx result=result />
@@ -76,10 +75,8 @@ pub fn JiraStep(ctx: Context) -> impl IntoView {
             </div>
             <div hidden=move || method.get() != AuthKind::OAuth>
                 <VStack spacing="12px">
-                    <Intro title="Mit Atlassian-App (OAuth)">
-                        <p>
-                            "Du legst einmal eine eigene kleine „App“ in der Atlassian-Entwicklerkonsole an. Cockpit meldet dich damit an, ohne dass ein Passwort weitergegeben wird, und du kannst den Zugriff jederzeit entziehen. Mehr Klickarbeit, und deine Firma muss eigene Apps erlauben."
-                        </p>
+                    <Intro title=t!(SetupJiraOauthTitle)>
+                        <p>{t!(SetupJiraOauthIntro)}</p>
                     </Intro>
                     <JiraOauth ctx=ctx />
                 </VStack>
@@ -138,10 +135,7 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
     let callback = Signal::derive(move || ctx.setup.with(|e| e.callback_atlassian.clone()));
 
     let id_save = move |_| match client_id_read(&client_id.get_untracked()) {
-        Ok(id) if id.is_empty() => back_id.set(Some((
-            false,
-            "Trage die Client-ID aus der Atlassian-Konsole ein.".into(),
-        ))),
+        Ok(id) if id.is_empty() => back_id.set(Some((false, t!(SetupJiraClientIdMissing)))),
         Ok(id) => config_save(
             ctx,
             ConfigChange {
@@ -149,7 +143,7 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                 ..Default::default()
             },
             back_id,
-            "Client-ID gespeichert.",
+            t!(SetupJiraClientIdSaved),
             || {},
         ),
         Err(m) => back_id.set(Some((false, m))),
@@ -162,7 +156,7 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                 ..Default::default()
             },
             back_site,
-            "Site gespeichert.",
+            t!(SetupJiraSiteSaved),
             || {},
         )
     };
@@ -174,10 +168,7 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                 Ok(()) => {
                     client_id.set(String::new());
                     site.set(String::new());
-                    back_id.set(Some((
-                        true,
-                        "Client-ID und Client-Secret sind entfernt.".into(),
-                    )));
+                    back_id.set(Some((true, t!(SetupJiraClientRemoved))));
                     card_generation.update(|n| *n += 1);
                     ctx.reload();
                 }
@@ -198,54 +189,56 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                 ..Default::default()
             },
             back_projects,
-            "Projekte gespeichert.",
+            t!(SetupJiraProjectsSaved),
             || {},
         )
     };
 
     view! {
-        <Section title="1. App in der Atlassian-Entwicklerkonsole anlegen">
+        <Section title=t!(SetupJiraOauthS1)>
             <ol class="ui-instructions">
                 <li>
-                    "Öffne "
+                    {t!(SetupJiraOauthOpen)}
+                    " "
                     <Extern href="https://developer.atlassian.com/console/myapps/">
                         "developer.atlassian.com/console/myapps"
                     </Extern>
-                    " und melde dich mit deinem Atlassian-Konto an (dem, mit dem du auch Jira nutzt)."
+                    " "
+                    {t!(SetupJiraOauthOpenRest)}
                 </li>
                 <li>
-                    "Klicke auf „Create“ und wähle „OAuth 2.0 integration“. Gib einen Namen ein, zum Beispiel „Cockpit lokal“, setze den Haken bei den Bedingungen und klicke auf „Create“."
+                    {t!(SetupJiraOauthCreate)}
                 </li>
                 <li>
-                    "Wähle links „Permissions“. Falls die Konsole fragt, auf welcher Ebene die Rechte gelten sollen (Resource-level), nimm die Ebene der Ressource, nicht „User identity“. Klicke bei „Jira API“ auf „Add“ und danach auf „Configure“."
+                    {t!(SetupJiraOauthPermissions)}
                 </li>
                 <li>
-                    "Öffne bei „Classic scopes“ „Edit Scopes“, hake diese drei Rechte an und speichere:"
+                    {t!(SetupJiraOauthScopes)}
                     <ul class="ui-checklist">
-                        <li><code>"read:jira-work"</code><span class="ui-checklist__permission">"Tickets lesen"</span></li>
-                        <li><code>"write:jira-work"</code><span class="ui-checklist__permission">"Tickets kommentieren und Status ändern"</span></li>
-                        <li><code>"read:jira-user"</code><span class="ui-checklist__permission">"Namen von Personen lesen"</span></li>
+                        <li><code>"read:jira-work"</code><span class="ui-checklist__permission">{t!(SetupJiraScopeRead)}</span></li>
+                        <li><code>"write:jira-work"</code><span class="ui-checklist__permission">{t!(SetupJiraScopeWrite)}</span></li>
+                        <li><code>"read:jira-user"</code><span class="ui-checklist__permission">{t!(SetupJiraScopeUser)}</span></li>
                     </ul>
                 </li>
                 <li>
-                    "Wähle links „Authorization“, bei „OAuth 2.0 (3LO)“ „Add“ (oder „Configure“) und trage als „Callback URL“ diese Adresse ein. Dann „Save changes“:"
-                    <CopyField store=ctx.store label="Callback-URL" text=callback />
+                    {t!(SetupJiraOauthAuthorization)}
+                    <CopyField store=ctx.store label=t!(SetupJiraCallbackUrl) text=callback />
                 </li>
                 <li>
-                    "Wähle links „Settings“. Dort stehen die „Client ID“ und das „Secret“. Beide trägst du gleich unten ein."
+                    {t!(SetupJiraOauthSettings)}
                 </li>
             </ol>
         </Section>
-        <Section title="2. Client-ID und Client-Secret eintragen">
+        <Section title=t!(SetupJiraOauthS2)>
             <TextField
-                label="Client ID"
+                label=t!(SetupJiraClientId)
                 value=client_id
-                hint="Nicht geheim. Kopiere sie genau so, wie sie in der Konsole steht."
+                hint=t!(SetupJiraClientIdHint)
                 autocomplete="off"
             />
-            <HStack spacing="12px" css="flex-wrap: wrap">
+            <HStack spacing="12px" css="flex-wrap:wrap">
                 <Button variant=ButtonStyle::GlassProminent on_click=id_save>
-                    "Client-ID speichern"
+                    {t!(SetupJiraClientIdSave)}
                 </Button>
                 {move || {
                     id_stored
@@ -257,7 +250,7 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                                     disabled=Signal::derive(move || oauth_connected.get())
                                     on_click=move |_| confirm_remove.set(true)
                                 >
-                                    "Client-ID entfernen"
+                                    {t!(SetupJiraClientIdRemove)}
                                 </Button>
                             }
                         })
@@ -268,7 +261,7 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                     .then(|| {
                         view! {
                             <p class="ui-hint">
-                                "Zum Entfernen trenne zuerst unten bei „4. Anmelden“ die Verbindung (dort kannst du auch gleich Client-ID und Secret vergessen lassen)."
+                                {t!(SetupJiraRemoveFirst)}
                             </p>
                         }
                     })
@@ -278,15 +271,15 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                     .get()
                     .then(|| {
                         view! {
-                            <div class="ui-hint" role="alertdialog" aria-label="Client-ID entfernen">
-                                <p>
-                                    "Wirklich entfernen? Die Client-ID wird aus der Konfiguration gelöscht und das Client-Secret aus der .env-Datei. Danach musst du beides neu eintragen, um dich per OAuth anzumelden."
-                                </p>
+                            <div class="ui-hint" role="alertdialog" aria-label=t!(SetupJiraClientIdRemove)>
+                                <p>{t!(SetupJiraRemoveConfirm)}</p>
                                 <HStack spacing="12px" css="margin-top: 8px">
                                     <Button destructive=true disabled=removing on_click=remove>
-                                        "Ja, entfernen"
+                                        {t!(SetupJiraRemoveYes)}
                                     </Button>
-                                    <Button on_click=move |_| confirm_remove.set(false)>"Abbrechen"</Button>
+                                    <Button on_click=move |_| confirm_remove.set(false)>
+                                        {t!(SetupJiraCancel)}
+                                    </Button>
                                 </HStack>
                             </div>
                         }
@@ -296,15 +289,15 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
             <KeyField
                 ctx=ctx
                 name="atlassian-oauth"
-                label="Client-Secret (Secret)"
-                hint="Geheim wie ein Passwort. Es wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert und nie wieder angezeigt."
+                label=t!(SetupJiraSecretLabel)
+                hint=t!(SetupJiraSecretHint)
             />
         </Section>
-        <Section title="Site wählen (nur bei mehreren)">
+        <Section title=t!(SetupJiraSiteTitle)>
             <TextField
-                label="Site"
+                label=t!(SetupJiraSiteLabel)
                 value=site
-                hint="Nur nötig, wenn dein Atlassian-Konto mehrere Sites freigibt. Name, Adresse oder ID der Site. Leer lassen: Cockpit nimmt die einzige Site. Gilt nach dem nächsten Anmelden."
+                hint=t!(SetupJiraSiteHint)
                 autocomplete="off"
             />
             <HStack spacing="12px">
@@ -312,26 +305,26 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                     on_click=site_save
                     disabled=Signal::derive(move || !id_stored.get())
                 >
-                    "Site speichern"
+                    {t!(SetupJiraSiteSave)}
                 </Button>
             </HStack>
             <Message feedback=back_site />
         </Section>
-        <Section title="3. Welche Projekte? (optional)">
+        <Section title=t!(SetupJiraProjectsTitle)>
             <TextField
-                label="Jira-Projekte"
+                label=t!(SetupJiraProjectsLabel)
                 value=projects
-                hint="Kürzel mit Komma getrennt, z. B. BAU, WEB. Empty lassen: Cockpit zeigt dann deine Tickets und die, die du beobachtest. In der Inbox kannst du später ein Projekt wählen."
+                hint=t!(SetupJiraProjectsHint)
                 autocomplete="off"
             />
             <HStack spacing="12px">
-                <Button on_click=projects_save>"Projekte speichern"</Button>
+                <Button on_click=projects_save>{t!(SetupJiraProjectsSave)}</Button>
             </HStack>
             <Message feedback=back_projects />
         </Section>
-        <Section title="4. Anmelden">
+        <Section title=t!(SetupJiraSignInTitle)>
             <p class="t-subheadline t-secondary">
-                "Es öffnet sich eine Seite von Atlassian. Prüfe dort den Namen deiner Site und bestätige mit „Accept“."
+                {t!(SetupJiraSignInText)}
             </p>
             {move || {
                 card_generation.track();
@@ -378,10 +371,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
         let site_new = match site_read.get_untracked() {
             Ok(s) if !s.is_empty() => s,
             Ok(_) => {
-                back.set(Some((
-                    false,
-                    "Trage zuerst die Adresse deiner Jira-Site ein.".into(),
-                )));
+                back.set(Some((false, t!(SetupJiraSiteMissing))));
                 return;
             }
             Err(m) => {
@@ -391,10 +381,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
         };
         let email_new = email.get_untracked().trim().to_string();
         if !email_new.contains('@') || email_new.contains(char::is_whitespace) {
-            back.set(Some((
-                false,
-                "Trage die E-Mail-Adresse deines Atlassian-Kontos ein.".into(),
-            )));
+            back.set(Some((false, t!(SetupJiraEmailMissing))));
             return;
         }
         running.set(true);
@@ -410,7 +397,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                 ..Default::default()
             },
             back,
-            "Adresse und E-Mail gespeichert.",
+            t!(SetupJiraAddressSaved),
             move || {
                 spawn_local(async move {
                     match server::post_jira_check().await {
@@ -428,17 +415,17 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
     };
 
     view! {
-        <Section title="1. Adresse deiner Jira-Site">
+        <Section title=t!(SetupJiraTokenS1)>
             <TextField
-                label="Jira-Adresse"
+                label=t!(SetupJiraAddressLabel)
                 value=site
                 placeholder="firma.atlassian.net"
-                hint="So beginnt die Adresse, wenn du Jira im Browser öffnest. Du kannst sie auch einfach hineinkopieren – mit https:// und allem dahinter."
+                hint=t!(SetupJiraAddressHint)
                 autocomplete="off"
             />
             {move || match site_read.get() {
                 Ok(s) if !s.is_empty() => {
-                    view! { <p class="ui-hint">"Cockpit verwendet: " <code>{s}</code></p> }.into_any()
+                    view! { <p class="ui-hint">{t!(SetupJiraUses)} " " <code>{s}</code></p> }.into_any()
                 }
                 Ok(_) => ().into_any(),
                 Err(m) => {
@@ -447,41 +434,41 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                 }
             }}
         </Section>
-        <Section title="2. E-Mail-Adresse deines Atlassian-Kontos">
+        <Section title=t!(SetupJiraTokenS2)>
             <TextField
-                label="E-Mail-Adresse"
+                label=t!(SetupJiraEmailLabel)
                 value=email
                 input_type="email"
-                hint="Die Adresse, mit der du dich bei Atlassian anmeldest."
+                hint=t!(SetupJiraEmailHint)
                 autocomplete="off"
             />
         </Section>
-        <Section title="3. Token erstellen">
+        <Section title=t!(SetupJiraTokenS3)>
             <ol class="ui-instructions">
                 <li>
-                    "Klicke auf „Token-Seite öffnen“ und melde dich bei Atlassian an. Die Seite geht in einem neuen Tab auf."
+                    {t!(SetupJiraTokenStep1)}
                     <HStack spacing="12px" css="margin-top: 8px">
-                        <ExternButton href=JIRA_TOKEN_PAGE>"Token-Seite öffnen"</ExternButton>
+                        <ExternButton href=JIRA_TOKEN_PAGE>{t!(SetupJiraTokenPage)}</ExternButton>
                     </HStack>
                 </li>
-                <li>"Klicke auf „Create API token“ (Token erstellen)."</li>
+                <li>{t!(SetupJiraTokenStep2)}</li>
                 <li>
-                    "Gib einen Namen ein, zum Beispiel „Cockpit“, und wähle ein Ablaufdatum. Ein kürzeres ist sicherer; wenn es abläuft, erzeugst du einfach einen neuen."
+                    {t!(SetupJiraTokenStep3)}
                 </li>
                 <li>
-                    "Klicke auf „Create“ und dann auf „Copy“ (Kopieren). Der Token wird nur jetzt angezeigt. Füge ihn gleich hier unten ein."
+                    {t!(SetupJiraTokenStep4)}
                 </li>
             </ol>
             <KeyField
                 ctx=ctx
                 name="jira"
-                label="Token"
-                hint="Geheim wie ein Passwort. Er wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert und nie wieder angezeigt."
+                label=t!(SetupJiraTokenLabel)
+                hint=t!(SetupJiraTokenHint)
             />
         </Section>
-        <Section title="4. Verbindung prüfen">
+        <Section title=t!(SetupJiraCheckTitle)>
             <p class="t-subheadline t-secondary">
-                "Cockpit speichert Adresse und E-Mail und fragt Jira, wer du bist. Dabei wird nur gelesen, nichts verändert."
+                {t!(SetupJiraCheckText)}
             </p>
             <HStack spacing="12px">
                 <Button
@@ -489,11 +476,11 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                     disabled=running
                     on_click=check
                 >
-                    "Verbindung prüfen"
+                    {t!(SetupJiraCheckButton)}
                 </Button>
                 <Status tone=Signal::derive(move || {
                     if connected() { StatusTone::Green } else { StatusTone::Gray }
-                })>{move || if connected() { "Verbunden – mit API-Token" } else { "Noch nicht geprüft" }}</Status>
+                })>{move || if connected() { t!(SetupJiraConnected) } else { t!(SetupJiraNotChecked) }}</Status>
             </HStack>
             <Message feedback=back />
             {move || {
@@ -531,7 +518,7 @@ fn JiraProjectChoice(ctx: Context) -> impl IntoView {
             }
             Err(e) => back.set(Some((
                 false,
-                format!("Die Projekte konnten nicht geladen werden: {}", e.message()),
+                t!(SetupJiraProjectsFailed, error = e.message()),
             ))),
         }
         loaded.set(true);
@@ -550,7 +537,7 @@ fn JiraProjectChoice(ctx: Context) -> impl IntoView {
                 .collect()
         });
         list.sort_by_key(|a| a.1.to_lowercase());
-        std::iter::once((String::new(), "Alle Projekte".to_string()))
+        std::iter::once((String::new(), t!(SetupJiraAllProjects)))
             .chain(list)
             .collect()
     });
@@ -564,24 +551,24 @@ fn JiraProjectChoice(ctx: Context) -> impl IntoView {
         if let Err(e) = ctx.store.dispatch(Action::SelectJiraProject { project }) {
             back.set(Some((false, e.message())));
         } else {
-            back.set(Some((true, "Auswahl gespeichert.".into())));
+            back.set(Some((true, t!(SetupJiraChoiceSaved))));
         }
     };
     view! {
-        <Section title="Welche Projekte soll Cockpit zeigen?">
+        <Section title=t!(SetupJiraChoiceTitle)>
             <p class="t-subheadline t-secondary">
-                "Wähle ein Projekt oder „Alle Projekte“. Du kannst das später in der Inbox ändern."
+                {t!(SetupJiraChoiceText)}
             </p>
             {move || {
                 (!loaded.get())
-                    .then(|| view! { <p class="t-footnote t-secondary">"Lade deine Projekte …"</p> })
+                    .then(|| view! { <p class="t-footnote t-secondary">{t!(SetupJiraLoading)}</p> })
             }}
             {move || {
                 (loaded.get() && projects.with(|p| p.is_empty()) && back.with(|r| r.is_none()))
                     .then(|| {
                         view! {
                             <p class="ui-hint">
-                                "Jira zeigt für dieses Konto keine Projekte. Du kannst „Alle Projekte“ lassen."
+                                {t!(SetupJiraNoProjects)}
                             </p>
                         }
                     })
@@ -590,7 +577,7 @@ fn JiraProjectChoice(ctx: Context) -> impl IntoView {
                 options=options
                 value=chosen
                 on_change=switch
-                aria_label="Jira-Projekt"
+                aria_label=t!(SetupJiraProjectAria)
             />
             <Message feedback=back />
         </Section>

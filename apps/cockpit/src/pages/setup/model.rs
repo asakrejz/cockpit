@@ -13,6 +13,43 @@ use leptos::task::spawn_local;
 use super::fields::{Context, Feedback, Intro, KeyField, Message, Section, config_save};
 use crate::server::{self, CallError};
 
+/// The text of an endpoint kind in the drop-down (the direct way names the vendor of the tool).
+fn kind_label(kind: EndpointKind, tool: Provider) -> String {
+    match kind {
+        EndpointKind::Direct => t!(SetupModelKindDirect, vendor = tool.vendor()),
+        EndpointKind::Proxy => t!(SetupModelKindProxy),
+        EndpointKind::Compatible => t!(SetupModelKindCompatible),
+    }
+}
+
+/// Explanation under the endpoint selection.
+fn kind_explanation(kind: EndpointKind, tool: Provider) -> String {
+    match kind {
+        EndpointKind::Direct => t!(SetupModelExplainDirect, vendor = tool.vendor()),
+        EndpointKind::Proxy => t!(SetupModelExplainProxy),
+        EndpointKind::Compatible => t!(SetupModelExplainCompatible, vendor = tool.vendor()),
+    }
+}
+
+/// Example address in the field for the endpoint address.
+fn kind_placeholder(kind: EndpointKind) -> &'static str {
+    match kind {
+        EndpointKind::Direct => "",
+        EndpointKind::Proxy => "https://litellm.example",
+        EndpointKind::Compatible => "https://endpoint.example",
+    }
+}
+
+/// Label of the key field.
+fn kind_key_label(kind: EndpointKind, tool: Provider) -> String {
+    match kind {
+        EndpointKind::Direct if tool.openai_compatible() => t!(SetupModelKeyOpenai),
+        EndpointKind::Direct => t!(SetupModelKeyAnthropic),
+        EndpointKind::Proxy => t!(SetupModelKeyProxy),
+        EndpointKind::Compatible => t!(SetupModelKeyEndpoint),
+    }
+}
+
 #[component]
 pub fn ModelStep(ctx: Context) -> impl IntoView {
     let provider = RwSignal::new(Provider::default());
@@ -70,7 +107,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                     ..Default::default()
                 },
                 back,
-                "Werkzeug, Endpunkt und Modell gespeichert.",
+                t!(SetupModelSaved),
                 move || {
                     if hand {
                         model.set(m.clone());
@@ -92,9 +129,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
         };
         spawn_local(async move {
             let error = |e: CallError| match e {
-                CallError::Unreachable => {
-                    "Cockpit antwortet gerade nicht. Läuft das Startfenster noch?".to_string()
-                }
+                CallError::Unreachable => t!(SetupModelUnreachable),
                 e => e.message(),
             };
             if let Err(e) = server::put_config(&change).await {
@@ -105,12 +140,10 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
             ctx.reload();
             match server::fetch_models().await {
                 Ok(l) if l.loaded => {
-                    list_hint.set(Some(format!("{} Modelle geladen.", l.models.len())));
+                    list_hint.set(Some(t!(SetupModelLoadedCount, n = l.models.len())));
                     list.set(l.models);
                 }
-                Ok(l) => list_hint.set(Some(l.hint.unwrap_or_else(|| {
-                    "Der Endpunkt hat keine Modelle geliefert. Trage den Namen von Hand ein.".into()
-                }))),
+                Ok(l) => list_hint.set(Some(l.hint.unwrap_or_else(|| t!(SetupModelNoModels)))),
                 Err(e) => list_hint.set(Some(error(e))),
             }
             list_loads.set(false);
@@ -122,9 +155,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
         spawn_local(async move {
             match server::fetch_endpoint_check().await {
                 Ok(p) => ctx.check.set(Some(p)),
-                Err(CallError::Unreachable) => test_error.set(Some(
-                    "Cockpit antwortet gerade nicht. Läuft das Startfenster noch?".into(),
-                )),
+                Err(CallError::Unreachable) => test_error.set(Some(t!(SetupModelUnreachable))),
                 Err(e) => test_error.set(Some(e.message())),
             }
             test_running.set(false);
@@ -138,9 +169,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
         spawn_local(async move {
             match server::fetch_container_check().await {
                 Ok(p) => ctx.container_check.set(Some(p)),
-                Err(CallError::Unreachable) => c_error.set(Some(
-                    "Cockpit antwortet gerade nicht. Läuft das Startfenster noch?".into(),
-                )),
+                Err(CallError::Unreachable) => c_error.set(Some(t!(SetupModelUnreachable))),
                 Err(e) => c_error.set(Some(e.message())),
             }
             c_running.set(false);
@@ -163,7 +192,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
     let kind_options = Signal::derive(move || {
         EndpointKind::ALL
             .into_iter()
-            .map(|a| (a.id().to_string(), a.label(provider.get())))
+            .map(|a| (a.id().to_string(), kind_label(a, provider.get())))
             .collect::<Vec<_>>()
     });
     let model_options = Signal::derive(move || {
@@ -171,12 +200,12 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
         let mut o: Vec<(String, String)> = Vec::new();
         let chosen = model.get();
         if chosen.trim().is_empty() {
-            o.push((String::new(), "– Modell wählen –".into()));
+            o.push((String::new(), t!(SetupModelChoose)));
         }
         o.extend(model_selection(&l, &chosen).into_iter().map(|m| {
             // "Not in the list" only applies if there is a list at all.
             let text = if m.unknown && !l.is_empty() {
-                format!("{} (nicht in der Liste)", m.id)
+                t!(SetupModelNotInList, id = m.id)
             } else {
                 m.id.clone()
             };
@@ -187,18 +216,17 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
 
     view! {
         <VStack spacing="12px">
-            <Intro title="Modell für den Agenten">
+            <Intro title=t!(SetupModelTitle)>
+                <p>{t!(SetupModelIntro)}</p>
                 <p>
-                    "Der Agent denkt mit einem KI-Modell. Hier legst du fest, mit welchem Werkzeug er arbeitet und wohin er seine Modellanfragen schickt: direkt zum Anbieter des Modells (Anthropic oder OpenAI), über einen Proxy deines Teams (zum Beispiel LiteLLM) oder zu einem anderen kompatiblen Endpunkt."
-                </p>
-                <p>
-                    <strong>"Das kannst du nicht selbst erzeugen:"</strong>
-                    " Den Key bekommst du vom Anbieter des Modells (Konsole von Anthropic oder OpenAI) oder vom Betreiber deines Proxys, dazu bei einem Proxy die Adresse. Hast du sie noch nicht, überspringe diesen Schritt und hole ihn später nach."
+                    <strong>{t!(SetupModelCannotCreate)}</strong>
+                    " "
+                    {t!(SetupModelCannotCreateText)}
                 </p>
             </Intro>
-            <Section title="1. Werkzeug">
+            <Section title=t!(SetupModelS1)>
                 <Select
-                    label="Werkzeug des Agenten"
+                    label=t!(SetupModelToolLabel)
                     options=provider_options
                     value=Signal::derive(move || provider.get().id().to_string())
                     on_change=Callback::new(move |v: String| {
@@ -211,16 +239,16 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                 <p class="t-footnote t-secondary">
                     {move || {
                         if provider.get().openai_compatible() {
-                            "Codex spricht mit einem OpenAI-kompatiblen Endpunkt und arbeitet in einer Sandbox ohne Netz."
+                            t!(SetupModelToolCodex)
                         } else {
-                            "Läuft mit einem Anthropic-kompatiblen Endpunkt."
+                            t!(SetupModelToolOther)
                         }
                     }}
                 </p>
             </Section>
-            <Section title="2. Endpunkt">
+            <Section title=t!(SetupModelS2)>
                 <Select
-                    label="Wohin gehen die Modellanfragen?"
+                    label=t!(SetupModelKindLabel)
                     options=kind_options
                     value=Signal::derive(move || art.get().id().to_string())
                     on_change=Callback::new(move |v: String| {
@@ -230,38 +258,38 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         }
                     })
                 />
-                <p class="t-footnote t-secondary">{move || art.get().explanation(provider.get())}</p>
+                <p class="t-footnote t-secondary">{move || kind_explanation(art.get(), provider.get())}</p>
                 {move || {
                     art.get()
                         .needs_address()
                         .then(|| {
                             view! {
                                 <TextField
-                                    label="Adresse des Endpunkts"
+                                    label=t!(SetupModelAddressLabel)
                                     value=url
-                                    placeholder=art.get().url_placeholder()
-                                    hint="Beginnt meist mit https://. Ohne Angabe ergänzt Cockpit http://."
+                                    placeholder=kind_placeholder(art.get())
+                                    hint=t!(SetupModelAddressHint)
                                     autocomplete="off"
                                 />
                             }
                         })
                 }}
             </Section>
-            <Section title="3. Key">
+            <Section title=t!(SetupModelS3)>
                 {move || {
                     view! {
                         <KeyField
                             ctx=ctx
                             name="agent-key"
-                            label=art.get().key_label(provider.get())
-                            hint="Geheim wie ein Passwort. Er wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert."
+                            label=kind_key_label(art.get(), provider.get())
+                            hint=t!(SetupModelKeyHint)
                         />
                     }
                 }}
             </Section>
-            <Section title="4. Modell">
+            <Section title=t!(SetupModelS4)>
                 <p class="t-subheadline t-secondary">
-                    "Cockpit fragt den Endpunkt nach seinen Modellen und zeigt sie als Liste. Dafür muss der Key schon abgelegt sein. Beim Laden speichert Cockpit Werkzeug und Adresse."
+                    {t!(SetupModelListText)}
                 </p>
                 <HStack spacing="12px">
                     <Button
@@ -272,7 +300,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         })
                         on_click=load_models
                     >
-                        {move || if list_loads.get() { "Lade …" } else { "Modelle laden" }}
+                        {move || if list_loads.get() { t!(SetupModelLoading) } else { t!(SetupModelLoad) }}
                     </Button>
                 </HStack>
                 {move || {
@@ -280,7 +308,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         .then(|| {
                             view! {
                                 <p class="t-footnote t-secondary">
-                                    "Lege zuerst den Key ab (Abschnitt 3)."
+                                    {t!(SetupModelKeyFirst)}
                                 </p>
                             }
                         })
@@ -291,7 +319,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         .map(|m| view! { <p class="ui-hint" role="status">{m}</p> })
                 }}
                 <Select
-                    label="Modell"
+                    label=t!(SetupModelLabel)
                     options=model_options
                     value=Signal::derive(move || model.get())
                     on_change=Callback::new(move |v: String| {
@@ -307,22 +335,22 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         .map(|m| view! { <p class="ui-hint" role="status">{m}</p> })
                 }}
                 <TextField
-                    label="Modellname von Hand"
+                    label=t!(SetupModelHandLabel)
                     value=from_hand
-                    placeholder="Modellname, z. B. claude-sonnet-5-5 oder gpt-5"
-                    hint="Nur nötig, wenn die Liste fehlt oder das Modell nicht darin steht. Steht hier etwas, gilt es statt der Auswahl. Genau abtippen, auf Groß- und Kleinschreibung achten."
+                    placeholder=t!(SetupModelHandPlaceholder)
+                    hint=t!(SetupModelHandHint)
                     autocomplete="off"
                 />
                 <HStack spacing="12px">
                     <Button variant=ButtonStyle::GlassProminent on_click=save>
-                        "Werkzeug, Endpunkt und Modell speichern"
+                        {t!(SetupModelSave)}
                     </Button>
                 </HStack>
                 <Message feedback=back />
             </Section>
-            <Section title="5. Verbindung testen">
+            <Section title=t!(SetupModelS5)>
                 <p class="t-subheadline t-secondary">
-                    "Cockpit fragt den Endpunkt nach seiner Modellliste und meldet, ob er antwortet, den Key annimmt und das Modell kennt. Dabei wird nichts berechnet."
+                    {t!(SetupModelTestText)}
                 </p>
                 <HStack spacing="12px">
                     <Button
@@ -330,7 +358,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         disabled=Signal::derive(move || test_running.get() || !ready())
                         on_click=test
                     >
-                        {move || if test_running.get() { "Teste …" } else { "Verbindung testen" }}
+                        {move || if test_running.get() { t!(SetupModelTesting) } else { t!(SetupModelTest) }}
                     </Button>
                 </HStack>
                 {move || {
@@ -338,7 +366,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         .then(|| {
                             view! {
                                 <p class="t-footnote t-secondary">
-                                    "Der Test geht, sobald Endpunkt, Modell und Key gespeichert sind."
+                                    {t!(SetupModelTestNeeds)}
                                 </p>
                             }
                         })
@@ -360,16 +388,16 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                             };
                             view! {
                                 <HStack spacing="8px">
-                                    <Status tone=tone>{if ton == Tone::Good { "Gelungen" } else { "Nicht gelungen" }}</Status>
+                                    <Status tone=tone>{if ton == Tone::Good { t!(SetupModelSucceeded) } else { t!(SetupModelFailed) }}</Status>
                                     <span class="t-subheadline">{text}</span>
                                 </HStack>
                             }
                         })
                 }}
             </Section>
-            <Section title="6. Aus dem Container erreichbar?">
+            <Section title=t!(SetupModelS6)>
                 <p class="t-subheadline t-secondary">
-                    "Der Agent läuft in einem Container, der den Endpunkt womöglich anders sieht als dein Mac – etwa, wenn ein Proxy nur im VPN liegt. Dieser Test startet kurz einen Container und fragt den Endpunkt von dort aus. Er braucht das gebaute Agent-Image (Schritt „Container“) und kostet nichts."
+                    {t!(SetupModelContainerText)}
                 </p>
                 <HStack spacing="12px">
                     <Button
@@ -377,7 +405,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         disabled=Signal::derive(move || c_running.get() || !ready())
                         on_click=from_container
                     >
-                        {move || if c_running.get() { "Teste im Container …" } else { "Aus dem Container testen" }}
+                        {move || if c_running.get() { t!(SetupModelContainerTesting) } else { t!(SetupModelContainerTest) }}
                     </Button>
                 </HStack>
                 {move || {
@@ -400,7 +428,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                             view! {
                                 <HStack spacing="8px">
                                     <Status tone=tone>
-                                        {if gut { "Gelungen" } else if p.checked { "Nicht gelungen" } else { "Nicht geprüft" }}
+                                        {if gut { t!(SetupModelSucceeded) } else if p.checked { t!(SetupModelFailed) } else { t!(SetupModelNotChecked) }}
                                     </Status>
                                     <span class="t-subheadline">{p.hint.unwrap_or_default()}</span>
                                 </HStack>
