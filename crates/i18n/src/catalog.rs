@@ -2,7 +2,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use crate::{Arg, Lang};
+use crate::Lang;
 
 pub(crate) fn table(lang: Lang) -> &'static HashMap<String, String> {
     &crate::tables()[&lang]
