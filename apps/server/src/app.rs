@@ -41,6 +41,9 @@ pub use state::*;
 mod handlers;
 pub(crate) use handlers::*;
 
+mod cleanup_routes;
+use cleanup_routes::*;
+
 /// This often the simulated agent takes a step (as in the demo mode of the app).
 pub const AGENT_TICK: Duration = Duration::from_millis(2200);
 /// This often a sign of life comes on the event connection.
@@ -66,6 +69,11 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/agent/models", get(agent_models))
         .route("/api/agent/check", get(endpoint_check))
         .route("/api/agent/pull-request", get(pull_request_preview))
+        .route(
+            "/api/agent/cleanup",
+            get(cleanup_preview).post(cleanup_apply),
+        )
+        .route("/api/agent/branch", get(branch_check).post(branch_delete))
         .route("/api/review/commits", get(crate::review_panel::commits))
         .route("/api/review/commit", get(crate::review_panel::commit))
         .route("/api/agent/check/container", get(endpoint_check_container))

@@ -1,7 +1,10 @@
 use super::*;
 use crate::review::{AgentComment, DiffSide, Origin};
 
-const KEY: &str = "prreview-asakrejz~rust-playground-91";
+/// The key of the review run of pull request #91 in the sample repo.
+fn key() -> String {
+    format!("prreview-{}", PrKey::new(crate::DEMO_REPO, 91).slug())
+}
 
 /// `(file, line number of an added line, line number of a removed line)` of the first review with both.
 fn spots(w: &Workspace, n: u32) -> (String, u32, u32) {
@@ -35,7 +38,7 @@ fn started() -> Workspace {
     ok(&mut w, Action::StartPrReview { review: 91.into() }, 1);
     report(
         &mut w,
-        KEY,
+        &key(),
         AgentReport::Started {
             detail: "docker".into(),
         },
@@ -52,7 +55,7 @@ fn only_the_user_starts_a_review_run_and_it_is_a_read_only_job() {
             .is_err()
     );
     ok(&mut w, Action::StartPrReview { review: 91.into() }, 1);
-    let run = w.runs.iter().find(|r| r.key() == KEY).unwrap();
+    let run = w.runs.iter().find(|r| r.key() == key()).unwrap();
     assert!(run.is_running() && run.kind.runs_in_container());
     assert!(!run.options.plan_first, "your click is the approval");
     // Works on any branch, not only `claude/…`.
@@ -68,13 +71,13 @@ fn only_the_user_starts_a_review_run_and_it_is_a_read_only_job() {
 fn drafts_are_checked_against_the_diff_and_wait_for_a_decision() {
     let mut w = started();
     let (file, add, _) = spots(&w, 91);
-    report(&mut w, KEY, comment(&file, add, "Fokus fehlt")).unwrap();
+    report(&mut w, &key(), comment(&file, add, "Fokus fehlt")).unwrap();
     // Unknown file, line that does not exist, removed line on the right side: dropped.
-    assert!(report(&mut w, KEY, comment("gibt/es/nicht.rs", add, "x")).is_err());
-    assert!(report(&mut w, KEY, comment(&file, 99_999, "x")).is_err());
+    assert!(report(&mut w, &key(), comment("gibt/es/nicht.rs", add, "x")).is_err());
+    assert!(report(&mut w, &key(), comment(&file, 99_999, "x")).is_err());
     report(
         &mut w,
-        KEY,
+        &key(),
         AgentReport::ReviewSummary {
             text: "Insgesamt gut.".into(),
         },
@@ -82,7 +85,7 @@ fn drafts_are_checked_against_the_diff_and_wait_for_a_decision() {
     .unwrap();
     report(
         &mut w,
-        KEY,
+        &key(),
         AgentReport::Done {
             summary: "1 Kommentar als Entwurf vorbereitet.".into(),
         },
@@ -103,24 +106,24 @@ fn drafts_are_checked_against_the_diff_and_wait_for_a_decision() {
     // Nothing goes out while a draft is undecided.
     assert!(!r.can_send());
     // After the run nothing more is accepted.
-    assert!(report(&mut w, KEY, comment(&file, add, "noch einer")).is_err());
+    assert!(report(&mut w, &key(), comment(&file, add, "noch einer")).is_err());
 }
 
 #[test]
 fn a_failed_review_run_leaves_the_reason_and_the_old_state_is_replaced_on_restart() {
     let mut w = started();
     let (file, add, _) = spots(&w, 91);
-    report(&mut w, KEY, comment(&file, add, "Entwurf")).unwrap();
+    report(&mut w, &key(), comment(&file, add, "Entwurf")).unwrap();
     report(
         &mut w,
-        KEY,
+        &key(),
         AgentReport::Failed {
             reason: "Zeitlimit".into(),
         },
     )
     .unwrap();
     // The run stays (idle) with its reason, so the page can show it.
-    let run = w.runs.iter().find(|r| r.key() == KEY).unwrap();
+    let run = w.runs.iter().find(|r| r.key() == key()).unwrap();
     assert!(run.is_idle());
     assert_eq!(run.ended.as_deref(), Some("Zeitlimit"));
     assert!(!w.review(91).unwrap().agent_reviewed);
@@ -130,7 +133,7 @@ fn a_failed_review_run_leaves_the_reason_and_the_old_state_is_replaced_on_restar
     assert!(
         w.runs
             .iter()
-            .find(|r| r.key() == KEY)
+            .find(|r| r.key() == key())
             .unwrap()
             .ended
             .is_none()
@@ -160,7 +163,7 @@ fn approved_drafts_are_the_only_ones_that_go_out_with_code_and_verdict_comment()
     for t in ["Eins", "Zwei"] {
         report(
             &mut w,
-            KEY,
+            &key(),
             AgentReport::ReviewComment {
                 path: file.clone(),
                 line: add,
@@ -174,7 +177,7 @@ fn approved_drafts_are_the_only_ones_that_go_out_with_code_and_verdict_comment()
     }
     report(
         &mut w,
-        KEY,
+        &key(),
         AgentReport::Done {
             summary: "ok".into(),
         },

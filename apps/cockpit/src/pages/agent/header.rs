@@ -16,9 +16,12 @@ pub(super) fn status_of(ctx: AgentCtx) -> (&'static str, StatusTone) {
         diagnosed,
         stopped,
         done,
+        run,
         ..
     } = ctx;
-    if done.get() {
+    if let Some(closure) = run.with(|r| r.as_ref().and_then(|r| r.closure)) {
+        (closure.label(), StatusTone::Gray)
+    } else if done.get() {
         ("Fertig", StatusTone::Green)
     } else if diagnosed.get() {
         ("Wartet auf Entscheidung", StatusTone::Orange)

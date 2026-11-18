@@ -61,6 +61,19 @@ pub struct Pull {
     pub requested_reviewers: Vec<User>,
     #[serde(default)]
     pub assignees: Vec<User>,
+    /// `open` or `closed`.
+    #[serde(default)]
+    pub state: String,
+    /// Only the single-pull call carries this; the list leaves it out.
+    #[serde(default)]
+    pub merged: bool,
+}
+
+/// `GET /repos/{owner}/{repo}/branches/{branch}`: only what we look at.
+#[derive(Debug, Clone, Deserialize)]
+pub struct BranchInfo {
+    #[serde(default)]
+    pub protected: bool,
 }
 
 #[derive(Debug, Clone, Deserialize)]

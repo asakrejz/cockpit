@@ -177,6 +177,19 @@ impl Workspace {
                 // Messages without a sentence (file list, hints delivered) are not a log entry.
                 Ok(notes)
             }
+            Action::CloseAgentRun { run, closure } => {
+                let label = self
+                    .close_run(&run, closure)
+                    .ok_or(ActionError::NothingToDo)?;
+                let what = match closure {
+                    Closure::Merged => "gemergt",
+                    Closure::Closed => "geschlossen",
+                };
+                Ok(vec![Note::new(
+                    Target::Run(run),
+                    format!("Der Pull Request von {label} ist {what}, der Lauf ist erledigt"),
+                )])
+            }
             Action::AddressReview {
                 review,
                 comments,

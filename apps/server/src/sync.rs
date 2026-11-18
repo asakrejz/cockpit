@@ -210,7 +210,11 @@ impl AppState {
             .unwrap_or_default()
     }
 
-    async fn local_apply(&self, action: Action, actor: Actor) -> Result<ActionResponse, LiveError> {
+    pub(crate) async fn local_apply(
+        &self,
+        action: Action,
+        actor: Actor,
+    ) -> Result<ActionResponse, LiveError> {
         let s = self.clone();
         tokio::task::spawn_blocking(move || {
             s.inner.live.apply(&s.inner.db, action, actor, now_ms())
@@ -357,16 +361,17 @@ pub fn sync_start(state: AppState) {
             ticker.tick().await;
             // While a source's webhooks arrive it is only polled as a safety net.
             let due = state.sources_due();
-            if due.is_empty() {
-                continue;
-            }
-            match state.sync_sources(&due).await {
-                Ok(a) if a.logged > 0 => {
-                    tracing::info!("Sync: {} new entries in the log", a.logged)
+            if !due.is_empty() {
+                match state.sync_sources(&due).await {
+                    Ok(a) if a.logged > 0 => {
+                        tracing::info!("Sync: {} new entries in the log", a.logged)
+                    }
+                    Ok(_) => {}
+                    Err(e) => tracing::warn!("Sync result not applied: {e:?}"),
                 }
-                Ok(_) => {}
-                Err(e) => tracing::warn!("Sync result not applied: {e:?}"),
             }
+            // Runs whose pull request is merged or closed are marked as done.
+            state.reconcile_runs().await;
         }
     });
 }
