@@ -26,6 +26,7 @@
 //! GitHub and the agent and write the result into the workspace.
 
 pub mod action;
+pub mod adf;
 pub mod agent;
 pub mod api;
 pub mod attention;

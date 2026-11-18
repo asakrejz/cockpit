@@ -55,6 +55,7 @@ pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Optio
         key: issue.key.clone(),
         title: f.summary.clone(),
         description: adf_to_text(&f.description),
+        description_rich: cockpit_core::adf::parse(&f.description, me),
         reason,
         reason_text: reason_text.into(),
         time: time::relative(&f.updated, now),
@@ -134,6 +135,7 @@ pub fn comments_to_core(comments: &[JiraComment], me: &str, now: i64) -> Vec<Com
                 },
                 time: time::relative(&c.created, now),
                 text: adf_to_text_for(&c.body, me),
+                rich: cockpit_core::adf::parse(&c.body, me),
                 own,
             }
         })

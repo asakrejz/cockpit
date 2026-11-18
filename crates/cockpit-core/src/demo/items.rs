@@ -4,15 +4,21 @@ use super::*;
 
 /// BAU-142, #87, BAU-138, #85, BAU-150, DOC-7 and #12, in this order.
 pub(super) fn items() -> [Item; 7] {
+    let rich_description = rich::bau142_description();
     let bau142 = Item {
+        description: crate::adf::plain_text(&rich_description),
         status: TicketStatus::InProgress,
         labels: vec!["bug".into(), "a11y".into()],
 
-        comments: vec![Comment::new(
-            lena(),
-            "vor 12 Min.",
-            "@AS Betrifft auch den Slider-Thumb. Kannst du das gleich mit prüfen?",
-        )],
+        description_rich: Some(rich_description),
+        comments: vec![Comment {
+            rich: Some(rich::lena_comment()),
+            ..Comment::new(
+                lena(),
+                "vor 12 Min.",
+                "@AS Betrifft auch den Slider-Thumb. Kannst du das gleich mit prüfen?",
+            )
+        }],
         ..item(
             "bau142",
             Kind::Ticket,

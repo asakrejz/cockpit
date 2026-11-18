@@ -209,6 +209,14 @@ workspace (also "only you may merge", "review only after deciding on every sugge
 All other actions, and every entry that came from a seed, stay local. The action `SyncRemote` may only be triggered by
 the backend; `POST /api/actions` rejects it.
 
+**Formatted Jira text.** Jira (REST v3) delivers descriptions and comments as ADF. The sync does not flatten it: `cockpit_core::adf::parse`
+turns it into the typed model `adf::Doc` (paragraphs, headings 1–6, nested lists, code blocks with language, quotes, rules, tables, panels,
+media placeholders; marks strong/em/code/strike/underline/link; mention, emoji, inline card, status, date). It is stored in
+`Item.description_rich` and `Comment.rich` (`None` for older data, pull requests and edited descriptions, which fall back to the plain text
+in `description`/`text`; that text is still filled for search and the agent). Unknown nodes become the text of their content, never an
+error. Links are kept only for `http`/`https`. The UI (`feature_ui::RichText`) builds real elements, never `inner_html`; links get
+`target="_blank"` and `rel="noopener noreferrer"`; media show their file name only. No `expand=renderedFields` and no HTML from Jira.
+
 ## Empty, loading and error states
 
 The browser decides what to show from three things it already has: the link to the server (`Link`: connecting,
