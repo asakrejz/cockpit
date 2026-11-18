@@ -25,7 +25,7 @@ pub(super) fn is_typing(event: &KeyboardEvent) -> bool {
         .target()
         .and_then(|t| t.dyn_into::<HtmlElement>().ok())
         .is_some_and(|el| {
-            matches!(el.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
+            matches!(el.local_name().as_str(), "input" | "textarea" | "select")
                 || el.is_content_editable()
         })
 }

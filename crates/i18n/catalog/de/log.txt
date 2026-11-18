@@ -1,0 +1,16 @@
+# Log page.
+log.actor_all = Alle
+log.actor_user = Du
+log.actor_agent = Agent
+log.actor_system = System
+log.to_entry = Zum Eintrag
+log.open_review = Review öffnen
+log.view_run = Lauf ansehen
+log.open_settings = Einstellungen öffnen
+log.empty_filtered = Von diesem Urheber gibt es noch keine Einträge.
+log.empty = Sobald du etwas änderst oder der Agent arbeitet, steht es hier.
+log.empty_title = Noch nichts protokolliert
+log.show_all = Alle Urheber zeigen
+log.title = Protokoll
+log.subtitle = Jede Änderung mit Zeit und Urheber, neueste zuerst.
+log.author = Urheber

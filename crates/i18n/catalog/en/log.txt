@@ -1,0 +1,16 @@
+# Log page.
+log.actor_all = All
+log.actor_user = You
+log.actor_agent = Agent
+log.actor_system = System
+log.to_entry = Go to entry
+log.open_review = Open review
+log.view_run = View run
+log.open_settings = Open settings
+log.empty_filtered = This author has no entries yet.
+log.empty = As soon as you change something or the agent works, it shows up here.
+log.empty_title = Nothing logged yet
+log.show_all = Show all authors
+log.title = Log
+log.subtitle = Every change with time and author, newest first.
+log.author = Author

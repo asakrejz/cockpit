@@ -15,6 +15,47 @@ use crate::{
     view,
 };
 
+fn reason_label(reason: NotifyReason) -> String {
+    match reason {
+        NotifyReason::ReviewRequested => t!(NotificationsReasonReview),
+        NotifyReason::Mention => t!(NotificationsReasonMention),
+        NotifyReason::AgentWaiting => t!(NotificationsReasonWaiting),
+        NotifyReason::AgentFinished => t!(NotificationsReasonFinished),
+        NotifyReason::ChecksFailed => t!(NotificationsReasonChecks),
+        NotifyReason::Assigned => t!(NotificationsReasonAssigned),
+        NotifyReason::AgentStopped => t!(NotificationsReasonStopped),
+    }
+}
+
+fn reason_hint(reason: NotifyReason) -> String {
+    match reason {
+        NotifyReason::ReviewRequested => t!(NotificationsReasonReviewHint),
+        NotifyReason::Mention => t!(NotificationsReasonMentionHint),
+        NotifyReason::AgentWaiting => t!(NotificationsReasonWaitingHint),
+        NotifyReason::AgentFinished => t!(NotificationsReasonFinishedHint),
+        NotifyReason::ChecksFailed => t!(NotificationsReasonChecksHint),
+        NotifyReason::Assigned => t!(NotificationsReasonAssignedHint),
+        NotifyReason::AgentStopped => t!(NotificationsReasonStoppedHint),
+    }
+}
+
+fn channel_label(channel: Channel) -> String {
+    match channel {
+        Channel::Browser => t!(NotificationsChannelBrowser),
+        Channel::Email => t!(NotificationsChannelEmail),
+        Channel::Slack => t!(NotificationsChannelSlack),
+    }
+}
+
+fn permission_label(permission: Permission) -> String {
+    match permission {
+        Permission::Unsupported => t!(NotificationsPermissionUnsupported),
+        Permission::Ask => t!(NotificationsPermissionAsk),
+        Permission::Granted => t!(NotificationsPermissionGranted),
+        Permission::Denied => t!(NotificationsPermissionDenied),
+    }
+}
+
 /// A switch for a reason and a channel. Changes the workspace only through the action.
 #[component]
 fn ChannelToggle(reason: NotifyReason, channel: Channel) -> impl IntoView {
@@ -47,7 +88,11 @@ fn ChannelToggle(reason: NotifyReason, channel: Channel) -> impl IntoView {
             on.set(now);
         }
     });
-    let name = format!("{} über {}", reason.label(), channel.label());
+    let name = t!(
+        NotificationsVia,
+        reason = reason_label(reason),
+        channel = channel_label(channel)
+    );
     view! { <Toggle checked=on aria_label=name /> }
 }
 
@@ -92,29 +137,29 @@ fn Quiet() -> impl IntoView {
     view! {
         <List>
             <ListSection
-                header="Ruhezeiten"
-                footer="In dieser Zeit meldet der Browser nichts. Die Zeiten dürfen über Mitternacht reichen (22:00 bis 07:00)."
+                header=t!(NotificationsQuiet)
+                footer=t!(NotificationsQuietFooter)
             >
-                <ListRow title="Ruhezeiten verwenden" toggle_row=true>
+                <ListRow title=t!(NotificationsQuietUse) toggle_row=true>
                     <Toggle checked=enabled />
                 </ListRow>
             </ListSection>
         </List>
         <div class="ck-quiet">
             <TextField
-                label="Von"
+                label=t!(NotificationsFrom)
                 value=from
                 input_type="time"
                 error=invalid
                 disabled=Signal::derive(move || !enabled.get())
             />
             <TextField
-                label="Bis"
+                label=t!(NotificationsTo)
                 value=to
                 input_type="time"
                 error=invalid
                 disabled=Signal::derive(move || !enabled.get())
-                hint="Format 24 Stunden, z. B. 07:00."
+                hint=t!(NotificationsTimeHint)
             />
         </div>
     }
@@ -131,8 +176,8 @@ pub fn NotificationsPage() -> impl IntoView {
         store.announce(
             NotifyEvent {
                 reason: NotifyReason::Assigned,
-                title: "Test-Benachrichtigung".into(),
-                text: "So sieht eine Meldung von Cockpit aus. Ein Klick öffnet diese Seite.".into(),
+                title: t!(NotificationsTestTitle),
+                text: t!(NotificationsTestText),
                 route: browser::settings_route(),
             },
             true,
@@ -148,55 +193,55 @@ pub fn NotificationsPage() -> impl IntoView {
     view! {
         <SplitView>
 
-            <Pane label="Benachrichtigungen">
+            <Pane label=t!(NotificationsTitle)>
                 <PaneHeader>
-                    <h1 class="t-large-title t-bold">"Benachrichtigungen"</h1>
+                    <h1 class="t-large-title t-bold">{t!(NotificationsTitle)}</h1>
                     <p class="t-subheadline t-secondary">
-                        "Wähle je Anlass, worüber du Bescheid bekommst."
+                        {t!(NotificationsSubtitle)}
                     </p>
                 </PaneHeader>
                 <PaneBody>
                     <div class="ck-settings">
                         <List>
                             <ListSection
-                                header="Browser"
-                                footer="Cockpit fragt nur, wenn du auf den Knopf drückst. Ist der Tab im Vordergrund, erscheint ein Hinweis in der App; sonst eine Systemmeldung, deren Klick das Ziel öffnet."
+                                header=t!(NotificationsBrowser)
+                                footer=t!(NotificationsBrowserFooter)
                             >
-                                <ListRow title="Systemmeldungen" wrap=true>
-                                    <Status tone=tone>{move || store.permission.get().label()}</Status>
+                                <ListRow title=t!(NotificationsSystem) wrap=true>
+                                    <Status tone=tone>{move || permission_label(store.permission.get())}</Status>
                                 </ListRow>
-                                <ListRow title="Erlaubnis" wrap=true>
+                                <ListRow title=t!(NotificationsPermission) wrap=true>
                                     <HStack>
                                         <Button
                                             variant=ButtonStyle::GlassProminent
                                             disabled=Signal::derive(move || store.permission.get() != Permission::Ask)
                                             on_click=ask
                                         >
-                                            "Erlaubnis anfragen"
+                                            {t!(NotificationsAsk)}
                                         </Button>
-                                        <Button on_click=test>"Test-Benachrichtigung"</Button>
+                                        <Button on_click=test>{t!(NotificationsTestTitle)}</Button>
                                     </HStack>
                                 </ListRow>
                             </ListSection>
                         </List>
 
                         <p class="t-footnote t-secondary" style="padding-inline: 4px">
-                            "E-Mail und Slack werden über das Backend versendet (kommt später). Die Auswahl wird schon gespeichert; Adressen und Webhook-URLs gehören nicht in den Browser und werden dort nicht abgelegt."
+                            {t!(NotificationsBackendNote)}
                         </p>
                         {NotifyReason::ALL
                             .into_iter()
                             .map(|reason| {
                                 view! {
                                     <List>
-                                        <ListSection header=reason.label() footer=reason.hint()>
+                                        <ListSection header=reason_label(reason) footer=reason_hint(reason)>
                                             {Channel::ALL
                                                 .into_iter()
                                                 .map(|channel| {
                                                     if channel.via_backend() {
                                                         view! {
                                                             <ListRow
-                                                                title=channel.label()
-                                                                subtitle="Wird über das Backend versendet (kommt später)"
+                                                                title=channel_label(channel)
+                                                                subtitle=t!(NotificationsBackendLater)
                                                                 toggle_row=true
                                                             >
                                                                 <ChannelToggle reason=reason channel=channel />
@@ -205,7 +250,7 @@ pub fn NotificationsPage() -> impl IntoView {
                                                             .into_any()
                                                     } else {
                                                         view! {
-                                                            <ListRow title=channel.label() toggle_row=true>
+                                                            <ListRow title=channel_label(channel) toggle_row=true>
                                                                 <ChannelToggle reason=reason channel=channel />
                                                             </ListRow>
                                                         }
