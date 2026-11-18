@@ -32,7 +32,7 @@ pub(in super::super) fn files_tab(store: Store, r: Review, lines: LineUi, ui: Pa
     if r.files.is_empty() {
         return view! {
             <p class="t-subheadline t-secondary">
-                "Zu diesem Pull Request liegen keine Änderungen vor. Gleiche ab, um sie zu laden."
+                {t!(ReviewPanelFilesEmpty)}
             </p>
         }
         .into_any();
@@ -46,7 +46,7 @@ pub(in super::super) fn files_tab(store: Store, r: Review, lines: LineUi, ui: Pa
     });
     let progress = move || {
         let n = ui.viewed.with(|v| files.with_value(|f| v.count(f)));
-        format!("{n} von {total} Dateien angesehen")
+        t!(ReviewPanelFilesProgress, n = n, total = total)
     };
 
     let rows = file_tree(&r.files)
@@ -67,7 +67,7 @@ pub(in super::super) fn files_tab(store: Store, r: Review, lines: LineUi, ui: Pa
                 </span>
                 {stat_view(adds, dels)}
             </div>
-            <ul class="ck-tree" aria-label="Geänderte Dateien">
+            <ul class="ck-tree" aria-label=t!(ReviewPanelFilesTree)>
                 {rows}
             </ul>
             {sections}
@@ -109,7 +109,7 @@ fn tree_row(row: TreeRow, files: StoredValue<Vec<FileDiff>>, ui: PanelUi) -> imp
                         mark()
                             .then(|| {
                                 view! {
-                                    <span class="ck-tree__done" role="img" aria-label="angesehen">
+                                    <span class="ck-tree__done" role="img" aria-label=t!(ReviewPanelViewedAria)>
                                         <Icon path=icons::CHECK size=13 stroke=2.6 />
                                     </span>
                                 }
@@ -158,7 +158,7 @@ fn file_section(
         if f.lines.is_empty() {
             return view! {
                 <p class="t-footnote t-secondary">
-                    "Für diese Datei gibt es keine Textansicht (Binärdatei oder sehr große Änderung). Sieh sie bei GitHub an."
+                    {t!(ReviewPanelNoTextGithub)}
                 </p>
             }
             .into_any();
@@ -210,7 +210,7 @@ fn file_section(
                             size=ControlSize::Small
                             on_click=move |_| ui.more.update(|m| m.push(name.clone()))
                         >
-                            {format!("Mehr anzeigen ({rest} weitere Zeilen)")}
+                            {t!(ReviewPanelShowMore, rest = rest)}
                         </Button>
                     }
                 })}
@@ -239,7 +239,7 @@ fn file_section(
                         prop:checked=is_viewed
                         on:change=on_check
                     />
-                    "Angesehen"
+                    {t!(ReviewPanelViewed)}
                 </label>
             </div>
             {body}

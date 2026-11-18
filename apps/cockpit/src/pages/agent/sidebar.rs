@@ -21,7 +21,7 @@ pub(super) fn closed_switch(ctx: AgentCtx, show: RwSignal<bool>) -> impl IntoVie
                 <div class="ck-rule">
                     <label class="t-subheadline">
                         <span>{move || t::show_closed_count(count.get())}</span>
-                        <Toggle checked=show aria_label=t::SHOW_CLOSED />
+                        <Toggle checked=show aria_label=t::show_closed() />
                     </label>
                 </div>
             }
@@ -36,30 +36,30 @@ pub(super) fn sidebar_runs(ctx: AgentCtx, show_closed: bool) -> impl IntoView {
         store, key, item, ..
     } = ctx;
     let current = key.get_value();
-    let mut rows: Vec<(String, String, &'static str)> = store.ws.with(|w| {
+    let mut rows: Vec<(String, String, String)> = store.ws.with(|w| {
         w.runs
             .iter()
             .filter(|r| show_closed || !r.is_closed() || r.key() == current)
             .map(|r| {
                 let state = if r.is_closed() {
-                    t::CLOSED_BADGE
+                    t::closed_badge()
                 } else if r.is_awaiting() || r.is_diagnosed() {
-                    "wartet"
+                    t!(AgentSidebarWaiting)
                 } else if r.is_asking() {
-                    "fragt"
+                    t!(AgentSidebarAsking)
                 } else if r.is_paused() {
-                    "pausiert"
+                    t!(AgentSidebarPaused)
                 } else if r.is_stopped() {
-                    "angehalten"
+                    t!(AgentSidebarHalted)
                 } else if r.is_running() {
-                    "läuft"
+                    t!(AgentSidebarRunning)
                 } else if r.is_done() {
-                    "fertig"
+                    t!(AgentSidebarDone)
                 } else {
-                    "bereit"
+                    t!(AgentSidebarReady)
                 };
                 let title = if r.is_followup() {
-                    r.label()
+                    super::labels::run_label(r)
                 } else {
                     r.ticket_title.clone()
                 };
@@ -70,14 +70,14 @@ pub(super) fn sidebar_runs(ctx: AgentCtx, show_closed: bool) -> impl IntoView {
     if !rows.iter().any(|(k, _, _)| *k == current)
         && let Some(item) = item.get()
     {
-        rows.insert(0, (item.key, item.title, "neu"));
+        rows.insert(0, (item.key, item.title, t!(AgentSidebarNew)));
     }
     rows.into_iter()
         .map(|(k, title, state)| {
             view! {
                 <SidebarItem
                     href=Route::Agent(Some(k.clone())).hash()
-                    label=format!("{k} {title}")
+                    label=[k.as_str(), title.as_str()].join(" ")
                     current=k == current
                     count=state
                 />

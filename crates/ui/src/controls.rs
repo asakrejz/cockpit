@@ -199,7 +199,7 @@ pub fn Stepper(
         <div class="ui-stepper">
             <button
                 type="button"
-                aria-label="Weniger"
+                aria-label=crate::t!(UiStepperLess)
                 disabled=at_min
                 on:click=move |_| value.update(|v| *v = (*v - step).max(min))
             >
@@ -208,7 +208,7 @@ pub fn Stepper(
             <span class="ui-stepper__divider"></span>
             <button
                 type="button"
-                aria-label="Mehr"
+                aria-label=crate::t!(UiStepperMore)
                 disabled=at_max
                 on:click=move |_| value.update(|v| *v = (*v + step).min(max))
             >

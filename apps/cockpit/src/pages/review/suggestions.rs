@@ -4,7 +4,18 @@ use super::*;
 pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView {
     let number = StoredValue::new(r.key());
     let undecided = r.undecided();
-    let (summary, send_label, can_send, sent) = (r.summary(), r.send_label(), r.can_send(), r.sent);
+    let summary = t!(
+        ReviewSuggestionsSummary,
+        approved = r.approved(),
+        declined = r.declined(),
+        open = r.undecided()
+    );
+    let send_label = if r.sent {
+        t!(ReviewSuggestionsSendDone)
+    } else {
+        t!(ReviewSuggestionsSend, n = r.comment_count())
+    };
+    let (can_send, sent) = (r.can_send(), r.sent);
     let (agent_reviewed, verdict) = (r.agent_reviewed, r.verdict.id());
     let suggestions = r
         .suggestions
@@ -63,22 +74,22 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
     };
 
     let intro = if !r.agent_reviewed && real {
-        "Der Agent liest den Pull Request und bereitet Kommentare vor. Er ändert nichts und sendet nichts."
+        t!(ReviewSuggestionsIntroReal)
     } else if !r.agent_reviewed {
-        "Der Agent hat diesen Pull Request noch nicht durchgesehen."
+        t!(ReviewSuggestionsIntroNone)
     } else if r.suggestions.is_empty() {
-        "Der Agent hat nichts zu beanstanden."
+        t!(ReviewSuggestionsIntroClean)
     } else {
-        "Der Agent hat Kommentare vorbereitet. Nichts wird gesendet, bevor du es freigibst."
+        t!(ReviewSuggestionsIntroDrafts)
     };
 
     view! {
-        <Pane label="Agent-Review">
+        <Pane label=t!(ReviewSuggestionsPane)>
             <PaneHeader>
                 <div class="ui-hstack" style="--spacing: 10px; flex-wrap: nowrap">
                     <Avatar agent=true large=true />
                     <div class="ui-vstack" style="--spacing: 0">
-                        <h2 class="t-title3 t-bold">"Agent-Review"</h2>
+                        <h2 class="t-title3 t-bold">{t!(ReviewSuggestionsPane)}</h2>
                         <span class="t-footnote t-secondary">{summary}</span>
                     </div>
                 </div>
@@ -96,7 +107,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                                 on_click=review_run
                             >
                                 <Icon path=icons::SPARKLES />
-                                {move || if run_busy.get() { "Agent liest …" } else { "PR reviewen" }}
+                                {move || if run_busy.get() { t!(ReviewSuggestionsReading) } else { t!(ReviewSuggestionsReviewPr) }}
                             </Button>
                         }
                     })}
@@ -106,16 +117,16 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                             let key = run.key();
                             view! {
                                 <div class="ui-hstack" style="--spacing: 8px">
-                                    <Status tone=StatusTone::Blue>"Agent arbeitet"</Status>
+                                    <Status tone=StatusTone::Blue>{t!(ReviewStateWorking)}</Status>
                                     <span class="ui-spacer"></span>
-                                    <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>"Lauf ansehen"</a>
+                                    <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>{t!(ReviewRunView)}</a>
                                 </div>
                             }
                             .into_any()
                         } else if let Some(reason) = run.ended.clone() {
                             view! {
                                 <p class="t-footnote t-secondary">
-                                    {format!("Der letzte Lauf endete ohne Ergebnis: {reason}")}
+                                    {t!(ReviewSuggestionsLastRunEnded, reason = reason)}
                                 </p>
                             }
                             .into_any()
@@ -128,9 +139,9 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                     .then(|| {
                         let text = StoredValue::new(summary_text.clone());
                         view! {
-                            <div class="ui-vstack" style="--spacing: 8px" role="region" aria-label="Zusammenfassung des Agenten">
+                            <div class="ui-vstack" style="--spacing: 8px" role="region" aria-label=t!(ReviewSuggestionsSummaryRegion)>
                                 <span class="t-footnote t-secondary" style="padding-inline: 4px">
-                                    "Zusammenfassung des Agenten (bleibt bei dir)"
+                                    {t!(ReviewSuggestionsSummaryNote)}
                                 </span>
                                 <p class="t-subheadline">{text.get_value()}</p>
                                 <Button
@@ -145,7 +156,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                                         });
                                     }
                                 >
-                                    "In meinen Kommentar übernehmen"
+                                    {t!(ReviewSuggestionsTakeOver)}
                                 </Button>
                             </div>
                         }
@@ -160,7 +171,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                             >
                                 <Icon path=icons::SPARKLES />
                                 {move || {
-                                    if panel.agent_reading.get() { "Agent liest …" } else { "Agent-Review anfordern" }
+                                    if panel.agent_reading.get() { t!(ReviewSuggestionsReading) } else { t!(ReviewSuggestionsRequest) }
                                 }}
                             </Button>
                         }
@@ -171,28 +182,32 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
 
                 <div class="ui-vstack" style="--spacing: 8px">
                     <span class="t-footnote t-secondary" style="padding-inline: 4px">
-                        "Eigener Kommentar (optional)"
+                        {t!(ReviewSuggestionsOwnNote)}
                     </span>
                     <Textarea
                         value=panel.own_comment
-                        label="Eigener Kommentar"
-                        placeholder="Zusammenfassung für das Review …"
+                        label=t!(ReviewSuggestionsOwnLabel)
+                        placeholder=t!(ReviewSuggestionsOwnPlaceholder)
                         min_height="72px"
                     />
                 </div>
 
                 <div class="ui-vstack" style="--spacing: 12px">
-                    <SegmentedPicker
-                        options=Verdict::OPTIONS
-                        value=verdict
-                        on_change=move |id: &'static str| {
+                    {segmented(
+                        vec![
+                            ("comment", t!(ReviewSuggestionsVerdictComment)),
+                            ("approve", t!(ReviewSuggestionsVerdictApprove)),
+                            ("changes", t!(ReviewSuggestionsVerdictChanges)),
+                        ],
+                        move || verdict,
+                        move |id| {
                             if let Some(verdict) = Verdict::from_id(id) {
                                 let _ = store.dispatch(Action::SetVerdict { review: number.get_value(), verdict });
                             }
-                        }
-                        aria_label="Ergebnis"
-                        stretch=true
-                    />
+                        },
+                        t!(ReviewSuggestionsVerdict),
+                        true,
+                    )}
                     <Button
                         variant=ButtonStyle::GlassProminent
                         size=ControlSize::Large
@@ -205,7 +220,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                         .then(|| {
                             view! {
                                 <p class="t-footnote t-secondary" style="text-align: center">
-                                    "Entscheide zuerst über alle Vorschläge."
+                                    {t!(ReviewSuggestionsDecideFirst)}
                                 </p>
                             }
                         })}
@@ -213,7 +228,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                         .then(|| {
                             view! {
                                 <div class="ui-hstack" style="justify-content: center">
-                                    <Status tone=StatusTone::Green>"Review auf GitHub gesendet"</Status>
+                                    <Status tone=StatusTone::Green>{t!(ReviewSuggestionsReviewSent)}</Status>
                                 </div>
                             }
                         })}
@@ -228,6 +243,14 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                 {merge_section(store, &r, panel)}
             </PaneBody>
         </Pane>
+    }
+}
+
+/// The importance of a suggestion in words.
+fn level_label(level: Level) -> String {
+    match level {
+        Level::Note => t!(ReviewSuggestionsLevelNote),
+        Level::Important => t!(ReviewSuggestionsLevelImportant),
     }
 }
 
@@ -266,7 +289,7 @@ pub(super) fn suggestion(
 
     let editor = move || {
         view! {
-            <Textarea value=panel.edit_text label="Kommentar bearbeiten" min_height="72px" />
+            <Textarea value=panel.edit_text label=t!(ReviewEditComment) min_height="72px" />
             <div class="ui-hstack" style="--spacing: 8px">
                 <Button
                     variant=ButtonStyle::BorderedProminent
@@ -282,14 +305,14 @@ pub(super) fn suggestion(
                         });
                     }
                 >
-                    "Sichern"
+                    {t!(ReviewSave)}
                 </Button>
                 <Button
                     variant=ButtonStyle::Borderless
                     size=ControlSize::Small
                     on_click=move |_| panel.editing.set(None)
                 >
-                    "Abbrechen"
+                    {t!(ReviewCancel)}
                 </Button>
             </div>
         }
@@ -304,10 +327,10 @@ pub(super) fn suggestion(
                     size=ControlSize::Small
                     on_click=decide(Some(Decision::Approved))
                 >
-                    "Freigeben"
+                    {t!(ReviewApprove)}
                 </Button>
                 <Button size=ControlSize::Small destructive=true on_click=decide(Some(Decision::Declined))>
-                    "Verwerfen"
+                    {t!(ReviewDiscard)}
                 </Button>
                 <Button
                     variant=ButtonStyle::Borderless
@@ -317,21 +340,21 @@ pub(super) fn suggestion(
                         panel.editing.set(Some(id.get_value()));
                     }
                 >
-                    "Bearbeiten"
+                    {t!(ReviewEdit)}
                 </Button>
             </div>
         }
         .into_any(),
         Some(decision) => {
             let (label, tone) = match decision {
-                Decision::Approved => ("Freigegeben – wird gesendet", StatusTone::Green),
-                Decision::Declined => ("Verworfen – wird nicht gesendet", StatusTone::Gray),
+                Decision::Approved => (t!(ReviewSuggestionsApproved), StatusTone::Green),
+                Decision::Declined => (t!(ReviewSuggestionsDeclined), StatusTone::Gray),
             };
             view! {
                 <div class="ui-hstack" style="justify-content: space-between">
                     <Status tone=tone>{label}</Status>
                     <Button variant=ButtonStyle::Borderless size=ControlSize::Small on_click=decide(None)>
-                        "Rückgängig"
+                        {t!(ReviewUndo)}
                     </Button>
                 </div>
             }
@@ -345,7 +368,7 @@ pub(super) fn suggestion(
             <div class="ui-hstack" style="--spacing: 8px">
                 <span class="t-footnote t-mono t-secondary">{location_label(&s)}</span>
                 <span class="ui-spacer"></span>
-                <Badge variant=badge>{s.level.label()}</Badge>
+                <Badge variant=badge>{level_label(s.level)}</Badge>
             </div>
             {move || {
                 if editing.get() {
@@ -354,7 +377,7 @@ pub(super) fn suggestion(
                     view! {
                         <p class="t-subheadline">{text.get_value()}</p>
                         {(!code.is_empty())
-                            .then(|| view! { <Diff rows=code.clone() label="Änderungsvorschlag" /> })}
+                            .then(|| view! { <Diff rows=code.clone() label=t!(ReviewSuggestion) /> })}
                         {actions()}
                     }
                         .into_any()

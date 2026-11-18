@@ -13,15 +13,13 @@ use crate::store::{Store, now_ms, use_store};
 fn subtitle(state: &SourceState, now: u64) -> String {
     let last = state
         .last_ok_ms
-        .map_or("noch nie abgeglichen".to_string(), |t| {
-            format!("zuletzt abgeglichen {}", cockpit_core::notice::ago(t, now))
-        });
+        .map_or(t!(SyncNever), |t| t!(SyncLast, ago = ago(t, now)));
     match &state.problem {
         None => match state.warnings.first() {
-            Some(w) => format!("{last} · Hinweis: {w}"),
+            Some(w) => t!(SyncLastWarning, last = last, warning = w),
             None => last,
         },
-        Some(p) => format!("{} · {last}", p.text()),
+        Some(p) => t!(SyncLastProblem, problem = p.text(), last = last),
     }
 }
 
@@ -32,8 +30,7 @@ pub fn sync_now(store: Store, busy: RwSignal<bool>) {
         let result = server::post_sync().await;
         busy.set(false);
         match result {
-            Ok(r) if !r.active => store
-                .notify("Keine Quelle verbunden – richte Jira oder GitHub unter „Einrichten“ ein"),
+            Ok(r) if !r.active => store.notify(t!(SyncNoSource)),
             Ok(_) => {} // The state comes through the event stream.
             Err(e) => store.notify(e.message()),
         }
@@ -53,8 +50,8 @@ pub fn SyncStatus() -> impl IntoView {
         if states.is_empty() {
             return view! {
                 <ListRow
-                    title="Keine Quelle abgeglichen"
-                    subtitle="Jira und GitHub richtest du unter „Einrichten“ ein. Bis dahin bleibt der Workspace leer."
+                    title=t!(SyncEmptyTitle)
+                    subtitle=t!(SyncEmptyText)
                     wrap=true
                 />
             }
@@ -71,7 +68,7 @@ pub fn SyncStatus() -> impl IntoView {
                 view! {
                     <ListRow title=name subtitle=subtitle(&st, now) wrap=true>
                         <Badge variant=if ok { BadgeVariant::Tint } else { BadgeVariant::Neutral }>
-                            {if ok { "verbunden" } else { "Problem" }}
+                            {if ok { t!(SyncConnected) } else { t!(SyncProblem) }}
                         </Badge>
                     </ListRow>
                 }
@@ -83,13 +80,13 @@ pub fn SyncStatus() -> impl IntoView {
     view! {
         <List>
                 <ListSection
-                    header="Abgleich"
-                    footer="Das Backend fragt Jira und GitHub regelmäßig ab (Standard: alle 2 Minuten). Aktionen wie Antworten, Status, Review oder Mergen gehen erst an den Dienst und werden danach hier angewendet."
+                    header=t!(SyncHeader)
+                    footer=t!(SyncFooter)
                 >
                     {rows}
-                    <ListRow title="Jetzt abgleichen" subtitle="Holt Tickets, Pull Requests, Kommentare und Checks sofort">
+                    <ListRow title=t!(BannerSyncNow) subtitle=t!(SyncNowHint)>
                         <Button disabled=Signal::derive(move || busy.get()) on_click=sync_now>
-                            {move || if busy.get() { "Gleiche ab …" } else { "Jetzt abgleichen" }}
+                            {move || if busy.get() { t!(BannerSyncing) } else { t!(BannerSyncNow) }}
                         </Button>
                     </ListRow>
                 </ListSection>

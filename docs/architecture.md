@@ -18,7 +18,7 @@ The README is the entry page; this document holds the depth.
 | Agent provider and endpoint | Selectable (decision of 2026-11-12): tool `[agent] provider` (Claude Agent SDK, Claude Code CLI or Codex CLI, selected in the runner by `COCKPIT_PROVIDER`), endpoint `[agent.endpoint] url/model` (a proxy such as LiteLLM, another compatible endpoint, or without an address directly at Anthropic). The user has no Anthropic key of their own but an LiteLLM proxy, so LiteLLM is only one possible endpoint. With an address the container gets `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`, without one `ANTHROPIC_API_KEY` (Codex: `OPENAI_BASE_URL` + `OPENAI_API_KEY`, model in `COCKPIT_MODEL`); the model name is a setting chosen in the assistant from the endpoint's list. The key lives only in `.env` (`token set agent-key`). Older `[litellm]` values and the key `litellm` are still read. |
 | Jira sign-in | API token by default (the company does not approve OAuth apps); OAuth is the folded-away alternative. |
 | Setup | The setup assistant targets people without programming knowledge: everything that can be done locally by click is done by click (`PUT /api/config`, `PUT /api/secrets/{name}`, double-click start), the manual steps (creating your own OAuth apps, tokens) are guided and documented. Every person creates their **own** OAuth apps because client secrets cannot be shared. |
-| Language | Code, naming and docs are English. Visible UI texts, plain-language errors and hints, the activity log and texts of the agent for humans stay German. Old German wire and config names are still read as aliases (see `crates/cockpit-core/tests/wire_compat.rs`, `apps/server/src/config/tests.rs`, `apps/cockpit/src/route.rs`). |
+| Language | Code, naming and docs are English. The interface is German or English (see [Languages](#languages-i18n)); technical messages (logs, `expect`/`panic`, tests, CLI) are always English and are not translated. Server and core messages, the activity log and texts of the agent still come in German until they are keyed (the next step of the language work). Old German wire and config names are still read as aliases (see `crates/cockpit-core/tests/wire_compat.rs`, `apps/server/src/config/tests.rs`, `apps/cockpit/src/route.rs`). |
 
 ## Overview
 
@@ -346,6 +346,25 @@ Which events notify is derived purely from comparing the workspace before and af
 (`crates/cockpit-core/src/notify.rs`, with tests). The settings live in the workspace and change through actions
 (`SetNotifyChannel`, `SetQuietHours`). Email and Slack are prepared only; addresses and webhook URLs never live in the
 browser.
+
+## Languages (i18n)
+
+The interface is available in German and English and switches at once, without a reload.
+
+- **Crate `crates/i18n`** (`cockpit-i18n`). Texts live in `catalog/<lang>/<area>.txt` (one line `id = text`, `{name}` for
+  parameters, `id.one` / `id.other` for plurals with the parameter `n`, `\n` for a line break). `build.rs` turns the English
+  files into the typed enum `Key` (`nav.more` becomes `Key::NavMore`), so a typo is a compile error. No dependency besides `serde`.
+- **Use in the code.** `feature_ui::t!(NavMore)` or `t!(NavStuck, n = 3)`; `feature_ui::ago(then_ms, now_ms)` gives "5 minutes ago" /
+  "vor 5 Minuten". The language is a signal in `crates/ui/src/i18n.rs`. `App` rebuilds the visible tree when it changes; store, workspace
+  and route stay.
+- **Which language.** Default is the browser language (`navigator.language`: `de*` is German, everything else English). The choice is
+  stored in the workspace (`Workspace::language`, `#[serde(default)]`, action `SetLanguage`), not in `localStorage`. The switcher
+  (`apps/cockpit/src/language.rs`) is in the "More" sheet and in the first step of the setup assistant; the playground has one too.
+- **Content from Jira and GitHub** (titles, descriptions, comments) is never translated.
+- **Tests** (`crates/i18n/src/tests.rs`): both catalogs have the same files, ids and parameters; plural keys have `one` and `other`;
+  no key is unused; a scan test (`tests/scan.rs`) fails when `apps/cockpit/src` or `crates/ui/src` contain a visible string literal
+  (names like "Cockpit" or "GitHub" are on an allowlist there).
+- **German texts** are in simple German: short sentences, no word-for-word translated jargon.
 
 ## Layout and navigation
 

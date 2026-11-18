@@ -68,31 +68,31 @@ pub(super) fn BranchPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
     // The sentence next to the button: why it is off, or what happened.
     let note = move || {
         if deleted.get() {
-            return Some(t::BRANCH_DELETED.to_string());
+            return Some(t::branch_deleted().to_string());
         }
         match check.get() {
-            None if problem.get().is_none() => Some(t::BRANCH_CHECKING.to_string()),
+            None if problem.get().is_none() => Some(t::branch_checking().to_string()),
             Some(c) => c.reason,
             None => None,
         }
     };
     let footer = move || {
         view! {
-            <Button on_click=move |_| open.set(false)>{t::CANCEL}</Button>
+            <Button on_click=move |_| open.set(false)>{t::cancel()}</Button>
             <Button variant=ButtonStyle::GlassProminent disabled=busy on_click=delete>
-                {t::BRANCH_BUTTON}
+                {t::branch_button()}
             </Button>
         }
     };
     move || {
         (!key.get().is_empty()).then(|| {
             view! {
-                <div class="ui-list__section" role="region" aria-label=t::BRANCH_TITLE>
-                    <p class="ui-list__header">{t::BRANCH_TITLE}</p>
+                <div class="ui-list__section" role="region" aria-label=t::branch_title()>
+                    <p class="ui-list__header">{t::branch_title()}</p>
                     <p class="t-subheadline t-mono">{branch}</p>
                     <div class="ui-hstack" style="--spacing: 12px; flex-wrap: wrap">
                         <Button disabled=disabled on_click=move |_| open.set(true)>
-                            {t::BRANCH_BUTTON}
+                            {t::branch_button()}
                         </Button>
                     </div>
                     {move || {
@@ -100,11 +100,11 @@ pub(super) fn BranchPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
                             .map(|m| view! { <p class="ui-hint" role="status">{m}</p> })
                     }}
                     {move || problem.get().map(|m| view! { <p class="ui-hint ck-problem" role="alert">{m}</p> })}
-                    <Dialog open=open title=t::BRANCH_DIALOG_TITLE footer=footer>
+                    <Dialog open=open title=t::branch_dialog_title() footer=footer>
                         {move || {
                             view! {
                                 <p class="t-subheadline">{t::branch_question(&branch())}</p>
-                                <p class="t-footnote t-secondary">{t::BRANCH_FINAL}</p>
+                                <p class="t-footnote t-secondary">{t::branch_final()}</p>
                             }
                         }}
                     </Dialog>

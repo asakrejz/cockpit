@@ -1,0 +1,13 @@
+agent_labels.run_address_review = Kommentare in {review}
+agent_labels.run_diagnose = Check „{check}“ in {review}
+agent_labels.run_threads = Review-Kommentare in {review}
+agent_labels.run_failed_checks = Rote Checks in {review}
+agent_labels.run_review = Review von {review}
+agent_labels.stop_run_budget = Budget pro Lauf erreicht
+agent_labels.stop_month_budget = Monatsbudget erreicht
+agent_labels.stop_time = Zeitlimit erreicht
+agent_labels.raises_run_budget = das Budget dieses Laufs
+agent_labels.raises_month_budget = das Monatsbudget
+agent_labels.raises_time = das Zeitlimit dieses Laufs
+agent_labels.minutes = {n} Min
+agent_labels.usage_line = {input} Token ein · {output} aus · {cost} · {time}

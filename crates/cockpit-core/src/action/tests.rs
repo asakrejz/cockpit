@@ -229,3 +229,21 @@ mod repos;
 mod review;
 mod status_sync;
 mod tickets;
+
+#[test]
+fn the_language_is_chosen_and_stored_in_the_workspace() {
+    use cockpit_i18n::Lang;
+    let mut w = Workspace::default();
+    assert_eq!(w.language, None);
+    ok(&mut w, Action::SetLanguage { language: Lang::De }, 1);
+    assert_eq!(w.language, Some(Lang::De));
+    assert!(matches!(
+        w.apply(Action::SetLanguage { language: Lang::De }, Actor::User, T),
+        Err(ActionError::Unchanged)
+    ));
+    // Old saved states without the field still load.
+    let saved = serde_json::to_string(&Workspace::default()).unwrap();
+    assert!(!saved.contains("language"));
+    let loaded: Workspace = serde_json::from_str(&saved).unwrap();
+    assert_eq!(loaded.language, None);
+}

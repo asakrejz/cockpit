@@ -57,7 +57,8 @@ fn block(b: &Block) -> AnyView {
         }
         .into_any(),
         Block::Media { name } => {
-            view! { <p class="ui-rich__media">{format!("Anhang: {name}")}</p> }.into_any()
+            view! { <p class="ui-rich__media">{crate::t!(UiAttachment, name = name)}</p> }
+                .into_any()
         }
     }
 }

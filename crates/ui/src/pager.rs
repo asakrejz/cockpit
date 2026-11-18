@@ -26,7 +26,7 @@ pub fn Pager(
     };
 
     view! {
-        <div class="ui-pager" role="region" aria-roledescription="Karussell" aria-label=label>
+        <div class="ui-pager" role="region" aria-roledescription=crate::t!(UiCarousel) aria-label=label>
             <div class="ui-zstack">
                 <div class="ui-pager__viewport">
                     <div class="ui-pager__track" style=offset>
@@ -37,7 +37,7 @@ pub fn Pager(
                                 view! {
                                     <div
                                         class="ui-pager__page"
-                                        aria-label=format!("Seite {} von {count}", i + 1)
+                                        aria-label=crate::t!(UiPageOf, page = i + 1, count = count)
                                         aria-hidden=move || (index.get() != i).then_some("true")
                                     >
                                         {page}
@@ -52,7 +52,7 @@ pub fn Pager(
                         variant=ButtonStyle::Glass
                         shape=ButtonShape::Circle
                         size=ControlSize::Large
-                        aria_label="Vorherige Seite"
+                        aria_label=crate::t!(UiPagePrev)
                         disabled=Signal::derive(move || index.get() == 0)
                         on_click=move |_| go(index.get().saturating_sub(1))
                     >
@@ -64,7 +64,7 @@ pub fn Pager(
                         variant=ButtonStyle::Glass
                         shape=ButtonShape::Circle
                         size=ControlSize::Large
-                        aria_label="Nächste Seite"
+                        aria_label=crate::t!(UiPageNext)
                         disabled=Signal::derive(move || index.get() + 1 >= count)
                         on_click=move |_| go(index.get() + 1)
                     >
@@ -80,7 +80,7 @@ pub fn Pager(
                                 <button
                                     class="ui-pager__dot"
                                     type="button"
-                                    aria-label=format!("Seite {} von {count}", i + 1)
+                                    aria-label=crate::t!(UiPageOf, page = i + 1, count = count)
                                     aria-current=move || (index.get() == i).to_string()
                                     on:click=move |_| go(i)
                                 ></button>

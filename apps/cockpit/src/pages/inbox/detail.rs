@@ -19,8 +19,8 @@ pub(super) fn detail(
     // Tickets show their status for switching, pull requests the state of the checks.
     let state = if is_ticket {
         view! {
-            <SegmentedPicker
-                options=TicketStatus::OPTIONS
+            <Picker
+                options=labels::options(TicketStatus::OPTIONS, TicketStatus::from_id, labels::ticket_status)
                 value=item.status.id()
                 on_change=move |status: &'static str| {
                     if let Some(status) = TicketStatus::from_id(status) {
@@ -30,7 +30,7 @@ pub(super) fn detail(
                         });
                     }
                 }
-                aria_label="Status"
+                aria_label=t!(InboxDetailStatus)
             />
         }
         .into_any()
@@ -38,8 +38,9 @@ pub(super) fn detail(
         item.pr
             .as_ref()
             .map(|pr| {
-                let (label, tone) = pr.status();
-                view! { <Status tone=view::tone(tone)>{label}</Status> }
+                let (_, tone) = pr.status();
+                let text = labels::pr_status(pr);
+                view! { <Status tone=view::tone(tone)>{text}</Status> }
             })
             .into_any()
     };
@@ -53,7 +54,7 @@ pub(super) fn detail(
                     let _ = store.dispatch(Action::CreateBranch { item: id.get_value() });
                 }
             >
-                "Branch erstellen"
+                {t!(InboxDetailCreateBranch)}
             </Button>
         }
         .into_any(),
@@ -63,7 +64,7 @@ pub(super) fn detail(
     let primary = match (&review_href, is_ticket) {
         (Some(href), _) => view! {
             <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large href=href.clone()>
-                {if is_ticket { "Pull Request prüfen" } else { "Review öffnen" }}
+                {if is_ticket { t!(InboxDetailCheckPr) } else { t!(InboxDetailOpenReview) }}
             </Button>
         }
         .into_any(),
@@ -74,7 +75,7 @@ pub(super) fn detail(
                 href=Route::Agent(Some(item.key.clone())).hash()
             >
                 <Icon path=icons::SPARKLES />
-                "Agent beauftragen"
+                {t!(InboxDetailAssignAgent)}
             </Button>
         }
         .into_any(),
@@ -104,7 +105,7 @@ pub(super) fn detail(
     let edit_button = is_ticket.then(|| {
         view! {
             <Button size=ControlSize::Small on_click=start>
-                "Bearbeiten"
+                {t!(InboxDetailEdit)}
             </Button>
         }
     });
@@ -113,20 +114,20 @@ pub(super) fn detail(
             <Show when=move || edit.on.get()>
                 <div class="ck-edit ui-vstack" style="--spacing: 12px">
                     <TextField
-                        label="Titel"
+                        label=t!(InboxDetailTitle)
                         value=edit.title
-                        hint="Der Titel darf nicht leer sein."
+                        hint=t!(InboxDetailTitleHint)
                         error=Signal::derive(move || edit.title.get().trim().is_empty())
                     />
-                    <Textarea value=edit.description label="Beschreibung" />
+                    <Textarea value=edit.description label=t!(InboxDetailDescription) />
                     <div class="ui-hstack" style="--spacing: 8px; justify-content: flex-end">
-                        <Button on_click=cancel>"Abbrechen"</Button>
+                        <Button on_click=cancel>{t!(InboxDetailCancel)}</Button>
                         <Button
                             variant=ButtonStyle::BorderedProminent
                             disabled=Signal::derive(move || edit.title.get().trim().is_empty())
                             on_click=save
                         >
-                            "Speichern"
+                            {t!(InboxDetailSave)}
                         </Button>
                     </div>
                 </div>
@@ -158,12 +159,12 @@ pub(super) fn detail(
             })
             .collect_view();
         view! {
-            <ListSection header="Ticket" nested=true>
+            <ListSection header=t!(InboxDetailTicket) nested=true>
                 <li>
                     <div class="ui-list__row" style="flex-wrap: wrap">
-                        <span class="ui-list__title">"Priorität"</span>
-                        <SegmentedPicker
-                            options=Priority::OPTIONS
+                        <span class="ui-list__title">{t!(InboxDetailPriority)}</span>
+                        <Picker
+                            options=labels::options(Priority::OPTIONS, Priority::from_id, labels::priority)
                             value=item.priority.id()
                             on_change=move |p: &'static str| {
                                 if let Some(priority) = Priority::from_id(p) {
@@ -173,14 +174,14 @@ pub(super) fn detail(
                                     });
                                 }
                             }
-                            aria_label="Priorität"
+                            aria_label=t!(InboxDetailPriority)
                         />
                     </div>
                 </li>
                 <li>
                     <div class="ui-list__row" style="flex-wrap: wrap">
-                        <span class="ui-list__title">"Zugewiesen an"</span>
-                        <span class="ck-assignees ui-hstack" style="--spacing: 6px" role="group" aria-label="Zugewiesen an">
+                        <span class="ui-list__title">{t!(InboxDetailAssignedTo)}</span>
+                        <span class="ck-assignees ui-hstack" style="--spacing: 6px" role="group" aria-label=t!(InboxDetailAssignedTo)>
                             {people}
                         </span>
                     </div>
@@ -199,7 +200,7 @@ pub(super) fn detail(
                         let _ = store.dispatch(Action::UnlinkPr { item: id.get_value() });
                     }
                 >
-                    "Verknüpfung lösen"
+                    {t!(InboxDetailUnlink)}
                 </Button>
             }
             .into_any(),
@@ -213,7 +214,7 @@ pub(super) fn detail(
                 });
                 open.into_iter()
                     .map(|(number, title)| {
-                        let label = format!("Mit {number} verknüpfen");
+                        let label = t!(InboxDetailLinkTo, number = number);
                         view! {
                             <Button
                                 size=ControlSize::Small
@@ -249,13 +250,13 @@ pub(super) fn detail(
             view! {
                 <li>
                     <div class="ui-list__row" style="flex-wrap: wrap">
-                        {row_icon(icons::GIT_PR)} <span class="ui-list__title">"Ticket"</span>
-                        <span class="ui-list__detail ck-ellipsis">{format!("{key} · {title}")}</span>
+                        {row_icon(icons::GIT_PR)} <span class="ui-list__title">{t!(InboxDetailTicket)}</span>
+                        <span class="ui-list__detail ck-ellipsis">{t!(InboxDetailKeyTitle, key = key, title = title)}</span>
                         <Button
                             size=ControlSize::Small
                             on_click=move |_| store.open_item(&ticket_id)
                         >
-                            {format!("{key} öffnen")}
+                            {t!(InboxDetailOpenTicket, key = key)}
                         </Button>
                     </div>
                 </li>
@@ -291,21 +292,18 @@ pub(super) fn detail(
                         let _ = store.dispatch(Action::Unsnooze { item: id.get_value() });
                     }
                 >
-                    "Zurückholen"
+                    {t!(InboxDetailUnsnooze)}
                 </Button>
             </div>
         }
         .into_any(),
         None => view! {
-            <div class="ck-snooze ui-hstack" style="--spacing: 8px" role="group" aria-label="Zurückstellen">
-                <span class="t-subheadline t-secondary">"Zurückstellen:"</span>
+            <div class="ck-snooze ui-hstack" style="--spacing: 8px" role="group" aria-label=t!(InboxDetailSnoozeGroup)>
+                <span class="t-subheadline t-secondary">{t!(InboxDetailSnoozeLabel)}</span>
                 {SnoozeChoice::ALL
                     .into_iter()
                     .map(|choice| {
-                        let label = SnoozeChoice::OPTIONS
-                            .iter()
-                            .find(|(key, _)| *key == choice.id())
-                            .map_or("", |(_, label)| label);
+                        let label = labels::snooze_choice(choice);
                         view! {
                             <Button
                                 size=ControlSize::Small
@@ -363,24 +361,24 @@ pub(super) fn detail(
             <List>{ticket_props}</List>
 
             <List>
-                <ListSection header="Entwicklung" nested=true>
+                <ListSection header=t!(InboxDetailDevelopment) nested=true>
                     <li>
                         <div class="ui-list__row" style="flex-wrap: wrap">
-                            {row_icon(icons::GIT_BRANCH)} <span class="ui-list__title">"Branch"</span> {branch}
+                            {row_icon(icons::GIT_BRANCH)} <span class="ui-list__title">{t!(InboxDetailBranch)}</span> {branch}
                         </div>
                     </li>
                     <li>
                         <div class="ui-list__row" style="flex-wrap: wrap">
-                            {row_icon(icons::GIT_PR)} <span class="ui-list__title">"Pull Request"</span>
+                            {row_icon(icons::GIT_PR)} <span class="ui-list__title">{t!(InboxDetailPullRequest)}</span>
                             <span class="ui-list__detail">
-                                {item.pr.as_ref().map_or("Noch keiner".to_string(), |pr| pr.label())}
+                                {item.pr.as_ref().map_or_else(|| t!(InboxDetailPrNone), labels::pr_label)}
                             </span>
                             {link_actions}
                             {(!is_ticket)
                                 .then(|| review_href.clone())
                                 .flatten()
                                 .map(|href| {
-                                    view! { <Button size=ControlSize::Small href=href>"Review öffnen"</Button> }
+                                    view! { <Button size=ControlSize::Small href=href>{t!(InboxDetailOpenReview)}</Button> }
                                 })}
                         </div>
                     </li>
@@ -410,34 +408,34 @@ pub(super) fn detail(
                         let _ = store.dispatch(Action::MarkDone { item: id.get_value() });
                     }
                 >
-                    {if item.read { "Erledigt" } else { "Als erledigt markieren" }}
+                    {if item.read { t!(InboxDetailDone) } else { t!(InboxDetailMarkDone) }}
                 </Button>
             </div>
 
             {snooze_row}
 
             <div class="ui-list__section">
-                <p class="ui-list__header">"Kommentare"</p>
+                <p class="ui-list__header">{t!(InboxDetailComments)}</p>
                 <div class="ui-vstack" style="--spacing: 12px">
                     {comments}
                     <div class="ui-vstack" style="--spacing: 8px">
                         <div class="ck-reply">
                             <Textarea
                                 value=draft
-                                label="Antwort"
-                                placeholder=if is_ticket { "Im Ticket antworten …" } else { "Im Pull Request antworten …" }
+                                label=t!(InboxDetailReplyLabel)
+                                placeholder=if is_ticket { t!(InboxDetailReplyTicket) } else { t!(InboxDetailReplyPr) }
                             />
                         </div>
                         <div class="ui-hstack" style="justify-content: space-between">
                             <span class="t-footnote t-secondary">
-                                {format!("Wird direkt in {source} gepostet.")}
+                                {t!(InboxDetailPostedIn, source = source)}
                             </span>
                             <Button
                                 variant=ButtonStyle::BorderedProminent
                                 disabled=Signal::derive(move || draft.get().trim().is_empty())
                                 on_click=send
                             >
-                                "Antworten"
+                                {t!(InboxDetailReply)}
                             </Button>
                         </div>
                     </div>

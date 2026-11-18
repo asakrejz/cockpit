@@ -7,4 +7,5 @@ license.workspace = true
 [dependencies]
 leptos = { workspace = true }
 cockpit-core = { workspace = true }
-web-sys = { workspace = true, features = ["Document", "DomTokenList", "Element", "HtmlElement", "KeyboardEvent", "Location", "Node", "NodeList", "Touch", "TouchEvent", "TouchList"] }
+cockpit-i18n = { workspace = true }
+web-sys = { workspace = true, features = ["Window", "Navigator", "Document", "DomTokenList", "Element", "HtmlElement", "KeyboardEvent", "Location", "Node", "NodeList", "Touch", "TouchEvent", "TouchList"] }

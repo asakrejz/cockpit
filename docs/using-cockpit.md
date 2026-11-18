@@ -8,6 +8,11 @@ Benachrichtigungen, Einrichten), the connection states of Jira, GitHub and the a
 (which events count as attention). The lists of pull requests and agent runs are the first column of their pages.
 Every column scrolls on its own. Details: [Layout and navigation](architecture.md#layout-and-navigation).
 
+**Language:** the app speaks German and English. It starts in the language of the browser (German for `de*`, otherwise
+English). You change it in the "More" menu ("Language") or in the first step of the setup assistant; the change applies at
+once and is saved in the workspace. Texts from Jira and GitHub stay as they are. The page names below are the German ones;
+in English they read Attention, My tasks, Pull requests, Agents, Log, Limits & rules, Notifications, Set up.
+
 Pages (hash routes):
 
 | Page | Address | What it does |

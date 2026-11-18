@@ -24,15 +24,15 @@ pub(super) fn comments_section(store: Store, r: &Review, panel: Panel) -> impl I
         }
         let state = active.map(|run| {
             let (label, tone) = if run.is_awaiting() {
-                ("Wartet auf Freigabe des Plans", StatusTone::Orange)
+                (t!(ReviewStateAwaiting), StatusTone::Orange)
             } else if run.is_asking() {
-                ("Wartet auf deine Antwort", StatusTone::Orange)
+                (t!(ReviewStateAsking), StatusTone::Orange)
             } else if run.is_diagnosed() {
-                ("Wartet auf deine Entscheidung", StatusTone::Orange)
+                (t!(ReviewStateDiagnosed), StatusTone::Orange)
             } else if run.is_paused() {
-                ("Pausiert", StatusTone::Gray)
+                (t!(ReviewStatePaused), StatusTone::Gray)
             } else {
-                ("Agent arbeitet", StatusTone::Blue)
+                (t!(ReviewStateWorking), StatusTone::Blue)
             };
             let key = run.key();
             view! {
@@ -40,7 +40,7 @@ pub(super) fn comments_section(store: Store, r: &Review, panel: Panel) -> impl I
                     <Status tone=tone>{label}</Status>
                     <span class="t-footnote t-secondary">{run.label()}</span>
                     <span class="ui-spacer"></span>
-                    <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>"Lauf ansehen"</a>
+                    <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>{t!(ReviewRunView)}</a>
                 </div>
             }
         });
@@ -51,10 +51,10 @@ pub(super) fn comments_section(store: Store, r: &Review, panel: Panel) -> impl I
                 let key = run.key();
                 view! {
                     <div class="ui-hstack" style="--spacing: 8px">
-                        <Status tone=StatusTone::Green>"Erledigt"</Status>
+                        <Status tone=StatusTone::Green>{t!(ReviewDone)}</Status>
                         <span class="t-footnote t-secondary">{run.label()}</span>
                         <span class="ui-spacer"></span>
-                        <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>"Lauf ansehen"</a>
+                        <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>{t!(ReviewRunView)}</a>
                     </div>
                 }
             })
@@ -76,14 +76,20 @@ pub(super) fn comments_section(store: Store, r: &Review, panel: Panel) -> impl I
                         });
                     }
                 });
-                let who = c.author.as_ref().map_or("Du".to_string(), |p| p.name.clone());
-                let place = review.line_location(c).unwrap_or_else(|| c.file.clone());
-                let text = if c.text.is_empty() { "Änderungsvorschlag".to_string() } else { c.text.clone() };
+                let who = c.author.as_ref().map_or_else(|| t!(ReviewYou), |p| p.name.clone());
+                let place = review
+                    .files
+                    .iter()
+                    .find(|f| f.name == c.file)
+                    .and_then(|f| f.lines.get(c.line))
+                    .map(|l| t!(ReviewFileLine, file = c.file, n = l.no))
+                    .unwrap_or_else(|| c.file.clone());
+                let text = if c.text.is_empty() { t!(ReviewSuggestion) } else { c.text.clone() };
                 view! {
                     <label class="ui-hstack ck-pick" style="--spacing: 10px; align-items: flex-start">
-                        <Toggle checked=on disabled=busy aria_label=format!("Kommentar {id} umsetzen") />
+                        <Toggle checked=on disabled=busy aria_label=t!(ReviewCommentsToggle, id = id) />
                         <span class="ui-vstack" style="--spacing: 2px; min-width: 0">
-                            <span class="t-footnote t-secondary t-mono">{format!("{who} · {place}")}</span>
+                            <span class="t-footnote t-secondary t-mono">{t!(ReviewWhoPlace, who = who, place = place)}</span>
                             <span class="t-subheadline">{text}</span>
                         </span>
                     </label>
@@ -126,15 +132,15 @@ pub(super) fn comments_section(store: Store, r: &Review, panel: Panel) -> impl I
         };
         let can_start = !open.is_empty() && !merged;
         Some(view! {
-            <div class="ui-vstack" style="--spacing: 10px" role="region" aria-label="Review-Kommentare umsetzen">
-                <h3 class="t-headline">"Review-Kommentare umsetzen"</h3>
+            <div class="ui-vstack" style="--spacing: 10px" role="region" aria-label=t!(ReviewCommentsTitle)>
+                <h3 class="t-headline">{t!(ReviewCommentsTitle)}</h3>
                 {state}
                 {finished}
                 {(can_start && !open.is_empty())
                     .then(|| {
                         view! {
                             <p class="t-footnote t-secondary">
-                                "Der Agent setzt die gewählten Kommentare um und pusht auf denselben Branch – ohne neuen Pull Request."
+                                {t!(ReviewCommentsIntro)}
                             </p>
                             <div class="ui-vstack" style="--spacing: 8px">{rows}</div>
                             <Button
@@ -144,10 +150,7 @@ pub(super) fn comments_section(store: Store, r: &Review, panel: Panel) -> impl I
                                 on_click=start
                             >
                                 <Icon path=icons::SPARKLES />
-                                {move || format!("Agent: {} umsetzen", match count.get() {
-                                    1 => "1 Kommentar".to_string(),
-                                    n => format!("{n} Kommentare"),
-                                })}
+                                {move || t!(ReviewCommentsStart, n = count.get())}
                             </Button>
                         }
                     })}

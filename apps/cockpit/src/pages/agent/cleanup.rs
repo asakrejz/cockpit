@@ -59,7 +59,7 @@ pub(super) fn CleanupButton() -> impl IntoView {
     let body = move || {
         view! {
             <div class="ck-dialog">
-                {move || loading.get().then(|| view! { <p class="ui-hint" role="status">{t::CLEANUP_LOADING}</p> })}
+                {move || loading.get().then(|| view! { <p class="ui-hint" role="status">{t::cleanup_loading()}</p> })}
                 {move || problem.get().map(|m| view! { <p class="ui-hint ck-problem" role="alert">{m}</p> })}
                 {move || result.get().map(|m| view! { <p class="t-subheadline" role="status">{m}</p> })}
                 {move || {
@@ -67,17 +67,17 @@ pub(super) fn CleanupButton() -> impl IntoView {
                         .get()
                         .map(|p| {
                             if p.is_empty() && !p.engine_missing {
-                                return view! { <p class="t-subheadline">{t::CLEANUP_NOTHING}</p> }.into_any();
+                                return view! { <p class="t-subheadline">{t::cleanup_nothing()}</p> }.into_any();
                             }
                             view! {
-                                <p class="t-footnote t-secondary">{t::CLEANUP_INTRO}</p>
+                                <p class="t-footnote t-secondary">{t::cleanup_intro()}</p>
                                 {p
                                     .engine_missing
-                                    .then(|| view! { <p class="ui-hint">{t::CLEANUP_NO_ENGINE}</p> })}
+                                    .then(|| view! { <p class="ui-hint">{t::cleanup_no_engine()}</p> })}
                                 {(!p.containers.is_empty())
                                     .then(|| {
                                         view! {
-                                            <h2 class="t-headline ck-dialog__heading">{t::CLEANUP_CONTAINERS}</h2>
+                                            <h2 class="t-headline ck-dialog__heading">{t::cleanup_containers()}</h2>
                                             <ul class="ck-cleanup__list">
                                                 {p
                                                     .containers
@@ -90,7 +90,7 @@ pub(super) fn CleanupButton() -> impl IntoView {
                                 {(!p.folders.is_empty())
                                     .then(|| {
                                         view! {
-                                            <h2 class="t-headline ck-dialog__heading">{t::CLEANUP_FOLDERS}</h2>
+                                            <h2 class="t-headline ck-dialog__heading">{t::cleanup_folders()}</h2>
                                             <ul class="ck-cleanup__list">
                                                 {p
                                                     .folders
@@ -109,15 +109,15 @@ pub(super) fn CleanupButton() -> impl IntoView {
     };
     let footer = move || {
         view! {
-            <Button on_click=move |_| open.set(false)>{t::CLOSE}</Button>
+            <Button on_click=move |_| open.set(false)>{t::close()}</Button>
             <Button variant=ButtonStyle::GlassProminent disabled=nothing_to_remove on_click=remove>
-                {t::CLEANUP_RUN}
+                {t::cleanup_run()}
             </Button>
         }
     };
     view! {
-        <Button on_click=show>{t::CLEANUP_BUTTON}</Button>
-        <Dialog open=open title=t::CLEANUP_TITLE footer=footer>
+        <Button on_click=show>{t::cleanup_button()}</Button>
+        <Dialog open=open title=t::cleanup_title() footer=footer>
             {body}
         </Dialog>
     }

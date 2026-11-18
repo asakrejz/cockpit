@@ -14,6 +14,7 @@ mod controls;
 mod decisions;
 mod header;
 mod job;
+mod labels;
 mod progress;
 mod pull_request;
 mod sidebar;
@@ -38,10 +39,10 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
         <SplitView
             layout=SplitLayout::DetailWide
             level=level
-            back_label="Agenten-Läufe"
+            back_label=t!(AgentRuns)
             back_href=Route::Agent(None).hash()
         >
-            <PickerPane label="Agenten-Läufe" title="Agenten-Läufe">
+            <PickerPane label=t!(AgentRuns) title=t!(AgentRuns)>
                 {sidebar::closed_switch(ctx, show_closed)}
                 <ul class="ui-sidebar__nav">{move || sidebar::sidebar_runs(ctx, show_closed.get())}</ul>
                 <div class="ck-cleanup">
@@ -53,11 +54,11 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                 when=move || run.get().is_some()
                 fallback=|| {
                     view! {
-                        <Pane label="Agent-Auftrag">
+                        <Pane label=t!(AgentJobLabel)>
                             <PaneBody>
                                 <EmptyState
-                                    title="Noch kein Agent-Lauf"
-                                    text="Agenten setzen Jira-Tickets um. Wähle im Posteingang ein Ticket und beauftrage den Agenten dort; sein Lauf erscheint dann hier."
+                                    title=t!(AgentEmptyTitle)
+                                    text=t!(AgentEmptyText)
                                     icon=icons::SPARKLES
                                 >
                                     <Button
@@ -65,7 +66,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                         size=ControlSize::Small
                                         href="#/"
                                     >
-                                        "Zum Posteingang"
+                                        {t!(AgentToInbox)}
                                     </Button>
                                 </EmptyState>
                             </PaneBody>
@@ -73,7 +74,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                     }
                 }
             >
-                <Pane label="Agent-Auftrag">
+                <Pane label=t!(AgentJobLabel)>
                     {header::header(ctx)}
 
                     <PaneBody>
@@ -100,7 +101,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                         {move || progress::usage(ctx)}
 
                         <div class="ui-list__section">
-                            <p class="ui-list__header">"Ablauf"</p>
+                            <p class="ui-list__header">{t!(AgentCourse)}</p>
                             <Timeline>{progress::timeline_steps(ctx)}</Timeline>
                         </div>
                     </PaneBody>

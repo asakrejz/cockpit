@@ -32,8 +32,32 @@ use jira::JiraStep;
 use live::LiveStep;
 use model::ModelStep;
 
-/// Labels of the progress display, in the order of [`Step::ALL`].
-const NAMES: &[&str] = &["Container", "Jira", "GitHub", "Modell", "Live", "Fertig"];
+/// The progress display: one item per step in the order of [`Step::ALL`]. All steps before the
+/// current one count as done.
+#[component]
+fn StepProgress(#[prop(into)] current: Signal<usize>) -> impl IntoView {
+    view! {
+        <ol class="ui-steps" aria-label=move || t!(SetupProgress)>
+            {Step::ALL
+                .iter()
+                .enumerate()
+                .map(|(i, step)| {
+                    let step = *step;
+                    view! {
+                        <li
+                            class="ui-steps__item"
+                            aria-current=move || (current.get() == i).then_some("step")
+                            data-done=move || (current.get() > i).then_some("")
+                        >
+                            <span class="ui-steps__no">{i + 1}</span>
+                            {move || fields::step_label(step)}
+                        </li>
+                    }
+                })
+                .collect_view()}
+        </ol>
+    }
+}
 
 #[component]
 pub fn SetupPage() -> impl IntoView {
@@ -112,19 +136,18 @@ pub fn SetupPage() -> impl IntoView {
                                 <Icon path=icons::BRAND size=26 />
                             </span>
                             <span class="t-title3 t-bold">"Cockpit"</span>
-                            <Badge variant=BadgeVariant::Neutral>"Lokal"</Badge>
+                            <Badge variant=BadgeVariant::Neutral>{t!(SetupBadgeLocal)}</Badge>
                         </HStack>
-                        <h1 class="t-display">"Einrichten."</h1>
-                        <p class="t-title3 t-secondary">
-                            "Wir gehen Schritt für Schritt vor. Du brauchst keine Vorkenntnisse, und jeden Schritt kannst du überspringen und später nachholen."
-                        </p>
+                        <crate::language::LanguageSwitch />
+                        <h1 class="t-display">{t!(SetupTitle)}</h1>
+                        <p class="t-title3 t-secondary">{t!(SetupIntro)}</p>
                     </VStack>
 
-                    <Steps labels=NAMES current=index />
+                    <StepProgress current=index />
 
                     {move || {
                         if !ready.get() {
-                            return view! { <Skeleton rows=3 label="Einrichtung lädt" /> }.into_any();
+                            return view! { <Skeleton rows=3 label=t!(SetupLoading) /> }.into_any();
                         }
                         match step.get() {
                         Step::Container => view! { <ContainerStep ctx=ctx /> }.into_any(),
@@ -138,12 +161,12 @@ pub fn SetupPage() -> impl IntoView {
                         }
                     }}
 
-                    <HStack css="justify-content: space-between; flex-wrap: wrap">
+                    <HStack css="justify-content:space-between;flex-wrap:wrap">
                         <Button
                             disabled=Signal::derive(move || step.get().previous().is_none())
                             on_click=back
                         >
-                            "Zurück"
+                            {t!(SetupBack)}
                         </Button>
                         {move || {
                             step
@@ -153,10 +176,10 @@ pub fn SetupPage() -> impl IntoView {
                                     view! {
                                         <HStack spacing="12px">
                                             <Button variant=ButtonStyle::Borderless on_click=next_step>
-                                                "Überspringen"
+                                                {t!(SetupSkip)}
                                             </Button>
                                             <Button variant=ButtonStyle::GlassProminent on_click=next_step>
-                                                "Weiter"
+                                                {t!(SetupNext)}
                                             </Button>
                                         </HStack>
                                     }

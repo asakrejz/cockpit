@@ -1,0 +1,15 @@
+agent_job.job = Job
+agent_job.hint_label = Notes for the agent
+agent_job.hint_placeholder = Extra notes for the agent (optional), e.g.: Please also check the slider thumb.
+agent_job.repo = Repo
+agent_job.repo_aria = Repo for the agent
+agent_job.no_repo_project = No repo is assigned to the Jira project {project}, and there is no default repo. Choose a repo.
+agent_job.no_repo = There is no default repo. Choose a repo.
+agent_job.no_rule = No assignment rule for this Jira project – the default repo is preselected.
+agent_job.base_branch = Base branch
+agent_job.works_in = Works in {repo} based on {base}.
+agent_job.run_tests = Run tests before the pull request
+agent_job.off_in_settings = Off in settings
+agent_job.required = Required by rules
+agent_job.draft_pr = Create pull request as draft
+agent_job.plan_first = Show plan before starting

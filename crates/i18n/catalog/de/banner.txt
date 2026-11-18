@@ -1,0 +1,8 @@
+# Banner, Startseite und Abgleich-Status der Hülle
+banner.setup = Einrichten
+banner.sync_now = Jetzt abgleichen
+banner.syncing = Gleiche ab …
+banner.connecting = Verbinde mit dem Server …
+banner.stale_data = Die Daten unten sind der letzte Stand. {text}
+banner.retry = Jetzt erneut versuchen
+gate.loading = Cockpit lädt

@@ -1,0 +1,15 @@
+# Setup step 6: summary
+setup_done.jira_disconnected = Jira getrennt. Der Zugang wurde gelöscht.
+setup_done.renew_token = Token erneuern
+setup_done.disconnect = Trennen
+setup_done.title = Zusammenfassung
+setup_done.intro = Hier siehst du, was läuft und was noch fehlt. Offene Punkte sind kein Fehler. Du kannst sie jederzeit über „Einrichten“ nachholen.
+setup_done.header = Stand
+setup_done.tone_good = In Ordnung
+setup_done.tone_open = Offen
+setup_done.tone_problem = Prüfen
+setup_done.view = Ansehen
+setup_done.to_dashboard = Zum Dashboard
+setup_done.keys_note = Wo Schlüssel liegen: nur in der .env-Datei im Projektordner dieses Rechners. Sie gehen über die Eingabefelder hier hinein. Sie kommen nie in den Browser-Speicher, in die Datenbank oder ins Log. Die Datei darf nie committet oder weitergegeben werden. Der echte Agent läuft in Docker oder Podman und spricht mit dem Modell-Endpunkt, den du im Schritt „Modell“ gewählt hast.
+setup_done.env_file = Die Datei liegt hier:
+setup_done.config_files = Konfiguration und Datenbank liegen hier:

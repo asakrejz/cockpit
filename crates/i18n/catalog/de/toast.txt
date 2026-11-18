@@ -1,0 +1,2 @@
+toast.open = Öffnen
+toast.close = Hinweis schließen

@@ -1,0 +1,7 @@
+review_drafts.lines = Zeilen {start}–{end}
+review_drafts.where = {path} · {lines}
+review_drafts.where_old = {path} · {lines} (alte Zeile)
+review_drafts.approved = Freigegeben – wird mit dem Review gesendet
+review_drafts.declined = Verworfen – wird nicht gesendet
+review_drafts.group = Entwurf des Agenten
+review_drafts.note = Entwurf des Agenten · noch nicht auf GitHub

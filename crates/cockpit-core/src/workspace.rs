@@ -143,6 +143,9 @@ pub struct Workspace {
     /// The chosen inbox filters (see [`crate::filters`]); change by `Action::SetInboxFilter`.
     #[serde(default)]
     pub inbox_filter: InboxFilter,
+    /// Language of the interface. `None` = not chosen yet, the browser language applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub language: Option<cockpit_i18n::Lang>,
 }
 
 impl Workspace {

@@ -1,0 +1,15 @@
+agent_job.job = Auftrag
+agent_job.hint_label = Hinweise für den Agenten
+agent_job.hint_placeholder = Zusätzliche Hinweise für den Agenten (optional), z. B.: Auch den Slider-Thumb prüfen.
+agent_job.repo = Repo
+agent_job.repo_aria = Repo für den Agenten
+agent_job.no_repo_project = Dem Jira-Projekt {project} ist kein Repo zugeordnet und es gibt kein Standard-Repo. Wähle ein Repo aus.
+agent_job.no_repo = Es gibt kein Standard-Repo. Wähle ein Repo aus.
+agent_job.no_rule = Keine Zuordnungsregel für dieses Jira-Projekt – das Standard-Repo ist vorgewählt.
+agent_job.base_branch = Basis-Branch
+agent_job.works_in = Arbeitet in {repo} auf Basis von {base}.
+agent_job.run_tests = Tests vor dem Pull Request ausführen
+agent_job.off_in_settings = In den Einstellungen aus
+agent_job.required = Pflicht laut Regeln
+agent_job.draft_pr = Pull Request als Entwurf anlegen
+agent_job.plan_first = Plan vor dem Start zeigen

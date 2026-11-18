@@ -1,0 +1,2 @@
+toast.open = Open
+toast.close = Dismiss notice

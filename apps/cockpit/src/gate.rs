@@ -29,7 +29,7 @@ pub fn Gate() -> impl IntoView {
                                 variant=ButtonStyle::GlassProminent
                                 on_click=move |_| store.connect()
                             >
-                                "Jetzt erneut versuchen"
+                                {t!(BannerRetry)}
                             </Button>
                         </ErrorState>
                     }
@@ -37,8 +37,8 @@ pub fn Gate() -> impl IntoView {
                 } else {
                     view! {
                         <h1 class="t-title1 t-bold">"Cockpit"</h1>
-                        <p class="t-subheadline t-secondary">"Verbinde mit dem Server …"</p>
-                        <Skeleton rows=5 label="Cockpit lädt" />
+                        <p class="t-subheadline t-secondary">{t!(BannerConnecting)}</p>
+                        <Skeleton rows=5 label=t!(GateLoading) />
                     }
                         .into_any()
                 }

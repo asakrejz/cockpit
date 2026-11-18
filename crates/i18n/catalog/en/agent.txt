@@ -1,0 +1,6 @@
+agent.runs = Agent runs
+agent.job_label = Agent job
+agent.empty_title = No agent run yet
+agent.empty_text = Agents work on Jira tickets. Pick a ticket in the inbox and hand it to the agent there. Its run then shows up here.
+agent.to_inbox = Go to inbox
+agent.course = Steps

@@ -41,6 +41,11 @@ fn system_theme() -> &'static str {
     if dark { "dark" } else { "light" }
 }
 
+const LANGS: &[(&str, &str)] = &[
+    (Lang::De.code(), Lang::De.name()),
+    (Lang::En.code(), Lang::En.name()),
+];
+
 const THEMES: &[(&str, &str)] = &[("light", "Hell"), ("dark", "Dunkel")];
 
 #[component]
@@ -58,6 +63,13 @@ fn App() -> impl IntoView {
     let theme_id = RwSignal::new(system_theme());
     let tint_id = RwSignal::new(Tint::Blue.id());
     let high_contrast = RwSignal::new(false);
+    // Language of the building blocks (the stories themselves stay German).
+    let lang_id = RwSignal::new(lang().code());
+    Effect::new(move |_| {
+        if let Some(l) = Lang::from_code(lang_id.get()) {
+            set_lang(l);
+        }
+    });
 
     let theme = Signal::derive(move || {
         Theme::ALL
@@ -138,6 +150,7 @@ fn App() -> impl IntoView {
                             .into_iter()
                             .collect_view()}
                     </div>
+                    <Segmented options=LANGS value=lang_id aria_label="Language" />
                     <label class="pg__contrast t-subheadline">
                         "Kontrast erhöhen"
                         <Toggle checked=high_contrast />
@@ -148,6 +161,8 @@ fn App() -> impl IntoView {
             <main class="pg__stage">
                 {move || {
                     let story = current.get();
+                    // The building blocks read their texts again after a language change.
+                    lang();
                     view! {
                         <header class="pg__header">
                             <Text variant=TextStyle::Display tag=TextTag::H1>{story.title}</Text>

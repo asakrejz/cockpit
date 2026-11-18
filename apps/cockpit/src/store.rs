@@ -11,6 +11,7 @@ use cockpit_core::{
     Action, ActionError, Actor, Applied, Channel, Connections, Filter, NotifyEvent, Workspace,
     notify,
 };
+use feature_ui::t;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
@@ -299,7 +300,7 @@ impl Store {
                 }
                 Err(CallError::Unreachable) => {
                     store.lost();
-                    store.notify("Der Server ist nicht erreichbar – die Änderung ging nicht durch");
+                    store.notify(t!(StoreUnreachableChange));
                 }
                 Err(e) => store.notify(e.message()),
             }

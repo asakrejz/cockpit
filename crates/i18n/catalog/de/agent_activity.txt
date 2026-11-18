@@ -1,0 +1,16 @@
+agent_activity.who_agent_asks = Agent fragt
+agent_activity.who_agent = Agent
+agent_activity.who_you_answer = Du antwortest
+agent_activity.who_you_hint = Du schickst einen Hinweis
+agent_activity.who_you = Du
+agent_activity.time_start = Start
+agent_activity.time_step = nach Schritt {n}
+agent_activity.empty = Noch nichts gesagt.
+agent_activity.changed_files = Geänderte Dateien
+agent_activity.pushed = Hochgeladen
+agent_activity.followup_note = Kein neuer Pull Request. Der Agent führt nie einen Merge aus. Das Review liegt wieder bei dir.
+agent_activity.draft_created = Entwurf erstellt
+agent_activity.created = Erstellt
+agent_activity.no_merge = Der Agent führt keinen Merge aus. Das Review liegt bei dir.
+agent_activity.activity = Aktivität
+agent_activity.history = Verlauf

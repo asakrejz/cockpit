@@ -76,10 +76,10 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
 
     // Whose pull requests the list shows; starts with those that concern me.
     let owner = RwSignal::new(Ownership::default().id().to_string());
-    let owner_options: Vec<(String, String)> = Ownership::OPTIONS
-        .iter()
-        .map(|(v, l)| (v.to_string(), l.to_string()))
-        .collect();
+    let owner_options: Vec<(String, String)> = vec![
+        ("mine".to_string(), t!(ReviewOwnerMine)),
+        ("all".to_string(), t!(ReviewOwnerAll)),
+    ];
     let list = move || {
         let ownership = Ownership::from_id(&owner.get()).unwrap_or_default();
         store.ws.with(|w| {
@@ -97,7 +97,7 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
                             href=Route::Review(Some(r.key())).hash()
                             label=review_label(r, multi_repo)
                             current=number.get_value().is_some_and(|n| n.same(&r.key()))
-                            count=if r.sent { "gesendet" } else { "" }
+                            count=if r.sent { t!(ReviewSent) } else { String::new() }
                         />
                     }
                 })
@@ -110,39 +110,39 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
         <SplitView
             layout=SplitLayout::DetailWide
             level=level
-            back_label="Reviews"
+            back_label=t!(ReviewBack)
             back_href=Route::Review(None).hash()
         >
-            <PickerPane label="Pull Requests" title="Reviews">
+            <PickerPane label=t!(ReviewListLabel) title=t!(ReviewTitle)>
                 <Show when=move || store.ws.with(|w| w.reviews.iter().any(|r| !w.review_is_mine(r)))>
                     <Select
                         options=owner_options.clone()
                         value=owner
                         on_change=move |v: String| owner.set(v)
-                        aria_label="Besitz"
+                        aria_label=t!(ReviewOwnerLabel)
                         compact=true
                     />
                 </Show>
                 <ul class="ui-sidebar__nav">{list}</ul>
                 <Show when=no_reviews>
-                    <p class="ck-empty t-footnote t-secondary">"Noch keine Pull Requests zum Prüfen."</p>
+                    <p class="ck-empty t-footnote t-secondary">{t!(ReviewListEmpty)}</p>
                 </Show>
             </PickerPane>
             {move || match review.get() {
                 Some(r) => view! { {diff_pane(store, r.clone(), lines, panel_ui)} {agent_pane(store, r, panel)} }.into_any(),
                 None => {
                     view! {
-                        <Pane label="Pull Request">
+                        <Pane label=t!(ReviewPane)>
                             <PaneBody>
                                 {if no_reviews() {
                                     view! {
                                         <EmptyState
-                                            title="Noch keine Pull Requests"
-                                            text="Sobald GitHub verbunden ist und Pull Requests auf dich warten, kannst du sie hier prüfen."
+                                            title=t!(ReviewEmptyTitle)
+                                            text=t!(ReviewEmptyText)
                                             icon=icons::GIT_PR
                                         >
                                             <Button size=ControlSize::Small variant=ButtonStyle::GlassProminent href=Route::Setup.hash()>
-                                                "Einrichten"
+                                                {t!(ReviewSetup)}
                                             </Button>
                                         </EmptyState>
                                     }
@@ -150,12 +150,12 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
                                 } else {
                                     view! {
                                         <EmptyState
-                                            title="Kein Pull Request"
-                                            text="Diesen Pull Request gibt es nicht (mehr). Wähle links einen anderen oder öffne ihn aus dem Posteingang."
+                                            title=t!(ReviewMissingTitle)
+                                            text=t!(ReviewMissingText)
                                             icon=icons::GIT_PR
                                         >
                                             <Button size=ControlSize::Small href=Route::Inbox(cockpit_core::Filter::All).hash()>
-                                                "Zum Posteingang"
+                                                {t!(ReviewToInbox)}
                                             </Button>
                                         </EmptyState>
                                     }
@@ -177,6 +177,40 @@ fn review_label(r: &Review, multi_repo: bool) -> String {
         format!("{}#{} {}", r.repo, r.number, r.title)
     } else {
         format!("#{} {}", r.number, r.title)
+    }
+}
+
+/// A segmented switch with texts that are looked up at run time (the `ui` one needs `'static`
+/// labels).
+fn segmented(
+    options: Vec<(&'static str, String)>,
+    value: impl Fn() -> &'static str + Send + Sync + 'static + Copy,
+    on_change: impl Fn(&'static str) + Send + Sync + 'static + Copy,
+    aria_label: String,
+    stretch: bool,
+) -> impl IntoView {
+    let align = if stretch { "stretch" } else { "flex-start" };
+    let flex = stretch.then_some("1 1 0");
+    let pad = stretch.then_some("8px");
+    view! {
+        <div class="ui-segmented" role="group" aria-label=aria_label style:align-self=align>
+            {options
+                .into_iter()
+                .map(|(id, label)| {
+                    view! {
+                        <button
+                            type="button"
+                            style:flex=flex
+                            style:padding-inline=pad
+                            aria-pressed=move || (value() == id).to_string()
+                            on:click=move |_| on_change(id)
+                        >
+                            {label}
+                        </button>
+                    }
+                })
+                .collect_view()}
+        </div>
     }
 }
 
@@ -222,7 +256,7 @@ mod merge;
 mod panel;
 mod suggestions;
 
-use checks::checks_section;
+use checks::{checks_label, checks_section};
 use comments::comments_section;
 use diff::diff_pane;
 use drafts::{code_rows, draft_notes, location_label};

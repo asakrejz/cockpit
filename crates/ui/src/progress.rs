@@ -84,7 +84,7 @@ pub fn Steps(
     current: Signal<usize>,
 ) -> impl IntoView {
     view! {
-        <ol class="ui-steps" aria-label="Fortschritt">
+        <ol class="ui-steps" aria-label=crate::t!(UiProgress)>
             {labels
                 .iter()
                 .enumerate()

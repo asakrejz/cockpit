@@ -111,14 +111,14 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
 
     let syncing = RwSignal::new(false);
     let (title, empty) = match filter {
-        Filter::All => ("Aufmerksamkeit", "Nichts wartet auf dich."),
-        Filter::Mine => ("Meine Aufgaben", "Du hast gerade keine Aufgaben."),
-        Filter::Team => ("Team", "Im Team ist gerade nichts offen."),
-        Filter::Snoozed => ("Zurückgestellt", "Nichts ist zurückgestellt."),
+        Filter::All => (t!(InboxTitleAll), t!(InboxEmptyAll)),
+        Filter::Mine => (t!(InboxTitleMine), t!(InboxEmptyMine)),
+        Filter::Team => (t!(InboxTitleTeam), t!(InboxEmptyTeam)),
+        Filter::Snoozed => (t!(InboxTitleSnoozed), t!(InboxEmptySnoozed)),
     };
     view! {
-        <SplitView level=level back_label=title back_href=Route::Inbox(filter).hash()>
-            <Pane label=title>
+        <SplitView level=level back_label=title.clone() back_href=Route::Inbox(filter).hash()>
+            <Pane label=title.clone()>
                 <PaneHeader>
                     <div class="ui-hstack" style="justify-content: space-between; flex-wrap: nowrap">
                         <h1 class="t-large-title t-bold">{title}</h1>
@@ -129,23 +129,23 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                             }}
                         </Badge>
                     </div>
-                    <SegmentedPicker
-                        options=Filter::OPTIONS
+                    <Picker
+                        options=labels::options(Filter::OPTIONS, Filter::from_id, labels::filter_tab)
                         value=filter.id()
                         on_change=move |id: &'static str| {
                             if let Some(filter) = Filter::from_id(id) {
                                 navigate(&Route::Inbox(filter));
                             }
                         }
-                        aria_label="Filter"
+                        aria_label=t!(InboxTabsLabel)
                     />
                     <div class="ck-filters">{filter_button(store, filter_open)}</div>
                     {filter_chips(store)}
                     <div class="ck-search">
-                        <SearchField value=query placeholder="Inbox durchsuchen" />
+                        <SearchBox value=query placeholder=t!(InboxSearch) />
                     </div>
                     <p class="ui-sr-only" role="status">
-                        {move || format!("{} Einträge", items.with(Vec::len))}
+                        {move || t!(InboxEntries, n = items.with(Vec::len))}
                     </p>
                 </PaneHeader>
                 <ul class="ck-inbox">
@@ -162,12 +162,12 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                             view! {
                                 <li class="ck-empty">
                                     <EmptyState
-                                        title="Keine Treffer"
-                                        text="Zu Suche und Filtern passt kein Eintrag."
+                                        title=t!(InboxNoMatchTitle)
+                                        text=t!(InboxNoMatchText)
                                         icon=icons::SEARCH
                                     >
                                         <Button size=ControlSize::Small on_click=reset>
-                                            "Filter zurücksetzen"
+                                            {t!(InboxResetFilters)}
                                         </Button>
                                     </EmptyState>
                                 </li>
@@ -180,8 +180,8 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                                 view! {
                                     <li class="ck-empty">
                                         <EmptyState
-                                            title="Noch keine Tickets oder Pull Requests"
-                                            text="Jira oder GitHub ist verbunden, hat aber noch nichts geliefert. Gleiche jetzt ab oder prüfe unter „Einrichten“, welches Projekt und welche Repos gelten."
+                                            title=t!(InboxFreshTitle)
+                                            text=t!(InboxFreshText)
                                             icon=icons::TASKS
                                         >
                                             <Button
@@ -190,10 +190,10 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                                                 disabled=Signal::derive(move || syncing.get())
                                                 on_click=move |_| sync_now(store, syncing)
                                             >
-                                                "Jetzt abgleichen"
+                                                {t!(InboxSyncNow)}
                                             </Button>
                                             <Button size=ControlSize::Small href=Route::Setup.hash()>
-                                                "Einrichten"
+                                                {t!(InboxSetup)}
                                             </Button>
                                         </EmptyState>
                                     </li>
@@ -203,8 +203,8 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                                 view! {
                                     <li class="ck-empty">
                                         <EmptyState
-                                            title="Noch keine Tickets"
-                                            text="Verbinde Jira und GitHub unter „Einrichten“, dann erscheinen Tickets und Pull Requests hier."
+                                            title=t!(InboxUnconnectedTitle)
+                                            text=t!(InboxUnconnectedText)
                                             icon=icons::TASKS
                                         >
                                             <Button
@@ -212,7 +212,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                                                 variant=ButtonStyle::GlassProminent
                                                 href=Route::Setup.hash()
                                             >
-                                                "Einrichten"
+                                                {t!(InboxSetup)}
                                             </Button>
                                         </EmptyState>
                                     </li>
@@ -221,13 +221,13 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                             }
                         } else if list.is_empty() {
                             let hint = if matches!(filter, Filter::Snoozed) {
-                                "Mit „s“ stellst du einen Eintrag zurück; er kommt zur gewählten Zeit wieder."
+                                t!(InboxHintSnoozed)
                             } else {
-                                "Neue Einträge erscheinen hier, sobald Jira oder GitHub etwas melden."
+                                t!(InboxHintNew)
                             };
                             view! {
                                 <li class="ck-empty">
-                                    <EmptyState title=empty text=hint icon=icons::CHECK />
+                                    <EmptyState title=empty.clone() text=hint icon=icons::CHECK />
                                 </li>
                             }
                                 .into_any()
@@ -244,24 +244,24 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                     }}
                 </ul>
                 <p class="ck-keys t-footnote t-secondary">
-                    <span><kbd>"↑"</kbd><kbd>"↓"</kbd>" wählen"</span>
-                    <span><kbd>"e"</kbd>" erledigt"</span>
-                    <span><kbd>"r"</kbd>" antworten"</span>
-                    <span><kbd>"s"</kbd>" zurückstellen"</span>
-                    <span><kbd>"u"</kbd>" zurückholen"</span>
-                    <span><kbd>"/"</kbd>" suchen"</span>
+                    <span><kbd>"↑"</kbd><kbd>"↓"</kbd>{format!(" {}", t!(InboxKeySelect))}</span>
+                    <span><kbd>"e"</kbd>{format!(" {}", t!(InboxKeyDone))}</span>
+                    <span><kbd>"r"</kbd>{format!(" {}", t!(InboxKeyReply))}</span>
+                    <span><kbd>"s"</kbd>{format!(" {}", t!(InboxKeySnooze))}</span>
+                    <span><kbd>"u"</kbd>{format!(" {}", t!(InboxKeyUnsnooze))}</span>
+                    <span><kbd>"/"</kbd>{format!(" {}", t!(InboxKeySearch))}</span>
                 </p>
             </Pane>
 
-            <Pane label="Details">
+            <Pane label=t!(InboxDetails)>
                 {move || match current.get() {
                     Some(item) => detail(store, item, items, draft, edit).into_any(),
                     None => {
                         view! {
                             <PaneBody>
                                 <EmptyState
-                                    title="Kein Eintrag gewählt"
-                                    text="Wähle links ein Ticket oder einen Pull Request, dann siehst du hier Details und kannst antworten."
+                                    title=t!(InboxNoneSelectedTitle)
+                                    text=t!(InboxNoneSelectedText)
                                 />
                             </PaneBody>
                         }
@@ -293,12 +293,12 @@ fn with_reason(w: &cockpit_core::Workspace, item: &Item, filter: Filter, now: u6
 /// "Zurückgestellt bis Do., 12.11., 08:00" or "… bis sich etwas ändert".
 fn snooze_text(until_ms: Option<u64>) -> String {
     match until_ms {
-        Some(ms) => format!("Zurückgestellt bis {}", format_time(ms)),
-        None => "Zurückgestellt, bis sich etwas ändert".to_string(),
+        Some(ms) => t!(InboxSnoozedUntil, time = format_time(ms)),
+        None => t!(InboxSnoozedUntilChange),
     }
 }
 
-/// Time in the browser's local time, short and in German.
+/// Time in the browser's local time, short and in the language of the interface.
 fn format_time(ms: u64) -> String {
     let options = js_sys::Object::new();
     for (key, value) in [
@@ -311,7 +311,7 @@ fn format_time(ms: u64) -> String {
         let _ = js_sys::Reflect::set(&options, &key.into(), &value.into());
     }
     js_sys::Date::new(&(ms as f64).into())
-        .to_locale_string("de-DE", &options)
+        .to_locale_string(lang().code(), &options)
         .as_string()
         .unwrap_or_default()
 }
@@ -349,10 +349,13 @@ mod controls;
 mod detail;
 mod filters;
 mod keyboard;
+pub mod labels;
+pub mod picker;
 mod row;
 
 use controls::is_narrowed;
 use detail::detail;
 use filters::{filter_button, filter_chips, filter_dialog};
 use keyboard::{on_key, query_html};
+use picker::{Picker, SearchBox};
 use row::{row, row_icon};

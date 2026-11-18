@@ -20,28 +20,52 @@ use crate::server;
 /// Where a fine-grained token is created.
 const TOKEN_PAGE: &str = "https://github.com/settings/personal-access-tokens/new";
 
-/// Rights of the token: (area, level).
-const TOKEN_RIGHTS: &[(&str, &str)] = &[
-    ("Contents", "Read and write"),
-    ("Pull requests", "Read and write"),
-    ("Issues", "Read and write"),
-    ("Checks", "Read and write"),
-    ("Metadata", "Read-only (ist immer dabei)"),
+/// Rights of the token: (area, level) as catalog keys.
+const TOKEN_RIGHTS: &[(Key, Key)] = &[
+    (Key::SetupGithubAreaContents, Key::SetupGithubLevelReadWrite),
+    (
+        Key::SetupGithubAreaPullRequests,
+        Key::SetupGithubLevelReadWrite,
+    ),
+    (Key::SetupGithubAreaIssues, Key::SetupGithubLevelReadWrite),
+    (Key::SetupGithubAreaChecks, Key::SetupGithubLevelReadWrite),
+    (
+        Key::SetupGithubAreaMetadata,
+        Key::SetupGithubLevelReadOnlyAlways,
+    ),
 ];
 
-/// Permissions of the GitHub App: (area, level).
-const APP_RIGHTS: &[(&str, &str)] = &[
-    ("Contents", "Read & write"),
-    ("Pull requests", "Read & write"),
-    ("Issues", "Read & write"),
-    ("Checks", "Read & write"),
-    ("Commit statuses", "Read-only"),
-    ("Metadata", "Read-only (schon vorausgewählt)"),
+/// Permissions of the GitHub App: (area, level) as catalog keys.
+const APP_RIGHTS: &[(Key, Key)] = &[
+    (
+        Key::SetupGithubAreaContents,
+        Key::SetupGithubLevelReadWriteApp,
+    ),
+    (
+        Key::SetupGithubAreaPullRequests,
+        Key::SetupGithubLevelReadWriteApp,
+    ),
+    (
+        Key::SetupGithubAreaIssues,
+        Key::SetupGithubLevelReadWriteApp,
+    ),
+    (
+        Key::SetupGithubAreaChecks,
+        Key::SetupGithubLevelReadWriteApp,
+    ),
+    (
+        Key::SetupGithubAreaCommitStatuses,
+        Key::SetupGithubLevelReadOnly,
+    ),
+    (
+        Key::SetupGithubAreaMetadata,
+        Key::SetupGithubLevelReadOnlyPreselected,
+    ),
 ];
 
 /// An entry to tick off. The tick only lives on the page, it is not saved.
 #[component]
-fn Checkmark(area: &'static str, level: &'static str) -> impl IntoView {
+fn Checkmark(area: String, level: String) -> impl IntoView {
     let an = RwSignal::new(false);
     view! {
         <li>
@@ -57,10 +81,13 @@ fn Checkmark(area: &'static str, level: &'static str) -> impl IntoView {
 }
 
 #[component]
-fn Rights(list: &'static [(&'static str, &'static str)]) -> impl IntoView {
+fn Rights(list: &'static [(Key, Key)]) -> impl IntoView {
     view! {
         <ul class="ui-checklist">
-            {list.iter().map(|&(b, s)| view! { <Checkmark area=b level=s /> }).collect_view()}
+            {list
+                .iter()
+                .map(|&(b, s)| view! { <Checkmark area=tr(b, &[]) level=tr(s, &[]) /> })
+                .collect_view()}
         </ul>
     }
 }
@@ -69,29 +96,31 @@ fn Rights(list: &'static [(&'static str, &'static str)]) -> impl IntoView {
 #[component]
 fn TokenWay(ctx: Context) -> impl IntoView {
     view! {
-        <Section title="1. Token erzeugen">
+        <Section title=t!(SetupGithubTokenS1)>
             <ol class="ui-instructions">
                 <li>
-                    "Öffne "
+                    {t!(SetupGithubOpen)}
+                    " "
                     <Extern href=TOKEN_PAGE>"github.com/settings/personal-access-tokens/new"</Extern>
-                    " und melde dich bei Bedarf an. Vergib einen Namen, z. B. „Cockpit“, und ein Ablaufdatum."
+                    " "
+                    {t!(SetupGithubTokenOpenRest)}
                 </li>
                 <li>
-                    "Wähle bei „Repository access“ die Option „Only select repositories“ und nimm nur die Repos, die Cockpit sehen soll – am besten zuerst nur Test-Repos. Gehören die Repos einer Organisation, wähle diese bei „Resource owner“."
+                    {t!(SetupGithubTokenAccess)}
                 </li>
                 <li>
-                    "Öffne „Repository permissions“ und stelle diese Rechte ein (Haken setzen, was du erledigt hast):"
+                    {t!(SetupGithubTokenPermissions)}
                     <Rights list=TOKEN_RIGHTS />
                 </li>
-                <li>"Klicke auf „Generate token“ und kopiere den Token sofort – GitHub zeigt ihn nur einmal."</li>
+                <li>{t!(SetupGithubTokenGenerate)}</li>
             </ol>
         </Section>
-        <Section title="2. Token ablegen">
+        <Section title=t!(SetupGithubTokenS2)>
             <KeyField
                 ctx=ctx
                 name="github"
-                label="Token"
-                hint="Geheim wie ein Passwort. Er wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert und nie wieder angezeigt."
+                label=t!(SetupGithubTokenLabel)
+                hint=t!(SetupGithubTokenHint)
             />
         </Section>
     }
@@ -119,10 +148,7 @@ fn AppWay(ctx: Context) -> impl IntoView {
     let save = move |_| {
         let id = match client_id_read(&client_id.get_untracked()) {
             Ok(id) if id.is_empty() => {
-                back.set(Some((
-                    false,
-                    "Trage die Client ID von der Seite deiner GitHub App ein.".into(),
-                )));
+                back.set(Some((false, t!(SetupGithubClientIdMissing))));
                 return;
             }
             Ok(id) => id,
@@ -135,10 +161,7 @@ fn AppWay(ctx: Context) -> impl IntoView {
         let typed = typed.trim().to_string();
         let to_store = if typed.is_empty() {
             if !secret_set() {
-                back.set(Some((
-                    false,
-                    "Füge auch das Client-Secret ein – GitHub zeigt es nur einmal.".into(),
-                )));
+                back.set(Some((false, t!(SetupGithubSecretMissing))));
                 return;
             }
             None
@@ -170,9 +193,7 @@ fn AppWay(ctx: Context) -> impl IntoView {
             .await;
             match result {
                 Ok(answer) => {
-                    let mut text = String::from(
-                        "Client ID und Client-Secret gespeichert. Das Secret-Feld ist wieder leer.",
-                    );
+                    let mut text = t!(SetupGithubAppSaved);
                     if let Some(h) = answer.hint {
                         text.push(' ');
                         text.push_str(&h);
@@ -196,57 +217,68 @@ fn AppWay(ctx: Context) -> impl IntoView {
                 ..Default::default()
             },
             back,
-            "Client ID entfernt. Das Client-Secret bleibt in der .env-Datei, bis du es überschreibst.",
+            t!(SetupGithubClientIdRemoved),
             || {},
         );
     };
 
     view! {
-        <Section title="1. GitHub App anlegen">
+        <Section title=t!(SetupGithubAppS1)>
             <ol class="ui-instructions">
                 <li>
-                    "Öffne "
+                    {t!(SetupGithubOpen)}
+                    " "
                     <Extern href="https://github.com/settings/apps/new">"github.com/settings/apps/new"</Extern>
-                    " (für ein Organisations-Konto: Einstellungen der Organisation › Developer settings › GitHub Apps › New GitHub App). Melde dich bei Bedarf an."
+                    " "
+                    {t!(SetupGithubAppOpenRest)}
                 </li>
                 <li>
-                    "Name: zum Beispiel „Cockpit von …“ mit deinem Namen. Der Name muss weltweit einmalig sein. „Homepage URL“: " <code>"https://github.com"</code> " genügt."
+                    {t!(SetupGithubAppName)}
+                    " "
+                    <code>"https://github.com"</code>
+                    " "
+                    {t!(SetupGithubAppNameRest)}
                 </li>
                 <li>
-                    "Trage bei „Callback URL“ genau diese Adresse ein (mit 127.0.0.1, nicht „localhost“) und lass „Expire user authorization tokens“ angehakt:"
-                    <CopyField store=ctx.store label="Callback-URL" text=callback />
+                    {t!(SetupGithubAppCallback)}
+                    <CopyField store=ctx.store label=t!(SetupGithubCallbackUrl) text=callback />
                 </li>
                 <li>
-                    "Lass „Setup URL“ leer. Nimm bei „Webhook“ den Haken bei „Active“ heraus – Webhooks braucht Cockpit hier nicht."
+                    {t!(SetupGithubAppWebhook)}
                 </li>
                 <li>
-                    "Öffne unter „Permissions“ den Bereich „Repository permissions“ und stelle diese Rechte ein (Haken setzen, was du schon erledigt hast):"
+                    {t!(SetupGithubAppPermissions)}
                     <Rights list=APP_RIGHTS />
                 </li>
                 <li>
-                    "Bei „Where can this GitHub App be installed?“ wähle „Only on this account“. Klicke dann unten auf „Create GitHub App“."
+                    {t!(SetupGithubAppWhere)}
                 </li>
             </ol>
         </Section>
-        <Section title="2. Client ID und Client-Secret eintragen">
+        <Section title=t!(SetupGithubAppS2)>
             <ol class="ui-instructions">
                 <li>
-                    "Oben auf der Seite deiner neuen App steht die „Client ID“ (sie beginnt oft mit „Iv“)."
+                    {t!(SetupGithubAppStep1)}
                 </li>
                 <li>
-                    "Weiter unten klickst du auf „Generate a new client secret“ und kopierst es sofort – GitHub zeigt es nur einmal."
+                    {t!(SetupGithubAppStep2)}
                 </li>
                 <li>
-                    "Einen „Private key“ brauchst du nicht – lass ihn weg. Cockpit braucht nur Client ID und Client-Secret."
+                    {t!(SetupGithubAppStep3)}
                 </li>
             </ol>
-            <TextField label="Client ID" value=client_id hint="Nicht geheim." autocomplete="off" />
             <TextField
-                label="Client-Secret"
+                label=t!(SetupGithubClientId)
+                value=client_id
+                hint=t!(SetupGithubClientIdHint)
+                autocomplete="off"
+            />
+            <TextField
+                label=t!(SetupGithubSecretLabel)
                 value=secret
                 input_type="password"
                 autocomplete="off"
-                hint="Geheim wie ein Passwort. Es wird nur in der .env-Datei im Projektordner dieses Rechners gespeichert und nie wieder angezeigt. Leer lassen, um nur die Client ID zu ändern."
+                hint=t!(SetupGithubSecretHint)
             />
             <HStack spacing="12px">
                 <Button
@@ -254,7 +286,7 @@ fn AppWay(ctx: Context) -> impl IntoView {
                     disabled=Signal::derive(move || running.get())
                     on_click=save
                 >
-                    "Speichern"
+                    {t!(SetupGithubSave)}
                 </Button>
                 <Button
                     variant=ButtonStyle::Borderless
@@ -263,27 +295,27 @@ fn AppWay(ctx: Context) -> impl IntoView {
                     })
                     on_click=remove
                 >
-                    "Client-ID entfernen"
+                    {t!(SetupGithubClientIdRemove)}
                 </Button>
                 <Status tone=Signal::derive(move || {
                     if secret_set() { StatusTone::Green } else { StatusTone::Gray }
                 })>
-                    {move || if secret_set() { "Client-Secret liegt in der .env-Datei" } else { "Client-Secret fehlt noch" }}
+                    {move || if secret_set() { t!(SetupGithubSecretStored) } else { t!(SetupGithubSecretMissingStatus) }}
                 </Status>
             </HStack>
             <Message feedback=back />
         </Section>
-        <Section title="3. App installieren – sonst sieht Cockpit keine Repos">
+        <Section title=t!(SetupGithubAppS3)>
             <ol class="ui-instructions">
-                <li>"Klicke links auf der Seite deiner App auf „Install App“ und dann bei deinem Konto auf „Install“."</li>
+                <li>{t!(SetupGithubInstall1)}</li>
                 <li>
-                    "Wähle „Only select repositories“ und hake die Repos an, die Cockpit sehen soll. Dann „Install“."
+                    {t!(SetupGithubInstall2)}
                 </li>
             </ol>
         </Section>
-        <Section title="4. Anmelden">
+        <Section title=t!(SetupGithubSignInTitle)>
             <p class="t-subheadline t-secondary">
-                "Es öffnet sich eine Seite von GitHub. Bestätige dort mit „Authorize“."
+                {t!(SetupGithubSignInText)}
             </p>
             <OAuthCard
                 service=Service::GitHub
@@ -294,7 +326,7 @@ fn AppWay(ctx: Context) -> impl IntoView {
     }
 }
 
-/// „Verbindung prüfen“: user and chosen repos, read-only.
+/// "Check connection": user and chosen repos, read-only.
 #[component]
 fn ConnectionCheck(ctx: Context) -> impl IntoView {
     let result: RwSignal<Option<GitHubCheck>> = RwSignal::new(None);
@@ -316,13 +348,13 @@ fn ConnectionCheck(ctx: Context) -> impl IntoView {
         });
     };
     view! {
-        <Section title="Verbindung prüfen">
+        <Section title=t!(SetupGithubCheckTitle)>
             <p class="t-subheadline t-secondary">
-                "Cockpit fragt GitHub, wer du bist, und schaut bei jedem gespeicherten Repo nach, ob es sichtbar ist und ob du dort schreiben darfst. Es wird nichts verändert."
+                {t!(SetupGithubCheckText)}
             </p>
             <HStack spacing="12px">
                 <Button on_click=go disabled=Signal::derive(move || running.get())>
-                    {move || if running.get() { "Prüfe …" } else { "Verbindung prüfen" }}
+                    {move || if running.get() { t!(SetupGithubChecking) } else { t!(SetupGithubCheckButton) }}
                 </Button>
             </HStack>
             <Message feedback=feedback />
@@ -344,7 +376,7 @@ fn ConnectionCheck(ctx: Context) -> impl IntoView {
                                             RepoState::ReadOnly => "!",
                                             _ => "✗",
                                         };
-                                        view! { <li>{format!("{mark} {} – {}", c.repo, c.message)}</li> }
+                                        view! { <li>{t!(SetupGithubRepoLine, mark = mark, repo = c.repo, message = c.message)}</li> }
                                     })
                                     .collect_view()}
                             </ul>
@@ -373,12 +405,10 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
 
     view! {
         <VStack spacing="12px">
-            <Intro title="GitHub verbinden">
-                <p>
-                    "Damit sieht Cockpit deine Pull Requests und Reviews, und der Agent kann in deinen Repos arbeiten. Der einfachste Weg ist ein Token, der nur die Repos sieht, die du auswählst. Du kannst ihn jederzeit auf GitHub löschen."
-                </p>
+            <Intro title=t!(SetupGithubTitle)>
+                <p>{t!(SetupGithubIntro)}</p>
             </Intro>
-            <AuthMethodPicker chosen=chosen default=default aria_label="Anmeldeweg für GitHub" />
+            <AuthMethodPicker chosen=chosen default=default aria_label=t!(SetupGithubPickerAria) />
             <div hidden=move || method.get() != AuthKind::Token>
                 <VStack spacing="12px">
                     <TokenWay ctx=ctx />

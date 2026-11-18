@@ -1,0 +1,15 @@
+# Setup step 6: summary
+setup_done.jira_disconnected = Jira disconnected. The access was deleted.
+setup_done.renew_token = Renew token
+setup_done.disconnect = Disconnect
+setup_done.title = Summary
+setup_done.intro = Here you see what works and what is still missing. Open items are not an error. You can catch up on them any time via "Set up".
+setup_done.header = Status
+setup_done.tone_good = OK
+setup_done.tone_open = Open
+setup_done.tone_problem = Check
+setup_done.view = View
+setup_done.to_dashboard = To the dashboard
+setup_done.keys_note = Where keys are kept: only in the .env file in the project folder on this computer. They go in through the input fields here and never reach browser storage, the database or the log. Never commit or share the file. The real agent runs in Docker or Podman and talks to the model endpoint you chose in the "Model" step.
+setup_done.env_file = The file is here:
+setup_done.config_files = Configuration and database are here:

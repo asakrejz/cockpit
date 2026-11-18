@@ -27,7 +27,7 @@ pub fn Sheet(
                             variant=ButtonStyle::Glass
                             shape=ButtonShape::Circle
                             size=ControlSize::Large
-                            aria_label="Schließen"
+                            aria_label=crate::t!(UiClose)
                             on_click=move |_| open.set(false)
                         >
                             <Icon path=icons::CLOSE size=16 stroke=2.6 />
@@ -37,7 +37,7 @@ pub fn Sheet(
                             variant=ButtonStyle::GlassProminent
                             shape=ButtonShape::Circle
                             size=ControlSize::Large
-                            aria_label="Sichern"
+                            aria_label=crate::t!(UiSave)
                             on_click=move |_| {
                                 if let Some(cb) = on_confirm {
                                     cb.run(());

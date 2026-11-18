@@ -2,11 +2,13 @@
 //! message to the address (`?oauth=ok|error&service=…&message=…`). The message never contains a
 //! key. Here it is displayed and the address is tidied up.
 
+use feature_ui::t;
 use leptos::prelude::*;
 
 use crate::store::Store;
 
-/// Result from the query of an address: `(ok, message)`.
+/// Result from the query of an address: `(ok, message)`; the message is empty if the backend
+/// sent none (then [`announce`] uses a standard text).
 pub fn parse(search: &str) -> Option<(bool, String)> {
     let mut ok = None;
     let mut message = String::new();
@@ -18,18 +20,7 @@ pub fn parse(search: &str) -> Option<(bool, String)> {
             _ => {}
         }
     }
-    ok.map(|ok| {
-        let message = if message.is_empty() {
-            if ok {
-                "Angemeldet".to_string()
-            } else {
-                "Die Anmeldung ist fehlgeschlagen".to_string()
-            }
-        } else {
-            message
-        };
-        (ok, message)
-    })
+    ok.map(|ok| (ok, message))
 }
 
 /// Undo percent encoding (UTF-8). Unreadable parts stay as they are.
@@ -66,8 +57,15 @@ pub fn announce(store: Store) {
     let Ok(search) = window().location().search() else {
         return;
     };
-    let Some((_, message)) = parse(&search) else {
+    let Some((ok, message)) = parse(&search) else {
         return;
+    };
+    let message = if !message.is_empty() {
+        message
+    } else if ok {
+        t!(OauthSignedIn)
+    } else {
+        t!(OauthSignInFailed)
     };
     store.notify(message);
     if let (Ok(history), Ok(hash)) = (window().history(), window().location().hash()) {

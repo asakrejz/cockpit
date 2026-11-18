@@ -21,7 +21,7 @@ pub fn Navbar(
     #[prop(optional)] children: Option<Children>,
 ) -> impl IntoView {
     view! {
-        <nav class="ui-navbar" aria-label="Hauptnavigation">
+        <nav class="ui-navbar" aria-label=crate::t!(UiNavMain)>
             <div class="ui-navbar__inner">
                 <a class="ui-navbar__brand" href="#">
                     <Icon path=icons::BRAND size=22 />

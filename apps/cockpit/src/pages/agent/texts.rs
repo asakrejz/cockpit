@@ -1,36 +1,96 @@
-//! The visible texts of „erledigte Läufe“, „Branch löschen“ and „Aufräumen“, collected in one
-//! place so that they can later move into the language files.
+//! The visible texts of "finished runs", "Delete branch" and "Clean up". The texts live in the
+//! catalog `agent_cleanup`; this module gives them the short names the pages use.
 
-pub(super) const SHOW_CLOSED: &str = "Erledigte anzeigen";
+use feature_ui::t;
+
+pub(super) fn show_closed() -> String {
+    t!(AgentCleanupShowClosed)
+}
+
+pub(super) fn closed_badge() -> String {
+    t!(AgentCleanupClosedBadge)
+}
+
+pub(super) fn branch_title() -> String {
+    t!(AgentCleanupBranchTitle)
+}
+
+pub(super) fn branch_button() -> String {
+    t!(AgentCleanupBranchButton)
+}
+
+pub(super) fn branch_checking() -> String {
+    t!(AgentCleanupBranchChecking)
+}
+
+pub(super) fn branch_deleted() -> String {
+    t!(AgentCleanupBranchDeleted)
+}
+
+pub(super) fn branch_dialog_title() -> String {
+    t!(AgentCleanupBranchDialogTitle)
+}
+
+pub(super) fn cancel() -> String {
+    t!(AgentCleanupCancel)
+}
+
+pub(super) fn branch_final() -> String {
+    t!(AgentCleanupBranchFinal)
+}
+
+pub(super) fn cleanup_button() -> String {
+    t!(AgentCleanupCleanupButton)
+}
+
+pub(super) fn cleanup_title() -> String {
+    t!(AgentCleanupCleanupTitle)
+}
+
+pub(super) fn cleanup_loading() -> String {
+    t!(AgentCleanupCleanupLoading)
+}
+
+pub(super) fn cleanup_intro() -> String {
+    t!(AgentCleanupCleanupIntro)
+}
+
+pub(super) fn cleanup_nothing() -> String {
+    t!(AgentCleanupCleanupNothing)
+}
+
+pub(super) fn cleanup_containers() -> String {
+    t!(AgentCleanupCleanupContainers)
+}
+
+pub(super) fn cleanup_folders() -> String {
+    t!(AgentCleanupCleanupFolders)
+}
+
+pub(super) fn cleanup_no_engine() -> String {
+    t!(AgentCleanupCleanupNoEngine)
+}
+
+pub(super) fn cleanup_run() -> String {
+    t!(AgentCleanupCleanupRun)
+}
+
+pub(super) fn close() -> String {
+    t!(AgentCleanupClose)
+}
+
 pub(super) fn show_closed_count(n: usize) -> String {
-    format!("{SHOW_CLOSED} ({n})")
+    t!(AgentCleanupShowClosedCount, n = n)
 }
-pub(super) const CLOSED_BADGE: &str = "erledigt";
 
-pub(super) const BRANCH_TITLE: &str = "Branch";
-pub(super) const BRANCH_BUTTON: &str = "Branch löschen";
-pub(super) const BRANCH_CHECKING: &str = "Das Cockpit prüft bei GitHub, ob der Branch weg darf …";
-pub(super) const BRANCH_DELETED: &str = "Der Branch ist auf GitHub gelöscht.";
-pub(super) const BRANCH_DIALOG_TITLE: &str = "Branch löschen?";
-pub(super) const CANCEL: &str = "Abbrechen";
 pub(super) fn branch_question(branch: &str) -> String {
-    format!(
-        "Soll der Branch „{branch}“ auf GitHub gelöscht werden? Nur dieser eine Branch geht weg. Der Pull Request und seine Änderungen bleiben auf GitHub sichtbar."
-    )
+    t!(AgentCleanupBranchQuestion, branch = branch)
 }
-pub(super) const BRANCH_FINAL: &str = "Das lässt sich im Cockpit nicht rückgängig machen.";
 
-pub(super) const CLEANUP_BUTTON: &str = "Aufräumen";
-pub(super) const CLEANUP_TITLE: &str = "Aufräumen";
-pub(super) const CLEANUP_LOADING: &str = "Das Cockpit sucht nach Resten …";
-pub(super) const CLEANUP_INTRO: &str = "Das wird entfernt. Das Image des Agenten und fremde Container bleiben, ebenso Läufe, die gerade arbeiten oder warten.";
-pub(super) const CLEANUP_NOTHING: &str = "Nichts zu tun. Es gibt keine Reste.";
-pub(super) const CLEANUP_CONTAINERS: &str = "Container ohne laufenden Lauf";
-pub(super) const CLEANUP_FOLDERS: &str = "Ordner ohne laufenden Lauf";
-pub(super) const CLEANUP_NO_ENGINE: &str =
-    "Das Container-Programm ist nicht erreichbar. Container werden deshalb nicht angezeigt.";
-pub(super) const CLEANUP_RUN: &str = "Jetzt entfernen";
-pub(super) const CLOSE: &str = "Schließen";
 pub(super) fn cleanup_done(containers: usize, folders: usize) -> String {
-    format!("Entfernt: {containers} Container, {folders} Ordner.")
+    t!(
+        AgentCleanupCleanupDone,
+        containers = containers,
+        folders = folders
+    )
 }

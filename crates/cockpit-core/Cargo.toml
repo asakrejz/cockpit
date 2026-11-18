@@ -9,4 +9,5 @@ license.workspace = true
 # workspace in the module `persist`. A later backend can use the same crate.
 [dependencies]
 serde = { workspace = true }
+cockpit-i18n = { workspace = true }
 serde_json = { workspace = true }

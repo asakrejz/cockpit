@@ -9,7 +9,7 @@ pub(super) fn project_options(store: Store) -> Signal<Vec<(String, String)>> {
             Ok(r) => remote.set(r.projects),
             // If the server is not reachable, the notice above already says so.
             Err(CallError::Unreachable) => {}
-            Err(e) => store.notify(format!("Jira-Projekte nicht geladen: {}", e.message())),
+            Err(e) => store.notify(t!(InboxJiraProjectsFailed, message = e.message())),
         }
     });
     Signal::derive(move || {
@@ -31,7 +31,7 @@ pub(super) fn project_options(store: Store) -> Signal<Vec<(String, String)>> {
             }
         }
         list.sort_by_key(|a| a.1.to_lowercase());
-        std::iter::once((String::new(), "Alle Projekte".to_string()))
+        std::iter::once((String::new(), t!(InboxAllProjects)))
             .chain(list)
             .collect()
     })
@@ -56,10 +56,10 @@ pub(super) fn rule_switch(store: Store, rule: Rule) -> impl IntoView {
         }
     });
     view! {
-        <li class="ck-rule" title=rule.describe()>
+        <li class="ck-rule" title=labels::rule_hint(rule)>
             <label class="t-subheadline">
-                <span>{rule.label()}</span>
-                <Toggle checked=on aria_label=rule.label() />
+                <span>{labels::rule(rule)}</span>
+                <Toggle checked=on aria_label=labels::rule(rule) />
             </label>
         </li>
     }
@@ -84,11 +84,11 @@ pub(super) fn status_follow_switch(store: Store) -> impl IntoView {
     view! {
         <li
             class="ck-rule"
-            title="Pull Request als Entwurf oder offen: In Arbeit. Review angefragt: Review. Gemergt: Fertig."
+            title=t!(InboxStatusFollowsPrHint)
         >
             <label class="t-subheadline">
-                <span>"Status folgt dem Pull Request"</span>
-                <Toggle checked=on aria_label="Status folgt dem Pull Request" />
+                <span>{t!(InboxStatusFollowsPr)}</span>
+                <Toggle checked=on aria_label=t!(InboxStatusFollowsPr) />
             </label>
         </li>
     }

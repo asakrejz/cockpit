@@ -1,0 +1,18 @@
+# Texts inside the building blocks of crates/ui (screen reader labels and standard buttons).
+ui.close = Schließen
+ui.save = Sichern
+ui.back = Zurück
+ui.stepper_less = Weniger
+ui.stepper_more = Mehr
+ui.carousel = Karussell
+ui.page_of = Seite {page} von {count}
+ui.page_prev = Vorherige Seite
+ui.page_next = Nächste Seite
+ui.progress = Fortschritt
+ui.attachment = Anhang: {name}
+ui.unread = Ungelesen
+ui.new_count = , {n} neu
+ui.nav_main = Hauptnavigation
+ui.diff_select = Zeile {line}{description} auswählen
+ui.diff_added = , neu
+ui.diff_removed = , entfernt

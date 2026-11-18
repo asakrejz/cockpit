@@ -9,7 +9,7 @@ The repository also contains the **Playground**, a Storybook-like page that show
 
 - UI: [Leptos](https://leptos.dev) (Rust compiled to WebAssembly), built with [Trunk](https://trunkrs.dev)
 - Backend: axum + SQLite (`apps/server`, binary `cockpit-server`)
-- Visible UI texts are German; code, naming and documentation are English.
+- The interface is available in German and English (switchable at runtime, default: browser language); code, naming and documentation are English.
 
 ## Prerequisites
 

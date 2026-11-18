@@ -1,0 +1,5 @@
+review_followups.title = Folgeaufträge
+review_followups.region = Folgeaufträge für den Agenten
+review_followups.intro = Der Agent arbeitet auf demselben Branch weiter und pusht neue Commits. Es gibt keinen neuen Pull Request und keinen Merge. Das Cockpit liest die Kommentare und die Ausgabe der Checks von GitHub.
+review_followups.fix.one = Roten Check beheben
+review_followups.fix.other = {n} rote Checks beheben

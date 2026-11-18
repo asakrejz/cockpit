@@ -10,7 +10,7 @@ use super::fields::{Context, Intro};
 use crate::server;
 use crate::sync_status::SyncStatus;
 
-/// "Token erneuern" and "Trennen" for Jira. Disconnecting deletes the token in the .env file (with
+/// {t!(SetupDoneRenewToken)} and {t!(SetupDoneDisconnect)} for Jira. Disconnecting deletes the token in the .env file (with
 /// OAuth: revokes the sign-in); the settings stay, the way back is the step "Jira".
 #[component]
 fn JiraActions(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
@@ -28,9 +28,7 @@ fn JiraActions(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                 server::delete_key("jira").await.map(|_| ())
             };
             match result {
-                Ok(()) => ctx
-                    .store
-                    .notify("Jira getrennt – der Zugang wurde gelöscht."),
+                Ok(()) => ctx.store.notify(t!(SetupDoneJiraDisconnected)),
                 Err(e) => ctx.store.notify(e.message()),
             }
             ctx.reload();
@@ -45,13 +43,13 @@ fn JiraActions(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                             size=ControlSize::Small
                             on_click=move |_| to_step.run(Step::Jira)
                         >
-                            "Token erneuern"
+                            {t!(SetupDoneRenewToken)}
                         </Button>
                     }
                 })
         }}
         <Button size=ControlSize::Small destructive=true on_click=disconnect>
-            "Trennen"
+            {t!(SetupDoneDisconnect)}
         </Button>
     }
 }
@@ -72,21 +70,21 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
     };
     view! {
         <VStack spacing="12px">
-            <Intro title="Zusammenfassung">
+            <Intro title=t!(SetupDoneTitle)>
                 <p>
-                    "Hier siehst du, was läuft und was noch fehlt. Offene Punkte sind kein Fehler – du kannst sie jederzeit über „Einrichten“ nachholen."
+                    {t!(SetupDoneIntro)}
                 </p>
             </Intro>
             <List>
-                <ListSection header="Stand">
+                <ListSection header=t!(SetupDoneHeader)>
                     {move || {
                         lines()
                             .into_iter()
                             .map(|z| {
                                 let (tone, label, symbol) = match z.tone {
-                                    Tone::Good => (StatusTone::Green, "In Ordnung", "✓ "),
-                                    Tone::Open => (StatusTone::Gray, "Offen", ""),
-                                    Tone::Problem => (StatusTone::Red, "Prüfen", "! "),
+                                    Tone::Good => (StatusTone::Green, t!(SetupDoneToneGood), "✓ "),
+                                    Tone::Open => (StatusTone::Gray, t!(SetupDoneToneOpen), ""),
+                                    Tone::Problem => (StatusTone::Red, t!(SetupDoneToneProblem), "! "),
                                 };
                                 let step = z.step;
                                 let jira_connected = z.name == "Jira" && z.tone == Tone::Good;
@@ -100,7 +98,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                                                         size=ControlSize::Small
                                                         on_click=move |_| to_step.run(step)
                                                     >
-                                                        "Ansehen"
+                                                        {t!(SetupDoneView)}
                                                     </Button>
                                                 }
                                             })}
@@ -116,11 +114,11 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
             <SyncStatus />
             <HStack css="justify-content: flex-end">
                 <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large href="#/">
-                    "Zum Dashboard"
+                    {t!(SetupDoneToDashboard)}
                 </Button>
             </HStack>
             <p class="t-footnote t-secondary" style="padding-inline: 4px">
-                "Wo Schlüssel liegen: nur in der .env-Datei im Projektordner dieses Rechners. Sie gehen über die Eingabefelder hier hinein und kommen nie in den Browser-Speicher, in die Datenbank oder ins Log. Die Datei darf nie committet oder weitergegeben werden. Der echte Agent läuft in Docker oder Podman und spricht mit dem Modell-Endpunkt, den du im Schritt „Modell“ gewählt hast."
+                {t!(SetupDoneKeysNote)}
             </p>
             {move || {
                 ctx.store
@@ -130,7 +128,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                     .map(|datei| {
                         view! {
                             <p class="t-footnote t-secondary" style="padding-inline: 4px">
-                                "Die Datei liegt hier: "
+                                {t!(SetupDoneEnvFile)} " "
                                 <code>{datei.path}</code>
                             </p>
                             {datei
@@ -155,7 +153,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                     .map(|ordner| {
                         view! {
                             <p class="t-footnote t-secondary" style="padding-inline: 4px">
-                                "Konfiguration und Datenbank liegen hier: "
+                                {t!(SetupDoneConfigFiles)} " "
                                 <code>{ordner.path}</code>
                             </p>
                             {ordner
