@@ -1,6 +1,2 @@
 toast.open = Open
 toast.close = Dismiss notice
-notify.unsupported = This browser does not support notifications
-notify.ask = Not allowed yet
-notify.granted = Allowed
-notify.denied = Blocked. You can change this in the browser settings.

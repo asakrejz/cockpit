@@ -5,7 +5,6 @@
 //! permission is never asked for on its own, only on a button press.
 
 use cockpit_core::NotifyEvent;
-use feature_ui::t;
 use leptos::prelude::*;
 use web_sys::{
     Notification, NotificationOptions, NotificationPermission, VisibilityState,
@@ -15,7 +14,7 @@ use web_sys::{
 use crate::{route::Route, store::navigate_hash};
 
 /// Name of the browser API on `window`.
-const API_NAME: &str = concat!("Notification");
+const API_NAME: &str = "Notification";
 
 /// How the browser's permission stands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -26,17 +25,6 @@ pub enum Permission {
     Ask,
     Granted,
     Denied,
-}
-
-impl Permission {
-    pub fn label(self) -> String {
-        match self {
-            Permission::Unsupported => t!(NotifyUnsupported),
-            Permission::Ask => t!(NotifyAsk),
-            Permission::Granted => t!(NotifyGranted),
-            Permission::Denied => t!(NotifyDenied),
-        }
-    }
 }
 
 /// Current state. Without the API (older browsers) it says "not supported".

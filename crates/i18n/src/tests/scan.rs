@@ -18,6 +18,8 @@ const ALLOWED: &[&str] = &[
     "OAuth",
     "Docker",
     "Podman",
+    "Atlassian",
+    "Notification",
     "Playground",
     "Pull Request",
     "Rust",

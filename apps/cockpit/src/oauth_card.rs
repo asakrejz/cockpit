@@ -12,7 +12,7 @@ use crate::server::{self, CallError};
 use crate::store::use_store;
 
 /// Brand name (not translated).
-const ATLASSIAN: &str = concat!("Atlassian");
+const ATLASSIAN: &str = "Atlassian";
 
 /// Layout of the "forget" row.
 const ALIGN_CENTER: &str = "align-items:center";

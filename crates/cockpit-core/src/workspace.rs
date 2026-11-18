@@ -143,7 +143,7 @@ pub struct Workspace {
     #[serde(default)]
     pub inbox_filter: InboxFilter,
     /// Language of the interface. `None` = not chosen yet, the browser language applies.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<cockpit_i18n::Lang>,
 }
 

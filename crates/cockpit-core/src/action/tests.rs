@@ -241,9 +241,8 @@ fn the_language_is_chosen_and_stored_in_the_workspace() {
         Err(ActionError::Unchanged)
     ));
     // Old saved states without the field still load.
-    let old = serde_json::to_string(&Workspace::default())
-        .unwrap()
-        .replace("\"language\":null,", "");
-    let loaded: Workspace = serde_json::from_str(&old).unwrap();
+    let saved = serde_json::to_string(&Workspace::default()).unwrap();
+    assert!(!saved.contains("language"));
+    let loaded: Workspace = serde_json::from_str(&saved).unwrap();
     assert_eq!(loaded.language, None);
 }

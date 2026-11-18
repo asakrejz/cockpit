@@ -138,6 +138,7 @@ pub fn SetupPage() -> impl IntoView {
                             <span class="t-title3 t-bold">"Cockpit"</span>
                             <Badge variant=BadgeVariant::Neutral>{t!(SetupBadgeLocal)}</Badge>
                         </HStack>
+                        <crate::language::LanguageSwitch />
                         <h1 class="t-display">{t!(SetupTitle)}</h1>
                         <p class="t-title3 t-secondary">{t!(SetupIntro)}</p>
                     </VStack>
