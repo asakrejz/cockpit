@@ -1,4 +1,10 @@
 use super::*;
+use cockpit_i18n::Msg;
+
+/// The German texts of the missing parts.
+fn texts(f: Vec<Msg>) -> Vec<String> {
+    f.iter().map(Msg::de).collect()
+}
 
 #[test]
 fn prerequisites_say_in_plain_text_was_missing_and_where() {
@@ -9,10 +15,10 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         image_hint: None,
         model: false,
         key: false,
-        repo: Err("Es ist kein Repo eingetragen.".into()),
+        repo: Err(Msg::raw("Es ist kein Repo eingetragen.")),
         github_access: false,
     };
-    let f = missing(&v);
+    let f = texts(missing(&v));
     assert_eq!(f.len(), 4);
     assert!(f[0].contains("Einrichten") && f[0].contains("Container"));
     assert!(f[1].contains("der Modellname, der Key") && !f[1].contains("Adresse"));
@@ -31,7 +37,7 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         repo: Ok("firma/app"),
         github_access: true,
     };
-    let f = missing(&fast);
+    let f = texts(missing(&fast));
     assert_eq!(f.len(), 1);
     assert!(f[0].contains("Image bauen"));
     // Outdated and not checkable images block a run too, with different advice.
@@ -44,7 +50,7 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         repo: Ok("firma/app"),
         github_access: true,
     };
-    let f = missing(&outdated);
+    let f = texts(missing(&outdated));
     assert_eq!(f.len(), 1);
     assert!(
         f[0].contains("veraltet") && f[0].contains("neu bauen"),
@@ -54,11 +60,11 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
     assert!(!s.ready && s.image && s.image_state == ImageState::Outdated);
     let unknown = Prerequisites {
         image: ImageState::Unknown,
-        image_hint: Some("Der Ordner fehlt.".into()),
+        image_hint: Some(Msg::raw("Der Ordner fehlt.")),
         repo: Ok("firma/app"),
         ..outdated
     };
-    let f = missing(&unknown);
+    let f = texts(missing(&unknown));
     assert!(
         f[0].contains("nicht prüfen") && f[0].contains("Der Ordner fehlt."),
         "{f:?}"
@@ -77,7 +83,7 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         engine_running: false,
         ..ContainerStatus::default()
     };
-    let f = missing(&Prerequisites {
+    let f = texts(missing(&Prerequisites {
         container: &not_running,
         image: ImageState::Current,
         image_hint: None,
@@ -85,7 +91,7 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         key: true,
         repo: Ok("a/b"),
         github_access: true,
-    });
+    }));
     assert!(f[0].contains("Podman") && f[0].contains("Schritt „Container“"));
     // Simulated: always ready.
     assert!(status(false, &v).ready);

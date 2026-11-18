@@ -93,6 +93,9 @@ pub struct ContainerStatus {
     /// What to do if it does not work.
     #[serde(default)]
     pub hint: Option<String>,
+    /// The same as `hint`, as code and parameters (the UI shows it in its language).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hint_msg: Option<cockpit_i18n::Msg>,
 }
 
 /// Whether the real agent can start, as `GET /api/health` reports it.
@@ -113,6 +116,9 @@ pub struct AgentStatus {
     /// Plain-text reason when `image_state` is `unknown`.
     #[serde(default)]
     pub image_hint: Option<String>,
+    /// The same as `image_hint`, as code and parameters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub image_hint_msg: Option<cockpit_i18n::Msg>,
     /// Name of the image, always the same: `localhost/cockpit-agent:local`.
     #[serde(default)]
     pub image_name: String,
@@ -126,6 +132,9 @@ pub struct AgentStatus {
     /// What is still missing, one sentence per entry in plain text with the place in the assistant.
     #[serde(default)]
     pub missing: Vec<String>,
+    /// The same as `missing`, as code and parameters.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub missing_msgs: Vec<cockpit_i18n::Msg>,
 }
 
 /// How the agent image compares with the sources of this Cockpit version.
@@ -161,6 +170,9 @@ pub struct ImageBuild {
     /// Why the last build failed, in plain text.
     #[serde(default)]
     pub error: Option<String>,
+    /// The same as `error`, as code and parameters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error_msg: Option<cockpit_i18n::Msg>,
     /// The last lines of the build output.
     #[serde(default)]
     pub lines: Vec<String>,
@@ -184,6 +196,9 @@ pub struct ContainerCheck {
     /// What to do next or what the cause was.
     #[serde(default)]
     pub hint: Option<String>,
+    /// The same as `hint`, as code and parameters.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hint_msg: Option<cockpit_i18n::Msg>,
 }
 
 /// Response to `GET /api/agent/check`: what the connection test found. Never contains the key.

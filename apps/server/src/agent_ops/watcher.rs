@@ -90,13 +90,8 @@ impl AppState {
                 | RunState::AwaitingAnswer
                 | RunState::Paused
                 | RunState::AwaitingApproval => {
-                    let reason = "Der Server wurde neu gestartet, dabei ging der Container verloren. Starte den Lauf bei Bedarf neu.";
-                    if let Err(e) = self.report_blocking(
-                        &key,
-                        AgentReport::Failed {
-                            reason: reason.into(),
-                        },
-                    ) {
+                    let reason = cockpit_i18n::msg!(ServerRunRestartLost).de();
+                    if let Err(e) = self.report_blocking(&key, AgentReport::Failed { reason }) {
                         tracing::warn!("Run {key} not marked as aborted: {e:?}");
                     }
                 }

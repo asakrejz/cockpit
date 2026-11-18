@@ -19,6 +19,7 @@ use std::path::Path;
 use std::process::{Command, Stdio};
 
 use cockpit_core::RepoRules;
+use cockpit_i18n::{ArgValue, Msg, msg};
 use cockpit_integrations::Secret;
 
 /// This many changed files the backend lets through.
@@ -62,12 +63,14 @@ pub struct BranchRule<'a> {
 impl BranchRule<'_> {
     /// Valid name, not protected, produced by the pattern. A follow-up may also keep a name
     /// from the default pattern.
-    pub fn check(&self) -> Result<(), String> {
+    pub fn check(&self) -> Result<(), Msg> {
+        // The texts come from `cockpit-core`; they have no code yet.
         if self.existing {
             cockpit_core::branch::check_existing(self.pattern, self.base, self.branch)
         } else {
             cockpit_core::branch::check(self.pattern, self.base, self.branch)
         }
+        .map_err(Msg::raw)
     }
 }
 
@@ -160,7 +163,7 @@ fn git(
     cwd: Option<&Path>,
     url_for_auth: &str,
     token: Option<&Secret>,
-) -> Result<String, String> {
+) -> Result<String, Msg> {
     let mut cmd = Command::new("git");
     cmd.args(args)
         .stdin(Stdio::null())
@@ -178,21 +181,18 @@ fn git(
     }
     let out = cmd
         .output()
-        .map_err(|e| format!("git lässt sich nicht starten: {e}. Ist Git installiert?"))?;
+        .map_err(|e| msg!(ServerRunGitNotStarted, error = e.to_string()))?;
     if out.status.success() {
         return Ok(String::from_utf8_lossy(&out.stdout).into_owned());
     }
     let error = String::from_utf8_lossy(&out.stderr);
     let error = error.trim();
     let secret = token.map(Secret::expose).unwrap_or("");
-    Err(redact(
-        if error.is_empty() {
-            "ohne Fehlermeldung"
-        } else {
-            error
-        },
-        &[secret],
-    ))
+    Err(if error.is_empty() {
+        msg!(ServerRunGitNoMessage)
+    } else {
+        Msg::raw(redact(error, &[secret]))
+    })
 }
 
 /// Opens permissions in the clone so that the user in the container (different id, with Podman rootless
@@ -231,14 +231,14 @@ pub fn clone(
     target: &Path,
     token: Option<&Secret>,
     rule: &BranchRule,
-) -> Result<String, String> {
+) -> Result<String, Msg> {
     let (base_branch, branch) = (rule.base, rule.branch);
     rule.check()?;
     if rule.existing {
-        return Err("Ein neuer Lauf legt einen neuen Branch an.".into());
+        return Err(msg!(ServerRunNewRunNewBranch));
     }
     if !base_branch_ok(base_branch) {
-        return Err(format!("Der Basis-Branch „{base_branch}“ ist ungültig."));
+        return Err(msg!(ServerRunBaseBranchInvalid, branch = base_branch));
     }
     branch_is_new(url, token, branch)?;
     let z = target.to_string_lossy().into_owned();
@@ -285,7 +285,7 @@ pub fn guideline_file(clone: &Path) -> Option<&'static str> {
 
 /// A new branch must not exist on the remote: an existing one is somebody else's work (or
 /// protected), and the agent never pushes onto it.
-fn branch_is_new(url: &str, token: Option<&Secret>, branch: &str) -> Result<(), String> {
+fn branch_is_new(url: &str, token: Option<&Secret>, branch: &str) -> Result<(), Msg> {
     let out = git(
         &[
             "ls-remote",
@@ -301,9 +301,7 @@ fn branch_is_new(url: &str, token: Option<&Secret>, branch: &str) -> Result<(), 
     if out.trim().is_empty() {
         Ok(())
     } else {
-        Err(format!(
-            "Den Branch „{branch}“ gibt es im Repo schon. Der Agent legt nur neue Branches an und schreibt nie in einen vorhandenen."
-        ))
+        Err(msg!(ServerRunBranchExists, branch = branch))
     }
 }
 
@@ -316,11 +314,11 @@ pub fn clone_branch(
     target: &Path,
     token: Option<&Secret>,
     rule: &BranchRule,
-) -> Result<String, String> {
+) -> Result<String, Msg> {
     let branch = rule.branch;
     rule.check()?;
     if !rule.existing {
-        return Err("Ein Folgeauftrag arbeitet auf dem Branch eines Pull Requests.".into());
+        return Err(msg!(ServerRunFollowupOnPrBranch));
     }
     clone_existing(url, target, token, branch)
 }
@@ -332,9 +330,9 @@ pub fn clone_for_review(
     target: &Path,
     token: Option<&Secret>,
     branch: &str,
-) -> Result<String, String> {
+) -> Result<String, Msg> {
     if !review_branch_ok(branch) {
-        return Err(format!("Der Branch „{branch}“ ist nicht erlaubt."));
+        return Err(msg!(ServerRunBranchNotAllowed, branch = branch));
     }
     clone_existing(url, target, token, branch)
 }
@@ -344,7 +342,7 @@ fn clone_existing(
     target: &Path,
     token: Option<&Secret>,
     branch: &str,
-) -> Result<String, String> {
+) -> Result<String, Msg> {
     let z = target.to_string_lossy().into_owned();
     git(
         &[
@@ -389,11 +387,11 @@ pub fn publish(
     token: Option<&Secret>,
     rules: &RepoRules,
     rule: &BranchRule,
-) -> Result<Published, String> {
+) -> Result<Published, Msg> {
     let branch = rule.branch;
     rule.check()?;
     if base_sha.len() < 7 || !base_sha.chars().all(|c| c.is_ascii_hexdigit()) {
-        return Err("Der Ausgangsstand des Laufs ist unbekannt.".into());
+        return Err(msg!(ServerRunStartUnknown));
     }
     let e = export.to_string_lossy().into_owned();
     git(&["init", "--quiet", "--bare", &e], None, "", None)?;
@@ -405,7 +403,7 @@ pub fn publish(
         "",
         None,
     )
-    .map_err(|m| format!("Der Branch {branch} fehlt im Klon des Agenten ({m})."))?;
+    .map_err(|m| msg!(ServerRunBranchMissingInClone, branch = branch, error = m))?;
     let ref_ = format!("refs/heads/{branch}");
     let commit = git(&["rev-parse", "--verify", &ref_], Some(export), "", None)?
         .trim()
@@ -417,10 +415,7 @@ pub fn publish(
         "",
         None,
     )
-    .map_err(|_| {
-        "Der Branch des Agenten baut nicht auf dem Stand auf, von dem aus geklont wurde."
-            .to_string()
-    })?;
+    .map_err(|_| msg!(ServerRunBranchNotBuiltOn))?;
     let count = git(
         &["rev-list", "--count", &format!("{base_sha}..{commit}")],
         Some(export),
@@ -428,7 +423,7 @@ pub fn publish(
         None,
     )?;
     if count.trim() == "0" {
-        return Err("Der Agent hat nichts committet, es gibt nichts zu pushen.".into());
+        return Err(msg!(ServerRunNothingCommitted));
     }
     let names = git(
         &[
@@ -449,21 +444,20 @@ pub fn publish(
         .map(str::to_string)
         .collect();
     if files.is_empty() {
-        return Err("Der Agent hat nichts geändert, es gibt nichts zu pushen.".into());
+        return Err(msg!(ServerRunNothingChanged));
     }
     if files.len() > MAX_FILES {
-        return Err(format!(
-            "Der Agent hat {} Dateien geändert – mehr als {MAX_FILES} pusht das Cockpit nicht.",
-            files.len()
+        return Err(msg!(
+            ServerRunTooManyFiles,
+            n = files.len(),
+            max = MAX_FILES
         ));
     }
     let violations = rules.violations(&files);
     if !violations.is_empty() {
-        let reasons: Vec<String> = violations.iter().map(|v| v.reason()).collect();
-        return Err(format!(
-            "Die Änderungen verstoßen gegen die Regeln des Repos und werden nicht gepusht: {}.",
-            reasons.join("; ")
-        ));
+        // The reasons come from `cockpit-core` and have no code yet.
+        let reasons = ArgValue::joined(violations.iter().map(|v| Msg::raw(v.reason())), "; ");
+        return Err(msg!(ServerRunRulesViolated, reasons = reasons));
     }
     if !rule.existing {
         // Somebody may have created the branch while the agent worked.
@@ -475,7 +469,7 @@ pub fn publish(
         url,
         token,
     )
-    .map_err(|m| format!("Das Pushen auf {branch} ist fehlgeschlagen: {m}"))?;
+    .map_err(|m| msg!(ServerRunPushFailed, branch = branch, error = m))?;
     Ok(Published { commit, files })
 }
 

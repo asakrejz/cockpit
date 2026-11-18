@@ -1,5 +1,7 @@
 //! What the container runtime and the image look like right now (cached probes).
 
+use cockpit_i18n::{Msg, msg};
+
 use super::*;
 
 impl AppState {
@@ -46,7 +48,7 @@ impl AppState {
     }
 
     pub(super) fn image_probe_now(&self, cli: &Path) -> ImageProbe {
-        let unknown = |hint: String| ImageProbe {
+        let unknown = |hint: Msg| ImageProbe {
             state: ImageState::Unknown,
             hint: Some(hint),
         };
@@ -59,9 +61,7 @@ impl AppState {
         let out = match out {
             Ok(o) => o,
             Err(e) => {
-                return unknown(format!(
-                    "Das Container-Programm lässt sich nicht aufrufen ({e})."
-                ));
+                return unknown(msg!(ServerRunCliNotCallable, error = e.to_string()));
             }
         };
         // Docker and Podman both exit non-zero for an image that does not exist.

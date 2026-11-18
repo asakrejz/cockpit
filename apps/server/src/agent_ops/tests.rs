@@ -107,7 +107,8 @@ impl World {
             .await
             .map(|_| ())
             .map_err(|e| match e {
-                crate::sync::ActionFailure::Plan(m) => m,
+                crate::sync::ActionFailure::Plan(m) => m.de(),
+                crate::sync::ActionFailure::Service(m) => m.de(),
                 crate::sync::ActionFailure::Rule(e) => e.message(),
                 other => format!("{other:?}"),
             })
