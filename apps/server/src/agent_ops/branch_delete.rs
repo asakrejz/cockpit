@@ -8,7 +8,7 @@
 //!   branch, protection). Never automatic, never another branch, never a force of any kind.
 
 use cockpit_core::api::{BranchCheck, BranchDeleted};
-use cockpit_core::branch::{DeleteFacts, deletable};
+use cockpit_core::branch::{DeleteFacts, deletable_msg};
 use cockpit_core::{Action, Actor, AgentRun, Closure, RunKind};
 use cockpit_i18n::{Msg, msg};
 use cockpit_integrations::Error as ServiceError;
@@ -105,8 +105,7 @@ impl AppState {
         let verdict = match client.branch_protected(&repo, &branch).await {
             Err(ServiceError::NotFound) => Err(msg!(ServerAgentBranchGone, branch = &branch)),
             Err(e) => return Err(read(msg!(ServerAgentWhatBranchRead), e)),
-            // The reasons come from `cockpit-core` and have no code yet.
-            Ok(protected) => deletable(&DeleteFacts {
+            Ok(protected) => deletable_msg(&DeleteFacts {
                 pattern: &pattern,
                 base_branch: &base,
                 default_branch: &default_branch,
@@ -115,8 +114,7 @@ impl AppState {
                 run_branch: &branch,
                 protected,
                 ended: ended(&pull),
-            })
-            .map_err(Msg::raw),
+            }),
         };
         Ok(Plan {
             client,

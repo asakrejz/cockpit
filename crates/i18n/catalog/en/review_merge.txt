@@ -1,9 +1,3 @@
 review_merge.title = Merge
 review_merge.button = Merge
 review_merge.method = Merge method
-review_merge.already_merged = The pull request is already merged.
-review_merge.draft = The pull request is still a draft.
-review_merge.checks_failed = At least one check has failed.
-review_merge.checks_running = The checks are still running.
-review_merge.review_not_sent = Your review has not been sent yet.
-review_merge.changes_requested = You asked for changes. Change your verdict first.

@@ -1,9 +1,3 @@
 review_merge.title = Mergen
 review_merge.button = Mergen
 review_merge.method = Merge-Methode
-review_merge.already_merged = Der Pull Request ist schon gemergt.
-review_merge.draft = Der Pull Request ist noch ein Entwurf.
-review_merge.checks_failed = Mindestens ein Check ist fehlgeschlagen.
-review_merge.checks_running = Die Checks laufen noch.
-review_merge.review_not_sent = Dein Review ist noch nicht gesendet.
-review_merge.changes_requested = Du hast „Änderungen“ angefordert. Ändere zuerst dein Ergebnis.

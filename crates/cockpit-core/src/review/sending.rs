@@ -21,15 +21,16 @@ impl Review {
         !self.sent && self.undecided() == 0
     }
 
-    pub fn send_label(&self) -> String {
+    pub fn send_label_msg(&self) -> cockpit_i18n::Msg {
         if self.sent {
-            return "Gesendet".into();
+            return cockpit_i18n::msg!(CoreReviewSent);
         }
-        let n = self.comment_count();
-        format!(
-            "Review absenden · {n} {}",
-            if n == 1 { "Kommentar" } else { "Kommentare" }
-        )
+        cockpit_i18n::msg!(CoreReviewSend, n = self.comment_count())
+    }
+
+    /// [`Review::send_label_msg`] in German.
+    pub fn send_label(&self) -> String {
+        self.send_label_msg().de()
     }
 
     /// Sends the review and returns the comments: first the approved ones of the

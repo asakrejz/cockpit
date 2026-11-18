@@ -55,7 +55,7 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
             view! {
                 <div class="ui-hstack" style="--spacing: 8px">
                     <Status tone=tone>{label}</Status>
-                    <span class="t-footnote t-secondary">{run.label()}</span>
+                    <span class="t-footnote t-secondary">{run.label_msg().render(lang())}</span>
                     <span class="ui-spacer"></span>
                     <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>{t!(ReviewRunView)}</a>
                 </div>
@@ -68,7 +68,7 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
                 view! {
                     <div class="ui-hstack" style="--spacing: 8px">
                         <Status tone=StatusTone::Green>{t!(ReviewDone)}</Status>
-                        <span class="t-footnote t-secondary">{run.label()}</span>
+                        <span class="t-footnote t-secondary">{run.label_msg().render(lang())}</span>
                         <span class="ui-spacer"></span>
                         <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>{t!(ReviewRunView)}</a>
                     </div>

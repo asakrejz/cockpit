@@ -1,0 +1,22 @@
+# Branch names and patterns: reasons the core gives
+core_branch.unclosed_brace = A curly bracket in the pattern is not closed.
+core_branch.unknown_placeholder = Cockpit does not know “{name}”. Allowed are {ticket}, {slug} and {kind}.
+core_branch.pattern_empty = The pattern for branch names must not be empty.
+core_branch.pattern_too_long = The pattern for branch names is too long (at most {max} characters).
+core_branch.pattern_chars = The pattern may only contain letters, digits, the characters / - _ . and placeholders.
+core_branch.pattern_no_placeholder = The pattern needs at least one placeholder, otherwise it points to one fixed branch.
+core_branch.pattern_needs_ticket = The pattern needs {ticket}, otherwise two tickets would get the same branch.
+core_branch.pattern_glued = Two placeholders need a character between them, for example {ticket}-{slug}.
+core_branch.pattern_edges = The pattern must not start with / - . or end with / . and must not contain .. or //.
+core_branch.pattern_result_invalid = This pattern would not produce a valid branch name.
+core_branch.invalid = The branch “{branch}” is not a valid branch name.
+core_branch.protected = The branch “{branch}” is protected – the agent never pushes there.
+core_branch.mismatch = The branch “{branch}” does not match the pattern “{pattern}” of this repo.
+core_branch.delete_open = The pull request is still open. You can only delete the branch once it is merged or closed.
+core_branch.delete_default = The branch “{branch}” is the default branch of the repo and stays.
+core_branch.delete_protected = The branch “{branch}” is protected on GitHub and stays.
+core_branch.delete_foreign = The branch “{branch}” does not belong to this run and its pull request.
+core_branch.suggest_both = The guidelines name feature/ and fix/. Cockpit picks feature, fix or chore depending on the Jira type.
+core_branch.suggest_first = The guidelines name branches with {first}.
+core_branch.suggest_more = {reason} {others} also appear; Cockpit uses one fixed prefix. Please check.
+core_branch.suggest_ticket = The guidelines name branches with the ticket key, for example PROJ-123.

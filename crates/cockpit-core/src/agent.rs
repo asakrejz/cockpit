@@ -20,6 +20,7 @@
 //! and resume it – or cancel. The rules of the repo ([`RepoRules`]) apply from the
 //! start: they appear in the plan, and a plan that touches forbidden paths cannot be approved.
 
+use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};
 
 use crate::diagnosis::Diagnosis;
@@ -196,18 +197,35 @@ impl AgentRun {
         self.pr_number.map(|n| PrKey::new(&self.repo, n))
     }
 
-    /// Short name for messages: the key, for follow-up jobs with plain text.
-    pub fn label(&self) -> String {
+    /// Short name for messages: the key, for follow-up jobs a short text.
+    pub fn label_msg(&self) -> Msg {
         match &self.kind {
-            RunKind::Implement => self.ticket_key.clone(),
-            RunKind::AddressReview { review, .. } => format!("Kommentare in {review}"),
-            RunKind::Diagnose { review, check } => format!("Check „{check}“ in {review}"),
+            RunKind::Implement => Msg::raw(self.ticket_key.clone()),
+            RunKind::AddressReview { review, .. } => {
+                msg!(CoreAgentLabelAddress, review = review.to_string())
+            }
+            RunKind::Diagnose { review, check } => msg!(
+                CoreAgentLabelDiagnose,
+                check = check,
+                review = review.to_string()
+            ),
             RunKind::Followup { review, task } => match task {
-                FollowupTask::ReviewThreads => format!("Review-Kommentare in {review}"),
-                FollowupTask::FailedChecks { .. } => format!("Rote Checks in {review}"),
+                FollowupTask::ReviewThreads => {
+                    msg!(CoreAgentLabelThreads, review = review.to_string())
+                }
+                FollowupTask::FailedChecks { .. } => {
+                    msg!(CoreAgentLabelChecks, review = review.to_string())
+                }
             },
-            RunKind::ReviewPr { review } => format!("Review von {review}"),
+            RunKind::ReviewPr { review } => {
+                msg!(CoreAgentLabelReview, review = review.to_string())
+            }
         }
+    }
+
+    /// [`AgentRun::label_msg`] in German (plain-text readers, tests).
+    pub fn label(&self) -> String {
+        self.label_msg().de()
     }
 
     /// The pull request that decides when the run is „erledigt“: the one that was created or
@@ -250,10 +268,10 @@ impl AgentRun {
         }
         self.closure = Some(closure);
         let text = match closure {
-            Closure::Merged => "Der Pull Request ist gemergt. Der Lauf ist erledigt.",
-            Closure::Closed => "Der Pull Request ist geschlossen. Der Lauf ist erledigt.",
+            Closure::Merged => msg!(CoreAgentMClosedMerged),
+            Closure::Closed => msg!(CoreAgentMClosedClosed),
         };
-        self.say(Speaker::Agent, MessageKind::Info, text.into());
+        self.say_msg(Speaker::Agent, MessageKind::Info, text);
         true
     }
 
@@ -378,6 +396,7 @@ mod log;
 mod plan;
 mod report;
 mod steps;
+mod texts;
 
 #[cfg(test)]
 mod tests;

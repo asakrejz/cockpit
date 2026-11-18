@@ -1,0 +1,19 @@
+# Texts of reviews that the core produces
+core_review.level_note = Hinweis
+core_review.level_important = Wichtig
+core_review.verdict_comment = Kommentieren
+core_review.verdict_approve = Genehmigen
+core_review.verdict_changes = Änderungen
+core_review.summary = {approved} freigegeben · {declined} abgelehnt · {open} offen
+core_review.sent = Gesendet
+core_review.send.one = Review absenden · {n} Kommentar
+core_review.send.other = Review absenden · {n} Kommentare
+core_review.blocker_already_merged = Der Pull Request ist schon gemergt.
+core_review.blocker_draft = Der Pull Request ist noch ein Entwurf.
+core_review.blocker_checks_failed = Mindestens ein Check ist fehlgeschlagen.
+core_review.blocker_checks_running = Die Checks laufen noch.
+core_review.blocker_not_sent = Dein Review ist noch nicht gesendet.
+core_review.blocker_changes = Du hast „Änderungen“ angefordert. Ändere zuerst dein Ergebnis.
+core_review.duration_running = läuft
+core_review.duration_seconds = {n} Sek.
+core_review.duration_minutes = {m}:{s} Min.

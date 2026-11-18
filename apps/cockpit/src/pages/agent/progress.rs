@@ -73,12 +73,15 @@ pub(super) fn timeline_steps(ctx: AgentCtx) -> impl IntoView {
             <TimelineStep
                 number=i + 1
                 state=Signal::derive(move || step().map(|s| step_state(s.state)).unwrap_or_default())
-                title=Signal::derive(move || step().map(|s| s.title).unwrap_or_default())
+                title=Signal::derive(move || step().map(|s| s.title_msg.render(lang())).unwrap_or_default())
                 text=Signal::derive(move || {
                     step()
-                        .map(|s| match s.usage {
-                            Some(u) => format!("{} · {}", s.text, super::labels::usage_line(&u)),
-                            None => s.text,
+                        .map(|s| {
+                            let text = s.text_msg.render(lang());
+                            match s.usage {
+                                Some(u) => format!("{text} · {}", super::labels::usage_line(&u)),
+                                None => text,
+                            }
                         })
                         .unwrap_or_default()
                 })

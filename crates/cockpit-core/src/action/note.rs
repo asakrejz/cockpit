@@ -12,15 +12,6 @@ pub(super) struct Note {
 }
 
 impl Note {
-    pub(super) fn new(target: Target, text: impl Into<String>) -> Self {
-        Self {
-            actor: None,
-            target: Some(target),
-            text: text.into(),
-            msg: None,
-        }
-    }
-
     /// An entry as code and parameters (`msg!`). `text` keeps the German rendering next to it,
     /// for readers that only know plain text.
     pub(super) fn coded(target: Target, msg: cockpit_i18n::Msg) -> Self {

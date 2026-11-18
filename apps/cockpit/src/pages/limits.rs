@@ -67,7 +67,7 @@ fn Spend() -> impl IntoView {
                 footer=t!(LimitsUsageFooter)
             >
                 <ListRow title=t!(LimitsToday) wrap=true>
-                    <span class="t-footnote t-secondary">{move || today.get().line()}</span>
+                    <span class="t-footnote t-secondary">{move || today.get().line_msg().render(lang())}</span>
                 </ListRow>
                 <ListRow title=t!(LimitsThisMonth) wrap=true>
                     <span class="t-footnote t-secondary">
@@ -76,10 +76,10 @@ fn Spend() -> impl IntoView {
                             match budget.get() {
                                 Some(b) => t!(
                                     LimitsMonthWithBudget,
-                                    usage = spent.line(),
+                                    usage = spent.line_msg().render(lang()),
                                     budget = format_euro(b)
                                 ),
-                                None => spent.line(),
+                                None => spent.line_msg().render(lang()),
                             }
                         }}
                     </span>

@@ -2,6 +2,7 @@
 //!
 //! Only a hint: the user sees the proposal and confirms it, nothing is taken over automatically.
 
+use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};
 
 /// Where the backend looks for the guidelines, in this order.
@@ -22,6 +23,9 @@ pub struct Suggestion {
     pub pattern: String,
     /// Plain German: what was found and what to check.
     pub reason: String,
+    /// The same as code and parameters; the UI renders it in its language.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason_msg: Option<Msg>,
 }
 
 /// Words followed by `/` that the text names as a branch prefix, in order, without doubles.
@@ -83,30 +87,32 @@ pub fn suggest(text: &str) -> Option<Suggestion> {
     let (pattern, reason) = if has("feature") && has("fix") {
         (
             "{type}/{ticket}-{slug}".to_string(),
-            "Die Richtlinien nennen feature/ und fix/. Cockpit wählt je nach Jira-Typ feature, fix oder chore.".to_string(),
+            msg!(CoreBranchSuggestBoth),
         )
     } else if let Some(first) = types.first() {
-        let mut reason = format!("Die Richtlinien nennen Branches mit {first}/.");
+        let mut reason = msg!(CoreBranchSuggestFirst, first = format!("{first}/"));
         if types.len() > 1 {
-            reason.push_str(&format!(
-                " Außerdem kommen {} vor; Cockpit nutzt einen festen Vorsatz. Bitte prüfe das.",
-                types[1..]
+            reason = msg!(
+                CoreBranchSuggestMore,
+                reason = reason,
+                others = types[1..]
                     .iter()
                     .map(|w| format!("{w}/"))
                     .collect::<Vec<_>>()
                     .join(", ")
-            ));
+            );
         }
         (format!("{first}/{{ticket}}-{{slug}}"), reason)
     } else if key && mentions_branch {
-        (
-            "{ticket}-{slug}".to_string(),
-            "Die Richtlinien nennen Branches mit dem Ticket-Schlüssel, z. B. PROJ-123.".into(),
-        )
+        ("{ticket}-{slug}".to_string(), msg!(CoreBranchSuggestTicket))
     } else {
         return None;
     };
-    Some(Suggestion { pattern, reason })
+    Some(Suggestion {
+        pattern,
+        reason: reason.de(),
+        reason_msg: Some(reason),
+    })
 }
 
 #[cfg(test)]

@@ -78,11 +78,16 @@ pub enum Closure {
 
 impl Closure {
     /// The state as the interface shows it.
-    pub fn label(self) -> &'static str {
+    pub fn label_msg(self) -> cockpit_i18n::Msg {
         match self {
-            Closure::Merged => "Erledigt (gemergt)",
-            Closure::Closed => "Erledigt (geschlossen)",
+            Closure::Merged => cockpit_i18n::msg!(CoreAgentClosureMerged),
+            Closure::Closed => cockpit_i18n::msg!(CoreAgentClosureClosed),
         }
+    }
+
+    /// [`Closure::label_msg`] in German (plain-text readers, tests).
+    pub fn label(self) -> String {
+        self.label_msg().de()
     }
 }
 

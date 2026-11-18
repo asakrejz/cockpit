@@ -1,18 +1,5 @@
 use super::*;
 
-/// Why merging is not possible yet.
-fn blocker_reason(b: cockpit_core::MergeBlocker) -> String {
-    use cockpit_core::MergeBlocker as B;
-    match b {
-        B::AlreadyMerged => t!(ReviewMergeAlreadyMerged),
-        B::Draft => t!(ReviewMergeDraft),
-        B::ChecksFailed => t!(ReviewMergeChecksFailed),
-        B::ChecksRunning => t!(ReviewMergeChecksRunning),
-        B::ReviewNotSent => t!(ReviewMergeReviewNotSent),
-        B::ChangesRequested => t!(ReviewMergeChangesRequested),
-    }
-}
-
 /// Merge: choose method, button – and why it does not work right now.
 pub(super) fn merge_section(store: Store, r: &Review, panel: Panel) -> AnyView {
     let number = StoredValue::new(r.key());
@@ -32,7 +19,7 @@ pub(super) fn merge_section(store: Store, r: &Review, panel: Panel) -> AnyView {
     let can_merge = blockers.is_empty();
     let reasons = blockers
         .iter()
-        .map(|b| view! { <li class="t-footnote t-secondary">{blocker_reason(*b)}</li> })
+        .map(|b| view! { <li class="t-footnote t-secondary">{b.reason_msg().render(lang())}</li> })
         .collect_view();
     let merge = move |_| {
         let Some(method) = MergeMethod::from_id(panel.merge_method.get_untracked()) else {

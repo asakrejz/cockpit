@@ -1,5 +1,6 @@
-use super::log::{files_label, plural_comments};
+use super::texts::{comments_msg, files_msg, raw};
 use super::*;
+use cockpit_i18n::{Msg, msg};
 
 impl AgentRun {
     /// The current plan. Before the start there is none.
@@ -8,120 +9,124 @@ impl AgentRun {
             return None;
         }
         if let Some(p) = &self.agent_plan {
-            return Some(Plan {
-                summary: p.summary.clone(),
-                files: p.files.clone(),
-                steps: p.steps.clone(),
-                rules: self.rules.lines(),
-                violations: self.violations(),
-            });
+            return Some(Plan::new(
+                raw(p.summary.clone()),
+                p.files.clone(),
+                p.steps.iter().cloned().map(raw).collect(),
+                self.rules.lines_msg(),
+                self.violations(),
+            ));
         }
         if let RunKind::AddressReview { review, comments } = &self.kind {
             return Some(self.address_plan(review, comments.len()));
         }
         let o = &self.options;
-        let hint = o.hint.trim();
-        let files = match self.files.len() {
-            1 => "1 Datei".to_string(),
-            n => format!("{n} Dateien"),
-        };
-        let mut summary = format!(
-            "{} umsetzen: {files} ändern{}.",
-            self.ticket_key,
-            if o.run_tests {
-                ", Tests ausführen"
-            } else {
-                " (ohne Tests)"
-            }
+        let tests = tests_part(o.run_tests);
+        let mut summary = msg!(
+            CoreAgentPlanSummary,
+            ticket = &self.ticket_key,
+            files = files_msg(self.files.len()),
+            tests = tests
         );
-        if !hint.is_empty() {
-            summary.push_str(&format!(" Dein Hinweis: „{hint}“."));
-        }
+        summary = self.with_hint_and_revisions(summary);
         let mut steps = vec![
-            format!(
-                "Ticket {} und {} Kommentar(e) auswerten",
-                self.ticket_key, self.comments
+            msg!(
+                CoreAgentPlanRead,
+                ticket = &self.ticket_key,
+                n = self.comments
             ),
-            format!("Branch {} von {} erstellen", self.branch(), o.base_branch),
-            format!("{} bearbeiten", self.files.join(", ")),
+            msg!(
+                CoreAgentPlanBranch,
+                branch = self.branch(),
+                base = &o.base_branch
+            ),
+            msg!(CoreAgentPlanEdit, files = self.files.join(", ")),
         ];
-        for note in &self.plan_notes {
-            steps.push(format!("Berücksichtigen: {note}"));
-        }
-        steps.push(if !self.rules.required_tests.is_empty() {
-            format!(
-                "Pflicht-Tests ausführen: {}",
-                self.rules.required_tests.join(", ")
-            )
-        } else if o.run_tests {
-            "Lint und Tests ausführen".into()
+        self.push_note_and_test_steps(&mut steps);
+        steps.push(if o.draft_pr {
+            msg!(CoreAgentPlanPrDraft)
         } else {
-            "Tests überspringen".into()
+            msg!(CoreAgentPlanPr)
         });
-        steps.push(format!(
-            "Pull Request {}anlegen – ohne Merge",
-            if o.draft_pr { "als Entwurf " } else { "" }
-        ));
-        if !self.plan_notes.is_empty() {
-            summary.push_str(&format!(" Überarbeitet ({}×).", self.plan_notes.len()));
-        }
-        Some(Plan {
+        Some(Plan::new(
             summary,
-            files: self.files.clone(),
+            self.files.clone(),
             steps,
-            rules: self.rules.lines(),
-            violations: self.violations(),
-        })
+            self.rules.lines_msg(),
+            self.violations(),
+        ))
     }
 
-    /// Plan for „implement review comments“: no new branch, no new pull request.
-    pub(super) fn address_plan(&self, review: &PrKey, comments: usize) -> Plan {
-        let o = &self.options;
-        let hint = o.hint.trim();
-        let branch = self.branch();
-        let mut summary = format!(
-            "{} aus Review {review} umsetzen: {} ändern{}, auf {branch} pushen.",
-            plural_comments(comments),
-            files_label(self.files.len()),
-            if o.run_tests {
-                ", Tests ausführen"
-            } else {
-                " (ohne Tests)"
-            }
-        );
+    /// Adds " Your hint: ..." and " Revised (2x)." to the summary.
+    fn with_hint_and_revisions(&self, mut summary: Msg) -> Msg {
+        let hint = self.options.hint.trim();
         if !hint.is_empty() {
-            summary.push_str(&format!(" Dein Hinweis: „{hint}“."));
+            summary = msg!(CoreAgentPlanWithHint, summary = summary, hint = hint);
         }
-        let mut steps = vec![
-            format!("{} aus Review {review} lesen", plural_comments(comments)),
-            format!("Branch {branch} auschecken"),
-            format!("{} bearbeiten", self.files.join(", ")),
-        ];
+        if !self.plan_notes.is_empty() {
+            summary = msg!(
+                CoreAgentPlanRevised,
+                summary = summary,
+                n = self.plan_notes.len()
+            );
+        }
+        summary
+    }
+
+    /// The notes of the user and the test step, which are the same for every kind of plan.
+    fn push_note_and_test_steps(&self, steps: &mut Vec<Msg>) {
         for note in &self.plan_notes {
-            steps.push(format!("Berücksichtigen: {note}"));
+            steps.push(msg!(CoreAgentPlanNote, note = note));
         }
         steps.push(if !self.rules.required_tests.is_empty() {
-            format!(
-                "Pflicht-Tests ausführen: {}",
-                self.rules.required_tests.join(", ")
+            msg!(
+                CoreAgentPlanRequired,
+                tests = self.rules.required_tests.join(", ")
             )
-        } else if o.run_tests {
-            "Lint und Tests ausführen".into()
+        } else if self.options.run_tests {
+            msg!(CoreAgentPlanTests)
         } else {
-            "Tests überspringen".into()
+            msg!(CoreAgentPlanTestsSkip)
         });
-        steps.push(format!(
-            "Auf {branch} pushen – kein neuer Pull Request, kein Merge"
+    }
+
+    /// Plan for "implement review comments": no new branch, no new pull request.
+    pub(super) fn address_plan(&self, review: &PrKey, comments: usize) -> Plan {
+        let branch = self.branch();
+        let summary = self.with_hint_and_revisions(msg!(
+            CoreAgentPlanAddressSummary,
+            comments = comments_msg(comments),
+            review = review.to_string(),
+            files = files_msg(self.files.len()),
+            tests = tests_part(self.options.run_tests),
+            branch = &branch
         ));
-        if !self.plan_notes.is_empty() {
-            summary.push_str(&format!(" Überarbeitet ({}×).", self.plan_notes.len()));
-        }
-        Plan {
+        let mut steps = vec![
+            msg!(
+                CoreAgentPlanAddressRead,
+                comments = comments_msg(comments),
+                review = review.to_string()
+            ),
+            msg!(CoreAgentPlanAddressCheckout, branch = &branch),
+            msg!(CoreAgentPlanEdit, files = self.files.join(", ")),
+        ];
+        self.push_note_and_test_steps(&mut steps);
+        steps.push(msg!(CoreAgentPlanAddressPush, branch = &branch));
+        Plan::new(
             summary,
-            files: self.files.clone(),
+            self.files.clone(),
             steps,
-            rules: self.rules.lines(),
-            violations: self.violations(),
-        }
+            self.rules.lines_msg(),
+            self.violations(),
+        )
+    }
+}
+
+/// ", run tests" or " (without tests)".
+fn tests_part(run_tests: bool) -> Msg {
+    if run_tests {
+        msg!(CoreAgentPlanWithTests)
+    } else {
+        msg!(CoreAgentPlanWithoutTests)
     }
 }
