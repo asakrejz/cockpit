@@ -1,7 +1,11 @@
 //! Search and filter of the inbox – pure functions, without state.
 
-use crate::filters::{NO_TICKET, Ownership, RECENT_DAYS, SprintView};
-use crate::model::{Filter, Item, Kind, SourceFilter, SprintState, TicketStatus};
+use crate::filters::{
+    ASSIGNED_TO_ME, FILTERS, NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED,
+    UNASSIGNED_NAME,
+};
+use crate::model::{Filter, Item, Kind, Person, SourceFilter, SprintState, TicketStatus};
+use serde::{Deserialize, Serialize};
 
 /// Does the entry match the search text?
 ///
@@ -34,13 +38,18 @@ pub fn matches_query(item: &Item, query: &str) -> bool {
 
 /// The values of the inbox filters (definitions: [`crate::filters::FILTERS`]). The Jira
 /// project of the workspace ([`crate::Workspace::in_project`]) is a setting of its own and not
-/// part of it. The value is pure UI state; `Default` is the start state (own entries, active
-/// sprint, done tickets hidden, everything else „all“).
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// part of it. The value is stored in the workspace (`Workspace::inbox_filter`) and changes by
+/// `Action::SetInboxFilter`; `Default` is the start state (own entries, active sprint, done
+/// tickets hidden, everything else „all“).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct InboxFilter {
+    /// Only Jira or only GitHub.
+    pub source: SourceFilter,
     /// `owner/name`; entries without a repo (tickets) drop out as soon as a repo is chosen.
     pub repo: Option<String>,
-    /// Name of the owner.
+    /// Name of the owner, [`ASSIGNED_TO_ME`] (me) or [`UNASSIGNED`] (nobody). A display filter
+    /// only: nothing is written to Jira.
     pub person: Option<String>,
     /// See [`Item::effective_status`].
     pub status: Option<TicketStatus>,
@@ -60,6 +69,7 @@ pub struct InboxFilter {
 impl Default for InboxFilter {
     fn default() -> Self {
         Self {
+            source: SourceFilter::default(),
             repo: None,
             person: None,
             status: None,
@@ -81,6 +91,7 @@ impl InboxFilter {
     /// The value of a filter by ID as text (`""` = all). Unknown ID: `""`.
     pub fn get(&self, id: &str) -> String {
         match id {
+            "source" => self.source.id().into(),
             "ownership" => self.ownership.id().into(),
             "sprint" => self.sprint.id().into(),
             "done" => if self.hide_done { "on" } else { "off" }.into(),
@@ -98,6 +109,10 @@ impl InboxFilter {
     pub fn set(&mut self, id: &str, value: &str) -> bool {
         let some = |v: &str| (!v.is_empty()).then(|| v.to_string());
         match id {
+            "source" => match SourceFilter::from_id(value) {
+                Some(v) => self.source = v,
+                None => return false,
+            },
             "ownership" => match Ownership::from_id(value) {
                 Some(v) => self.ownership = v,
                 None => return false,
@@ -142,10 +157,12 @@ impl InboxFilter {
     /// assert!(!filter.matches(ws.item_by_key("BAU-142").unwrap(), 0));
     /// ```
     pub fn matches(&self, item: &Item, now_ms: u64) -> bool {
-        self.repo
-            .as_ref()
-            .is_none_or(|r| item.repo.as_ref() == Some(r))
-            && self.person.as_ref().is_none_or(|p| item.owner.name == *p)
+        self.source.matches(item.source)
+            && self
+                .repo
+                .as_ref()
+                .is_none_or(|r| item.repo.as_ref() == Some(r))
+            && self.matches_person(item)
             && self.status.is_none_or(|s| item.effective_status() == s)
             && self.label.as_ref().is_none_or(|l| {
                 item.labels
@@ -154,6 +171,15 @@ impl InboxFilter {
             })
             && self.matches_project(item)
             && self.matches_ticket_state(item, now_ms)
+    }
+
+    fn matches_person(&self, item: &Item) -> bool {
+        match self.person.as_deref() {
+            None => true,
+            Some(ASSIGNED_TO_ME) => item.owner == Person::me(),
+            Some(UNASSIGNED) => item.is_ticket() && item.owner.name == UNASSIGNED_NAME,
+            Some(name) => item.owner.name == name,
+        }
     }
 
     fn matches_project(&self, item: &Item) -> bool {
@@ -183,6 +209,24 @@ impl InboxFilter {
                 .updated_ms
                 .is_some_and(|t| t.saturating_add(RECENT_DAYS * 24 * 3600 * 1000) >= now_ms),
         }
+    }
+
+    /// Puts one filter back to its start value. `false` for an unknown ID.
+    pub fn reset(&mut self, id: &str) -> bool {
+        match crate::filters::filter_def(id) {
+            Some(def) => self.set(id, def.default),
+            None => false,
+        }
+    }
+
+    /// The IDs of the filters that differ from their start value, in display order.
+    pub fn active(&self) -> Vec<&'static str> {
+        let start = Self::default();
+        FILTERS
+            .iter()
+            .filter(|def| self.get(def.id) != start.get(def.id))
+            .map(|def| def.id)
+            .collect()
     }
 
     /// Keeps the entries that match; the order is preserved.

@@ -10,7 +10,7 @@ use std::time::Duration;
 use cockpit_core::api::{ActionResponse, JiraProject, JiraProjectsResponse, SyncResponse};
 use cockpit_core::{Action, ActionError, Actor, Source};
 use cockpit_integrations::github::{GitHubClient, PrLimits};
-use cockpit_integrations::jira::{JiraClient, jql_for, jql_for_project};
+use cockpit_integrations::jira::{JiraClient, jql_for_selection};
 use cockpit_integrations::oauth::{Endpoints, Service};
 use cockpit_integrations::outbound::plane;
 use cockpit_integrations::{GitHubService, JiraService, Services};
@@ -115,18 +115,19 @@ impl AppState {
             && let Some(client) = self.jira_client()
         {
             // A project chosen in the app takes precedence over `projects` and `jql` of the file.
-            let chosen = inner.live.copy().jira_project;
-            let in_project = chosen.is_some();
-            let jql = match &chosen {
-                Some(p) => jql_for_project(p),
-                None => jql_for(&j.projects, j.jql.as_deref()),
-            };
-            match (client, jql) {
-                (Ok(client), Ok(jql)) => {
+            let live = inner.live.copy();
+            let query = jql_for_selection(
+                &j.projects,
+                j.jql.as_deref(),
+                live.jira_project.as_deref(),
+                live.inbox_filter.sprint,
+            );
+            match (client, query) {
+                (Ok(client), Ok(query)) => {
                     services.jira = Some(JiraService {
                         client,
-                        jql,
-                        in_project,
+                        jql: query.jql,
+                        in_project: query.in_selection,
                     })
                 }
                 (Err(e), _) | (_, Err(e)) => tracing::warn!("Jira: {e}"),

@@ -108,7 +108,7 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `POST /api/actions` | body `{"action": <Action>}`; applied as the user. Answer `{revision, summary, logged}`; a rejected action is `422` (unknown shape `400`) with `{"error": "…"}`; a failed outward call is `502` |
 | `POST /api/sync` | "sync now" with Jira and GitHub. Answer `{active, revision, logged}`; `active: false` when no source is set up |
 | `GET /api/events` | server-sent events: first the current revision, then one event per action with the new revision and new log entries, plus keep-alive |
-| `GET /api/jira/projects` | Jira projects for the inbox drop-down: `{active, projects: [{key, name}]}` |
+| `GET /api/jira/projects` | Jira projects for the filter dialog of the inbox: `{active, projects: [{key, name}]}` |
 | `POST /api/jira/check` | connection test for Jira with an API token, read only (`GET /rest/api/3/myself`): `{ok, cause, message, name}`; `cause` is `ok`, `details`, `address`, `token`, `permission`, `reachable` or `other`; never the token |
 | `GET /api/agent/image`, `POST /api/agent/image` | state of "build image" `{running, present, error, lines}`, or start the build in the background |
 | `GET /api/agent/check` | connection test to the endpoint: `{configured, reachable, key_ok, model_present, hint}` |
@@ -306,7 +306,7 @@ first. Required tests cannot be switched off. Changed rules apply to new runs an
 comments and reviews only after your approval; the agent never merges.
 
 **Status follows the pull request.** A ticket's status follows its linked pull request (draft/open → In Arbeit, review
-requested → Review, merged → Fertig); switchable in the "Mehr" menu, author in the log: System. Ticket and pull request are
+requested → Review, merged → Fertig); switchable in the inbox's filter dialog, author in the log: System. Ticket and pull request are
 linked automatically by the key in branch or title (`BAU-142`), otherwise by hand.
 
 **Review mechanics.** For a line comment, "Änderung vorschlagen" lets you enter replacement code for the line
@@ -380,12 +380,12 @@ close button, a followed link and `hashchange` close it, focus returns to the bu
 | Brand "Cockpit" + badge "Lokal" | top of the "Mehr" sheet |
 | Entries (11 targets) | pill (4) and "Mehr" sheet (7) |
 | Connections Jira / GitHub / agent | "Mehr" sheet, section "Verbindungen" (each leads to the setup) |
-| Inbox: rules (6 switches) and "Tickets" (follow status) | "Mehr" sheet while the inbox is open (`MoreSection`) |
+| Inbox: rules (6 switches) and "Status folgt dem Pull Request" | filter dialog of the inbox (button "Filter") |
 | Pull-request list ("Reviews") | first column of the pull-request page (`PickerPane`) |
 | Agent-run list | first column of the agent page (`PickerPane`) |
 
 - **Phone details:** `viewport-fit=cover`, `dvh` instead of `vh`; notices (toasts) sit above the pill; long button
-  labels and addresses wrap; the filter bar of the inbox wraps instead of scrolling.
+  labels and addresses wrap; the filter dialog is a sheet from the bottom, its chips wrap instead of scrolling.
 - **List and detail as two levels (`StackLevel`):** below 768 px a page with list and detail shows one level. `SplitView`
   takes `level` (from `Route::level()`), `back_label` and `back_href`. The first pane is the list level, all further
   panes are the detail level. A tap on an entry goes to its own address, the detail slides in from the right
