@@ -138,6 +138,9 @@ pub enum Checks {
     Passed,
     Failed,
     Running,
+    /// The token cannot read checks (a fine-grained token has no "Checks" permission) and the
+    /// commit status says nothing either. The pull request itself is unaffected.
+    Unknown,
 }
 
 impl Checks {
@@ -146,6 +149,7 @@ impl Checks {
             Checks::Passed => "Checks bestanden",
             Checks::Failed => "Checks fehlgeschlagen",
             Checks::Running => "Checks laufen",
+            Checks::Unknown => "Checks nicht sichtbar",
         }
     }
 
@@ -154,6 +158,7 @@ impl Checks {
             Checks::Passed => Tone::Green,
             Checks::Failed => Tone::Red,
             Checks::Running => Tone::Blue,
+            Checks::Unknown => Tone::Gray,
         }
     }
 }

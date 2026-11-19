@@ -13,6 +13,7 @@ core_sync.summary_removed = {n} entries no longer there
 core_sync.checks_passed = Checks passed
 core_sync.checks_failed = Checks failed
 core_sync.checks_running = Checks running
+core_sync.checks_unknown = Checks not visible
 core_sync.problem_unauthorized = Token rejected: expired or revoked. Renew it under "Setup"
 core_sync.problem_no_permission = The token lacks a permission. Check under "Setup" what it may do
 core_sync.problem_rate_limited_paused = Quota used up. The sync pauses

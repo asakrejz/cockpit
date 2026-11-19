@@ -8,12 +8,13 @@ mod panel;
 mod patch;
 
 pub use client::{
-    GitHubClient, MAX_REPOS, OpenPulls, PrLimits, Relation, RepoAccess, RepoInfo, RepoList,
+    GitHubClient, LoadedChecks, MAX_REPOS, OpenPulls, PrLimits, Relation, RepoAccess, RepoInfo,
+    RepoList,
 };
 pub use map::{
     PrRelation, aggregate_checks, changes_requested, check_runs_to_core, comments_to_core,
     comments_with_reviews, file_to_diff, mention_for, pull_to_item, pull_to_item_for,
-    pull_to_review,
+    pull_to_review, status_to_checks,
 };
 pub use panel::{panel_commits, panel_diff};
 pub use patch::parse_patch;

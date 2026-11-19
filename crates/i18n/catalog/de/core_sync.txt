@@ -13,6 +13,7 @@ core_sync.summary_removed = {n} Einträge nicht mehr dabei
 core_sync.checks_passed = Checks bestanden
 core_sync.checks_failed = Checks fehlgeschlagen
 core_sync.checks_running = Checks laufen
+core_sync.checks_unknown = Checks nicht sichtbar
 core_sync.problem_unauthorized = Token abgelehnt – abgelaufen oder widerrufen. Unter „Einrichten“ erneuern
 core_sync.problem_no_permission = Dem Token fehlt eine Berechtigung – unter „Einrichten“ prüfen, was er darf
 core_sync.problem_rate_limited_paused = Kontingent aufgebraucht – der Abgleich pausiert

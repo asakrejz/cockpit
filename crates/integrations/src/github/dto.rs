@@ -136,6 +136,17 @@ pub struct CheckRuns {
     pub check_runs: Vec<CheckRun>,
 }
 
+/// `GET /repos/{owner}/{repo}/commits/{sha}/status`: the combined commit status. Needs only the
+/// permission "Commit statuses" (read), which a fine-grained token can have.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct CombinedStatus {
+    /// `success`, `failure`, `error` or `pending` (also when there is no status at all).
+    #[serde(default)]
+    pub state: String,
+    #[serde(default)]
+    pub total_count: u32,
+}
+
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct CheckRun {
     #[serde(default)]

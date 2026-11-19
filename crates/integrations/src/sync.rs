@@ -262,8 +262,10 @@ async fn pull_load(
     now_s: i64,
 ) -> Result<(cockpit_core::Item, Review, PrLink), Error> {
     let nr = pull.number;
-    let runs = client.check_runs(repo, &pull.head.sha).await?;
-    let checks = crate::github::aggregate_checks(&runs);
+    // Without the permission "Checks" (fine-grained token) only the commit status is read, or the
+    // state stays unknown; the pull request loads either way.
+    let crate::github::LoadedChecks { runs, checks } =
+        client.checks_load(repo, &pull.head.sha).await?;
     // Comments and verdicts only for pull requests that concern me.
     let (verdicts, comments, lines) = if relation.mine() {
         (
