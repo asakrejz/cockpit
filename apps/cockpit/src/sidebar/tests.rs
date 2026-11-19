@@ -29,16 +29,16 @@ fn no_two_targets_share_a_route() {
 }
 
 #[test]
-fn the_pill_has_three_targets_and_more_holds_the_rest() {
+fn the_pill_has_four_targets_and_more_holds_the_rest() {
     let bar = TARGETS.iter().filter(|t| t.slot == Slot::Bar).count();
     let more = TARGETS.iter().filter(|t| t.slot == Slot::More).count();
-    assert_eq!(bar, 3);
+    assert_eq!(bar, 4);
     assert_eq!(bar + more, TARGETS.len());
     assert!(more > 0);
 }
 
 #[test]
-fn the_pill_keeps_the_three_main_targets() {
+fn the_pill_keeps_the_four_main_targets() {
     let bar: Vec<Key> = TARGETS
         .iter()
         .filter(|t| t.slot == Slot::Bar)
@@ -46,7 +46,12 @@ fn the_pill_keeps_the_three_main_targets() {
         .collect();
     assert_eq!(
         bar,
-        [Key::NavTasks, Key::NavReviewsShort, Key::NavAgentsShort]
+        [
+            Key::NavTasks,
+            Key::NavReviewsShort,
+            Key::NavAgentsShort,
+            Key::NavOverviewShort
+        ]
     );
 }
 
@@ -60,8 +65,10 @@ fn the_capsule_slides_to_the_slot_of_the_current_page() {
     assert_eq!(active_slot(&Route::Review(None)), Some(1));
     assert_eq!(active_slot(&Route::Agent(Some("BAU-1".into()))), Some(2));
     // Everything behind "Mehr" lights the last slot.
-    assert_eq!(active_slot(&Route::Setup), Some(3));
-    assert_eq!(active_slot(&Route::Limits), Some(3));
+    assert_eq!(active_slot(&Route::Overview), Some(3));
+    assert_eq!(active_slot(&Route::OverviewMember("Ada".into())), Some(3));
+    assert_eq!(active_slot(&Route::Setup), Some(4));
+    assert_eq!(active_slot(&Route::Limits), Some(4));
 }
 
 #[test]

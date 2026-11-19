@@ -13,7 +13,6 @@ nav.notifications = Benachrichtigungen
 nav.notifications_short = Mitteilungen
 nav.setup = Einrichten
 nav.setup_short = Einrichten
-nav.stuck = {n} hängt
 nav.agents_running = {n} aktiv
 nav.agents_waiting = {n} wartet
 nav.agents_paused = {n} pausiert

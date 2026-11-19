@@ -2,10 +2,9 @@
 
 Pages of the app (hash routes). Back to the [README](../README.md).
 
-**Navigation:** a floating glass pill at the bottom edge on every screen size: Aufgaben, Reviews, Agenten and
+**Navigation:** a floating glass pill at the bottom edge on every screen size: Aufgaben, Reviews, Agenten, Übersicht and
 **Mehr**. "Aufgaben" is the whole inbox; its filters (Alle, Ich, Team, Zurückgestellt) are switched on the page. It opens
-with the filter chosen last (saved per browser; "Ich" at first). "Mehr" opens a menu with the other pages (Übersicht,
-Protokoll, Grenzen & Regeln, Benachrichtigungen, Einrichten), the connection states of Jira, GitHub and the agent, and on the inbox the rules
+with the filter chosen last (saved per browser; "Ich" at first). "Mehr" opens a menu with the other pages (Protokoll, Grenzen & Regeln, Benachrichtigungen, Einrichten), the connection states of Jira, GitHub and the agent, and on the inbox the rules
 (which events count as attention). The lists of pull requests and agent runs are the first column of their pages.
 Every column scrolls on its own. Details: [Layout and navigation](architecture.md#layout-and-navigation).
 

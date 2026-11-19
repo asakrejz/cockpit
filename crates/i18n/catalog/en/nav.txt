@@ -13,7 +13,6 @@ nav.notifications = Notifications
 nav.notifications_short = Alerts
 nav.setup = Setup
 nav.setup_short = Setup
-nav.stuck = {n} stuck
 nav.agents_running = {n} running
 nav.agents_waiting = {n} waiting
 nav.agents_paused = {n} paused

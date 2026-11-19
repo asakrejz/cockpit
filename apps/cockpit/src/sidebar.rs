@@ -4,7 +4,7 @@
 //! pill, the rest behind "More". The pill lives in the app shell (`main.rs`) so it stays when the
 //! page changes (and its capsule can slide).
 
-use cockpit_core::{Filter, team};
+use cockpit_core::Filter;
 use feature_ui::*;
 use leptos::prelude::*;
 
@@ -43,13 +43,6 @@ const TARGETS: [Target; 8] = [
         slot: Slot::Bar,
     },
     Target {
-        route: || Route::Overview,
-        label: Key::NavOverview,
-        short: Key::NavOverviewShort,
-        icon: icons::CHART,
-        slot: Slot::More,
-    },
-    Target {
         route: || Route::Review(None),
         label: Key::NavReviews,
         short: Key::NavReviewsShort,
@@ -61,6 +54,13 @@ const TARGETS: [Target; 8] = [
         label: Key::NavAgents,
         short: Key::NavAgentsShort,
         icon: icons::SPARKLES,
+        slot: Slot::Bar,
+    },
+    Target {
+        route: || Route::Overview,
+        label: Key::NavOverview,
+        short: Key::NavOverviewShort,
+        icon: icons::CHART,
         slot: Slot::Bar,
     },
     Target {
@@ -126,10 +126,6 @@ impl Target {
         let now = store.now.get();
         match (self.route)() {
             Route::Inbox(_) => store.ws.with(|w| w.tasks_unread(now)).to_string(),
-            Route::Overview => match store.ws.with(|w| team::stuck(w).len()) {
-                0 => String::new(),
-                n => t!(NavStuck, n = n),
-            },
             Route::Review(_) => store.ws.with(|w| w.open_reviews()).to_string(),
             Route::Agent(_) => agent_summary(store),
             _ => String::new(),
@@ -142,7 +138,6 @@ impl Target {
         match (self.route)() {
             // Snoozed things are not new; "Ich" and the attention list count each entry once.
             Route::Inbox(_) => store.ws.with(|w| w.tasks_unread(now)),
-            Route::Overview => store.ws.with(|w| team::stuck(w).len()),
             Route::Review(_) => store.ws.with(|w| w.open_reviews()),
             Route::Agent(_) => store.ws.with(|w| w.waiting_agents()),
             _ => 0,
