@@ -4,7 +4,7 @@
 //! pill, the rest behind "More". The pill lives in the app shell (`main.rs`) so it stays when the
 //! page changes (and its capsule can slide).
 
-use cockpit_core::{Filter, team};
+use cockpit_core::Filter;
 use feature_ui::*;
 use leptos::prelude::*;
 
@@ -22,7 +22,8 @@ enum Slot {
     More,
 }
 
-/// One page of the navigation.
+/// One page of the navigation. "Aufgaben" stands for the whole inbox page: its filters
+/// (Alle, Ich, Team, Zurückgestellt) are switched on the page itself.
 struct Target {
     route: fn() -> Route,
     label: Key,
@@ -33,41 +34,13 @@ struct Target {
 }
 
 /// All targets, in the order of the pill and the sheet.
-const TARGETS: [Target; 11] = [
-    Target {
-        route: || Route::Inbox(Filter::All),
-        label: Key::NavAttention,
-        short: Key::NavAttentionShort,
-        icon: icons::BELL,
-        slot: Slot::Bar,
-    },
+const TARGETS: [Target; 8] = [
     Target {
         route: || Route::Inbox(Filter::Mine),
-        label: Key::NavMine,
-        short: Key::NavMineShort,
+        label: Key::NavTasks,
+        short: Key::NavTasks,
         icon: icons::TASKS,
         slot: Slot::Bar,
-    },
-    Target {
-        route: || Route::Inbox(Filter::Team),
-        label: Key::NavTeam,
-        short: Key::NavTeamShort,
-        icon: icons::USERS,
-        slot: Slot::More,
-    },
-    Target {
-        route: || Route::Inbox(Filter::Snoozed),
-        label: Key::NavSnoozed,
-        short: Key::NavSnoozedShort,
-        icon: icons::MOON,
-        slot: Slot::More,
-    },
-    Target {
-        route: || Route::Overview,
-        label: Key::NavOverview,
-        short: Key::NavOverviewShort,
-        icon: icons::CHART,
-        slot: Slot::More,
     },
     Target {
         route: || Route::Review(None),
@@ -81,6 +54,13 @@ const TARGETS: [Target; 11] = [
         label: Key::NavAgents,
         short: Key::NavAgentsShort,
         icon: icons::SPARKLES,
+        slot: Slot::Bar,
+    },
+    Target {
+        route: || Route::Overview,
+        label: Key::NavOverview,
+        short: Key::NavOverviewShort,
+        icon: icons::CHART,
         slot: Slot::Bar,
     },
     Target {
@@ -114,6 +94,14 @@ const TARGETS: [Target; 11] = [
 ];
 
 impl Target {
+    /// Where the entry leads. "Aufgaben" leads to the filter chosen last.
+    fn href(&self) -> String {
+        match (self.route)() {
+            Route::Inbox(_) => Route::TASKS_HASH.to_string(),
+            other => other.hash(),
+        }
+    }
+
     fn label_text(&self) -> String {
         tr(self.label, &[])
     }
@@ -128,6 +116,7 @@ impl Target {
         match (&own, route) {
             (Route::Review(_), Route::Review(_)) | (Route::Agent(_), Route::Agent(_)) => true,
             (Route::Setup, other) => other.is_setup(),
+            (Route::Inbox(_), Route::Inbox(_) | Route::InboxItem(..)) => true,
             _ => own == route.page(),
         }
     }
@@ -136,17 +125,7 @@ impl Target {
     fn count_text(&self, store: Store) -> String {
         let now = store.now.get();
         match (self.route)() {
-            Route::Inbox(Filter::Snoozed) => {
-                match store.ws.with(|w| w.unread(Filter::Snoozed, now)) {
-                    0 => String::new(),
-                    n => n.to_string(),
-                }
-            }
-            Route::Inbox(filter) => store.ws.with(|w| w.unread(filter, now)).to_string(),
-            Route::Overview => match store.ws.with(|w| team::stuck(w).len()) {
-                0 => String::new(),
-                n => t!(NavStuck, n = n),
-            },
+            Route::Inbox(_) => store.ws.with(|w| w.tasks_unread(now)).to_string(),
             Route::Review(_) => store.ws.with(|w| w.open_reviews()).to_string(),
             Route::Agent(_) => agent_summary(store),
             _ => String::new(),
@@ -157,10 +136,8 @@ impl Target {
     fn attention(&self, store: Store) -> usize {
         let now = store.now.get();
         match (self.route)() {
-            // Snoozed things are not new.
-            Route::Inbox(Filter::Snoozed) => 0,
-            Route::Inbox(filter) => store.ws.with(|w| w.unread(filter, now)),
-            Route::Overview => store.ws.with(|w| team::stuck(w).len()),
+            // Snoozed things are not new; "Ich" and the attention list count each entry once.
+            Route::Inbox(_) => store.ws.with(|w| w.tasks_unread(now)),
             Route::Review(_) => store.ws.with(|w| w.open_reviews()),
             Route::Agent(_) => store.ws.with(|w| w.waiting_agents()),
             _ => 0,
@@ -260,7 +237,7 @@ pub fn AppNav() -> impl IntoView {
         let count = Signal::derive(move || t.count_text(store));
         view! {
             <SidebarItem
-                href=(t.route)().hash()
+                href=t.href()
                 label=t.label_text()
                 icon=t.icon
                 count=count
@@ -274,7 +251,7 @@ pub fn AppNav() -> impl IntoView {
         .map(|t| {
             view! {
                 <BottomNavItem
-                    href=(t.route)().hash()
+                    href=t.href()
                     label=t.short_text()
                     icon=t.icon
                     current=Signal::derive(move || t.is_current(&store.route.get()))
@@ -319,7 +296,7 @@ pub fn AppNav() -> impl IntoView {
             active=active
             more=move || {
                 view! {
-                    <SidebarBrand href="#/">
+                    <SidebarBrand href=crate::route::Route::TASKS_HASH>
                         "Cockpit"
                         <span title=t!(NavLocalHint)>
                             <Badge variant=BadgeVariant::Neutral>{t!(NavLocal)}</Badge>

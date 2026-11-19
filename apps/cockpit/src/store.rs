@@ -97,7 +97,7 @@ impl Store {
             // Whether the agent is ready and Jira and GitHub are connected is reported by the backend.
             conn: RwSignal::new(Connections::default()),
             health: RwSignal::new(None),
-            route: RwSignal::new(Route::parse(&current_hash())),
+            route: RwSignal::new(Route::resolve(&current_hash(), crate::last_filter::get())),
             toasts: RwSignal::new(Vec::new()),
             permission: RwSignal::new(browser::permission()),
             now: RwSignal::new(now_ms()),
@@ -417,6 +417,20 @@ impl Store {
             self.route.set(route.clone());
         } else {
             navigate(route);
+        }
+    }
+}
+
+impl Store {
+    /// Takes the route from the address. A tasks address without a filter is replaced (no new
+    /// history entry) by the one of the filter chosen last.
+    pub fn apply_hash(&self) {
+        let hash = current_hash();
+        let route = Route::resolve(&hash, crate::last_filter::get());
+        if Route::is_tasks_alias(&hash) {
+            self.replace_route(&route);
+        } else {
+            self.route.set(route);
         }
     }
 }

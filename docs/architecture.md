@@ -415,9 +415,9 @@ least 5.5 : 1 (label) over black, white and five saturated backdrops, in light a
 high; in low windows (≤ 500 px high) icon and label sit side by side. On touch devices the pill steps aside while a text
 field has the focus. `<nav aria-label>`, `aria-current="page"`, focus ring.
 
-**Targets (one definition).** `TARGETS` in `apps/cockpit/src/sidebar.rs` lists all 11 pages once, each with a `Slot`:
-four in the pill (Inbox, Aufgaben, Reviews, Agenten) and **Mehr**, which opens a bottom sheet with the other targets
-(Team, Zurückgestellt, Übersicht, Protokoll, Grenzen & Regeln, Benachrichtigungen, Einrichten). Counters are badges; the
+**Targets (one definition).** `TARGETS` in `apps/cockpit/src/sidebar.rs` lists all 8 pages once, each with a `Slot`:
+four in the pill (Aufgaben, Reviews, Agenten, Übersicht) and **Mehr**, which opens a bottom sheet with the other targets
+(Protokoll, Grenzen & Regeln, Benachrichtigungen, Einrichten). "Aufgaben" leads to `#/tasks`, which becomes the filter chosen last (`Route::resolve`, `last_filter.rs`, default "Ich"); its badge counts every unread entry of "Ich" and "Alle" once (`Workspace::tasks_unread`). Counters are badges; the
 badge of "Mehr" is the sum behind it, and "Mehr" is current when the current page lives in the sheet. Big screens have
 room for more targets, but all stay reachable through the sheet, so the pill is the same everywhere. The sheet is a
 modal dialog (`role="dialog"`, `aria-modal`): focus moves in, Tab stays inside, Escape, a tap on the dimmed area, the

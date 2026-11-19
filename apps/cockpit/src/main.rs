@@ -8,6 +8,7 @@ mod banner;
 mod first_run;
 mod gate;
 mod language;
+mod last_filter;
 mod notify;
 mod oauth_card;
 mod oauth_result;
@@ -30,7 +31,7 @@ use pages::{
     notifications::NotificationsPage, overview::OverviewPage, review::ReviewPage, setup::SetupPage,
 };
 use route::Route;
-use store::{Store, current_hash, now_ms};
+use store::{Store, now_ms};
 
 /// This often the app reads the clock again (snoozes, "vor 5 Min.").
 const CLOCK_TICK: Duration = Duration::from_secs(15);
@@ -65,8 +66,11 @@ fn App() -> impl IntoView {
 
     // The address determines the page.
     let listener = window_event_listener(leptos::ev::hashchange, move |_| {
-        store.route.set(Route::parse(&current_hash()));
+        store.apply_hash();
     });
+    // An address without a filter (the bare start page, `#/tasks`) becomes the one of the
+    // filter chosen last.
+    store.apply_hash();
     on_cleanup(move || listener.remove());
 
     // The clock of attention: the pages calculate with `store.now`, not with a clock of their own.
