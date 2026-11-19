@@ -35,7 +35,7 @@ site = "acme"               # optional: only if several sites are approved
 [agent]
 provider = "claude-agent-sdk"   # or "claude-code" or "codex"
 container = "podman"            # or "docker"; omit to detect the runtime
-# repo = "acme/app"             # optional default repo; otherwise you choose the repo when you start the agent
+repo = "acme/app"               # optional default repo; remove it to choose the repo at every start
 
 # Optional settings per repo. Without an entry a repo uses its default branch and the usual branch pattern;
 # the first start in a repo stores one (with watch = false). A Jira project can be routed to a repo here.
