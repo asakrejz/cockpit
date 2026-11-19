@@ -192,7 +192,32 @@ The same works through the API: `PUT /api/config` with an empty `client_id` (`{"
    in again. Network errors or service outages keep the tokens.
 
 `GET /api/health` reports under `sign_in.github` and `sign_in.jira` `connected`, `kind` (`oauth`, `token` or `none`),
-`oauth_possible` (app set up and secret present) and, for Atlassian, the `site`.
+`oauth_possible` (app set up and secret present), `expired` (the sign-in ran out and cannot be renewed) and, for
+Atlassian, the `site`. **This is the one place that decides whether a service is connected** (`ServiceStatus::resolve`
+in `cockpit-core`): a working sign-in goes before the token, an expired one falls back to the token, a token counts
+when its key is in `.env`. The summary, the sidebar, inbox, review, the assistant steps and the sync state all read it.
+
+### GitHub App and organization
+
+A user token of a GitHub App only sees repos on accounts where the app is **installed**. If your repos belong to an
+organization but the app is only installed on your personal account, the sign-in works and the lists stay empty:
+GitHub answers `404` (not visible) or `403` (permission missing) for each repo, and the sync keeps that as a small
+warning. Cockpit therefore asks `GET /api/github/access` (read-only: `GET /repos/{owner}/{repo}` per configured repo,
+plus `GET /user/installations` when something is hidden) and shows a hint instead of "No pull requests yet" in the
+review tab, the inbox, the GitHub step and the last step of the assistant. The hint lists the affected repos and
+these steps:
+
+1. Install the app on the organization that owns the repos (the page of your app on GitHub › *Install*; Cockpit
+   links to it when GitHub tells the app's name).
+2. If the organization is not offered, open the app's settings on GitHub. Under **Where can this GitHub App be
+   installed?** choose **Any account**.
+3. An owner of the organization may have to approve the installation.
+4. The app needs the repository permissions **Contents** and **Pull requests** (at least read).
+5. After you change permissions, accept them on the installation page; until then GitHub keeps the old ones.
+
+Then press *Check again*. Per repo the report says `visible`, `not_visible` (404), `no_permission` (403/401) or
+`unreachable` (network, quota: nothing is known, so it is no "empty" either). "No pull requests" is only shown when
+every configured repo is `visible`.
 
 **Not verified against the real services.** Token exchange, refresh, revocation and site choice are only tested
 against recorded or mocked responses (`cargo test`). Open until the first real run: whether Atlassian accepts

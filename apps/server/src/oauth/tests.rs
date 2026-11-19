@@ -6,6 +6,7 @@ use axum::Router;
 use axum::body::Body;
 use axum::extract::ConnectInfo;
 use axum::http::Request;
+use cockpit_core::AuthKind;
 use cockpit_integrations::oauth::Endpoints;
 use http_body_util::BodyExt;
 use tower::ServiceExt;

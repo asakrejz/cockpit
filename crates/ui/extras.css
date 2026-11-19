@@ -754,3 +754,7 @@ body.ui-scroll-locked { overflow: hidden; }
   margin-block: var(--ref-space-4) var(--ref-space-8);
 }
 .ck-translate > .ui-hint { flex-basis: 100%; }
+
+/* Hint: GitHub does not show some repos to the connected access (access_hint.rs). */
+.ck-access { padding: var(--ref-space-12) var(--ref-space-20); }
+.ck-access__steps { text-align: start; max-width: 52ch; }

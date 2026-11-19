@@ -10,6 +10,7 @@ use leptos::{ev, prelude::*, wasm_bindgen::JsCast};
 use web_sys::{HtmlElement, KeyboardEvent, ScrollIntoViewOptions, ScrollLogicalPosition};
 
 use crate::{
+    access_hint::{AccessBanner, AccessHint, problem_of, use_github_access},
     route::Route,
     server::{self, CallError},
     store::{Store, navigate, now_ms, use_store, utc_offset_min},
@@ -110,6 +111,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
     });
 
     let syncing = RwSignal::new(false);
+    let (access, recheck) = use_github_access();
     let (title, empty) = match filter {
         Filter::All => (t!(InboxTitleAll), t!(InboxEmptyAll)),
         Filter::Mine => (t!(InboxTitleMine), t!(InboxEmptyMine)),
@@ -148,6 +150,11 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                         {move || t!(InboxEntries, n = items.with(Vec::len))}
                     </p>
                 </PaneHeader>
+                {move || {
+                    problem_of(&access)
+                        .filter(|_| store.ws.with(|w| !w.items.is_empty()))
+                        .map(|a| view! { <AccessBanner access=a /> })
+                }}
                 <ul class="ck-inbox">
                     {move || {
                         let list = items.get();
@@ -176,7 +183,14 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                         } else if list.is_empty() && store.ws.with(|w| w.items.is_empty()) {
                             // A fresh workspace: nothing connected or synced yet.
                             let connected = store.conn.with(|c| c.jira || c.github);
-                            if connected {
+                            if let Some(a) = problem_of(&access) {
+                                view! {
+                                    <li class="ck-empty">
+                                        <AccessHint access=a recheck=recheck />
+                                    </li>
+                                }
+                                    .into_any()
+                            } else if connected {
                                 view! {
                                     <li class="ck-empty">
                                         <EmptyState

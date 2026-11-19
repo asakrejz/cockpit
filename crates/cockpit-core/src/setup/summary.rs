@@ -70,6 +70,8 @@ pub struct Snapshot {
     pub agent: AgentStatus,
     /// Result of the last connection test to the endpoint, if it has run already.
     pub check: Option<EndpointCheck>,
+    /// What GitHub shows of the configured repos, if it was asked (`GET /api/github/access`).
+    pub github_access: Option<crate::api::GitHubAccess>,
 }
 
 pub(super) fn service_line(
@@ -82,6 +84,8 @@ pub(super) fn service_line(
     token_way: Option<Msg>,
 ) -> Line {
     let (tone, text) = match (status.connected, status.kind) {
+        // The sign-in ran out and no token takes over: say why, not "not set up".
+        (false, _) if status.expired => (Tone::Problem, msg!(CoreSetupExpired)),
         (true, AuthKind::OAuth) => (Tone::Good, msg!(CoreSetupConnectedOauth, name = provider)),
         (true, _) => (Tone::Good, msg!(CoreSetupConnectedToken)),
         (false, _) if !client_id && !secret => (
@@ -109,6 +113,7 @@ pub(super) fn jira_line(s: &Snapshot) -> Line {
     let client_id = e.atlassian_client_id.is_some();
     let secret = e.has_key("atlassian-oauth");
     let (tone, text) = match (s.jira.connected, s.jira.kind) {
+        (false, _) if s.jira.expired => (Tone::Problem, msg!(CoreSetupExpired)),
         (true, AuthKind::OAuth) => (Tone::Good, msg!(CoreSetupJiraConnectedOauth)),
         (true, _) => (Tone::Good, msg!(CoreSetupConnectedToken)),
         // The way via the Atlassian app is started: say what is missing, as before.
@@ -179,6 +184,22 @@ pub fn summary(s: &Snapshot) -> Vec<Line> {
     if github.tone == Tone::Good && e.github_repos.is_empty() {
         github.tone = Tone::Problem;
         github.text = msg!(CoreSetupGithubNoRepos);
+    }
+    // Connected is not enough: the repos must be visible, or the lists stay empty.
+    if github.tone == Tone::Good
+        && let Some(a) = s.github_access.as_ref().filter(|a| a.problem())
+    {
+        let hidden: Vec<Msg> = a
+            .repos
+            .iter()
+            .filter(|r| r.visibility != crate::api::RepoVisibility::Visible)
+            .map(|r| Msg::raw(r.repo.clone()))
+            .collect();
+        github.tone = Tone::Problem;
+        github.text = msg!(
+            CoreSetupGithubHidden,
+            repos = ArgValue::joined(hidden, ", ")
+        );
     }
 
     let model = {

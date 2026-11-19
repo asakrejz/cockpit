@@ -99,6 +99,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use crate::config::JiraConfig;
 
+mod access;
 mod change;
 mod github;
 mod jira;

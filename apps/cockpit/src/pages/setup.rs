@@ -109,6 +109,7 @@ pub fn SetupPage() -> impl IntoView {
             container: health.container.clone(),
             agent: health.agent.clone(),
             check: None,
+            github_access: None,
         });
         // The address effect above takes the step over from here.
         store.replace_route(&Route::SetupStep(first_open_step(&lines)));

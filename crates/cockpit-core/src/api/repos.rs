@@ -28,6 +28,68 @@ pub enum RepoState {
     Failed,
 }
 
+/// Can the access see one configured repo? 404 and 403 are told apart from "no pull requests".
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RepoVisibility {
+    /// GitHub shows the repo.
+    Visible,
+    /// 404: the repo does not exist or the app is not installed where it lives.
+    NotVisible,
+    /// 403 or 401: the app lacks a permission, or a new permission is not confirmed yet.
+    NoPermission,
+    /// The check did not work (network, quota …): nothing is known.
+    Unreachable,
+}
+
+/// One configured repo and whether the access can see it.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct RepoSight {
+    pub repo: String,
+    pub visibility: RepoVisibility,
+}
+
+/// Response of `GET /api/github/access`: can the connected access see every configured repo?
+/// Only reads. The empty state of review and inbox says "no pull requests" only if
+/// [`GitHubAccess::problem`] is false.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct GitHubAccess {
+    /// GitHub is connected at all (token or sign-in).
+    #[serde(default)]
+    pub connected: bool,
+    /// The access is the sign-in via the GitHub App (not a token).
+    #[serde(default)]
+    pub via_app: bool,
+    #[serde(default)]
+    pub repos: Vec<RepoSight>,
+    /// Only with the app, only if a repo is not visible: is the app installed anywhere?
+    #[serde(default)]
+    pub installed: Option<bool>,
+    /// Page where the app is installed on an account or organization, if known.
+    #[serde(default)]
+    pub install_url: Option<String>,
+}
+
+impl GitHubAccess {
+    /// Some configured repo is not (surely) visible.
+    pub fn problem(&self) -> bool {
+        self.connected
+            && self
+                .repos
+                .iter()
+                .any(|r| r.visibility != RepoVisibility::Visible)
+    }
+
+    /// The repos of the given kind.
+    pub fn with(&self, visibility: RepoVisibility) -> Vec<&str> {
+        self.repos
+            .iter()
+            .filter(|r| r.visibility == visibility)
+            .map(|r| r.repo.as_str())
+            .collect()
+    }
+}
+
 /// Result of checking one repo (`POST /api/github/repos/check`). Only reads.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct RepoCheck {
