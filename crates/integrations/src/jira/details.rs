@@ -62,7 +62,7 @@ pub fn details_of(
     push(
         "priority",
         name_of("priority"),
-        f.extra.get("priority").and_then(named),
+        f.priority.as_ref().and_then(|p| text(&p.name)),
     );
     push(
         "assignee",
