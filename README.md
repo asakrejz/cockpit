@@ -127,6 +127,9 @@ Work on the UI with `(cd apps/playground && trunk serve --open)` (port 8080); fo
 When trying things out, use your own database and an empty `config.toml` (`COCKPIT_CONFIG`, `COCKPIT_DB`), once with
 an empty start and once with `COCKPIT_SEED=demo`; **never against real Jira or GitHub boards**.
 
+Layout check for the navigation (last element of every page visible and clickable, nothing under the pill) at 375, 768
+and 1280 px: [scripts/layout-check.js](scripts/layout-check.js) explains how to run it in the Browser pane.
+
 Rules for every PR: one feature, one branch, one PR against `main`; logic goes into `cockpit-core` with unit tests;
 CSS uses tokens only, `tokens.css` and `components.css` stay unchanged (own additions go into `extras.css`); new fields
 in persisted types need `#[serde(default)]`; what only real credentials can verify is tested against recorded responses

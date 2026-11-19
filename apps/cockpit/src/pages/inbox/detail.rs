@@ -267,34 +267,14 @@ pub(super) fn detail(
         .comments
         .iter()
         .map(|c| {
-            let comment = c.clone();
-            let original = c
-                .text_msg
-                .as_ref()
-                .map_or_else(|| c.text.clone(), |m| m.render(lang()));
             view! {
-                <crate::translate::Translatable
-                    text=original.clone()
-                    render=Callback::new(move |translated: Option<String>| {
-                        let (text, rich) = match translated {
-                            Some(text) => (text, Default::default()),
-                            None => (
-                                original.clone(),
-                                comment.rich.clone().unwrap_or_default(),
-                            ),
-                        };
-                        view! {
-                            <CommentBubble
-                                who=comment.author.name.clone()
-                                initials=comment.author.initials.clone()
-                                time=comment.time.clone()
-                                text=text
-                                rich=rich
-                                own=comment.own
-                            />
-                        }
-                        .into_any()
-                    })
+                <CommentBubble
+                    who=c.author.name.clone()
+                    initials=c.author.initials.clone()
+                    time=c.time.clone()
+                    text=c.text_msg.as_ref().map_or_else(|| c.text.clone(), |m| m.render(lang()))
+                    rich=c.rich.clone().unwrap_or_default()
+                    own=c.own
                 />
             }
         })
@@ -372,25 +352,10 @@ pub(super) fn detail(
         <PaneBody>
             {edit_form}
             <div hidden=move || edit.on.get() && is_ticket>
-                {
-                    let rich = item.description_rich.clone();
-                    let plain = item.description.clone();
-                    view! {
-                        <crate::translate::Translatable
-                            text=item.description.clone()
-                            render=Callback::new(move |translated: Option<String>| match translated {
-                                Some(text) => {
-                                    view! { <p class="t-body" style="white-space: pre-line">{text}</p> }
-                                        .into_any()
-                                }
-                                None => match rich.clone() {
-                                    Some(doc) => view! { <RichText doc=doc /> }.into_any(),
-                                    None => view! { <p class="t-body">{plain.clone()}</p> }.into_any(),
-                                },
-                            })
-                        />
-                    }
-                }
+                {match item.description_rich.clone() {
+                    Some(doc) => view! { <RichText doc=doc /> }.into_any(),
+                    None => view! { <p class="t-body">{item.description.clone()}</p> }.into_any(),
+                }}
             </div>
 
             <List>{ticket_props}</List>

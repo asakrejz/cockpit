@@ -96,11 +96,7 @@ impl AppState {
         let mut services = Services::default();
         if let Some(g) = sources.github.as_ref().filter(|g| !g.repos.is_empty()) {
             // The sign-in via OAuth goes before the token.
-            let access = match self.oauth_tokens(Service::GitHub) {
-                Some(t) => Some(t.access),
-                None => self.token(secrets::GITHUB),
-            };
-            if let Some(t) = access {
+            if let Some(t) = self.github_access() {
                 match GitHubClient::new(&g.api_url, t) {
                     Ok(client) => {
                         services.github = Some(GitHubService {
@@ -149,12 +145,21 @@ impl AppState {
         Some(JiraClient::new(&j.site, &j.email, t))
     }
 
-    /// The access to GitHub: the sign-in via OAuth goes before the token. Blocking.
-    pub(crate) fn github_access(&self) -> Option<cockpit_integrations::Secret> {
+    /// The access to GitHub and whether it is the sign-in via the app: a working sign-in goes
+    /// before the token, an expired one falls back to it (the same rule as
+    /// [`cockpit_core::ServiceStatus::resolve`]). Blocking.
+    pub(crate) fn github_credentials(&self) -> Option<(cockpit_integrations::Secret, bool)> {
         match self.oauth_tokens(Service::GitHub) {
-            Some(t) => Some(t.access),
-            None => self.token(secrets::GITHUB),
+            Some(t) if !(t.refresh.is_none() && t.needs_refresh(crate::oauth::now_seconds())) => {
+                Some((t.access, true))
+            }
+            _ => self.token(secrets::GITHUB).map(|t| (t, false)),
         }
+    }
+
+    /// The access to GitHub (see [`Self::github_credentials`]). Blocking.
+    pub(crate) fn github_access(&self) -> Option<cockpit_integrations::Secret> {
+        self.github_credentials().map(|(t, _)| t)
     }
 
     /// A key from the .env file, empty counts as missing. Blocking.

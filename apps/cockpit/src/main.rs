@@ -3,6 +3,7 @@
 //! The interface follows the design "Baukasten" and consists of the building blocks in
 //! `feature-ui`. What the buttons do is in `cockpit-core`. This app connects both.
 
+mod access_hint;
 mod banner;
 mod first_run;
 mod gate;
@@ -17,7 +18,6 @@ mod sidebar;
 mod store;
 mod sync_status;
 mod toasts;
-mod translate;
 mod view;
 
 use std::time::Duration;

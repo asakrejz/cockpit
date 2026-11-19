@@ -1,6 +1,8 @@
 # Setup: checks, summary and inputs
 core_setup.github_ok_user = GitHub answers and knows you as {name}.
 core_setup.github_ok = GitHub answers.
+core_setup.expired = The sign-in has run out. Sign in again.
+core_setup.github_hidden = Signed in, but GitHub does not show these repos to Cockpit: {repos}. The lists stay empty until that is fixed.
 core_setup.github_not_connected = GitHub is not connected yet. Store the token first (or sign in with the GitHub App).
 core_setup.github_token = GitHub rejects the token. It was copied wrongly, has expired or was revoked. Create a new one.
 core_setup.github_permission = The token is valid, but GitHub denies access. Check the rights of the token and whether the organization allows it.

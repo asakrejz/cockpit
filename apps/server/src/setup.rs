@@ -8,6 +8,7 @@
 //! * `POST /api/jira/check`: connection test for Jira via API token (read only)
 //! * `GET /api/github/repos`: the repos the GitHub access can reach (read only)
 //! * `POST /api/github/branch-suggestion`: a branch pattern proposed from the repo's CONTRIBUTING.md (read only)
+//! * `GET /api/github/access`: can the access see every configured repo? (read only)
 //! * `POST /api/github/check`: connection test for GitHub: user and chosen repos (read only)
 //!
 //! All three run behind the check from `access` (loopback, host, origin, content type).
@@ -47,6 +48,9 @@ pub use config_write::*;
 
 mod checks;
 pub use checks::*;
+
+mod access;
+pub use access::*;
 
 mod github;
 pub use github::*;

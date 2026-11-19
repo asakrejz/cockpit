@@ -1,8 +1,8 @@
 # Notices about sources (Jira, GitHub) and the server
 core_notice.title_unauthorized = {source}: token rejected
-core_notice.detail_unauthorized = The token has expired or was revoked. Renew it under "Set up". {stand}
+core_notice.detail_unauthorized = The token has expired or was revoked. Renew it under "Setup". {stand}
 core_notice.title_no_permission = {source}: permission missing
-core_notice.detail_no_permission = The token is valid, but it is not allowed to read this. Check under "Set up" which rights it needs. {stand}
+core_notice.detail_no_permission = The token is valid, but it is not allowed to read this. Check under "Setup" which rights it needs. {stand}
 core_notice.title_paused = {source}: sync paused
 core_notice.detail_paused = The quota of the service is used up. Cockpit asks again {wait}. {stand}
 core_notice.title_quota = {source}: quota used up
@@ -21,7 +21,7 @@ core_notice.server_unreachable_title = The server is not reachable
 core_notice.server_unreachable_text = Cockpit tries again automatically. Is the server still running? If not, restart it (start-cockpit.command or scripts/start.sh).
 core_notice.browser_offline_title = You are offline
 core_notice.browser_offline_text = This computer has no network right now. Local data stays visible. Jira and GitHub sync again as soon as the network is back.
-core_notice.http_401 = The request was rejected. Check the sign-in or the token (under "Set up").
+core_notice.http_401 = The request was rejected. Check the sign-in or the token (under "Setup").
 core_notice.http_403 = This is not allowed. The permission is missing.
 core_notice.http_429 = Too many requests. Wait a moment and try again.
 core_notice.http_5xx = The server reported an error ({status}). Try again in a moment.

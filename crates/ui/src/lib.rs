@@ -20,6 +20,7 @@
 //!
 //! All components must be inside [`Root`] (sets theme, tint, contrast).
 
+mod autohide;
 mod button;
 mod card;
 mod code;

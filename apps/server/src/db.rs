@@ -141,7 +141,8 @@ pub fn workspace_save(conn: &Connection, revision: u64, json: &str) -> Result<()
     Ok(())
 }
 
-/// Names of all stored connections.
+/// Names of all stored connections (the status no longer reads them: the key store decides).
+#[cfg(test)]
 pub fn connections(conn: &Connection) -> Result<Vec<String>, DbError> {
     let mut stmt = conn.prepare("SELECT name FROM connections ORDER BY name")?;
     let names = stmt

@@ -63,24 +63,20 @@ pub struct Health {
 impl AppState {
     /// Blocking (database, .env file) – do not call directly in an async handler.
     pub(super) fn health(&self) -> Health {
-        let names = match self.inner.db.lock() {
-            Ok(conn) => db::connections(&conn).unwrap_or_else(|e| {
-                tracing::warn!("Could not read connections: {e}");
-                Vec::new()
-            }),
-            Err(_) => Vec::new(),
+        // A token counts as set up when its key is in the key store - the same rule the sync
+        // uses to build its clients. Jira also needs its address from the configuration.
+        let has_token = |name: &str| {
+            self.inner.secrets.has(name).unwrap_or_else(|e| {
+                tracing::warn!("Could not check key \"{name}\": {e}");
+                false
+            })
         };
-        // A token (database entry **and** key) or the sign-in via OAuth.
-        let set_up = |name: &str| {
-            names.iter().any(|n| n == name)
-                && self.inner.secrets.has(name).unwrap_or_else(|e| {
-                    tracing::warn!("Could not check key \"{name}\": {e}");
-                    false
-                })
-        };
-        let github = self.service_status(Service::GitHub, set_up(secrets::GITHUB));
-        // Jira via token needs address and email from the configuration (entry in the database).
-        let jira = self.service_status(Service::Atlassian, set_up(secrets::JIRA));
+        let jira_configured = self.sources().jira.is_some();
+        let github = self.service_status(Service::GitHub, has_token(secrets::GITHUB));
+        let jira = self.service_status(
+            Service::Atlassian,
+            jira_configured && has_token(secrets::JIRA),
+        );
         let connections = Connections {
             github: github.connected,
             jira: jira.connected,
@@ -112,12 +108,11 @@ impl AppState {
             version: VERSION,
             sync: SyncState {
                 github: state(
-                    q.github.as_ref().is_some_and(|g| !g.repos.is_empty())
-                        && (github.kind == AuthKind::OAuth || has_key(secrets::GITHUB)),
+                    q.github.as_ref().is_some_and(|g| !g.repos.is_empty()) && github.connected,
                     cockpit_core::Source::GitHub,
                 ),
                 jira: state(
-                    q.jira.is_some() && (jira.kind == AuthKind::OAuth || has_key(secrets::JIRA)),
+                    q.jira.is_some() && jira.connected,
                     cockpit_core::Source::Jira,
                 ),
                 interval_s: q.interval.as_secs(),
@@ -183,7 +178,7 @@ impl AppState {
     }
 
     /// The key of the endpoint. `Err` is already a finished response.
-    pub(crate) async fn endpoint_key(
+    pub(super) async fn endpoint_key(
         &self,
     ) -> Result<Option<cockpit_integrations::Secret>, Box<Response>> {
         let secrets = self.inner.secrets.clone();

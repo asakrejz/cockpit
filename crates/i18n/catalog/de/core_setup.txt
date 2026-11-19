@@ -1,6 +1,8 @@
 # Einrichtung: Prüfungen, Zusammenfassung und Eingaben
 core_setup.github_ok_user = GitHub antwortet und kennt dich als {name}.
 core_setup.github_ok = GitHub antwortet.
+core_setup.expired = Die Anmeldung ist abgelaufen. Melde dich noch einmal an.
+core_setup.github_hidden = Angemeldet, aber GitHub zeigt Cockpit diese Repos nicht: {repos}. Die Listen bleiben leer, bis das behoben ist.
 core_setup.github_not_connected = GitHub ist noch nicht verbunden. Lege zuerst den Token ab (oder melde dich mit der GitHub App an).
 core_setup.github_token = GitHub lehnt den Token ab. Er ist falsch kopiert, abgelaufen oder widerrufen. Erzeuge einen neuen.
 core_setup.github_permission = Der Token ist gültig, aber GitHub verweigert den Zugriff. Prüfe die Rechte des Tokens und ob die Organisation ihn zulässt.

@@ -44,6 +44,46 @@ pub struct ServiceStatus {
     /// For Atlassian: the chosen site.
     #[serde(default)]
     pub site: Option<String>,
+    /// The sign-in via OAuth has run out and cannot be renewed: sign in again.
+    /// A token that is stored as a fallback still counts as connected.
+    #[serde(default)]
+    pub expired: bool,
+}
+
+/// What the key store holds for the OAuth sign-in of one service.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OAuthTokens {
+    /// No sign-in stored.
+    Missing,
+    /// A sign-in that works (or can be renewed with the refresh token).
+    Valid,
+    /// The access has run out and there is no refresh token.
+    Expired,
+}
+
+impl ServiceStatus {
+    /// **The one place** that decides whether a service counts as connected. Summary, sidebar,
+    /// inbox, review and the steps of the assistant all read this result (via `/api/health`).
+    /// A working OAuth sign-in goes before the token; an expired one falls back to the token.
+    pub fn resolve(
+        token: bool,
+        oauth: OAuthTokens,
+        oauth_possible: bool,
+        site: Option<String>,
+    ) -> Self {
+        let (connected, kind) = match (oauth, token) {
+            (OAuthTokens::Valid, _) => (true, AuthKind::OAuth),
+            (_, true) => (true, AuthKind::Token),
+            _ => (false, AuthKind::None),
+        };
+        Self {
+            connected,
+            kind,
+            oauth_possible,
+            site: site.filter(|n| !n.is_empty() && kind == AuthKind::OAuth),
+            expired: oauth == OAuthTokens::Expired,
+        }
+    }
 }
 
 /// Which connections stand and what the agent may do on its own.
