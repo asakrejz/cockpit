@@ -183,6 +183,12 @@ pub struct Item {
     /// Jira only: the issue type (`Bug`, `Story` …), `None` = unknown. Gives `{type}` of a branch.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub issue_type: Option<String>,
+    /// Jira only: who reported the ticket (display name; `Du` for me), `None` = unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reporter: Option<String>,
+    /// Jira only: I watch the ticket.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub watching: bool,
     /// Last update at the service (milliseconds since 1970), `None` = unknown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updated_ms: Option<u64>,

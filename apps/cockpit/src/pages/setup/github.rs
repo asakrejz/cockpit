@@ -14,6 +14,7 @@ use super::fields::{
     error_text,
 };
 use super::repo_picker::RepoPicker;
+use crate::access_hint::{AccessHint, problem_of, use_github_access};
 use crate::oauth_card::{OAuthCard, Service};
 use crate::server;
 
@@ -402,6 +403,7 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
         }
     });
     let method = current(chosen, default);
+    let (access, recheck) = use_github_access();
 
     view! {
         <VStack spacing="12px">
@@ -420,6 +422,7 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
                 </VStack>
             </div>
             <RepoPicker ctx=ctx />
+            {move || problem_of(&access).map(|a| view! { <AccessHint access=a recheck=recheck /> })}
             <ConnectionCheck ctx=ctx />
         </VStack>
     }

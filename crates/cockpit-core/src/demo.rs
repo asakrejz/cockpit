@@ -71,6 +71,8 @@ fn item(
         labels: Vec::new(),
         sprint: None,
         issue_type: None,
+        reporter: None,
+        watching: false,
         updated_ms: None,
         url: None,
         details: None,
@@ -295,7 +297,7 @@ fn add_sprints(ws: &mut Workspace) {
             item.sprint = Some(active.clone());
         }
     }
-    let ticket = |key: &str, title: &str, sprint: Option<Sprint>, days_ago: u64| {
+    let ticket = |key: &str, title: &str, sprint: Option<Sprint>, days_ago: u64, owner: Person| {
         let mut t = item(
             &key.to_lowercase().replace('-', ""),
             Kind::Ticket,
@@ -304,7 +306,7 @@ fn add_sprints(ws: &mut Workspace) {
             "Ticket einer Kollegin oder eines Kollegen – nur unter „Alle“ sichtbar.",
             (ReasonKind::Comment, "Im Sprint"),
             "vor 2 Tg.",
-            jonas(),
+            owner,
         );
         t.sprint = sprint;
         t.updated_ms = updated.map(|u| u - days_ago * 24 * 3600 * 1000);
@@ -315,6 +317,7 @@ fn add_sprints(ws: &mut Workspace) {
         "Kopfzeile auf schmalen Bildschirmen",
         Some(active.clone()),
         1,
+        lena(),
     ));
     ws.items.push(ticket(
         "WEB-22",
@@ -326,12 +329,14 @@ fn add_sprints(ws: &mut Workspace) {
             "2026-12-01T16:00:00.000Z",
         )),
         4,
+        mira(),
     ));
     ws.items.push(ticket(
         "WEB-23",
         "Idee: Dark-Mode-Schalter im Footer",
         None,
         40,
+        Person::new(crate::UNASSIGNED_NAME, "–"),
     ));
     ws.items.push(ticket(
         "WEB-18",
@@ -343,7 +348,27 @@ fn add_sprints(ws: &mut Workspace) {
             "2026-11-03T16:00:00.000Z",
         )),
         9,
+        jonas(),
     ));
+    // Reporter, type, priority and watching, so that the filters have something to choose from.
+    let extras = [
+        ("BAU-142", "Mira", "Story", Priority::High, false),
+        ("BAU-138", "Lena", "Bug", Priority::Highest, false),
+        ("BAU-150", "Jonas", "Task", Priority::Medium, true),
+        ("DOC-7", "Mira", "Task", Priority::Low, false),
+        ("WEB-21", "Jonas", "Bug", Priority::High, true),
+        ("WEB-22", "Lena", "Story", Priority::Medium, false),
+        ("WEB-23", "Mira", "Story", Priority::Lowest, false),
+        ("WEB-18", "Lena", "Task", Priority::Low, false),
+    ];
+    for (key, reporter, kind, priority, watching) in extras {
+        if let Some(t) = ws.items.iter_mut().find(|i| i.key == key) {
+            t.reporter = Some(reporter.into());
+            t.issue_type = Some(kind.into());
+            t.priority = priority;
+            t.watching = watching;
+        }
+    }
 }
 
 /// The rules the demo repo starts with: workflows and lock files stay off limits.

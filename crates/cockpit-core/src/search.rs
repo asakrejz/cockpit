@@ -4,7 +4,7 @@ use crate::filters::{
     ASSIGNED_TO_ME, FILTERS, NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED,
     UNASSIGNED_NAME,
 };
-use crate::model::{Filter, Item, Kind, Person, SourceFilter, SprintState, TicketStatus};
+use crate::model::{Filter, Item, Kind, Person, Priority, SourceFilter, SprintState, TicketStatus};
 use serde::{Deserialize, Serialize};
 
 /// Does the entry match the search text?
@@ -56,7 +56,18 @@ pub struct InboxFilter {
     /// Without regard to case.
     pub label: Option<String>,
     /// Whose entries are listed (decided by `Workspace::inbox`, not by [`InboxFilter::matches`]).
+    /// Stored under its own name, so that the old start value „Meine“ that older states carry
+    /// is dropped and the new start value „Alle“ applies.
+    #[serde(rename = "whose")]
     pub ownership: Ownership,
+    /// Name of the reporter of a ticket, [`ASSIGNED_TO_ME`] (me).
+    pub reporter: Option<String>,
+    /// Only tickets I watch.
+    pub watched: bool,
+    /// The issue type of a ticket (`Bug`, `Story` …), without regard to case.
+    pub issue_type: Option<String>,
+    /// The priority of a ticket.
+    pub priority: Option<Priority>,
     /// Jira project of the ticket, or of the ticket key in branch and title of a pull request;
     /// [`NO_TICKET`] = pull requests without a ticket key.
     pub project: Option<String>,
@@ -75,6 +86,10 @@ impl Default for InboxFilter {
             status: None,
             label: None,
             ownership: Ownership::default(),
+            reporter: None,
+            watched: false,
+            issue_type: None,
+            priority: None,
             project: None,
             sprint: SprintView::default(),
             hide_done: true,
@@ -100,6 +115,13 @@ impl InboxFilter {
             "person" => self.person.clone().unwrap_or_default(),
             "status" => self.status.map(|s| s.id().to_string()).unwrap_or_default(),
             "label" => self.label.clone().unwrap_or_default(),
+            "reporter" => self.reporter.clone().unwrap_or_default(),
+            "watched" => if self.watched { "on" } else { "off" }.into(),
+            "type" => self.issue_type.clone().unwrap_or_default(),
+            "priority" => self
+                .priority
+                .map(|p| p.id().to_string())
+                .unwrap_or_default(),
             _ => String::new(),
         }
     }
@@ -137,6 +159,20 @@ impl InboxFilter {
                 },
             },
             "label" => self.label = some(value),
+            "reporter" => self.reporter = some(value),
+            "watched" => match value {
+                "on" => self.watched = true,
+                "off" | "" => self.watched = false,
+                _ => return false,
+            },
+            "type" => self.issue_type = some(value),
+            "priority" => match value {
+                "" => self.priority = None,
+                v => match Priority::from_id(v) {
+                    Some(p) => self.priority = Some(p),
+                    None => return false,
+                },
+            },
             _ => return false,
         }
         true
@@ -170,6 +206,7 @@ impl InboxFilter {
                     .any(|own| own.to_lowercase() == l.to_lowercase())
             })
             && self.matches_project(item)
+            && self.matches_ticket_fields(item)
             && self.matches_ticket_state(item, now_ms)
     }
 
@@ -180,6 +217,33 @@ impl InboxFilter {
             Some(UNASSIGNED) => item.is_ticket() && item.owner.name == UNASSIGNED_NAME,
             Some(name) => item.owner.name == name,
         }
+    }
+
+    /// Reporter, watching, type and priority only concern tickets: as soon as one of them is
+    /// chosen, pull requests drop out.
+    fn matches_ticket_fields(&self, item: &Item) -> bool {
+        let chosen = self.reporter.is_some()
+            || self.watched
+            || self.issue_type.is_some()
+            || self.priority.is_some();
+        if !chosen {
+            return true;
+        }
+        item.is_ticket()
+            && match self.reporter.as_deref() {
+                None => true,
+                Some(ASSIGNED_TO_ME) => {
+                    item.reporter.as_deref() == Some(Person::me().name.as_str())
+                }
+                Some(name) => item.reporter.as_deref() == Some(name),
+            }
+            && (!self.watched || item.watching)
+            && self.issue_type.as_ref().is_none_or(|t| {
+                item.issue_type
+                    .as_ref()
+                    .is_some_and(|own| own.to_lowercase() == t.to_lowercase())
+            })
+            && self.priority.is_none_or(|p| item.priority == p)
     }
 
     fn matches_project(&self, item: &Item) -> bool {

@@ -11,6 +11,7 @@ use feature_ui::*;
 use leptos::prelude::*;
 
 use crate::{
+    access_hint::{AccessHint, problem_of, use_github_access},
     route::Route,
     server,
     store::{Store, use_store},
@@ -23,6 +24,8 @@ const REVIEW_TIME: Duration = Duration::from_millis(1200);
 #[component]
 pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
     let store = use_store();
+    // "No pull requests" is only true if GitHub shows every configured repo.
+    let (access, recheck) = use_github_access();
     // On a narrow screen the list is the level without a number in the address.
     let level = if number.is_some() {
         StackLevel::Detail
@@ -124,7 +127,7 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
                     />
                 </Show>
                 <ul class="ui-sidebar__nav">{list}</ul>
-                <Show when=no_reviews>
+                <Show when=move || no_reviews() && problem_of(&access).is_none()>
                     <p class="ck-empty t-footnote t-secondary">{t!(ReviewListEmpty)}</p>
                 </Show>
             </PickerPane>
@@ -134,7 +137,9 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
                     view! {
                         <Pane label=t!(ReviewPane)>
                             <PaneBody>
-                                {if no_reviews() {
+                                {move || if no_reviews() && let Some(a) = problem_of(&access) {
+                                    view! { <AccessHint access=a recheck=recheck /> }.into_any()
+                                } else if no_reviews() {
                                     view! {
                                         <EmptyState
                                             title=t!(ReviewEmptyTitle)

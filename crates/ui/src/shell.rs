@@ -249,6 +249,7 @@ pub fn BottomNav(
     children: Children,
 ) -> impl IntoView {
     let open = RwSignal::new(false);
+    let away = crate::autohide::use_autohide();
     let sheet = NodeRef::<leptos::html::Div>::new();
     let button = NodeRef::<leptos::html::Button>::new();
     let more_label = StoredValue::new(more_label);
@@ -335,7 +336,12 @@ pub fn BottomNav(
     };
 
     view! {
-        <nav class="ui-bottomnav" aria-label=label data-solid=solid.then_some("")>
+        <nav
+            class="ui-bottomnav"
+            aria-label=label
+            data-solid=solid.then_some("")
+            data-hidden=move || away.get().then_some("")
+        >
           <div class="ui-bottomnav__pill" style=format!("--slots:{slots}")>
             <ul
                 class="ui-bottomnav__list"

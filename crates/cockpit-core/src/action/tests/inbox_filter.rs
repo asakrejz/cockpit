@@ -6,7 +6,7 @@ use crate::{InboxFilter, Ownership, SourceFilter, SprintView};
 
 fn narrowed() -> InboxFilter {
     InboxFilter {
-        ownership: Ownership::All,
+        ownership: Ownership::Mine,
         sprint: SprintView::AllOpen,
         source: SourceFilter::Jira,
         person: Some(ASSIGNED_TO_ME.into()),
@@ -52,10 +52,15 @@ fn the_filter_survives_saving_and_old_data_without_it_loads() {
     let old = persist::load(&json.to_string()).unwrap();
     assert!(old.inbox_filter.is_default());
     // A stored filter that lacks newer fields keeps the start values for them.
-    json["workspace"]["inbox_filter"] = serde_json::json!({ "ownership": "All" });
+    json["workspace"]["inbox_filter"] = serde_json::json!({ "whose": "Mine" });
     let partial = persist::load(&json.to_string()).unwrap();
-    assert_eq!(partial.inbox_filter.ownership, Ownership::All);
+    assert_eq!(partial.inbox_filter.ownership, Ownership::Mine);
     assert!(partial.inbox_filter.hide_done);
+    // The old start value „Meine“ (stored as `ownership`) is not carried over: the start
+    // value is „Alle“ now, so colleagues' tickets show up.
+    json["workspace"]["inbox_filter"] = serde_json::json!({ "ownership": "Mine" });
+    let older = persist::load(&json.to_string()).unwrap();
+    assert_eq!(older.inbox_filter.ownership, Ownership::All);
 }
 
 #[test]

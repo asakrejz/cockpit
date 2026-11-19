@@ -216,13 +216,21 @@
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
-  padding-block: var(--ref-space-12) var(--ui-nav-space);
+  /* No end padding: the panes run down to the bottom edge, behind the pill. Each pane ends with
+     its own spacer (below), so the last element stays visible and clickable. */
+  padding-block: var(--ref-space-12) 0;
   padding-inline: max(var(--ref-space-12), env(safe-area-inset-left), env(safe-area-inset-right));
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
 }
 .ui-splitview > .ui-pane { position: relative; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+/* The pane that reaches the bottom edge flows off the screen: flat corners, a spacer as tall as
+   the pill (plus the safe area) at the end of its content. */
+@media (min-width: 768px) {
+  .ui-splitview > .ui-pane { border-end-start-radius: 0; border-end-end-radius: 0; }
+  .ui-splitview > .ui-pane::after { content: ""; display: block; flex: none; height: var(--ui-nav-space); }
+}
 /* Two panes: list and detail. */
 .ui-splitview:has(> .ui-pane:nth-of-type(2)) { grid-template-columns: minmax(320px, 420px) minmax(0, 1fr); }
 /* Three panes: picker, detail, context. */
@@ -244,6 +252,9 @@
   .ui-splitview:has(> .ui-pane:nth-of-type(3)) > .ui-pane:nth-of-type(1) { grid-row: 1 / 3; }
   .ui-splitview:has(> .ui-pane:nth-of-type(3)) > .ui-pane:nth-of-type(2) { grid-column: 2; grid-row: 1; }
   .ui-splitview:has(> .ui-pane:nth-of-type(3)) > .ui-pane:nth-of-type(3) { grid-column: 2; grid-row: 2; }
+  /* The detail pane sits above the context pane: it does not reach the bottom edge. */
+  .ui-splitview:has(> .ui-pane:nth-of-type(3)) > .ui-pane:nth-of-type(2) { border-end-start-radius: var(--sys-radius-container); border-end-end-radius: var(--sys-radius-container); }
+  .ui-splitview:has(> .ui-pane:nth-of-type(3)) > .ui-pane:nth-of-type(2)::after { display: none; }
 }
 
 /* Below 768 px: one column, the page scrolls. Which pane is on screen: "Two levels" below. */
@@ -264,10 +275,13 @@
   .ui-splitview > .ui-pane { overflow: visible; flex: none; width: 100%; max-width: 960px; margin-inline: auto; box-sizing: border-box; grid-area: auto; }
 }
 
-@media (max-width: 1100px) {
-  .ui-pane__header { padding: var(--ref-space-16) var(--ref-space-16) var(--ref-space-12); }
-  .ui-pane__body { padding: 0 var(--ref-space-16) var(--ref-space-16); }
-}
+/* One inner padding for every pane: header, body, empty states (also a body without header). */
+:root, [data-theme] { --ui-pane-pad: var(--ref-space-20); --ui-card-gap: var(--ref-space-12); }
+@media (max-width: 1100px) { :root, [data-theme] { --ui-pane-pad: var(--ref-space-16); } }
+.ui-pane__header { padding: var(--ui-pane-pad) var(--ui-pane-pad) var(--ref-space-12); }
+.ui-pane__body { padding: 0 var(--ui-pane-pad) var(--ui-pane-pad); }
+.ui-pane > .ui-pane__body:first-child { padding-block-start: var(--ui-pane-pad); }
+.ui-pane[data-kind="picker"] > .ui-pane__body:first-child { padding-block-start: var(--ref-space-8); }
 
 /* ---------------------------------------------------------------------
    Navigation pill ("liquid glass") on every width.
@@ -421,12 +435,13 @@
 .ui-bottomnav-sheet {
   display: flex;
   flex-direction: column;
-  width: min(100%, 640px);
-  max-height: calc(100dvh - max(var(--ref-space-24), env(safe-area-inset-top)));
-  padding: var(--ref-space-8) max(var(--ref-space-16), env(safe-area-inset-right))
-    calc(var(--ref-space-16) + env(safe-area-inset-bottom)) max(var(--ref-space-16), env(safe-area-inset-left));
+  width: min(100% - 2 * var(--ref-space-8), 640px);
+  max-height: calc(100dvh - max(var(--ref-space-24), env(safe-area-inset-top)) - var(--ref-space-8) - env(safe-area-inset-bottom));
+  margin-block-end: calc(var(--ref-space-8) + env(safe-area-inset-bottom));
+  padding: var(--ref-space-8) var(--ui-pane-pad) var(--ui-pane-pad);
   box-sizing: border-box;
-  border-radius: var(--ref-radius-26) var(--ref-radius-28) 0 0;
+  /* A card floating above the bottom edge: round on every corner, like the dialog. */
+  border-radius: var(--sys-radius-sheet);
   background: var(--sys-material-thick, var(--sys-color-grouped-background));
   -webkit-backdrop-filter: var(--sys-glass-filter);
   backdrop-filter: var(--sys-glass-filter);
@@ -442,10 +457,34 @@
   :root, [data-theme] { --ui-nav-space: calc(var(--sys-size-hit) + var(--ref-space-24) + env(safe-area-inset-bottom)); --ui-pill-slot: 96px; }
 }
 
-/* On-screen keyboard: where it shrinks the page (Android) the bar would sit on top of the focused
-   field, so it steps aside while a text field has the focus. */
-@media (pointer: coarse) {
-  body:has(input:focus, textarea:focus) .ui-bottomnav { display: none; }
+/* The pill slides down and fades out while it is in the way: reading on (`data-hidden`, set by
+   `autohide.rs`), an open sheet or dialog, and on narrow screens a focused input (the on-screen
+   keyboard would put it on top of the field). It never loses its place in the document, so
+   focusing it with the keyboard brings it back. */
+.ui-bottomnav__pill {
+  transition: transform var(--sys-motion-smooth), opacity var(--sys-motion-fade);
+}
+.ui-bottomnav[data-hidden] .ui-bottomnav__pill,
+body.ui-scroll-locked .ui-bottomnav .ui-bottomnav__pill,
+body:has(.ui-dialog-overlay) .ui-bottomnav .ui-bottomnav__pill {
+  transform: translateY(calc(100% + var(--ui-pill-gap) + env(safe-area-inset-bottom)));
+  opacity: 0;
+  pointer-events: none;
+}
+@media (max-width: 1100px), (pointer: coarse) {
+  body:has(input:focus, textarea:focus, select:focus) .ui-bottomnav .ui-bottomnav__pill {
+    transform: translateY(calc(100% + var(--ui-pill-gap) + env(safe-area-inset-bottom)));
+    opacity: 0;
+    pointer-events: none;
+  }
+}
+.ui-bottomnav[data-hidden]:focus-within .ui-bottomnav__pill {
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-bottomnav__pill { transition: none; }
 }
 
 /* Page behind an open sheet does not scroll. */
@@ -606,7 +645,7 @@ body.ui-scroll-locked { overflow: hidden; }
   flex-direction: column;
   width: 100%;
   max-height: 88dvh;
-  padding: var(--ref-space-8) var(--ref-space-16) var(--ref-space-16);
+  padding: var(--ref-space-8) var(--ui-pane-pad) calc(var(--ui-pane-pad) + env(safe-area-inset-bottom));
   border-radius: var(--sys-radius-sheet) var(--sys-radius-sheet) 0 0;
   background: var(--sys-color-secondary-grouped-background);
   color: var(--sys-color-label);
@@ -646,7 +685,7 @@ body.ui-scroll-locked { overflow: hidden; }
   .ui-dialog {
     width: min(560px, calc(100vw - 2 * var(--ref-space-24)));
     max-height: 80dvh;
-    padding-top: var(--ref-space-16);
+    padding-top: var(--ui-pane-pad);
     border-radius: var(--sys-radius-sheet);
   }
   .ui-dialog__grabber { display: none; }
@@ -745,14 +784,21 @@ body.ui-scroll-locked { overflow: hidden; }
 .ck-cleanup { padding: var(--ref-space-8) var(--ref-space-12); }
 .ck-cleanup__list { margin: 0; padding-inline-start: var(--ref-space-16); overflow-wrap: anywhere; }
 
-/* "Translate" under a text from Jira or GitHub: the button, the notice before the first time and the reason if it fails. */
-.ck-translate {
+/* Inbox: note above the detail of an entry that the filters hide. */
+.ck-hidden-note {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: var(--ref-space-8);
-  margin-block: var(--ref-space-4) var(--ref-space-8);
+  margin: var(--ref-space-12) var(--ref-space-16) 0;
+  padding: var(--ref-space-12) var(--ref-space-16);
+  border-radius: var(--ref-radius-12, 12px);
+  background: var(--sys-color-tertiary-fill);
 }
-.ck-translate > .ui-hint { flex-basis: 100%; }
 /* A picture from a ticket (attachment through the backend). */
 .ui-rich__image img { display: block; max-width: 100%; height: auto; border-radius: var(--ref-radius-12, 12px); background: var(--sys-color-tertiary-fill); }
+.ck-hidden-note p { margin: 0; }
+
+/* Hint: GitHub does not show some repos to the connected access (access_hint.rs). */
+.ck-access { padding: var(--ref-space-12) var(--ref-space-20); }
+.ck-access__steps { text-align: start; max-width: 52ch; }

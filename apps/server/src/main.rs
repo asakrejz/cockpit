@@ -33,7 +33,6 @@ mod review_panel;
 mod secrets;
 mod setup;
 mod sync;
-mod translate;
 mod webhooks;
 
 use std::io::Read;

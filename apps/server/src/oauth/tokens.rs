@@ -103,23 +103,18 @@ impl AppState {
     pub(crate) fn service_status(&self, d: Service, token_present: bool) -> ServiceStatus {
         let oauth_possible =
             self.oauth_config_id(d).is_some() && self.oauth_client_secret(d).is_some();
-        let oauth_connected = self.oauth_tokens(d).is_some()
-            && (d == Service::GitHub || self.atlassian_site().is_some());
-        let (connected, art) = if oauth_connected {
-            (true, AuthKind::OAuth)
-        } else if token_present {
-            (true, AuthKind::Token)
-        } else {
-            (false, AuthKind::None)
+        let oauth = match self.oauth_tokens(d) {
+            // Atlassian also needs the chosen site.
+            Some(_) if d == Service::Atlassian && self.atlassian_site().is_none() => {
+                OAuthTokens::Missing
+            }
+            Some(t) if t.refresh.is_none() && t.needs_refresh(now_s()) => OAuthTokens::Expired,
+            Some(_) => OAuthTokens::Valid,
+            None => OAuthTokens::Missing,
         };
-        ServiceStatus {
-            connected,
-            kind: art,
-            oauth_possible,
-            site: (d == Service::Atlassian && oauth_connected)
-                .then(|| self.atlassian_site().map(|(_, n)| n))
-                .flatten()
-                .filter(|n| !n.is_empty()),
-        }
+        let site = (d == Service::Atlassian)
+            .then(|| self.atlassian_site().map(|(_, n)| n))
+            .flatten();
+        ServiceStatus::resolve(token_present, oauth, oauth_possible, site)
     }
 }

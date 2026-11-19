@@ -24,12 +24,13 @@ use tower_http::services::ServeDir;
 use crate::access;
 use crate::config::{AgentChoice, Config, Seed};
 use crate::container::Cache;
+#[cfg(test)]
 use crate::db;
 use crate::live::Live;
 use crate::secrets::{self, SecretStore};
 use crate::sync::{ActionFailure, Sources};
+use cockpit_core::ServiceStatus;
 use cockpit_core::api::{AgentStatus, ContainerStatus, EndpointStatus};
-use cockpit_core::{AuthKind, ServiceStatus};
 use cockpit_integrations::oauth::Service;
 
 mod health;
@@ -75,7 +76,6 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
             get(crate::attachments::thumbnail),
         )
         .route("/api/agent/models", get(agent_models))
-        .route("/api/translate", post(crate::translate::translate))
         .route("/api/agent/check", get(endpoint_check))
         .route("/api/agent/pull-request", get(pull_request_preview))
         .route(
@@ -90,6 +90,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/github/repos/check", post(crate::setup::repos_check))
         .route("/api/github/repos", get(crate::setup::repos_list))
         .route("/api/github/check", post(crate::setup::github_check_route))
+        .route("/api/github/access", get(crate::setup::github_access_route))
         .route(
             "/api/github/branch-suggestion",
             post(crate::setup::branch_suggestion_route),

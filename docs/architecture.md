@@ -364,12 +364,6 @@ The interface is available in German and English and switches at once, without a
 - **Tests** (`crates/i18n/src/tests.rs`): both catalogs have the same files, ids and parameters; plural keys have `one` and `other`;
   no key is unused; a scan test (`tests/scan.rs`) fails when `apps/cockpit/src` or `crates/ui/src` contain a visible string literal
   (names like "Cockpit" or "GitHub" are on an allowlist there).
-- **Translating content on request.** `POST /api/translate` (`apps/server/src/translate.rs`, client in `crates/integrations/src/translate.rs`)
-  translates one text from Jira or GitHub with the model endpoint of the agent (`/v1/messages`, or `/v1/chat/completions` for Codex;
-  same key rules as the connection test: no redirects, timeout, limited response, key only in a header). The browser calls it only
-  from the "Translate" button (`apps/cockpit/src/translate.rs`), after a one-time notice that the text goes to the model service.
-  Texts over 20,000 characters are refused. Results are cached in the server (256 entries) and in the page. Without a key or model
-  the button is disabled. Tests use wiremock only.
 - **German texts** are in simple German: short sentences, no word-for-word translated jargon.
 - **Messages from core and server** (log entries, errors, hints, diagnoses, notifications, setup checks) are `cockpit_i18n::Msg`
   (`msg!(CoreActionStatusSet, key = ticket)`): a code (the catalog id) plus parameters, which may be nested messages. The UI renders

@@ -7,6 +7,7 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 
 use super::fields::{Context, Intro};
+use crate::access_hint::{AccessHint, problem_of, use_github_access};
 use crate::server;
 use crate::sync_status::SyncStatus;
 
@@ -56,6 +57,7 @@ fn JiraActions(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
 
 #[component]
 pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
+    let (access, recheck) = use_github_access();
     let lines = move || {
         let health = ctx.store.health.get().unwrap_or_default();
         summary(&Snapshot {
@@ -66,6 +68,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
             container: health.container.clone(),
             agent: health.agent.clone(),
             check: ctx.check.get(),
+            github_access: access.get(),
         })
     };
     view! {
@@ -111,6 +114,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                     }}
                 </ListSection>
             </List>
+            {move || problem_of(&access).map(|a| view! { <AccessHint access=a recheck=recheck /> })}
             <SyncStatus />
             <HStack css="justify-content: flex-end">
                 <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large href="#/">

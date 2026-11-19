@@ -1,0 +1,17 @@
+github_access.title_not_visible = GitHub does not show some of your repos to Cockpit
+github_access.title_no_permission = GitHub refuses Cockpit access to some of your repos
+github_access.title_unreachable = Cockpit could not check some of your repos
+github_access.repos = Affected: {repos}
+github_access.why_app = The sign-in works, but a GitHub App only sees repos on accounts where it is installed. The pull requests are not missing – Cockpit just cannot see them yet.
+github_access.why_token = The token is valid, but it does not reach these repos. Check that it was created for the owner of the repos and that it may use them.
+github_access.why_unreachable = GitHub did not answer, or it is slowing Cockpit down. Nothing is known about these repos yet. Check again in a moment.
+github_access.nowhere = The app is not installed on any account yet.
+github_access.steps = What to do
+github_access.step_install = Install the app on the organization that owns the repos (on GitHub: the page of your app › "Install").
+github_access.step_any_account = If the organization is not offered, open the settings of your app on GitHub. Under "Where can this GitHub App be installed?" choose "Any account".
+github_access.step_owner = An owner of the organization may have to approve the installation first.
+github_access.step_rights = The app needs the permissions "Contents" and "Pull requests" (at least read).
+github_access.step_confirm = After you change permissions, accept them on the installation page. Until then GitHub keeps the old ones.
+github_access.install_link = Open the install page
+github_access.recheck = Check again
+github_access.fix = Show what to do

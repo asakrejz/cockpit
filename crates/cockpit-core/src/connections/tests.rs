@@ -44,3 +44,33 @@ fn agent_needs_connection_and_permissions() {
     c.may_run_tests = false;
     assert_eq!(c.agent_blocked(), None, "tests are optional");
 }
+
+fn resolved(token: bool, oauth: OAuthTokens) -> (bool, AuthKind, bool) {
+    let s = ServiceStatus::resolve(token, oauth, true, Some("acme".into()));
+    (s.connected, s.kind, s.expired)
+}
+
+#[test]
+fn one_rule_for_every_combination_of_token_and_sign_in() {
+    use OAuthTokens::*;
+    // Only a token.
+    assert_eq!(resolved(true, Missing), (true, AuthKind::Token, false));
+    // Only the sign-in.
+    assert_eq!(resolved(false, Valid), (true, AuthKind::OAuth, false));
+    // Both: the sign-in goes first.
+    assert_eq!(resolved(true, Valid), (true, AuthKind::OAuth, false));
+    // Nothing.
+    assert_eq!(resolved(false, Missing), (false, AuthKind::None, false));
+    // Expired without a token: not connected, and it says why.
+    assert_eq!(resolved(false, Expired), (false, AuthKind::None, true));
+    // Expired with a token: the token keeps GitHub connected.
+    assert_eq!(resolved(true, Expired), (true, AuthKind::Token, true));
+}
+
+#[test]
+fn the_site_only_shows_with_a_working_sign_in() {
+    let on = ServiceStatus::resolve(false, OAuthTokens::Valid, true, Some("acme".into()));
+    assert_eq!(on.site.as_deref(), Some("acme"));
+    let token = ServiceStatus::resolve(true, OAuthTokens::Missing, true, Some("acme".into()));
+    assert_eq!(token.site, None);
+}
