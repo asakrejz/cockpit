@@ -17,3 +17,4 @@ ui.diff_select = Zeile {line}{description} auswählen
 ui.diff_added = , neu
 ui.diff_removed = , entfernt
 ui.image_of = Bild: {name}
+ui.markdown_image = Bild: {alt}

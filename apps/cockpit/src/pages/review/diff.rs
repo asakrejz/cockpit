@@ -148,7 +148,7 @@ pub(super) fn line_notes(
                                         })}
                                 </span>
                                 {(!text.with_value(String::is_empty))
-                                    .then(|| view! { <p class="t-subheadline">{text.get_value()}</p> })}
+                                    .then(|| view! { <Markdown text=text.get_value() class="t-subheadline" /> })}
                                 {diff.as_ref().map(suggestion_view)}
                                 {(!sent && own && open)
                                     .then(|| {
@@ -318,9 +318,10 @@ pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi, panel: PanelUi) -> 
                     <span class="ui-spacer"></span>
                     {ticket}
                 </div>
-                <p class="t-body t-secondary">
-                    {r.description_msg.as_ref().map_or_else(|| r.description.clone(), |m| m.render(lang()))}
-                </p>
+                <Markdown
+                    text=r.description_msg.as_ref().map_or_else(|| r.description.clone(), |m| m.render(lang()))
+                    class="t-body t-secondary"
+                />
             </PaneHeader>
             <PaneBody>{body}</PaneBody>
         </Pane>

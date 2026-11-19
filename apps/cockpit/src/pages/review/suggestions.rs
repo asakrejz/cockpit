@@ -143,7 +143,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                                 <span class="t-footnote t-secondary" style="padding-inline: 4px">
                                     {t!(ReviewSuggestionsSummaryNote)}
                                 </span>
-                                <p class="t-subheadline">{text.get_value()}</p>
+                                <Markdown text=text.get_value() class="t-subheadline" />
                                 <Button
                                     variant=ButtonStyle::Borderless
                                     size=ControlSize::Small
