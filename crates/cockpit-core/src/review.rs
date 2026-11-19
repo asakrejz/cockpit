@@ -375,6 +375,15 @@ pub struct Review {
 }
 
 impl Review {
+    /// Does this pull request belong to the ticket? The agent opened it for the ticket
+    /// (`ticket_key`), or its head branch, title or body names the key as a whole word.
+    pub fn belongs_to(&self, ticket_key: &str) -> bool {
+        self.ticket_key
+            .as_deref()
+            .is_some_and(|k| k.eq_ignore_ascii_case(ticket_key))
+            || crate::link::mentions(&[&self.branch, &self.title, &self.description], ticket_key)
+    }
+
     /// Identity of the pull request: repo and number.
     pub fn key(&self) -> PrKey {
         PrKey::new(&self.repo, self.number)

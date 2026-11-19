@@ -1,78 +1,44 @@
 use super::*;
 
 #[test]
-fn linking_by_hand_connects_both_sides() {
+fn linking_connects_both_sides() {
     let mut w = ws();
     // Do not follow the status, this is only about the link.
     w.pr_status_off = true;
-    let applied = ok(&mut w, link("bau150", 85), 1);
-    assert_eq!(applied.summary, "BAU-150 mit #85 verknüpft");
+    let applied = link(&mut w, "bau150", 85, 1);
+    assert_eq!(
+        applied.summary,
+        "BAU-150 automatisch mit asakrejz/rust-playground#85 verknüpft"
+    );
     let ticket = w.item("bau150").unwrap();
     assert_eq!(ticket.pr.as_ref().map(|p| p.number), Some(85));
-    assert_eq!(
-        ticket.branch.as_deref(),
-        Some("feature/BAU-127-list-separator")
-    );
+    assert_eq!(ticket.branch.as_deref(), Some("feature/bau-150-x"));
     assert_eq!(w.review(85).unwrap().ticket_key.as_deref(), Some("BAU-150"));
     assert_eq!(w.ticket_of_pr(85).map(|t| t.id.as_str()), Some("bau150"));
     // The copy on the ticket corresponds to the pull request's entry (checks red).
     assert_eq!(ticket.pr.as_ref().unwrap().checks, Checks::Failed);
-
-    fails(&mut w, link("bau150", 85), ActionError::Unchanged);
-    fails(
-        &mut w,
-        link("bau150", 87),
-        ActionError::Link(LinkError::TicketHasPr(PrKey::new(
-            "asakrejz/rust-playground",
-            85,
-        ))),
-    );
-    fails(
-        &mut w,
-        link("bau142", 85),
-        ActionError::Link(LinkError::PrHasTicket("BAU-150".into())),
-    );
-    fails(
-        &mut w,
-        link("bau142", 999),
-        ActionError::Link(LinkError::UnknownPr(999.into())),
-    );
-    fails(&mut w, link("pr87", 85), ActionError::NotATicket);
-    fails(
-        &mut w,
-        link("nix", 85),
-        ActionError::UnknownItem("nix".into()),
-    );
 }
 
 #[test]
-fn unlinking_removes_both_sides_and_the_branch_it_brought() {
-    let mut w = ws();
-    w.pr_status_off = true;
-    ok(&mut w, link("bau150", 85), 1);
-    let applied = ok(&mut w, unlink("bau150"), 1);
-    assert_eq!(
-        applied.summary,
-        "Verknüpfung von BAU-150 mit asakrejz/rust-playground#85 gelöst"
-    );
-    let ticket = w.item("bau150").unwrap();
-    assert_eq!((ticket.pr.clone(), ticket.branch.clone()), (None, None));
-    assert_eq!(w.review(85).unwrap().ticket_key, None);
-    assert!(w.ticket_of_pr(85).is_none());
-    fails(&mut w, unlink("bau150"), ActionError::NothingToDo);
-    fails(&mut w, unlink("pr87"), ActionError::NotATicket);
-    // A branch of the ticket's own stays.
-    w.items
-        .iter_mut()
-        .find(|i| i.id == "bau150")
-        .unwrap()
-        .branch = Some("mein-branch".into());
-    ok(&mut w, link("bau150", 85), 1);
-    ok(&mut w, unlink("bau150"), 1);
-    assert_eq!(
-        w.item("bau150").unwrap().branch.as_deref(),
-        Some("mein-branch")
-    );
+fn the_manual_link_actions_are_gone_from_the_wire() {
+    // Old clients may still send them; they are no known variant any more.
+    for json in [
+        r#"{"LinkPr":{"item":"bau150","pr":85}}"#,
+        r#"{"UnlinkPr":{"item":"bau150"}}"#,
+    ] {
+        assert!(serde_json::from_str::<Action>(json).is_err());
+    }
+}
+
+#[test]
+fn old_states_with_hand_resolved_links_still_load() {
+    let w = ws();
+    let mut value: serde_json::Value = serde_json::from_str(&persist::save(&w)).unwrap();
+    value["workspace"]["unlinked"] =
+        serde_json::json!([[{"repo": "acme/app", "number": 85}, "APP-1"]]);
+    let (back, restored) = persist::restore(Some(&value.to_string()));
+    assert!(restored);
+    assert_eq!(back.items.len(), w.items.len());
 }
 
 #[test]
@@ -138,22 +104,84 @@ fn auto_linking_needs_the_whole_key() {
 }
 
 #[test]
-fn a_link_removed_by_hand_is_not_set_again() {
+fn every_pr_naming_the_key_in_branch_title_or_body_belongs_to_the_ticket() {
+    let mut w = ws();
+    let key = w.item("bau150").unwrap().key.clone();
+    let base = w.reviews.iter().find(|r| r.number == 85).unwrap().clone();
+    let mut make = |number: u32, branch: &str, title: &str, body: &str| {
+        let mut r = base.clone();
+        r.number = number;
+        r.branch = branch.into();
+        r.title = title.into();
+        r.description = body.into();
+        r.ticket_key = None;
+        r.merged = None;
+        w.reviews.push(r);
+    };
+    make(901, "feature/bau-150-foo", "Foo", "");
+    make(902, "mira/x", "BAU-150: Bar", "");
+    make(903, "mira/y", "Baz", "Part of BAU-142 and bau-150.");
+    make(904, "feature/bau-1500-x", "Other", "BAU-15000");
+    let belongs: Vec<u32> = w
+        .linked_reviews("bau150")
+        .iter()
+        .map(|r| r.number)
+        .filter(|n| *n >= 900)
+        .collect();
+    assert_eq!(belongs, [901, 902, 903]);
+    // One PR can belong to several tickets.
+    assert!(
+        w.reviews
+            .iter()
+            .find(|r| r.number == 903)
+            .unwrap()
+            .belongs_to("BAU-142")
+    );
+    assert!(
+        w.reviews
+            .iter()
+            .find(|r| r.number == 903)
+            .unwrap()
+            .belongs_to(&key)
+    );
+    // Pull requests have no linked PRs of their own.
+    assert!(w.linked_reviews("pr87").is_empty());
+    let listed = w.linked_prs("bau150");
+    assert!(
+        listed
+            .iter()
+            .any(|l| l.pr.number == 901 && l.branch == "feature/bau-150-foo")
+    );
+}
+
+#[test]
+fn a_pr_the_agent_opened_stays_linked_without_the_key_in_its_text() {
+    let mut w = ws();
+    name_pr85(&mut w, "agent/sheet", "Sheet");
+    w.reviews
+        .iter_mut()
+        .find(|r| r.number == 85)
+        .unwrap()
+        .ticket_key = Some("BAU-150".into());
+    assert_eq!(
+        w.linked_reviews("bau150")
+            .iter()
+            .map(|r| r.number)
+            .collect::<Vec<_>>(),
+        [85]
+    );
+}
+
+#[test]
+fn the_body_links_automatically_too() {
     let mut w = ws();
     w.pr_status_off = true;
-    name_pr85(&mut w, "feature/bau-150-sheet", "Sheet");
+    name_pr85(&mut w, "mira/lint-fix", "Sheet");
+    w.reviews
+        .iter_mut()
+        .find(|r| r.number == 85)
+        .unwrap()
+        .description = "Closes BAU-150".into();
     ok(&mut w, Action::AutoLinkPrs, 1);
-    ok(&mut w, unlink("bau150"), 1);
-    assert_eq!(
-        w.unlinked,
-        [(w.review(85).unwrap().key(), "BAU-150".to_string())]
-    );
-    fails(&mut w, Action::AutoLinkPrs, ActionError::NothingToDo);
-    // Linking by hand still works and lifts the lock.
-    ok(&mut w, link("bau150", 85), 1);
-    assert!(w.unlinked.is_empty());
-    // The lock survives saving.
-    ok(&mut w, unlink("bau150"), 1);
-    let (back, _) = persist::restore(Some(&persist::save(&w)));
-    assert_eq!(back.unlinked, w.unlinked);
+    assert_eq!(w.review(85).unwrap().ticket_key.as_deref(), Some("BAU-150"));
 }

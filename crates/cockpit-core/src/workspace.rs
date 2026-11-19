@@ -56,9 +56,17 @@ fn short_sha(seed: &str) -> String {
     format!("{:07x}", hash & 0x0fff_ffff)
 }
 
+/// A pull request linked to a ticket, as the ticket detail lists it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LinkedPr {
+    pub pr: PrRef,
+    /// Head branch of the pull request; empty = unknown.
+    pub branch: String,
+}
+
 /// Why ticket and pull request cannot be linked.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum LinkError {
+pub(crate) enum LinkError {
     /// There is no review (no pull request) with this number.
     UnknownPr(PrKey),
     /// The ticket is already attached to this pull request.
@@ -110,10 +118,6 @@ pub struct Workspace {
     /// Snoozed entries.
     #[serde(default)]
     pub snoozed: Vec<Snooze>,
-    /// Links resolved by hand `(pull request, ticket key)`: the automation
-    /// does not set them again.
-    #[serde(default)]
-    pub unlinked: Vec<(PrKey, String)>,
     /// Is the checkmark „status follows the pull request“ off? The switch-off is stored:
     /// that way the automation applies immediately in old states.
     #[serde(default)]

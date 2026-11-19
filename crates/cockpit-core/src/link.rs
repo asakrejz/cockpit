@@ -65,5 +65,21 @@ pub fn find_ticket<'a>(
     })
 }
 
+/// Does one of the texts name this ticket key as a whole word (`APP-123`, not `APP-1234`)?
+/// Case does not matter.
+///
+/// ```
+/// use cockpit_core::link::mentions;
+/// assert!(mentions(&["feature/app-123-foo"], "APP-123"));
+/// assert!(!mentions(&["feature/app-1234-foo"], "APP-123"));
+/// ```
+pub fn mentions(texts: &[&str], key: &str) -> bool {
+    texts.iter().any(|text| {
+        ticket_keys(text)
+            .iter()
+            .any(|k| k.eq_ignore_ascii_case(key))
+    })
+}
+
 #[cfg(test)]
 mod tests;

@@ -198,7 +198,7 @@ fn old_saves_without_the_new_fields_still_load() {
     .unwrap();
     let mut value: serde_json::Value = serde_json::from_str(&persist::save(&w)).unwrap();
     let ws_json = value.get_mut("workspace").unwrap().as_object_mut().unwrap();
-    for key in ["unlinked", "pr_status_off", "status_seen"] {
+    for key in ["pr_status_off", "status_seen"] {
         assert!(ws_json.remove(key).is_some(), "{key} is stored");
     }
     for item in ws_json["items"].as_array_mut().unwrap() {
@@ -211,7 +211,7 @@ fn old_saves_without_the_new_fields_still_load() {
     let (back, restored) = persist::restore(Some(&value.to_string()));
     assert!(restored, "old state loads");
     assert_eq!(back.item("bau150").unwrap().priority, Priority::Medium);
-    assert!(!back.pr_status_off && back.unlinked.is_empty());
+    assert!(!back.pr_status_off);
     assert!(
         !back
             .item("bau138")

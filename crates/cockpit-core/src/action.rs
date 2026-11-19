@@ -13,13 +13,13 @@ use serde::{Deserialize, Serialize};
 use crate::agent::{AgentOptions, AgentReport, AgentRun, Closure, PullRequestRef, RunKind, STEPS};
 use crate::attention::Rule;
 use crate::demo;
-use crate::model::{Checks, Item, Person, PrKey, Priority, TicketStatus};
+use crate::model::{Checks, Person, PrKey, Priority, TicketStatus};
 use crate::notify::{Channel, NotifyReason, QuietHours};
 use crate::review::{Decision, MergeBlocker, MergeMethod, SendError, Verdict};
 use crate::rules::{PathViolation, RepoRules, ViolationKind};
 use crate::sync::{self, Remote};
 use crate::usage::{AgentLimits, StopReason, format_euro};
-use crate::workspace::{AgentError, LinkError, ResumeError, StatusChange, Workspace};
+use crate::workspace::{AgentError, ResumeError, StatusChange, Workspace};
 
 /// This many entries the log keeps. Older ones drop out.
 pub const MAX_LOG: usize = 500;
@@ -79,16 +79,7 @@ pub enum Action {
         priority: Priority,
     },
     // Ticket and pull request
-    /// Link the ticket (`item`) with a pull request (`pr`).
-    LinkPr {
-        item: String,
-        pr: PrKey,
-    },
-    /// Remove the link of a ticket. The automation does not set it again.
-    UnlinkPr {
-        item: String,
-    },
-    /// The tick: link pull requests whose branch or title names a ticket key.
+    /// The tick: link pull requests whose branch, title or body names a ticket key.
     AutoLinkPrs,
     /// Request a review for the pull request.
     RequestReview {
@@ -465,8 +456,6 @@ impl Workspace {
             | Action::EditTicket { .. }
             | Action::AssignTicket { .. }
             | Action::SetPriority { .. }
-            | Action::LinkPr { .. }
-            | Action::UnlinkPr { .. }
             | Action::AutoLinkPrs
             | Action::RequestReview { .. }
             | Action::SyncTicketStatus
