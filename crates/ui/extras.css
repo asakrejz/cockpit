@@ -802,3 +802,12 @@ body.ui-scroll-locked { overflow: hidden; }
 /* Hint: GitHub does not show some repos to the connected access (access_hint.rs). */
 .ck-access { padding: var(--ref-space-12) var(--ref-space-20); }
 .ck-access__steps { text-align: start; max-width: 52ch; }
+
+/* Markdown (GitHub text) shares the look of .ui-rich; only what Jira text does not have. */
+.ui-md li.ui-md__task { list-style: none; display: flex; align-items: baseline; gap: var(--ref-space-8); margin-inline-start: calc(-1 * var(--ref-space-20, 20px)); }
+.ui-md li.ui-md__task > div { display: flex; flex-direction: column; gap: var(--ref-space-4); min-width: 0; }
+.ui-md li.ui-md__task > div > * { margin: 0; }
+.ui-md input[type="checkbox"] { margin: 0; accent-color: var(--sys-color-tint); }
+.ui-md [data-align="left"] { text-align: left; }
+.ui-md [data-align="center"] { text-align: center; }
+.ui-md [data-align="right"] { text-align: right; }
