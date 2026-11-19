@@ -1,8 +1,7 @@
 # Cockpit security model
 
 Cockpit runs on one person's computer and talks to Jira, GitHub, a model endpoint and a container runtime. This page
-lists what protects the credentials and what limits the agent. Entry page: [../README.md](../README.md); depth on the
-rest: [architecture.md](architecture.md).
+lists what protects the credentials and what limits the agent. Depth on the rest: [architecture.md](architecture.md).
 
 ## Local files in `config/`
 
@@ -23,8 +22,8 @@ Details: [configuration.md](configuration.md).
   start it sets them to `600`. If a real `.env` was ever committed: rotate the keys and run `git rm --cached config/.env`.
 - **Two ways in.** `cockpit-server token set <name>` in the terminal (the value comes from standard input, so it is
   neither in the process list nor in the shell history), or the password fields of the setup assistant, which send the
-  value once over loopback to `PUT /api/secrets/{name}`. For that route: only the fixed names `github-oauth`,
-  `atlassian-oauth`, `agent-key` (older `litellm`), `jira`, `github`; the answer is only `{name, set}`, never the value;
+  value once over loopback to `PUT /api/secrets/{name}`. For that route: only the fixed names listed in
+  [configuration.md](configuration.md#credentials-the-env-file) (plus the two webhook secrets); the answer is only `{name, set}`, never the value;
   the field is cleared right after submitting; no log, no `localStorage`, no URL, no error message with the value.
   `DELETE /api/secrets/{name}` ("Trennen") exists for `jira` and `github` only. The tokens of OAuth sign-ins are written
   by the backend itself.
@@ -194,6 +193,4 @@ off by default (`[server] webhooks = false`: `404`).
 
 ## Not verified against real services
 
-Everything that needs real credentials (GitHub and Jira sync and writes, OAuth exchange and refresh, the model endpoint,
-a real container run) has only been tested against recorded or mocked responses and local stand-ins. Treat the first
-real run with care and use a test account or read-only rights.
+See [architecture.md](architecture.md#development). Treat the first real run with care and use a test account or read-only rights.
