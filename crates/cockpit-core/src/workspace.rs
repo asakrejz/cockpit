@@ -325,6 +325,8 @@ impl Workspace {
         match id {
             "repo" => self.item_repos().into_iter().map(same).collect(),
             "person" => self.person_choices(),
+            "reporter" => self.reporter_choices(),
+            "type" => self.type_choices(),
             "label" => self.labels().into_iter().map(same).collect(),
             "project" => {
                 let mut list: Vec<String> = self

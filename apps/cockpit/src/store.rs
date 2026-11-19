@@ -8,8 +8,7 @@ use std::{
 };
 
 use cockpit_core::{
-    Action, ActionError, Actor, Applied, Channel, Connections, Filter, NotifyEvent, Workspace,
-    notify,
+    Action, ActionError, Actor, Applied, Channel, Connections, NotifyEvent, Workspace, notify,
 };
 use feature_ui::t;
 use leptos::prelude::*;
@@ -369,10 +368,12 @@ impl Store {
         let _ = self.toasts.try_update(|list| list.retain(|t| t.id != id));
     }
 
-    /// Chooses an entry and shows it in the unfiltered inbox.
+    /// Chooses an entry and shows exactly that entry in the inbox: the address carries its ID
+    /// (on a narrow screen that opens the detail level). If a filter hides the entry, the inbox
+    /// shows it anyway and says so.
     pub fn open_item(&self, id: &str) {
         self.selected.set(id.to_string());
-        navigate(&Route::Inbox(Filter::All));
+        navigate(&Route::to_entry(id));
     }
 }
 

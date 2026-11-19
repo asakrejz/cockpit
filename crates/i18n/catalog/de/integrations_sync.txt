@@ -8,6 +8,7 @@ integrations_sync.pr_stale = {repo}#{number}: {error} – der Stand vom letzten 
 integrations_sync.sprint_field_failed = Sprint-Feld nicht ermittelt: {error}
 integrations_sync.no_active_sprint = Kein aktiver Sprint – zeige alle offenen Tickets
 integrations_sync.no_sprints = Dieses Projekt hat keine Sprints – zeige alle offenen Tickets
+integrations_sync.jira_truncated = Es wurden nur die ersten {n} Tickets geladen. Wähle ein Projekt oder einen Sprint, um den Rest zu sehen.
 integrations_sync.pr_by = Pull Request von {author}
 integrations_sync.review_approved = Review: genehmigt
 integrations_sync.review_changes_requested = Review: Änderungen angefordert

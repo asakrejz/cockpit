@@ -139,12 +139,19 @@ pub fn open_tickets_jql(jql: &str) -> Option<String> {
 const PROJECTS_PAGE: usize = 50;
 const MAX_PROJECTS: usize = 500;
 
-const FIELDS: &str =
-    "summary,description,status,assignee,reporter,updated,duedate,labels,issuetype";
+const FIELDS: &str = "summary,description,status,assignee,reporter,updated,duedate,labels,issuetype,priority,watches";
 
 /// This many issues per page and at most in total.
 const PAGE: usize = 50;
-const MAX_ISSUES: usize = 150;
+pub const MAX_ISSUES: usize = 200;
+
+/// The issues of a search and whether more matched than were fetched.
+#[derive(Debug, Default)]
+pub struct SearchPage {
+    pub issues: Vec<super::dto::Issue>,
+    /// There were more issues than [`MAX_ISSUES`].
+    pub truncated: bool,
+}
 
 pub struct JiraClient {
     http: reqwest::Client,
@@ -290,6 +297,16 @@ impl JiraClient {
         jql: &str,
         sprint_field: Option<&str>,
     ) -> Result<Vec<super::dto::Issue>, Error> {
+        Ok(self.search_page(jql, sprint_field).await?.issues)
+    }
+
+    /// Like [`JiraClient::search_with_sprint`], and says if the result was cut at
+    /// [`MAX_ISSUES`] (Jira had a further page).
+    pub async fn search_page(
+        &self,
+        jql: &str,
+        sprint_field: Option<&str>,
+    ) -> Result<SearchPage, Error> {
         let fields = match sprint_field {
             Some(f) => format!("{FIELDS},{f}"),
             None => FIELDS.to_string(),
@@ -314,8 +331,12 @@ impl JiraClient {
                 break;
             }
         }
+        let truncated = token.is_some() || all.len() > MAX_ISSUES;
         all.truncate(MAX_ISSUES);
-        Ok(all)
+        Ok(SearchPage {
+            issues: all,
+            truncated,
+        })
     }
 
     /// The projects the key may see, sorted by name (page by page, at most

@@ -49,6 +49,8 @@ fn item(id: &str, key: &str, source: Source) -> Item {
         labels: Vec::new(),
         sprint: None,
         issue_type: None,
+        reporter: None,
+        watching: false,
         updated_ms: None,
     }
 }

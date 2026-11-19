@@ -754,3 +754,16 @@ body.ui-scroll-locked { overflow: hidden; }
   margin-block: var(--ref-space-4) var(--ref-space-8);
 }
 .ck-translate > .ui-hint { flex-basis: 100%; }
+
+/* Inbox: note above the detail of an entry that the filters hide. */
+.ck-hidden-note {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ref-space-8);
+  margin: var(--ref-space-12) var(--ref-space-16) 0;
+  padding: var(--ref-space-12) var(--ref-space-16);
+  border-radius: var(--ref-radius-12, 12px);
+  background: var(--sys-color-tertiary-fill);
+}
+.ck-hidden-note p { margin: 0; }

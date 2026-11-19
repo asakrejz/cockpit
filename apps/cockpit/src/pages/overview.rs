@@ -102,79 +102,77 @@ pub fn OverviewPage() -> impl IntoView {
     let members = Memo::new(move |_| store.ws.with(team::members));
     let stuck = Memo::new(move |_| store.ws.with(team::stuck));
 
-    // Chosen person, by name. If they disappear (nothing open any more), "Du" applies.
-    let chosen = RwSignal::new(Person::me().name);
-    // The address chooses the person; on a narrow screen it also opens the detail level.
+    // The address chooses the person (`#/overview/Ada`); without one, or with „Alle“, everybody
+    // is shown. On a narrow screen a choice also opens the detail level.
     let level = Signal::derive(move || store.route.with(Route::level));
-    Effect::new(move |_| {
-        if let Route::OverviewMember(name) = store.route.get() {
-            chosen.set(name);
-        }
+    let chosen = Memo::new(move |_| match store.route.get() {
+        Route::OverviewMember(name) => Some(name),
+        _ => None,
     });
+    // `None`: everybody (also if the chosen person has nothing open any more).
     let current = Memo::new(move |_| {
         let name = chosen.get();
-        let list = members.get();
-        list.iter()
-            .find(|m| m.person.name == name)
-            .or(list.first())
-            .cloned()
+        members.with(|list| team::chosen(list, name.as_deref()).cloned())
     });
+    let stuck_shown = Memo::new(move |_| team::stuck_of(stuck.get(), current.get().as_ref()));
 
     view! {
-           <SplitView level=level back_label=t!(OverviewTitle) back_href=Route::Overview.hash()>
+        <SplitView level=level back_label=t!(OverviewTitle) back_href=Route::Overview.hash()>
 
-               <Pane label=t!(OverviewTeam)>
-                   <PaneHeader>
-                       <h1 class="t-large-title t-bold">{t!(OverviewTitle)}</h1>
-                       <p class="t-subheadline t-secondary">
-                           {t!(OverviewSubtitle)}
-                       </p>
-                   </PaneHeader>
-                   <ul class="ck-inbox">
-                       {move || {
-                           let active = current.get().map(|m| m.person.name).unwrap_or_default();
-                           members
-                               .get()
-                               .into_iter()
-                               .map(|m| {
-    let selected = m.person.name == active;
-    member_row(m, selected, chosen)
-    })
-                               .collect_view()
-                       }}
-                   </ul>
-               </Pane>
+            <Pane label=t!(OverviewTeam)>
+                <PaneHeader>
+                    <h1 class="t-large-title t-bold">{t!(OverviewTitle)}</h1>
+                    <p class="t-subheadline t-secondary">
+                        {t!(OverviewSubtitle)}
+                    </p>
+                </PaneHeader>
+                <ul class="ck-inbox">
+                    {move || {
+                        let active = current.get().map(|m| m.person.name);
+                        let all = store.ws.with(|w| members.with(|l| team::entry_ids(w, l, None))).len();
+                        let rows = members
+                            .get()
+                            .into_iter()
+                            .map(|m| {
+                                let selected = active.as_deref() == Some(m.person.name.as_str());
+                                member_row(m, selected)
+                            })
+                            .collect_view();
+                        view! { {everyone_row(all, active.is_none())} {rows} }
+                    }}
+                </ul>
+            </Pane>
 
-               <Pane label=t!(OverviewDetails)>
-                   <PaneHeader>
-                       <div class="ui-hstack" style="justify-content: space-between; flex-wrap: nowrap">
-                           <h2 class="t-title1 t-bold">{t!(OverviewStuck)}</h2>
-                           <Badge variant=BadgeVariant::Count>{move || stuck.get().len().to_string()}</Badge>
-                       </div>
-                   </PaneHeader>
-                   <PaneBody>
-                       {move || {
-                           let list = stuck.get();
-                           if list.is_empty() {
-                               empty_state().into_any()
-                           } else {
-                               view! {
-                                   <ul class="ck-stuck-list">
-                                       {list.into_iter().map(|s| stuck_row(store, s)).collect_view()}
-                                   </ul>
-                               }
-                                   .into_any()
-                           }
-                       }}
-                       {move || current.get().map(|m| person_items(store, m))}
-                   </PaneBody>
-               </Pane>
-           </SplitView>
-       }
+            <Pane label=t!(OverviewDetails)>
+                <PaneHeader>
+                    <div class="ui-hstack" style="justify-content: space-between; flex-wrap: nowrap">
+                        <h2 class="t-title1 t-bold">{t!(OverviewStuck)}</h2>
+                        <Badge variant=BadgeVariant::Count>{move || stuck_shown.get().len().to_string()}</Badge>
+                    </div>
+                </PaneHeader>
+                <PaneBody>
+                    {move || {
+                        let list = stuck_shown.get();
+                        if list.is_empty() {
+                            empty_state().into_any()
+                        } else {
+                            view! {
+                                <ul class="ck-stuck-list">
+                                    {list.into_iter().map(|s| stuck_row(store, s)).collect_view()}
+                                </ul>
+                            }
+                                .into_any()
+                        }
+                    }}
+                    {move || person_items(store, current.get(), members.get())}
+                </PaneBody>
+            </Pane>
+        </SplitView>
+    }
 }
 
 /// A person in the left list: numbers by status and the workload.
-fn member_row(m: Member, selected: bool, chosen: RwSignal<String>) -> impl IntoView {
+fn member_row(m: Member, selected: bool) -> impl IntoView {
     let name = m.person.name.clone();
     let total = m.total();
     let level = m.load_level();
@@ -186,7 +184,6 @@ fn member_row(m: Member, selected: bool, chosen: RwSignal<String>) -> impl IntoV
     );
     view! {
         <InboxRow selected=selected on_select=move |_| {
-            chosen.set(name.clone());
             navigate(&Route::OverviewMember(name.clone()));
         }>
             {person_avatar(&m.person)}
@@ -198,6 +195,21 @@ fn member_row(m: Member, selected: bool, chosen: RwSignal<String>) -> impl IntoV
                 <span class="t-subheadline t-secondary">{counts(&m)}</span>
                 <Progress value=total.min(team::CAPACITY) max=team::CAPACITY label=summary />
                 <span class="t-footnote t-secondary">{load_label(level)}</span>
+            </span>
+        </InboxRow>
+    }
+}
+
+/// The first row: everybody. Chosen when no person is.
+fn everyone_row(total: usize, selected: bool) -> impl IntoView {
+    view! {
+        <InboxRow selected=selected on_select=move |_| navigate(&Route::OverviewAll)>
+            <span class="ui-vstack" style="--spacing: 6px; flex: 1 1 auto; min-width: 0">
+                <span class="ui-hstack" style="--spacing: 8px; flex-wrap: nowrap">
+                    <span class="t-headline ck-ellipsis" style="flex: 1 1 auto">{t!(OverviewEveryone)}</span>
+                    <Badge variant=BadgeVariant::Neutral>{total.to_string()}</Badge>
+                </span>
+                <span class="t-subheadline t-secondary">{t!(OverviewEveryoneSummary)}</span>
             </span>
         </InboxRow>
     }
@@ -298,17 +310,22 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
 }
 
 /// The entries of the chosen person.
-fn person_items(store: Store, m: Member) -> impl IntoView {
+fn person_items(store: Store, member: Option<Member>, all: Vec<Member>) -> impl IntoView {
     let items: Vec<Item> = store.ws.with(|w| {
-        m.item_ids
+        team::entry_ids(w, &all, member.as_ref())
             .iter()
             .filter_map(|id| w.item(id).cloned())
             .collect()
     });
-    let heading = t!(OverviewEntriesOf, name = m.person.name);
+    let (heading, nothing) = match &member {
+        Some(m) => (
+            t!(OverviewEntriesOf, name = m.person.name.clone()),
+            t!(OverviewNothingOpenFor, name = m.person.name.clone()),
+        ),
+        None => (t!(OverviewEntriesAll), t!(OverviewNothingOpen)),
+    };
     let body = if items.is_empty() {
-        view! { <p class="t-subheadline t-secondary">{t!(OverviewNothingOpenFor, name = m.person.name)}</p> }
-            .into_any()
+        view! { <p class="t-subheadline t-secondary">{nothing}</p> }.into_any()
     } else {
         view! {
             <ul class="ck-stuck-list">

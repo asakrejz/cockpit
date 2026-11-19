@@ -75,9 +75,30 @@ pub struct Fields {
     /// `Bug`, `Story`, `Task` …
     #[serde(default)]
     pub issuetype: Option<IssueType>,
+    /// `Highest` … `Lowest` (names differ per site).
+    #[serde(default)]
+    pub priority: Option<PriorityName>,
+    /// Do I watch the ticket (`fields.watches.isWatching`).
+    #[serde(default)]
+    pub watches: Option<Watches>,
     /// All other fields, among them the sprint field of the site (its ID differs per site).
     #[serde(flatten)]
     pub extra: serde_json::Map<String, Value>,
+}
+
+/// The priority of a ticket, by name.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PriorityName {
+    #[serde(default)]
+    pub name: String,
+}
+
+/// The watch state of a ticket.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Watches {
+    #[serde(default)]
+    pub is_watching: bool,
 }
 
 /// The issue type of a ticket.

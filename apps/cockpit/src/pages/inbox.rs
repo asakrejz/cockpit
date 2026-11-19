@@ -39,8 +39,25 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                 .collect::<Vec<Item>>()
         })
     });
-    // The chosen entry. If it is not visible in the filter, the first one applies.
+    // An entry opened by its address (`#/item/<id>`) that the filters hide: it is shown anyway,
+    // with a note and a way to reset the filters.
+    let hidden = Memo::new(move |_| {
+        let Route::InboxItem(_, id) = store.route.get() else {
+            return None;
+        };
+        let (query, now) = (query.get(), store.now.get());
+        let by = inbox_filter.get();
+        store.ws.with(|w| {
+            w.hidden_by_filter(&id, filter, &query, now, &by)
+                .then(|| with_reason(w, w.item(&id).expect("hidden entry exists"), filter, now))
+        })
+    });
+    // The chosen entry. If it is not visible in the filter, the first one applies – unless it
+    // was opened by address.
     let current = Memo::new(move |_| {
+        if let Some(item) = hidden.get() {
+            return Some(item);
+        }
         let id = store.selected.get();
         let list = items.get();
         list.iter().find(|i| i.id == id).or(list.first()).cloned()
@@ -255,7 +272,23 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
 
             <Pane label=t!(InboxDetails)>
                 {move || match current.get() {
-                    Some(item) => detail(store, item, items, draft, edit).into_any(),
+                    Some(item) => {
+                        let id = item.id.clone();
+                        let reset = move |_| {
+                            query.set(String::new());
+                            let now = store.now.get_untracked();
+                            let filter = store.ws.with_untracked(|w| w.filters_revealing(&id, filter, now));
+                            let _ = store.dispatch(Action::SetInboxFilter { filter });
+                        };
+                        view! {
+                            {hidden
+                                .get()
+                                .is_some()
+                                .then(|| hidden_note(reset))}
+                            {detail(store, item, items, draft, edit)}
+                        }
+                            .into_any()
+                    }
                     None => {
                         view! {
                             <PaneBody>
@@ -271,6 +304,19 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
             </Pane>
         </SplitView>
         {filter_dialog(store, filter_open)}
+    }
+}
+
+/// „Durch Filter ausgeblendet“ with the button that resets the filters.
+fn hidden_note(reset: impl Fn(ev::MouseEvent) + Send + Sync + 'static) -> impl IntoView {
+    view! {
+        <div class="ck-hidden-note" role="status">
+            <p class="t-headline">{t!(InboxHiddenByFilter)}</p>
+            <p class="t-subheadline t-secondary">{t!(InboxHiddenByFilterText)}</p>
+            <Button size=ControlSize::Small on_click=reset>
+                {t!(InboxResetFilters)}
+            </Button>
+        </div>
     }
 }
 

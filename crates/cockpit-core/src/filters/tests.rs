@@ -115,20 +115,25 @@ fn keys(ws: &Workspace, by: &InboxFilter) -> Vec<String> {
 }
 
 fn all() -> InboxFilter {
+    InboxFilter::default()
+}
+
+fn mine() -> InboxFilter {
     InboxFilter {
-        ownership: Ownership::All,
+        ownership: Ownership::Mine,
         ..Default::default()
     }
 }
 
 #[test]
-fn the_start_state_is_mine_current_sprint_and_done_hidden() {
+fn the_start_state_is_everybody_current_sprint_and_done_hidden() {
     let by = InboxFilter::default();
-    assert_eq!(by.ownership, Ownership::Mine);
+    assert_eq!(by.ownership, Ownership::All);
+    assert_eq!(by.person, None, "assignee: everybody");
     assert_eq!(by.sprint, SprintView::Current);
     assert!(by.hide_done);
     assert!(by.is_default());
-    assert!(!all().is_default());
+    assert!(!mine().is_default());
 }
 
 #[test]
@@ -139,7 +144,7 @@ fn ownership_mine_is_the_attention_list_and_all_adds_the_quiet_pull_requests() {
     ]);
     // Neither raises attention on its own here (reason „Comment“, no failure) …
     assert!(ws.attention(Filter::All, NOW).is_empty());
-    assert!(keys(&ws, &InboxFilter::default()).is_empty());
+    assert!(keys(&ws, &mine()).is_empty());
     // … but „Alle“ lists them, and the unread count never includes them.
     assert_eq!(keys(&ws, &all()), ["#1", "#2"]);
     assert_eq!(ws.unread(Filter::All, NOW), 0);
@@ -327,4 +332,134 @@ fn the_review_list_follows_the_ownership_and_keeps_the_open_review() {
     // A review without an inbox entry counts as mine.
     ws.items.clear();
     assert_eq!(ws.reviews_for(Ownership::Mine, None).len(), all_reviews);
+}
+
+// ---------- Assignee, reporter, watching, type, priority ----------
+
+fn people_workspace() -> Workspace {
+    let mk = |key: &str, owner: &str, reporter: &str, kind: &str, p: crate::Priority| {
+        let mut t = ticket(key, Some(SprintState::Active), TicketStatus::Open, 1);
+        t.owner = if owner.is_empty() {
+            crate::Person::new(UNASSIGNED_NAME, "–")
+        } else {
+            crate::Person::new(owner, "XX")
+        };
+        t.scope = Scope::Team;
+        t.reporter = Some(reporter.into());
+        t.issue_type = Some(kind.into());
+        t.priority = p;
+        t
+    };
+    let mut watched = mk("BAU-3", "Mira", "Jonas", "Task", crate::Priority::Low);
+    watched.watching = true;
+    workspace(vec![
+        mk("BAU-1", "Lena", "Mira", "Bug", crate::Priority::High),
+        mk("BAU-2", "", "Lena", "Story", crate::Priority::Medium),
+        watched,
+        pull(9, "A pull request", "topic", false),
+    ])
+}
+
+fn with(id: &str, value: &str) -> InboxFilter {
+    let mut by = InboxFilter::default();
+    assert!(by.set(id, value));
+    by
+}
+
+#[test]
+fn the_start_state_lists_the_tickets_of_everybody() {
+    let ws = people_workspace();
+    assert_eq!(
+        keys(&ws, &InboxFilter::default()),
+        ["BAU-1", "BAU-2", "BAU-3", "#9"]
+    );
+}
+
+#[test]
+fn the_assignee_filter_knows_people_and_nobody() {
+    let ws = people_workspace();
+    assert_eq!(keys(&ws, &with("person", "Lena")), ["BAU-1"]);
+    assert_eq!(keys(&ws, &with("person", UNASSIGNED)), ["BAU-2"]);
+    let choices = ws.filter_choices("person");
+    assert_eq!(choices[1].0, UNASSIGNED, "the unassigned choice is offered");
+    assert!(choices.iter().any(|(v, _)| v == "Lena"));
+}
+
+#[test]
+fn the_reporter_type_priority_and_watched_filters_narrow_tickets() {
+    let ws = people_workspace();
+    assert_eq!(keys(&ws, &with("reporter", "Mira")), ["BAU-1"]);
+    assert_eq!(
+        keys(&ws, &with("type", "story")),
+        ["BAU-2"],
+        "no regard to case"
+    );
+    assert_eq!(keys(&ws, &with("priority", "niedrig")), ["BAU-3"]);
+    assert_eq!(keys(&ws, &with("watched", "on")), ["BAU-3"]);
+    // Pull requests carry none of these fields: they drop out as soon as one is chosen.
+    for id in ["reporter", "type", "watched"] {
+        let value = if id == "watched" { "on" } else { "x" };
+        assert!(
+            !keys(&ws, &with(id, value)).contains(&"#9".to_string()),
+            "{id}"
+        );
+    }
+    let reporters: Vec<_> = ws
+        .filter_choices("reporter")
+        .into_iter()
+        .map(|(v, _)| v)
+        .collect();
+    assert_eq!(reporters, [ASSIGNED_TO_ME, "Jonas", "Lena", "Mira"]);
+    let types: Vec<_> = ws
+        .filter_choices("type")
+        .into_iter()
+        .map(|(v, _)| v)
+        .collect();
+    assert_eq!(types, ["Bug", "Story", "Task"]);
+}
+
+#[test]
+fn the_new_filters_reset_and_round_trip() {
+    let mut by = InboxFilter::default();
+    for (id, value) in [
+        ("reporter", "Mira"),
+        ("type", "Bug"),
+        ("priority", "hoch"),
+        ("watched", "on"),
+    ] {
+        assert!(by.set(id, value));
+        assert_eq!(by.get(id), value);
+        assert!(by.active().contains(&id), "{id} is active");
+        assert!(by.reset(id));
+        assert!(by.is_default(), "{id} is back at its start");
+    }
+    assert!(!by.set("priority", "nope"));
+    assert!(!by.set("watched", "maybe"));
+}
+
+#[test]
+fn an_entry_the_filters_hide_is_found_by_hidden_by_filter() {
+    let ws = people_workspace();
+    let by = with("person", "Lena");
+    assert!(ws.hidden_by_filter("bau2", Filter::All, "", NOW, &by));
+    assert!(!ws.hidden_by_filter("bau1", Filter::All, "", NOW, &by));
+    assert!(!ws.hidden_by_filter("gibt-es-nicht", Filter::All, "", NOW, &by));
+}
+
+#[test]
+fn resetting_for_a_hidden_entry_really_shows_it() {
+    let mut ws = people_workspace();
+    // A ticket without a sprint: the start values themselves hide it.
+    let mut backlog = ticket("BAU-7", None, TicketStatus::Open, 1);
+    backlog.scope = Scope::Team;
+    ws.items.push(backlog);
+    let narrowed = with("person", "Lena");
+    assert!(ws.hidden_by_filter("bau7", Filter::All, "", NOW, &narrowed));
+    let by = ws.filters_revealing("bau7", Filter::All, NOW);
+    assert!(!ws.hidden_by_filter("bau7", Filter::All, "", NOW, &by));
+    // An entry the start values show gets exactly the start values.
+    assert_eq!(
+        ws.filters_revealing("bau1", Filter::All, NOW),
+        InboxFilter::default()
+    );
 }
