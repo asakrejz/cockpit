@@ -96,6 +96,8 @@ pub(super) struct FileGitHub {
     pub(super) api_url: Option<String>,
     #[serde(default)]
     pub(super) repos: Vec<String>,
+    #[serde(default)]
+    pub(super) auth: Option<cockpit_core::AuthChoice>,
 }
 
 #[derive(Deserialize)]
@@ -112,6 +114,8 @@ pub(super) struct FileJira {
     pub(super) hidden_fields: Vec<String>,
     #[serde(default)]
     pub(super) field_order: Vec<String>,
+    #[serde(default)]
+    pub(super) auth: Option<cockpit_core::AuthChoice>,
 }
 
 /// `docker` or `podman`, otherwise an error.

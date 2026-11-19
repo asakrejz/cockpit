@@ -46,7 +46,7 @@ fn agent_needs_connection_and_permissions() {
 }
 
 fn resolved(token: bool, oauth: OAuthTokens) -> (bool, AuthKind, bool) {
-    let s = ServiceStatus::resolve(token, oauth, true, Some("acme".into()));
+    let s = ServiceStatus::resolve(None, token, oauth, true, Some("acme".into()));
     (s.connected, s.kind, s.expired)
 }
 
@@ -69,8 +69,46 @@ fn one_rule_for_every_combination_of_token_and_sign_in() {
 
 #[test]
 fn the_site_only_shows_with_a_working_sign_in() {
-    let on = ServiceStatus::resolve(false, OAuthTokens::Valid, true, Some("acme".into()));
+    let on = ServiceStatus::resolve(None, false, OAuthTokens::Valid, true, Some("acme".into()));
     assert_eq!(on.site.as_deref(), Some("acme"));
-    let token = ServiceStatus::resolve(true, OAuthTokens::Missing, true, Some("acme".into()));
+    let token = ServiceStatus::resolve(None, true, OAuthTokens::Missing, true, Some("acme".into()));
     assert_eq!(token.site, None);
+}
+
+#[test]
+fn the_choice_decides_which_credentials_count() {
+    use AuthChoice::{OAuth, Token};
+    use OAuthTokens::*;
+    let kind = AuthChoice::pick;
+    // Token chosen: the sign-in is kept but not used, even if it works.
+    assert_eq!(kind(Some(Token), true, Valid), AuthKind::Token);
+    assert_eq!(kind(Some(Token), false, Valid), AuthKind::None);
+    assert_eq!(kind(Some(Token), true, Expired), AuthKind::Token);
+    // Sign-in chosen: the token is kept but not used.
+    assert_eq!(kind(Some(OAuth), true, Valid), AuthKind::OAuth);
+    assert_eq!(kind(Some(OAuth), true, Missing), AuthKind::None);
+    assert_eq!(kind(Some(OAuth), true, Expired), AuthKind::None);
+    // No choice: the older rule.
+    assert_eq!(kind(None, true, Valid), AuthKind::OAuth);
+    assert_eq!(kind(None, true, Expired), AuthKind::Token);
+    assert_eq!(kind(None, false, Missing), AuthKind::None);
+}
+
+#[test]
+fn status_reports_choice_and_a_stored_sign_in_that_is_not_used() {
+    let s = ServiceStatus::resolve(
+        Some(AuthChoice::Token),
+        true,
+        OAuthTokens::Valid,
+        true,
+        Some("acme".into()),
+    );
+    assert_eq!((s.connected, s.kind), (true, AuthKind::Token));
+    assert!(s.oauth_stored && !s.expired);
+    assert_eq!(s.choice, Some(AuthChoice::Token));
+    assert_eq!(s.site, None);
+    assert_eq!(
+        serde_json::to_string(&AuthChoice::OAuth).unwrap(),
+        "\"oauth\""
+    );
 }

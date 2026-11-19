@@ -134,6 +134,10 @@ pub struct Config {
     pub db: PathBuf,
     pub github: Option<GitHubConfig>,
     pub jira: Option<JiraConfig>,
+    /// `[github] auth`: the sign-in method the user picked (`None`: OAuth first, then token).
+    pub github_auth: Option<cockpit_core::AuthChoice>,
+    /// `[jira] auth`, as `github_auth`.
+    pub jira_auth: Option<cockpit_core::AuthChoice>,
     pub github_oauth: Option<OAuthConfig>,
     pub atlassian: Option<AtlassianConfig>,
     /// Interval of the sync in seconds.
@@ -223,6 +227,8 @@ impl Config {
             db: default_db_path(),
             github: None,
             jira: None,
+            github_auth: None,
+            jira_auth: None,
             github_oauth: None,
             atlassian: None,
             interval_s: DEFAULT_INTERVAL_S,
@@ -284,6 +290,7 @@ impl Config {
             c.interval_s = i;
         }
         if let Some(g) = d.github {
+            c.github_auth = g.auth;
             for r in &g.repos {
                 if !repo_valid(r) {
                     return Err(ConfigError::Wert(msg!(
@@ -331,9 +338,11 @@ impl Config {
                 jql: None,
                 hidden_fields: Vec::new(),
                 field_order: Vec::new(),
+                auth: None,
             })
         });
         if let Some(j) = jira {
+            c.jira_auth = j.auth;
             if c.atlassian.is_none() && (j.site.trim().is_empty() || j.email.trim().is_empty()) {
                 return Err(ConfigError::Wert(msg!(ServerConfigJiraNeedsSite)));
             }

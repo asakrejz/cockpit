@@ -12,7 +12,7 @@ use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use super::auth_method::{AuthMethodPicker, current};
+use super::auth_method::{AuthMethodPicker, UnusedSignInNote, current, persist_pick};
 use super::fields::{
     Context, CopyField, Extern, Feedback, Intro, KeyField, Message, Section, config_save,
     error_text,
@@ -48,7 +48,19 @@ pub fn JiraStep(ctx: Context) -> impl IntoView {
                 .map(|h| h.sign_in.jira.clone())
                 .unwrap_or_default()
         });
-        jira_default_method(&status, ctx.setup.with(|e| e.atlassian_client_id.is_some()))
+        match status.choice {
+            Some(c) => c.into(),
+            None => {
+                jira_default_method(&status, ctx.setup.with(|e| e.atlassian_client_id.is_some()))
+            }
+        }
+    });
+    let status = Signal::derive(move || {
+        ctx.store.health.with(|h| {
+            h.as_ref()
+                .map(|h| h.sign_in.jira.clone())
+                .unwrap_or_default()
+        })
     });
     let method = current(chosen, default);
     // Both ways stay in the page (only hidden), so what was typed in one is still there after
@@ -63,7 +75,20 @@ pub fn JiraStep(ctx: Context) -> impl IntoView {
                     {t!(SetupJiraGoodToKnowText)}
                 </p>
             </Intro>
-            <AuthMethodPicker chosen=chosen default=default aria_label=t!(SetupJiraPickerAria) />
+            <AuthMethodPicker
+                chosen=chosen
+                default=default
+                aria_label=t!(SetupJiraPickerAria)
+                on_pick=Callback::new(move |kind: AuthKind| {
+                    let ready = if kind == AuthKind::OAuth {
+                        status.with(|s| s.oauth_stored)
+                    } else {
+                        ctx.setup.with(|s| s.has_key("jira"))
+                    };
+                    persist_pick(ctx, crate::oauth_card::Service::Atlassian, kind, ready);
+                })
+            />
+            <UnusedSignInNote status=status />
             <div hidden=move || method.get() != AuthKind::Token>
                 <VStack spacing="12px">
                     <JiraToken ctx=ctx result=result />

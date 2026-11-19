@@ -69,6 +69,12 @@ pub struct ConfigChange {
     pub agent_repos: Option<AgentReposInput>,
     #[serde(default, skip_serializing_if = "Option::is_none", alias = "litellm")]
     pub endpoint: Option<EndpointInput>,
+    /// `[github] auth`: the chosen sign-in method for GitHub.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub github_auth: Option<crate::AuthChoice>,
+    /// `[jira] auth`: the chosen sign-in method for Jira.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub jira_auth: Option<crate::AuthChoice>,
     /// `[server] webhooks` and `[server] public_url`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub webhooks: Option<WebhooksInput>,

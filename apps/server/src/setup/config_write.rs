@@ -208,6 +208,11 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), Msg> {
         }
         empty_remove(&mut doc, "github");
     }
+    for (name, choice) in [("github", a.github_auth), ("jira", a.jira_auth)] {
+        if let Some(c) = choice {
+            set(table(&mut doc, name)?, "auth", value(c.id()));
+        }
+    }
     if let Some(r) = &a.agent_repos {
         agent_repos_write(&mut doc, r)?;
     }

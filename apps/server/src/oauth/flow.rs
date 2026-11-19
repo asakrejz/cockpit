@@ -136,6 +136,8 @@ impl AppState {
                     ));
                 }
             }
+            // Completing the sign-in picks it as the way to sign in.
+            s.auth_choice_save(d, cockpit_core::AuthChoice::OAuth);
             Ok(())
         })
         .await

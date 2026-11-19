@@ -59,7 +59,7 @@ pub use agent::{
     StepState, Tick,
 };
 pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
-pub use connections::{AuthKind, Connections, OAuthTokens, ServiceStatus};
+pub use connections::{AuthChoice, AuthKind, Connections, OAuthTokens, ServiceStatus};
 pub use details::{Attachment, DetailField, DetailValue, Details};
 pub use diagnosis::{Diagnosis, Fix};
 pub use filters::{

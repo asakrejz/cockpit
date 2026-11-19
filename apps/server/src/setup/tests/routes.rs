@@ -279,3 +279,19 @@ async fn without_file_is_it_created() {
     let h = get(&p.app, "/api/health").await;
     assert_eq!(h["sign_in"]["jira"]["connected"], true);
 }
+
+#[tokio::test]
+async fn saving_a_github_token_picks_the_token_as_sign_in_method() {
+    let p = test_bench(Some("[github_oauth]\nclient_id = \"Iv23li\"\n"));
+    let (status, body) = put(&p.app, "/api/secrets/github", r#"{"value":"dummy-pat"}"#).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let file = std::fs::read_to_string(&p.path).unwrap();
+    assert!(
+        file.contains("[github]") && file.contains("auth = \"token\""),
+        "{file}"
+    );
+    assert!(!file.contains("dummy-pat"), "{file}");
+    let h = get(&p.app, "/api/health").await;
+    assert_eq!(h["sign_in"]["github"]["choice"], "token");
+    assert_eq!(h["sign_in"]["github"]["kind"], "token");
+}

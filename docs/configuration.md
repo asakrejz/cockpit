@@ -34,9 +34,11 @@ interval_s = 120                  # sync interval, default 2 minutes, at least 3
 [github]
 # api_url = "https://ghe.example/api/v3"   # only for GitHub Enterprise
 # repos = [...]                   # older spelling, still read; the assistant now writes [[agent.repos]] only
+# auth = "token"                  # "token" or "oauth": the sign-in the server uses (see below)
 [jira]
 site = "https://acme.atlassian.net"
 email = "me@acme.example"
+# auth = "token"                  # "token" or "oauth", as in [github]
 [agent]
 provider = "claude-agent-sdk"     # or "claude-code" or "codex"
 container = "podman"              # or "docker"; detected when omitted
@@ -89,6 +91,24 @@ The number of a ticket links to `<site>/browse/<KEY>`. The site is `[jira] site`
 site, stored at sign-in (a sign-in from an older version stores none until you sign in again – then `[jira] site` is
 used, and without either there is no link). The number of a pull request links to GitHub.
 
+
+## Choosing the sign-in method (`auth`)
+
+`[github] auth` and `[jira] auth` say which credentials the server uses: `"token"` (API token or personal access
+token from `.env`) or `"oauth"` (the sign-in via the GitHub App or the Atlassian app). The choice is honoured
+everywhere: sync, agent follow-ups, the repo list of the setup, and the connection status in `/api/health`
+(`sign_in.<service>.kind`, `connected`, plus `choice` and `oauth_stored`). The rule lives in one place,
+`cockpit_core::AuthChoice::pick`.
+
+- `token`: only the token counts. A stored OAuth sign-in is kept but not used (disconnect it in the setup if you do
+  not need it). With GitHub the repo list then comes from `GET /user/repos`, so repos of organizations appear even
+  if the GitHub App is not installed there.
+- `oauth`: only a working sign-in counts; a stored token is kept but not used. Without a working sign-in the
+  service shows as not connected.
+- Not set (older configs): a working OAuth sign-in goes first, an expired one falls back to the token.
+
+The setup assistant writes the key: saving a token sets `token`, completing an OAuth sign-in sets `oauth`, and
+switching the picker to a way that is already set up stores that way. Any other value is a start error.
 
 ## Where the files live, and moving from older versions
 

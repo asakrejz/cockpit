@@ -16,6 +16,8 @@ use cockpit_integrations::oauth::{Endpoints, Service};
 use cockpit_integrations::outbound::plane;
 use cockpit_integrations::{GitHubService, JiraService, Services};
 
+use cockpit_core::{AuthChoice, AuthKind};
+
 use crate::app::{AppState, now_ms};
 use crate::config::{
     AtlassianConfig, Config, DEFAULT_INTERVAL_S, GitHubConfig, JiraConfig, OAuthConfig,
@@ -31,6 +33,9 @@ const RETRIES: usize = 2;
 pub struct Sources {
     pub github: Option<GitHubConfig>,
     pub jira: Option<JiraConfig>,
+    /// The picked sign-in method per service (`None`: OAuth first, then token).
+    pub github_auth: Option<cockpit_core::AuthChoice>,
+    pub jira_auth: Option<cockpit_core::AuthChoice>,
     /// Sign-in via OAuth (client IDs only; the secrets are in the .env file).
     pub github_oauth: Option<OAuthConfig>,
     pub atlassian: Option<AtlassianConfig>,
@@ -46,6 +51,8 @@ impl Default for Sources {
         Self {
             github: None,
             jira: None,
+            github_auth: None,
+            jira_auth: None,
             github_oauth: None,
             atlassian: None,
             endpoints: Endpoints::default(),
@@ -60,6 +67,8 @@ impl Sources {
         Self {
             github: config.github.clone(),
             jira: config.jira.clone(),
+            github_auth: config.github_auth,
+            jira_auth: config.jira_auth,
             github_oauth: config.github_oauth.clone(),
             atlassian: config.atlassian.clone(),
             endpoints: Endpoints::default(),
@@ -140,24 +149,39 @@ impl AppState {
     /// The Jira client: via OAuth (through the Atlassian gateway), otherwise with email and API token.
     /// `None` if Jira is not set up or the access is missing. Blocking.
     pub(crate) fn jira_client(&self) -> Option<Result<JiraClient, cockpit_integrations::Error>> {
-        if let Some(c) = self.jira_oauth_client() {
-            return Some(c);
-        }
         let sources = self.sources();
-        let j = sources.jira.as_ref().filter(|j| !j.site.is_empty())?;
-        let t = self.token(secrets::JIRA)?;
-        Some(JiraClient::new(&j.site, &j.email, t))
+        let token = sources
+            .jira
+            .as_ref()
+            .filter(|j| !j.site.is_empty())
+            .and_then(|j| self.token(secrets::JIRA).map(|t| (j, t)));
+        let kind = AuthChoice::pick(
+            sources.jira_auth,
+            token.is_some(),
+            self.oauth_state(Service::Atlassian),
+        );
+        match kind {
+            AuthKind::OAuth => self.jira_oauth_client(),
+            AuthKind::Token => token.map(|(j, t)| JiraClient::new(&j.site, &j.email, t)),
+            AuthKind::None => None,
+        }
     }
 
-    /// The access to GitHub and whether it is the sign-in via the app: a working sign-in goes
-    /// before the token, an expired one falls back to it (the same rule as
-    /// [`cockpit_core::ServiceStatus::resolve`]). Blocking.
+    /// The access to GitHub and whether it is the sign-in via the app. The picked method decides
+    /// ([`cockpit_core::AuthChoice::pick`], the same rule as
+    /// [`cockpit_core::ServiceStatus::resolve`]); without a choice a working sign-in goes before
+    /// the token. Blocking.
     pub(crate) fn github_credentials(&self) -> Option<(cockpit_integrations::Secret, bool)> {
-        match self.oauth_tokens(Service::GitHub) {
-            Some(t) if !(t.refresh.is_none() && t.needs_refresh(crate::oauth::now_seconds())) => {
-                Some((t.access, true))
-            }
-            _ => self.token(secrets::GITHUB).map(|t| (t, false)),
+        let token = self.token(secrets::GITHUB);
+        let kind = AuthChoice::pick(
+            self.sources().github_auth,
+            token.is_some(),
+            self.oauth_state(Service::GitHub),
+        );
+        match kind {
+            AuthKind::OAuth => self.oauth_tokens(Service::GitHub).map(|t| (t.access, true)),
+            AuthKind::Token => token.map(|t| (t, false)),
+            AuthKind::None => None,
         }
     }
 

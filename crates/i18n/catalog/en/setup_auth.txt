@@ -1,3 +1,4 @@
 # Sign-in way picker (Jira and GitHub steps).
 setup_auth.token = API token
 setup_auth.oauth = OAuth
+setup_auth.unused_oauth = The sign-in via the app is kept but not used: Cockpit uses the token. You can disconnect it under "OAuth".

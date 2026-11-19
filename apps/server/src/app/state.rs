@@ -242,6 +242,8 @@ impl AppState {
         let updated = Sources {
             github: c.github.clone(),
             jira: c.jira.clone(),
+            github_auth: c.github_auth,
+            jira_auth: c.jira_auth,
             github_oauth: c.github_oauth.clone(),
             atlassian: c.atlassian.clone(),
             endpoints: alt.endpoints.clone(),
