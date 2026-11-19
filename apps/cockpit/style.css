@@ -10,12 +10,12 @@ body { margin: 0; }
 .ck-ellipsis { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ck-inbox { list-style: none; margin: 0; padding: 0 0 var(--ref-space-8); }
-.ck-empty { padding: var(--ref-space-12) var(--ref-space-20) var(--ref-space-20); }
+.ck-empty { padding: var(--ref-space-12) calc(var(--ui-pane-pad) - var(--ref-space-8)); }
 
 /* Small colored icon in the inbox row. */
 .ck-reason { width: 22px; height: 22px; border-radius: var(--ref-radius-6); }
 
-.ck-setup { min-height: 100vh; min-height: 100dvh; padding-block: 56px calc(var(--ui-nav-space) + var(--ref-space-24)); }
+.ck-setup { min-height: 100vh; min-height: 100dvh; padding-block: var(--ref-space-48) calc(var(--ui-nav-space) + var(--ref-space-24)); }
 
 /* Inbox: search field and keyboard shortcuts. */
 .ck-keys { display: flex; flex-wrap: wrap; gap: var(--ref-space-4) var(--ref-space-16); margin: 0; padding: var(--ref-space-8) var(--ref-space-20) var(--ref-space-16); }
@@ -29,7 +29,7 @@ body { margin: 0; }
 .ck-thread { display: flex; flex-direction: column; gap: var(--ref-space-8); }
 
 /* Overview: cards for entries that are stuck, and for the entries of a person. */
-.ck-stuck-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ref-space-8); }
+.ck-stuck-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--ui-card-gap); }
 .ck-stuck { display: flex; gap: var(--ref-space-12); padding: var(--ref-space-12); border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-grouped-background); }
 .ck-stuck .ck-reason { flex: none; }
 
@@ -58,7 +58,7 @@ body { margin: 0; }
 /* Implement review comments: selectable comments */
 .ck-pick { padding: var(--ref-space-8) var(--ref-space-12); border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-grouped-background); cursor: pointer; }
 /* Rules per repo: paths, tests, instructions */
-.ck-rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--ref-space-12); }
+.ck-rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--ui-card-gap); }
 /* Usage and limits on the agent run */
 .ck-usage { display: flex; flex-direction: column; gap: var(--ref-space-4); }
 .ck-problem { color: var(--sys-color-red); }
@@ -67,16 +67,16 @@ body { margin: 0; }
 .ck-agent-repo {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid var(--sys-color-separator, rgba(128, 128, 128, 0.3));
-  border-radius: 12px;
+  gap: var(--ref-space-10);
+  padding: var(--ref-space-12);
+  border: 1px solid var(--sys-color-separator);
+  border-radius: var(--ref-radius-12);
 }
 
 /* The list of repos to choose from in the setup assistant. */
-.ck-repo-list { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; border: 1px solid var(--sys-color-separator, rgba(128, 128, 128, 0.3)); border-radius: 12px; }
+.ck-repo-list { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; border: 1px solid var(--sys-color-separator); border-radius: var(--ref-radius-12); }
 .ck-repo-list:not(:has(li)) { display: none; }
-.ck-repo-item { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; padding: 10px 12px; cursor: pointer; }
+.ck-repo-item { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ref-space-4) var(--ref-space-10); padding: var(--ref-space-10) var(--ref-space-12); cursor: pointer; }
 .ck-repo-name { font-weight: 600; overflow-wrap: anywhere; }
 
 /* Notices sit above the navigation pill (on every width). */
@@ -153,3 +153,6 @@ body { margin: 0; }
 .ck-commit:focus-visible { outline: none; box-shadow: inset var(--sys-focus-ring); }
 .ck-commit__body { white-space: pre-wrap; }
 @media (prefers-reduced-motion: reduce) { .ck-file__chevron { transition: none; } }
+
+/* Language row at the end of the "More" sheet. */
+.ck-sheet-lang { padding: var(--ref-space-4) var(--ref-space-12) var(--ref-space-12); }
