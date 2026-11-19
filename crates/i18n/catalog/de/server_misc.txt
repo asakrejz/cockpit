@@ -14,4 +14,3 @@ server_misc.webhook_rate_limited = Zu viele Anfragen in kurzer Zeit. Warte eine 
 server_misc.webhook_rejected = Der Server hat den Test abgelehnt.
 server_misc.webhook_no_answer = Der lokale Server hat nicht geantwortet.
 server_misc.run_missing = Es fehlt der Lauf (run)
-server_misc.translate_unreadable = Die Anfrage zum Übersetzen lässt sich nicht lesen

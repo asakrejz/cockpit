@@ -49,22 +49,3 @@ pub async fn fetch_panel_commit(
     }
     get_json("/api/review/commit", query).await
 }
-
-/// Translates a text with the model of the agent (`POST /api/translate`). Only on a click.
-pub async fn post_translate(text: &str, to: cockpit_i18n::Lang) -> Result<String, CallError> {
-    let request = Request::post("/api/translate")
-        .header("Content-Type", "application/json")
-        .json(&cockpit_core::api::TranslateRequest {
-            text: text.to_string(),
-            to,
-        })
-        .map_err(|_| CallError::Rejected(t!(ServerRequestNotStarted)))?;
-    let resp = request.send().await.map_err(|_| CallError::Unreachable)?;
-    if !resp.ok() {
-        return Err(rejection(resp).await);
-    }
-    resp.json::<cockpit_core::api::TranslateResponse>()
-        .await
-        .map(|r| r.text)
-        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
-}

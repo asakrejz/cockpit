@@ -318,23 +318,9 @@ pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi, panel: PanelUi) -> 
                     <span class="ui-spacer"></span>
                     {ticket}
                 </div>
-                {
-                    let description = r
-                        .description_msg
-                        .as_ref()
-                        .map_or_else(|| r.description.clone(), |m| m.render(lang()));
-                    let shown = description.clone();
-                    view! {
-                        <crate::translate::Translatable
-                            text=description
-                            render=Callback::new(move |translated: Option<String>| {
-                                let text = translated.unwrap_or_else(|| shown.clone());
-                                view! { <p class="t-body t-secondary" style="white-space: pre-line">{text}</p> }
-                                    .into_any()
-                            })
-                        />
-                    }
-                }
+                <p class="t-body t-secondary">
+                    {r.description_msg.as_ref().map_or_else(|| r.description.clone(), |m| m.render(lang()))}
+                </p>
             </PaneHeader>
             <PaneBody>{body}</PaneBody>
         </Pane>
