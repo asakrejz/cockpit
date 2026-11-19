@@ -8,6 +8,7 @@ const REPO_B: &str = "acme/web";
 async fn two_repo_server() -> MockServer {
     let s = MockServer::start().await;
     get(&s, "/user", ok(fixture!("github_user.json"))).await;
+    search_none(&s).await;
     for (repo, title, sha) in [
         (REPO, "App: Avatar", "aaa111"),
         (REPO_B, "Web: Header", "ccc333"),

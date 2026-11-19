@@ -17,6 +17,7 @@ macro_rules! fixture {
     };
 }
 
+mod discovery;
 mod fetch;
 mod jira_details;
 mod jira_scope;
@@ -34,6 +35,17 @@ const NOW_MS: u64 = 1_715_688_000_000;
 
 fn ok(text: &str) -> ResponseTemplate {
     ResponseTemplate::new(200).set_body_raw(text.to_string(), "application/json")
+}
+
+/// The search answers "nothing found" (the sync searches in all repos besides its own list).
+async fn search_none(s: &MockServer) {
+    // Lowest priority: a test that mounts its own search answers goes first.
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .respond_with(ok(r#"{"total_count":0,"items":[]}"#))
+        .with_priority(200)
+        .mount(s)
+        .await;
 }
 
 async fn get(s: &MockServer, p: &str, response: ResponseTemplate) {
@@ -68,6 +80,7 @@ async fn github_server() -> MockServer {
 async fn github_server_without_checks() -> MockServer {
     let s = MockServer::start().await;
     get(&s, "/user", ok(fixture!("github_user.json"))).await;
+    search_none(&s).await;
     let base = format!("/repos/{REPO}");
     get(
         &s,

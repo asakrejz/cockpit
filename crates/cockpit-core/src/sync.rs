@@ -26,6 +26,8 @@ use crate::model::{Checks, Item, PrKey, Source, TicketStatus};
 use crate::review::{FileDiff, LineComment, Review};
 use crate::workspace::Workspace;
 
+pub mod discovery;
+
 mod remote;
 pub use remote::*;
 
