@@ -6,6 +6,7 @@
 
 mod app_blocks;
 mod button;
+mod combobox;
 mod common;
 mod controls;
 mod fields;
@@ -48,6 +49,7 @@ pub static STORIES: &[Story] = &[
     link_badge::STORY,
     controls::STORY,
     fields::STORY,
+    combobox::STORY,
     list::STORY,
     media_card::STORY,
     navigation::STORY,

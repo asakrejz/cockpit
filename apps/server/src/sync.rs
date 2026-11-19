@@ -7,7 +7,9 @@
 
 use std::time::Duration;
 
-use cockpit_core::api::{ActionResponse, JiraProject, JiraProjectsResponse, SyncResponse};
+use cockpit_core::api::{
+    ActionResponse, JiraAssignableResponse, JiraProject, JiraProjectsResponse, SyncResponse,
+};
 use cockpit_core::{Action, ActionError, Actor, Source};
 use cockpit_i18n::{Msg, msg};
 use cockpit_integrations::github::{GitHubClient, PrLimits};
@@ -236,6 +238,40 @@ impl AppState {
                     name: p.name,
                 })
                 .collect(),
+        })
+    }
+
+    /// People Jira lets you assign tickets of `project` to, whose name matches `query`.
+    /// Read only. Without Jira or key: `active: false`.
+    pub async fn jira_assignable(
+        &self,
+        project: &str,
+        query: &str,
+    ) -> Result<JiraAssignableResponse, ActionFailure> {
+        if self.sources().jira.is_none() {
+            return Ok(JiraAssignableResponse::default());
+        }
+        self.oauth_refresh().await;
+        let s = self.clone();
+        let client = tokio::task::spawn_blocking(move || s.jira_client())
+            .await
+            .map_err(|_| ActionFailure::Intern)?;
+        let Some(client) = client else {
+            return Ok(JiraAssignableResponse::default());
+        };
+        let client = client.map_err(|e| {
+            ActionFailure::Plan(msg!(ServerRunJiraError, error = Msg::raw(e.to_string())))
+        })?;
+        let people = client
+            .assignable_people(project, query)
+            .await
+            .map_err(|e| {
+                tracing::warn!("Jira assignable users: {e}");
+                ActionFailure::Service(msg!(ServerRunJiraNoPeople, error = Msg::raw(e.to_string())))
+            })?;
+        Ok(JiraAssignableResponse {
+            active: true,
+            people,
         })
     }
 

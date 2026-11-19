@@ -17,11 +17,16 @@ view! {
 | Basics | `Root`, `Text`, `Icon`, `Glass` |
 | Layout | `VStack`, `HStack`, `ZStack`, `Spacer`, `Grid`, `Split`, `Container`, `PageSection` |
 | Controls | `Button`, `Link`, `Badge`, `Toggle`, `Segmented`, `Slider`, `Stepper` |
-| Input | `TextField`, `SearchField` |
+| Input | `TextField`, `SearchField`, `Combobox` (text field with suggestions, see below) |
 | Content | `List`, `ListSection`, `ListRow`, `ListButtonRow`, `Card`, `CardBody`, `Media` |
 | Navigation | `Navbar`, `IosNav`, `TabBar`, `Pager`, `Footer` |
 | Overlay | `Sheet` |
 | App | `SplitView` (with `StackLevel`: list and detail as two levels below 768 px, see `docs/architecture.md`), `Sidebar`, `BottomNav` (floating glass pill), `PickerPane`, `Pane`, `Status`, `Avatar`, `Chip`, `InboxRow`, `CommentBubble`, `RichText` (Jira text from ADF), `Markdown` (GitHub text: PR descriptions and comments, same look as `RichText`), `Textarea`, `Diff`, `SuggestionCard`, `Timeline`, `Progress`, `Log`, `Steps` |
+
+**Combobox.** For choosing from a long list (people). The caller reads `query` and passes the ranked `options`
+(`ComboOption`, quick choices first); the component brings `role="combobox"`, `aria-expanded`,
+`aria-activedescendant`, a listbox, arrow keys, Enter, Escape, mouse and touch. The ticket detail uses it for the
+assignee (matching and ranking: `cockpit_core::people_search`).
 
 **Building block and story.** A building block lives in `crates/<name>/` (a crate that depends only on `leptos`, hence
 reusable); a story lives in `apps/playground/src/stories/<name>.rs` and shows it with sample values. In another

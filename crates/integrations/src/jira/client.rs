@@ -6,7 +6,8 @@ use cockpit_i18n::msg;
 use serde::de::DeserializeOwned;
 
 use super::dto::{
-    CommentPage, JiraComment, Myself, Project, ProjectPage, SearchResult, TransitionList,
+    AssignableUser, CommentPage, JiraComment, Myself, Project, ProjectPage, SearchResult,
+    TransitionList,
 };
 use super::map;
 use crate::http::{base_url, client, send};
@@ -134,6 +135,9 @@ pub fn is_sprint_query(jql: &str) -> bool {
 pub fn open_tickets_jql(jql: &str) -> Option<String> {
     is_sprint_query(jql).then(|| jql.trim().replacen(SPRINT_CLAUSE, OPEN_CLAUSE, 1))
 }
+
+/// At most this many people come back from the search for assignable users.
+pub const ASSIGNABLE_MAX: usize = 20;
 
 /// This many projects per page and at most in total.
 const PROJECTS_PAGE: usize = 50;
@@ -513,6 +517,63 @@ impl JiraClient {
         }
         all.truncate(MAX_PROJECTS);
         Ok(all)
+    }
+
+    /// People who can be assigned to tickets of a project and whose name matches `query`
+    /// (`GET /rest/api/3/user/assignable/search`, read only). Inactive accounts and apps are
+    /// left out; at most [`ASSIGNABLE_MAX`] come back.
+    pub async fn assignable_users(
+        &self,
+        project: &str,
+        query: &str,
+    ) -> Result<Vec<AssignableUser>, Error> {
+        if !cockpit_core::is_project_key(project) {
+            return Err(Error::Coded(msg!(
+                IntegrationsJiraBadProjectKey,
+                project = project
+            )));
+        }
+        let question = [
+            ("project", project.to_string()),
+            ("query", query.trim().to_string()),
+            ("maxResults", ASSIGNABLE_MAX.to_string()),
+        ];
+        let users: Vec<AssignableUser> = self
+            .lies_json(
+                self.get("/rest/api/3/user/assignable/search")
+                    .query(&question),
+            )
+            .await?;
+        Ok(users
+            .into_iter()
+            .filter(|u| {
+                u.active
+                    && !u.display_name.trim().is_empty()
+                    && u.account_type.as_deref().is_none_or(|t| t == "atlassian")
+            })
+            .collect())
+    }
+
+    /// [`Self::assignable_users`] as people for the app: you come as [`cockpit_core::Person::me`],
+    /// the others with initials from their name.
+    pub async fn assignable_people(
+        &self,
+        project: &str,
+        query: &str,
+    ) -> Result<Vec<cockpit_core::Person>, Error> {
+        let users = self.assignable_users(project, query).await?;
+        // Without our own account ID everybody is „someone else“; that is no reason to fail.
+        let me = self.me().await.ok();
+        Ok(users
+            .into_iter()
+            .map(|u| {
+                if me.as_deref() == Some(u.account_id.as_str()) {
+                    cockpit_core::Person::me()
+                } else {
+                    crate::text::person(&u.display_name)
+                }
+            })
+            .collect())
     }
 
     pub async fn comments(&self, key: &str) -> Result<Vec<JiraComment>, Error> {
