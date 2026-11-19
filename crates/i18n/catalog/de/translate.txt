@@ -1,9 +1,0 @@
-# The "Translate" button for texts from Jira and GitHub
-translate.button = Auf {language} übersetzen
-translate.busy = Übersetze …
-translate.done = Vom Modell übersetzt. Wichtige Stellen bitte im Original prüfen.
-translate.show_original = Original anzeigen
-translate.no_key = Dafür brauchst du einen Schlüssel und ein Modell für den Agenten (siehe Einrichten).
-translate.notice = Der Text geht an den Modell-Dienst, den du für den Agenten eingerichtet hast (über den lokalen Server), und wird dort übersetzt. Es wird nur dieser eine Text gesendet, und nur jetzt.
-translate.confirm = Übersetzen
-translate.cancel = Abbrechen

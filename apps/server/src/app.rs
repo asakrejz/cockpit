@@ -68,7 +68,6 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/events", get(events))
         .route("/api/jira/projects", get(jira_projects))
         .route("/api/agent/models", get(agent_models))
-        .route("/api/translate", post(crate::translate::translate))
         .route("/api/agent/check", get(endpoint_check))
         .route("/api/agent/pull-request", get(pull_request_preview))
         .route(
