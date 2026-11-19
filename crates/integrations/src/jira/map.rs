@@ -37,6 +37,18 @@ pub fn issue_to_item(issue: &Issue, me: &str, now: i64) -> Item {
 /// Like [`issue_to_item`]; `sprint_field` is the ID of the site's sprint field (see
 /// `JiraClient::sprint_field`), from which the sprint of the ticket is read.
 pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Option<&str>) -> Item {
+    issue_to_item_full(issue, me, now, sprint_field, None)
+}
+
+/// Like [`issue_to_item_with`]; `team_field` is the ID of the site's team field (see
+/// `JiraClient::team_field`), from which the team of the ticket is read.
+pub fn issue_to_item_full(
+    issue: &Issue,
+    me: &str,
+    now: i64,
+    sprint_field: Option<&str>,
+    team_field: Option<&str>,
+) -> Item {
     let f = &issue.fields;
     let me_assigned = f.assignee.as_ref().is_some_and(|a| a.account_id == me);
     let owner = match f.assignee.as_ref() {
@@ -91,10 +103,36 @@ pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Optio
             }
         }),
         watching: f.watches.as_ref().is_some_and(|w| w.is_watching),
+        team: team_field.and_then(|id| team_of(f.extra.get(id)?)),
         updated_ms: time::parse_iso(&f.updated).map(|s| s as u64 * 1000),
         // Filled by the sync: the link needs the site, the details the field prefs.
         url: None,
         details: None,
+    }
+}
+
+/// The team from the value of the team field: an object with `id` and `name` (REST v3), or only
+/// the ID as text (then the ID is the name). `null`, empty or anything else: no team.
+pub fn team_of(value: &serde_json::Value) -> Option<cockpit_core::TeamRef> {
+    let text = |v: Option<&serde_json::Value>| {
+        v.and_then(|v| v.as_str())
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .map(str::to_string)
+    };
+    match value {
+        serde_json::Value::Object(o) => {
+            let id = text(o.get("id")).or_else(|| text(o.get("teamId")))?;
+            let name = text(o.get("name"))
+                .or_else(|| text(o.get("title")))
+                .unwrap_or_else(|| id.clone());
+            Some(cockpit_core::TeamRef { id, name })
+        }
+        serde_json::Value::String(s) if !s.trim().is_empty() => Some(cockpit_core::TeamRef {
+            id: s.trim().to_string(),
+            name: s.trim().to_string(),
+        }),
+        _ => None,
     }
 }
 

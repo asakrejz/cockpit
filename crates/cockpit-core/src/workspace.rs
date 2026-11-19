@@ -144,6 +144,13 @@ pub struct Workspace {
     /// tickets, and the sync fetches all open tickets of the project. `None` = all.
     #[serde(default)]
     pub jira_project: Option<String>,
+    /// „Mein Team“: the Jira teams whose tickets the lists show (see [`crate::team_filter`]);
+    /// change by `Action::SetTeamChoice`. No team chosen = everything.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::team_filter::TeamChoice::is_default"
+    )]
+    pub team_choice: crate::team_filter::TeamChoice,
     /// The chosen inbox filters (see [`crate::filters`]); change by `Action::SetInboxFilter`.
     #[serde(default)]
     pub inbox_filter: InboxFilter,
@@ -302,6 +309,7 @@ impl Workspace {
                 .collect(),
             _ => self.search(filter, source, query, now_ms),
         };
+        let base = base.into_iter().filter(|i| self.team_visible(i)).collect();
         by.apply(base, now_ms)
     }
 
@@ -388,6 +396,21 @@ impl Workspace {
             .iter()
             .filter(|i| filter == Filter::Snoozed || !i.read)
             .count()
+    }
+
+    /// The badge of the merged "Aufgaben" entry: what "Ich" showed plus what the former
+    /// "Inbox" (all attention) showed, every entry counted once. Since "Ich" is a subset of
+    /// "Alle", this is the unread number of the union of both lists.
+    pub fn tasks_unread(&self, now_ms: u64) -> usize {
+        let mut ids: Vec<&str> = [Filter::Mine, Filter::All]
+            .into_iter()
+            .flat_map(|f| self.attention(f, now_ms))
+            .filter(|i| !i.read)
+            .map(|i| i.id.as_str())
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids.len()
     }
 
     pub fn snooze_of(&self, id: &str) -> Option<&Snooze> {

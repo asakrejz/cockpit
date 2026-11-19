@@ -106,7 +106,7 @@ pub(super) fn draft_notes(store: Store, r: &Review, file: &str, index: usize) ->
                     <span class="ui-hstack t-footnote t-secondary" style="--spacing: 8px">
                         {t!(ReviewDraftsNote)}
                     </span>
-                    <p class="t-subheadline">{s.text.clone()}</p>
+                    <Markdown text=s.text.clone() class="t-subheadline" />
                     {(!rows.is_empty()).then(|| view! { <Diff rows=rows.clone() label=t!(ReviewSuggestion) /> })}
                     {controls}
                 </div>

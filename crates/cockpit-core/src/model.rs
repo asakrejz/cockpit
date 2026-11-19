@@ -189,6 +189,10 @@ pub struct Item {
     /// Jira only: I watch the ticket.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub watching: bool,
+    /// Jira only: the team of the ticket (Atlassian „Team“ field). `None` = no team (or not
+    /// loaded: old data, no such field on the site).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub team: Option<TeamRef>,
     /// Last update at the service (milliseconds since 1970), `None` = unknown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updated_ms: Option<u64>,
@@ -200,6 +204,24 @@ pub struct Item {
     /// data, demo without extras).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub details: Option<crate::details::Details>,
+}
+
+/// The team of a ticket: the Atlassian team's ID (a UUID) and its name.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct TeamRef {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+}
+
+impl TeamRef {
+    pub fn new(id: &str, name: &str) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+        }
+    }
 }
 
 /// State of a Jira sprint.

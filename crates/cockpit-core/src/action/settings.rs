@@ -128,10 +128,12 @@ impl Workspace {
                 let jira_project = self.jira_project.take();
                 let inbox_filter = std::mem::take(&mut self.inbox_filter);
                 let language = self.language;
+                let team_choice = std::mem::take(&mut self.team_choice);
                 *self = demo::workspace();
                 self.jira_project = jira_project;
                 self.inbox_filter = inbox_filter;
                 self.language = language;
+                self.team_choice = team_choice;
                 self.notifications = notifications;
                 self.pr_status_off = pr_status_off;
                 self.limits = limits;

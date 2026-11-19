@@ -73,6 +73,7 @@ fn item(
         issue_type: None,
         reporter: None,
         watching: false,
+        team: None,
         updated_ms: None,
         url: None,
         details: None,
@@ -184,6 +185,7 @@ pub fn multi_repo_workspace() -> Workspace {
     ws.reviews.push(review);
     add_team_pull_requests(&mut ws);
     add_sprints(&mut ws);
+    add_teams(&mut ws);
     ws
 }
 
@@ -367,6 +369,28 @@ fn add_sprints(ws: &mut Workspace) {
             t.issue_type = Some(kind.into());
             t.priority = priority;
             t.watching = watching;
+        }
+    }
+}
+
+/// Jira teams for the tickets, so that „Mein Team“ has something to choose from: two teams, a
+/// third one for the web tickets of colleagues, and one ticket without a team.
+fn add_teams(ws: &mut Workspace) {
+    let design = TeamRef::new("team-design", "Design System");
+    let web = TeamRef::new("team-web", "Web");
+    let platform = TeamRef::new("team-platform", "Plattform");
+    let teams = [
+        ("BAU-142", &design),
+        ("BAU-138", &design),
+        ("BAU-150", &design),
+        ("DOC-7", &design),
+        ("WEB-21", &web),
+        ("WEB-22", &web),
+        ("WEB-18", &platform),
+    ];
+    for (key, team) in teams {
+        if let Some(t) = ws.items.iter_mut().find(|i| i.key == key) {
+            t.team = Some(team.clone());
         }
     }
 }

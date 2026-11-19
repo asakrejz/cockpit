@@ -10,7 +10,7 @@ pub const STORY: Story = Story {
     id: "stack-nav",
     title: "Ebenen (StackNav)",
     group: "Navigation",
-    description: "Schmal arbeitet eine Seite mit Liste und Detail wie eine iOS-Navigation: immer nur eine Ebene ist sichtbar, das Detail schiebt von rechts herein, oben links steht „‹ Zurück“. Ab 768 px stehen die Spalten nebeneinander.",
+    description: "Schmal arbeitet eine Seite mit Liste und Detail wie eine iOS-Navigation: immer nur eine Ebene ist sichtbar, das Detail schiebt von rechts herein, oben links schwebt ein runder Glas-Knopf „‹“ (Zurück) über dem Inhalt. Ab 768 px stehen die Spalten nebeneinander.",
     api: "<SplitView level back_label back_href> · StackLevel",
     render,
 };

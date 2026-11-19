@@ -15,6 +15,7 @@
 //! * [`rules`]: rules per repository (paths, required tests, instructions)
 //! * [`sync`]: sync with Jira and GitHub (pure merging)
 //! * [`team`]: load per person and what is currently stuck
+//! * [`team_filter`]: „Mein Team“, the choice of Jira teams the lists are limited to
 //! * [`workspace`]: everything together, with the actions of the UI
 //! * [`action`]: [`Action`], `Workspace::apply` and the log
 //! * [`demo`]: sample data for tests, stories and the server's seed `COCKPIT_SEED=demo`
@@ -48,6 +49,7 @@ pub mod search;
 pub mod setup;
 pub mod sync;
 pub mod team;
+pub mod team_filter;
 pub mod text;
 pub mod usage;
 pub mod workspace;
@@ -84,5 +86,6 @@ pub use sync::{
     Change, Loaded, Outcome, PrLink, Problem, Remote, SourceData, SourceState, SyncState,
 };
 pub use team::{CAPACITY, LoadLevel, Member, Stuck, StuckKind, state_label};
+pub use team_filter::TeamChoice;
 pub use usage::{AgentLimits, Charge, Pricing, StopReason, Usage};
 pub use workspace::{AgentError, LinkedPr, PullRequestDraft, ResumeError, StatusChange, Workspace};

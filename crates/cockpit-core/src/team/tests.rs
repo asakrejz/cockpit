@@ -322,3 +322,38 @@ fn nobody_or_an_unknown_name_means_everybody() {
         );
     }
 }
+
+#[test]
+fn the_team_choice_limits_members_and_stuck_but_keeps_me_and_the_agent() {
+    use crate::TeamRef;
+    let mut w = demo::multi_repo_workspace();
+    let all = members(&w);
+    w.team_choice.teams = vec![TeamRef::new("team-design", "Design System")];
+    let list = members(&w);
+    let names: Vec<_> = list.iter().map(|m| m.person.name.as_str()).collect();
+    // Jonas only owns a ticket of the Plattform team (his pull request has no ticket, so it stays).
+    assert!(names.contains(&"Jonas"));
+    assert_eq!(&names[..2], ["Du", "Agent"]);
+    // Tickets of other teams are not counted anywhere.
+    let ids: Vec<&String> = list.iter().flat_map(|m| &m.item_ids).collect();
+    assert!(!ids.iter().any(|id| id.as_str() == "web21"));
+    // Without a choice they were.
+    assert!(
+        all.iter()
+            .flat_map(|m| &m.item_ids)
+            .any(|id| id.as_str() == "web21")
+    );
+}
+
+#[test]
+fn the_team_choice_hides_the_stuck_entries_of_other_teams() {
+    use crate::TeamRef;
+    let mut w = demo::multi_repo_workspace();
+    // A ticket of another team that is stuck: in progress without a branch.
+    w.set_status("web21", TicketStatus::InProgress);
+    assert!(stuck(&w).iter().any(|s| s.key == "WEB-21"));
+    w.team_choice.teams = vec![TeamRef::new("team-design", "Design System")];
+    assert!(stuck(&w).iter().all(|s| s.key != "WEB-21"));
+    w.team_choice.teams = vec![TeamRef::new("team-web", "Web")];
+    assert!(stuck(&w).iter().any(|s| s.key == "WEB-21"));
+}
