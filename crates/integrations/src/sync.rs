@@ -4,6 +4,7 @@
 //! If a source fails, its state in the workspace stays unchanged; the error becomes the
 //! [`Problem`] of the source. The fetch itself writes nothing.
 
+use cockpit_core::sync::discovery;
 use cockpit_core::{Loaded, Outcome, PrKey, PrLink, Remote, Review, Source, SourceData, Workspace};
 use cockpit_i18n::msg;
 
@@ -218,6 +219,37 @@ pub async fn github_load(
             }
         }
     }
+    // … then the pull requests the search finds in all other repos the key can see …
+    let hits = discover(
+        client,
+        repos,
+        left,
+        limits.per_repo,
+        known,
+        &mut out,
+        &mut taken,
+    )
+    .await?;
+    for (repo, nr) in hits {
+        match client.pull(&repo, nr).await {
+            Ok(pull) => {
+                let relation = PrRelation::of(&pull, &me);
+                pulls.push((repo, pull, relation));
+            }
+            // Closed or no longer visible since the search.
+            Err(Error::NotFound | Error::NoPermission) => {}
+            Err(e) if all_repos(&e) => return Err(e),
+            Err(e) => {
+                out.warn(msg!(
+                    IntegrationsSyncPrStale,
+                    repo = &repo,
+                    number = nr,
+                    error = e.to_string()
+                ));
+                carry_over(known, &repo, |n| n == nr, &mut out, &mut taken);
+            }
+        }
+    }
     // … mine first (stable: the order of the service stays within each group) …
     pulls.sort_by_key(|(_, _, r)| !r.mine());
 
@@ -250,6 +282,60 @@ pub async fn github_load(
         }
     }
     Ok(out)
+}
+
+/// The pull requests of repos that are not watched: three searches (see
+/// [`cockpit_core::sync::discovery`]), merged without duplicates and bounded by `room` (what the
+/// watched repos left of the total) and `per_repo`. A failed search is a hint, not an outage:
+/// what the workspace knew about those repos stays, so nothing vanishes for one bad minute.
+async fn discover(
+    client: &GitHubClient,
+    watched: &[String],
+    room: usize,
+    per_repo: usize,
+    known: &Workspace,
+    out: &mut Loaded,
+    taken: &mut Vec<(String, u32)>,
+) -> Result<Vec<(String, u32)>, Error> {
+    let mut lists = Vec::new();
+    let mut failed = false;
+    for query in discovery::QUERIES {
+        match client.search_pulls(query).await {
+            Ok(list) => lists.push(list),
+            Err(Error::NotSignedIn) => return Err(Error::NotSignedIn),
+            Err(e) => {
+                // A search limit is separate from the normal one: keep going without it.
+                failed = true;
+                out.warn(msg!(IntegrationsSyncSearchFailed, error = e.to_string()));
+                break;
+            }
+        }
+    }
+    if failed {
+        let mut others: Vec<&str> = Vec::new();
+        for link in &known.sync.prs {
+            if !watched.iter().any(|w| w.eq_ignore_ascii_case(&link.repo))
+                && !others.contains(&link.repo.as_str())
+            {
+                others.push(&link.repo);
+            }
+        }
+        for repo in others {
+            carry_over(known, repo, |_| true, out, taken);
+        }
+    }
+    let found = discovery::merge_hits(lists, watched, per_repo, room);
+    for repo in &found.cut_repos {
+        out.warn(msg!(
+            IntegrationsSyncTruncatedPerRepo,
+            repo = repo,
+            n = per_repo
+        ));
+    }
+    if found.cut_total > 0 {
+        out.warn(msg!(IntegrationsSyncSearchCut, n = found.cut_total));
+    }
+    Ok(found.hits)
 }
 
 async fn pull_load(

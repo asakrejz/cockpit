@@ -207,6 +207,22 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), Msg> {
             }
         }
         empty_remove(&mut doc, "github");
+        // An entry of `[[agent.repos]]` that is no longer in the list is not watched any more
+        // (it keeps its settings).
+        if let Some(Item::ArrayOfTables(all)) = doc
+            .get_mut("agent")
+            .and_then(Item::as_table_like_mut)
+            .and_then(|a| a.get_mut("repos"))
+        {
+            for e in all.iter_mut() {
+                let name = e.get("repo").and_then(Item::as_str).unwrap_or_default();
+                if repos.iter().any(|r| r == name) {
+                    e.remove("watch");
+                } else {
+                    e.insert("watch", value(false));
+                }
+            }
+        }
     }
     for (name, choice) in [("github", a.github_auth), ("jira", a.jira_auth)] {
         if let Some(c) = choice {
@@ -255,12 +271,7 @@ pub(super) fn agent_repos_write(doc: &mut DocumentMut, input: &AgentReposInput) 
     }
     let t = table(doc, "agent")?;
     t.remove("repos");
-    // The list is the one place for the repos: the older `[github] repos` goes away, the
-    // sync takes its repos from the list (see `Config::parse`).
-    if let Some(g) = doc.get_mut("github").and_then(Item::as_table_like_mut) {
-        g.remove("repos");
-    }
-    empty_remove(doc, "github");
+    // `[github] repos` (the watched repos) is a separate list and stays as it is.
     let t = table(doc, "agent")?;
     match input
         .default
@@ -290,6 +301,9 @@ pub(super) fn agent_repos_write(doc: &mut DocumentMut, input: &AgentReposInput) 
             }
             if r.pr_language != cockpit_i18n::Lang::En {
                 e.insert("pr_language", value(r.pr_language.code()));
+            }
+            if !r.watch {
+                e.insert("watch", value(false));
             }
             all.push(e);
         }

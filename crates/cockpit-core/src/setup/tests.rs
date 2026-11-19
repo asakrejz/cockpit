@@ -237,9 +237,9 @@ fn summary_explains_in_plain_words() {
     assert_eq!(z[2].tone, Tone::Open);
     assert!(z[2].text.de().contains("Mit GitHub anmelden"));
 
-    // Signed in, but without repos: problem.
+    // Signed in is enough: without any repo the pull requests are found by search.
     s.github = oauth(true);
-    assert_eq!(summary(&s)[2].tone, Tone::Problem);
+    assert_eq!(summary(&s)[2].tone, Tone::Good);
     s.setup.github_repos = vec!["firma/app".into()];
     assert_eq!(summary(&s)[2].tone, Tone::Good);
 }

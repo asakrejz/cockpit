@@ -90,8 +90,46 @@ impl AppState {
             .transpose()
     }
 
-    /// The repos the connected access can reach. Read-only.
+    /// How long the list of reachable repos is kept before GitHub is asked again.
+    const REPO_LIST_VALID: std::time::Duration = std::time::Duration::from_secs(300);
+
+    /// Forgets the kept list of reachable repos (the access changed).
+    pub(crate) fn repo_list_forget(&self) {
+        *self
+            .inner
+            .repo_list
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = None;
+    }
+
+    /// The kept list, if it is still fresh.
+    pub(crate) fn repo_list_kept(&self) -> Option<GitHubRepoList> {
+        let kept = self
+            .inner
+            .repo_list
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        kept.as_ref()
+            .filter(|(at, _)| at.elapsed() < Self::REPO_LIST_VALID)
+            .map(|(_, list)| list.clone())
+    }
+
+    /// The repos the connected access can reach: `/user/repos` for a token, the installation
+    /// repos for the GitHub App. Kept for a few minutes. Read-only.
     pub async fn github_repo_list(&self) -> Result<GitHubRepoList, (StatusCode, Msg)> {
+        if let Some(list) = self.repo_list_kept() {
+            return Ok(list);
+        }
+        let list = self.github_repo_list_fresh().await?;
+        *self
+            .inner
+            .repo_list
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some((std::time::Instant::now(), list.clone()));
+        Ok(list)
+    }
+
+    async fn github_repo_list_fresh(&self) -> Result<GitHubRepoList, (StatusCode, Msg)> {
         self.oauth_refresh().await;
         let s = self.clone();
         let access = tokio::task::spawn_blocking(move || s.github_assistant_access())

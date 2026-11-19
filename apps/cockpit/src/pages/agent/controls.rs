@@ -21,9 +21,8 @@ pub(super) fn controls(ctx: AgentCtx) -> impl IntoView {
         blocked,
         ..
     } = ctx;
-    let OptionSignals {
-        agent_repos, repo, ..
-    } = ctx.form;
+    let OptionSignals { repo, .. } = ctx.form;
+    let real = ctx.real;
     let start = move |_| ctx.start();
     let cancel = move |_| ctx.cancel();
     let approve = move |_| ctx.approve();
@@ -41,7 +40,7 @@ pub(super) fn controls(ctx: AgentCtx) -> impl IntoView {
                     size=ControlSize::Large
                     disabled=Signal::derive(move || {
                         blocked.get().is_some()
-                            || (!agent_repos.get().is_empty() && repo.get().is_empty())
+                            || (real.get() && repo.get().is_empty())
                     })
                     on_click=start
                 >

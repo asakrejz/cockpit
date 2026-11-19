@@ -33,7 +33,7 @@ interval_s = 120                  # sync interval, default 2 minutes, at least 3
 
 [github]
 # api_url = "https://ghe.example/api/v3"   # only for GitHub Enterprise
-# repos = [...]                   # older spelling, still read; the assistant now writes [[agent.repos]] only
+# repos = ["acme/app"]            # optional "watched" repos: all their open pull requests are loaded
 # auth = "token"                  # "token" or "oauth": the sign-in the server uses (see below)
 [jira]
 site = "https://acme.atlassian.net"
@@ -62,8 +62,13 @@ max_prs_per_repo = 200            # open pull requests loaded per repo (default 
 max_prs_total = 500               # … over all repos together (default 500, 1 to 2000)
 ```
 
-**Pull requests.** The sync loads *all* open pull requests of the configured repos (most recently updated first, 100
-per call), not only yours. Beyond `max_prs_per_repo` / `max_prs_total` the rest is left out and the source state says
+**Pull requests.** As soon as GitHub is connected the sync runs – **no repo list is needed**. It searches
+(`GET /search/issues`) with `is:pr is:open author:@me`, `is:pr is:open review-requested:@me` and
+`is:pr is:open involves:@me` across every repo the credential can see and merges the hits without duplicates (three
+search calls per tick, at most 30 hits each; every hit is then loaded as a pull request). Repos in `[github] repos` are
+*watched* repos on top of that: *all* their open pull requests are loaded (most recently updated first, 100 per call),
+not only yours; their search hits are skipped. A failed search (e.g. its separate rate limit) is only a hint in the
+source state; what was loaded before stays. The limits below also bound the search results. Beyond `max_prs_per_repo` / `max_prs_total` the rest is left out and the source state says
 "Nur die ersten N PRs je Repo geladen". Your relation to a pull request comes from the pull request itself (author,
 requested reviewers, assignees); review requests to a *team* are not detected.
 
@@ -145,14 +150,21 @@ build context is `apps/agent`, and its `.dockerignore` excludes `config` as well
 
 ## Several repos
 
-`[[agent.repos]]` is the ONE list of repos (owner/name, base branch, Jira projects): they are the pull-request
-sources of the sync **and** the repos the agent may work in. The assistant writes only this list (and `[agent] repo`
-for the default) and removes `[github] repos`. Older configs keep working: `[github] repos` is still read and its
-repos are added to the sync, and the assistant shows both together in one list; saving it migrates to the new format. When a run starts, the backend picks the repo: the first rule whose `projects` names the ticket's Jira
-project, otherwise the default (`[agent] repo`, or the only repo). In the agent view the repo is preselected the same way
-and can be changed in a drop-down before the start; without a matching rule and without a default there is a hint
-and the start waits for your choice. A repo outside the list is refused. Without `[[agent.repos]]` the default applies (`[agent] repo`, or the only `[github] repos` entry; with several `[github] repos` and no default
-you choose at every start). A project may belong to one repo only. In the assistant "Repos prüfen" looks at each repo
+**No configuration is needed.** The repo of an agent run is chosen in the start dialog of the ticket, from every repo
+the credential can see (`GET /user/repos`, or the installation repos with the GitHub App; kept for 5 minutes). Any
+`owner/name` is allowed. The dialog suggests repos first, each with a short reason: (1) repos earlier runs used for
+tickets of the same Jira project (remembered from the runs in the database), (2) repos of pull requests or branches
+linked to the ticket, (3) `owner/name` or GitHub addresses in the ticket text, (4) the `[[agent.repos]]` rules and
+`[agent] repo` below. A run has one repo today; the choice is a list internally, so a run in several repos can follow.
+
+`[[agent.repos]]` holds the **settings per repo** (owner/name, base branch, branch pattern, PR language, Jira
+projects). It is optional. A repo without an entry uses its default branch from GitHub as the base branch and the
+usual branch pattern (or the proposal from its `CONTRIBUTING.md`). The first time the agent starts in such a repo,
+Cockpit stores an entry with these values (`watch = false`) so you can edit it later. The branch pattern and path
+checks before the push stay as they are. `watch` (default `true`) says whether the sync also loads *all* open pull
+requests of that repo, as if it were in `[github] repos`; entries written by hand watch, entries stored on the first
+use do not. Older configs keep working unchanged: `[github] repos` and `[[agent.repos]]` entries are watched repos as
+before, and rules (`projects`, `[agent] repo`) still preselect the repo. A project may belong to one repo only. In the assistant the connection test looks at each watched repo
 read-only (`GET /repos/{owner}/{name}`: exists, visible, push allowed) – it changes nothing. Pull requests are
 identified by `owner/name#number`: equal numbers from two repos stay separate in the inbox, review, agent view,
 log and notifications; addresses look like `#/review/acme/app/87`.

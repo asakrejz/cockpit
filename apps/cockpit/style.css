@@ -73,6 +73,11 @@ body { margin: 0; }
   border-radius: var(--ref-radius-12);
 }
 
+/* A collapsed, optional section of the setup assistant. */
+.ck-optional { border: 1px solid var(--sys-color-separator); border-radius: var(--ref-radius-12); padding: var(--ref-space-12); }
+.ck-optional > summary { cursor: pointer; }
+.ck-optional__body { margin-block-start: var(--ref-space-12); }
+
 /* The list of repos to choose from in the setup assistant. */
 .ck-repo-list { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; border: 1px solid var(--sys-color-separator); border-radius: var(--ref-radius-12); }
 .ck-repo-list:not(:has(li)) { display: none; }

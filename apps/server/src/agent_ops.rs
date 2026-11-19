@@ -131,22 +131,17 @@ impl AppState {
             });
         let choice = self.agent_choice();
         let repos = self.agent_repos();
-        let repo = repos
-            .repos
-            .first()
-            .map(|r| r.repo.as_str())
-            .ok_or_else(agent_run::no_repo);
         let v = Prerequisites {
             container: &container,
             image: probe.state,
             image_hint: probe.hint,
             model: choice.endpoint.as_ref().is_some_and(|e| e.model.is_some()),
             key: self.agent_key().is_some(),
-            repo,
             github_access: self.github_access().is_some(),
         };
         let mut status = agent_run::status(self.agent_real(), &v);
-        // The interface preselects the repo with the same rules the backend applies.
+        // The interface preselects the repo with the same rules the backend applies. Without a
+        // configured repo the user chooses one when starting; that is no missing prerequisite.
         status.repo = repos.default.clone();
         status.repos = repos;
         status
@@ -239,12 +234,12 @@ impl AppState {
                 if !st.ready {
                     return Some(cannot_start(&st));
                 }
-                // The repo must be configured for the agent, and the pull request must be synced.
+                // The pull request must be synced and name a repo the agent can work in.
                 let ws = self.inner.live.copy();
                 let Some(link) = ws.sync.pr(review) else {
                     return Some(msg!(ServerAgentPrNotSynced, review = review.to_string()));
                 };
-                (!self.agent_repos().allows(&link.repo)).then(|| {
+                (!self.repo_usable(&link.repo)).then(|| {
                     msg!(
                         ServerAgentPrOtherRepo,
                         review = review.to_string(),
@@ -310,6 +305,7 @@ mod lines;
 mod probe;
 mod repos;
 mod run;
+pub mod suggest;
 mod watcher;
 
 #[cfg(test)]

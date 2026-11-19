@@ -60,12 +60,13 @@ The agent implements a ticket in a **container** (Claude Agent SDK, Claude Code 
    container can reach the endpoint. If the proxy is only reachable over a **VPN**, the container machine of
    Rancher Desktop or Podman may not know the VPN route or name; the test then says that your Mac reaches the
    proxy but the container does not. Connect the VPN first and restart Rancher Desktop or the Podman machine.
-4. **Connect GitHub and choose the repos:** the agent clones through the backend, one repo per run. In the
-   assistant, step "GitHub" › "Repos auswählen" shows the repos your access can reach (read-only
-   `GET /api/github/repos`); you tick the ones you work with. There is ONE list: a ticked repo is a source of the
-   pull-request comparison and a choice for the agent. Per repo you set the base branch (preset: the repo's default
-   branch) and optionally Jira projects that route to it (`[[agent.repos]]`, see
-   [configuration.md](configuration.md#several-repos)); one repo is the default. The folder `apps/agent/` is looked up next to `apps/cockpit/dist`
+4. **Connect GitHub:** that is all the setup needs from GitHub – **no repos are assigned here**. The agent clones
+   through the backend, one repo per run, and you choose the repo when you start the agent on a ticket (see
+   [using-cockpit.md](using-cockpit.md#choosing-the-repo-at-the-start)). The step "GitHub" has two optional, collapsed
+   sections: "Repos beobachten (optional)" (repos whose *all* open pull requests Cockpit loads, `[github] repos`) and
+   "Repo-Einstellungen für den Agenten (optional)" (base branch, branch pattern, PR language, Jira projects per repo,
+   `[[agent.repos]]`, see [configuration.md](configuration.md#several-repos)). Both read the list of reachable repos
+   (read-only `GET /api/github/repos`). The folder `apps/agent/` is looked up next to `apps/cockpit/dist`
    (`[agent] dir` or `COCKPIT_AGENT_DIR` overrides).
 
 If something is not set up, no run starts; the message says in plain language what is missing and where in the
@@ -121,7 +122,8 @@ projects = ["BAU", "WEB"]          # optional: assigned to me or watched, open, 
 ```
 
 Without `projects` and `jql` Jira returns all open tickets assigned to or watched by you. For GitHub the pull
-requests of the listed repos come in where a review of you is requested or that belong to you.
+requests come in without any list of repos: Cockpit searches GitHub for the pull requests you wrote, are asked to
+review or are involved in, across every repo your access can see (see "Pull requests" in [configuration.md](configuration.md)).
 
 ## GitHub
 
@@ -164,7 +166,7 @@ The same works through the API: `PUT /api/config` with an empty `client_id` (`{"
 
    ```toml
    [github]
-   repos = ["acme/app"]             # the sync still needs the repos
+   # repos = ["acme/app"]           # optional: watched repos (all their open pull requests)
 
    [github_oauth]
    client_id = "Iv23…"
@@ -210,7 +212,7 @@ when its key is in `config/.env`. The summary, the sidebar, inbox, review, the a
 A user token of a GitHub App only sees repos on accounts where the app is **installed**. If your repos belong to an
 organization but the app is only installed on your personal account, the sign-in works and the lists stay empty:
 GitHub answers `404` (not visible) or `403` (permission missing) for each repo, and the sync keeps that as a small
-warning. Cockpit therefore asks `GET /api/github/access` (read-only: `GET /repos/{owner}/{repo}` per configured repo,
+warning. Cockpit therefore asks `GET /api/github/access` (read-only: `GET /repos/{owner}/{repo}` per configured *watched* repo – without any, nothing is asked and no hint appears –
 plus `GET /user/installations` when something is hidden) and shows a hint instead of "No pull requests yet" in the
 review tab, the inbox, the GitHub step and the last step of the assistant. The hint lists the affected repos and
 these steps:
@@ -265,8 +267,9 @@ Feld „Client-Secret“ ein") and link to that step. The terminal commands rema
   webhook "Active" off, Setup URL empty, no private key needed – only client ID and client secret, saved together
   with one "Speichern" ("Client-ID entfernen" deletes the ID), then "Install App" and "Mit GitHub anmelden". Both
   ways end in the repo list and "Verbindung prüfen" (`POST /api/github/check`: `GET /user` and `GET /repos/{owner}/{name}`
-  per saved repo; read-only; never prints the token). The list comes from `GET /user/repos` (token; owner,
-  collaborator, organization member; at most 500) or from the app's installations (OAuth).
+  per watched repo; read-only; never prints the token). The list of reachable repos (the start dialog and the optional
+  pickers) comes from `GET /user/repos` (token; owner, collaborator, organization member; at most 500) or from the
+  app's installations (OAuth), and the server keeps it for 5 minutes.
 - *Sign-in method (Jira and GitHub).* The picker is a persisted choice (`auth = "token"` or `"oauth"` in
   `[jira]` / `[github]`), not only a switch of the visible form: the way you pick is the one the server uses. Saving a
   token picks "token", completing an OAuth sign-in picks "oauth", and switching the picker to a way that is already

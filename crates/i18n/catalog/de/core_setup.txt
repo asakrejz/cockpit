@@ -35,7 +35,6 @@ core_setup.container_no_image = {runtime} läuft. Das Agent-Image ist noch nicht
 core_setup.container_ok = {runtime} ist installiert und läuft.
 core_setup.container_stopped = {runtime} ist installiert, aber nicht gestartet. Öffne das Programm und warte, bis es bereit ist.
 core_setup.container_none = Noch kein Docker oder Podman gefunden. Du brauchst es erst für den Agenten.
-core_setup.github_no_repos = Angemeldet, aber ohne Repos. Trage ein, welche Repos Cockpit abgleichen soll.
 core_setup.model_not_set_up = Noch nicht eingerichtet.
 core_setup.model_key_missing = Eingetragen, aber der Key fehlt noch.
 core_setup.model_name_missing = Der Key ist da, aber der Modellname fehlt noch.

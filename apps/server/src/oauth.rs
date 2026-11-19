@@ -160,6 +160,7 @@ pub async fn callback(
         return unknown_service();
     };
     let result = state.oauth_callback(d, &q).await;
+    state.repo_list_forget();
     if let Err(m) = &result {
         tracing::warn!(
             "{}: sign-in failed: {}",
@@ -175,6 +176,7 @@ pub async fn revoke(State(state): State<AppState>, Path(service): Path<String>) 
     let Ok(d) = parse_service(&service) else {
         return unknown_service();
     };
+    state.repo_list_forget();
     match state.oauth_revoke(d).await {
         Ok(a) => Json(a).into_response(),
         Err(m) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorBody::coded(m))).into_response(),

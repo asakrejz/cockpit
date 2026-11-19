@@ -77,9 +77,10 @@ impl Sources {
         }
     }
 
-    /// Is anything set up that could run (with a key)?
-    fn possible(&self) -> bool {
-        self.github.as_ref().is_some_and(|g| !g.repos.is_empty()) || self.jira.is_some()
+    /// The GitHub settings; without a `[github]` section the defaults (address of github.com, no
+    /// watched repos) apply, because the sync needs no repo list.
+    pub fn github_config(&self) -> GitHubConfig {
+        self.github.clone().unwrap_or_default()
     }
 }
 
@@ -103,7 +104,8 @@ impl AppState {
         let inner = &self.inner;
         let sources = self.sources();
         let mut services = Services::default();
-        if let Some(g) = sources.github.as_ref().filter(|g| !g.repos.is_empty()) {
+        {
+            let g = sources.github_config();
             // The sign-in via OAuth goes before the token.
             if let Some(t) = self.github_access() {
                 match GitHubClient::new(&g.api_url, t) {
@@ -238,9 +240,6 @@ impl AppState {
     }
 
     async fn services(&self) -> Services {
-        if !self.sources().possible() {
-            return Services::default();
-        }
         // First refresh (network), then build (.env file).
         self.oauth_refresh().await;
         let s = self.clone();
@@ -268,6 +267,9 @@ impl AppState {
     pub async fn action_run(&self, action: Action) -> Result<ActionResponse, ActionFailure> {
         let inner = &self.inner;
         // The repo of a start is settled first (user's choice or routing rules).
+        self.repo_settings_prepare(&action)
+            .await
+            .map_err(ActionFailure::Plan)?;
         let action = self.agent_route(action).map_err(ActionFailure::Plan)?;
         // The real agent only starts if everything is set up; otherwise the message says what is missing.
         if self.agent_real() {

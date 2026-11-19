@@ -12,8 +12,6 @@ pub struct Prerequisites<'a> {
     pub image_hint: Option<Msg>,
     pub model: bool,
     pub key: bool,
-    /// The repo in which the agent works; `Err` with the explanation if it is not unambiguous.
-    pub repo: Result<&'a str, Msg>,
     pub github_access: bool,
 }
 
@@ -51,18 +49,10 @@ pub fn missing(v: &Prerequisites) -> Vec<Msg> {
             what = ArgValue::joined(was, ", ")
         ));
     }
-    if let Err(m) = &v.repo {
-        f.push(m.clone());
-    }
     if !v.github_access {
         f.push(msg!(ServerAgentGithubMissingForAgent));
     }
     f
-}
-
-/// The sentence when no repo is set up for the agent.
-pub fn no_repo() -> Msg {
-    msg!(ServerAgentNoRepo)
 }
 
 /// The repos of the agent and the default, from the configuration:
@@ -70,7 +60,8 @@ pub fn no_repo() -> Msg {
 /// * `[[agent.repos]]` (`listed`) are the repos; `[agent] repo` (`default`) is added if it is
 ///   not listed.
 /// * Without a list the default is the only repo; without a default too, the repos of
-///   `[github] repos` are the choices (the user picks at the start).
+///   `[github] repos` are the choices. Without any of them the list is empty: the user picks
+///   from every repo GitHub shows at the start, and the first use stores the repo here.
 /// * Without a default, exactly one repo is the default.
 pub fn repos_effective(
     listed: &[AgentRepo],
@@ -125,7 +116,7 @@ pub fn status(real: bool, v: &Prerequisites) -> AgentStatus {
         image_hint: v.image_hint.as_ref().map(Msg::de),
         image_hint_msg: v.image_hint.clone(),
         image_name: IMAGE.into(),
-        repo: v.repo.as_ref().ok().map(|r| (*r).to_string()),
+        repo: None,
         repos: AgentRepos::default(),
         missing: missing.iter().map(Msg::de).collect(),
         missing_msgs: missing,

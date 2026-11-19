@@ -309,20 +309,20 @@ async fn claude_code_and_codex_run_in_the_routed_and_the_chosen_repo() {
 }
 
 #[tokio::test]
-async fn a_repo_that_is_not_configured_is_rejected_and_nothing_starts() {
+async fn a_repo_name_that_is_no_owner_slash_name_is_rejected_and_nothing_starts() {
     let mut w = welt(true);
     w.state = with_repos(&w, app_and_web(), Some("firma/app"));
     let e = w
         .action(Action::StartAgent {
             ticket: "BAU-142".into(),
             options: AgentOptions {
-                repo: Some("fremd/repo".into()),
+                repo: Some("not a repo".into()),
                 ..AgentOptions::default()
             },
         })
         .await
         .unwrap_err();
-    assert!(e.contains("nicht freigegeben"), "{e}");
+    assert!(e.contains("kein gültiger Repo-Name"), "{e}");
     assert!(w.run().is_idle());
 }
 

@@ -1,5 +1,7 @@
 //! The state of the agent page: all signals in one `Copy` struct that the sections receive.
 
+use cockpit_core::api::GitHubRepoList;
+use cockpit_core::repos::suggest::RepoSuggestion;
 use cockpit_core::{AgentOptions, AgentRepos, AgentRun, Item, PathViolation};
 use feature_ui::*;
 use leptos::prelude::*;
@@ -55,6 +57,18 @@ pub(super) struct AgentCtx {
     pub project: Memo<Option<String>>,
     pub routed: Memo<cockpit_core::RepoChoice>,
     pub repo_options: Signal<Vec<(String, String)>>,
+    /// The real agent chooses the repo from everything GitHub shows (and suggestions); the
+    /// simulation keeps the plain list of configured repos.
+    pub real: Signal<bool>,
+    /// Every repo the credential can see (kept for a few minutes by the server).
+    pub repo_list: RwSignal<Option<GitHubRepoList>>,
+    pub repo_list_error: RwSignal<Option<String>>,
+    pub repo_loading: RwSignal<bool>,
+    /// Repos to offer first, each with its reason.
+    pub suggestions: RwSignal<Vec<RepoSuggestion>>,
+    /// The base branch of the chosen repo: its entry in the settings, otherwise the default
+    /// branch GitHub reports for it.
+    pub base_branch: Signal<String>,
     pub note: RwSignal<String>,
     pub run: Memo<Option<AgentRun>>,
     pub steps: Memo<Vec<cockpit_core::Step>>,
@@ -158,6 +172,35 @@ impl AgentCtx {
             );
             list
         });
+        let real = Signal::derive(move || {
+            store
+                .health
+                .with(|h| h.as_ref().is_some_and(|h| h.agent.mode == "real"))
+        });
+        let repo_list: RwSignal<Option<GitHubRepoList>> = RwSignal::new(None);
+        let repo_list_error = RwSignal::new(None::<String>);
+        let repo_loading = RwSignal::new(false);
+        let suggestions: RwSignal<Vec<RepoSuggestion>> = RwSignal::new(Vec::new());
+        let base_branch = Signal::derive(move || {
+            let chosen = repo.get();
+            // An entry that only says `main` may be the fallback of a watched repo: GitHub's own
+            // default branch is the better answer then.
+            let own = agent_repos
+                .with(|a| a.find(&chosen).map(|r| r.base_branch.clone()))
+                .filter(|b| b != cockpit_core::repos::DEFAULT_BASE);
+            own.or_else(|| {
+                repo_list.with(|l| {
+                    l.as_ref().and_then(|l| {
+                        l.repos
+                            .iter()
+                            .find(|r| r.repo == chosen)
+                            .map(|r| r.default_branch.clone())
+                            .filter(|b| !b.is_empty())
+                    })
+                })
+            })
+            .unwrap_or_else(|| agent_repos.with(|a| a.base_branch(&chosen)))
+        });
         // Note for a new plan.
         let note = RwSignal::new(String::new());
         let tests_allowed = Signal::derive(move || store.conn.get().may_run_tests);
@@ -206,6 +249,31 @@ impl AgentCtx {
         let locked = Signal::derive(move || !idle.get());
         let blocked = Signal::derive(move || store.conn.get().agent_blocked());
 
+        // Before a real start: ask once for the repos GitHub shows and the suggestions for this
+        // ticket (the server keeps the list for a few minutes).
+        let loaded = RwSignal::new(false);
+        Effect::new(move |_| {
+            if !real.get() || !idle.get() || followup.get() || loaded.get_untracked() {
+                return;
+            }
+            loaded.set(true);
+            let ticket = item
+                .get_untracked()
+                .map(|i| i.key)
+                .unwrap_or_else(|| key.get_value());
+            repo_loading.set(true);
+            leptos::task::spawn_local(async move {
+                match crate::server::fetch_github_repos().await {
+                    Ok(l) => repo_list.set(Some(l)),
+                    Err(e) => repo_list_error.set(Some(crate::pages::setup::error_text(&e))),
+                }
+                if let Ok(s) = crate::server::fetch_repo_suggestions(&ticket).await {
+                    suggestions.set(s.suggestions);
+                }
+                repo_loading.set(false);
+            });
+        });
+
         // What the rules demand is already in the switches before the start.
         Effect::new(move |_| {
             if tests_forced.get() {
@@ -231,6 +299,12 @@ impl AgentCtx {
             project,
             routed,
             repo_options,
+            real,
+            repo_list,
+            repo_list_error,
+            repo_loading,
+            suggestions,
+            base_branch,
             note,
             run,
             steps,

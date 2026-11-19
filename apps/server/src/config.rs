@@ -400,15 +400,13 @@ impl Config {
             c.agent_repos = agent_repos_read(&a.repos)?;
             c.agent_dir = a.dir;
         }
-        // One list of repos: the repos of `[[agent.repos]]` are also the ones the sync compares.
-        // `[github] repos` (older) is still read and adds to them; the assistant writes only
-        // `[[agent.repos]]`.
-        if !c.agent_repos.is_empty() {
-            let g = c.github.get_or_insert_with(|| GitHubConfig {
-                api_url: DEFAULT_GITHUB_API.into(),
-                repos: Vec::new(),
-            });
-            for r in &c.agent_repos {
+        // Watched repos (all open pull requests are loaded): `[github] repos` plus the entries of
+        // `[[agent.repos]]` (older configurations; an entry the app stored on the first use of a
+        // repo has `watch = false` and only keeps its settings). Everything else is found by the
+        // search, whatever repos exist.
+        if c.agent_repos.iter().any(|r| r.watch) {
+            let g = c.github.get_or_insert_with(GitHubConfig::default);
+            for r in c.agent_repos.iter().filter(|r| r.watch) {
                 if !g.repos.contains(&r.repo) {
                     g.repos.push(r.repo.clone());
                 }
