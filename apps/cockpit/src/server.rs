@@ -6,9 +6,9 @@ use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
     ActionRequest, ActionResponse, AgentStatus, BranchSuggestion, BranchSuggestionRequest,
     ConfigChange, ConfigResponse, ContainerCheck, ContainerStatus, EndpointCheck, EndpointStatus,
-    ErrorBody, GitHubCheck, GitHubRepoList, ImageBuild, JiraCheck, JiraProjectsResponse, KeyInput,
-    KeyResponse, ModelList, RepoCheckRequest, RevokeResponse, ServerEvent, Setup, SyncResponse,
-    WebhookSecretResponse, WebhookTestResponse,
+    ErrorBody, GitHubCheck, GitHubRepoList, ImageBuild, JiraAssignableResponse, JiraCheck,
+    JiraProjectsResponse, KeyInput, KeyResponse, ModelList, RepoCheckRequest, RevokeResponse,
+    ServerEvent, Setup, SyncResponse, WebhookSecretResponse, WebhookTestResponse,
 };
 use cockpit_core::{Action, Workspace, persist};
 use feature_ui::t;
@@ -127,6 +127,25 @@ pub async fn fetch_jira_projects() -> Result<JiraProjectsResponse, CallError> {
         return Err(rejection(resp).await);
     }
     resp.json::<JiraProjectsResponse>()
+        .await
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
+}
+
+/// People Jira lets you assign tickets of `project` to, matching `query`
+/// (`GET /api/jira/assignable`, read only).
+pub async fn fetch_jira_assignable(
+    project: &str,
+    query: &str,
+) -> Result<JiraAssignableResponse, CallError> {
+    let resp = Request::get("/api/jira/assignable")
+        .query([("project", project), ("query", query)])
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<JiraAssignableResponse>()
         .await
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }

@@ -127,8 +127,8 @@ fn assignment_checks_person_and_kind() {
     let mut w = ws();
     fails(
         &mut w,
-        assign("bau150", Person::new("Fremde", "FR")),
-        ActionError::UnknownPerson("Fremde".into()),
+        assign("bau150", Person::new("  ", "")),
+        ActionError::UnknownPerson("  ".into()),
     );
     // The agent gets tickets through its run, not through the assignment.
     fails(

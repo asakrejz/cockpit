@@ -231,3 +231,53 @@ fn the_issue_type_is_read_for_the_branch_name() {
     let kind = cockpit_core::branch::BranchType::of(item.issue_type.as_deref(), &item.labels);
     assert_eq!(kind, cockpit_core::branch::BranchType::Fix);
 }
+
+#[tokio::test]
+async fn searches_assignable_people_read_only() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/rest/api/3/myself"))
+        .respond_with(response(fixture!("jira_myself.json")))
+        .mount(&server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path("/rest/api/3/user/assignable/search"))
+        .and(query_param("project", "BAU"))
+        .and(query_param("query", "mi"))
+        .respond_with(response(
+            r#"[
+              {"accountId":"acc-mira","displayName":"Mira Keller","active":true,"accountType":"atlassian"},
+              {"accountId":"acc-timo","displayName":"Timo Böhm","active":true,"accountType":"atlassian"},
+              {"accountId":"acc-gone","displayName":"Old Account","active":false,"accountType":"atlassian"},
+              {"accountId":"acc-bot","displayName":"Some Bot","active":true,"accountType":"app"}
+            ]"#,
+        ))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let c = JiraClient::new(&server.uri(), "a@b.de", Secret::new("t")).unwrap();
+    let people = c.assignable_people("BAU", " mi ").await.unwrap();
+    let names: Vec<_> = people.iter().map(|p| p.name.as_str()).collect();
+    // Mira is the key holder (see jira_myself.json): she comes as „you“.
+    assert_eq!(
+        names,
+        [cockpit_core::Person::me().name.as_str(), "Timo Böhm"]
+    );
+    assert_eq!(people[1].initials, "TB");
+    // Only GET requests went out.
+    let requests = server.received_requests().await.unwrap();
+    assert!(
+        requests
+            .iter()
+            .all(|r| r.method == wiremock::http::Method::GET)
+    );
+}
+
+#[tokio::test]
+async fn assignable_search_rejects_a_broken_project_key() {
+    let server = MockServer::start().await;
+    let c = JiraClient::new(&server.uri(), "a@b.de", Secret::new("t")).unwrap();
+    assert!(c.assignable_people("A) OR (B", "x").await.is_err());
+    assert!(server.received_requests().await.unwrap().is_empty());
+}

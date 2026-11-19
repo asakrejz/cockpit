@@ -405,6 +405,7 @@ fn snooze(store: Store, items: Memo<Vec<Item>>, id: &str, choice: SnoozeChoice) 
     }
 }
 
+mod assignee;
 mod controls;
 mod detail;
 mod details;

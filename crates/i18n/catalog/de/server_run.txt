@@ -1,6 +1,7 @@
 # Texts of the server about runs, containers, the agent image, git and the sync
 server_run.jira_error = Jira: {error}
 server_run.jira_no_projects = Jira liefert keine Projekte: {error}
+server_run.jira_no_people = Jira liefert keine Personen: {error}
 server_run.service_failed = {service} hat die Aktion nicht ausgeführt: {error}. Es wurde nichts geändert.
 server_run.service_done_not_applied = Beim Dienst ausgeführt, lokal aber nicht übernommen ({error}). Der nächste Abgleich holt es nach.
 server_run.cli_not_in_path = „{cli}“ steht nicht im PATH. Installiere es (Docker: Rancher Desktop mit Engine „dockerd (moby)“, oder Podman) – die Anleitung steht im Schritt „Container“ – oder wähle die andere Laufzeit.

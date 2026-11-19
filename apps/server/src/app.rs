@@ -67,6 +67,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/sync", post(sync))
         .route("/api/events", get(events))
         .route("/api/jira/projects", get(jira_projects))
+        .route("/api/jira/assignable", get(jira_assignable))
         .route(
             "/api/jira/attachment/{id}",
             get(crate::attachments::content),

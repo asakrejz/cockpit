@@ -109,6 +109,7 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `POST /api/sync` | "sync now" with Jira and GitHub. Answer `{active, revision, logged}`; `active: false` when no source is set up |
 | `GET /api/events` | server-sent events: first the current revision, then one event per action with the new revision and new log entries, plus keep-alive |
 | `GET /api/jira/projects` | Jira projects for the filter dialog of the inbox: `{active, projects: [{key, name}]}` |
+| `GET /api/jira/assignable?project=&query=` | People Jira lets you assign tickets of the project to (read only; you come as `Du`): `{active, people: [{name, initials}]}`. Serves the search field of the assignee in the ticket detail |
 | `POST /api/jira/check` | connection test for Jira with an API token, read only (`GET /rest/api/3/myself`): `{ok, cause, message, name}`; `cause` is `ok`, `details`, `address`, `token`, `permission`, `reachable` or `other`; never the token |
 | `GET /api/agent/image`, `POST /api/agent/image` | state of "build image" `{running, present, error, lines}`, or start the build in the background |
 | `GET /api/agent/check` | connection test to the endpoint: `{configured, reachable, key_ok, model_present, hint}` |

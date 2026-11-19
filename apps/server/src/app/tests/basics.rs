@@ -155,3 +155,16 @@ async fn health_reports_the_config_folder_and_old_files_until_they_are_gone() {
     let (_, body) = hole(router(s, PathBuf::from("/x")), "/api/health").await;
     assert!(json(body)["config_files"].is_null());
 }
+
+#[tokio::test]
+async fn assignable_search_without_jira_is_inactive_and_empty() {
+    let app = router(
+        state(Arc::new(MemoryStore::new())),
+        PathBuf::from("/gibt/es/nicht"),
+    );
+    let (status, body) = hole(app, "/api/jira/assignable?project=BAU&query=mi").await;
+    assert_eq!(status, StatusCode::OK);
+    let json: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(json["active"], false);
+    assert_eq!(json["people"].as_array().map(Vec::len), Some(0));
+}

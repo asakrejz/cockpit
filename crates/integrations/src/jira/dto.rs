@@ -12,6 +12,25 @@ pub struct Myself {
     pub display_name: Option<String>,
 }
 
+/// One entry of `GET /rest/api/3/user/assignable/search`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AssignableUser {
+    pub account_id: String,
+    #[serde(default)]
+    pub display_name: String,
+    /// Missing means active.
+    #[serde(default = "yes")]
+    pub active: bool,
+    /// `atlassian` for people, `app` or `customer` for the rest.
+    #[serde(default)]
+    pub account_type: Option<String>,
+}
+
+fn yes() -> bool {
+    true
+}
+
 /// `GET /rest/api/3/issue/{key}/transitions`
 #[derive(Debug, Clone, Deserialize)]
 pub struct TransitionList {

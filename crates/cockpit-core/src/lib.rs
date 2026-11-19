@@ -40,6 +40,7 @@ pub mod link;
 pub mod model;
 pub mod notice;
 pub mod notify;
+pub mod people_search;
 pub mod persist;
 pub mod repos;
 pub mod review;

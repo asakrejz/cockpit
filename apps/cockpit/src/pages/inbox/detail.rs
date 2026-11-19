@@ -1,3 +1,4 @@
+use super::assignee::AssigneeField;
 use super::*;
 
 /// The detail of the chosen entry.
@@ -135,29 +136,8 @@ pub(super) fn detail(
         }
     });
 
+    let ticket_key = item.key.clone();
     let ticket_props = is_ticket.then(|| {
-        let people = store.ws.with_untracked(|w| w.people());
-        let people = people
-            .into_iter()
-            .map(|person: Person| {
-                let current = person == item.owner;
-                let label = person.name.clone();
-                view! {
-                    <Button
-                        size=ControlSize::Small
-                        variant=if current { ButtonStyle::BorderedProminent } else { ButtonStyle::Bordered }
-                        on_click=move |_| {
-                            let _ = store.dispatch(Action::AssignTicket {
-                                item: id.get_value(),
-                                person: person.clone(),
-                            });
-                        }
-                    >
-                        {label}
-                    </Button>
-                }
-            })
-            .collect_view();
         view! {
             <ListSection header=t!(InboxDetailTicket) nested=true>
                 <li>
@@ -181,9 +161,7 @@ pub(super) fn detail(
                 <li>
                     <div class="ui-list__row" style="flex-wrap: wrap">
                         <span class="ui-list__title">{t!(InboxDetailAssignedTo)}</span>
-                        <span class="ck-assignees ui-hstack" style="--spacing: 6px" role="group" aria-label=t!(InboxDetailAssignedTo)>
-                            {people}
-                        </span>
+                        <AssigneeField store=store item=id.get_value() key=ticket_key />
                     </div>
                 </li>
             </ListSection>

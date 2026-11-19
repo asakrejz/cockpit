@@ -750,6 +750,43 @@ body.ui-scroll-locked { overflow: hidden; }
 .ck-combo__option:focus-visible { outline: none; box-shadow: var(--sys-focus-ring); }
 .ck-combo__option[data-selected] { color: var(--sys-color-tint); font-weight: 600; }
 .ck-combo__empty { padding: var(--ref-space-8) var(--ref-space-12); }
+/* Combobox: text field with an inline list of suggestions (`Combobox`). */
+.ui-combo { position: relative; }
+.ui-combo__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: min(60vh, 360px);
+  margin: 0;
+  padding: var(--ref-space-4);
+  overflow-y: auto;
+  list-style: none;
+  border-radius: var(--ref-radius-12, 12px);
+  background: var(--sys-color-tertiary-fill);
+}
+.ui-combo__option {
+  display: flex;
+  align-items: center;
+  gap: var(--ref-space-8);
+  min-height: 44px;
+  padding: var(--ref-space-4) var(--ref-space-12);
+  border-radius: var(--ref-radius-8, 8px);
+  cursor: pointer;
+}
+.ui-combo__option[data-active] { background: var(--sys-color-secondary-fill); }
+.ui-combo__option[data-divider] { margin-bottom: var(--ref-space-4); position: relative; }
+.ui-combo__option[data-divider]::after {
+  content: "";
+  position: absolute;
+  inset-inline: var(--ref-space-12);
+  bottom: calc(-1 * var(--ref-space-4) / 2 - 1px);
+  height: 1px;
+  background: var(--sys-color-separator, var(--sys-color-secondary-fill));
+}
+.ui-combo__label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-combo__hint { padding: var(--ref-space-8) var(--ref-space-12); color: var(--sys-color-secondary-label); font: var(--sys-type-footnote); }
+/* The person picker inside a list row: takes the free width. */
+.ck-assignee { flex: 1 1 220px; min-width: 0; }
 /* ---------- Formatted Jira text (ADF) ---------- */
 .ui-rich { display: flex; flex-direction: column; gap: var(--ref-space-8); min-width: 0; overflow-wrap: anywhere; }
 .ui-rich > *, .ui-rich li > *, .ui-rich blockquote > *, .ui-rich td > *, .ui-rich th > * { margin: 0; }

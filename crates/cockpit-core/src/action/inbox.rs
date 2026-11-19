@@ -134,7 +134,9 @@ impl Workspace {
                 if !current.is_ticket() {
                     return Err(ActionError::NotATicket);
                 }
-                if !self.people().contains(&person) {
+                // Anyone with a name can be picked – people found by the search in Jira are not in
+                // the synced tickets yet. The agent gets tickets through its run.
+                if person.is_agent() || person.name.trim().is_empty() {
                     return Err(ActionError::UnknownPerson(person.name));
                 }
                 if current.owner == person {
