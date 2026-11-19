@@ -94,7 +94,7 @@ fn panel_kind(kind: PanelKind) -> &'static str {
 }
 
 /// Headings sit below the page and pane titles: levels 1–6 become `h3`–`h6`.
-fn heading(level: u8, content: Vec<AnyView>) -> AnyView {
+pub(crate) fn heading(level: u8, content: Vec<AnyView>) -> AnyView {
     match level {
         1 => view! { <h3 class="t-title3 t-bold">{content}</h3> }.into_any(),
         2 => view! { <h4 class="t-headline">{content}</h4> }.into_any(),

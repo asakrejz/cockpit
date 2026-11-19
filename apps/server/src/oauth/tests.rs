@@ -62,6 +62,7 @@ fn snapshot(server: &MockServer, site: Option<&str>, with_secret: bool) -> TestB
             jql: None,
             hidden_fields: vec![],
             field_order: vec![],
+            team_field: None,
         }),
         github_oauth: Some(OAuthConfig {
             client_id: "gh-id".into(),

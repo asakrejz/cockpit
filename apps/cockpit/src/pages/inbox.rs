@@ -153,6 +153,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                         value=filter.id()
                         on_change=move |id: &'static str| {
                             if let Some(filter) = Filter::from_id(id) {
+                                crate::last_filter::set(filter);
                                 navigate(&Route::Inbox(filter));
                             }
                         }

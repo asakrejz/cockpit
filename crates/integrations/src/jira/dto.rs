@@ -134,7 +134,7 @@ pub struct IssueType {
     pub name: String,
 }
 
-/// `GET /rest/api/3/field` – one field (only what finding the sprint field needs).
+/// `GET /rest/api/3/field` – one field (only what finding the sprint and team fields needs).
 #[derive(Debug, Clone, Deserialize)]
 pub struct FieldInfo {
     #[serde(default)]
@@ -147,7 +147,8 @@ pub struct FieldInfo {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FieldSchema {
-    /// `com.pyxis.greenhopper.jira:gh-sprint` for the sprint field.
+    /// `com.pyxis.greenhopper.jira:gh-sprint` for the sprint field, `com.atlassian.teams:rm-teams-custom-field-team`
+    /// (older sites: `…:atlassian-team`) for the team field.
     #[serde(default)]
     pub custom: Option<String>,
 }

@@ -90,7 +90,7 @@ pub(super) fn comments_section(store: Store, r: &Review, panel: Panel) -> impl I
                         <Toggle checked=on disabled=busy aria_label=t!(ReviewCommentsToggle, id = id) />
                         <span class="ui-vstack" style="--spacing: 2px; min-width: 0">
                             <span class="t-footnote t-secondary t-mono">{t!(ReviewWhoPlace, who = who, place = place)}</span>
-                            <span class="t-subheadline">{text}</span>
+                            <Markdown text=text class="t-subheadline" />
                         </span>
                     </label>
                 }

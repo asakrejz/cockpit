@@ -14,6 +14,7 @@ mod foundations;
 mod layout;
 mod link_badge;
 mod list;
+mod markdown;
 mod media_card;
 mod navigation;
 mod pager;
@@ -58,6 +59,7 @@ pub static STORIES: &[Story] = &[
     phone::STORY,
     app_blocks::STORY,
     rich_text::STORY,
+    markdown::STORY,
     states::STORY,
 ];
 

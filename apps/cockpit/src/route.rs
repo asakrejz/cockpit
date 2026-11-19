@@ -74,6 +74,33 @@ impl Route {
         Route::InboxItem(Filter::All, id.to_string())
     }
 
+    /// The address of the navigation entry "Aufgaben": it leads to the filter chosen last.
+    pub const TASKS_HASH: &'static str = "#/tasks";
+
+    /// Is this an address that only says "the tasks page" (no bare `#/`, which is the filter
+    /// "Alle")? Such an address is replaced by the one of the remembered filter.
+    pub fn is_tasks_alias(hash: &str) -> bool {
+        let path = hash.trim_start_matches('#');
+        path.is_empty() || path.trim_matches('/').split('/').next() == Some("tasks")
+    }
+
+    /// Like [`Route::parse`], but the addresses without a filter (no address at all, `#/tasks`,
+    /// `#/tasks/item/<id>`) land on the filter chosen last (`last`; "Ich" by default).
+    pub fn resolve(hash: &str, last: Filter) -> Route {
+        if !Route::is_tasks_alias(hash) {
+            return Route::parse(hash);
+        }
+        let parts: Vec<&str> = hash
+            .trim_start_matches('#')
+            .split('/')
+            .filter(|p| !p.is_empty())
+            .collect();
+        match (parts.get(1), parts.get(2)) {
+            (Some(&"item"), Some(id)) => Route::InboxItem(last, segment::decode(id)),
+            _ => Route::Inbox(last),
+        }
+    }
+
     pub fn is_setup(&self) -> bool {
         matches!(self, Route::Setup | Route::SetupStep(_))
     }

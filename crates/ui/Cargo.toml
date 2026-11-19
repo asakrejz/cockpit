@@ -9,3 +9,4 @@ leptos = { workspace = true }
 cockpit-core = { workspace = true }
 cockpit-i18n = { workspace = true }
 web-sys = { workspace = true, features = ["Window", "Navigator", "Document", "DomTokenList", "Element", "HtmlElement", "KeyboardEvent", "Location", "Node", "NodeList", "Touch", "TouchEvent", "TouchList", "Event", "EventTarget", "HtmlInputElement"] }
+pulldown-cmark = { version = "0.13", default-features = false }

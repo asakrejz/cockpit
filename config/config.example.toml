@@ -21,6 +21,7 @@ repos = ["acme/app", "acme/web"]   # repos for the sync (owner/name)
 site = "acme"               # name or address of your Jira site
 email = "you@example.com"   # account the API token belongs to
 projects = ["APP", "WEB"]   # optional: only these projects
+# team_field = "customfield_10400"   # optional: ID of the Jira "Team" field, only if the detection fails
 # auth = "token"            # "token" or "oauth", as in [github]
 
 # Sign-in with OAuth instead of tokens: only the client IDs, the secrets go in `config/.env`.

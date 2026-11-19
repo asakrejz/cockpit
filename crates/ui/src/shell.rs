@@ -25,14 +25,15 @@ pub enum SplitLayout {
 /// Below 768 px the page works like an iOS navigation stack: if `level` is given, the list
 /// pane (first pane) and the detail panes (all following panes) are two levels and only the one
 /// `level` selects is on screen; going deeper slides the detail in from the right. The level
-/// should come from the address of the page. On the detail level a bar at the top offers
-/// "‹ `back_label`" as a link to `back_href`; a swipe from the left edge does the same. From
+/// should come from the address of the page. On the detail level a round glass button floats
+/// top left over the content (no bar; the content starts below it and scrolls under it) and links
+/// to `back_href`; `back_label` is its tooltip. A swipe from the left edge does the same. From
 /// 768 px on, all columns stand side by side and none of this is shown.
 #[component]
 pub fn SplitView(
     #[prop(optional)] layout: SplitLayout,
     #[prop(optional, into)] level: Option<Signal<StackLevel>>,
-    /// Name of the list level, shown in the back link ("Posteingang").
+    /// Name of the list level, the tooltip of the back button ("Posteingang").
     #[prop(optional, into)]
     back_label: Option<String>,
     /// Address of the list level.
@@ -84,9 +85,13 @@ pub fn SplitView(
     let back = level.map(|_| {
         view! {
             <nav class="ui-splitview__back" aria-label=crate::t!(UiBack)>
-                <a class="ui-splitview__back-link" href=back_href.clone()>
+                <a
+                    class="ui-splitview__back-link"
+                    href=back_href.clone()
+                    aria-label=crate::t!(UiBack)
+                    title=back_label
+                >
                     <span aria-hidden="true">"‹"</span>
-                    {back_label.unwrap_or_else(|| crate::t!(UiBack))}
                 </a>
             </nav>
         }

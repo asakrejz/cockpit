@@ -6,7 +6,7 @@ use feature_ui::*;
 use leptos::prelude::*;
 
 use crate::{
-    pages::inbox::labels,
+    pages::{inbox::labels, team_picker::TeamPicker},
     route::Route,
     store::{Store, navigate, use_store},
     view,
@@ -125,6 +125,7 @@ pub fn OverviewPage() -> impl IntoView {
                     <p class="t-subheadline t-secondary">
                         {t!(OverviewSubtitle)}
                     </p>
+                    <TeamPicker />
                 </PaneHeader>
                 <ul class="ck-inbox">
                     {move || {

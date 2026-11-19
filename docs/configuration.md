@@ -87,6 +87,20 @@ hidden_fields = ["Rank", "customfield_10099"]   # never shown
 field_order = ["Acceptance criteria", "Team"]   # shown first, in this order; the rest follows
 ```
 
+**Team field ("Mein Team").** Several teams often share a Jira project. The sync reads the Atlassian "Team" field of each
+ticket (id and name) so the Overview and the task list can be limited to your teams. The field is found in
+`/rest/api/3/field`: the field of the team type (`com.atlassian.teams:rm-teams-custom-field-team`, older sites
+`…:atlassian-team`), otherwise the field named "Team", once per sync. If the detection fails on your site, set the ID:
+
+```toml
+[jira]
+team_field = "customfield_10400"   # optional; replaces the detection
+```
+
+A ticket without a team has "no team"; a site without the field simply has no teams (nothing is filtered, and the
+choice is not offered). The choice of teams itself is made in the app (Overview, "Mein Team") and stored in the
+database, not in this file. Nothing is written to Jira.
+
 The number of a ticket links to `<site>/browse/<KEY>`. The site is `[jira] site`; with OAuth it is the address of the chosen
 site, stored at sign-in (a sign-in from an older version stores none until you sign in again – then `[jira] site` is
 used, and without either there is no link). The number of a pull request links to GitHub.

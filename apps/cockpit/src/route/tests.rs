@@ -195,3 +195,48 @@ fn everybody_in_the_overview_has_an_address_a_person_never_has() {
     );
     assert_eq!(Route::parse("#/overview"), Route::Overview);
 }
+
+#[test]
+fn the_tasks_address_leads_to_the_remembered_filter() {
+    for last in [Filter::All, Filter::Mine, Filter::Team, Filter::Snoozed] {
+        assert_eq!(Route::resolve("", last), Route::Inbox(last));
+        assert_eq!(Route::resolve("#", last), Route::Inbox(last));
+        assert_eq!(Route::resolve("#/tasks", last), Route::Inbox(last));
+        assert_eq!(
+            Route::resolve("#/tasks/item/bau142", last),
+            Route::InboxItem(last, "bau142".into())
+        );
+    }
+}
+
+#[test]
+fn old_inbox_addresses_keep_their_filter() {
+    // The remembered filter never overrides an address that names one.
+    assert_eq!(
+        Route::resolve("#/", Filter::Team),
+        Route::Inbox(Filter::All)
+    );
+    assert_eq!(
+        Route::resolve("#/item/bau142", Filter::Team),
+        Route::InboxItem(Filter::All, "bau142".into())
+    );
+    assert_eq!(
+        Route::resolve("#/mine/item/bau142", Filter::Team),
+        Route::InboxItem(Filter::Mine, "bau142".into())
+    );
+    assert_eq!(
+        Route::resolve("#/team", Filter::Mine),
+        Route::Inbox(Filter::Team)
+    );
+    assert_eq!(Route::resolve("#/log", Filter::Mine), Route::Log);
+}
+
+#[test]
+fn only_filterless_addresses_are_aliases() {
+    for hash in ["", "#", "#/tasks", "#/tasks/item/a"] {
+        assert!(Route::is_tasks_alias(hash), "{hash}");
+    }
+    for hash in ["#/", "#/mine", "#/item/a", "#/log", "#/nope"] {
+        assert!(!Route::is_tasks_alias(hash), "{hash}");
+    }
+}

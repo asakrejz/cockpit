@@ -21,7 +21,7 @@ view! {
 | Content | `List`, `ListSection`, `ListRow`, `ListButtonRow`, `Card`, `CardBody`, `Media` |
 | Navigation | `Navbar`, `IosNav`, `TabBar`, `Pager`, `Footer` |
 | Overlay | `Sheet` |
-| App | `SplitView` (with `StackLevel`: list and detail as two levels below 768 px, see `docs/architecture.md`), `Sidebar`, `BottomNav` (floating glass pill), `PickerPane`, `Pane`, `Status`, `Avatar`, `Chip`, `InboxRow`, `CommentBubble`, `RichText` (Jira text from ADF), `Textarea`, `Diff`, `SuggestionCard`, `Timeline`, `Progress`, `Log`, `Steps` |
+| App | `SplitView` (with `StackLevel`: list and detail as two levels below 768 px, see `docs/architecture.md`), `Sidebar`, `BottomNav` (floating glass pill), `PickerPane`, `Pane`, `Status`, `Avatar`, `Chip`, `InboxRow`, `CommentBubble`, `RichText` (Jira text from ADF), `Markdown` (GitHub text: PR descriptions and comments, same look as `RichText`), `Textarea`, `Diff`, `SuggestionCard`, `Timeline`, `Progress`, `Log`, `Steps` |
 
 **Combobox.** For choosing from a long list (people). The caller reads `query` and passes the ranked `options`
 (`ComboOption`, quick choices first); the component brings `role="combobox"`, `aria-expanded`,
