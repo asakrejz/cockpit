@@ -11,11 +11,11 @@ The README is the entry page; this document holds the depth.
 | Operation | **Local, for one person.** One service on your own computer (the author's checkout lives under `~/Documents/Web/rust-playground`). No hosting, no tenants. The repository stays private (no GitHub Pages). |
 | Backend | Rust crate `apps/server/` (axum, tokio). It also serves the built web app. |
 | Data | SQLite in one file in the user's data directory. |
-| Keys | Only in the backend, in the `.env` file in the project folder (decision of 2026-11-13, risk accepted knowingly; never committed; older versions used the system keychain, `cockpit-server token import` copies those entries). **Never in the repo, the log, the database or browser storage.** Details: [security.md](security.md). |
+| Keys | Only in the backend, in the file `config/.env` (decision of 2026-11-13, risk accepted knowingly; never committed; older versions used the system keychain, `cockpit-server token import` copies those entries). **Never in the repo, the log, the database or browser storage.** Details: [security.md](security.md). |
 | Agent | Claude Agent SDK, Claude Code or Codex in a container per run, **with Docker (Rancher Desktop) or Podman**. The container gets only the cloned repo, never a GitHub token. |
 | Freshness | Polling every 2 minutes by default (`interval_s`). Webhooks are an optional accelerator, see [setup-guide.md](setup-guide.md#live-updates-and-webhooks). |
 | Sample data | The mode that showed sample data in the browser without a backend is gone: the app needs the server. `demo::workspace()` stays as test data, for the Playground stories and as the seed `COCKPIT_SEED=demo` (only on explicit request and only when no state is stored yet). The server starts empty. |
-| Agent provider and endpoint | Selectable (decision of 2026-11-12): tool `[agent] provider` (Claude Agent SDK, Claude Code CLI or Codex CLI, selected in the runner by `COCKPIT_PROVIDER`), endpoint `[agent.endpoint] url/model` (a proxy such as LiteLLM, another compatible endpoint, or without an address directly at Anthropic). The user has no Anthropic key of their own but an LiteLLM proxy, so LiteLLM is only one possible endpoint. With an address the container gets `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`, without one `ANTHROPIC_API_KEY` (Codex: `OPENAI_BASE_URL` + `OPENAI_API_KEY`, model in `COCKPIT_MODEL`); the model name is a setting chosen in the assistant from the endpoint's list. The key lives only in `.env` (`token set agent-key`). Older `[litellm]` values and the key `litellm` are still read. |
+| Agent provider and endpoint | Selectable (decision of 2026-11-12): tool `[agent] provider` (Claude Agent SDK, Claude Code CLI or Codex CLI, selected in the runner by `COCKPIT_PROVIDER`), endpoint `[agent.endpoint] url/model` (a proxy such as LiteLLM, another compatible endpoint, or without an address directly at Anthropic). The user has no Anthropic key of their own but an LiteLLM proxy, so LiteLLM is only one possible endpoint. With an address the container gets `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`, without one `ANTHROPIC_API_KEY` (Codex: `OPENAI_BASE_URL` + `OPENAI_API_KEY`, model in `COCKPIT_MODEL`); the model name is a setting chosen in the assistant from the endpoint's list. The key lives only in `config/.env` (`token set agent-key`). Older `[litellm]` values and the key `litellm` are still read. |
 | Jira sign-in | API token by default (the company does not approve OAuth apps); OAuth is the folded-away alternative. |
 | Setup | The setup assistant targets people without programming knowledge: everything that can be done locally by click is done by click (`PUT /api/config`, `PUT /api/secrets/{name}`, double-click start), the manual steps (creating your own OAuth apps, tokens) are guided and documented. Every person creates their **own** OAuth apps because client secrets cannot be shared. |
 | Language | Code, naming and docs are English. The interface is German or English (see [Languages](#languages-i18n)); technical messages (logs, `expect`/`panic`, tests, CLI) are always English and are not translated. Texts that core and server produce for people are structured messages (code and parameters), rendered by the UI in the chosen language; see [Languages](#languages-i18n). Old German wire and config names are still read as aliases (see `crates/cockpit-core/tests/wire_compat.rs`, `apps/server/src/config/tests.rs`, `apps/cockpit/src/route.rs`). |
@@ -28,7 +28,7 @@ Browser (apps/cockpit, WASM)            Backend (apps/server)
 │ Pages → store.dispatch   │ ────────▶ │ POST /api/actions              │──▶ GitHub, Jira
 │ Workspace (signal)       │ ◀──────── │ GET  /api/workspace (snapshot) │──▶ Agent (container)
 │                          │ ◀── SSE ─ │ GET  /api/events (changes)     │◀── polling
-└──────────────────────────┘           │ SQLite · keys in .env          │
+└──────────────────────────┘           │ SQLite · keys in config/.env          │
                                         └────────────────────────────────┘
           both use  crates/cockpit-core  (model, rules, Action)
 ```
@@ -41,7 +41,7 @@ Crates and apps:
 | `crates/integrations` | GitHub and Jira clients (read, write, sync), OAuth, outbound calls; native only; tested against recorded responses. |
 | `crates/ui` | component library `feature-ui` with `tokens.css`, `components.css`, `extras.css`. |
 | `apps/cockpit` | the Leptos WASM app (main application). |
-| `apps/server` | `cockpit-server`: axum routes, SQLite, `.env` key store, sync loop, OAuth, container and agent processes (`agent_ops/` runs processes, `agent_run.rs` is pure, `agent_git.rs` clones/checks/pushes). |
+| `apps/server` | `cockpit-server`: axum routes, SQLite, `config/.env` key store, sync loop, OAuth, container and agent processes (`agent_ops/` runs processes, `agent_run.rs` is pure, `agent_git.rs` clones/checks/pushes). |
 | `apps/agent` | image (`Containerfile`) and runner (TypeScript, no build step) of the agent. |
 | `apps/playground` | the playground for the component library. |
 
@@ -122,10 +122,10 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `GET /api/setup` | what the assistant prefills: Jira site/email/projects, client IDs, repos, provider, endpoint address and model, both callback addresses, and per key only `{name, set}` |
 | `POST /api/github/repos/check` | read-only look at repos (`{repos:[…]}` → per repo `Ok`/`ReadOnly`/`NotFound`/`NoAccess`/`Failed` plus the default branch); only `GET /repos/{owner}/{name}`, never changes anything |
 | `PUT /api/config` | writes client IDs, Jira, repos, the agent's repos (`agent_repos`: list with base branch and projects, plus default), agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with plain text |
-| `PUT /api/secrets/{name}` | stores a key in `.env`; body `{"value": "…"}`; names `github-oauth`, `atlassian-oauth`, `agent-key` (older `litellm`), `jira`, `github`, `github-webhook`, `jira-webhook`; answer `{name, set}`, never the value |
-| `DELETE /api/secrets/{name}` | "Trennen" for tokens: deletes `jira` or `github` from `.env` (other names: `404`); answer `{name, set: false}` |
+| `PUT /api/secrets/{name}` | stores a key in `config/.env`; body `{"value": "…"}`; names `github-oauth`, `atlassian-oauth`, `agent-key` (older `litellm`), `jira`, `github`, `github-webhook`, `jira-webhook`; answer `{name, set}`, never the value |
+| `DELETE /api/secrets/{name}` | "Trennen" for tokens: deletes `jira` or `github` from `config/.env` (other names: `404`); answer `{name, set: false}` |
 | `POST /api/webhooks/github`, `POST /api/webhooks/jira` | optional (`[server] webhooks`), the only routes reachable with a foreign `Host`: HMAC-signed triggers for the sync; `202`/`200`/`204`/`401`/`404`/`413`/`415`/`429`, no body, payload never used as data |
-| `POST /api/setup/webhook-secret/{source}` | generates a webhook secret (`github`\|`jira`), stores it in `.env`, returns it once: `{secret}` |
+| `POST /api/setup/webhook-secret/{source}` | generates a webhook secret (`github`\|`jira`), stores it in `config/.env`, returns it once: `{secret}` |
 | `POST /api/setup/webhook-test/{source}` | signed test request from the server to itself over loopback: `{ok, message}` |
 | `GET /api/oauth/{service}/start`, `GET …/callback`, `POST …/revoke` | OAuth sign-in for `github` and `atlassian` |
 

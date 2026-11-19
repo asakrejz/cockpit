@@ -7,7 +7,7 @@ reference for editing by hand. Back to the [README](../README.md).
 
 Everything is optional. The file `config.toml` lives in the folder `config/` of the project, next to the database
 `cockpit.db` (`config/config.toml`, `config/cockpit.db`). "Project folder" is the working directory of the server, the
-same folder in which `.env` is searched; `scripts/start.sh`, `start-cockpit.command` (also in the release archive) and
+same folder that holds `config/`; `scripts/start.sh`, `start-cockpit.command` (also in the release archive) and
 the launchd template (`WorkingDirectory`) all start there. The server creates `config/` at the first start (mode `700`,
 files `600`) and an empty `config.toml` if there is none. Git ignores everything in `config/` except
 [`config/config.example.toml`](../config/config.example.toml), a fully commented example with dummy values to copy
@@ -19,7 +19,7 @@ from. Environment variables override the file:
 | `COCKPIT_DIST` | built app (`apps/cockpit/dist`) |
 | `COCKPIT_DB` | SQLite file (`config/cockpit.db` in the project folder) |
 | `COCKPIT_CONFIG` | path of `config.toml` (`config/config.toml`); an explicitly named file must exist |
-| `COCKPIT_ENV_FILE` | path of the `.env` file (`.env` in the working directory) |
+| `COCKPIT_ENV_FILE` | path of the secrets file (`config/.env` in the project folder) |
 | `COCKPIT_SEED` | `empty` or `demo` |
 | `COCKPIT_CONTAINER` | `docker` or `podman` |
 | `COCKPIT_AGENT_DIR` | folder with `Containerfile` and runner |
@@ -95,7 +95,7 @@ used, and without either there is no link). The number of a pull request links t
 ## Choosing the sign-in method (`auth`)
 
 `[github] auth` and `[jira] auth` say which credentials the server uses: `"token"` (API token or personal access
-token from `.env`) or `"oauth"` (the sign-in via the GitHub App or the Atlassian app). The choice is honoured
+token from `config/.env`) or `"oauth"` (the sign-in via the GitHub App or the Atlassian app). The choice is honoured
 everywhere: sync, agent follow-ups, the repo list of the setup, and the connection status in `/api/health`
 (`sign_in.<service>.kind`, `connected`, plus `choice` and `oauth_stored`). The rule lives in one place,
 `cockpit_core::AuthChoice::pick`.
@@ -182,15 +182,20 @@ test data and for the Playground stories.
 
 ## Credentials: the `.env` file
 
-All keys (Jira token, GitHub token, key of the agent endpoint, client secrets, sign-in tokens) live in a `.env`
-file in the project folder. The risk of a file inside the repository folder was a deliberate choice. **It is never
-committed**: `.gitignore` excludes `.env` and `.env.*`; no `.env*` file belongs in the repo.
+All keys (Jira token, GitHub token, key of the agent endpoint, client secrets, sign-in tokens) live in the file
+`config/.env`, next to `config.toml` and `cockpit.db`. They stay separate from `config.toml` on purpose. The risk of a
+file inside the repository folder was a deliberate choice. **It is never committed**: `.gitignore` excludes
+`config/*` and `.env` / `.env.*` anywhere; no `.env*` file belongs in the repo.
 
 - **Create:** the assistant and `cockpit-server token set <name>` create the file when needed (mode `600`). By
-  hand: create `.env` with the variables from the table below.
-- **Location:** `.env` in the server's working directory (the repo folder; `scripts/start.sh` and
+  hand: create `config/.env` with the variables from the table below.
+- **Location:** `config/.env` in the server's working directory (the repo folder; `scripts/start.sh` and
   `start-cockpit.command` change into it). `COCKPIT_ENV_FILE=/path/to/file` redirects it (operation, tests). The
   assistant shows the path in the last step.
+- **Move from the old place:** older versions kept the file at `<project>/.env`. If `config/.env` is missing and
+  the old file exists, the server moves it (rename, mode `600` stays) at the start and logs it. If both exist, it
+  touches neither, uses `config/.env` and shows a notice (`config_files.notices`, last assistant step) that the old
+  file can be deleted.
 - **Format:** `NAME=value`, comments with `#`, other lines are preserved on write. Values with special
   characters go in single quotes. The sign-in token blobs are compact one-line JSON (`'{"access":"…"}'`). Writing is
   atomic (temporary file, then rename).
@@ -198,7 +203,7 @@ committed**: `.gitignore` excludes `.env` and `.env.*`; no `.env*` file belongs 
   overwritten or deleted in the assistant.
 - **Variables:**
 
-  | Name in the backend | Variable in `.env` |
+  | Name in the backend | Variable in `config/.env` |
   |---|---|
   | `jira` | `JIRA_TOKEN` |
   | `github` | `GITHUB_TOKEN` |
@@ -210,10 +215,10 @@ committed**: `.gitignore` excludes `.env` and `.env.*`; no `.env*` file belongs 
   | webhook secrets (optional) | `GITHUB_WEBHOOK_SECRET`, `JIRA_WEBHOOK_SECRET` |
 
 - **Safety net:** at start and in `/api/health` (`env_file`, visible in the last assistant step) the server warns
-  when Git tracks the `.env`, `.gitignore` does not cover it, or the permissions are looser than `600` (at start they
+  when Git tracks `config/.env`, `.gitignore` does not cover it, or the permissions are looser than `600` (at start they
   are set to `600`). CI fails when any `.env*` file is tracked. If a real `.env` was ever
-  committed: rotate the keys immediately and run `git rm --cached .env`.
-- **Container:** the `.env` never enters the image or container (`apps/agent/.dockerignore`); the agent receives
+  committed: rotate the keys immediately and run `git rm --cached config/.env`.
+- **Container:** the `config/.env` never enters the image or container (`apps/agent/.dockerignore`); the agent receives
   values only as `-e NAME` from the backend.
 
 Terminal commands (the value always comes from standard input, never from the command line):
@@ -221,7 +226,7 @@ Terminal commands (the value always comes from standard input, never from the co
 ```bash
 echo "$TOKEN" | cargo run -p cockpit-server -- token set github     # or jira, github-oauth, atlassian-oauth, agent-key
 cargo run -p cockpit-server -- token delete github                  # remove a key
-cargo run -p cockpit-server -- token import                         # copy old keychain entries into .env, once
+cargo run -p cockpit-server -- token import                         # copy old keychain entries into config/.env, once
 ```
 
 `token import` reads the system keychain (where older versions kept keys), deletes nothing there, overwrites

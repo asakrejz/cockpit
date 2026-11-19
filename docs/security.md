@@ -14,13 +14,13 @@ Details: [configuration.md](configuration.md).
 
 ## Credentials
 
-- **Where they live.** Only in the backend, in the `.env` file in the project folder (decision of 2026-11-13; the risk
+- **Where they live.** Only in the backend, in the file `config/.env` (decision of 2026-11-13; the risk
   of a file inside the repo folder is accepted knowingly). Never in the repo, the database, logs, `config/config.toml`, URLs
   or browser storage (`localStorage`).
-- **Never committed.** `.gitignore` excludes `.env` and `.env.*`; no `.env*` file belongs in the repo. CI fails when any
+- **Never committed.** `.gitignore` excludes `config/*` and `.env` / `.env.*` anywhere; no `.env*` file belongs in the repo. CI fails when any
   `.env*` file is tracked. At start and in `/api/health` (`env_file`)
   the server warns when Git tracks the file, `.gitignore` does not cover it or the permissions are looser than `600`; at
-  start it sets them to `600`. If a real `.env` was ever committed: rotate the keys and run `git rm --cached .env`.
+  start it sets them to `600`. If a real `.env` was ever committed: rotate the keys and run `git rm --cached config/.env`.
 - **Two ways in.** `cockpit-server token set <name>` in the terminal (the value comes from standard input, so it is
   neither in the process list nor in the shell history), or the password fields of the setup assistant, which send the
   value once over loopback to `PUT /api/secrets/{name}`. For that route: only the fixed names `github-oauth`,
@@ -85,7 +85,7 @@ off by default (`[server] webhooks = false`: `404`).
   the secret generator and the test button, unknown paths below `/api/webhooks/`) still needs loopback peer and
   loopback `Host`; tests send every route with foreign hosts and expect `403`. The peer must still be loopback (the
   tunnel client runs on the same machine).
-- **Authentication:** HMAC-SHA256 over the raw body with a secret from `.env` (`GITHUB_WEBHOOK_SECRET`,
+- **Authentication:** HMAC-SHA256 over the raw body with a secret from `config/.env` (`GITHUB_WEBHOOK_SECRET`,
   `JIRA_WEBHOOK_SECRET`), compared in constant time. GitHub: `X-Hub-Signature-256`. Jira: `X-Hub-Signature`; for
   senders that cannot sign, the secret as `?token=` (compared in constant time). The token variant is weaker: it
   appears in the URL (tunnel and Jira logs, history), is the same on every request, and does not bind the body, so
@@ -183,7 +183,7 @@ off by default (`[server] webhooks = false`: `404`).
   values from every event and error text.
 - **Environment.** Endpoint address, key and model reach the container only as `-e NAME`, with the value in the child
   process environment, never in the argument list, `ps` or logs. Names that are not used are removed from the inherited
-  environment, so no key from your shell ends up in the container. `.env` never enters the image or the container
+  environment, so no key from your shell ends up in the container. `config/.env` never enters the image or the container
   (`apps/agent/.dockerignore`).
 - **Limits.** Budget per run and per month, a time limit and a limit on parallel runs apply; when reached the container
   is ended with `rm -f` and the run waits stopped for you (the clone stays so it can continue). Cancel, time limit,

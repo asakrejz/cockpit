@@ -13,10 +13,10 @@
   The log is in /Users/YOUR_USER/Library/Logs/cockpit-server.log.
 
   WorkingDirectory below must be the repo: the server finds the project folder from it, so
-  `config/config.toml`, `config/cockpit.db` and `.env` are always the ones of the repo.
+  `config/config.toml`, `config/cockpit.db` and `config/.env` are always the ones of the repo.
   Own settings (COCKPIT_PORT, COCKPIT_SEED, …) belong in `config/config.toml` or below in
   EnvironmentVariables (COCKPIT_CONFIG and COCKPIT_DB override the places). Keys never belong
-  here: they are in the `.env` file in the project folder (`cockpit-server token set …`).
+  here: they are in the file `config/.env` (`cockpit-server token set …`).
 
   The label `de.cockpit.server` stays unchanged on purpose: an already loaded agent keeps working
   and `launchctl bootout` still finds it.

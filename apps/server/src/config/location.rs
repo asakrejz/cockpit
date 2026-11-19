@@ -2,8 +2,9 @@
 //!
 //! * `<project>/config/config.toml` and `<project>/config/cockpit.db` are the defaults; the folder
 //!   is created at the first start (mode `700`, files `600`), an empty `config.toml` too.
-//! * "Project folder" is the working directory, exactly where `.env` is searched
-//!   (`scripts/start.sh`, `start-cockpit.command` and the launchd template all start in it).
+//! * `<project>/config/.env` holds the secrets (`COCKPIT_ENV_FILE` overrides); an old
+//!   `<project>/.env` is moved there at the start if `config/.env` is missing.
+//! * "Project folder" is the working directory (`scripts/start.sh`, `start-cockpit.command` and the launchd template all start in it).
 //! * `COCKPIT_CONFIG` and `COCKPIT_DB` win; they switch off creating and migrating.
 //! * One-time migration: if the new file is missing but the old one exists (macOS
 //!   `~/Library/Application Support/cockpit/`, Linux `$XDG_CONFIG_HOME` or `~/.config/cockpit/`,
@@ -41,6 +42,53 @@ pub fn default_config_path(project: &Path) -> PathBuf {
 
 pub fn default_db_path(project: &Path) -> PathBuf {
     config_dir(project).join(DB_FILE)
+}
+
+/// The default secrets file: `<project>/config/.env`.
+pub fn default_env_path(project: &Path) -> PathBuf {
+    config_dir(project).join(crate::secrets::ENV_FILE_NAME)
+}
+
+/// The place of the secrets file before it moved into `config/`: `<project>/.env`.
+pub fn old_env_path(project: &Path) -> PathBuf {
+    project.join(crate::secrets::ENV_FILE_NAME)
+}
+
+/// Moves the secrets file from `<project>/.env` into `config/` (rename, so mode `600` stays).
+/// Only for the default place (`COCKPIT_ENV_FILE` unset) and only if `config/.env` is missing.
+/// Returns the message for the log.
+pub fn migrate_env(project: &Path, env: Env) -> Result<Option<String>, String> {
+    if set(env, crate::secrets::ENV_FILE_VAR) {
+        return Ok(None);
+    }
+    let (old, new) = (old_env_path(project), default_env_path(project));
+    if !old.is_file() || new.exists() {
+        return Ok(None);
+    }
+    ensure_dir(&config_dir(project))?;
+    std::fs::rename(&old, &new).map_err(|e| {
+        format!(
+            "Cannot move {} to {} ({})",
+            old.display(),
+            new.display(),
+            e.kind()
+        )
+    })?;
+    Ok(Some(format!(
+        "Moved the secrets file from {} to {}",
+        old.display(),
+        new.display()
+    )))
+}
+
+/// The old `<project>/.env`, while it still exists next to a `config/.env` that is in use
+/// (shown in `/api/health`; nothing is touched). Not for an overridden `COCKPIT_ENV_FILE`.
+pub fn legacy_env_candidate(project: &Path, env: Env) -> Option<PathBuf> {
+    if set(env, crate::secrets::ENV_FILE_VAR) {
+        return None;
+    }
+    let old = old_env_path(project);
+    (old.is_file() && default_env_path(project).exists()).then_some(old)
 }
 
 /// The places where older versions kept their files.

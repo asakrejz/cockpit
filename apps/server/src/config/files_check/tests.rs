@@ -176,7 +176,20 @@ fn legacy_notice_lasts_while_old_files_exist_and_touches_nothing() {
 #[test]
 fn status_names_the_folder_and_carries_notices() {
     let dir = tempfile::tempdir().unwrap();
-    let st = status(dir.path(), &[]);
+    let st = status(dir.path(), &[], None);
     assert_eq!(st.path, dir.path().display().to_string());
     assert!(st.notices.is_empty());
+}
+
+#[test]
+fn old_env_file_notice_lasts_while_the_file_exists() {
+    let dir = tempfile::tempdir().unwrap();
+    let old = dir.path().join(".env");
+    assert!(status(dir.path(), &[], Some(&old)).notice_msgs.is_empty());
+    std::fs::write(&old, "JIRA_TOKEN=dummy-token\n").unwrap();
+    let st = status(dir.path(), &[], Some(&old));
+    assert_eq!(st.notices.len(), 1);
+    assert!(st.notices[0].contains("config/.env"), "{:?}", st.notices);
+    assert!(st.notices[0].contains(&old.display().to_string()));
+    assert!(old.exists());
 }

@@ -423,3 +423,71 @@ fn ci_script_fails_for_tracked_config_files_only() {
     assert!(git(dir.path(), &["add", "-f", ".env"]));
     assert!(!run(dir.path()).status.success());
 }
+
+#[cfg(unix)]
+fn mode_of(p: &Path) -> u32 {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::metadata(p).unwrap().permissions().mode() & 0o777
+}
+
+#[test]
+fn old_env_file_moves_into_config_and_keeps_mode_600() {
+    let project = tempfile::tempdir().unwrap();
+    let old = project.path().join(".env");
+    std::fs::write(&old, "JIRA_TOKEN=dummy-token\n").unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&old, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+    let note = migrate_env(project.path(), &env_of(&[])).unwrap();
+    assert!(note.unwrap().starts_with("Moved the secrets file"));
+    let new = project.path().join("config/.env");
+    assert!(!old.exists());
+    assert_eq!(
+        std::fs::read_to_string(&new).unwrap(),
+        "JIRA_TOKEN=dummy-token\n"
+    );
+    #[cfg(unix)]
+    assert_eq!(mode_of(&new), 0o600);
+    // Nothing left to do the second time.
+    assert!(migrate_env(project.path(), &env_of(&[])).unwrap().is_none());
+    assert!(legacy_env_candidate(project.path(), &env_of(&[])).is_none());
+}
+
+#[test]
+fn both_env_files_are_left_alone_and_the_old_one_is_reported() {
+    let project = tempfile::tempdir().unwrap();
+    std::fs::create_dir(project.path().join("config")).unwrap();
+    let (old, new) = (
+        project.path().join(".env"),
+        project.path().join("config/.env"),
+    );
+    std::fs::write(&old, "JIRA_TOKEN=dummy-old\n").unwrap();
+    std::fs::write(&new, "JIRA_TOKEN=dummy-new\n").unwrap();
+    assert!(migrate_env(project.path(), &env_of(&[])).unwrap().is_none());
+    assert_eq!(
+        std::fs::read_to_string(&old).unwrap(),
+        "JIRA_TOKEN=dummy-old\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(&new).unwrap(),
+        "JIRA_TOKEN=dummy-new\n"
+    );
+    assert_eq!(
+        legacy_env_candidate(project.path(), &env_of(&[])),
+        Some(old)
+    );
+}
+
+#[test]
+fn env_file_override_switches_off_the_move_and_the_notice() {
+    let project = tempfile::tempdir().unwrap();
+    let old = project.path().join(".env");
+    std::fs::write(&old, "JIRA_TOKEN=dummy-token\n").unwrap();
+    let env = env_of(&[("COCKPIT_ENV_FILE", "/somewhere/else.env".to_string())]);
+    assert!(migrate_env(project.path(), &env).unwrap().is_none());
+    assert!(old.exists());
+    assert!(!project.path().join("config").exists());
+    assert!(legacy_env_candidate(project.path(), &env).is_none());
+}

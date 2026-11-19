@@ -1,4 +1,4 @@
-//! Storage of the keys. They are in the `.env` file in the project folder (`EnvFileStore`, never
+//! Storage of the keys. They are in the `.env` file in the folder `config/` of the project (`EnvFileStore`, never
 //! commit it), never in the database, never in the configuration file. `Secret` only shows as
 //! `Secret(***)` in `Debug`. The system keychain (`KeyringStore`) is only read for the one-time,
 //! explicit takeover of old entries.
@@ -7,7 +7,9 @@ mod env_check;
 mod env_file;
 
 pub use env_check::{EnvFileStatus, status as env_file_status};
-pub use env_file::{EnvFileStore, Takeover, take_over};
+pub use env_file::{
+    DEFAULT_FILE_NAME as ENV_FILE_NAME, ENV_FILE_VAR, EnvFileStore, Takeover, take_over,
+};
 
 #[cfg(test)]
 use std::collections::HashMap;
