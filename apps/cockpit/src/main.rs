@@ -100,7 +100,7 @@ fn App() -> impl IntoView {
                     Route::Agent(ticket) => view! { <AgentPage ticket=ticket /> }.into_any(),
                     // `page()` never returns the detail levels; they belong to the pages above.
                     Route::InboxItem(filter, _) => view! { <InboxPage filter=filter /> }.into_any(),
-                    Route::OverviewMember(_) => view! { <OverviewPage /> }.into_any(),
+                    Route::OverviewMember(_) | Route::OverviewAll => view! { <OverviewPage /> }.into_any(),
                     }
                 }}
                 <Show when=move || store.loaded.get()>

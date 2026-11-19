@@ -7,6 +7,10 @@ use feature_ui::StackLevel;
 
 mod segment;
 
+/// The piece of the address that chooses everybody in the overview. A name never starts with
+/// `@` in the address: `@` is written as `%40` there.
+const ALL_PEOPLE: &str = "@all";
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Route {
     /// Set up and change connections.
@@ -19,6 +23,9 @@ pub enum Route {
     InboxItem(Filter, String),
     /// Team overview: who works on what and what is stuck.
     Overview,
+    /// The overview with everybody chosen (`#/overview/@all`): the detail level on a narrow
+    /// screen. Without a choice (`Overview`) the wide screen shows everybody too.
+    OverviewAll,
     /// The overview with one person chosen (`#/overview/Ada%20L`): the detail level on a
     /// narrow screen.
     OverviewMember(String),
@@ -43,7 +50,7 @@ impl Route {
             Route::SetupStep(_) => Route::Setup,
             // Going from the list to the detail keeps the page, so it can slide.
             Route::InboxItem(filter, _) => Route::Inbox(*filter),
-            Route::OverviewMember(_) => Route::Overview,
+            Route::OverviewMember(_) | Route::OverviewAll => Route::Overview,
             other => other.clone(),
         }
     }
@@ -54,10 +61,17 @@ impl Route {
         match self {
             Route::InboxItem(..)
             | Route::OverviewMember(_)
+            | Route::OverviewAll
             | Route::Review(Some(_))
             | Route::Agent(Some(_)) => StackLevel::Detail,
             _ => StackLevel::List,
         }
+    }
+
+    /// The address that opens exactly this entry of the inbox (`#/item/bau142`): the unfiltered
+    /// list with the entry chosen.
+    pub fn to_entry(id: &str) -> Route {
+        Route::InboxItem(Filter::All, id.to_string())
     }
 
     pub fn is_setup(&self) -> bool {
@@ -88,6 +102,7 @@ impl Route {
             (Some("team"), _) => item(Filter::Team, 1),
             (Some("snoozed" | "zurueckgestellt"), _) => item(Filter::Snoozed, 1),
             (Some("item"), _) => item(Filter::All, 0),
+            (Some("overview" | "uebersicht"), Some(ALL_PEOPLE)) => Route::OverviewAll,
             (Some("overview" | "uebersicht"), Some(name)) => {
                 Route::OverviewMember(segment::decode(name))
             }
@@ -118,6 +133,7 @@ impl Route {
                 )
             }
             Route::Overview => "#/overview".into(),
+            Route::OverviewAll => format!("#/overview/{ALL_PEOPLE}"),
             Route::OverviewMember(name) => format!("#/overview/{}", segment::encode(name)),
             Route::Log => "#/log".into(),
             Route::Notifications => "#/notifications".into(),

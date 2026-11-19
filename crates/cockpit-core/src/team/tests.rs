@@ -267,3 +267,58 @@ fn a_waiting_question_is_stuck_with_me() {
     assert!(stuck(&w).iter().all(|s| s.key != "BAU-142"));
     assert_eq!(w.waiting_agents(), 0);
 }
+
+// ---------- The chosen person ----------
+
+fn spread() -> Workspace {
+    let mut w = demo::workspace();
+    w.set_status("bau150", TicketStatus::InProgress);
+    w
+}
+
+#[test]
+fn a_chosen_person_narrows_stuck_entries_and_entries_to_theirs() {
+    let w = spread();
+    let list = members(&w);
+    let jonas = chosen(&list, Some("Jonas"));
+    assert!(jonas.is_some());
+    let ids = entry_ids(&w, &list, jonas);
+    assert_eq!(ids, jonas.unwrap().item_ids);
+    assert!(
+        ids.iter()
+            .all(|id| w.item(id).unwrap().owner.name == "Jonas"),
+        "only the tickets of the chosen person"
+    );
+    for s in stuck_of(stuck(&w), jonas) {
+        assert!(ids.contains(&s.item_id), "{} belongs to Jonas", s.key);
+    }
+}
+
+#[test]
+fn nobody_or_an_unknown_name_means_everybody() {
+    let w = spread();
+    let list = members(&w);
+    assert!(chosen(&list, None).is_none());
+    assert!(chosen(&list, Some("Nobody Here")).is_none());
+    let all = entry_ids(&w, &list, None);
+    // Every open entry once, whoever holds it.
+    let open = w
+        .items
+        .iter()
+        .filter(|i| !i.read && i.status != TicketStatus::Done)
+        .count();
+    assert_eq!(all.len(), open);
+    let mut sorted = all.clone();
+    sorted.sort();
+    sorted.dedup();
+    assert_eq!(sorted.len(), all.len(), "no entry twice");
+    assert_eq!(stuck_of(stuck(&w), None), stuck(&w));
+    // The entries of each person are part of everybody's.
+    for m in &list {
+        assert!(
+            m.item_ids.iter().all(|id| all.contains(id)),
+            "{}",
+            m.person.name
+        );
+    }
+}

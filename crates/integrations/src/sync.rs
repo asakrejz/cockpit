@@ -335,13 +335,13 @@ pub async fn jira_load(
     let field = sprint_field.as_deref();
     let fallback = jira::open_tickets_jql(jql);
     let mut used_fallback = false;
-    let issues = match (client.search_with_sprint(jql, field).await, &fallback) {
+    let page = match (client.search_page(jql, field).await, &fallback) {
         // No active sprint at all: show what is open instead.
-        (Ok(list), Some(open)) if list.is_empty() => {
-            let all = client.search_with_sprint(open, field).await?;
-            if !all.is_empty() {
+        (Ok(list), Some(open)) if list.issues.is_empty() => {
+            let all = client.search_page(open, field).await?;
+            if !all.issues.is_empty() {
                 used_fallback = true;
-                let any_sprint = all.iter().any(|i| {
+                let any_sprint = all.issues.iter().any(|i| {
                     field.is_some_and(|f| {
                         i.fields
                             .extra
@@ -364,10 +364,14 @@ pub async fn jira_load(
         {
             used_fallback = true;
             out.warn(msg!(IntegrationsSyncNoSprints));
-            client.search_with_sprint(open, field).await?
+            client.search_page(open, field).await?
         }
         (Err(e), _) => return Err(e),
     };
+    if page.truncated {
+        out.warn(msg!(IntegrationsSyncJiraTruncated, n = jira::MAX_ISSUES));
+    }
+    let issues = page.issues;
     // Whoever the ticket is not assigned to is shown because of the query, not because of a watch.
     let by_query = if in_project || used_fallback {
         Some("Im Projekt")

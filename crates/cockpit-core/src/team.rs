@@ -140,6 +140,37 @@ pub fn members(ws: &Workspace) -> Vec<Member> {
     list
 }
 
+/// The member the overview shows. `None` for „everybody“: no choice, or a name nobody
+/// carries (the person has nothing open any more).
+pub fn chosen<'a>(list: &'a [Member], name: Option<&str>) -> Option<&'a Member> {
+    name.and_then(|n| list.iter().find(|m| m.person.name == n))
+}
+
+/// The stuck entries the overview shows: all of them, or those of the chosen member.
+pub fn stuck_of(all: Vec<Stuck>, member: Option<&Member>) -> Vec<Stuck> {
+    match member {
+        Some(m) => all
+            .into_iter()
+            .filter(|s| m.item_ids.contains(&s.item_id))
+            .collect(),
+        None => all,
+    }
+}
+
+/// The IDs of the entries the overview lists: those of the chosen member, or every open entry
+/// once (also when two members hold it, like a ticket and the agent). Inbox order.
+pub fn entry_ids(ws: &Workspace, list: &[Member], member: Option<&Member>) -> Vec<String> {
+    match member {
+        Some(m) => m.item_ids.clone(),
+        None => ws
+            .items
+            .iter()
+            .filter(|i| list.iter().any(|m| m.item_ids.contains(&i.id)))
+            .map(|i| i.id.clone())
+            .collect(),
+    }
+}
+
 /// Short state of an entry for lists: for tickets the status, for pull requests
 /// the state of checks and review.
 pub fn state_label(item: &Item) -> (String, Tone) {

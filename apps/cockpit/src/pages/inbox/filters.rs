@@ -31,6 +31,10 @@ fn filter_label(id: &str, fallback: &str) -> String {
         "person" => t!(InboxFiltersLabelPerson),
         "status" => t!(InboxFiltersLabelStatus),
         "label" => t!(InboxFiltersLabelLabel),
+        "reporter" => t!(InboxFiltersLabelReporter),
+        "watched" => t!(InboxFiltersLabelWatched),
+        "type" => t!(InboxFiltersLabelType),
+        "priority" => t!(InboxFiltersLabelPriority),
         "done" => t!(InboxFiltersLabelDone),
         _ => fallback.to_string(),
     }
@@ -44,6 +48,9 @@ fn all_label(id: &str, fallback: &str) -> String {
         "person" => t!(InboxFiltersAllPerson),
         "status" => t!(InboxFiltersAllStatus),
         "label" => t!(InboxFiltersAllLabel),
+        "reporter" => t!(InboxFiltersAllReporter),
+        "type" => t!(InboxFiltersAllType),
+        "priority" => t!(InboxFiltersAllPriority),
         _ => fallback.to_string(),
     }
 }
@@ -63,7 +70,12 @@ fn choice_label(id: &str, value: &str, fallback: &str) -> String {
             .unwrap_or_else(|| fallback.to_string()),
         ("done", "on") => t!(InboxFiltersOptDoneOn),
         ("done", "off") => t!(InboxFiltersOptDoneOff),
-        ("person", ASSIGNED_TO_ME) => t!(InboxFiltersPersonMe),
+        ("watched", "off") => t!(InboxFiltersOptWatchedOff),
+        ("watched", "on") => t!(InboxFiltersOptWatchedOn),
+        ("priority", id) => cockpit_core::Priority::from_id(id)
+            .map(labels::priority)
+            .unwrap_or_else(|| fallback.to_string()),
+        ("person" | "reporter", ASSIGNED_TO_ME) => t!(InboxFiltersPersonMe),
         ("person", UNASSIGNED) => t!(InboxFiltersPersonUnassigned),
         ("project", NO_TICKET) => t!(InboxFiltersProjectNoTicket),
         _ => fallback.to_string(),
@@ -251,7 +263,7 @@ fn filter_field(
     view! {
         <Show when=shown>
             <div class="ck-dialog__field">
-                {if def.id == "person" {
+                {if matches!(def.id, "person" | "reporter") {
                     view! { <SearchSelect label=filter_label(def.id, def.label) options=options value=value on_change=set /> }
                         .into_any()
                 } else {

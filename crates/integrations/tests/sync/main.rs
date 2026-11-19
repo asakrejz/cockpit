@@ -18,6 +18,7 @@ macro_rules! fixture {
 }
 
 mod fetch;
+mod jira_scope;
 mod jira_selection;
 mod jira_sprints;
 mod open_pulls;

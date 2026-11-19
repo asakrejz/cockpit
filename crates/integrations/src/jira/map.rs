@@ -63,7 +63,11 @@ pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Optio
         scope,
         owner,
         status: status(issue),
-        priority: cockpit_core::Priority::default(),
+        priority: f
+            .priority
+            .as_ref()
+            .map(|p| priority_of(&p.name))
+            .unwrap_or_default(),
         branch: None,
         pr: None,
         agent_note: None,
@@ -79,7 +83,28 @@ pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Optio
             .as_ref()
             .map(|t| t.name.clone())
             .filter(|n| !n.is_empty()),
+        reporter: f.reporter.as_ref().map(|u| {
+            if u.account_id == me {
+                Person::me().name
+            } else {
+                u.display_name.clone()
+            }
+        }),
+        watching: f.watches.as_ref().is_some_and(|w| w.is_watching),
         updated_ms: time::parse_iso(&f.updated).map(|s| s as u64 * 1000),
+    }
+}
+
+/// The priority from its Jira name (`Highest`, `High`, `Medium`, `Low`, `Lowest`; the older
+/// `Blocker`, `Critical`, `Major`, `Minor`, `Trivial` too). Unknown names count as medium.
+pub fn priority_of(name: &str) -> cockpit_core::Priority {
+    use cockpit_core::Priority;
+    match name.trim().to_lowercase().as_str() {
+        "highest" | "blocker" | "critical" => Priority::Highest,
+        "high" | "major" => Priority::High,
+        "low" | "minor" => Priority::Low,
+        "lowest" | "trivial" => Priority::Lowest,
+        _ => Priority::Medium,
     }
 }
 

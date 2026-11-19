@@ -784,6 +784,19 @@ body.ui-scroll-locked { overflow: hidden; }
 .ck-cleanup { padding: var(--ref-space-8) var(--ref-space-12); }
 .ck-cleanup__list { margin: 0; padding-inline-start: var(--ref-space-16); overflow-wrap: anywhere; }
 
+/* Inbox: note above the detail of an entry that the filters hide. */
+.ck-hidden-note {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ref-space-8);
+  margin: var(--ref-space-12) var(--ref-space-16) 0;
+  padding: var(--ref-space-12) var(--ref-space-16);
+  border-radius: var(--ref-radius-12, 12px);
+  background: var(--sys-color-tertiary-fill);
+}
+.ck-hidden-note p { margin: 0; }
+
 /* Hint: GitHub does not show some repos to the connected access (access_hint.rs). */
 .ck-access { padding: var(--ref-space-12) var(--ref-space-20); }
 .ck-access__steps { text-align: start; max-width: 52ch; }

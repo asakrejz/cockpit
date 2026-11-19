@@ -11,12 +11,12 @@
 //! [`Choices::FromData`]; [`Workspace::filter_choices`](crate::Workspace::filter_choices) lists
 //! them.
 
-/// Whose entries are listed. „Meine“ keeps what needs your attention (the inbox as before);
-/// „Alle“ also lists the entries of colleagues, without attention.
+/// Whose entries are listed. „Alle“ (the start value) lists the entries of colleagues too,
+/// without attention; „Meine“ keeps only what needs your attention.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Ownership {
-    #[default]
     Mine,
+    #[default]
     All,
 }
 
@@ -149,6 +149,8 @@ pub struct FilterDef {
 const DONE_OPTIONS: &[(&str, &str)] =
     &[("on", "Erledigte ausblenden"), ("off", "Erledigte zeigen")];
 
+const WATCHED_OPTIONS: &[(&str, &str)] = &[("off", "Egal"), ("on", "Nur beobachtete")];
+
 /// All inbox filters, in display order.
 pub const FILTERS: &[FilterDef] = &[
     FilterDef {
@@ -164,7 +166,7 @@ pub const FILTERS: &[FilterDef] = &[
         label: "Besitz",
         all_label: None,
         choices: Choices::Fixed(Ownership::OPTIONS),
-        default: "mine",
+        default: "all",
         applies: Applies::Both,
     },
     FilterDef {
@@ -193,11 +195,27 @@ pub const FILTERS: &[FilterDef] = &[
     },
     FilterDef {
         id: "person",
-        label: "Zugewiesen an",
+        label: "Bearbeiter",
         all_label: Some("Alle"),
         choices: Choices::FromData,
         default: "",
         applies: Applies::Both,
+    },
+    FilterDef {
+        id: "reporter",
+        label: "Ersteller",
+        all_label: Some("Alle"),
+        choices: Choices::FromData,
+        default: "",
+        applies: Applies::Tickets,
+    },
+    FilterDef {
+        id: "watched",
+        label: "Beobachtet von mir",
+        all_label: None,
+        choices: Choices::Fixed(WATCHED_OPTIONS),
+        default: "off",
+        applies: Applies::Tickets,
     },
     FilterDef {
         id: "status",
@@ -206,6 +224,22 @@ pub const FILTERS: &[FilterDef] = &[
         choices: Choices::Fixed(crate::TicketStatus::OPTIONS),
         default: "",
         applies: Applies::Both,
+    },
+    FilterDef {
+        id: "type",
+        label: "Typ",
+        all_label: Some("Alle Typen"),
+        choices: Choices::FromData,
+        default: "",
+        applies: Applies::Tickets,
+    },
+    FilterDef {
+        id: "priority",
+        label: "Priorität",
+        all_label: Some("Alle Prioritäten"),
+        choices: Choices::Fixed(crate::Priority::OPTIONS),
+        default: "",
+        applies: Applies::Tickets,
     },
     FilterDef {
         id: "label",
