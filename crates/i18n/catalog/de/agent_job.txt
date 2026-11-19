@@ -26,3 +26,5 @@ agent_job.reason_linked_pr = Hat schon einen Pull Request oder Branch zu diesem 
 agent_job.reason_mentioned = Steht im Ticket
 agent_job.reason_rule = In den Einstellungen für das Projekt {project} festgelegt
 agent_job.reason_default = Standard-Repo aus den Einstellungen
+agent_job.repo_remove = Entfernen
+agent_job.repos_hint = Der Agent arbeitet in allen gewählten Repos gleichzeitig. Jedes Repo bekommt einen eigenen Branch und einen eigenen Pull Request.

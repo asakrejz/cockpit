@@ -260,6 +260,9 @@ pub enum Action {
         body: String,
         #[serde(default)]
         pull: Option<PullRequestRef>,
+        /// The repo the pull request is for (a run can work in several). Empty = the primary one.
+        #[serde(default)]
+        repo: String,
     },
     /// Resumes a stopped run after the limit that stopped it has been raised by `extra`:
     /// cents for budgets, minutes for the time limit. With `0` it continues if the

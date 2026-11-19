@@ -44,15 +44,21 @@ impl AppState {
 
     /// The repo an action is about, if it names one: the choice of a start, or the repo of the
     /// pull request a follow-up or review works on.
-    fn action_repo(&self, action: &Action) -> Option<String> {
+    fn action_repos(&self, action: &Action) -> Vec<String> {
         let ws = self.inner.live.copy();
-        let of_pr = |review: &PrKey| ws.sync.pr(review).map(|l| l.repo.clone());
+        let of_pr = |review: &PrKey| {
+            ws.sync
+                .pr(review)
+                .map(|l| l.repo.clone())
+                .into_iter()
+                .collect()
+        };
         match action {
-            Action::StartAgent { options, .. } => options.repo.clone().filter(|r| !r.is_empty()),
+            Action::StartAgent { options, .. } => options.chosen_repos(),
             Action::StartPrReview { review }
             | Action::AddressReviewThreads { review, .. }
             | Action::FixFailedChecks { review, .. } => of_pr(review),
-            _ => None,
+            _ => Vec::new(),
         }
     }
 
@@ -65,9 +71,14 @@ impl AppState {
         if !self.agent_real() {
             return Ok(());
         }
-        let Some(repo) = self.action_repo(action) else {
-            return Ok(());
-        };
+        for repo in self.action_repos(action) {
+            self.repo_settings_prepare_one(&repo).await?;
+        }
+        Ok(())
+    }
+
+    async fn repo_settings_prepare_one(&self, repo: &str) -> Result<(), Msg> {
+        let repo = repo.to_string();
         if !self.repo_usable(&repo) || self.repo_configured(&repo) {
             return Ok(());
         }
@@ -166,6 +177,22 @@ impl AppState {
         Ok(repo)
     }
 
+    /// One repo of a run (`""` = the primary one). It must be a repo of the run.
+    pub(crate) fn run_repo_of(
+        &self,
+        run: &cockpit_core::AgentRun,
+        repo: &str,
+    ) -> Result<String, Msg> {
+        let primary = self.run_repo(run)?;
+        if repo.is_empty() || repo == primary {
+            return Ok(primary);
+        }
+        if run.repos.iter().any(|r| r.repo == repo) && self.repo_usable(repo) {
+            return Ok(repo.to_string());
+        }
+        Err(msg!(ServerAgentRepoNotInRun, repo = repo))
+    }
+
     /// The repos as configured, without the fallback to the sync repos (for the assistant).
     pub(crate) fn agent_repos_config(&self) -> AgentRepos {
         let cfg = match self.inner.agent_repo_config.read() {
@@ -208,14 +235,15 @@ impl AppState {
         options.branch_pattern = DEFAULT_PATTERN.into();
         options.pr_language = cockpit_i18n::Lang::En;
         options.branch_type = BranchType::Feature.as_str().into();
-        if let Some(chosen) = options.repo.clone().filter(|r| !r.is_empty()) {
-            if !self.repo_usable(&chosen) {
-                return Err(msg!(ServerAgentRepoNotAllowed, repo = chosen));
+        options.targets.clear();
+        let chosen = options.chosen_repos();
+        if !chosen.is_empty() {
+            for repo in &chosen {
+                if !self.repo_usable(repo) {
+                    return Err(msg!(ServerAgentRepoNotAllowed, repo = repo));
+                }
             }
-            // The base branch always belongs to the repo, whatever the request carries.
-            options.base_branch = repos.base_branch(&chosen);
-            options.branch_pattern = repos.branch_pattern(&chosen);
-            options.pr_language = repos.pr_language(&chosen);
+            self.settle_targets(&repos, &chosen, &mut options);
         } else {
             let ws = self.inner.live.copy();
             let project = ws
@@ -224,10 +252,7 @@ impl AppState {
                 .map(str::to_string);
             match repos.choose(project.as_deref()) {
                 RepoChoice::Rule(r) | RepoChoice::Default(r) => {
-                    options.base_branch = repos.base_branch(&r);
-                    options.branch_pattern = repos.branch_pattern(&r);
-                    options.pr_language = repos.pr_language(&r);
-                    options.repo = Some(r);
+                    self.settle_targets(&repos, std::slice::from_ref(&r), &mut options);
                 }
                 RepoChoice::None if self.agent_real() => {
                     return Err(match project {
@@ -244,6 +269,28 @@ impl AppState {
                 .into();
         }
         Ok(Action::StartAgent { ticket, options })
+    }
+
+    /// Writes the chosen repos into the options with the base branch, pattern and language of
+    /// each one from the configuration, whatever the request carried. The first repo is the
+    /// primary one: its values also go into the common fields.
+    fn settle_targets(&self, repos: &AgentRepos, chosen: &[String], options: &mut AgentOptions) {
+        options.targets = chosen
+            .iter()
+            .map(|r| cockpit_core::RepoTarget {
+                repo: r.clone(),
+                base_branch: repos.base_branch(r),
+                branch_pattern: repos.branch_pattern(r),
+                pr_language: repos.pr_language(r),
+            })
+            .collect();
+        if let Some(first) = options.targets.first().cloned() {
+            options.base_branch = first.base_branch;
+            options.branch_pattern = first.branch_pattern;
+            options.pr_language = first.pr_language;
+            options.repo = Some(first.repo);
+        }
+        options.repos = chosen.to_vec();
     }
 
     /// Sets base branch and pattern of a follow-up from the repo of the pull request.

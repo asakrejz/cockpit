@@ -4,8 +4,8 @@
 import { type Job, tasksText, systemText, commitMessage } from "../job.ts";
 import { type Sink, truncate } from "../event.ts";
 import { tx } from "../texts.ts";
-import { type Run, record } from "../git.ts";
-import { type Policy, decide } from "../policy.ts";
+import { type Run, recordJob } from "../git.ts";
+import { type Policy, decide, policyOf } from "../policy.ts";
 import type { Adapter, Input } from "./interface.ts";
 import { finishReview } from "../review.ts";
 import { ClaudeTranslator, type SdkMessage, describe, planFromAnswer } from "./claude-messages.ts";
@@ -90,11 +90,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
   const input = new Queue<unknown>();
   const cancel = new AbortController();
   const deadline = setTimeout(() => cancel.abort(), a.max_seconds * 1000);
-  const policy: Policy = {
-    root: d.root,
-    allowed: a.rules.allowed_paths,
-    forbidden: a.rules.forbidden_paths,
-  };
+  const policy: Policy = policyOf(d.root, a);
   const tr = new ClaudeTranslator(d.sink, d.root, d.now);
 
   const answers = new Queue<string>();
@@ -180,13 +176,19 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
     return 0;
   }
   try {
-    const f = await record(d.git, d.root, a.branch, commitMessage(a));
+    const f = await recordJob(d.git, d.root, a);
     if (!f) {
       d.sink({ t: "error", text: tx("error_nothing_changed") });
       return 1;
     }
     d.sink({ t: "files", files: f.files });
-    d.sink({ t: "result", text: truncate(endText.trim() || tx("result_done", { key: a.ticket.key }), 1500), branch: a.branch, commit: f.commit });
+    d.sink({
+      t: "result",
+      text: truncate(endText.trim() || tx("result_done", { key: a.ticket.key }), 1500),
+      branch: a.branch,
+      commit: f.commit,
+      ...(a.repos.length > 1 ? { repos: f.repos } : {}),
+    });
     return 0;
   } catch (e) {
     d.sink({ t: "error", text: (e as Error).message });

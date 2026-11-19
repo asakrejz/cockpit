@@ -32,7 +32,8 @@ pub(super) async fn branch_check(
     let Some(run) = q.get("run").filter(|r| !r.is_empty()) else {
         return error_msg(StatusCode::BAD_REQUEST, msg!(ServerAgentRunMissing));
     };
-    Json(state.branch_check(run).await).into_response()
+    let repo = q.get("repo").map_or("", String::as_str);
+    Json(state.branch_check(run, repo).await).into_response()
 }
 
 /// `POST /api/agent/branch`: deletes the branch of the run – only after the same check.
@@ -40,7 +41,7 @@ pub(super) async fn branch_delete(
     State(state): State<AppState>,
     Json(request): Json<BranchDeleteRequest>,
 ) -> Response {
-    match state.branch_delete(&request.run).await {
+    match state.branch_delete(&request.run, &request.repo).await {
         Ok(d) => Json(d).into_response(),
         Err(e) => action_error(e),
     }

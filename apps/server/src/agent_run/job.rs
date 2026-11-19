@@ -158,3 +158,38 @@ pub fn review_input(ws: &Workspace, run: &AgentRun) -> Option<Value> {
 pub fn check_job() -> Value {
     json!({ "mode": "check", "ticket": { "key": "-", "title": "-" } })
 }
+
+/// The repos of a run in several repos for the runner (`repos` in the job file). Each repo is
+/// cloned to `/work/<dir>` and has its own branch, base branch and rules; the runner tells the
+/// agent about all of them. `guides` maps a repo to the path of its contribution guidelines.
+pub fn repos_json(run: &AgentRun, guides: &HashMap<String, &'static str>) -> Value {
+    let list: Vec<Value> = run
+        .repos
+        .iter()
+        .map(|r| {
+            let instructions: Vec<String> = r
+                .rules
+                .instructions
+                .lines()
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .map(str::to_string)
+                .collect();
+            json!({
+                "repo": r.repo,
+                "dir": r.dir(),
+                "branch": run.branch_in(&r.repo),
+                "base_branch": r.base_branch,
+                "pr_language": r.pr_language.code(),
+                "contributing": guides.get(&r.repo).copied().unwrap_or(""),
+                "rules": {
+                    "allowed_paths": r.rules.allowed_paths,
+                    "forbidden_paths": r.rules.forbidden_paths,
+                    "required_tests": r.rules.required_tests,
+                    "instructions": instructions,
+                },
+            })
+        })
+        .collect();
+    Value::Array(list)
+}

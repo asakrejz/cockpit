@@ -29,7 +29,7 @@ async fn preview_shows_title_text_and_creates_nothing() {
     let github = MockServer::start().await;
     none_open(&github).await;
     let w = done_world(&github).await;
-    let p: PullRequestPreview = w.state.pull_request_preview("BAU-142").await.unwrap();
+    let p: PullRequestPreview = w.state.pull_request_preview("BAU-142", "").await.unwrap();
     assert!(p.title.starts_with("BAU-142: "));
     assert!(p.body.contains("Fokus-Ring ergänzt."));
     assert_eq!((p.head.as_str(), p.base.as_str()), (BRANCH, "main"));
@@ -116,7 +116,7 @@ async fn an_existing_pull_request_is_linked_instead_of_duplicated() {
         .mount(&github)
         .await;
     let w = done_world(&github).await;
-    let p = w.state.pull_request_preview("BAU-142").await.unwrap();
+    let p = w.state.pull_request_preview("BAU-142", "").await.unwrap();
     assert_eq!(p.existing.as_ref().map(|e| e.number), Some(12));
     w.action(create("BAU-142: x")).await.unwrap();
     let pull = w.run().pull_request.unwrap();
@@ -151,7 +151,7 @@ async fn a_pull_request_created_in_the_meantime_is_found_after_the_422() {
         .await;
     let w = done_world(&github).await;
     // The preview uses up the first (empty) answer.
-    let _ = w.state.pull_request_preview("BAU-142").await.unwrap();
+    let _ = w.state.pull_request_preview("BAU-142", "").await.unwrap();
     w.action(create("BAU-142: x")).await.unwrap();
     assert_eq!(w.run().pull_request.unwrap().number, 40);
 }

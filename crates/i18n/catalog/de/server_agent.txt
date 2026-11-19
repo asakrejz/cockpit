@@ -50,3 +50,4 @@ server_agent.github_missing_for_agent = GitHub ist nicht verbunden (der Agent br
 server_agent.branch_no_own = Zu diesem Lauf gehört kein Branch, den das Cockpit angelegt hat.
 server_agent.branch_gone = Den Branch „{branch}“ gibt es auf GitHub nicht mehr.
 server_agent.joined = {parts}
+server_agent.repo_not_in_run = Das Repo „{repo}“ gehört nicht zu diesem Lauf.

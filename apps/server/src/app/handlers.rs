@@ -79,7 +79,8 @@ pub(super) async fn pull_request_preview(
             cockpit_i18n::msg!(ServerMiscRunMissing),
         );
     };
-    match state.pull_request_preview(run).await {
+    let repo = q.get("repo").map_or("", String::as_str);
+    match state.pull_request_preview(run, repo).await {
         Ok(p) => Json(p).into_response(),
         Err(e) => action_error(e),
     }

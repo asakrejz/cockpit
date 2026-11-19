@@ -89,11 +89,11 @@ async fn allow_delete(github: &MockServer) {
 
 /// Everything refused: check says no with a reason, delete fails, GitHub saw no DELETE.
 async fn assert_refused(w: &World, github: &MockServer, part: &str) {
-    let check = w.state.branch_check("BAU-142").await;
+    let check = w.state.branch_check("BAU-142", "").await;
     assert!(!check.allowed, "{check:?}");
     let reason = check.reason.unwrap_or_default();
     assert!(reason.contains(part), "{reason}");
-    assert!(w.state.branch_delete("BAU-142").await.is_err());
+    assert!(w.state.branch_delete("BAU-142", "").await.is_err());
     assert_eq!(deletes(github).await, Vec::<String>::new());
 }
 
@@ -105,11 +105,11 @@ async fn a_merged_pull_request_allows_deleting_exactly_its_branch() {
     allow_delete(&github).await;
     let w = world(&github, finished_run());
     assert_eq!(w.run().branch(), BRANCH);
-    let check = w.state.branch_check("BAU-142").await;
+    let check = w.state.branch_check("BAU-142", "").await;
     assert!(check.allowed, "{check:?}");
     assert_eq!(check.branch, BRANCH);
     assert_eq!(deletes(&github).await.len(), 0, "checking deletes nothing");
-    let done = w.state.branch_delete("BAU-142").await.unwrap();
+    let done = w.state.branch_delete("BAU-142", "").await.unwrap();
     assert_eq!(done.branch, BRANCH);
     assert_eq!(deletes(&github).await, vec![REF_PATH.to_string()]);
 }
@@ -121,7 +121,7 @@ async fn a_closed_pull_request_works_too() {
     repo_and_branch(&github, "main", false).await;
     allow_delete(&github).await;
     let w = world(&github, finished_run());
-    assert!(w.state.branch_delete("BAU-142").await.is_ok());
+    assert!(w.state.branch_delete("BAU-142", "").await.is_ok());
 }
 
 #[tokio::test]
@@ -215,12 +215,12 @@ async fn runs_that_own_no_branch_are_refused_without_asking_github() {
     for run in [simulated, no_pr, review] {
         let w = world(&github, run);
         let key = w.ws().runs[0].key();
-        assert!(!w.state.branch_check(&key).await.allowed);
-        assert!(w.state.branch_delete(&key).await.is_err());
+        assert!(!w.state.branch_check(&key, "").await.allowed);
+        assert!(w.state.branch_delete(&key, "").await.is_err());
     }
     assert!(github.received_requests().await.unwrap().is_empty());
     let w = world(&github, finished_run());
-    assert!(w.state.branch_delete("BAU-999").await.is_err());
+    assert!(w.state.branch_delete("BAU-999", "").await.is_err());
 }
 
 #[tokio::test]
@@ -231,8 +231,8 @@ async fn without_github_nothing_happens() {
         ws.runs = vec![finished_run()];
         ws
     });
-    assert!(!w.state.branch_check("BAU-142").await.allowed);
-    assert!(w.state.branch_delete("BAU-142").await.is_err());
+    assert!(!w.state.branch_check("BAU-142", "").await.allowed);
+    assert!(w.state.branch_delete("BAU-142", "").await.is_err());
 }
 
 // ---------- Marking the run as done ----------

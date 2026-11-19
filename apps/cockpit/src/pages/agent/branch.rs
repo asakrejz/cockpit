@@ -13,11 +13,33 @@ use crate::server;
 
 /// Does the run own a branch the cockpit pushed, and is the run done with?
 fn eligible(r: &AgentRun) -> bool {
-    r.kind == RunKind::Implement && r.real && r.is_closed() && r.pull_request.is_some()
+    r.kind == RunKind::Implement && r.real && r.is_closed() && !r.pull_requests().is_empty()
+}
+
+/// One panel per repo that has a pull request (a run in one repo has one).
+#[component]
+pub(super) fn BranchPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
+    let repos = Memo::new(move |_| {
+        run.get()
+            .filter(eligible)
+            .map(|r| {
+                r.pull_requests()
+                    .into_iter()
+                    .map(|(repo, _)| repo)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    });
+    view! {
+        <For each=move || repos.get() key=|r| r.clone() let:repo>
+            <RepoBranchPanel run=run repo=repo />
+        </For>
+    }
 }
 
 #[component]
-pub(super) fn BranchPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
+fn RepoBranchPanel(run: Memo<Option<AgentRun>>, repo: String) -> impl IntoView {
+    let repo = StoredValue::new(repo);
     let check = RwSignal::new(None::<BranchCheck>);
     let problem = RwSignal::new(None::<String>);
     let deleted = RwSignal::new(false);
@@ -39,8 +61,9 @@ pub(super) fn BranchPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
         if key.is_empty() {
             return;
         }
+        let repo_name = repo.get_value();
         spawn_local(async move {
-            match server::fetch_branch_check(&key).await {
+            match server::fetch_branch_check(&key, &repo_name).await {
                 Ok(c) => check.set(Some(c)),
                 Err(e) => problem.set(Some(e.message())),
             }
@@ -50,8 +73,9 @@ pub(super) fn BranchPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
         busy.set(true);
         problem.set(None);
         let key = key.get_untracked();
+        let repo_name = repo.get_value();
         spawn_local(async move {
-            match server::post_branch_delete(&key).await {
+            match server::post_branch_delete(&key, &repo_name).await {
                 Ok(_) => {
                     deleted.set(true);
                     open.set(false);

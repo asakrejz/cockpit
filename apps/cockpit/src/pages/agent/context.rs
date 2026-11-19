@@ -17,6 +17,8 @@ pub(super) struct OptionSignals {
     pub plan_first: RwSignal<bool>,
     pub agent_repos: Memo<AgentRepos>,
     pub repo: RwSignal<String>,
+    /// More repos of the run besides `repo` (the first one).
+    pub others: RwSignal<Vec<String>>,
     pub tests_allowed: Signal<bool>,
 }
 
@@ -30,6 +32,7 @@ impl OptionSignals {
             plan_first,
             agent_repos,
             repo,
+            others,
             tests_allowed,
         } = self;
         AgentOptions {
@@ -38,6 +41,11 @@ impl OptionSignals {
             hint: hint.get(),
             plan_first: plan_first.get(),
             repo: Some(repo.get()).filter(|r| !r.is_empty()),
+            repos: if repo.get().is_empty() {
+                Vec::new()
+            } else {
+                std::iter::once(repo.get()).chain(others.get()).collect()
+            },
             base_branch: agent_repos.with(|a| a.base_branch(&repo.get())),
             // Only a preview: the backend sets the pattern from its own configuration.
             branch_pattern: agent_repos.with(|a| a.branch_pattern(&repo.get())),
@@ -138,6 +146,13 @@ impl AgentCtx {
             .with_untracked(|w| w.run(&key.get_value()))
             .filter(|r| !r.is_idle());
         let options = saved.map(|r| r.options).unwrap_or_default();
+        let others = RwSignal::new(
+            options
+                .chosen_repos()
+                .into_iter()
+                .skip(1)
+                .collect::<Vec<_>>(),
+        );
         let run_tests = RwSignal::new(options.run_tests);
         let draft_pr = RwSignal::new(options.draft_pr);
         let hint = RwSignal::new(options.hint);
@@ -211,6 +226,7 @@ impl AgentCtx {
             plan_first,
             agent_repos,
             repo,
+            others,
             tests_allowed,
         };
 

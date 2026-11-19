@@ -38,6 +38,43 @@ pub struct AgentOptions {
     /// the configuration; the interface sets it when the user picks one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo: Option<String>,
+    /// All repos of the run (the first is `repo`). Empty = only `repo`. The interface sends the
+    /// choice here; the backend settles it.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub repos: Vec<String>,
+    /// Base branch, pattern and language per repo, set by the backend from the configuration
+    /// (whatever a request carries is replaced).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub targets: Vec<RepoTarget>,
+}
+
+/// The settings of one repo of a start, from the configuration.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct RepoTarget {
+    pub repo: String,
+    #[serde(default)]
+    pub base_branch: String,
+    #[serde(default)]
+    pub branch_pattern: String,
+    #[serde(default)]
+    pub pr_language: cockpit_i18n::Lang,
+}
+
+impl AgentOptions {
+    /// The repos chosen for the run, in order, without duplicates and empty names. Old requests
+    /// that only know `repo` give that one.
+    pub fn chosen_repos(&self) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        let all = self.repos.iter().cloned().chain(self.repo.clone());
+        for r in all {
+            let r = r.trim().to_string();
+            if !r.is_empty() && !out.contains(&r) {
+                out.push(r);
+            }
+        }
+        out.truncate(super::MAX_REPOS_PER_RUN);
+        out
+    }
 }
 
 impl Default for AgentOptions {
@@ -52,6 +89,8 @@ impl Default for AgentOptions {
             branch_type: crate::branch::BranchType::Feature.as_str().into(),
             plan_first: true,
             repo: None,
+            repos: Vec::new(),
+            targets: Vec::new(),
         }
     }
 }

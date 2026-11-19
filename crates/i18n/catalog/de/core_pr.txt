@@ -3,3 +3,4 @@ core_pr.what = Was
 core_pr.ticket = Ticket
 core_pr.files = Geänderte Dateien ({n})
 core_pr.footer = Vom Cockpit-Agenten umgesetzt. Gemergt wird von Hand.
+core_pr.siblings = Dieselbe Änderung in anderen Repos

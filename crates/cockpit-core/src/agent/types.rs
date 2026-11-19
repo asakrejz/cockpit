@@ -80,6 +80,9 @@ pub enum AgentReport {
     },
     /// The agent's summary of the pull request (only in a review run); stays local.
     ReviewSummary { text: String },
+    /// What became of each repo of the run (unchanged, pushed, refused). Sent right before
+    /// `Done` (or `Failed`); one refused repo does not stop the others.
+    Repos { repos: Vec<RepoResult> },
     /// Done: the branch is pushed.
     Done { summary: String },
     /// The run ended without result (error, timeout, restart). `reason` in plain text.

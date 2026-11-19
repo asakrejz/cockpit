@@ -10,6 +10,7 @@ use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 mod jobs;
+mod multi_repo;
 mod panel;
 mod pull_request;
 mod two_repos;
@@ -126,5 +127,6 @@ fn create(title: &str) -> Action {
             url: "https://evil.example".into(),
             existed: true,
         }),
+        repo: String::new(),
     }
 }

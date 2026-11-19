@@ -306,8 +306,9 @@ impl Workspace {
                 title,
                 body,
                 pull,
+                repo,
             } => {
-                self.check_pull_request(&run)?;
+                self.check_pull_request(&run, &repo)?;
                 if title.trim().is_empty()
                     || title.chars().count() > 256
                     || body.chars().count() > 60_000
@@ -323,7 +324,7 @@ impl Workspace {
                 } else {
                     msg!(CoreActionLogPrCreated, n = n, label = label)
                 };
-                self.pull_request_created(&run, pull);
+                self.pull_request_created(&run, &repo, pull);
                 Ok(vec![Note::coded(Target::Run(run), text)])
             }
             Action::ResumeStopped { run, extra } => {
