@@ -150,6 +150,8 @@ pub fn pull_to_item_for(
         sprint: None,
         issue_type: None,
         updated_ms: time::parse_iso(&pull.updated_at).map(|s| s as u64 * 1000),
+        url: cockpit_core::adf::safe_url(&pull.html_url).map(str::to_string),
+        details: None,
     }
 }
 

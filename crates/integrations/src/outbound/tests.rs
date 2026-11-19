@@ -50,6 +50,8 @@ fn item(id: &str, key: &str, source: Source) -> Item {
         sprint: None,
         issue_type: None,
         updated_ms: None,
+        url: None,
+        details: None,
     }
 }
 

@@ -72,6 +72,8 @@ fn item(
         sprint: None,
         issue_type: None,
         updated_ms: None,
+        url: None,
+        details: None,
     }
 }
 

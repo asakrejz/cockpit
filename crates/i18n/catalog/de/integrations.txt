@@ -50,3 +50,4 @@ integrations.translate_not_reachable = Das Modell ist nicht erreichbar.
 integrations.translate_key_rejected = Das Modell hat den Schlüssel nicht angenommen.
 integrations.translate_status = Das Modell hat mit Status {code} geantwortet.
 integrations.translate_bad_answer = Die Antwort des Modells ist nicht brauchbar.
+integrations.too_large = Der Anhang ist zu groß, um ihn hier zu zeigen

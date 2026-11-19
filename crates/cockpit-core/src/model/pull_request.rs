@@ -171,6 +171,12 @@ impl PrRef {
         }
     }
 
+    /// The page of the pull request at github.com; `None` if the repo is not known.
+    pub fn github_url(&self) -> Option<String> {
+        (repo_name_valid(&self.repo) && self.number > 0)
+            .then(|| format!("https://github.com/{}/pull/{}", self.repo, self.number))
+    }
+
     pub fn key(&self) -> PrKey {
         PrKey::new(&self.repo, self.number)
     }

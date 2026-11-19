@@ -54,7 +54,7 @@ impl AppState {
         if d == Service::Atlassian
             && let Ok(conn) = self.inner.db.lock()
         {
-            for k in [SITE_ID, SITE_NAME] {
+            for k in [SITE_ID, SITE_NAME, SITE_URL] {
                 if let Err(e) = db::setting_delete(&conn, k) {
                     tracing::warn!("Setting {k} could not be deleted: {e}");
                 }
@@ -73,13 +73,29 @@ impl AppState {
         Some((id, name))
     }
 
+    /// The address of the chosen Atlassian site as people open it, if it was stored (older
+    /// sign-ins did not store it). Blocking.
+    pub(crate) fn atlassian_site_url(&self) -> Option<String> {
+        let conn = self.inner.db.lock().ok()?;
+        db::setting(&conn, SITE_URL).ok()?.filter(|u| !u.is_empty())
+    }
+
     /// A Jira client with OAuth if signed in and a site is chosen. Blocking.
     pub(crate) fn jira_oauth_client(&self) -> Option<Result<JiraClient, Error>> {
         let tokens = self.oauth_tokens(Service::Atlassian)?;
         let (id, _) = self.atlassian_site()?;
+        // The address for links: the one stored at sign-in, otherwise `[jira] site` of the file.
+        let site = self.atlassian_site_url().or_else(|| {
+            self.sources()
+                .jira
+                .as_ref()
+                .map(|j| j.site.clone())
+                .filter(|s| !s.is_empty())
+        });
         Some(
             jira_base(&self.sources().endpoints, &id)
-                .and_then(|base| JiraClient::oauth(&base, tokens.access)),
+                .and_then(|base| JiraClient::oauth(&base, tokens.access))
+                .map(|c| c.with_site(site.as_deref())),
         )
     }
 

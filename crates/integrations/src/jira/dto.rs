@@ -45,12 +45,19 @@ pub struct SearchResult {
     /// Token for the next page; missing on the last one.
     #[serde(default)]
     pub next_page_token: Option<String>,
+    /// With `expand=names`: the display name of every field ID.
+    #[serde(default)]
+    pub names: std::collections::HashMap<String, String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Issue {
     pub key: String,
     pub fields: Fields,
+    /// The field names of the search this issue came from (`expand=names`); filled by the
+    /// client, not part of the issue in Jira's answer.
+    #[serde(skip)]
+    pub names: std::sync::Arc<std::collections::HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

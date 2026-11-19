@@ -120,6 +120,8 @@ fn jira_state(site: &str, email: &str, with_token: bool) -> (Router, Arc<MemoryS
             email: email.into(),
             projects: vec![],
             jql: None,
+            hidden_fields: vec![],
+            field_order: vec![],
         }),
         ..Sources::default()
     };

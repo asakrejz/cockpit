@@ -43,6 +43,7 @@ fn services(s: &MockServer, query: JiraQuery) -> Services {
             client: JiraClient::new(&s.uri(), "mira@firma.example", Secret::new("jt")).unwrap(),
             jql: query.jql,
             in_project: query.in_selection,
+            fields: Default::default(),
         }),
     }
 }

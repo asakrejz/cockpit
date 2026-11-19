@@ -65,9 +65,12 @@ pub enum Block {
         kind: PanelKind,
         content: Vec<Block>,
     },
-    /// Attachment or image: only a placeholder with the file name.
+    /// Attachment or image. `attachment` is the Jira attachment ID when it is an image the app
+    /// can show ([`crate::details::link_media`]); otherwise only a placeholder with the file name.
     Media {
         name: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        attachment: Option<String>,
     },
 }
 
@@ -182,7 +185,7 @@ fn blocks_text(blocks: &[Block], out: &mut String) {
                     blocks_text(&cell.content, out);
                 }
             }
-            Block::Media { name } => {
+            Block::Media { name, .. } => {
                 line_end(out);
                 out.push_str(name);
                 line_end(out);

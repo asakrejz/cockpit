@@ -129,6 +129,10 @@ impl AppState {
                         client,
                         jql: query.jql,
                         in_project: query.in_selection,
+                        fields: cockpit_integrations::jira::FieldPrefs {
+                            hidden: j.hidden_fields.clone(),
+                            order: j.field_order.clone(),
+                        },
                     })
                 }
                 (Err(e), _) | (_, Err(e)) => tracing::warn!("Jira: {e}"),

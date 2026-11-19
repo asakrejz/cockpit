@@ -134,6 +134,7 @@ fn block(n: &Value, me: &str, depth: usize) -> Vec<Block> {
         }],
         "media" => vec![Block::Media {
             name: media_name(n),
+            attachment: None,
         }],
         // `mediaSingle`, `mediaGroup`, `expand`, layouts … and everything unknown:
         // the content counts, the container does not.

@@ -754,3 +754,5 @@ body.ui-scroll-locked { overflow: hidden; }
   margin-block: var(--ref-space-4) var(--ref-space-8);
 }
 .ck-translate > .ui-hint { flex-basis: 100%; }
+/* A picture from a ticket (attachment through the backend). */
+.ui-rich__image img { display: block; max-width: 100%; height: auto; border-radius: var(--ref-radius-12, 12px); background: var(--sys-color-tertiary-fill); }

@@ -33,6 +33,7 @@ pub mod attention;
 pub mod branch;
 pub mod connections;
 pub mod demo;
+pub mod details;
 pub mod diagnosis;
 pub mod filters;
 pub mod link;
@@ -59,6 +60,7 @@ pub use agent::{
 };
 pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::{AuthKind, Connections, ServiceStatus};
+pub use details::{Attachment, DetailField, DetailValue, Details};
 pub use diagnosis::{Diagnosis, Fix};
 pub use filters::{
     ASSIGNED_TO_ME, ActiveFilter, Applies, Choices, FILTERS, FilterDef, JIRA_PROJECT_FILTER,

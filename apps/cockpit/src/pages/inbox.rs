@@ -347,6 +347,7 @@ fn snooze(store: Store, items: Memo<Vec<Item>>, id: &str, choice: SnoozeChoice) 
 
 mod controls;
 mod detail;
+mod details;
 mod filters;
 mod keyboard;
 pub mod labels;

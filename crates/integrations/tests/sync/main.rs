@@ -18,6 +18,7 @@ macro_rules! fixture {
 }
 
 mod fetch;
+mod jira_details;
 mod jira_selection;
 mod jira_sprints;
 mod open_pulls;
@@ -141,6 +142,7 @@ fn services(g: Option<&MockServer>, j: Option<&MockServer>) -> Services {
             client: JiraClient::new(&s.uri(), "mira@firma.example", Secret::new("jt")).unwrap(),
             jql: jql_for(&[], None).unwrap(),
             in_project: false,
+            fields: Default::default(),
         }),
     }
 }

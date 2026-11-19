@@ -263,6 +263,37 @@ pub(super) fn detail(
             }
         });
 
+    // The pull request's number links to GitHub – to the address the sync read from the pull
+    // request itself (it also fits other GitHub hosts), otherwise to github.com.
+    let pr_text = match item.pr.as_ref() {
+        None => t!(InboxDetailPrNone).into_any(),
+        Some(pr) => {
+            let label = labels::pr_label(pr);
+            let url = store.ws.with_untracked(|w| {
+                w.items
+                    .iter()
+                    .find(|i| {
+                        i.kind == cockpit_core::Kind::PullRequest
+                            && i.pr.as_ref().is_some_and(|p| p.key().same(&pr.key()))
+                    })
+                    .and_then(Item::web_url)
+            });
+            match url.or_else(|| pr.github_url()) {
+                Some(url) => super::details::external_link(
+                    url,
+                    t!(
+                        InboxDetailOpenExternal,
+                        key = pr.key().to_string(),
+                        source = "GitHub"
+                    ),
+                    "ck-key-link",
+                    label.into_any(),
+                ),
+                None => label.into_any(),
+            }
+        }
+    };
+
     let comments = item
         .comments
         .iter()
@@ -350,12 +381,13 @@ pub(super) fn detail(
         }
     };
 
-    let display_key = item.display_key();
+    let key_link = super::details::key_link(&item);
+    let detail_sections = super::details::details_sections(item.details.as_ref());
     view! {
         <PaneHeader>
             <div class="ui-hstack" style="--spacing: 10px">
                 <Badge variant=BadgeVariant::Neutral>{source}</Badge>
-                <span class="t-subheadline t-mono t-secondary">{display_key}</span>
+                {key_link}
                 <span class="ui-spacer"></span>
                 <span class="ui-hstack" style="--spacing: 8px; flex-wrap: nowrap">
                     <Avatar initials=item.owner.initials.clone() />
@@ -393,6 +425,8 @@ pub(super) fn detail(
                 }
             </div>
 
+            {detail_sections}
+
             <List>{ticket_props}</List>
 
             <List>
@@ -406,7 +440,7 @@ pub(super) fn detail(
                         <div class="ui-list__row" style="flex-wrap: wrap">
                             {row_icon(icons::GIT_PR)} <span class="ui-list__title">{t!(InboxDetailPullRequest)}</span>
                             <span class="ui-list__detail">
-                                {item.pr.as_ref().map_or_else(|| t!(InboxDetailPrNone), labels::pr_label)}
+                                {pr_text}
                             </span>
                             {link_actions}
                             {(!is_ticket)

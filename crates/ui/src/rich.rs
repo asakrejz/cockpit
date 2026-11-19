@@ -2,7 +2,7 @@
 //!
 //! The tree comes from `cockpit_core::adf`. Everything is built from Leptos elements; text is
 //! always set as text, never as HTML. Links are checked again here (`http`/`https` only) and
-//! open in a new tab with `rel="noopener noreferrer"`. Media only show their file name.
+//! open in a new tab with `rel="noopener noreferrer"`. Media show the picture when an attachment belongs to them (`/api/jira/attachment/{id}`), otherwise only their file name.
 
 use cockpit_core::adf::{Block, Cell, Doc, Inline, Marks, PanelKind, safe_url};
 use leptos::prelude::*;
@@ -56,7 +56,27 @@ fn block(b: &Block) -> AnyView {
             <div class="ui-rich__panel" data-kind=panel_kind(*kind)>{blocks(content)}</div>
         }
         .into_any(),
-        Block::Media { name } => {
+        Block::Media {
+            name,
+            attachment: Some(id),
+        } => {
+            let src = format!("/api/jira/attachment/{id}");
+            let href = src.clone();
+            view! {
+                <p class="ui-rich__media ui-rich__image">
+                    <a href=href target="_blank" rel="noopener noreferrer">
+                        <img
+                            src=src
+                            alt=crate::t!(UiImageOf, name = name)
+                            loading="lazy"
+                            decoding="async"
+                        />
+                    </a>
+                </p>
+            }
+            .into_any()
+        }
+        Block::Media { name, .. } => {
             view! { <p class="ui-rich__media">{crate::t!(UiAttachment, name = name)}</p> }
                 .into_any()
         }

@@ -50,3 +50,4 @@ integrations.translate_not_reachable = The model endpoint cannot be reached.
 integrations.translate_key_rejected = The model endpoint did not accept the key.
 integrations.translate_status = The model endpoint answered with status {code}.
 integrations.translate_bad_answer = The model sent an answer that cannot be used.
+integrations.too_large = The attachment is too large to show here

@@ -28,6 +28,8 @@ pub fn Icon(
 
 /// SVG paths for `<Icon path=… />`.
 pub mod icons {
+    pub const EXTERNAL: &str =
+        "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3";
     pub const PLUS: &str = "M12 5v14M5 12h14";
     pub const MINUS: &str = "M5 12h14";
     pub const CLOSE: &str = "M6 6l12 12M18 6L6 18";

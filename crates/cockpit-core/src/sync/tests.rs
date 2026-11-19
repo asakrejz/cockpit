@@ -40,6 +40,8 @@ fn ticket(key: &str, title: &str) -> Item {
         sprint: None,
         issue_type: None,
         updated_ms: None,
+        url: None,
+        details: None,
     }
 }
 

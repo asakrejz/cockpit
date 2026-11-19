@@ -72,6 +72,23 @@ state says "Dieses Projekt hat keine Sprints – zeige alle offenen Tickets". A 
 written, is never rewritten and its errors are shown as errors. The sprint field of the site is found through
 `/rest/api/3/field` (type `gh-sprint`, otherwise the name "Sprint"), once per sync.
 
+**Ticket details.** The sync asks Jira for all fields (`fields=*all`, without comments and work logs) with
+`expand=names`, so custom fields have a name. The ticket detail shows the non-empty standard fields (status, type,
+priority, assignee, reporter, labels, components, fix version, sprint, story points, due date, created, updated, parent,
+linked tickets) and all non-empty custom fields under "Details"; fields of formatted text such as "Acceptance
+criteria" are shown formatted, and the attachments are listed with name, size and type (pictures as a preview). To change
+this, name fields by their name or ID (`customfield_10042`), in any case:
+
+```toml
+[jira]
+hidden_fields = ["Rank", "customfield_10099"]   # never shown
+field_order = ["Acceptance criteria", "Team"]   # shown first, in this order; the rest follows
+```
+
+The number of a ticket links to `<site>/browse/<KEY>`. The site is `[jira] site`; with OAuth it is the address of the chosen
+site, stored at sign-in (a sign-in from an older version stores none until you sign in again – then `[jira] site` is
+used, and without either there is no link). The number of a pull request links to GitHub.
+
 
 ## Where the files live, and moving from older versions
 

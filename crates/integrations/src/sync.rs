@@ -28,6 +28,8 @@ pub struct JiraService {
     /// The query fetches all tickets of a project ([`jira::jql_for_project`]): whatever is neither
     /// assigned nor watched then shows up with the reason „Im Projekt“.
     pub in_project: bool,
+    /// Which fields the detail view hides or puts first.
+    pub fields: jira::FieldPrefs,
 }
 
 /// The configured services. A source that is missing is off.
@@ -92,7 +94,7 @@ impl Services {
             .as_ref()
             .filter(|_| !paused.contains(&Source::Jira))
         {
-            let res = jira_load(&j.client, &j.jql, j.in_project, now_s).await;
+            let res = jira_load(&j.client, &j.jql, j.in_project, &j.fields, now_s).await;
             sources.push(as_source(Source::Jira, res, now_ms));
         }
         Remote { sources }
@@ -315,6 +317,7 @@ pub async fn jira_load(
     client: &JiraClient,
     jql: &str,
     in_project: bool,
+    prefs: &jira::FieldPrefs,
     now_s: i64,
 ) -> Result<Loaded, Error> {
     let me = client.me().await?;
@@ -388,6 +391,17 @@ pub async fn jira_load(
             Err(Error::NotFound) => continue,
             Err(e) => return Err(e),
         }
+        // Fields and attachments come with the search; images in the texts find their file.
+        let details = jira::details_of(&issue, &me, field, prefs);
+        for doc in item
+            .description_rich
+            .iter_mut()
+            .chain(item.comments.iter_mut().filter_map(|c| c.rich.as_mut()))
+        {
+            cockpit_core::details::link_media(doc, &details.attachments);
+        }
+        item.url = client.browse_url(&issue.key);
+        item.details = Some(details);
         out.items.push(item);
     }
     Ok(out)

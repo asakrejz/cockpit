@@ -45,6 +45,10 @@ pub struct JiraConfig {
     pub email: String,
     pub projects: Vec<String>,
     pub jql: Option<String>,
+    /// Fields (name or ID) the detail view leaves out.
+    pub hidden_fields: Vec<String>,
+    /// Fields (name or ID) the detail view shows first, in this order.
+    pub field_order: Vec<String>,
 }
 
 #[derive(Debug)]
