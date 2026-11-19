@@ -99,11 +99,9 @@ impl AppState {
         )
     }
 
-    /// Connection status of a service for `/api/health`. Blocking.
-    pub(crate) fn service_status(&self, d: Service, token_present: bool) -> ServiceStatus {
-        let oauth_possible =
-            self.oauth_config_id(d).is_some() && self.oauth_client_secret(d).is_some();
-        let oauth = match self.oauth_tokens(d) {
+    /// Whether a stored sign-in of `d` works. Blocking.
+    pub(crate) fn oauth_state(&self, d: Service) -> OAuthTokens {
+        match self.oauth_tokens(d) {
             // Atlassian also needs the chosen site.
             Some(_) if d == Service::Atlassian && self.atlassian_site().is_none() => {
                 OAuthTokens::Missing
@@ -111,10 +109,32 @@ impl AppState {
             Some(t) if t.refresh.is_none() && t.needs_refresh(now_s()) => OAuthTokens::Expired,
             Some(_) => OAuthTokens::Valid,
             None => OAuthTokens::Missing,
-        };
+        }
+    }
+
+    /// The picked sign-in method of a service (`[github] auth` / `[jira] auth`).
+    pub(crate) fn auth_choice(&self, d: Service) -> Option<cockpit_core::AuthChoice> {
+        let q = self.sources();
+        match d {
+            Service::GitHub => q.github_auth,
+            Service::Atlassian => q.jira_auth,
+        }
+    }
+
+    /// Connection status of a service for `/api/health`. Blocking.
+    pub(crate) fn service_status(&self, d: Service, token_present: bool) -> ServiceStatus {
+        let oauth_possible =
+            self.oauth_config_id(d).is_some() && self.oauth_client_secret(d).is_some();
+        let oauth = self.oauth_state(d);
         let site = (d == Service::Atlassian)
             .then(|| self.atlassian_site().map(|(_, n)| n))
             .flatten();
-        ServiceStatus::resolve(token_present, oauth, oauth_possible, site)
+        ServiceStatus::resolve(
+            self.auth_choice(d),
+            token_present,
+            oauth,
+            oauth_possible,
+            site,
+        )
     }
 }

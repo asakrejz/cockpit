@@ -215,6 +215,12 @@ these steps:
 4. The app needs the repository permissions **Contents** and **Pull requests** (at least read).
 5. After you change permissions, accept them on the installation page; until then GitHub keeps the old ones.
 
+**Cannot install the app on the organization?** Use a token instead: in the GitHub step choose "API-Token", save a
+fine-grained personal access token (resource owner: the organization) and Cockpit uses it for the sync and the repo
+list (`GET /user/repos` lists organization repos). Saving the token stores `auth = "token"` in `[github]`; an existing
+app sign-in stays stored but is not used, and the step says so (disconnect it there if you do not need it). The hint
+above mentions this alternative.
+
 Then press *Check again*. Per repo the report says `visible`, `not_visible` (404), `no_permission` (403/401) or
 `unreachable` (network, quota: nothing is known, so it is no "empty" either). "No pull requests" is only shown when
 every configured repo is `visible`.
@@ -252,6 +258,13 @@ Feld „Client-Secret“ ein") and link to that step. The terminal commands rema
   ways end in the repo list and "Verbindung prüfen" (`POST /api/github/check`: `GET /user` and `GET /repos/{owner}/{name}`
   per saved repo; read-only; never prints the token). The list comes from `GET /user/repos` (token; owner,
   collaborator, organization member; at most 500) or from the app's installations (OAuth).
+- *Sign-in method (Jira and GitHub).* The picker is a persisted choice (`auth = "token"` or `"oauth"` in
+  `[jira]` / `[github]`), not only a switch of the visible form: the way you pick is the one the server uses. Saving a
+  token picks "token", completing an OAuth sign-in picks "oauth", and switching the picker to a way that is already
+  set up stores it at once. If "token" is chosen while an OAuth sign-in is still stored, a short note says it is kept
+  but not used; "trennen" in the OAuth way removes it (nothing is revoked automatically). Without a stored choice
+  the older rule applies: a working OAuth sign-in first, then the token. See
+  [Configuration](configuration.md#choosing-the-sign-in-method-auth).
 - *Modell.* Provider, endpoint address, model, key and connection test.
 - *Live (optional).* Switch for webhooks, the public address of your tunnel (display only), a generated secret per
   source (shown once), copyable target addresses, short instructions for cloudflared/ngrok and for the webhook at

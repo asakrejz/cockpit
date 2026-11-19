@@ -57,3 +57,4 @@ setup_github.repo_line = {mark} {repo} – {message}
 setup_github.title = Connect GitHub
 setup_github.intro = This lets Cockpit see your pull requests and reviews, and the agent can work in your repos. The easiest way is a token that only sees the repos you choose. You can delete it on GitHub at any time.
 setup_github.picker_aria = Way to sign in to GitHub
+setup_github.token_if_no_app = Cannot install the app on your organization? Use the token instead: it also sees the repos of your organization.

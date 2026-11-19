@@ -8,14 +8,14 @@ use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
-use super::auth_method::{AuthMethodPicker, current};
+use super::auth_method::{AuthMethodPicker, UnusedSignInNote, current, persist_pick};
 use super::fields::{
     Context, CopyField, Extern, Feedback, Intro, KeyField, Message, Section, config_save,
     error_text,
 };
 use super::repo_picker::RepoPicker;
 use crate::access_hint::{AccessHint, problem_of, use_github_access};
-use crate::oauth_card::{OAuthCard, Service};
+use crate::oauth_card::{OAuthCard, Service, Service as OAuthService};
 use crate::server;
 
 /// Where a fine-grained token is created.
@@ -392,7 +392,17 @@ fn ConnectionCheck(ctx: Context) -> impl IntoView {
 pub fn GitHubStep(ctx: Context) -> impl IntoView {
     // Someone who already set up an app keeps seeing it; everyone else starts with the token.
     let chosen: RwSignal<Option<AuthKind>> = RwSignal::new(None);
+    let status = Signal::derive(move || {
+        ctx.store.health.with(|h| {
+            h.as_ref()
+                .map(|h| h.sign_in.github.clone())
+                .unwrap_or_default()
+        })
+    });
     let default = Signal::derive(move || {
+        if let Some(c) = status.with(|s| s.choice) {
+            return c.into();
+        }
         let app = ctx
             .setup
             .with(|s| s.github_client_id.is_some() && !s.has_key("github"));
@@ -410,7 +420,21 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
             <Intro title=t!(SetupGithubTitle)>
                 <p>{t!(SetupGithubIntro)}</p>
             </Intro>
-            <AuthMethodPicker chosen=chosen default=default aria_label=t!(SetupGithubPickerAria) />
+            <AuthMethodPicker
+                chosen=chosen
+                default=default
+                aria_label=t!(SetupGithubPickerAria)
+                on_pick=Callback::new(move |kind: AuthKind| {
+                    let ready = if kind == AuthKind::OAuth {
+                        status.with(|s| s.oauth_stored)
+                    } else {
+                        ctx.setup.with(|s| s.has_key("github"))
+                    };
+                    persist_pick(ctx, OAuthService::GitHub, kind, ready);
+                })
+            />
+            <UnusedSignInNote status=status />
+            <p class="t-footnote t-secondary">{t!(SetupGithubTokenIfNoApp)}</p>
             <div hidden=move || method.get() != AuthKind::Token>
                 <VStack spacing="12px">
                     <TokenWay ctx=ctx />

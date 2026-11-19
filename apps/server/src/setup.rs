@@ -23,6 +23,7 @@ use axum::body::Bytes;
 use axum::extract::{Path as UrlPath, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use cockpit_core::AuthChoice;
 use cockpit_core::api::{
     AgentReposInput, ConfigChange, ConfigResponse, JiraCause, JiraCheck, KeyInput, KeyResponse,
     RepoCheck, RepoCheckRequest, RepoCheckResponse, RepoState, Setup,
@@ -146,6 +147,27 @@ impl AppState {
         })
     }
 
+    /// Stores the picked sign-in method of a service in `config.toml` and applies it. Used when
+    /// a token is saved (`token`) and when an OAuth sign-in completes (`oauth`). A failure is
+    /// logged only: the key or sign-in itself is already stored. Blocking.
+    pub(crate) fn auth_choice_save(&self, d: Service, choice: cockpit_core::AuthChoice) {
+        if self.auth_choice(d) == Some(choice) {
+            return;
+        }
+        let mut change = ConfigChange::default();
+        match d {
+            Service::GitHub => change.github_auth = Some(choice),
+            Service::Atlassian => change.jira_auth = Some(choice),
+        }
+        if let Err((_, m)) = self.config_change(&change) {
+            tracing::warn!(
+                "Sign-in method for {} not stored: {}",
+                d.id(),
+                m.render(cockpit_i18n::Lang::En)
+            );
+        }
+    }
+
     /// The current, non-secret values. Blocking (.env file).
     fn setup(&self) -> Setup {
         let q = self.sources();
@@ -231,9 +253,19 @@ pub async fn key(
         Ok(w) => w,
         Err(m) => return error_msg(StatusCode::UNPROCESSABLE_ENTITY, m),
     };
-    let secrets = state.inner.secrets.clone();
+    let s = state.clone();
     let n = name.clone();
-    let result = tokio::task::spawn_blocking(move || secrets.set(&n, &Secret::new(value))).await;
+    let result = tokio::task::spawn_blocking(move || {
+        s.inner.secrets.set(&n, &Secret::new(value)).inspect(|()| {
+            // Saving a token picks the token as the way to sign in.
+            match n.as_str() {
+                secrets::GITHUB => s.auth_choice_save(Service::GitHub, AuthChoice::Token),
+                secrets::JIRA => s.auth_choice_save(Service::Atlassian, AuthChoice::Token),
+                _ => {}
+            }
+        })
+    })
+    .await;
     match result {
         Ok(Ok(())) => {
             tracing::info!("Key for {name} stored");

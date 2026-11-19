@@ -15,3 +15,4 @@ github_access.step_confirm = After you change permissions, accept them on the in
 github_access.install_link = Open the install page
 github_access.recheck = Check again
 github_access.fix = Show what to do
+github_access.token_alternative = Cannot install the app on the organization? Use a token instead: in the GitHub step choose "API token" and save it.

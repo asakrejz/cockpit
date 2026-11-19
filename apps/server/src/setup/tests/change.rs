@@ -529,3 +529,37 @@ fn a_site_without_a_client_id_is_refused() {
     };
     assert_eq!(change("", &none).unwrap().0, "");
 }
+
+#[test]
+fn change_writes_the_chosen_sign_in_method_and_reads_it_back() {
+    use cockpit_core::AuthChoice;
+    let a = ConfigChange {
+        github_auth: Some(AuthChoice::Token),
+        jira_auth: Some(AuthChoice::OAuth),
+        atlassian: Some(ClientInput {
+            client_id: "7dNimh".into(),
+        }),
+        ..Default::default()
+    };
+    let (updated, c) = change("[github]\n# mine\nrepos = [\"acme/app\"]\n", &a).unwrap();
+    assert!(updated.contains("auth = \"token\""), "{updated}");
+    assert!(updated.contains("# mine"), "{updated}");
+    assert_eq!(c.github_auth, Some(AuthChoice::Token));
+    assert_eq!(c.jira_auth, Some(AuthChoice::OAuth));
+    assert_eq!(c.github.unwrap().repos, vec!["acme/app"]);
+    // Changing it again replaces the value; a file without the key reads as no choice.
+    let b = ConfigChange {
+        github_auth: Some(AuthChoice::OAuth),
+        ..Default::default()
+    };
+    let (updated, c) = change(&updated, &b).unwrap();
+    assert_eq!(c.github_auth, Some(AuthChoice::OAuth));
+    assert_eq!(updated.matches("auth = \"oauth\"").count(), 2, "{updated}");
+    let (_, c) = change("", &ConfigChange::default()).unwrap();
+    assert_eq!((c.github_auth, c.jira_auth), (None, None));
+}
+
+#[test]
+fn an_unknown_sign_in_method_in_the_file_is_an_error() {
+    assert!(Config::parse(Some("[github]\nauth = \"magic\"\n"), |_| None).is_err());
+}

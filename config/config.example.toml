@@ -14,11 +14,14 @@ interval_s = 120            # sync every 2 minutes (at least 30)
 [github]
 api_url = "https://api.github.com"
 repos = ["acme/app", "acme/web"]   # repos for the sync (owner/name)
+# auth = "token"            # which sign-in the server uses: "token" or "oauth". Without it a working
+                            # OAuth sign-in goes first, then the token. The setup assistant sets it.
 
 [jira]
 site = "acme"               # name or address of your Jira site
 email = "you@example.com"   # account the API token belongs to
 projects = ["APP", "WEB"]   # optional: only these projects
+# auth = "token"            # "token" or "oauth", as in [github]
 
 # Sign-in with OAuth instead of tokens: only the client IDs, the secrets go in `.env`.
 [github_oauth]

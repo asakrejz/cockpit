@@ -29,6 +29,51 @@ impl AuthKind {
     }
 }
 
+/// The sign-in method the user picked for a service (`auth = "token" | "oauth"` in the
+/// `[github]` / `[jira]` section). Without a stored choice the older rule stays: a working OAuth
+/// sign-in first, then the token.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AuthChoice {
+    /// Use the API token or personal access token, whatever else is stored.
+    Token,
+    /// Use the sign-in via OAuth, whatever else is stored.
+    OAuth,
+}
+
+impl AuthChoice {
+    /// The text in `config.toml`.
+    pub fn id(self) -> &'static str {
+        match self {
+            AuthChoice::Token => "token",
+            AuthChoice::OAuth => "oauth",
+        }
+    }
+
+    /// **The one rule** for which credentials a service uses. Credential selection (sync,
+    /// agent, repo list) and the connection status all call this.
+    ///
+    /// * no choice: a working sign-in goes before the token, an expired one falls back to it;
+    /// * `token`: only the token counts, a stored sign-in is kept but not used;
+    /// * `oauth`: only a working sign-in counts, a stored token is kept but not used.
+    pub fn pick(choice: Option<Self>, token: bool, oauth: OAuthTokens) -> AuthKind {
+        match (choice, token, oauth) {
+            (None | Some(AuthChoice::OAuth), _, OAuthTokens::Valid) => AuthKind::OAuth,
+            (None | Some(AuthChoice::Token), true, _) => AuthKind::Token,
+            _ => AuthKind::None,
+        }
+    }
+}
+
+impl From<AuthChoice> for AuthKind {
+    fn from(c: AuthChoice) -> Self {
+        match c {
+            AuthChoice::Token => AuthKind::Token,
+            AuthChoice::OAuth => AuthKind::OAuth,
+        }
+    }
+}
+
 /// Connection status of a service, as the backend reports it in `/api/health`.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ServiceStatus {
@@ -48,6 +93,12 @@ pub struct ServiceStatus {
     /// A token that is stored as a fallback still counts as connected.
     #[serde(default)]
     pub expired: bool,
+    /// The stored choice of the sign-in method, `None` if the user never picked one.
+    #[serde(default)]
+    pub choice: Option<AuthChoice>,
+    /// A sign-in via OAuth is stored (working or not), even if it is not the one in use.
+    #[serde(default)]
+    pub oauth_stored: bool,
 }
 
 /// What the key store holds for the OAuth sign-in of one service.
@@ -64,24 +115,24 @@ pub enum OAuthTokens {
 impl ServiceStatus {
     /// **The one place** that decides whether a service counts as connected. Summary, sidebar,
     /// inbox, review and the steps of the assistant all read this result (via `/api/health`).
-    /// A working OAuth sign-in goes before the token; an expired one falls back to the token.
+    /// The stored choice decides which credentials count (see [`AuthChoice::pick`]); without one
+    /// a working OAuth sign-in goes before the token and an expired one falls back to it.
     pub fn resolve(
+        choice: Option<AuthChoice>,
         token: bool,
         oauth: OAuthTokens,
         oauth_possible: bool,
         site: Option<String>,
     ) -> Self {
-        let (connected, kind) = match (oauth, token) {
-            (OAuthTokens::Valid, _) => (true, AuthKind::OAuth),
-            (_, true) => (true, AuthKind::Token),
-            _ => (false, AuthKind::None),
-        };
+        let kind = AuthChoice::pick(choice, token, oauth);
         Self {
-            connected,
+            connected: kind != AuthKind::None,
             kind,
             oauth_possible,
             site: site.filter(|n| !n.is_empty() && kind == AuthKind::OAuth),
             expired: oauth == OAuthTokens::Expired,
+            choice,
+            oauth_stored: oauth != OAuthTokens::Missing,
         }
     }
 }

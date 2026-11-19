@@ -74,11 +74,6 @@ fn now_s() -> u64 {
     now_ms() / 1000
 }
 
-/// Seconds since 1970 (for the other modules of the server).
-pub(crate) fn now_seconds() -> u64 {
-    now_s()
-}
-
 /// A message for the interface; never contains a key.
 fn service_error(d: Service, f: &Error) -> Msg {
     match f {

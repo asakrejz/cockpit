@@ -1,3 +1,4 @@
 # Auswahl des Anmeldewegs (Jira- und GitHub-Schritt).
 setup_auth.token = API-Token
 setup_auth.oauth = OAuth
+setup_auth.unused_oauth = Die Anmeldung über die App bleibt gespeichert, wird aber nicht benutzt: Cockpit nutzt den Token. Du kannst sie unter „OAuth“ trennen.

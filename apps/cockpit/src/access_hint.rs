@@ -105,6 +105,12 @@ pub fn AccessHint(access: GitHubAccess, recheck: Callback<()>) -> impl IntoView 
                             </div>
                         }
                     })}
+                {steps
+                    .then(|| {
+                        view! {
+                            <p class="t-footnote">{t!(GithubAccessTokenAlternative)}</p>
+                        }
+                    })}
                 {install_url
                     .map(|url| {
                         view! {

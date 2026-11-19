@@ -15,3 +15,4 @@ github_access.step_confirm = Hast du Rechte geändert, bestätige sie auf der Se
 github_access.install_link = Installationsseite öffnen
 github_access.recheck = Noch einmal prüfen
 github_access.fix = Zeig mir, was zu tun ist
+github_access.token_alternative = Kannst du die App nicht auf der Organisation installieren? Nimm stattdessen einen Token: Wähle im GitHub-Schritt „API-Token“ und speichere ihn.
