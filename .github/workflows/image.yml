@@ -1,0 +1,98 @@
+name: Container image
+
+# On every push to main: builds the Cockpit image (linux/amd64 and linux/arm64), checks its compressed size,
+# publishes it as ghcr.io/<owner>/cockpit:latest and deletes every other package version, so that the
+# storage of the private repo never grows. Only `latest` exists. How to use it: docs/container.md.
+#
+# Multi-arch without a slow Rust build under emulation: the Containerfile cross-compiles the server on the
+# runner; QEMU is only needed for the small `apt-get install` of the final stage on arm64.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Two pushes after each other must not prune each other's versions.
+concurrency:
+  group: container-image
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  PACKAGE: cockpit
+  SIZE_LIMIT_MB: "450"
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lower-case owner (GHCR names are lower case)
+        run: echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+      - uses: docker/setup-buildx-action@v3
+
+      # 1. Build without pushing and measure the compressed size. Too big: fail before anything is published.
+      - name: Build (not pushed)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Containerfile
+          platforms: linux/amd64,linux/arm64
+          push: false
+          provenance: false
+          sbom: false
+          outputs: type=oci,dest=${{ runner.temp }}/image.tar
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Check size (limit ${{ env.SIZE_LIMIT_MB }} MB compressed)
+        run: LIMIT_MB="$SIZE_LIMIT_MB" scripts/image-size.sh "$RUNNER_TEMP/image.tar"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 2. Push: the layers come from the cache of step 1. No provenance/SBOM, so there are no extra
+      #    attestation manifests that would show up as additional package versions.
+      - name: Push latest
+        id: push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Containerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          sbom: false
+          tags: ghcr.io/${{ env.OWNER }}/${{ env.PACKAGE }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 3. Delete everything except the version just pushed (see scripts/prune-image-versions.sh).
+      - name: Prune old versions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          set -euo pipefail
+          test -n "$DIGEST"
+          image="ghcr.io/$OWNER/$PACKAGE"
+          # The index plus the digests of its platform manifests: they are separate package versions
+          # and must stay, otherwise `docker pull` of that architecture breaks.
+          children=$(docker buildx imagetools inspect --raw "$image@$DIGEST" | jq -r '.manifests[].digest')
+          test -n "$children"
+          KEEP_DIGESTS="$DIGEST $(echo $children)" scripts/prune-image-versions.sh
+          # Report what is left.
+          docker buildx imagetools inspect "$image:latest" | head -20
