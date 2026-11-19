@@ -20,6 +20,8 @@
 //! email = "ich@firma.example"
 //! projects = ["BAU", "WEB"]            # optional: only these projects
 //! jql = "project = BAU AND ..."        # optional: own query instead of the projects
+//! hidden_fields = ["Rank", "customfield_10099"]   # optional: fields (name or ID) the ticket detail leaves out
+//! field_order = ["Acceptance criteria"]           # optional: fields (name or ID) the detail shows first
 //! ```
 //!
 //! Sign-in via OAuth (instead of an API token), only client IDs – the secrets are in the
@@ -327,6 +329,8 @@ impl Config {
                 email: String::new(),
                 projects: Vec::new(),
                 jql: None,
+                hidden_fields: Vec::new(),
+                field_order: Vec::new(),
             })
         });
         if let Some(j) = jira {
@@ -346,6 +350,8 @@ impl Config {
                 email: j.email,
                 projects: j.projects,
                 jql: j.jql.filter(|q| !q.trim().is_empty()),
+                hidden_fields: clean_list(j.hidden_fields),
+                field_order: clean_list(j.field_order),
             });
         }
 
@@ -539,3 +545,11 @@ impl Config {
 
 #[cfg(test)]
 mod tests;
+
+/// Trims a list of names and drops the empty ones.
+fn clean_list(list: Vec<String>) -> Vec<String> {
+    list.into_iter()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}

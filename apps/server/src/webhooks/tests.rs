@@ -90,6 +90,8 @@ async fn fixture(enabled: bool, with_secrets: bool, debounce: Duration, port: u1
             email: "ich@firma.example".into(),
             projects: vec!["WEB".into()],
             jql: None,
+            hidden_fields: vec![],
+            field_order: vec![],
         }),
         ..Sources::default()
     };

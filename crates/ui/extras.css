@@ -795,6 +795,8 @@ body.ui-scroll-locked { overflow: hidden; }
   border-radius: var(--ref-radius-12, 12px);
   background: var(--sys-color-tertiary-fill);
 }
+/* A picture from a ticket (attachment through the backend). */
+.ui-rich__image img { display: block; max-width: 100%; height: auto; border-radius: var(--ref-radius-12, 12px); background: var(--sys-color-tertiary-fill); }
 .ck-hidden-note p { margin: 0; }
 
 /* Hint: GitHub does not show some repos to the connected access (access_hint.rs). */

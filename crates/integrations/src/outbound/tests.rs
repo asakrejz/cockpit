@@ -52,6 +52,8 @@ fn item(id: &str, key: &str, source: Source) -> Item {
         reporter: None,
         watching: false,
         updated_ms: None,
+        url: None,
+        details: None,
     }
 }
 

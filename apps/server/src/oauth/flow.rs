@@ -125,7 +125,8 @@ impl AppState {
                     .lock()
                     .map_err(|_| msg!(ServerOauthInternalError))?;
                 let r = db::setting_set(&conn, SITE_ID, &site.id)
-                    .and_then(|()| db::setting_set(&conn, SITE_NAME, &site.name));
+                    .and_then(|()| db::setting_set(&conn, SITE_NAME, &site.name))
+                    .and_then(|()| db::setting_set(&conn, SITE_URL, &site.url));
                 if let Err(e) = r {
                     drop(conn);
                     s.oauth_tokens_delete(d);

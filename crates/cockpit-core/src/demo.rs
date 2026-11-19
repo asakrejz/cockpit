@@ -74,6 +74,8 @@ fn item(
         reporter: None,
         watching: false,
         updated_ms: None,
+        url: None,
+        details: None,
     }
 }
 

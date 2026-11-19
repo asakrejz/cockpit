@@ -42,6 +42,8 @@ fn ticket(key: &str, title: &str) -> Item {
         reporter: None,
         watching: false,
         updated_ms: None,
+        url: None,
+        details: None,
     }
 }
 

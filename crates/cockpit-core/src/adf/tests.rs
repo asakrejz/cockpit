@@ -170,7 +170,8 @@ fn media_is_a_placeholder_with_the_file_name() {
     assert_eq!(
         parse(&adf, "").unwrap(),
         vec![Block::Media {
-            name: "bild.png".into()
+            name: "bild.png".into(),
+            attachment: None,
         }]
     );
 }

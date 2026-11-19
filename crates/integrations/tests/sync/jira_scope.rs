@@ -37,6 +37,7 @@ fn service(s: &MockServer, jql: &str) -> Services {
             client: JiraClient::new(&s.uri(), "mira@firma.example", Secret::new("jt")).unwrap(),
             jql: jql.to_string(),
             in_project: true,
+            fields: Default::default(),
         }),
     }
 }

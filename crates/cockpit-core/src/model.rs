@@ -192,6 +192,14 @@ pub struct Item {
     /// Last update at the service (milliseconds since 1970), `None` = unknown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updated_ms: Option<u64>,
+    /// Where the entry lives at its service (`https://acme.atlassian.net/browse/BAU-142`,
+    /// the pull request page). `None` = not known, then the UI shows no link.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// Jira only: fields and attachments beyond the description. `None` = not loaded (older
+    /// data, demo without extras).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<crate::details::Details>,
 }
 
 /// State of a Jira sprint.
@@ -239,6 +247,19 @@ impl Item {
     pub fn clear_note(&mut self) {
         self.agent_note = None;
         self.agent_note_msg = None;
+    }
+
+    /// Where the entry lives at its service, for the link next to its number: the address the
+    /// sync stored, for a pull request of a known repo otherwise its page at github.com.
+    /// Only `http(s)` addresses; `None` = no link.
+    pub fn web_url(&self) -> Option<String> {
+        if let Some(u) = self.url.as_deref().and_then(crate::adf::safe_url) {
+            return Some(u.to_string());
+        }
+        match (&self.kind, &self.pr) {
+            (Kind::PullRequest, Some(pr)) => pr.github_url(),
+            _ => None,
+        }
     }
 
     pub fn is_ticket(&self) -> bool {

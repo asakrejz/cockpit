@@ -30,6 +30,8 @@ mod tokens;
 
 const SITE_ID: &str = "atlassian.cloud_id";
 const SITE_NAME: &str = "atlassian.site_name";
+/// The address of the site people open in the browser, for links to tickets.
+const SITE_URL: &str = "atlassian.site_url";
 
 fn secret_name(d: Service) -> &'static str {
     match d {

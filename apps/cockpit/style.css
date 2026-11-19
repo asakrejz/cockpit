@@ -154,5 +154,25 @@ body { margin: 0; }
 .ck-commit__body { white-space: pre-wrap; }
 @media (prefers-reduced-motion: reduce) { .ck-file__chevron { transition: none; } }
 
+/* Ticket details: number as a link, fields, attachments (inbox/details.rs). */
+.ck-key-link { display: inline-flex; align-items: center; gap: var(--ref-space-4); color: var(--sys-color-tint); text-decoration: none; }
+.ck-key-link:hover { text-decoration: underline; }
+.ck-external { display: inline-flex; flex: none; width: 14px; height: 14px; }
+.ck-external svg { width: 100%; height: 100%; }
+.ck-fields { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ck-field { display: grid; grid-template-columns: minmax(96px, 30%) minmax(0, 1fr); gap: var(--ref-space-4) var(--ref-space-12); padding: var(--ref-space-8) 0; border-block-end: 0.5px solid var(--sys-color-separator); }
+.ck-field:last-child { border-block-end: 0; }
+.ck-field__name { color: var(--sys-color-secondary-label); }
+.ck-field__value { min-width: 0; overflow-wrap: anywhere; }
+.ck-field__list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--ref-space-4); }
+.ck-attachments { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: var(--ref-space-12); }
+.ck-attachment { display: flex; flex-direction: column; gap: var(--ref-space-4); min-width: 0; }
+.ck-attachment__thumb { display: flex; align-items: center; justify-content: center; aspect-ratio: 4 / 3; overflow: hidden; border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-fill); }
+.ck-attachment__thumb img { width: 100%; height: 100%; object-fit: cover; }
+.ck-attachment__none { display: flex; flex-direction: column; align-items: center; gap: var(--ref-space-4); padding: var(--ref-space-8); text-align: center; }
+.ck-attachment__name { overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .ck-field { grid-template-columns: minmax(0, 1fr); }
+}
 /* Language row at the end of the "More" sheet. */
 .ck-sheet-lang { padding: var(--ref-space-4) var(--ref-space-12) var(--ref-space-12); }

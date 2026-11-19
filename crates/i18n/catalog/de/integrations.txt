@@ -42,3 +42,4 @@ integrations.endpoint_no_model_set = Kein Modell eingestellt. Wähle eines im Sc
 integrations.endpoint_no_models = {who} bietet keine Modelle an. Trage den Modellnamen von Hand ein.
 integrations.endpoint_model_missing_none = {who} bietet kein Modell an, „{model}“ fehlt.
 integrations.endpoint_model_missing = {who} bietet „{model}“ nicht an, sondern: {models}
+integrations.too_large = Der Anhang ist zu groß, um ihn hier zu zeigen

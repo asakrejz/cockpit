@@ -1,0 +1,44 @@
+{
+  "names": {
+    "status": "Status",
+    "customfield_10100": "Acceptance criteria",
+    "customfield_10101": "Team",
+    "customfield_10102": "Story Points",
+    "customfield_10103": "Notes"
+  },
+  "issues": [
+    {
+      "key": "BAU-142",
+      "fields": {
+        "summary": "Avatar sizes through tokens",
+        "description": {"type": "doc", "version": 1, "content": [
+          {"type": "paragraph", "content": [{"type": "text", "text": "See the mock-up:"}]},
+          {"type": "mediaSingle", "attrs": {"layout": "center"}, "content": [
+            {"type": "media", "attrs": {"id": "0b1f-uuid", "type": "file", "collection": "", "alt": "mockup.png"}}]},
+          {"type": "mediaSingle", "content": [
+            {"type": "media", "attrs": {"id": "9c2d-uuid", "type": "file", "collection": "", "alt": "spec.pdf"}}]}
+        ]},
+        "status": {"name": "In Progress", "statusCategory": {"key": "indeterminate"}},
+        "assignee": {"accountId": "acc-mira", "displayName": "Mira Keller"},
+        "reporter": {"accountId": "acc-lena", "displayName": "Lena Koch"},
+        "updated": "2024-05-14T10:00:00.000+0000",
+        "created": "2024-05-02T08:00:00.000+0000",
+        "labels": ["a11y"],
+        "issuetype": {"name": "Story"},
+        "priority": {"name": "High"},
+        "components": [{"name": "Avatar"}],
+        "fixVersions": [],
+        "customfield_10100": {"type": "doc", "version": 1, "content": [
+          {"type": "bulletList", "content": [
+            {"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Sizes come from tokens"}]}]}]}]},
+        "customfield_10101": {"value": "Design System"},
+        "customfield_10102": 3.0,
+        "customfield_10103": null,
+        "attachment": [
+          {"id": "10001", "filename": "mockup.png", "size": 2048, "mimeType": "image/png", "thumbnail": "https://acme.atlassian.net/secure/thumbnail/10001"},
+          {"id": "10002", "filename": "spec.pdf", "size": 1500000, "mimeType": "application/pdf"}
+        ]
+      }
+    }
+  ]
+}

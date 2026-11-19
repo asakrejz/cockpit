@@ -92,6 +92,9 @@ pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Optio
         }),
         watching: f.watches.as_ref().is_some_and(|w| w.is_watching),
         updated_ms: time::parse_iso(&f.updated).map(|s| s as u64 * 1000),
+        // Filled by the sync: the link needs the site, the details the field prefs.
+        url: None,
+        details: None,
     }
 }
 

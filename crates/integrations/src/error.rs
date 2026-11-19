@@ -18,6 +18,8 @@ pub enum Error {
         wait_s: Option<u64>,
     },
     NotFound,
+    /// A download is larger than the limit.
+    TooLarge,
     /// The service rejects the request (400, 405, 409, 422) – with its message, if it gives one.
     Rejected(String),
     /// Other HTTP status.
@@ -73,6 +75,7 @@ impl Error {
             Error::NoPermission => msg!(IntegrationsNoPermission),
             Error::RateLimit { .. } => msg!(IntegrationsRateLimit),
             Error::NotFound => msg!(IntegrationsNotFound),
+            Error::TooLarge => msg!(IntegrationsTooLarge),
             Error::Rejected(m) if m.is_empty() => msg!(IntegrationsRejected),
             Error::Rejected(m) => msg!(IntegrationsRejectedWith, reason = Msg::raw(m)),
             Error::Status(code @ 500..=599) => msg!(IntegrationsServerError, code = *code),

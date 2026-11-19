@@ -144,6 +144,8 @@ fn jira_state(site: &str) -> AppState {
             email: "ich@firma.example".into(),
             projects: vec!["ALT".into()],
             jql: None,
+            hidden_fields: vec![],
+            field_order: vec![],
         }),
         ..Sources::default()
     };

@@ -132,6 +132,8 @@ pub(crate) struct Inner {
     pub(crate) agent: crate::agent_ops::Runs,
     /// Optional webhooks: switch, debounce, rate limit, last received (memory only).
     pub(crate) webhooks: crate::webhooks::Hub,
+    /// Attachments read from Jira, kept briefly (see `attachments`).
+    pub(crate) attachments: crate::attachments::Cache,
 }
 
 impl AppState {
@@ -211,6 +213,7 @@ impl AppState {
                 container: Cache::default(),
                 agent: crate::agent_ops::Runs::default(),
                 webhooks: crate::webhooks::Hub::new(settings.webhooks.clone()),
+                attachments: Default::default(),
                 settings,
             }),
         }

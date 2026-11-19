@@ -50,6 +50,30 @@ Details: [configuration.md](configuration.md).
 - Endpoint calls of the backend (`GET <url>/v1/models`, connection tests) do not follow redirects and have a timeout and
   a size limit; they are only made when a key exists and they return IDs and booleans, never the key.
 
+## Jira attachments (`GET /api/jira/attachment/{id}`)
+
+Jira's attachment addresses need a sign-in. The browser therefore never gets them: the backend reads the file
+with the key it already has and hands out only the bytes.
+
+- **Read only, and only from this computer.** The routes `/api/jira/attachment/{id}` and
+  `/api/jira/attachment/{id}/thumbnail` are `GET` routes under `/api`, so the loopback and `Host` checks apply like
+  everywhere else. No key, token or Jira address appears in an answer.
+- **Only attachments of tickets in the workspace.** The ID must be digits and must belong to an attachment of a ticket the
+  sync has loaded; anything else is `404` and Jira is not asked. The address at Jira is built from the digits of the ID
+  only (`/rest/api/3/attachment/content/<id>` on the site the key belongs to), never from a URL taken from the data.
+- **Size limit.** 10 MB per file and 2 MB per thumbnail, checked on `Content-Length` and while reading; a larger file is
+  `413`. A redirect to Jira's media service is followed, but the key is not sent to another host.
+- **Only real pictures are shown inline.** The first bytes decide, not the file name or the type Jira reports:
+  PNG, JPEG, GIF and WebP are served inline. Everything else – including SVG, HTML and PDF – is
+  `application/octet-stream` with `Content-Disposition: attachment` (the file name is cleaned of quotes, slashes and
+  non-ASCII characters).
+- **Every answer** carries `X-Content-Type-Options: nosniff` and `Content-Security-Policy: sandbox; default-src 'none'`,
+  so a file that is opened by itself can run nothing.
+- **Cache with a bound.** Files are kept in memory only (at most 32 MB in total, oldest first, nothing on disk) and
+  vanish when the program ends.
+- The link to a ticket (`<site>/browse/<KEY>`) and to a pull request is a plain link that opens in a new tab with
+  `rel="noopener noreferrer"`; only `http(s)` addresses become links.
+
 ## Webhooks (optional, internet-facing)
 
 The two routes `POST /api/webhooks/github` and `POST /api/webhooks/jira` are the only part of the server meant to be

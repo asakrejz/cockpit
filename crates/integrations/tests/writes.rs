@@ -453,6 +453,7 @@ async fn services_route_to_the_right_client() {
             client: jira(&j).await,
             jql: "x".into(),
             in_project: false,
+            fields: Default::default(),
         }),
     };
     assert!(services.targets().github && services.targets().jira);

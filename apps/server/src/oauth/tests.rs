@@ -60,6 +60,8 @@ fn snapshot(server: &MockServer, site: Option<&str>, with_secret: bool) -> TestB
             email: String::new(),
             projects: vec![],
             jql: None,
+            hidden_fields: vec![],
+            field_order: vec![],
         }),
         github_oauth: Some(OAuthConfig {
             client_id: "gh-id".into(),

@@ -68,3 +68,86 @@ pub(super) fn lena_comment() -> Doc {
     ]});
     adf::parse(&adf, "").expect("sample ADF is valid")
 }
+
+/// The fields and attachments of BAU-142 as Jira would deliver them.
+pub(super) fn bau142_details() -> crate::Details {
+    use crate::details::DEMO_IMAGE_ID;
+    use crate::{Attachment, DetailField, DetailValue};
+    let field = |id: &str, name: &str, value: DetailValue| DetailField {
+        id: id.into(),
+        name: name.into(),
+        value,
+    };
+    let text = |t: &str| DetailValue::Text(t.into());
+    let list = |items: &[&str]| DetailValue::List(items.iter().map(|i| i.to_string()).collect());
+    let criteria = adf::parse(
+        &json!({"type": "doc", "version": 1, "content": [
+            {"type": "bulletList", "content": [
+                item("Der Ring hat im Dark Mode mindestens 3:1 Kontrast"),
+                item("Der Ring nutzt --sys-focus-ring"),
+                item("Light Mode bleibt unverändert")]}]}),
+        "",
+    )
+    .unwrap_or_default();
+    crate::Details {
+        fields: vec![
+            field("status", "Status", text("In Arbeit")),
+            field("issuetype", "Vorgangstyp", text("Bug")),
+            field("priority", "Priorität", text("Hoch")),
+            field("assignee", "Bearbeiter", text("Andre")),
+            field("reporter", "Ersteller", text("Lena Koch")),
+            field("labels", "Labels", list(&["bug", "a11y"])),
+            field("components", "Komponenten", list(&["Toggle"])),
+            field("fixVersions", "Fix-Version", list(&["1.4"])),
+            field("sprint", "Sprint", text("Sprint 7")),
+            field("story_points", "Story Points", text("3")),
+            field(
+                "duedate",
+                "Fälligkeit",
+                DetailValue::Date("2026-11-27".into()),
+            ),
+            field(
+                "created",
+                "Erstellt",
+                DetailValue::Date("2026-11-02".into()),
+            ),
+            field(
+                "updated",
+                "Aktualisiert",
+                DetailValue::Date("2026-11-18".into()),
+            ),
+            field(
+                "parent",
+                "Übergeordnet",
+                text("BAU-100 · Design-System 1.4"),
+            ),
+            field(
+                "issuelinks",
+                "Verknüpfte Vorgänge",
+                list(&["blockiert BAU-150 · Kontrast-Audit"]),
+            ),
+            field(
+                "customfield_10100",
+                "Akzeptanzkriterien",
+                DetailValue::Rich(criteria),
+            ),
+            field("customfield_10101", "Team", text("Design System")),
+        ],
+        attachments: vec![
+            Attachment {
+                id: DEMO_IMAGE_ID.into(),
+                name: "fokus-ring.png".into(),
+                size: 18_400,
+                mime: "image/png".into(),
+                thumbnail: false,
+            },
+            Attachment {
+                id: "900002".into(),
+                name: "kontrast-messung.pdf".into(),
+                size: 412_000,
+                mime: "application/pdf".into(),
+                thumbnail: false,
+            },
+        ],
+    }
+}

@@ -42,3 +42,4 @@ integrations.endpoint_no_model_set = No model is set. Choose one in the step "Mo
 integrations.endpoint_no_models = {who} offers no models. Enter the model name by hand.
 integrations.endpoint_model_missing_none = {who} offers no model, "{model}" is missing.
 integrations.endpoint_model_missing = {who} does not offer "{model}", but: {models}
+integrations.too_large = The attachment is too large to show here

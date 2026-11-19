@@ -108,6 +108,10 @@ pub(super) struct FileJira {
     #[serde(default)]
     pub(super) projects: Vec<String>,
     pub(super) jql: Option<String>,
+    #[serde(default)]
+    pub(super) hidden_fields: Vec<String>,
+    #[serde(default)]
+    pub(super) field_order: Vec<String>,
 }
 
 /// `docker` or `podman`, otherwise an error.

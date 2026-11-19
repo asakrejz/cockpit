@@ -139,7 +139,9 @@ pub fn open_tickets_jql(jql: &str) -> Option<String> {
 const PROJECTS_PAGE: usize = 50;
 const MAX_PROJECTS: usize = 500;
 
-const FIELDS: &str = "summary,description,status,assignee,reporter,updated,duedate,labels,issuetype,priority,watches";
+/// All fields (the detail view shows custom fields too), except the big ones the cockpit
+/// loads in other calls.
+const FIELDS: &str = "*all,-comment,-worklog,-votes";
 
 /// This many issues per page and at most in total.
 const PAGE: usize = 50;
@@ -162,6 +164,17 @@ pub struct JiraClient {
     oauth: bool,
     /// The sprint field of the site, asked once per client (`None` inside: the site has none).
     sprint_field: std::sync::Mutex<Option<Option<String>>>,
+    /// The address of the site people open in the browser (`https://acme.atlassian.net`), for
+    /// links to tickets. `None` = not known.
+    site: Option<String>,
+}
+
+/// A downloaded attachment.
+#[derive(Debug, Clone)]
+pub struct Download {
+    pub bytes: Vec<u8>,
+    /// The `Content-Type` Jira sent, if any.
+    pub content_type: Option<String>,
 }
 
 impl std::fmt::Debug for JiraClient {
@@ -184,6 +197,7 @@ impl JiraClient {
             token,
             oauth: false,
             sprint_field: Default::default(),
+            site: crate::http::base_url(site_url).ok(),
         })
     }
 
@@ -197,17 +211,86 @@ impl JiraClient {
             token: access,
             oauth: true,
             sprint_field: Default::default(),
+            site: None,
         })
+    }
+
+    /// Tells the client the address of the site people open in the browser (with OAuth, the
+    /// base is the gateway, which no one opens). Without an `http(s)` address no links exist.
+    pub fn with_site(mut self, site: Option<&str>) -> Self {
+        self.site = site.and_then(|s| crate::http::base_url(s).ok());
+        self
+    }
+
+    /// The page of a ticket in Jira (`<site>/browse/<KEY>`); `None` if the site is not known.
+    pub fn browse_url(&self, key: &str) -> Option<String> {
+        cockpit_core::details::browse_url(self.site.as_deref()?, key)
+    }
+
+    fn authed(&self, req: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
+        if self.oauth {
+            req.bearer_auth(self.token.expose())
+        } else {
+            req.basic_auth(&self.email, Some(self.token.expose()))
+        }
     }
 
     fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
         let req = self.http.request(method, format!("{}{path}", self.base));
-        let req = if self.oauth {
-            req.bearer_auth(self.token.expose())
-        } else {
-            req.basic_auth(&self.email, Some(self.token.expose()))
-        };
-        req.header("Accept", "application/json")
+        self.authed(req).header("Accept", "application/json")
+    }
+
+    /// Reads an attachment (`thumbnail`: its small picture). Read only. `id` must be digits,
+    /// since it goes into the address. At most `max` bytes: a larger one is [`Error::TooLarge`].
+    /// The key is only sent to the site itself – a redirect to the media service (which
+    /// carries its own token in the address) goes without it.
+    pub async fn attachment(
+        &self,
+        id: &str,
+        thumbnail: bool,
+        max: usize,
+    ) -> Result<Download, Error> {
+        if id.is_empty() || !id.bytes().all(|c| c.is_ascii_digit()) {
+            return Err(Error::NotFound);
+        }
+        let kind = if thumbnail { "thumbnail" } else { "content" };
+        let req = self
+            .http
+            .get(format!("{}/rest/api/3/attachment/{kind}/{id}", self.base))
+            .header("Accept", "*/*");
+        let mut resp = self.authed(req).send().await.map_err(|e| {
+            Error::Network(e.without_url().to_string()).without_key(self.token.expose())
+        })?;
+        let status = resp.status();
+        if !status.is_success() {
+            let headers = resp.headers().clone();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(crate::http::error_from(status, &headers, &body, 0)
+                .without_key(self.token.expose()));
+        }
+        if resp.content_length().is_some_and(|n| n > max as u64) {
+            return Err(Error::TooLarge);
+        }
+        let content_type = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_string);
+        let mut bytes = Vec::new();
+        while let Some(chunk) = resp
+            .chunk()
+            .await
+            .map_err(|e| Error::Network(e.without_url().to_string()))?
+        {
+            if bytes.len() + chunk.len() > max {
+                return Err(Error::TooLarge);
+            }
+            bytes.extend_from_slice(&chunk);
+        }
+        Ok(Download {
+            bytes,
+            content_type,
+        })
     }
 
     fn get(&self, path: &str) -> reqwest::RequestBuilder {
@@ -307,6 +390,7 @@ impl JiraClient {
         jql: &str,
         sprint_field: Option<&str>,
     ) -> Result<SearchPage, Error> {
+        // `*all` already holds the sprint field; naming it too keeps the question explicit.
         let fields = match sprint_field {
             Some(f) => format!("{FIELDS},{f}"),
             None => FIELDS.to_string(),
@@ -317,6 +401,7 @@ impl JiraClient {
             let mut question = vec![
                 ("jql", jql.to_string()),
                 ("fields", fields.clone()),
+                ("expand", "names".to_string()),
                 ("maxResults", PAGE.to_string()),
             ];
             if let Some(t) = &token {
@@ -325,7 +410,11 @@ impl JiraClient {
             let res: SearchResult = self
                 .lies_json(self.get("/rest/api/3/search/jql").query(&question))
                 .await?;
-            all.extend(res.issues);
+            let names = std::sync::Arc::new(res.names);
+            all.extend(res.issues.into_iter().map(|mut i| {
+                i.names = names.clone();
+                i
+            }));
             token = res.next_page_token.filter(|t| !t.is_empty());
             if token.is_none() || all.len() >= MAX_ISSUES {
                 break;

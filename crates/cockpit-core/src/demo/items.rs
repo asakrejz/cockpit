@@ -4,8 +4,12 @@ use super::*;
 
 /// BAU-142, #87, BAU-138, #85, BAU-150, DOC-7 and #12, in this order.
 pub(super) fn items() -> [Item; 7] {
-    let rich_description = rich::bau142_description();
+    let mut rich_description = rich::bau142_description();
+    let details = rich::bau142_details();
+    crate::details::link_media(&mut rich_description, &details.attachments);
     let bau142 = Item {
+        details: Some(details),
+        url: Some("https://acme.atlassian.net/browse/BAU-142".into()),
         description: crate::adf::plain_text(&rich_description),
         status: TicketStatus::InProgress,
         labels: vec!["bug".into(), "a11y".into()],

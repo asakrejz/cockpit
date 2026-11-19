@@ -67,6 +67,9 @@ pub struct Pull {
     /// Only the single-pull call carries this; the list leaves it out.
     #[serde(default)]
     pub merged: bool,
+    /// The page of the pull request at GitHub.
+    #[serde(default)]
+    pub html_url: String,
 }
 
 /// `GET /repos/{owner}/{repo}/branches/{branch}`: only what we look at.

@@ -23,6 +23,7 @@ mod agent_image;
 mod agent_ops;
 mod agent_run;
 mod app;
+mod attachments;
 mod config;
 mod container;
 mod db;
