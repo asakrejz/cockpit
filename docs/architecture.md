@@ -440,8 +440,8 @@ close button, a followed link and `hashchange` close it, focus returns to the bu
 - **List and detail as two levels (`StackLevel`):** below 768 px a page with list and detail shows one level. `SplitView`
   takes `level` (from `Route::level()`), `back_label` and `back_href`. The first pane is the list level, all further
   panes are the detail level. A tap on an entry goes to its own address, the detail slides in from the right
-  (`--ui-stack-duration`, `--ui-stack-ease`; no slide with `prefers-reduced-motion`), the top bar shows
-  "‹ name of the list", and a swipe from the left edge does the same. Addresses: `#/item/<id>`, `#/mine/item/<id>`
+  (`--ui-stack-duration`, `--ui-stack-ease`; no slide with `prefers-reduced-motion`), a round glass button ("‹", tooltip: name of the list) floats top left over
+  the content instead of a bar and stays visible while reading, and a swipe from the left edge does the same. Addresses: `#/item/<id>`, `#/mine/item/<id>`
   (inbox), `#/overview/<name>`, `#/review/<repo>/<nr>`, `#/agent/<ticket>`; the list is the address without the last
   part. Browser back and reload therefore work. Free text in an address is escaped (`route/segment.rs`).
 - **Shortcuts:** the key hints of the inbox are hidden when narrow; every shortcut has a button.
