@@ -64,10 +64,17 @@ fn repos_named_in_the_ticket_text_count_when_github_shows_them() {
     state.inner.live.set_state_for_test(ws);
 
     let visible = vec!["firma/shop".to_string()];
-    let s = state.repo_suggestions("BAU-142", Some(&visible)).suggestions;
+    let s = state
+        .repo_suggestions("BAU-142", Some(&visible))
+        .suggestions;
     assert_eq!(s.len(), 1);
     assert_eq!(s[0].repo, "firma/shop");
     assert_eq!(s[0].reason, SuggestReason::Mentioned);
     // Without a list of visible repos a bare name is not trusted.
-    assert!(state.repo_suggestions("BAU-142", None).suggestions.is_empty());
+    assert!(
+        state
+            .repo_suggestions("BAU-142", None)
+            .suggestions
+            .is_empty()
+    );
 }

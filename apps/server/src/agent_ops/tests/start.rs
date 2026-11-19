@@ -322,7 +322,7 @@ async fn a_repo_name_that_is_no_owner_slash_name_is_rejected_and_nothing_starts(
         })
         .await
         .unwrap_err();
-    assert!(e.contains("nicht freigegeben"), "{e}");
+    assert!(e.contains("kein gültiger Repo-Name"), "{e}");
     assert!(w.run().is_idle());
 }
 

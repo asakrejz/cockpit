@@ -4,12 +4,15 @@ use feature_ui::*;
 use leptos::prelude::*;
 
 use super::context::{AgentCtx, OptionSignals};
+use super::repo_choice::repo_choice;
 
 /// The „Auftrag“ section: hint, repo and the switches before the start.
 pub(super) fn job(ctx: AgentCtx) -> impl IntoView {
     let AgentCtx {
         repo_touched,
         project,
+        real,
+        base_branch,
         routed,
         repo_options,
         followup,
@@ -42,7 +45,8 @@ pub(super) fn job(ctx: AgentCtx) -> impl IntoView {
                 />
                 <List>
                     <ListSection nested=true>
-                        <Show when=move || !agent_repos.get().is_empty()>
+                        <Show when=move || real.get()>{repo_choice(ctx)}</Show>
+                        <Show when=move || !real.get() && !agent_repos.get().is_empty()>
                             <ListRow title=t!(AgentJobRepo)>
                                 <Select
                                     options=repo_options
@@ -74,7 +78,7 @@ pub(super) fn job(ctx: AgentCtx) -> impl IntoView {
                             </Show>
                         </Show>
                         <ListRow title=t!(AgentJobBaseBranch)>
-                            <Chip>{move || agent_repos.with(|a| a.base_branch(&repo.get()))}</Chip>
+                            <Chip>{move || base_branch.get()}</Chip>
                         </ListRow>
                         <Show when=move || !repo.get().is_empty()>
                             <p class="t-footnote t-secondary" role="status">
@@ -82,7 +86,7 @@ pub(super) fn job(ctx: AgentCtx) -> impl IntoView {
                                     t!(
                                         AgentJobWorksIn,
                                         repo = repo.get(),
-                                        base = agent_repos.with(|a| a.base_branch(&repo.get())),
+                                        base = base_branch.get(),
                                     )
                                 }}
                             </p>

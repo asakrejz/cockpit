@@ -181,11 +181,8 @@ pub fn summary(s: &Snapshot) -> Vec<Line> {
         e.has_key("github-oauth"),
         Some(msg!(CoreSetupGithubAppNeeded)),
     );
-    if github.tone == Tone::Good && e.github_repos.is_empty() {
-        github.tone = Tone::Problem;
-        github.text = msg!(CoreSetupGithubNoRepos);
-    }
-    // Connected is not enough: the repos must be visible, or the lists stay empty.
+    // Connected is enough: the pull requests are found without a list of repos. Only repos that
+    // are watched on purpose have to be visible, or their lists stay empty.
     if github.tone == Tone::Good
         && let Some(a) = s.github_access.as_ref().filter(|a| a.problem())
     {

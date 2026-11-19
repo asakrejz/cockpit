@@ -52,7 +52,7 @@ tickets present. It is a display filter only; nothing is written to Jira.
 source state then says so). Pull requests of colleagues never raise attention or notifications: only pull requests
 with a relation to you (author, requested reviewer, assignee) can. They appear in the inbox only with "Alle", and on the
 Pull Requests page (`#/review`) the "Besitz" selection (default "Meine") switches between your pull requests and all
-open pull requests of the configured repos.
+open pull requests of the watched repos (`[github] repos`; the others show the ones you are involved in).
 
 Notifications are derived purely from comparing the workspace before and after an action
 (`crates/cockpit-core/src/notify.rs`). In the **browser** Cockpit never asks for permission by itself, only via the
@@ -82,6 +82,14 @@ and, after a pause or a cancel, a clone.
   entfernen“ they are removed (containers with `docker`/`podman rm -f`, never via the socket). The image and containers
   without the label are never touched. If the container program is not reachable, only folders are listed. The
   removal re-checks every item and skips whatever started working in the meantime.
+
+## Choosing the repo at the start
+
+The start dialog of a ticket has a searchable list of every repo your GitHub access can see. The suggestions come first,
+each with a short reason: used before for tickets of the same Jira project, has a pull request or branch for this
+ticket, named in the ticket, or set in the settings. Type to search; a valid `owner/name` that is not listed can be
+used as typed. The first time the agent works in a repo, Cockpit reads its default branch (and a branch pattern proposal
+from `CONTRIBUTING.md`) from GitHub and remembers it in `[[agent.repos]]`.
 
 More about agent behaviour (questions, steering, follow-up jobs, costs, limits, rules per repo) is in
 [docs/architecture.md](architecture.md#agent-behaviour).

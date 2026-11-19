@@ -1,6 +1,8 @@
-//! The repos Cockpit works with: ONE list. A repo chosen here is a source of the comparison
-//! (its pull requests) and a choice for the agent. Per repo: base branch and, optionally, the
-//! Jira projects whose tickets go there. The list to choose from comes from GitHub (read-only).
+//! Settings per repo for the agent (optional): base branch, branch pattern, language of the pull
+//! request text and the Jira projects whose tickets go there. Without an entry the agent uses the
+//! default branch of the repo; the first start in a repo stores an entry here by itself. A repo is
+//! chosen for each ticket when the agent starts, not here. The list to choose from comes from
+//! GitHub (read-only).
 
 use cockpit_core::api::{ConfigChange, GitHubRepoInfo, GitHubRepoList};
 use cockpit_core::setup::{agent_repos_read, repo_matches, repo_summary, repos_read};
@@ -11,7 +13,7 @@ use leptos::task::spawn_local;
 use cockpit_core::branch::DEFAULT_PATTERN;
 
 use super::branch_pattern::BranchPatternField;
-use super::fields::{Context, Feedback, Message, Section, config_save, error_text};
+use super::fields::{Context, Feedback, Message, config_save, error_text};
 use crate::server;
 
 /// At most this many entries are drawn; the search narrows the rest down.
@@ -19,7 +21,7 @@ const SHOWN: usize = 100;
 
 /// `SearchField` takes a `&'static str` placeholder. A translated text is leaked once per
 /// distinct value (one per language), so the memory stays bounded.
-fn static_text(text: String) -> &'static str {
+pub(crate) fn static_text(text: String) -> &'static str {
     use std::cell::RefCell;
     use std::collections::HashMap;
     thread_local! {
@@ -42,6 +44,9 @@ struct Row {
     pattern: RwSignal<String>,
     /// Language code of the pull request text (`en` or `de`).
     pr_language: RwSignal<&'static str>,
+    /// Does the sync load all open pull requests of this repo? Kept as stored; a repo added here
+    /// is not watched (that is the list "Repos beobachten").
+    watch: bool,
 }
 
 const PR_LANGUAGES: &[(&str, &str)] = &[
@@ -50,12 +55,12 @@ const PR_LANGUAGES: &[(&str, &str)] = &[
 ];
 
 #[component]
-pub fn RepoPicker(ctx: Context) -> impl IntoView {
+pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
     let next_id = StoredValue::new(0usize);
     // The signals of a row belong to the page, not to the effect or click that creates the row:
     // those owners are cleaned up again and would take the signals with them.
     let owner = StoredValue::new(Owner::current());
-    let new_row = move |repo: &str, base: &str, projects: &str, pattern: &str| {
+    let new_row = move |repo: &str, base: &str, projects: &str, pattern: &str, watch: bool| {
         let id = next_id.get_value();
         next_id.set_value(id + 1);
         let make = || Row {
@@ -65,6 +70,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
             projects: RwSignal::new(projects.into()),
             pattern: RwSignal::new(pattern.into()),
             pr_language: RwSignal::new(Lang::En.code()),
+            watch,
         };
         match owner.get_value() {
             Some(o) => o.with(make),
@@ -91,7 +97,13 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                     } else {
                         &r.branch_pattern
                     };
-                    let row = new_row(&r.repo, &r.base_branch, &r.projects.join(", "), pattern);
+                    let row = new_row(
+                        &r.repo,
+                        &r.base_branch,
+                        &r.projects.join(", "),
+                        pattern,
+                        r.watch,
+                    );
                     row.pr_language.set(r.pr_language.code());
                     row
                 })
@@ -125,7 +137,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
         let connected = ctx
             .setup
             .with(|s| s.has_key("github") || s.has_key("github-oauth"));
-        if connected && !started.get_untracked() {
+        if opened.get() && connected && !started.get_untracked() {
             started.set(true);
             load();
         }
@@ -150,7 +162,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
             } else {
                 &info.default_branch
             };
-            let r = new_row(&name, base, "", "");
+            let r = new_row(&name, base, "", "", false);
             rows.update(|l| l.push(r));
         }
     };
@@ -184,7 +196,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
         Ok(names) => {
             for n in names {
                 if !chosen.get_untracked().contains(&n) {
-                    let r = new_row(&n, "main", "", "");
+                    let r = new_row(&n, "main", "", "", false);
                     rows.update(|l| l.push(r));
                 }
             }
@@ -218,6 +230,11 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                             .map(|row| row.pr_language.get_untracked())
                     });
                     r.pr_language = code.and_then(Lang::from_code).unwrap_or_default();
+                    r.watch = rows.with_untracked(|rows| {
+                        rows.iter()
+                            .find(|row| row.repo.get_untracked().trim() == r.repo)
+                            .is_some_and(|row| row.watch)
+                    });
                 }
                 let n = input.repos.len();
                 config_save(
@@ -240,7 +257,7 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
     };
 
     view! {
-        <Section title=t!(SetupReposTitle)>
+        <VStack spacing="12px">
             <p class="t-subheadline t-secondary">
                 {t!(SetupReposIntro)}
             </p>
@@ -385,6 +402,6 @@ pub fn RepoPicker(ctx: Context) -> impl IntoView {
                 </HStack>
                 <Message feedback=feedback />
             </VStack>
-        </Section>
+        </VStack>
     }
 }

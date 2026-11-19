@@ -7,8 +7,8 @@ use cockpit_core::api::{
     ActionRequest, ActionResponse, AgentStatus, BranchSuggestion, BranchSuggestionRequest,
     ConfigChange, ConfigResponse, ContainerCheck, ContainerStatus, EndpointCheck, EndpointStatus,
     ErrorBody, GitHubCheck, GitHubRepoList, ImageBuild, JiraCheck, JiraProjectsResponse, KeyInput,
-    KeyResponse, ModelList, RepoCheckRequest, RevokeResponse, ServerEvent, Setup, SyncResponse,
-    WebhookSecretResponse, WebhookTestResponse,
+    KeyResponse, ModelList, RepoCheckRequest, RepoSuggestions, RevokeResponse, ServerEvent, Setup,
+    SyncResponse, WebhookSecretResponse, WebhookTestResponse,
 };
 use cockpit_core::{Action, Workspace, persist};
 use feature_ui::t;
@@ -467,6 +467,25 @@ pub async fn fetch_github_repos() -> Result<GitHubRepoList, CallError> {
         return Err(rejection_own(resp).await);
     }
     resp.json::<GitHubRepoList>()
+        .await
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
+}
+
+/// The repos to offer first when the agent starts on a ticket
+/// (`GET /api/agent/repo-suggestions?ticket=…`). Only reads.
+pub async fn fetch_repo_suggestions(ticket: &str) -> Result<RepoSuggestions, CallError> {
+    let url = format!(
+        "/api/agent/repo-suggestions?ticket={}",
+        js_sys::encode_uri_component(ticket)
+    );
+    let resp = Request::get(&url)
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection_own(resp).await);
+    }
+    resp.json::<RepoSuggestions>()
         .await
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
