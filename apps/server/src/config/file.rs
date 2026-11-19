@@ -115,6 +115,8 @@ pub(super) struct FileJira {
     #[serde(default)]
     pub(super) field_order: Vec<String>,
     #[serde(default)]
+    pub(super) team_field: Option<String>,
+    #[serde(default)]
     pub(super) auth: Option<cockpit_core::AuthChoice>,
 }
 

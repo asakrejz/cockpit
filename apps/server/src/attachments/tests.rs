@@ -45,6 +45,7 @@ fn state(jira: &MockServer) -> AppState {
             jql: None,
             hidden_fields: vec![],
             field_order: vec![],
+            team_field: None,
         }),
         ..Sources::default()
     };

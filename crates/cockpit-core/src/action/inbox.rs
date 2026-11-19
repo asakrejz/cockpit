@@ -261,6 +261,25 @@ impl Workspace {
                 }
                 Ok(vec![Note::coded(Target::Settings, text)])
             }
+            Action::SetTeamChoice { choice } => {
+                let text = if choice.is_active() {
+                    msg!(
+                        CoreActionLogTeamChosen,
+                        teams = choice
+                            .teams
+                            .iter()
+                            .map(|t| t.name.as_str())
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    )
+                } else {
+                    msg!(CoreActionLogTeamAll)
+                };
+                if !self.set_team_choice(choice) {
+                    return Err(ActionError::Unchanged);
+                }
+                Ok(vec![Note::coded(Target::Settings, text)])
+            }
             Action::SetInboxFilter { filter } => {
                 let text = if filter.is_default() {
                     msg!(CoreActionLogFilterReset)

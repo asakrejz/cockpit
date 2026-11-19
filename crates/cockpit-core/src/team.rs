@@ -99,7 +99,7 @@ pub fn members(ws: &Workspace) -> Vec<Member> {
         }
     };
 
-    for item in ws.items.iter().filter(|i| is_open(i)) {
+    for item in ws.items.iter().filter(|i| is_open(i) && ws.team_visible(i)) {
         let i = slot(&mut list, &item.owner);
         let member = &mut list[i];
         match (item.kind, item.status) {
@@ -116,7 +116,10 @@ pub fn members(ws: &Workspace) -> Vec<Member> {
     // a finished one waiting for review.
     let mut active_ids: Vec<String> = Vec::new();
     for run in &ws.runs {
-        let Some(item) = ws.item_of_run(&run.ticket_key).filter(|i| is_open(i)) else {
+        let Some(item) = ws
+            .item_of_run(&run.ticket_key)
+            .filter(|i| is_open(i) && ws.team_visible(i))
+        else {
             continue;
         };
         let seen = agent.item_ids.contains(&item.id);
@@ -361,7 +364,7 @@ pub fn stuck(ws: &Workspace) -> Vec<Stuck> {
     let mut list: Vec<Stuck> = ws
         .items
         .iter()
-        .filter(|i| is_open(i))
+        .filter(|i| is_open(i) && ws.team_visible(i))
         .filter_map(|item| {
             let (kind, who, reason) = classify(ws, item)?;
             // The key of the run that waits (for follow-up jobs not the one of the entry).

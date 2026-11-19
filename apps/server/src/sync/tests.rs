@@ -146,6 +146,7 @@ fn jira_state(site: &str) -> AppState {
             jql: None,
             hidden_fields: vec![],
             field_order: vec![],
+            team_field: None,
         }),
         ..Sources::default()
     };

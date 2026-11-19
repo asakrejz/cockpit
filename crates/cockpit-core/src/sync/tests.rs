@@ -41,6 +41,7 @@ fn ticket(key: &str, title: &str) -> Item {
         issue_type: None,
         reporter: None,
         watching: false,
+        team: None,
         updated_ms: None,
         url: None,
         details: None,

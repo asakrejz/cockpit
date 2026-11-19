@@ -338,12 +338,25 @@ pub async fn jira_load(
         }
     };
     let field = sprint_field.as_deref();
+    // The team field is optional too: without it no ticket has a team.
+    let team_field = match client.team_field().await {
+        Ok(f) => f,
+        Err(e @ (Error::RateLimit { .. } | Error::NotSignedIn)) => return Err(e),
+        Err(e) => {
+            out.warn(msg!(IntegrationsSyncTeamFieldFailed, error = e.to_string()));
+            None
+        }
+    };
+    let team = team_field.as_deref();
     let fallback = jira::open_tickets_jql(jql);
     let mut used_fallback = false;
-    let page = match (client.search_page(jql, field).await, &fallback) {
+    let page = match (
+        client.search_page_fields(jql, &[field, team]).await,
+        &fallback,
+    ) {
         // No active sprint at all: show what is open instead.
         (Ok(list), Some(open)) if list.issues.is_empty() => {
-            let all = client.search_page(open, field).await?;
+            let all = client.search_page_fields(open, &[field, team]).await?;
             if !all.issues.is_empty() {
                 used_fallback = true;
                 let any_sprint = all.issues.iter().any(|i| {
@@ -369,7 +382,7 @@ pub async fn jira_load(
         {
             used_fallback = true;
             out.warn(msg!(IntegrationsSyncNoSprints));
-            client.search_page(open, field).await?
+            client.search_page_fields(open, &[field, team]).await?
         }
         (Err(e), _) => return Err(e),
     };
@@ -386,7 +399,7 @@ pub async fn jira_load(
         None
     };
     for issue in issues {
-        let mut item = jira::issue_to_item_with(&issue, &me, now_s, field);
+        let mut item = jira::issue_to_item_full(&issue, &me, now_s, field, team);
         if let Some(text) = by_query
             && item.scope != cockpit_core::Scope::Mine
         {

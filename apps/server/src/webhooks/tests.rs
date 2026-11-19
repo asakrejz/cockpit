@@ -92,6 +92,7 @@ async fn fixture(enabled: bool, with_secrets: bool, debounce: Duration, port: u1
             jql: None,
             hidden_fields: vec![],
             field_order: vec![],
+            team_field: None,
         }),
         ..Sources::default()
     };

@@ -49,6 +49,8 @@ pub struct JiraConfig {
     pub hidden_fields: Vec<String>,
     /// Fields (name or ID) the detail view shows first, in this order.
     pub field_order: Vec<String>,
+    /// The ID of the Jira „Team“ field (`customfield_10400`), if the detection fails on the site.
+    pub team_field: Option<String>,
 }
 
 #[derive(Debug)]

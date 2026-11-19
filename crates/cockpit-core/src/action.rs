@@ -105,6 +105,11 @@ pub enum Action {
     SelectJiraProject {
         project: Option<String>,
     },
+    /// Choose „Mein Team“ (see [`crate::team_filter`]): the lists then show only tickets of these
+    /// teams. A display setting only: nothing is written to Jira or GitHub.
+    SetTeamChoice {
+        choice: crate::team_filter::TeamChoice,
+    },
     /// Apply the inbox filters (see [`crate::filters`]). A display filter only: nothing is
     /// written to Jira or GitHub. In server mode a changed sprint view makes the next sync
     /// fetch other tickets.
@@ -467,6 +472,7 @@ impl Workspace {
             | Action::SyncTicketStatus
             | Action::SetStatusFollowsPr { .. }
             | Action::SelectJiraProject { .. }
+            | Action::SetTeamChoice { .. }
             | Action::SetInboxFilter { .. } => self.perform_inbox(action, at_ms),
             Action::Decide { .. }
             | Action::EditSuggestion { .. }

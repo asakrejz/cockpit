@@ -131,7 +131,7 @@ impl AppState {
             match (client, query) {
                 (Ok(client), Ok(query)) => {
                     services.jira = Some(JiraService {
-                        client,
+                        client: client.with_team_field(j.team_field.as_deref()),
                         jql: query.jql,
                         in_project: query.in_selection,
                         fields: cockpit_integrations::jira::FieldPrefs {

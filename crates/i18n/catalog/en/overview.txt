@@ -37,3 +37,17 @@ overview.waiting_on = Waiting on
 overview.entries_of = Entries of {name}
 overview.nothing_open_for = {name} has nothing open.
 overview.pull_request = Pull request
+
+# „My team“: choose the Jira teams the lists are limited to.
+overview.team_button = My team
+overview.team_button_open = Choose my team
+overview.team_chosen = My team: {names}
+overview.team_hint = You are seeing everything right now. Choose your team to see only its tickets.
+overview.team_dialog_title = My team
+overview.team_dialog_intro = Choose the teams you want to see. What is yours always shows.
+overview.team_none_found = There are no teams yet. They appear as soon as tickets in Jira have a team.
+overview.team_list = Teams
+overview.team_include_none = Include tickets without a team
+overview.team_include_none_hint = Also shows tickets that belong to no team.
+overview.team_apply = Apply
+overview.team_reset = Show all teams
