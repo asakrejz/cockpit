@@ -274,6 +274,20 @@ pub async fn fetch_health() -> Result<Health, CallError> {
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
+/// Can the access see every configured repo? (`GET /api/github/access`, read-only)
+pub async fn fetch_github_access() -> Result<cockpit_core::api::GitHubAccess, CallError> {
+    let resp = Request::get("/api/github/access")
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<cockpit_core::api::GitHubAccess>()
+        .await
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
+}
+
 /// Kind and state of the sign-in at GitHub and Jira (`GET /api/health`).
 pub async fn fetch_services() -> Result<Services, CallError> {
     fetch_health().await.map(|h| h.sign_in)

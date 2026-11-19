@@ -10,10 +10,10 @@ use cockpit_integrations::github::{GitHubClient, RepoList};
 use super::*;
 
 /// The access to GitHub as the assistant sees it.
-struct Access {
-    client: GitHubClient,
+pub(super) struct Access {
+    pub(super) client: GitHubClient,
     /// Signed in with the GitHub App (the list comes from its installations) instead of a token.
-    app: bool,
+    pub(super) app: bool,
 }
 
 /// What the plain text says for a failed call, and the status of our answer.
@@ -77,7 +77,7 @@ fn info(list: RepoList, via: &str) -> GitHubRepoList {
 impl AppState {
     /// Client for the current access (sign-in via the app before the token), or `None`
     /// if GitHub is not connected. Blocking (.env file).
-    fn github_assistant_access(&self) -> Result<Option<Access>, Error> {
+    pub(super) fn github_assistant_access(&self) -> Result<Option<Access>, Error> {
         let api = self
             .sources()
             .github
@@ -85,12 +85,8 @@ impl AppState {
             .map_or(crate::config::DEFAULT_GITHUB_API.to_string(), |g| {
                 g.api_url.clone()
             });
-        let (token, app) = match self.oauth_tokens(Service::GitHub) {
-            Some(t) => (Some(t.access), true),
-            None => (self.token(secrets::GITHUB), false),
-        };
-        token
-            .map(|t| GitHubClient::new(&api, t).map(|client| Access { client, app }))
+        self.github_credentials()
+            .map(|(t, app)| GitHubClient::new(&api, t).map(|client| Access { client, app }))
             .transpose()
     }
 

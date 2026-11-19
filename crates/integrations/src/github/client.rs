@@ -570,6 +570,22 @@ impl GitHubClient {
         Ok(list)
     }
 
+    /// The installations of the app the user can use (`GET /user/installations`): the name of
+    /// the app in its address (if GitHub tells it) per installation. Read-only.
+    pub async fn installations(&self) -> Result<Vec<Option<String>>, Error> {
+        let installations: Installations = self
+            .lies_json(
+                self.get("/user/installations")
+                    .query(&[("per_page", "100")]),
+            )
+            .await?;
+        Ok(installations
+            .installations
+            .into_iter()
+            .map(|i| i.app_slug)
+            .collect())
+    }
+
     /// The repos a GitHub App sign-in can reach: all installations of the app for the user
     /// (`GET /user/installations`) and their repos. Read-only.
     pub async fn installation_repo_list(&self) -> Result<RepoList, Error> {

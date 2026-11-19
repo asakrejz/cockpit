@@ -12,7 +12,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Redirect, Response};
 use cockpit_core::api::{ErrorBody, RevokeResponse};
-use cockpit_core::{AuthKind, ServiceStatus};
+use cockpit_core::{OAuthTokens, ServiceStatus};
 use cockpit_i18n::{Msg, msg};
 use cockpit_integrations::jira::JiraClient;
 use cockpit_integrations::oauth::{
@@ -70,6 +70,11 @@ pub fn redirect_uri(d: Service, port: u16) -> String {
 
 fn now_s() -> u64 {
     now_ms() / 1000
+}
+
+/// Seconds since 1970 (for the other modules of the server).
+pub(crate) fn now_seconds() -> u64 {
+    now_s()
 }
 
 /// A message for the interface; never contains a key.

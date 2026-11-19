@@ -1,0 +1,17 @@
+github_access.title_not_visible = GitHub zeigt Cockpit einige deiner Repos nicht
+github_access.title_no_permission = GitHub verweigert Cockpit den Zugriff auf einige deiner Repos
+github_access.title_unreachable = Cockpit konnte einige deiner Repos nicht prüfen
+github_access.repos = Betroffen: {repos}
+github_access.why_app = Die Anmeldung klappt, aber eine GitHub App sieht nur Repos auf Konten, auf denen sie installiert ist. Die Pull Requests fehlen nicht – Cockpit kann sie nur noch nicht sehen.
+github_access.why_token = Der Token ist gültig, erreicht diese Repos aber nicht. Prüfe, ob er für den Besitzer der Repos erstellt wurde und sie benutzen darf.
+github_access.why_unreachable = GitHub hat nicht geantwortet oder bremst Cockpit. Über diese Repos ist noch nichts bekannt. Prüfe es gleich noch einmal.
+github_access.nowhere = Die App ist noch auf keinem Konto installiert.
+github_access.steps = Was du tun kannst
+github_access.step_install = Installiere die App auf der Organisation, der die Repos gehören (auf GitHub: Seite deiner App › „Install“).
+github_access.step_any_account = Wird die Organisation nicht angeboten, öffne die Einstellungen deiner App auf GitHub. Wähle unter „Where can this GitHub App be installed?“ die Option „Any account“.
+github_access.step_owner = Ein Owner der Organisation muss die Installation vielleicht erst freigeben.
+github_access.step_rights = Die App braucht die Rechte „Contents“ und „Pull requests“ (mindestens lesen).
+github_access.step_confirm = Hast du Rechte geändert, bestätige sie auf der Seite der Installation. Bis dahin gelten bei GitHub die alten.
+github_access.install_link = Installationsseite öffnen
+github_access.recheck = Noch einmal prüfen
+github_access.fix = Zeig mir, was zu tun ist

@@ -689,3 +689,44 @@ fn jira_shows_the_connected_way_first_otherwise_the_token() {
         "OAuth was started"
     );
 }
+
+#[test]
+fn github_summary_says_when_repos_are_hidden_or_the_sign_in_ran_out() {
+    use crate::api::{GitHubAccess, RepoSight, RepoVisibility};
+    let mut s = Snapshot {
+        github: oauth(true),
+        ..Default::default()
+    };
+    s.setup.github_repos = vec!["acme/app".into()];
+    s.setup.github_client_id = Some("Iv1.dummy".into());
+    assert_eq!(summary(&s)[2].tone, Tone::Good);
+    // Everything visible: still fine.
+    let sight = |v| GitHubAccess {
+        connected: true,
+        via_app: true,
+        repos: vec![RepoSight {
+            repo: "acme/app".into(),
+            visibility: v,
+        }],
+        ..Default::default()
+    };
+    s.github_access = Some(sight(RepoVisibility::Visible));
+    assert_eq!(summary(&s)[2].tone, Tone::Good);
+    // One repo the app cannot see: connected, but a problem that names the repo.
+    s.github_access = Some(sight(RepoVisibility::NotVisible));
+    let z = &summary(&s)[2];
+    assert_eq!(z.tone, Tone::Problem);
+    assert!(z.text.de().contains("acme/app"), "{}", z.text.de());
+    // An expired sign-in without a token is not "not set up".
+    let mut s = Snapshot {
+        github: ServiceStatus {
+            expired: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    s.setup.github_client_id = Some("Iv1.dummy".into());
+    let z = &summary(&s)[2];
+    assert_eq!(z.tone, Tone::Problem);
+    assert!(z.text.de().contains("abgelaufen"), "{}", z.text.de());
+}

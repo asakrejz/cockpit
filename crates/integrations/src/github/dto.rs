@@ -271,6 +271,9 @@ pub struct Installations {
 #[derive(Debug, Clone, Deserialize)]
 pub struct Installation {
     pub id: u64,
+    /// Name of the app in its address (`github.com/apps/{slug}`).
+    #[serde(default)]
+    pub app_slug: Option<String>,
 }
 
 /// `GET /user/installations/{id}/repositories`
