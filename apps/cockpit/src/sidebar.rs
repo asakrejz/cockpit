@@ -332,7 +332,7 @@ pub fn AppNav() -> impl IntoView {
                         <Connections />
                     </ul>
                     <p class="ui-sidebar__label">{t!(LanguageLabel)}</p>
-                    <div style="padding: 4px 12px 12px">
+                    <div class="ck-sheet-lang">
                         <crate::language::LanguageSwitch stretch=true />
                     </div>
                 }
