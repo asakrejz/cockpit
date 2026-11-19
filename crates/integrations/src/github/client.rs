@@ -6,9 +6,9 @@ use cockpit_i18n::msg;
 use serde::de::DeserializeOwned;
 
 use super::dto::{
-    Annotation, BranchInfo, CheckRun, CheckRuns, CommitDetail, ContentFile, GitRefResponse,
-    InstallationRepos, Installations, IssueComment, Pull, PullCommit, PullFile, PullReview,
-    PullSummary, Repo, RepoListEntry, ReviewComment, SearchItem, SearchResult, User,
+    Annotation, BranchInfo, CheckRun, CheckRuns, CombinedStatus, CommitDetail, ContentFile,
+    GitRefResponse, InstallationRepos, Installations, IssueComment, Pull, PullCommit, PullFile,
+    PullReview, PullSummary, Repo, RepoListEntry, ReviewComment, SearchItem, SearchResult, User,
 };
 use super::followup::{self, FailedCheck, ReviewInput};
 use super::map;
@@ -113,6 +113,27 @@ pub struct OpenPulls {
     /// There are more open pull requests than were loaded.
     pub truncated: bool,
 }
+/// Repos (per base address and token) whose check runs GitHub denied, for this process. A fine-grained
+/// token cannot get the permission "Checks", so asking again at every sync would only repeat the 403.
+/// A restart empties it; another token (a change of the sign-in method) has another key.
+static CHECKS_DENIED: std::sync::LazyLock<
+    std::sync::Mutex<std::collections::HashSet<(u64, String)>>,
+> = std::sync::LazyLock::new(Default::default);
+
+/// What the sync knows about the checks of one commit.
+#[derive(Clone, Debug)]
+pub struct LoadedChecks {
+    /// The individual runs. Empty when only the commit status was readable.
+    pub runs: Vec<CheckRun>,
+    /// The overall state; `Unknown` when neither the check runs nor the commit status are readable.
+    pub checks: cockpit_core::Checks,
+}
+
+/// Does the error mean "this access may not read it" (and not "try again later")?
+fn is_denied(e: &Error) -> bool {
+    matches!(e, Error::NoPermission | Error::NotFound)
+}
+
 /// Pages of 100 for files and comments (GitHub delivers at most 3000 files).
 const MAX_PAGES: u32 = 3;
 
@@ -121,6 +142,8 @@ pub struct GitHubClient {
     base: String,
     token: Secret,
     limits: PrLimits,
+    /// Key of the denial cache: base address and token, never shown.
+    scope: u64,
 }
 
 impl std::fmt::Debug for GitHubClient {
@@ -136,9 +159,15 @@ impl GitHubClient {
     /// `api_url` is usually `https://api.github.com` (for GitHub Enterprise
     /// `https://host/api/v3`).
     pub fn new(api_url: &str, token: Secret) -> Result<Self, Error> {
+        use std::hash::{Hash, Hasher};
+        let base = base_url(api_url)?;
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        base.hash(&mut hasher);
+        token.expose().hash(&mut hasher);
         Ok(Self {
             http: client()?,
-            base: base_url(api_url)?,
+            scope: hasher.finish(),
+            base,
             token,
             limits: PrLimits::default(),
         })
@@ -324,6 +353,69 @@ impl GitHubClient {
         Ok(runs.check_runs)
     }
 
+    /// The combined commit status of a commit (permission "Commit statuses", read).
+    pub async fn commit_status(&self, repo: &str, sha: &str) -> Result<CombinedStatus, Error> {
+        self.lies_json(self.get(&format!("/repos/{repo}/commits/{sha}/status")))
+            .await
+    }
+
+    fn checks_denied(&self, repo: &str) -> bool {
+        CHECKS_DENIED
+            .lock()
+            .is_ok_and(|d| d.contains(&(self.scope, repo.to_string())))
+    }
+
+    fn checks_deny(&self, repo: &str) {
+        if let Ok(mut d) = CHECKS_DENIED.lock() {
+            d.insert((self.scope, repo.to_string()));
+        }
+    }
+
+    /// The checks of a commit for the sync. A fine-grained token cannot read check runs (403/404):
+    /// then the combined commit status stands in, and if that is denied too the state is
+    /// `Unknown`. A denial is remembered per repo, so later calls skip the check runs. Other
+    /// errors (network, rate limit) still fail.
+    pub async fn checks_load(&self, repo: &str, sha: &str) -> Result<LoadedChecks, Error> {
+        if !self.checks_denied(repo) {
+            match self.check_runs(repo, sha).await {
+                Ok(runs) => {
+                    return Ok(LoadedChecks {
+                        checks: map::aggregate_checks(&runs),
+                        runs,
+                    });
+                }
+                Err(e) if is_denied(&e) => self.checks_deny(repo),
+                Err(e) => return Err(e),
+            }
+        }
+        let checks = match self.commit_status(repo, sha).await {
+            Ok(status) => map::status_to_checks(&status),
+            Err(e) if is_denied(&e) => cockpit_core::Checks::Unknown,
+            Err(e) => return Err(e),
+        };
+        Ok(LoadedChecks {
+            runs: Vec::new(),
+            checks,
+        })
+    }
+
+    /// The check runs for an action on them (logs, annotations, restart). If this access cannot
+    /// read checks, the error says so in plain words instead of a bare 403.
+    async fn check_runs_for_action(&self, repo: &str, sha: &str) -> Result<Vec<CheckRun>, Error> {
+        let denied = || Error::Coded(msg!(IntegrationsGithubChecksDenied));
+        if self.checks_denied(repo) {
+            return Err(denied());
+        }
+        self.check_runs(repo, sha).await.map_err(|e| {
+            if is_denied(&e) {
+                self.checks_deny(repo);
+                denied()
+            } else {
+                e
+            }
+        })
+    }
+
     /// Verdicts of the reviewers.
     pub async fn reviews(&self, repo: &str, nr: u32) -> Result<Vec<PullReview>, Error> {
         self.pages(&format!("/repos/{repo}/pulls/{nr}/reviews"))
@@ -387,7 +479,7 @@ impl GitHubClient {
     /// optional: if GitHub does not deliver them, the output alone counts.
     pub async fn failed_checks(&self, repo: &str, nr: u32) -> Result<Vec<FailedCheck>, Error> {
         let pull = self.pull(repo, nr).await?;
-        let runs = self.check_runs(repo, &pull.head.sha).await?;
+        let runs = self.check_runs_for_action(repo, &pull.head.sha).await?;
         let mut out = Vec::new();
         for run in runs
             .iter()
@@ -619,7 +711,7 @@ impl GitHubClient {
     /// Re-requests the check with this name on the current commit of the pull request.
     pub async fn check_again_start(&self, repo: &str, nr: u32, check: &str) -> Result<(), Error> {
         let pull = self.pull(repo, nr).await?;
-        let runs = self.check_runs(repo, &pull.head.sha).await?;
+        let runs = self.check_runs_for_action(repo, &pull.head.sha).await?;
         let id = runs
             .iter()
             .find(|c| c.name == check)

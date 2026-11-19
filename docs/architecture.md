@@ -166,6 +166,9 @@ routes.
   only checks and diff (the diff is reloaded on a new head commit only). A repo that answers 403/404 is a hint; a repo
   or pull request that fails for another reason (5xx, timeout) keeps its last state and adds a hint; a rate limit or a
   rejected token fails the whole source as before. Webhooks (above) still only trigger this same sync.
+  Checks per pull request come from `GitHubClient::checks_load`: check runs first; a 403/404 (a fine-grained token has no
+  "Checks" permission) falls back to the combined commit status (`status_to_checks`, no status at all = `Checks::Unknown`),
+  and a denial is cached per repo and token for the process (`CHECKS_DENIED`).
 - Jira: the default query asks for active sprints (see configuration). `Item.sprint` (`name`, `state`
   `active|closed|future`, `start`, `end`) and `Item.updated_ms` are optional on the wire; the status category already
   gives `TicketStatus`. Entries the sync no longer delivers (sprint ended) are removed by the normal merge; a failed

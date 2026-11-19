@@ -85,7 +85,8 @@ pub fn merge_blockers(
     match checks {
         Checks::Failed => out.push(MergeBlocker::ChecksFailed),
         Checks::Running => out.push(MergeBlocker::ChecksRunning),
-        Checks::Passed => {}
+        // Unreadable checks do not block: GitHub itself decides at the merge.
+        Checks::Passed | Checks::Unknown => {}
     }
     if !review_sent {
         out.push(MergeBlocker::ReviewNotSent);

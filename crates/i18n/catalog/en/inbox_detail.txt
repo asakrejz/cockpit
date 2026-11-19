@@ -46,6 +46,7 @@ inbox_detail.pr_status_review_open = Review open · Checks passed
 inbox_detail.pr_status_draft = Draft · Checks passed
 inbox_detail.checks_failed = Checks failed
 inbox_detail.checks_running = Checks running
+inbox_detail.checks_unknown = Checks not visible
 inbox_detail.mark_done = Mark as done
 inbox_detail.done = Done
 inbox_detail.comments = Comments

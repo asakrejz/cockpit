@@ -83,6 +83,7 @@ pub fn pr_status(pr: &PrRef) -> String {
         (Checks::Passed, true) => t!(InboxDetailPrStatusDraft),
         (Checks::Failed, _) => t!(InboxDetailChecksFailed),
         (Checks::Running, _) => t!(InboxDetailChecksRunning),
+        (Checks::Unknown, _) => t!(InboxDetailChecksUnknown),
     }
 }
 

@@ -6,6 +6,7 @@ pub(super) fn check_state(status: Checks) -> (String, StatusTone) {
         Checks::Passed => t!(ReviewChecksPassed),
         Checks::Failed => t!(ReviewChecksFailed),
         Checks::Running => t!(ReviewChecksRunning),
+        Checks::Unknown => t!(ReviewChecksUnknown),
     };
     (label, view::tone(status.tone()))
 }
@@ -16,6 +17,7 @@ pub(super) fn checks_label(status: Checks) -> String {
         Checks::Passed => t!(ReviewChecksAllPassed),
         Checks::Failed => t!(ReviewChecksAllFailed),
         Checks::Running => t!(ReviewChecksAllRunning),
+        Checks::Unknown => t!(ReviewChecksAllUnknown),
     }
 }
 
@@ -76,12 +78,14 @@ pub(super) fn checks_section(store: Store, r: &Review, panel: Panel) -> impl Int
         })
         .collect_view();
     let empty = r.check_runs.is_empty();
+    let unknown = r.checks == Checks::Unknown;
     view! {
         <div class="ui-vstack" style="--spacing: 10px">
             <h3 class="t-headline">{t!(ReviewChecksTitle)}</h3>
             {empty
                 .then(|| {
-                    view! { <p class="t-footnote t-secondary">{t!(ReviewChecksNoDetails)}</p> }
+                    let text = if unknown { t!(ReviewChecksUnknownHint) } else { t!(ReviewChecksNoDetails) };
+                    view! { <p class="t-footnote t-secondary">{text}</p> }
                 })}
             {rows}
         </div>

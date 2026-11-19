@@ -124,5 +124,6 @@ fn checks_msg(checks: Checks) -> Msg {
         Checks::Passed => msg!(CoreSyncChecksPassed),
         Checks::Failed => msg!(CoreSyncChecksFailed),
         Checks::Running => msg!(CoreSyncChecksRunning),
+        Checks::Unknown => msg!(CoreSyncChecksUnknown),
     }
 }

@@ -7,7 +7,9 @@ use cockpit_core::{
 use cockpit_i18n::{Lang, Msg};
 
 use super::Relation;
-use super::dto::{CheckRun, IssueComment, Pull, PullFile, PullReview, ReviewComment};
+use super::dto::{
+    CheckRun, CombinedStatus, IssueComment, Pull, PullFile, PullReview, ReviewComment,
+};
 use super::patch::parse_patch;
 use crate::{text, time};
 
@@ -30,6 +32,21 @@ pub fn aggregate_checks(runs: &[CheckRun]) -> Checks {
         Checks::Running
     } else {
         Checks::Passed
+    }
+}
+
+/// The combined commit status as the checks of a commit (fallback when the check runs are not
+/// readable). `success` → `Passed`, `failure`/`error` → `Failed`, `pending` → `Running`. Without
+/// any status GitHub also says `pending`, but nothing runs then: that is `Unknown`.
+pub fn status_to_checks(status: &CombinedStatus) -> Checks {
+    if status.total_count == 0 {
+        return Checks::Unknown;
+    }
+    match status.state.as_str() {
+        "success" => Checks::Passed,
+        "failure" | "error" => Checks::Failed,
+        "pending" => Checks::Running,
+        _ => Checks::Unknown,
     }
 }
 
@@ -350,4 +367,31 @@ pub fn check_runs_to_core(runs: &[CheckRun]) -> Vec<cockpit_core::CheckRun> {
             cockpit_core::CheckRun::new(&r.name, status, duration, &r.log())
         })
         .collect()
+}
+
+#[cfg(test)]
+mod status_tests {
+    use super::*;
+
+    fn status(state: &str, total_count: u32) -> CombinedStatus {
+        CombinedStatus {
+            state: state.into(),
+            total_count,
+        }
+    }
+
+    #[test]
+    fn combined_status_maps_to_checks() {
+        assert_eq!(status_to_checks(&status("success", 2)), Checks::Passed);
+        assert_eq!(status_to_checks(&status("failure", 2)), Checks::Failed);
+        assert_eq!(status_to_checks(&status("error", 1)), Checks::Failed);
+        assert_eq!(status_to_checks(&status("pending", 3)), Checks::Running);
+        assert_eq!(status_to_checks(&status("weird", 1)), Checks::Unknown);
+    }
+
+    #[test]
+    fn no_status_at_all_is_unknown_not_running() {
+        assert_eq!(status_to_checks(&status("pending", 0)), Checks::Unknown);
+        assert_eq!(status_to_checks(&status("success", 0)), Checks::Unknown);
+    }
 }

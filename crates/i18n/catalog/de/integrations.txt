@@ -16,6 +16,7 @@ integrations.github_not_set_up = GitHub ist nicht eingerichtet
 integrations.jira_bad_project_key = Ungültiger Projektschlüssel: {project}
 integrations.jira_no_transition = Jira bietet für {key} keine Transition nach „{name}“ an
 integrations.github_check_gone = Check „{check}“ gibt es bei GitHub nicht (mehr)
+integrations.github_checks_denied = Die Checks sind für diesen Zugang nicht lesbar. Ein fein abgestufter Token (fine-grained) hat das Recht „Checks“ nicht, GitHub bietet es nur GitHub Apps an. Mit der Anmeldung über eine GitHub App geht es.
 integrations.plan_no_repo = Für Branches ist kein GitHub-Repo konfiguriert
 integrations.plan_no_branch_name = Der Branch-Name steht nicht fest
 integrations.oauth_random_failed = Kein Zufall verfügbar: {reason}

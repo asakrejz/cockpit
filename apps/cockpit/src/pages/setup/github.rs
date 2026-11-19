@@ -29,7 +29,10 @@ const TOKEN_RIGHTS: &[(Key, Key)] = &[
         Key::SetupGithubLevelReadWrite,
     ),
     (Key::SetupGithubAreaIssues, Key::SetupGithubLevelReadWrite),
-    (Key::SetupGithubAreaChecks, Key::SetupGithubLevelReadWrite),
+    (
+        Key::SetupGithubAreaCommitStatuses,
+        Key::SetupGithubLevelReadOnly,
+    ),
     (
         Key::SetupGithubAreaMetadata,
         Key::SetupGithubLevelReadOnlyAlways,
@@ -112,6 +115,8 @@ fn TokenWay(ctx: Context) -> impl IntoView {
                 <li>
                     {t!(SetupGithubTokenPermissions)}
                     <Rights list=TOKEN_RIGHTS />
+                    <p class="t-footnote t-secondary">{t!(SetupGithubTokenNoChecks)}</p>
+                    <p class="t-footnote t-secondary">{t!(SetupGithubTokenReadOnly)}</p>
                 </li>
                 <li>{t!(SetupGithubTokenGenerate)}</li>
             </ol>

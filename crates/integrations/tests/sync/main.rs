@@ -24,6 +24,7 @@ mod jira_selection;
 mod jira_sprints;
 mod open_pulls;
 mod outages;
+mod pat_checks;
 mod services;
 mod two_repos;
 
@@ -46,6 +47,25 @@ async fn get(s: &MockServer, p: &str, response: ResponseTemplate) {
 /// GitHub with fixtures: #87 (review requested) and #91 (own PR, checks red) in the list of
 /// open pull requests.
 async fn github_server() -> MockServer {
+    let s = github_server_without_checks().await;
+    let base = format!("/repos/{REPO}");
+    get(
+        &s,
+        &format!("{base}/commits/aaa111/check-runs"),
+        ok(fixture!("github_check_runs_ok.json")),
+    )
+    .await;
+    get(
+        &s,
+        &format!("{base}/commits/{}/check-runs", sha91()),
+        ok(fixture!("github_check_runs_failed.json")),
+    )
+    .await;
+    s
+}
+
+/// Like [`github_server`], but without any answer for the check runs (wiremock answers 404 then).
+async fn github_server_without_checks() -> MockServer {
     let s = MockServer::start().await;
     get(&s, "/user", ok(fixture!("github_user.json"))).await;
     let base = format!("/repos/{REPO}");
@@ -83,18 +103,6 @@ async fn github_server() -> MockServer {
     )
     .await;
     get(&s, &format!("{base}/pulls/87/reviews"), ok("[]")).await;
-    get(
-        &s,
-        &format!("{base}/commits/aaa111/check-runs"),
-        ok(fixture!("github_check_runs_ok.json")),
-    )
-    .await;
-    get(
-        &s,
-        &format!("{base}/commits/{}/check-runs", sha91()),
-        ok(fixture!("github_check_runs_failed.json")),
-    )
-    .await;
     s
 }
 

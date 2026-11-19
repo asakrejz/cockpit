@@ -130,8 +130,17 @@ new token works without restart.
 
 | Service | Token | Rights |
 |---------|-------|--------|
-| GitHub | *fine-grained personal access token*, limited to the configured repos | repository permissions **Contents** (read and write: create a branch), **Pull requests** (read and write: read, create the pull request of a finished agent run, send a review, merge), **Checks** (read and write: read check status, re-request a check), **Issues** (read and write: comments), **Metadata** (read, automatic) |
+| GitHub | *fine-grained personal access token*, limited to the configured repos | repository permissions **Contents** (read and write: create a branch), **Pull requests** (read and write: read, create the pull request of a finished agent run, send a review, merge), **Issues** (read and write: comments), **Commit statuses** (read-only: state of the checks), **Metadata** (read-only, automatic). There is **no "Checks" permission** for a fine-grained token: GitHub offers it only to GitHub Apps. If Cockpit should only read, everything *Read-only* is enough |
 | Jira | *API token* of the Atlassian account | the account needs "Browse projects", "Add comments" and "Edit issues / Transition issues" in the projects; sign-in with the email from the configuration |
+
+**Checks with a fine-grained token.** The Checks API (`GET /repos/{repo}/commits/{sha}/check-runs`) answers `403
+Resource not accessible by personal access token`, because the permission "Checks" exists only for GitHub Apps. Cockpit
+then reads the combined commit status (`GET /repos/{repo}/commits/{sha}/status`, permission *Commit statuses*): `success`
+is "Checks bestanden", `failure` or `error` is failed, `pending` is running. A commit without any status (a repo that
+reports only check runs, e.g. GitHub Actions) shows "Checks nicht sichtbar", also when the status is denied too; the
+pull request itself still loads and merging is not blocked by it. The denial is remembered per repo while the server
+runs, so later syncs do not ask again; a restart or another token (a change of the sign-in method) asks anew. Check logs,
+annotations and "Restart" show a plain message that this access cannot read checks. A GitHub App sign-in sees all of it.
 
 ## OAuth (alternative to tokens)
 
@@ -250,8 +259,9 @@ Feld „Client-Secret“ ein") and link to that step. The terminal commands rema
   can be removed again). Only the chosen way is shown.
 - *GitHub.* A switch "Token (empfohlen)" / "GitHub App (OAuth)". **Token:** create a fine-grained personal access
   token at `github.com/settings/personal-access-tokens/new`, select only the repos you want (start with test repos),
-  repository permissions Contents, Pull requests, Issues and Checks *Read and write*, Metadata *Read-only*, and put
-  it into the password field (stored in `config/.env`). **GitHub App:** callback URL to copy (`127.0.0.1`, not `localhost`),
+  repository permissions Contents, Pull requests and Issues *Read and write*, Commit statuses and Metadata *Read-only*
+  (no Checks: GitHub offers that permission only to GitHub Apps; for read-only use everything *Read-only* is enough), and
+  put it into the password field (stored in `config/.env`). The wizard never asks for a classic token. **GitHub App:** callback URL to copy (`127.0.0.1`, not `localhost`),
   webhook "Active" off, Setup URL empty, no private key needed – only client ID and client secret, saved together
   with one "Speichern" ("Client-ID entfernen" deletes the ID), then "Install App" and "Mit GitHub anmelden". Both
   ways end in the repo list and "Verbindung prüfen" (`POST /api/github/check`: `GET /user` and `GET /repos/{owner}/{name}`
