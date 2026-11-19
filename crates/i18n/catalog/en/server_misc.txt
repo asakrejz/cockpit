@@ -2,7 +2,7 @@
 server_misc.unknown_address = Unknown address
 server_misc.unknown_source = Unknown source
 server_misc.endpoint_not_set_up = The endpoint is not set up. Choose provider, endpoint and model in the step "Model".
-server_misc.env_not_readable = The .env file in the project folder cannot be read
+server_misc.env_not_readable = The file config/.env in the project folder cannot be read
 server_misc.action_unknown = The request is not a known action
 server_misc.random_unavailable = No random numbers are available
 server_misc.webhook_not_enabled = Webhooks are not enabled yet. Switch them on above.

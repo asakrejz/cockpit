@@ -2,9 +2,9 @@
 
 Step-by-step instructions for connecting Cockpit to the real services. The easy way is the setup assistant: the
 "Einrichten" page walks through container, Jira, GitHub, model access and live updates and writes client IDs, Jira
-site, repos and endpoint into `config/config.toml` (in the project folder, created at the first start, ignored by Git) and keys into `.env`. The terminal route (edit `config/config.toml`, start from `config/config.example.toml`; run
+site, repos and endpoint into `config/config.toml` (in the project folder, created at the first start, ignored by Git) and keys into `config/.env`. The terminal route (edit `config/config.toml`, start from `config/config.example.toml`; run
 `cockpit-server token set <name>`) leads to the same result; both can be mixed. Back to the [README](../README.md).
-All keys end up in `.env`, see [configuration.md](configuration.md#credentials-the-env-file).
+All keys end up in `config/.env`, see [configuration.md](configuration.md#credentials-the-env-file).
 
 Without setup the workspace stays empty. As soon as **a source is configured and its token is in `.env`**, the backend
 syncs; a source without configuration or token stays off.
@@ -26,8 +26,7 @@ These steps cannot be automated; the assistant walks you through each one:
 - **Container runtime:** install and start it (see the [README](../README.md#prerequisites)).
 
 Keys (client secrets, tokens, the key of the model endpoint) are typed or pasted into the password fields of the
-assistant. They go only to the server on your computer, which stores them in the **`.env` file in the project
-folder**; never in browser storage, never in a tracked file. If you prefer the terminal, use
+assistant. They go only to the server on your computer, which stores them in the **`config/.env` file**; never in browser storage, never in a tracked file. If you prefer the terminal, use
 `cockpit-server token set <name>` (see [Credentials: the `.env` file](configuration.md#credentials-the-env-file)).
 
 ## Ready-made archive
@@ -56,7 +55,7 @@ The agent implements a ticket in a **container** (Claude Agent SDK, Claude Code 
    and counts as outdated, so use the assistant.
 3. **Provider and endpoint:** in the "Modell" step choose the tool (Claude Agent SDK, Claude Code or Codex; see
    [configuration.md](configuration.md#model-provider-and-endpoint)), the endpoint (directly at the provider, your own proxy such as LiteLLM, or
-   another compatible endpoint), store the key (`.env`, name `agent-key`, variable `AGENT_KEY`) and pick the model from the list that
+   another compatible endpoint), store the key (`config/.env`, name `agent-key`, variable `AGENT_KEY`) and pick the model from the list that
    "Modelle laden" fetches from the endpoint (free text as a fallback). "Aus dem Container testen" checks that a
    container can reach the endpoint. If the proxy is only reachable over a **VPN**, the container machine of
    Rancher Desktop or Podman may not know the VPN route or name; the test then says that your Mac reaches the
@@ -78,15 +77,15 @@ assistant to fix it.
 site (`acme.atlassian.net`; a pasted address with `https://` and a path is understood), (2) the email of your
 Atlassian account, (3) the token. "Token-Seite öffnen" opens `https://id.atlassian.com/manage-profile/security/api-tokens`
 in a new tab: create a token, pick a name and expiry, copy and paste it into the password field. The token goes to
-`PUT /api/secrets/jira` (into `.env`), site and email to `PUT /api/config` (into `config.toml`). "Verbindung prüfen"
+`PUT /api/secrets/jira` (into `config/.env`), site and email to `PUT /api/config` (into `config.toml`). "Verbindung prüfen"
 (`POST /api/jira/check`, read only: `GET /rest/api/3/myself`) then tests whether "Jira antwortet und dich kennt"
 and otherwise names the cause in plain language (wrong address, token rejected, no permission, unreachable). Afterwards the
 assistant suggests the Jira projects to choose from (or "Alle Projekte"), like the drop-down "Jira-Projekt" in the inbox's filter dialog. The
 summary shows whether the sign-in is "mit API-Token" or "mit OAuth"; "Token erneuern" returns to the step and
-"Trennen" deletes the token from `.env` (`DELETE /api/secrets/jira`).
+"Trennen" deletes the token from `config/.env` (`DELETE /api/secrets/jira`).
 
 **Security.** The token has the rights of your Atlassian account. As long as Cockpit should only read, use an
-account or role without write permissions; a short expiry limits the damage. The token lives only in `.env` and never
+account or role without write permissions; a short expiry limits the damage. The token lives only in `config/.env` and never
 in browser storage, URL, database, `config.toml` or log.
 
 **Choosing a project and a sprint view.** If the Jira site has several projects (boards), pick one in the inbox: the button
@@ -136,12 +135,12 @@ new token works without restart.
 
 ## OAuth (alternative to tokens)
 
-Instead of a token you sign in in the browser. Tokens and client secret live only in the backend's `.env`, never in
+Instead of a token you sign in in the browser. Tokens and client secret live only in the backend's `config/.env`, never in
 browser, repo, database or log. In the assistant the Jira step has a picker ("API-Token" / "OAuth"); only the chosen way is shown (the
 connected way is preselected, otherwise the token). If both exist, OAuth wins over the token.
 
 **Removing an OAuth app again.** In the Jira step "Client-ID entfernen" (with a confirmation) deletes the client ID
-from `config.toml` and the client secret from `.env`; "Trennen" has the option "Auch Client-ID und Secret vergessen".
+from `config.toml` and the client secret from `config/.env`; "Trennen" has the option "Auch Client-ID und Secret vergessen".
 The same works through the API: `PUT /api/config` with an empty `client_id` (`{"atlassian":{"client_id":""}}` or
 `{"github_oauth":{"client_id":""}}`) removes the whole section (including `site`), and
 `DELETE /api/secrets/{atlassian-oauth|github-oauth}` removes the secret. `{"atlassian_site": "…"}` sets
@@ -183,7 +182,7 @@ The same works through the API: `PUT /api/config` with an empty `client_id` (`{"
      `https://api.atlassian.com/ex/jira/<cloudId>`; the chosen site (id and name, not secret) is stored in the database.
    - *GitHub:* the user token expires (GitHub App); the backend refreshes it before expiry with the refresh token.
      Atlassian rotates the refresh token on every refresh; the backend stores that too.
-5. *Disconnect.* "Trennen" in the app or `POST /api/oauth/{service}/revoke` deletes the tokens in `.env`. For GitHub
+5. *Disconnect.* "Trennen" in the app or `POST /api/oauth/{service}/revoke` deletes the tokens in `config/.env`. For GitHub
    the backend also revokes the token at the service (`DELETE /applications/{client_id}/token`). Atlassian offers no
    call for that; revoke access at id.atlassian.com/manage-profile/apps (the app points there). The tokens are always
    deleted, even if the service does not answer. The client secret stays.
@@ -195,7 +194,7 @@ The same works through the API: `PUT /api/config` with an empty `client_id` (`{"
 `oauth_possible` (app set up and secret present), `expired` (the sign-in ran out and cannot be renewed) and, for
 Atlassian, the `site`. **This is the one place that decides whether a service is connected** (`ServiceStatus::resolve`
 in `cockpit-core`): a working sign-in goes before the token, an expired one falls back to the token, a token counts
-when its key is in `.env`. The summary, the sidebar, inbox, review, the assistant steps and the sync state all read it.
+when its key is in `config/.env`. The summary, the sidebar, inbox, review, the assistant steps and the sync state all read it.
 
 ### GitHub App and organization
 
@@ -252,7 +251,7 @@ Feld „Client-Secret“ ein") and link to that step. The terminal commands rema
 - *GitHub.* A switch "Token (empfohlen)" / "GitHub App (OAuth)". **Token:** create a fine-grained personal access
   token at `github.com/settings/personal-access-tokens/new`, select only the repos you want (start with test repos),
   repository permissions Contents, Pull requests, Issues and Checks *Read and write*, Metadata *Read-only*, and put
-  it into the password field (stored in `.env`). **GitHub App:** callback URL to copy (`127.0.0.1`, not `localhost`),
+  it into the password field (stored in `config/.env`). **GitHub App:** callback URL to copy (`127.0.0.1`, not `localhost`),
   webhook "Active" off, Setup URL empty, no private key needed – only client ID and client secret, saved together
   with one "Speichern" ("Client-ID entfernen" deletes the ID), then "Install App" and "Mit GitHub anmelden". Both
   ways end in the repo list and "Verbindung prüfen" (`POST /api/github/check`: `GET /user` and `GET /repos/{owner}/{name}`
@@ -272,7 +271,7 @@ Feld „Client-Secret“ ein") and link to that step. The terminal commands rema
 
 Inputs are validated like at server start; an invalid value leaves `config.toml` unchanged and the answer names the reason. Changes
 take effect without restart (only the sync interval and the port wait). Secret fields send the value once over loopback to
-the server, which stores it in `.env` (guarantees: [security.md](security.md)).
+the server, which stores it in `config/.env` (guarantees: [security.md](security.md)).
 
 ## Live updates and webhooks
 
@@ -289,7 +288,7 @@ tunnel and create the webhooks yourself, Cockpit never creates or changes a webh
 1. **Switch on.** In the assistant, step "Live" (or in `config.toml`): `[server] webhooks = true`. Without it both
    routes answer `404`.
 2. **Secret.** The assistant generates a random secret per source (`GITHUB_WEBHOOK_SECRET`, `JIRA_WEBHOOK_SECRET` in
-   `.env`) and shows it **once**, so you can paste it into GitHub or Jira. It is never shown again; "Neues Secret
+   `config/.env`) and shows it **once**, so you can paste it into GitHub or Jira. It is never shown again; "Neues Secret
    erzeugen" replaces it. You can also set the variables by hand. Without a secret nothing is accepted.
 3. **Tunnel** (manual, pick one; the port is the one of `COCKPIT_PORT`, 8787 by default):
 

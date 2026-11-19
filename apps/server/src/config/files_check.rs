@@ -78,8 +78,9 @@ pub enum Language {
 }
 
 /// Checks the folder without changing anything (cached for a few seconds); `legacy` are the
-/// places of the old files, reported while they still exist.
-pub fn status(dir: &Path, legacy: &[PathBuf]) -> ConfigFilesStatus {
+/// places of the old files and `legacy_env` the old `.env` next to `config/.env`, reported while
+/// they still exist.
+pub fn status(dir: &Path, legacy: &[PathBuf], legacy_env: Option<&Path>) -> ConfigFilesStatus {
     static CACHE: Mutex<Option<(PathBuf, Instant, Vec<Msg>)>> = Mutex::new(None);
     let warning_msgs = {
         let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
@@ -92,7 +93,12 @@ pub fn status(dir: &Path, legacy: &[PathBuf]) -> ConfigFilesStatus {
             }
         }
     };
-    let notice_msgs = legacy_msgs(legacy);
+    let mut notice_msgs = legacy_msgs(legacy);
+    notice_msgs.extend(
+        legacy_env
+            .filter(|f| f.is_file())
+            .map(|f| msg!(ServerConfigLegacyEnv, path = f.display().to_string())),
+    );
     ConfigFilesStatus {
         path: dir.display().to_string(),
         warnings: warning_msgs.iter().map(Msg::de).collect(),

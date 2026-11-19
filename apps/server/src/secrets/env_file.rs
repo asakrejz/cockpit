@@ -1,4 +1,4 @@
-//! `EnvFileStore`: the credentials live in a `.env` file in the project folder.
+//! `EnvFileStore`: the credentials live in a `.env` file in the folder `config/` of the project.
 //!
 //! File format (one entry per line):
 //!
@@ -32,7 +32,8 @@ use super::{
 
 /// Variable that points the server to a different file (tests, operation).
 pub const ENV_FILE_VAR: &str = "COCKPIT_ENV_FILE";
-/// Default file name, relative to the project folder (the working directory, like `config/`).
+/// Default file name, inside the folder `config/` of the project (next to `config.toml` and
+/// `cockpit.db`).
 pub const DEFAULT_FILE_NAME: &str = ".env";
 
 /// Every secret name and the environment variable it lives in. `litellm` is the old name of
@@ -91,7 +92,7 @@ impl EnvFileStore {
         }
     }
 
-    /// `COCKPIT_ENV_FILE` if set, else `.env` in the working directory (absolute).
+    /// `COCKPIT_ENV_FILE` if set, else `config/.env` in the project folder.
     pub fn from_environment() -> Self {
         Self::new(default_path(|k| std::env::var(k).ok()))
     }
@@ -171,11 +172,11 @@ fn next_counter() -> u64 {
     COUNTER.fetch_add(1, Ordering::Relaxed)
 }
 
-/// Where the file lives: `COCKPIT_ENV_FILE`, else `.env` in the working directory.
+/// Where the file lives: `COCKPIT_ENV_FILE`, else `config/.env` in the project folder.
 pub fn default_path(env: impl Fn(&str) -> Option<String>) -> PathBuf {
     match env(ENV_FILE_VAR).filter(|s| !s.is_empty()) {
         Some(p) => PathBuf::from(p),
-        None => crate::config::location::project_dir().join(DEFAULT_FILE_NAME),
+        None => crate::config::location::default_env_path(&crate::config::location::project_dir()),
     }
 }
 

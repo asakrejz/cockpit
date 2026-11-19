@@ -142,7 +142,11 @@ impl AppState {
             agent,
             env_file: self.inner.secrets.env_file().map(secrets::env_file_status),
             config_files: self.inner.settings.config_dir.as_deref().map(|dir| {
-                crate::config::files_check::status(dir, &self.inner.settings.legacy_files)
+                crate::config::files_check::status(
+                    dir,
+                    &self.inner.settings.legacy_files,
+                    self.inner.settings.legacy_env.as_deref(),
+                )
             }),
         }
     }

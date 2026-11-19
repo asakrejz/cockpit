@@ -58,14 +58,14 @@ prompt. Documentation links in this README that point into `docs/` are only vali
 Everything is optional. `config.toml` and the database `cockpit.db` live in the folder `config/` of the project (the
 server creates it at the first start; Git ignores it, only `config/config.example.toml` is committed). Nothing is
 written outside the project. Environment variables such as `COCKPIT_PORT`, `COCKPIT_DB`, `COCKPIT_CONFIG` and
-`COCKPIT_CONTAINER` override it. **Keys live only in the `.env` file in the project folder**, never in `config.toml`,
+`COCKPIT_CONTAINER` override it. **Keys live only in the file `config/.env`** (next to `config.toml` and `cockpit.db`), never in `config.toml`,
 the database or the browser:
 
 ```bash
 echo "$TOKEN" | cargo run -p cockpit-server -- token set jira   # also: github, agent-key, github-oauth, atlassian-oauth
 ```
 
-**Never commit `.env`.** `.gitignore` excludes it and CI fails when any `.env*` file is tracked. The server sets mode `600` and warns about loose permissions. If a real `.env` was ever
+**Never commit `config/.env`.** `.gitignore` excludes it (and any `.env*` anywhere) and CI fails when any `.env*` file is tracked. The server sets mode `600` and warns about loose permissions. An old `.env` in the project folder is moved to `config/.env` at the first start. If a real `.env` was ever
 committed, rotate the keys immediately.
 
 The full reference (`config.toml`, all variables, several repos, model provider and endpoint, container runtime,
@@ -78,7 +78,7 @@ Check the server with `curl localhost:8787/api/health`.
 
 - The server listens on `127.0.0.1` only and checks peer and `Host` on every `/api` route (DNS rebinding); writing
   requests also need `Content-Type: application/json` and a missing or own `Origin`.
-- Credentials stay in the backend (`.env`, mode `600`). Give tokens only the rights listed in the
+- Credentials stay in the backend (`config/.env`, mode `600`). Give tokens only the rights listed in the
   [setup guide](docs/setup-guide.md#github); while Cockpit should only read, use read-only rights.
 - Webhooks are optional and off by default. Through a tunnel only `/api/webhooks/*` may be reachable; they only
   trigger a sync and accept a correct HMAC signature only.
@@ -147,7 +147,7 @@ instead of a token; ticket and limit edits are not sent outward yet; email and S
 | Document | Contents |
 |----------|----------|
 | [docs/setup-guide.md](docs/setup-guide.md) | Jira, GitHub, OAuth, agent image, model endpoint, webhooks, setup assistant |
-| [docs/configuration.md](docs/configuration.md) | `config.toml`, environment variables, `.env`, start at login |
+| [docs/configuration.md](docs/configuration.md) | `config.toml`, environment variables, `config/.env`, start at login |
 | [docs/using-cockpit.md](docs/using-cockpit.md) | pages of the app, inbox filters, notifications |
 | [docs/architecture.md](docs/architecture.md) | decisions, HTTP API, sync, container rules, agent behaviour |
 | [docs/security.md](docs/security.md) | credentials, request checks, webhooks, agent sandbox |

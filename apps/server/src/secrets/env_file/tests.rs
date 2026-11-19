@@ -267,14 +267,16 @@ fn default_path_prefers_the_variable() {
         default_path(|k| (k == ENV_FILE_VAR).then(|| "/x/y.env".to_string())),
         PathBuf::from("/x/y.env")
     );
-    assert_eq!(
-        default_path(|_| None).file_name().unwrap(),
-        std::ffi::OsStr::new(".env")
-    );
-    assert_eq!(
-        default_path(|_| Some(String::new())).file_name().unwrap(),
-        std::ffi::OsStr::new(".env")
-    );
+    for p in [
+        default_path(|_| None),
+        default_path(|_| Some(String::new())),
+    ] {
+        assert_eq!(p.file_name().unwrap(), std::ffi::OsStr::new(".env"));
+        assert_eq!(
+            p.parent().unwrap().file_name().unwrap(),
+            std::ffi::OsStr::new("config")
+        );
+    }
 }
 
 #[test]

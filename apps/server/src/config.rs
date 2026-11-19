@@ -92,7 +92,7 @@
 //! Umgebungsvariablen: `COCKPIT_PORT`, `COCKPIT_DIST`, `COCKPIT_DB`, `COCKPIT_CONFIG`
 //! (path of the configuration file), `COCKPIT_SEED` (`empty` or `demo`; `leer` still applies), `COCKPIT_CONTAINER`
 //! (`docker` or `podman`), `COCKPIT_AGENT_DIR` (folder `agent`), `COCKPIT_GIT_BASE` (older `COCKPIT_GIT_BASIS`; base address for cloning, tests only),
-//! `COCKPIT_DEV_PORT` (port of `trunk serve`, for development only), `COCKPIT_ENV_FILE` (path of the `.env` file with the keys).
+//! `COCKPIT_DEV_PORT` (port of `trunk serve`, for development only), `COCKPIT_ENV_FILE` (path of the `.env` file with the keys, default `config/.env`).
 
 use std::path::{Path, PathBuf};
 
@@ -170,6 +170,8 @@ pub struct Config {
     pub config_dir: Option<PathBuf>,
     /// Places of old files (before `config/`), reported while they still exist.
     pub legacy_files: Vec<PathBuf>,
+    /// The old `<project>/.env` that still exists next to `config/.env` (can be deleted).
+    pub legacy_env: Option<PathBuf>,
     /// `[server] webhooks`: the webhook routes answer (default `false`: 404).
     pub webhooks: bool,
     /// `[server] public_url`: address of the tunnel, only shown in the assistant.
@@ -245,6 +247,7 @@ impl Config {
             config_path: None,
             config_dir: None,
             legacy_files: Vec::new(),
+            legacy_env: None,
             webhooks: false,
             public_url: None,
             webhook_fallback_interval_s: None,
@@ -529,6 +532,11 @@ impl Config {
         for n in notes {
             tracing::info!("{n}");
         }
+        if let Some(n) = location::migrate_env(&project, &env)
+            .map_err(|m| ConfigError::Wert(cockpit_i18n::Msg::raw(m)))?
+        {
+            tracing::info!("{n}");
+        }
         let (path, explicit) = match env("COCKPIT_CONFIG").filter(|s| !s.is_empty()) {
             Some(p) => (Some(PathBuf::from(p)), true),
             None => (Some(location::default_config_path(&project)), false),
@@ -548,6 +556,7 @@ impl Config {
             && env("COCKPIT_DB").is_some_and(|v| !v.is_empty());
         c.config_dir = (!overrides).then(|| location::config_dir(&project));
         c.legacy_files = location::legacy_candidates(&env, location::is_macos());
+        c.legacy_env = location::legacy_env_candidate(&project, &env);
         Ok(c)
     }
 }
