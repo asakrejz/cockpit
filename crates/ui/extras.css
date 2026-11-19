@@ -216,19 +216,17 @@
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
-  /* No end padding: the panes run down to the bottom edge, behind the pill. Each pane ends with
-     its own spacer (below), so the last element stays visible and clickable. */
-  padding-block: var(--ref-space-12) 0;
+  /* Same gap on all four sides: every pane is a card. The pill floats over the lower part of the
+     cards; each pane ends with its own spacer (below), so the last element stays reachable. */
+  padding-block: var(--ref-space-12);
   padding-inline: max(var(--ref-space-12), env(safe-area-inset-left), env(safe-area-inset-right));
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
 }
 .ui-splitview > .ui-pane { position: relative; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-/* The pane that reaches the bottom edge flows off the screen: flat corners, a spacer as tall as
-   the pill (plus the safe area) at the end of its content. */
+/* A spacer as tall as the pill (plus the safe area) at the end of each pane's content. */
 @media (min-width: 768px) {
-  .ui-splitview > .ui-pane { border-end-start-radius: 0; border-end-end-radius: 0; }
   .ui-splitview > .ui-pane::after { content: ""; display: block; flex: none; height: var(--ui-nav-space); }
 }
 /* Two panes: list and detail. */
@@ -252,8 +250,7 @@
   .ui-splitview:has(> .ui-pane:nth-of-type(3)) > .ui-pane:nth-of-type(1) { grid-row: 1 / 3; }
   .ui-splitview:has(> .ui-pane:nth-of-type(3)) > .ui-pane:nth-of-type(2) { grid-column: 2; grid-row: 1; }
   .ui-splitview:has(> .ui-pane:nth-of-type(3)) > .ui-pane:nth-of-type(3) { grid-column: 2; grid-row: 2; }
-  /* The detail pane sits above the context pane: it does not reach the bottom edge. */
-  .ui-splitview:has(> .ui-pane:nth-of-type(3)) > .ui-pane:nth-of-type(2) { border-end-start-radius: var(--sys-radius-container); border-end-end-radius: var(--sys-radius-container); }
+  /* The detail pane sits above the context pane: no pill spacer needed. */
   .ui-splitview:has(> .ui-pane:nth-of-type(3)) > .ui-pane:nth-of-type(2)::after { display: none; }
 }
 
@@ -269,10 +266,13 @@
     overflow: visible;
     overflow-x: clip;
     gap: var(--ref-space-12);
-    padding-block: max(var(--ref-space-12), env(safe-area-inset-top)) var(--ui-nav-space);
+    padding-block: max(var(--ref-space-12), env(safe-area-inset-top)) var(--ref-space-12);
     padding-inline: max(var(--ref-space-12), env(safe-area-inset-left), env(safe-area-inset-right));
   }
   .ui-splitview > .ui-pane { overflow: visible; flex: none; width: 100%; max-width: 960px; margin-inline: auto; box-sizing: border-box; grid-area: auto; }
+  /* The last visible card ends with the pill spacer; the gap below the card matches the other sides. */
+  .ui-splitview > .ui-pane:last-of-type::after,
+  .ui-splitview[data-level="list"] > .ui-pane:nth-of-type(1)::after { content: ""; display: block; flex: none; height: var(--ui-nav-space); }
 }
 
 /* One inner padding for every pane: header, body, empty states (also a body without header). */
