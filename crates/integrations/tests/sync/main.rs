@@ -22,6 +22,7 @@ mod jira_details;
 mod jira_scope;
 mod jira_selection;
 mod jira_sprints;
+mod jira_teams;
 mod open_pulls;
 mod outages;
 mod pat_checks;

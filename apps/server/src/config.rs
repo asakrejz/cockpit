@@ -22,6 +22,7 @@
 //! jql = "project = BAU AND ..."        # optional: own query instead of the projects
 //! hidden_fields = ["Rank", "customfield_10099"]   # optional: fields (name or ID) the ticket detail leaves out
 //! field_order = ["Acceptance criteria"]           # optional: fields (name or ID) the detail shows first
+//! team_field = "customfield_10400"                # optional: the ID of the „Team“ field, if the detection fails
 //! ```
 //!
 //! Sign-in via OAuth (instead of an API token), only client IDs – the secrets are in the
@@ -341,6 +342,7 @@ impl Config {
                 jql: None,
                 hidden_fields: Vec::new(),
                 field_order: Vec::new(),
+                team_field: None,
                 auth: None,
             })
         });
@@ -364,6 +366,10 @@ impl Config {
                 jql: j.jql.filter(|q| !q.trim().is_empty()),
                 hidden_fields: clean_list(j.hidden_fields),
                 field_order: clean_list(j.field_order),
+                team_field: j
+                    .team_field
+                    .map(|f| f.trim().to_string())
+                    .filter(|f| !f.is_empty()),
             });
         }
 

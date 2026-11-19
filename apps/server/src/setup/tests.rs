@@ -123,6 +123,7 @@ fn jira_state(site: &str, email: &str, with_token: bool) -> (Router, Arc<MemoryS
             jql: None,
             hidden_fields: vec![],
             field_order: vec![],
+            team_field: None,
         }),
         ..Sources::default()
     };

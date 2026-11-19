@@ -147,6 +147,23 @@ const FIELDS: &str = "*all,-comment,-worklog,-votes";
 const PAGE: usize = 50;
 pub const MAX_ISSUES: usize = 200;
 
+/// The team field among the fields of the site: the field of the Atlassian team type, otherwise
+/// the one named „Team“.
+pub fn find_team_field(fields: &[super::dto::FieldInfo]) -> Option<String> {
+    let is_team_type = |f: &super::dto::FieldInfo| {
+        f.schema
+            .as_ref()
+            .and_then(|s| s.custom.as_deref())
+            .is_some_and(|c| c.ends_with(":atlassian-team") || c.ends_with("-field-team"))
+    };
+    fields
+        .iter()
+        .find(|f| is_team_type(f))
+        .or_else(|| fields.iter().find(|f| f.name == "Team"))
+        .map(|f| f.id.clone())
+        .filter(|id| !id.is_empty())
+}
+
 /// The issues of a search and whether more matched than were fetched.
 #[derive(Debug, Default)]
 pub struct SearchPage {
@@ -164,6 +181,10 @@ pub struct JiraClient {
     oauth: bool,
     /// The sprint field of the site, asked once per client (`None` inside: the site has none).
     sprint_field: std::sync::Mutex<Option<Option<String>>>,
+    /// The team field set in the configuration (`[jira] team_field`); it replaces the detection.
+    team_override: Option<String>,
+    /// The team field of the site, asked once per client (`None` inside: the site has none).
+    team_field: std::sync::Mutex<Option<Option<String>>>,
     /// The address of the site people open in the browser (`https://acme.atlassian.net`), for
     /// links to tickets. `None` = not known.
     site: Option<String>,
@@ -197,6 +218,8 @@ impl JiraClient {
             token,
             oauth: false,
             sprint_field: Default::default(),
+            team_override: None,
+            team_field: Default::default(),
             site: crate::http::base_url(site_url).ok(),
         })
     }
@@ -211,8 +234,20 @@ impl JiraClient {
             token: access,
             oauth: true,
             sprint_field: Default::default(),
+            team_override: None,
+            team_field: Default::default(),
             site: None,
         })
+    }
+
+    /// Sets the ID of the team field (`customfield_10400`) for sites where the detection fails.
+    /// Empty or `None` = detect it.
+    pub fn with_team_field(mut self, field: Option<&str>) -> Self {
+        self.team_override = field
+            .map(str::trim)
+            .filter(|f| !f.is_empty())
+            .map(str::to_string);
+        self
     }
 
     /// Tells the client the address of the site people open in the browser (with OAuth, the
@@ -374,6 +409,26 @@ impl JiraClient {
         Ok(found)
     }
 
+    /// The ID of the team field of this site (the Atlassian „Team“ field, `customfield_10400` and
+    /// the like): the one set in the configuration, otherwise from `GET /rest/api/3/field` the
+    /// field of the team type, otherwise the one named „Team“. `None` if the site has none.
+    /// Asked once per client; a failed question is not kept.
+    pub async fn team_field(&self) -> Result<Option<String>, Error> {
+        if let Some(f) = &self.team_override {
+            return Ok(Some(f.clone()));
+        }
+        if let Some(known) = self.team_field.lock().ok().and_then(|k| k.clone()) {
+            return Ok(known);
+        }
+        let fields: Vec<super::dto::FieldInfo> =
+            self.lies_json(self.get("/rest/api/3/field")).await?;
+        let found = find_team_field(&fields);
+        if let Ok(mut k) = self.team_field.lock() {
+            *k = Some(found.clone());
+        }
+        Ok(found)
+    }
+
     /// Like [`JiraClient::search`], additionally asking for the sprint field.
     pub async fn search_with_sprint(
         &self,
@@ -390,11 +445,20 @@ impl JiraClient {
         jql: &str,
         sprint_field: Option<&str>,
     ) -> Result<SearchPage, Error> {
-        // `*all` already holds the sprint field; naming it too keeps the question explicit.
-        let fields = match sprint_field {
-            Some(f) => format!("{FIELDS},{f}"),
-            None => FIELDS.to_string(),
-        };
+        self.search_page_fields(jql, &[sprint_field]).await
+    }
+
+    /// Like [`JiraClient::search_page`], naming further fields (sprint, team) the issues carry.
+    pub async fn search_page_fields(
+        &self,
+        jql: &str,
+        extra: &[Option<&str>],
+    ) -> Result<SearchPage, Error> {
+        // `*all` already holds them; naming them too keeps the question explicit.
+        let mut fields = FIELDS.to_string();
+        for f in extra.iter().flatten() {
+            fields = format!("{fields},{f}");
+        }
         let mut all = Vec::new();
         let mut token: Option<String> = None;
         loop {

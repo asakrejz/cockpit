@@ -6,3 +6,4 @@ pub mod notifications;
 pub mod overview;
 pub mod review;
 pub mod setup;
+pub mod team_picker;

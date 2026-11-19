@@ -140,6 +140,13 @@ pub struct Workspace {
     /// tickets, and the sync fetches all open tickets of the project. `None` = all.
     #[serde(default)]
     pub jira_project: Option<String>,
+    /// „Mein Team“: the Jira teams whose tickets the lists show (see [`crate::team_filter`]);
+    /// change by `Action::SetTeamChoice`. No team chosen = everything.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::team_filter::TeamChoice::is_default"
+    )]
+    pub team_choice: crate::team_filter::TeamChoice,
     /// The chosen inbox filters (see [`crate::filters`]); change by `Action::SetInboxFilter`.
     #[serde(default)]
     pub inbox_filter: InboxFilter,
@@ -298,6 +305,7 @@ impl Workspace {
                 .collect(),
             _ => self.search(filter, source, query, now_ms),
         };
+        let base = base.into_iter().filter(|i| self.team_visible(i)).collect();
         by.apply(base, now_ms)
     }
 

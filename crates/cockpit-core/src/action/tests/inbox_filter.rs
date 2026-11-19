@@ -166,3 +166,57 @@ fn the_person_filter_selects_by_assignee_without_writing_anything() {
     keys(&w, &by("Lena Koch"));
     assert_eq!(w.log.len(), before, "choosing a person is no action");
 }
+
+#[test]
+fn the_team_choice_is_an_action_and_filters_the_inbox() {
+    use crate::TeamRef;
+    use crate::team_filter::TeamChoice;
+    const NOW: u64 = 1_800_000_000_000;
+    let by = InboxFilter {
+        sprint: SprintView::AllOpen,
+        ..Default::default()
+    };
+    let mut w = demo::multi_repo_workspace();
+    fn list<'a>(w: &'a Workspace, f: Filter, by: &InboxFilter) -> Vec<&'a Item> {
+        w.inbox(f, SourceFilter::All, "", NOW, by)
+    }
+    let all = list(&w, Filter::All, &by).len();
+    let choice = TeamChoice {
+        teams: vec![TeamRef::new("team-web", "Web")],
+        include_no_team: false,
+    };
+    ok(
+        &mut w,
+        Action::SetTeamChoice {
+            choice: choice.clone(),
+        },
+        1,
+    );
+    assert!(w.log.last().unwrap().text.contains("Web"));
+    let shown = list(&w, Filter::All, &by);
+    assert!(shown.len() < all);
+    // Mine stays, tickets of the chosen team stay, tickets of other teams go.
+    assert!(shown.iter().any(|i| i.key == "BAU-142"));
+    assert!(shown.iter().any(|i| i.key == "WEB-21"));
+    assert!(shown.iter().all(|i| i.key != "WEB-18"));
+    // „Ich“ is never filtered.
+    assert!(
+        list(&w, Filter::Mine, &by)
+            .iter()
+            .any(|i| i.key == "BAU-142")
+    );
+    // The same choice again changes nothing; resetting shows everything.
+    fails(
+        &mut w,
+        Action::SetTeamChoice { choice },
+        ActionError::Unchanged,
+    );
+    ok(
+        &mut w,
+        Action::SetTeamChoice {
+            choice: TeamChoice::default(),
+        },
+        1,
+    );
+    assert_eq!(list(&w, Filter::All, &by).len(), all);
+}

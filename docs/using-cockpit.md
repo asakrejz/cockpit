@@ -35,6 +35,15 @@ puts the edits back to the start state. The applied filters are part of the work
 rules and the Jira project, so they survive a reload). Every active filter is also a chip under the button; its "✕" removes
 only that filter. The left column shows entries only, no switches.
 
+**Mein Team:** on the Übersicht page the button "Mein Team" (under the title) opens a dialog with the Jira teams seen in the
+synced tickets (the "Team" field, see [configuration](configuration.md)). Choose one or more teams and "Übernehmen" (action
+`SetTeamChoice`, stored in the workspace like the filters); "Ohne Team einbeziehen" (off by default) also shows tickets
+without a team. With no team chosen everything shows, and a hint says you can choose your team. With a choice, the
+Übersicht (people, load, "Hängt", lists) and the inbox filters "Alle" and "Team" show only tickets of those teams; people
+appear only if they have such entries, "Du" and "Agent" always stay. What is yours (filter "Ich", entries assigned to you)
+is never hidden. A pull request is not filtered unless it is linked to a ticket (ticket key in branch or title) and none of its
+tickets is shown. The rules live in `cockpit_core::team_filter`. Display only: nothing is written to Jira.
+
 "Zugewiesen an" (`person`) is a drop-down with a search field: "Alle", "Mir", "Nicht zugewiesen" and the people of the
 tickets present. It is a display filter only; nothing is written to Jira.
 

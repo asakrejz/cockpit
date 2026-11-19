@@ -6,6 +6,7 @@ integrations_sync.repo_hint = {repo}: {error}
 integrations_sync.repo_stale = {repo}: {error} – der Stand vom letzten Abgleich bleibt
 integrations_sync.pr_stale = {repo}#{number}: {error} – der Stand vom letzten Abgleich bleibt
 integrations_sync.sprint_field_failed = Sprint-Feld nicht ermittelt: {error}
+integrations_sync.team_field_failed = Team-Feld nicht ermittelt: {error}
 integrations_sync.no_active_sprint = Kein aktiver Sprint – zeige alle offenen Tickets
 integrations_sync.no_sprints = Dieses Projekt hat keine Sprints – zeige alle offenen Tickets
 integrations_sync.jira_truncated = Es wurden nur die ersten {n} Tickets geladen. Wähle ein Projekt oder einen Sprint, um den Rest zu sehen.
