@@ -64,7 +64,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
                                     <Button
                                         variant=ButtonStyle::GlassProminent
                                         size=ControlSize::Small
-                                        href="#/"
+                                        href=crate::route::Route::TASKS_HASH
                                     >
                                         {t!(AgentToInbox)}
                                     </Button>

@@ -117,7 +117,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
             {move || problem_of(&access).map(|a| view! { <AccessHint access=a recheck=recheck /> })}
             <SyncStatus />
             <HStack css="justify-content: flex-end">
-                <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large href="#/">
+                <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large href=crate::route::Route::TASKS_HASH>
                     {t!(SetupDoneToDashboard)}
                 </Button>
             </HStack>

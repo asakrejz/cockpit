@@ -1,11 +1,4 @@
-nav.attention = Aufmerksamkeit
-nav.attention_short = Inbox
-nav.mine = Meine Aufgaben
-nav.mine_short = Aufgaben
-nav.team = Team
-nav.team_short = Team
-nav.snoozed = Zurückgestellt
-nav.snoozed_short = Zurückgestellt
+nav.tasks = Aufgaben
 nav.overview = Übersicht
 nav.overview_short = Übersicht
 nav.reviews = Pull Requests

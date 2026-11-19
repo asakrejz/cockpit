@@ -2,23 +2,24 @@
 
 Pages of the app (hash routes). Back to the [README](../README.md).
 
-**Navigation:** a floating glass pill at the bottom edge on every screen size: Inbox, Aufgaben, Reviews, Agenten and
-**Mehr**. "Mehr" opens a menu with the other pages (Team, Zurückgestellt, Übersicht, Protokoll, Grenzen & Regeln,
-Benachrichtigungen, Einrichten), the connection states of Jira, GitHub and the agent, and on the inbox the rules
+**Navigation:** a floating glass pill at the bottom edge on every screen size: Aufgaben, Reviews, Agenten and
+**Mehr**. "Aufgaben" is the whole inbox; its filters (Alle, Ich, Team, Zurückgestellt) are switched on the page. It opens
+with the filter chosen last (saved per browser; "Ich" at first). "Mehr" opens a menu with the other pages (Übersicht,
+Protokoll, Grenzen & Regeln, Benachrichtigungen, Einrichten), the connection states of Jira, GitHub and the agent, and on the inbox the rules
 (which events count as attention). The lists of pull requests and agent runs are the first column of their pages.
 Every column scrolls on its own. Details: [Layout and navigation](architecture.md#layout-and-navigation).
 
 **Language:** the app speaks German and English. It starts in the language of the browser (German for `de*`, otherwise
 English). You change it in the "More" menu ("Language") or in the first step of the setup assistant; the change applies at
 once and is saved in the workspace. The agents write their plans, summaries and review comments in the same language. The language of pull request titles and texts is a separate setting per repo (setup assistant, default English). Texts from Jira and GitHub stay as they are. The page names below are the German ones;
-in English they read Attention, My tasks, Pull requests, Agents, Log, Limits & rules, Notifications, Set up.
+in English they read Tasks, Pull requests, Agents, Log, Limits & rules, Notifications, Set up.
 
 Pages (hash routes):
 
 | Page | Address | What it does |
 |------|---------|--------------|
 | Einrichten | `#/setup`, `#/setup/<step>` | state and next step per service: sign in to / disconnect Jira and GitHub, check the agent endpoint, detect the container runtime |
-| Aufmerksamkeit | `#/`, `#/mine`, `#/team`, `#/snoozed` | inbox of tickets and pull requests, filtered by switchable rules (mention, review request, blocked PR, overdue ticket, agent done, assigned); snooze; change status, create a branch, reply, assign the agent; edit a ticket; link ticket and PR; search; the button "Filter" (with the number of active filters) opens the filter dialog with all filters, chips under it remove single filters; keys `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
+| Aufgaben | `#/tasks` (the filter chosen last), `#/`, `#/mine`, `#/team`, `#/snoozed` (the older addresses keep their filter) | inbox of tickets and pull requests, filtered by switchable rules (mention, review request, blocked PR, overdue ticket, agent done, assigned); snooze; change status, create a branch, reply, assign the agent; edit a ticket; link ticket and PR; search; the button "Filter" (with the number of active filters) opens the filter dialog with all filters, chips under it remove single filters; keys `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
 | Review | `#/review/87` | tabs „Dateien“ (file tree with +/− counts, one collapsible diff per file, „Angesehen“ per file, long diffs cut at 300 lines with „Mehr anzeigen“) and „Commits“ (list; a click shows only that commit's diff, read only); select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you) |
 | Übersicht | `#/overview` | open entries and load per person; "Hängt" shows failed checks, waiting reviews, tickets without a branch and agents waiting for you |
 | Benachrichtigungen | `#/notifications` | per occasion choose browser, email and Slack; quiet hours; permission request by button; test notification |

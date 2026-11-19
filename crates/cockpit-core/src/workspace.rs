@@ -386,6 +386,21 @@ impl Workspace {
             .count()
     }
 
+    /// The badge of the merged "Aufgaben" entry: what "Ich" showed plus what the former
+    /// "Inbox" (all attention) showed, every entry counted once. Since "Ich" is a subset of
+    /// "Alle", this is the unread number of the union of both lists.
+    pub fn tasks_unread(&self, now_ms: u64) -> usize {
+        let mut ids: Vec<&str> = [Filter::Mine, Filter::All]
+            .into_iter()
+            .flat_map(|f| self.attention(f, now_ms))
+            .filter(|i| !i.read)
+            .map(|i| i.id.as_str())
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids.len()
+    }
+
     pub fn snooze_of(&self, id: &str) -> Option<&Snooze> {
         self.snoozed.iter().find(|s| s.item == id)
     }

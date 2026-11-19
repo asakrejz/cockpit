@@ -268,7 +268,7 @@ pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi, panel: PanelUi) -> 
             Some(id) => view! {
                 <a
                     class="ui-link t-subheadline"
-                    href="#/"
+                    href=crate::route::Route::TASKS_HASH
                     on:click=move |ev| {
                         ev.prevent_default();
                         store.open_item(&id);

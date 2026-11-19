@@ -66,6 +66,20 @@ fn done_items_stop_counting() {
     assert_eq!(w.unread(Filter::Team, NOW), 1);
 }
 
+#[test]
+fn the_tasks_badge_counts_every_entry_once() {
+    let mut w = ws();
+    // "Ich" (5) is part of "Alle" (6): no double counting.
+    assert_eq!(w.tasks_unread(NOW), 6);
+    w.mark_done("bau142");
+    assert_eq!(w.tasks_unread(NOW), 5);
+    // Snoozed entries are not new.
+    assert_eq!(
+        w.tasks_unread(NOW),
+        w.unread(Filter::Mine, NOW) + w.unread(Filter::Team, NOW)
+    );
+}
+
 /// 11.11.2026, 12:00 UTC.
 const NOW: u64 = 1_794_398_400_000;
 const HOUR: u64 = 3_600_000;

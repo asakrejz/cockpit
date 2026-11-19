@@ -1,11 +1,4 @@
-nav.attention = Attention
-nav.attention_short = Inbox
-nav.mine = My tasks
-nav.mine_short = Tasks
-nav.team = Team
-nav.team_short = Team
-nav.snoozed = Snoozed
-nav.snoozed_short = Snoozed
+nav.tasks = Tasks
 nav.overview = Overview
 nav.overview_short = Overview
 nav.reviews = Pull requests
