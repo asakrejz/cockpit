@@ -128,15 +128,14 @@ fn rules(f: impl FnOnce(&mut RepoRules)) -> Action {
 
 // ---------- Ticket and pull request ----------
 
-fn link(item: &str, pr: u32) -> Action {
-    Action::LinkPr {
-        item: item.into(),
-        pr: pr.into(),
-    }
-}
-
-fn unlink(item: &str) -> Action {
-    Action::UnlinkPr { item: item.into() }
+/// Links a ticket and a pull request the only way there is: the branch names the ticket key
+/// and the automation links them. `n` is the number of log entries it must write.
+fn link(w: &mut Workspace, item: &str, pr: u32, n: usize) -> Applied {
+    let key = w.item(item).unwrap().key.to_lowercase();
+    let review = w.reviews.iter_mut().find(|r| r.number == pr).unwrap();
+    review.branch = format!("feature/{key}-x");
+    review.ticket_key = None;
+    ok(w, Action::AutoLinkPrs, n)
 }
 
 fn status(w: &Workspace, id: &str) -> TicketStatus {

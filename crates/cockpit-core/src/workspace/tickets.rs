@@ -114,6 +114,45 @@ impl Workspace {
     }
 
     // ---------- Link ticket and pull request ----------
+    // Linking is automatic only: a pull request belongs to a ticket when its branch, title or
+    // body names the key (see [`crate::link`]), or when the agent opened it for the ticket.
+
+    /// Every pull request that belongs to a ticket, in the order of the reviews: those the
+    /// agent opened for it (`ticket_key`) and those whose branch, title or body name its key.
+    pub fn linked_reviews(&self, ticket_id: &str) -> Vec<&Review> {
+        let Some(item) = self.item(ticket_id).filter(|i| i.is_ticket()) else {
+            return Vec::new();
+        };
+        self.reviews
+            .iter()
+            .filter(|r| r.belongs_to(&item.key))
+            .collect()
+    }
+
+    /// What the „Entwicklung“ section of a ticket lists: every linked pull request with its
+    /// head branch, plus the ticket's own copy of a pull request whose review is not loaded.
+    pub fn linked_prs(&self, ticket_id: &str) -> Vec<LinkedPr> {
+        let mut list: Vec<LinkedPr> = self
+            .linked_reviews(ticket_id)
+            .into_iter()
+            .filter_map(|r| {
+                Some(LinkedPr {
+                    pr: self.pr_ref_of(r.key())?,
+                    branch: r.branch.clone(),
+                })
+            })
+            .collect();
+        let own = self.item(ticket_id).filter(|i| i.is_ticket());
+        if let Some(pr) = own.and_then(|i| i.pr.as_ref())
+            && !list.iter().any(|l| l.pr.key().same(&pr.key()))
+        {
+            list.push(LinkedPr {
+                pr: pr.clone(),
+                branch: own.and_then(|i| i.branch.clone()).unwrap_or_default(),
+            });
+        }
+        list
+    }
 
     /// The ticket that belongs to this pull request (via the review).
     pub fn ticket_of_pr(&self, number: impl Into<PrKey>) -> Option<&Item> {
@@ -148,7 +187,11 @@ impl Workspace {
 
     /// Links a ticket with a pull request. The ticket gets the pull request (and,
     /// if it has none yet, the branch), the review gets the ticket.
-    pub fn link_pr(&mut self, ticket_id: &str, number: impl Into<PrKey>) -> Result<(), LinkError> {
+    pub(super) fn link_pr(
+        &mut self,
+        ticket_id: &str,
+        number: impl Into<PrKey>,
+    ) -> Result<(), LinkError> {
         let number = number.into();
         let key = self
             .item(ticket_id)
@@ -189,44 +232,12 @@ impl Workspace {
         if let Some(review) = self.review_mut(&number) {
             review.ticket_key = Some(key.clone());
         }
-        self.unlinked
-            .retain(|(n, k)| !(n.same(&number) && *k == key));
         Ok(())
-    }
-
-    /// Removes the link of a ticket. Returns the pull request.
-    /// The automation does not link the same pair again.
-    pub fn unlink_pr(&mut self, ticket_id: &str) -> Option<PrKey> {
-        let item = self.item(ticket_id).filter(|i| i.is_ticket())?;
-        let (key, number) = (item.key.clone(), item.pr.as_ref()?.key());
-        let review_branch = self.review(&number).map(|r| r.branch.clone());
-        if let Some(review) = self
-            .review_mut(&number)
-            .filter(|r| r.ticket_key.as_deref() == Some(&key))
-        {
-            review.ticket_key = None;
-        }
-        if let Some(item) = self.item_mut(ticket_id) {
-            item.pr = None;
-            if item.branch == review_branch {
-                item.branch = None;
-            }
-        }
-        self.status_seen.retain(|(k, _)| *k != key);
-        if !self
-            .unlinked
-            .iter()
-            .any(|(n, k)| n.same(&number) && *k == key)
-        {
-            self.unlinked.push((number.clone(), key));
-        }
-        Some(number)
     }
 
     /// Which pull requests the automation would link now: `(ticket ID, pull request)`.
     /// A pull request qualifies as long as no existing ticket belongs to it and
-    /// branch or title name the key of a ticket without a pull request. Pairs
-    /// resolved by hand stay resolved.
+    /// branch, title or body name the key of a ticket without a pull request.
     pub fn auto_links(&self) -> Vec<(String, PrKey)> {
         let mut taken: Vec<&str> = Vec::new();
         let mut links = Vec::new();
@@ -235,18 +246,15 @@ impl Workspace {
             .iter()
             .filter(|r| self.ticket_of_pr(r.key()).is_none())
         {
-            let free = self.items.iter().filter(|i| {
-                i.is_ticket()
-                    && i.pr.is_none()
-                    && !taken.contains(&i.key.as_str())
-                    && !self
-                        .unlinked
-                        .iter()
-                        .any(|(n, k)| n.same(&review.key()) && *k == i.key)
-            });
+            let free = self
+                .items
+                .iter()
+                .filter(|i| i.is_ticket() && i.pr.is_none() && !taken.contains(&i.key.as_str()));
             let known = free.clone().map(|i| i.key.as_str());
-            if let Some(key) = crate::link::find_ticket(&[&review.branch, &review.title], known)
-                && let Some(ticket) = free.clone().find(|i| i.key == key)
+            if let Some(key) = crate::link::find_ticket(
+                &[&review.branch, &review.title, &review.description],
+                known,
+            ) && let Some(ticket) = free.clone().find(|i| i.key == key)
             {
                 taken.push(&ticket.key);
                 links.push((ticket.id.clone(), review.key()));

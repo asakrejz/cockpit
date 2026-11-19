@@ -26,8 +26,6 @@ pub enum ActionError {
     UnknownCheck(String),
     /// The pull request is merged and can no longer be changed.
     Merged(PrKey),
-    /// Linking ticket and pull request is not possible.
-    Link(LinkError),
     /// This person does not exist in the team.
     UnknownPerson(String),
     /// Merging happens only by hand: neither the agent nor the system may do it.
@@ -100,16 +98,6 @@ impl ActionError {
             ActionError::UnknownRepo(repo) => msg!(CoreActionErrUnknownRepo, repo = repo),
             ActionError::UnknownCheck(name) => msg!(CoreActionErrUnknownCheck, check = name),
             ActionError::UnknownPerson(name) => msg!(CoreActionErrUnknownPerson, name = name),
-            ActionError::Link(LinkError::UnknownPr(n)) => {
-                msg!(CoreActionErrLinkUnknownPr, n = n.to_string())
-            }
-            ActionError::Link(LinkError::Same) => msg!(CoreActionErrLinkSame),
-            ActionError::Link(LinkError::TicketHasPr(n)) => {
-                msg!(CoreActionErrLinkTicketHasPr, n = n.to_string())
-            }
-            ActionError::Link(LinkError::PrHasTicket(key)) => {
-                msg!(CoreActionErrLinkPrHasTicket, key = key)
-            }
             ActionError::Merged(n) => msg!(CoreActionErrMerged, review = n.to_string()),
             ActionError::MergeNotAllowed(actor) => {
                 msg!(CoreActionErrMergeNotAllowed, who = labels::who(*actor))

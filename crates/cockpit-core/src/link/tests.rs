@@ -79,3 +79,22 @@ fn first_text_wins_and_known_spelling_is_returned() {
 fn unicode_does_not_confuse_the_scanner() {
     assert_eq!(ticket_keys("Ärger-12 ü-3 BAU-5"), ["ÄRGER-12", "BAU-5"]);
 }
+
+#[test]
+fn mentions_needs_the_whole_key_case_insensitive() {
+    assert!(mentions(&["feature/app-123-foo"], "APP-123"));
+    assert!(mentions(&["x", "APP-123: Titel"], "app-123"));
+    assert!(mentions(&["Closes (APP-123)."], "APP-123"));
+    assert!(!mentions(&["feature/app-1234-foo"], "APP-123"));
+    assert!(!mentions(&["feature/xapp-123"], "APP-123"));
+    assert!(!mentions(&["APP-12"], "APP-123"));
+    assert!(!mentions(&[], "APP-123"));
+}
+
+#[test]
+fn several_tickets_in_one_text() {
+    let body = "Fixes APP-123 and app-124, see also APP-1234.";
+    assert!(mentions(&[body], "APP-123"));
+    assert!(mentions(&[body], "APP-124"));
+    assert!(!mentions(&[body], "APP-12"));
+}
