@@ -35,7 +35,6 @@ core_setup.container_no_image = {runtime} is running. The agent image is not bui
 core_setup.container_ok = {runtime} is installed and running.
 core_setup.container_stopped = {runtime} is installed but not started. Open the program and wait until it is ready.
 core_setup.container_none = No Docker or Podman found yet. You only need it for the agent.
-core_setup.github_no_repos = Signed in, but no repos. Enter which repos Cockpit should sync.
 core_setup.model_not_set_up = Not set up yet.
 core_setup.model_key_missing = Entered, but the key is still missing.
 core_setup.model_name_missing = The key is there, but the model name is still missing.

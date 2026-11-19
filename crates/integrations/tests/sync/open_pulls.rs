@@ -6,7 +6,7 @@ use cockpit_core::{Scope, Source as Src};
 use cockpit_integrations::github::PrLimits;
 use wiremock::matchers::path_regex;
 
-fn pull(n: u32, author: &str, extra: serde_json::Value) -> serde_json::Value {
+pub(super) fn pull(n: u32, author: &str, extra: serde_json::Value) -> serde_json::Value {
     let mut p = json!({
         "number": n, "state": "open", "title": format!("Change {n}"), "body": "",
         "draft": false, "user": {"login": author},
@@ -24,6 +24,7 @@ fn pull(n: u32, author: &str, extra: serde_json::Value) -> serde_json::Value {
 /// The calls that belong to every pull request, answered with „nothing special“.
 async fn details(s: &MockServer) {
     get(s, "/user", ok(fixture!("github_user.json"))).await;
+    search_none(s).await;
     Mock::given(method("GET"))
         .and(path_regex(r"^/repos/.*/commits/.*/check-runs$"))
         .respond_with(ok(r#"{"check_runs":[]}"#))
@@ -31,7 +32,7 @@ async fn details(s: &MockServer) {
         .await;
 }
 
-async fn any_detail(s: &MockServer) {
+pub(super) async fn any_detail(s: &MockServer) {
     for tail in ["files", "comments", "reviews"] {
         Mock::given(method("GET"))
             .and(path_regex(format!(
@@ -47,9 +48,10 @@ async fn any_detail(s: &MockServer) {
         .mount(s)
         .await;
     get(s, "/user", ok(fixture!("github_user.json"))).await;
+    search_none(s).await;
 }
 
-async fn list(s: &MockServer, repo: &str, page: u32, pulls: Vec<serde_json::Value>) {
+pub(super) async fn list(s: &MockServer, repo: &str, page: u32, pulls: Vec<serde_json::Value>) {
     Mock::given(method("GET"))
         .and(path(format!("/repos/{repo}/pulls")))
         .and(query_param("state", "open"))
@@ -60,7 +62,7 @@ async fn list(s: &MockServer, repo: &str, page: u32, pulls: Vec<serde_json::Valu
         .await;
 }
 
-fn service(s: &MockServer, repos: &[&str], limits: PrLimits) -> Services {
+pub(super) fn service(s: &MockServer, repos: &[&str], limits: PrLimits) -> Services {
     Services {
         github: Some(GitHubService {
             client: GitHubClient::new(&s.uri(), Secret::new("x"))
@@ -287,6 +289,7 @@ async fn the_rate_limit_stops_the_source_and_keeps_its_data() {
 
     let limited = MockServer::start().await;
     get(&limited, "/user", ok(fixture!("github_user.json"))).await;
+    search_none(&limited).await;
     Mock::given(method("GET"))
         .and(path(format!("/repos/{REPO}/pulls")))
         .respond_with(

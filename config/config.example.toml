@@ -13,7 +13,8 @@ interval_s = 120            # sync every 2 minutes (at least 30)
 
 [github]
 api_url = "https://api.github.com"
-repos = ["acme/app", "acme/web"]   # repos for the sync (owner/name)
+# repos = ["acme/app", "acme/web"]   # optional "watched" repos: all their open pull requests (owner/name).
+                            # Without it Cockpit finds your pull requests in every repo you can see.
 # auth = "token"            # which sign-in the server uses: "token" or "oauth". Without it a working
                             # OAuth sign-in goes first, then the token. The setup assistant sets it.
 
@@ -35,9 +36,10 @@ site = "acme"               # optional: only if several sites are approved
 [agent]
 provider = "claude-agent-sdk"   # or "claude-code" or "codex"
 container = "podman"            # or "docker"; omit to detect the runtime
-repo = "acme/app"               # default repo of the agent
+repo = "acme/app"               # optional default repo; remove it to choose the repo at every start
 
-# A Jira project can be routed to a repo; the interface lets you change it before the start.
+# Optional settings per repo. Without an entry a repo uses its default branch and the usual branch pattern;
+# the first start in a repo stores one (with watch = false). A Jira project can be routed to a repo here.
 [[agent.repos]]
 repo = "acme/web"
 base_branch = "develop"         # optional, default "main"
@@ -45,7 +47,8 @@ projects = ["WEB"]              # tickets of these Jira projects go to this repo
 branch_pattern = "feature/{ticket}-{slug}"   # optional; default "claude/{ticket}-{slug}"; also {type} = feature/fix/chore
 
 [[agent.repos]]
-repo = "acme/app"               # a repo without projects is only a choice
+repo = "acme/app"               # a repo without projects only keeps its settings
+# watch = false                 # true (default): the sync also loads all open pull requests of this repo
 
 [agent.endpoint]
 url = "https://litellm.example.com"   # proxy or compatible endpoint; omit to call the provider directly

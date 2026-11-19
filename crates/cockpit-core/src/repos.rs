@@ -7,6 +7,8 @@
 
 use serde::{Deserialize, Serialize};
 
+pub mod suggest;
+
 /// Base branch if none is configured.
 pub const DEFAULT_BASE: &str = "main";
 
@@ -35,6 +37,19 @@ pub struct AgentRepo {
     /// Language of the pull request title and text (the team language). English by default.
     #[serde(default, skip_serializing_if = "is_english")]
     pub pr_language: cockpit_i18n::Lang,
+    /// Does the sync load all open pull requests of this repo (a "watched" repo)? `true` for
+    /// every entry written by hand. Entries the app stores on the first use of a repo set it to
+    /// `false`: they only keep the settings and do not widen the sync.
+    #[serde(default = "yes", skip_serializing_if = "is_true")]
+    pub watch: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+fn is_true(b: &bool) -> bool {
+    *b
 }
 
 /// English is the default and is not written (older files and snapshots stay as they were).
@@ -50,6 +65,7 @@ impl AgentRepo {
             projects: Vec::new(),
             branch_pattern: default_pattern(),
             pr_language: cockpit_i18n::Lang::En,
+            watch: true,
         }
     }
 }

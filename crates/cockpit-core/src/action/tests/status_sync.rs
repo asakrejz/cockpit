@@ -7,8 +7,11 @@ fn the_status_follows_the_pull_request() {
     let mut w = ws();
     // Draft, no review requested → In progress.
     assert_eq!(status(&w, "bau150"), TicketStatus::Open);
-    let applied = ok(&mut w, link("bau150", 85), 2);
-    assert_eq!(applied.summary, "BAU-150 mit #85 verknüpft");
+    let applied = link(&mut w, "bau150", 85, 2);
+    assert_eq!(
+        applied.summary,
+        "BAU-150 automatisch mit asakrejz/rust-playground#85 verknüpft"
+    );
     assert_eq!(status(&w, "bau150"), TicketStatus::InProgress);
     let entry = w.log.last().unwrap();
     assert_eq!(entry.actor, Actor::System);
@@ -81,7 +84,7 @@ fn merging_finishes_the_linked_ticket_through_the_same_path() {
 #[test]
 fn a_status_set_by_hand_stays_until_the_pull_request_moves() {
     let mut w = ws();
-    ok(&mut w, link("bau150", 85), 2);
+    link(&mut w, "bau150", 85, 2);
     // Back to „Offen“ by hand: the automation does not overrule that.
     ok(
         &mut w,
@@ -161,7 +164,7 @@ fn the_automation_can_be_switched_off() {
     fails(&mut w, off, ActionError::Unchanged);
 
     // Off: linking, requesting a review and merging leave the status alone.
-    ok(&mut w, link("bau150", 85), 1);
+    link(&mut w, "bau150", 85, 1);
     ok(&mut w, Action::RequestReview { review: 85.into() }, 1);
     assert_eq!(status(&w, "bau150"), TicketStatus::Open);
     fails(&mut w, Action::SyncTicketStatus, ActionError::NothingToDo);
@@ -243,13 +246,13 @@ fn only_you_merge_even_with_the_automation() {
         assert_eq!(w, before);
     }
     // The new actions never merge.
-    ok(&mut w, link("bau150", 85), 2);
+    link(&mut w, "bau150", 85, 2);
     let _ = w.apply(Action::SyncTicketStatus, Actor::System, T);
     assert!(w.reviews.iter().all(|r| r.merged.is_none()));
 }
 
 #[test]
-fn the_new_ticket_and_link_actions_survive_json() {
+fn the_new_ticket_actions_survive_json() {
     for a in [
         edit("bau150", "Titel", "Text"),
         assign("bau150", lena()),
@@ -257,8 +260,6 @@ fn the_new_ticket_and_link_actions_survive_json() {
             item: "bau150".into(),
             priority: Priority::Lowest,
         },
-        link("bau150", 85),
-        unlink("bau150"),
         Action::AutoLinkPrs,
         Action::RequestReview { review: 85.into() },
         Action::SyncTicketStatus,

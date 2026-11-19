@@ -168,53 +168,6 @@ pub(super) fn detail(
         }
     });
 
-    // Link: at the ticket the pull request (release or link by hand), at the pull request the ticket.
-    let link_actions = if is_ticket {
-        match item.pr.as_ref() {
-            Some(_) => view! {
-                <Button
-                    size=ControlSize::Small
-                    on_click=move |_| {
-                        let _ = store.dispatch(Action::UnlinkPr { item: id.get_value() });
-                    }
-                >
-                    {t!(InboxDetailUnlink)}
-                </Button>
-            }
-            .into_any(),
-            None => {
-                let open = store.ws.with_untracked(|w| {
-                    w.reviews
-                        .iter()
-                        .filter(|r| r.merged.is_none() && w.ticket_of_pr(r.key()).is_none())
-                        .map(|r| (r.key(), r.title.clone()))
-                        .collect::<Vec<_>>()
-                });
-                open.into_iter()
-                    .map(|(number, title)| {
-                        let label = t!(InboxDetailLinkTo, number = number);
-                        view! {
-                            <Button
-                                size=ControlSize::Small
-                                on_click=move |_| {
-                                    let _ = store.dispatch(Action::LinkPr {
-                                        item: id.get_value(),
-                                        pr: number.clone(),
-                                    });
-                                }
-                            >
-                                {label}
-                            </Button>
-                        }
-                        .attr("title", title)
-                    })
-                    .collect_view()
-                    .into_any()
-            }
-        }
-    } else {
-        ().into_any()
-    };
     let linked_ticket = (!is_ticket)
         .then(|| {
             let number = item.pr.as_ref()?.number;
@@ -243,35 +196,63 @@ pub(super) fn detail(
 
     // The pull request's number links to GitHub – to the address the sync read from the pull
     // request itself (it also fits other GitHub hosts), otherwise to github.com.
-    let pr_text = match item.pr.as_ref() {
-        None => t!(InboxDetailPrNone).into_any(),
-        Some(pr) => {
-            let label = labels::pr_label(pr);
-            let url = store.ws.with_untracked(|w| {
-                w.items
-                    .iter()
-                    .find(|i| {
-                        i.kind == cockpit_core::Kind::PullRequest
-                            && i.pr.as_ref().is_some_and(|p| p.key().same(&pr.key()))
-                    })
-                    .and_then(Item::web_url)
-            });
-            match url.or_else(|| pr.github_url()) {
-                Some(url) => super::details::external_link(
-                    url,
-                    t!(
-                        InboxDetailOpenExternal,
-                        key = pr.key().to_string(),
-                        source = "GitHub"
-                    ),
-                    "ck-key-link",
-                    label.into_any(),
+    let pr_link = move |pr: &cockpit_core::PrRef| -> AnyView {
+        let label = labels::pr_label(pr);
+        let url = store.ws.with_untracked(|w| {
+            w.items
+                .iter()
+                .find(|i| {
+                    i.kind == cockpit_core::Kind::PullRequest
+                        && i.pr.as_ref().is_some_and(|p| p.key().same(&pr.key()))
+                })
+                .and_then(Item::web_url)
+        });
+        match url.or_else(|| pr.github_url()) {
+            Some(url) => super::details::external_link(
+                url,
+                t!(
+                    InboxDetailOpenExternal,
+                    key = pr.key().to_string(),
+                    source = "GitHub"
                 ),
-                None => label.into_any(),
-            }
+                "ck-key-link",
+                label.into_any(),
+            ),
+            None => label.into_any(),
         }
     };
+    let pr_text = match item.pr.as_ref() {
+        None => t!(InboxDetailPrNone).into_any(),
+        Some(pr) => pr_link(pr),
+    };
 
+    // Tickets list every automatically linked pull request, each with its branch and checks.
+    let dev_prs = if is_ticket {
+        store.ws.with_untracked(|w| w.linked_prs(&item.id))
+    } else {
+        Vec::new()
+    };
+    let has_dev = !dev_prs.is_empty();
+    let dev_rows = dev_prs
+        .into_iter()
+        .map(|linked| {
+            let (_, tone) = linked.pr.status();
+            let status = labels::pr_status(&linked.pr);
+            let link = pr_link(&linked.pr);
+            let key = linked.pr.key().to_string();
+            let branch = (!linked.branch.is_empty()).then(|| view! { <Chip>{linked.branch.clone()}</Chip> });
+            view! {
+                <li>
+                    <div class="ui-list__row" style="flex-wrap: wrap" data-linked-pr=key>
+                        {row_icon(icons::GIT_PR)} <span class="ui-list__title">{t!(InboxDetailPullRequest)}</span>
+                        <span class="ui-list__detail">{link}</span>
+                        {branch}
+                        <Status tone=view::tone(tone)>{status}</Status>
+                    </div>
+                </li>
+            }
+        })
+        .collect_view();
     let comments = item
         .comments
         .iter()
@@ -379,21 +360,24 @@ pub(super) fn detail(
                             {row_icon(icons::GIT_BRANCH)} <span class="ui-list__title">{t!(InboxDetailBranch)}</span> {branch}
                         </div>
                     </li>
-                    <li>
-                        <div class="ui-list__row" style="flex-wrap: wrap">
-                            {row_icon(icons::GIT_PR)} <span class="ui-list__title">{t!(InboxDetailPullRequest)}</span>
-                            <span class="ui-list__detail">
-                                {pr_text}
-                            </span>
-                            {link_actions}
-                            {(!is_ticket)
-                                .then(|| review_href.clone())
-                                .flatten()
-                                .map(|href| {
-                                    view! { <Button size=ControlSize::Small href=href>{t!(InboxDetailOpenReview)}</Button> }
-                                })}
-                        </div>
-                    </li>
+                    {dev_rows}
+                    {(!has_dev)
+                        .then(|| {
+                            view! {
+                                <li>
+                                    <div class="ui-list__row" style="flex-wrap: wrap">
+                                        {row_icon(icons::GIT_PR)} <span class="ui-list__title">{t!(InboxDetailPullRequest)}</span>
+                                        <span class="ui-list__detail">{pr_text}</span>
+                                        {(!is_ticket)
+                                            .then(|| review_href.clone())
+                                            .flatten()
+                                            .map(|href| {
+                                                view! { <Button size=ControlSize::Small href=href>{t!(InboxDetailOpenReview)}</Button> }
+                                            })}
+                                    </div>
+                                </li>
+                            }
+                        })}
                     {linked_ticket}
                     {item
                         .agent_note_msg

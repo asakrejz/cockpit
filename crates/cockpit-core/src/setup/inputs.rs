@@ -163,6 +163,7 @@ pub fn agent_repos_read(
             projects,
             branch_pattern: pattern.to_string(),
             pr_language: cockpit_i18n::Lang::En,
+            watch: true,
         });
     }
     let default = default.trim();

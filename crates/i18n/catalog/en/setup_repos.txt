@@ -1,9 +1,9 @@
 # Repo picker of the setup
 setup_repos.enter_repo = Enter a repo, e.g. company/app.
 setup_repos.none_left = No repos selected any more.
-setup_repos.saved = Saved. Cockpit syncs these repos, and the agent works in one of them.
-setup_repos.title = Choose repos
-setup_repos.intro = Choose the repos you work with. Cockpit shows their pull requests, and the agent works in one of them for each ticket. You can also assign a repo to Jira projects: tickets of that project then go there, all others go to the default repo. Before the start you can still change the repo in the agent view.
+setup_repos.saved = Saved.
+setup_repos.title = Repo settings for the agent (optional)
+setup_repos.intro = You only need this if a repo has its own rules: a base branch, a branch pattern, the language of the pull request text or Jira projects that go there. Without an entry the agent uses the repo's default branch and the usual branch pattern. The first time you start the agent in a repo, it stores an entry here by itself. You choose the repo for each ticket when you start the agent.
 setup_repos.search = Search repos
 setup_repos.loading = Loading …
 setup_repos.reload = Load again
@@ -28,3 +28,10 @@ setup_repos.remove = Remove
 setup_repos.save = Save
 setup_repos.pr_language = Language for pull request title and text
 setup_repos.pr_language_hint = The team language of this repo. The agent writes the commit message and the pull request text in it. Default: English.
+setup_repos.watch_title = Watch repos (optional)
+setup_repos.watch_intro = Even without this list you see all pull requests you wrote, review or are mentioned in – in every repo you can see. Pick repos here to also see all open pull requests of your colleagues there.
+setup_repos.watch_saved = Saved. Cockpit now loads all open pull requests of these repos.
+setup_repos.watch_none_left = No repo is watched any more.
+setup_repos.watch_save = Save watched repos
+setup_repos.watch_chosen = Watched
+setup_repos.watch_none_chosen = No repo watched yet.

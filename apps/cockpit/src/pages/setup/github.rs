@@ -13,7 +13,9 @@ use super::fields::{
     Context, CopyField, Extern, Feedback, Intro, KeyField, Message, Section, config_save,
     error_text,
 };
+use super::optional::Optional;
 use super::repo_picker::RepoPicker;
+use super::watched_repos::WatchedRepos;
 use crate::access_hint::{AccessHint, problem_of, use_github_access};
 use crate::oauth_card::{OAuthCard, Service, Service as OAuthService};
 use crate::server;
@@ -339,7 +341,7 @@ fn ConnectionCheck(ctx: Context) -> impl IntoView {
     let feedback: Feedback = RwSignal::new(None);
     let running = RwSignal::new(false);
     let go = move |_| {
-        let repos = ctx.setup.with(|s| s.agent_repos.names());
+        let repos = ctx.setup.with(|s| s.github_repos.clone());
         running.set(true);
         feedback.set(None);
         spawn_local(async move {
@@ -419,6 +421,8 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
     });
     let method = current(chosen, default);
     let (access, recheck) = use_github_access();
+    let watch_opened = RwSignal::new(false);
+    let settings_opened = RwSignal::new(false);
 
     view! {
         <VStack spacing="12px">
@@ -450,7 +454,12 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
                     <AppWay ctx=ctx />
                 </VStack>
             </div>
-            <RepoPicker ctx=ctx />
+            <Optional title=t!(SetupReposWatchTitle) opened=watch_opened>
+                <WatchedRepos ctx=ctx opened=watch_opened />
+            </Optional>
+            <Optional title=t!(SetupReposTitle) opened=settings_opened>
+                <RepoPicker ctx=ctx opened=settings_opened />
+            </Optional>
             {move || problem_of(&access).map(|a| view! { <AccessHint access=a recheck=recheck /> })}
             <ConnectionCheck ctx=ctx />
         </VStack>

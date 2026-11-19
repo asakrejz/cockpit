@@ -1,9 +1,9 @@
 # Repo picker of the setup
 setup_repos.enter_repo = Trage ein Repo ein, z. B. firma/app.
 setup_repos.none_left = Keine Repos mehr ausgewählt.
-setup_repos.saved = Gespeichert. Diese Repos gleicht Cockpit ab, und der Agent arbeitet in einem davon.
-setup_repos.title = Repos auswählen
-setup_repos.intro = Wähle die Repos aus, mit denen du arbeitest. Cockpit zeigt von ihnen die Pull Requests. Der Agent arbeitet bei jedem Ticket in einem davon. Du kannst Jira-Projekten auch ein Repo zuordnen: Tickets dieses Projekts landen dann dort, alle anderen im Standard-Repo. Vor dem Start kannst du das Repo in der Agent-Ansicht noch ändern.
+setup_repos.saved = Gespeichert.
+setup_repos.title = Repo-Einstellungen für den Agenten (optional)
+setup_repos.intro = Das brauchst du nur, wenn ein Repo eigene Regeln hat: einen Basis-Branch, ein Branch-Muster, die Sprache vom Pull-Request-Text oder Jira-Projekte, die dorthin gehören. Ohne Eintrag nimmt der Agent den Standard-Branch des Repos und das übliche Branch-Muster. Beim ersten Start in einem Repo legt der Agent hier selbst einen Eintrag an. Welches Repo gilt, wählst du bei jedem Ticket, wenn du den Agenten startest.
 setup_repos.search = Repos durchsuchen
 setup_repos.loading = Lade …
 setup_repos.reload = Erneut laden
@@ -28,3 +28,10 @@ setup_repos.remove = Entfernen
 setup_repos.save = Speichern
 setup_repos.pr_language = Sprache für Titel und Text des Pull Requests
 setup_repos.pr_language_hint = Die Sprache des Teams in diesem Repo. Der Agent schreibt die Commit-Nachricht und den Text des Pull Requests darin. Standard: Englisch.
+setup_repos.watch_title = Repos beobachten (optional)
+setup_repos.watch_intro = Auch ohne diese Liste siehst du alle Pull Requests, die du geschrieben hast, bei denen du prüfen sollst oder in denen du erwähnt wirst – in jedem Repo, das du sehen kannst. Wähle hier Repos aus, um dort auch alle offenen Pull Requests deiner Kolleginnen und Kollegen zu sehen.
+setup_repos.watch_saved = Gespeichert. Cockpit lädt jetzt alle offenen Pull Requests dieser Repos.
+setup_repos.watch_none_left = Es wird kein Repo mehr beobachtet.
+setup_repos.watch_save = Beobachtete Repos speichern
+setup_repos.watch_chosen = Beobachtet
+setup_repos.watch_none_chosen = Noch kein Repo beobachtet.

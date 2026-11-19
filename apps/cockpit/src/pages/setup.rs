@@ -16,7 +16,11 @@ mod github;
 mod jira;
 mod live;
 mod model;
+mod optional;
 mod repo_picker;
+pub(crate) use fields::error_text;
+pub(crate) use repo_picker::static_text;
+mod watched_repos;
 
 use cockpit_core::setup::{Snapshot, Step, first_open_step, summary};
 use feature_ui::*;

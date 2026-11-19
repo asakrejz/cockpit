@@ -18,7 +18,7 @@ Pages (hash routes):
 | Page | Address | What it does |
 |------|---------|--------------|
 | Einrichten | `#/setup`, `#/setup/<step>` | state and next step per service: sign in to / disconnect Jira and GitHub, check the agent endpoint, detect the container runtime |
-| Aufgaben | `#/tasks` (the filter chosen last), `#/`, `#/mine`, `#/team`, `#/snoozed` (the older addresses keep their filter) | inbox of tickets and pull requests, filtered by switchable rules (mention, review request, blocked PR, overdue ticket, agent done, assigned); snooze; change status, create a branch, reply, assign the agent; edit a ticket; link ticket and PR; search; the button "Filter" (with the number of active filters) opens the filter dialog with all filters, chips under it remove single filters; keys `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
+| Aufgaben | `#/tasks` (the filter chosen last), `#/`, `#/mine`, `#/team`, `#/snoozed` (the older addresses keep their filter) | inbox of tickets and pull requests, filtered by switchable rules (mention, review request, blocked PR, overdue ticket, agent done, assigned); snooze; change status, create a branch, reply, assign the agent; edit a ticket; pull requests link to their ticket automatically (the ticket key in branch, title or body; no manual linking), the section "Entwicklung" lists every linked PR with branch, state and checks; search; the button "Filter" (with the number of active filters) opens the filter dialog with all filters, chips under it remove single filters; keys `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
 | Review | `#/review/87` | tabs „Dateien“ (file tree with +/− counts, one collapsible diff per file, „Angesehen“ per file, long diffs cut at 300 lines with „Mehr anzeigen“) and „Commits“ (list; a click shows only that commit's diff, read only); select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you) |
 | Übersicht | `#/overview` | open entries and load per person; "Hängt" shows failed checks, waiting reviews, tickets without a branch and agents waiting for you |
 | Benachrichtigungen | `#/notifications` | per occasion choose browser, email and Slack; quiet hours; permission request by button; test notification |
@@ -61,7 +61,7 @@ tickets present. It is a display filter only; nothing is written to Jira.
 source state then says so). Pull requests of colleagues never raise attention or notifications: only pull requests
 with a relation to you (author, requested reviewer, assignee) can. They appear in the inbox only with "Alle", and on the
 Pull Requests page (`#/review`) the "Besitz" selection (default "Meine") switches between your pull requests and all
-open pull requests of the configured repos.
+open pull requests of the watched repos (`[github] repos`; the others show the ones you are involved in).
 
 Notifications are derived purely from comparing the workspace before and after an action
 (`crates/cockpit-core/src/notify.rs`). In the **browser** Cockpit never asks for permission by itself, only via the
@@ -91,6 +91,14 @@ and, after a pause or a cancel, a clone.
   entfernen“ they are removed (containers with `docker`/`podman rm -f`, never via the socket). The image and containers
   without the label are never touched. If the container program is not reachable, only folders are listed. The
   removal re-checks every item and skips whatever started working in the meantime.
+
+## Choosing the repo at the start
+
+The start dialog of a ticket has a searchable list of every repo your GitHub access can see. The suggestions come first,
+each with a short reason: used before for tickets of the same Jira project, has a pull request or branch for this
+ticket, named in the ticket, or set in the settings. Type to search; a valid `owner/name` that is not listed can be
+used as typed. The first time the agent works in a repo, Cockpit reads its default branch (and a branch pattern proposal
+from `CONTRIBUTING.md`) from GitHub and remembers it in `[[agent.repos]]`.
 
 More about agent behaviour (questions, steering, follow-up jobs, costs, limits, rules per repo) is in
 [docs/architecture.md](architecture.md#agent-behaviour).

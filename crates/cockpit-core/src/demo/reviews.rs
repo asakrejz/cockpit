@@ -171,6 +171,10 @@ pub(super) fn reviews(pr87: &Item, bau138: &Item, pr85: &Item) -> [Review; 3] {
     );
 
     review85.check_runs = failing_checks();
+    // Names a second ticket in the body, so that BAU-138 shows two linked pull requests.
+    review85
+        .description
+        .push_str(" Gehört zu BAU-138, siehe auch #91.");
     [review87, review91, review85]
 }
 

@@ -13,6 +13,14 @@ pub struct AgentReposInput {
     pub default: Option<String>,
 }
 
+/// Response of `GET /api/agent/repo-suggestions?ticket=KEY`: repos to offer first when the agent
+/// starts on the ticket, best first, every repo once with one reason.
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct RepoSuggestions {
+    #[serde(default)]
+    pub suggestions: Vec<crate::repos::suggest::RepoSuggestion>,
+}
+
 /// What a read-only look at a repo found.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RepoState {

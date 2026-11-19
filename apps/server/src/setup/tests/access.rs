@@ -165,3 +165,29 @@ fn the_install_page_only_exists_for_github_com() {
     );
     assert_eq!(install_url("https://api.github.com", "../evil?x"), None);
 }
+
+#[tokio::test]
+async fn without_configured_repos_the_report_is_just_connected_and_asks_nothing() {
+    let gh = MockServer::start().await;
+    let secrets = Arc::new(MemoryStore::new());
+    secrets.set("github", &Secret::new(TOKEN)).unwrap();
+    let sources = Sources {
+        github: Some(crate::config::GitHubConfig {
+            api_url: gh.uri(),
+            repos: vec![],
+        }),
+        ..Sources::default()
+    };
+    let state = AppState::create(
+        db::open_in_memory().unwrap(),
+        secrets,
+        8787,
+        sources,
+        Settings::default(),
+    );
+    let app = router(state, PathBuf::from("/x"));
+    let r = report(&app).await;
+    assert_eq!(r["connected"], true);
+    assert_eq!(r["repos"], json!([]));
+    assert!(gh.received_requests().await.unwrap().is_empty());
+}

@@ -122,6 +122,7 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `GET /api/agent/models` | model IDs of the endpoint for the drop-down: `{loaded, reachable, key_ok, models, hint}`; only IDs, sorted (Claude models first), at most 200 |
 | `GET /api/setup` | what the assistant prefills: Jira site/email/projects, client IDs, repos, provider, endpoint address and model, both callback addresses, and per key only `{name, set}` |
 | `POST /api/github/repos/check` | read-only look at repos (`{repos:[…]}` → per repo `Ok`/`ReadOnly`/`NotFound`/`NoAccess`/`Failed` plus the default branch); only `GET /repos/{owner}/{name}`, never changes anything |
+| `GET /api/agent/repo-suggestions?ticket=KEY` | repos to offer first for the ticket, best first, each with a reason (`previous_run`, `linked_pr`, `mentioned`, `rule`, `default`); only reads |
 | `PUT /api/config` | writes client IDs, Jira, repos, the agent's repos (`agent_repos`: list with base branch and projects, plus default), agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with plain text |
 | `PUT /api/secrets/{name}` | stores a key in `config/.env`; body `{"value": "…"}`; names `github-oauth`, `atlassian-oauth`, `agent-key` (older `litellm`), `jira`, `github`, `github-webhook`, `jira-webhook`; answer `{name, set}`, never the value |
 | `DELETE /api/secrets/{name}` | "Trennen" for tokens: deletes `jira` or `github` from `config/.env` (other names: `404`); answer `{name, set: false}` |
@@ -158,8 +159,12 @@ routes.
   shifts), verdict and "sent".
 - New comments and status, check and review changes from outside appear in the log with author "System" and trigger the
   notifications. `@your-login` in comments counts as a mention.
-- GitHub: per configured repo `GET /repos/{owner}/{name}/pulls?state=open` (100 per page, newest update first; limits
-  `[sync] max_prs_per_repo`/`max_prs_total`), no search calls and no extra call per pull request for the list. `GET /user`
+- GitHub: no repo list is needed. Three searches (`cockpit_core::sync::discovery::QUERIES`: `author:@me`,
+  `review-requested:@me`, `involves:@me`, 30 hits each) find the pull requests across every repo the credential can see;
+  `merge_hits` deduplicates and applies the limits, and each hit is loaded with `GET /repos/{owner}/{name}/pulls/{n}`. A
+  failed search is a hint and keeps what was known. Per watched repo (`[github] repos`) `GET /repos/{owner}/{name}/pulls?state=open`
+  loads all open pull requests (100 per page, newest update first; limits
+  `[sync] max_prs_per_repo`/`max_prs_total` for both). `GET /user`
   runs once per sync. The relation to you comes from the pull request (`user`, `requested_reviewers`, `assignees`) and is
   stored on `PrRef` (`author`, `mine`, `requested_me`, `assigned_me`; all `#[serde(default)]` and omitted when empty, so
   `wire_compat` snapshots stay byte-identical). Pull requests with a relation get `Scope::Mine` and the full detail
@@ -194,8 +199,13 @@ routes.
   A key without repo matches any repo with that number (old data, single-repo callers); a key with repo matches only
   that repo or an entry whose repo is still unknown. `Workspace::fill_repos` migrates old states at load: the repo
   comes from the sync link, from the inbox entry, or from the only configured repo (`Live::fill_repos`).
-- **Ticket → repo.** `cockpit_core::AgentRepos` (`[[agent.repos]]`: repo, base branch, Jira projects, plus the default)
-  chooses the repo of a ticket (`choose(project)`: rule, else default, else none). The backend applies it in
+- **Ticket → repo.** The repo is chosen in the start dialog (`AgentOptions.repo`, any `owner/name`; the list comes from
+  `GET /api/github/repos`, cached 5 minutes). `GET /api/agent/repo-suggestions?ticket=` ranks suggestions with
+  `cockpit_core::repos::suggest` (earlier runs of the same Jira project, linked pull requests, mentions in the ticket
+  text, configured rules). The first run in a repo without settings stores them in `[[agent.repos]]` (`watch = false`,
+  default branch from GitHub, `CONTRIBUTING.md` proposal; `AppState::repo_settings_prepare`).
+  `cockpit_core::AgentRepos` (`[[agent.repos]]`: repo, base branch, Jira projects, plus the default)
+  still routes a ticket without a choice (`choose(project)`: rule, else default, else none). The backend applies it in
   `AppState::agent_route` before `StartAgent` (user's `AgentOptions.repo` wins if it is a configured repo) and
   `GET /api/health` reports the same rules under `agent.repos`, so the interface preselects identically. A run
   stores its repo (`AgentRun.repo`), clones and pushes only there, and checks the repo against the configuration

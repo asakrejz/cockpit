@@ -89,6 +89,4 @@ pub use sync::{
 pub use team::{CAPACITY, LoadLevel, Member, Stuck, StuckKind, state_label};
 pub use team_filter::TeamChoice;
 pub use usage::{AgentLimits, Charge, Pricing, StopReason, Usage};
-pub use workspace::{
-    AgentError, LinkError, PullRequestDraft, ResumeError, StatusChange, Workspace,
-};
+pub use workspace::{AgentError, LinkedPr, PullRequestDraft, ResumeError, StatusChange, Workspace};

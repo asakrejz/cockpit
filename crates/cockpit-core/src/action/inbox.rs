@@ -167,33 +167,6 @@ impl Workspace {
                     ),
                 )])
             }
-            Action::LinkPr { item, pr } => {
-                let key = self.key_of(&item)?;
-                if !self.item(&item).is_some_and(Item::is_ticket) {
-                    return Err(ActionError::NotATicket);
-                }
-                self.link_pr(&item, &pr).map_err(|e| match e {
-                    LinkError::Same => ActionError::Unchanged,
-                    e => ActionError::Link(e),
-                })?;
-                let mut notes = vec![Note::coded(
-                    Target::Item(item),
-                    msg!(CoreActionLogLinked, key = key, pr = pr.to_string()),
-                )];
-                notes.extend(status_notes(self.follow_status()));
-                Ok(notes)
-            }
-            Action::UnlinkPr { item } => {
-                let key = self.key_of(&item)?;
-                if !self.item(&item).is_some_and(Item::is_ticket) {
-                    return Err(ActionError::NotATicket);
-                }
-                let number = self.unlink_pr(&item).ok_or(ActionError::NothingToDo)?;
-                Ok(vec![Note::coded(
-                    Target::Item(item),
-                    msg!(CoreActionLogUnlinked, key = key, pr = number.to_string()),
-                )])
-            }
             Action::AutoLinkPrs => {
                 let linked = self.auto_link();
                 if linked.is_empty() {

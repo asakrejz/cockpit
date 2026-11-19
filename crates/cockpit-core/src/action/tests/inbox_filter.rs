@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::filters::{ASSIGNED_TO_ME, JIRA_PROJECT_FILTER, UNASSIGNED, UNASSIGNED_NAME};
-use crate::{InboxFilter, Ownership, SourceFilter, SprintView};
+use crate::{InboxFilter, Item, Ownership, SourceFilter, SprintView};
 
 fn narrowed() -> InboxFilter {
     InboxFilter {

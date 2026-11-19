@@ -77,6 +77,10 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
             get(crate::attachments::thumbnail),
         )
         .route("/api/agent/models", get(agent_models))
+        .route(
+            "/api/agent/repo-suggestions",
+            get(crate::agent_ops::suggest::repo_suggestions_route),
+        )
         .route("/api/agent/check", get(endpoint_check))
         .route("/api/agent/pull-request", get(pull_request_preview))
         .route(

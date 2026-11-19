@@ -109,6 +109,13 @@ async fn github() -> MockServer {
 
 async fn mount_github(s: &MockServer) {
     get(s, "/user", ok(json!({"login": "ich"}))).await;
+    // The search finds nothing besides the repos of the list.
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .respond_with(ok(json!({"total_count": 0, "items": []})))
+        .with_priority(200)
+        .mount(s)
+        .await;
     get(
         s,
         "/repos/a/x/pulls",
@@ -528,3 +535,77 @@ async fn other_actions_stay_local() {
     assert_eq!(g.received_requests().await.unwrap().len(), before);
 }
 mod agent_review;
+
+/// GitHub without any configured repo: the pull request is only reachable through the search.
+async fn github_search_only() -> MockServer {
+    let s = MockServer::start().await;
+    mount_github(&s).await;
+    Mock::given(method("GET"))
+        .and(path("/search/issues"))
+        .and(query_param("q", "is:pr is:open author:@me"))
+        .respond_with(ok(json!({"total_count": 1, "items": [{
+            "number": 7,
+            "repository_url": "https://api.github.com/repos/a/x"
+        }]})))
+        .mount(&s)
+        .await;
+    get(
+        &s,
+        "/repos/a/x/pulls/7",
+        ok(json!({
+            "number": 7, "title": "Avatar", "user": {"login": "ich"},
+            "requested_reviewers": [],
+            "head": {"ref": "feature/x", "sha": "s1"}, "base": {"ref": "main"},
+            "updated_at": "2024-05-14T10:00:00Z"})),
+    )
+    .await;
+    s
+}
+
+fn sources_without_repos(api: &str) -> Sources {
+    Sources {
+        github: Some(GitHubConfig {
+            api_url: api.into(),
+            repos: vec![],
+        }),
+        interval: Duration::from_secs(120),
+        ..Sources::default()
+    }
+}
+
+#[tokio::test]
+async fn connected_github_syncs_without_any_repo_and_health_says_so() {
+    let g = github_search_only().await;
+    let state = state(sources_without_repos(&g.uri()), true);
+    // Connected means active: the sync is not "off" for a missing list of repos.
+    assert_eq!(health(&state).await["sync"]["github"], "waiting");
+    let (status, answer) = sync(&state).await;
+    assert_eq!((status, &answer["active"]), (StatusCode::OK, &json!(true)));
+    let (ws, _) = snapshot(&state).await;
+    assert_eq!(ws.sync.pr(7).unwrap().repo, "a/x");
+    assert_eq!(health(&state).await["sync"]["github"], "ok");
+    // No list call for the repos was made: only the search and the pull request itself.
+    let paths: Vec<String> = g
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| r.url.path().to_string())
+        .collect();
+    assert!(
+        !paths.contains(&"/repos/a/x/pulls".to_string()),
+        "{paths:?}"
+    );
+    assert_eq!(
+        paths.iter().filter(|p| *p == "/search/issues").count(),
+        3,
+        "{paths:?}"
+    );
+}
+
+#[tokio::test]
+async fn an_unconnected_github_stays_off_without_a_section() {
+    // No `[github]` section and no key: nothing is connected, so the sync is off.
+    let unconnected = state(Sources::default(), false);
+    assert_eq!(health(&unconnected).await["sync"]["github"], "off");
+}

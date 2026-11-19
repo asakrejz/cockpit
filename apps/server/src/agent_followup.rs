@@ -19,7 +19,6 @@ use cockpit_integrations::github::dto::PullSummary;
 
 use crate::agent_run::FollowupJob;
 use crate::app::{AppState, now_ms};
-use crate::config::DEFAULT_GITHUB_API;
 use crate::live::Error as LiveError;
 use crate::sync::ActionFailure;
 
@@ -51,12 +50,13 @@ impl AppState {
         let token = self
             .github_access()
             .ok_or_else(|| msg!(ServerAgentGithubNotConnected))?;
-        let sources = self.sources();
-        let api = sources
-            .github
-            .as_ref()
-            .map_or(DEFAULT_GITHUB_API, |g| g.api_url.as_str());
-        GitHubClient::new(api, token).map_err(|e| {
+        let api = self.sources().github_config().api_url;
+        // A test never reaches the real GitHub: a state without its own mock address fails here.
+        #[cfg(test)]
+        if api == crate::config::DEFAULT_GITHUB_API {
+            return Err(Msg::raw("tests do not call the real GitHub"));
+        }
+        GitHubClient::new(&api, token).map_err(|e| {
             msg!(
                 ServerAgentGithubAccessInvalid,
                 error = Msg::raw(e.to_string())
@@ -90,7 +90,7 @@ impl AppState {
         // The pull request says which repo it lives in; the agent must be allowed to work there.
         let repo = link.repo.clone();
         let number = link.number;
-        if !self.agent_repos().allows(&repo) {
+        if !self.repo_usable(&repo) {
             return Err(msg!(
                 ServerAgentPrOtherRepo,
                 review = review.to_string(),

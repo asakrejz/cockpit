@@ -348,7 +348,7 @@ fn agent_repos_alone_are_also_the_repos_of_the_sync() {
 }
 
 #[test]
-fn saving_the_list_migrates_the_old_format() {
+fn saving_the_list_keeps_the_watched_repos_of_the_github_section() {
     use cockpit_core::AgentRepo;
     use cockpit_core::api::AgentReposInput;
     let a = ConfigChange {
@@ -366,18 +366,57 @@ fn saving_the_list_migrates_the_old_format() {
         ..Default::default()
     };
     let (text, c) = change(OLD_GITHUB, &a).unwrap();
-    // One place for the repos; the address of the older section stays.
-    assert!(!text.contains("repos = [\"firma/app\""), "{text}");
+    // The watched repos of `[github]` are a list of their own and stay, with the address.
+    assert!(text.contains("repos = [\"firma/app\""), "{text}");
     assert!(text.contains("api_url = \"https://ghe.example/api/v3\""));
     assert!(text.contains("[[agent.repos]]") && text.contains("# nur lesen"));
     let g = c.github.unwrap();
-    assert_eq!(g.repos, ["firma/app", "firma/neu"]);
     assert_eq!(g.api_url, "https://ghe.example/api/v3");
+    assert!(g.repos.contains(&"firma/neu".to_string()), "{:?}", g.repos);
     // The written file reads back the same.
     let again = Config::parse(Some(&text), |_| None).unwrap();
     assert_eq!(again.agent_repos, c.agent_repos);
     assert_eq!(again.agent_repos[1].base_branch, "develop");
-    assert_eq!(again.github.unwrap().repos, ["firma/app", "firma/neu"]);
+    assert_eq!(again.github.unwrap().repos, g.repos);
+}
+
+#[test]
+fn a_repo_stored_on_first_use_is_not_watched_and_reads_back() {
+    use cockpit_core::AgentRepo;
+    use cockpit_core::api::AgentReposInput;
+    let a = ConfigChange {
+        agent_repos: Some(AgentReposInput {
+            repos: vec![AgentRepo {
+                base_branch: "develop".into(),
+                watch: false,
+                ..AgentRepo::new("firma/neu")
+            }],
+            default: None,
+        }),
+        ..Default::default()
+    };
+    let (text, c) = change("", &a).unwrap();
+    assert!(text.contains("watch = false"), "{text}");
+    assert!(!c.agent_repos[0].watch);
+    assert!(c.github.is_none(), "stored settings do not widen the sync");
+    assert_eq!(c.agent_repos[0].base_branch, "develop");
+}
+
+#[test]
+fn choosing_the_watched_repos_unwatches_the_entries_that_left_the_list() {
+    let start = "[github]\nrepos = [\"firma/app\"]\n[[agent.repos]]\nrepo = \"firma/web\"\n";
+    let before = Config::parse(Some(start), |_| None).unwrap();
+    assert_eq!(before.github.unwrap().repos, ["firma/app", "firma/web"]);
+    let a = ConfigChange {
+        github: Some(cockpit_core::api::GitHubInput {
+            repos: vec!["firma/app".into()],
+        }),
+        ..Default::default()
+    };
+    let (text, c) = change(start, &a).unwrap();
+    assert!(text.contains("watch = false"), "{text}");
+    assert_eq!(c.github.unwrap().repos, ["firma/app"]);
+    assert_eq!(c.agent_repos[0].repo, "firma/web");
 }
 
 #[test]
@@ -435,8 +474,13 @@ fn saving_an_empty_list_removes_both_places() {
         &a,
     )
     .unwrap();
-    assert!(!text.contains("firma/app"), "{text}");
-    assert!(c.github.is_none() && c.agent_repos.is_empty());
+    // Only the entries of the agent go; the watched repos of `[github]` stay.
+    assert!(
+        !text.contains("[agent]") && text.contains("firma/app"),
+        "{text}"
+    );
+    assert!(c.agent_repos.is_empty());
+    assert_eq!(c.github.unwrap().repos, ["firma/app"]);
 }
 
 #[test]

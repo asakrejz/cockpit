@@ -277,6 +277,12 @@ impl GitHubClient {
             .await
     }
 
+    /// One search for pull requests (`is:pr is:open …`) across every repo the key can see, at most
+    /// [`MAX_PRS`] results, most recently updated first. Returns `(owner/name, number)`.
+    pub async fn search_pulls(&self, query: &str) -> Result<Vec<(String, u32)>, Error> {
+        self.search_with(query).await
+    }
+
     /// The search, page by page (100 each), until there is no full page any more or
     /// [`MAX_PRS`] is reached.
     async fn search_with(&self, q: &str) -> Result<Vec<(String, u32)>, Error> {

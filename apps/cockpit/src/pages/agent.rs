@@ -17,6 +17,7 @@ mod job;
 mod labels;
 mod progress;
 mod pull_request;
+mod repo_choice;
 mod sidebar;
 mod texts;
 
