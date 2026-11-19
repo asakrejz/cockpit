@@ -17,7 +17,6 @@ mod sidebar;
 mod store;
 mod sync_status;
 mod toasts;
-mod translate;
 mod view;
 
 use std::time::Duration;

@@ -183,7 +183,7 @@ impl AppState {
     }
 
     /// The key of the endpoint. `Err` is already a finished response.
-    pub(crate) async fn endpoint_key(
+    pub(super) async fn endpoint_key(
         &self,
     ) -> Result<Option<cockpit_integrations::Secret>, Box<Response>> {
         let secrets = self.inner.secrets.clone();

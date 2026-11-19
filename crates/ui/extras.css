@@ -783,13 +783,3 @@ body.ui-scroll-locked { overflow: hidden; }
 /* Agent runs: the „Aufräumen“ button under the list and the lists in its dialog. */
 .ck-cleanup { padding: var(--ref-space-8) var(--ref-space-12); }
 .ck-cleanup__list { margin: 0; padding-inline-start: var(--ref-space-16); overflow-wrap: anywhere; }
-
-/* "Translate" under a text from Jira or GitHub: the button, the notice before the first time and the reason if it fails. */
-.ck-translate {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--ref-space-8);
-  margin-block: var(--ref-space-4) var(--ref-space-8);
-}
-.ck-translate > .ui-hint { flex-basis: 100%; }

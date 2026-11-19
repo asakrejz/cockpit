@@ -85,5 +85,3 @@ and, after a pause or a cancel, a clone.
 
 More about agent behaviour (questions, steering, follow-up jobs, costs, limits, rules per repo) is in
 [docs/architecture.md](architecture.md#agent-behaviour).
-
-**Translate:** under the description and the comments of a ticket and under the description of a pull request there is a button "Translate to <language of the interface>". It works only on a click and sends that one text to the model you set up for the agent (through the local server); the first time a notice says so. "Show original" switches back. The translation is kept in a cache until you reload the page (and in the server), and the original is never changed. Without a key and a model for the agent the button is disabled. Long texts (over 20,000 characters) are refused.
