@@ -15,14 +15,17 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         image_hint: None,
         model: false,
         key: false,
-        repo: Err(Msg::raw("Es ist kein Repo eingetragen.")),
         github_access: false,
     };
     let f = texts(missing(&v));
-    assert_eq!(f.len(), 4);
+    assert_eq!(
+        f.len(),
+        3,
+        "no repo is needed to be ready: it is chosen at the start"
+    );
     assert!(f[0].contains("Einrichten") && f[0].contains("Container"));
     assert!(f[1].contains("der Modellname, der Key") && !f[1].contains("Adresse"));
-    assert!(f[3].contains("GitHub"));
+    assert!(f[2].contains("GitHub"));
     let running = ContainerStatus {
         runtime: Some("docker".into()),
         engine_running: true,
@@ -34,7 +37,6 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         image_hint: None,
         model: true,
         key: true,
-        repo: Ok("firma/app"),
         github_access: true,
     };
     let f = texts(missing(&fast));
@@ -47,7 +49,6 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         image_hint: None,
         model: true,
         key: true,
-        repo: Ok("firma/app"),
         github_access: true,
     };
     let f = texts(missing(&outdated));
@@ -61,7 +62,6 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
     let unknown = Prerequisites {
         image: ImageState::Unknown,
         image_hint: Some(Msg::raw("Der Ordner fehlt.")),
-        repo: Ok("firma/app"),
         ..outdated
     };
     let f = texts(missing(&unknown));
@@ -77,7 +77,7 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
             ..fast
         },
     );
-    assert!(s.ready && s.mode == "real" && s.repo.as_deref() == Some("firma/app"));
+    assert!(s.ready && s.mode == "real");
     let not_running = ContainerStatus {
         runtime: Some("podman".into()),
         engine_running: false,
@@ -89,7 +89,6 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         image_hint: None,
         model: true,
         key: true,
-        repo: Ok("a/b"),
         github_access: true,
     }));
     assert!(f[0].contains("Podman") && f[0].contains("Schritt „Container“"));

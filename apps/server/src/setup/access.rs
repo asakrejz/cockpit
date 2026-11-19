@@ -1,4 +1,4 @@
-//! Can the connected GitHub access see the configured repos? Read-only.
+//! Can the connected GitHub access see the configured (watched) repos? Read-only.
 //!
 //! A GitHub App sign-in only sees repos on accounts where the app is installed. A repo it
 //! cannot see answers 404 (or 403 when a permission is missing). The sync keeps such a repo as a
@@ -44,10 +44,10 @@ impl AppState {
             return GitHubAccess::default();
         };
         let sources = self.sources();
-        let (api, repos) = sources.github.as_ref().map_or_else(
-            || (crate::config::DEFAULT_GITHUB_API.to_string(), Vec::new()),
-            |g| (g.api_url.clone(), g.repos.clone()),
-        );
+        // Only the configured (watched) repos are checked; without any, the report is just
+        // "connected" and no hint appears.
+        let g = sources.github_config();
+        let (api, repos) = (g.api_url, g.repos);
         let mut report = GitHubAccess {
             connected: true,
             via_app: access.app,
@@ -58,7 +58,10 @@ impl AppState {
                 match access.client.repo_access(&repo).await {
                     Ok(_) => RepoVisibility::Visible,
                     Err(e) => {
-                        tracing::warn!("GitHub access to {repo}: {e}");
+                        tracing::warn!(
+                            "GitHub access to {repo}: {}",
+                            e.msg().render(cockpit_i18n::Lang::En)
+                        );
                         visibility_of(&e)
                     }
                 }

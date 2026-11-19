@@ -127,7 +127,7 @@ async fn a_review_run_reads_only_and_keeps_its_drafts_local() {
 }
 
 #[tokio::test]
-async fn a_review_run_needs_a_repo_the_agent_may_work_in() {
+async fn a_review_run_in_an_unknown_repo_needs_github_to_show_the_repo() {
     let g = MockServer::start().await;
     let w = world(&g);
     let mut ws = w.ws();
@@ -144,7 +144,8 @@ async fn a_review_run_needs_a_repo_the_agent_may_work_in() {
         })
         .await
         .unwrap_err();
-    assert!(err.contains("darf dort aber nicht arbeiten"), "{err}");
+    // The repo has no settings yet: they are read from GitHub first, which does not show it.
+    assert!(err.contains("GitHub kennt das Repo"), "{err}");
     assert!(w.ws().runs.iter().all(|r| r.key() != KEY));
 }
 

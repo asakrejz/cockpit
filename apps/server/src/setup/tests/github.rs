@@ -87,6 +87,23 @@ async fn the_list_comes_from_the_user_repos_with_a_token() {
 }
 
 #[tokio::test]
+async fn the_list_is_kept_for_a_few_minutes_so_the_dialogs_do_not_ask_again() {
+    let gh = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/user/repos"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([entry("firma/app")])))
+        .expect(1)
+        .mount(&gh)
+        .await;
+    let app = gh_app(&gh.uri(), Some(TOKEN), None);
+    let (first, _) = list(&app).await;
+    let (second, a) = list(&app).await;
+    assert_eq!((first, second), (StatusCode::OK, StatusCode::OK));
+    assert_eq!(a["repos"][0]["repo"], "firma/app");
+    // `expect(1)` is checked when the mock server is dropped: one call to GitHub in all.
+}
+
+#[tokio::test]
 async fn the_list_of_a_github_app_comes_from_its_installations() {
     let gh = MockServer::start().await;
     Mock::given(method("GET"))

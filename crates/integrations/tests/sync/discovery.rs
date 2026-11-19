@@ -168,7 +168,7 @@ async fn a_failed_search_keeps_the_known_pull_requests_and_says_so() {
     assert_eq!(ws.reviews.len(), 1, "the pull request does not vanish");
     let st = ws.sync.state_of(Source::GitHub).unwrap();
     assert!(
-        st.warnings.iter().any(|w| w.contains("search")),
+        st.warnings.iter().any(|w| w.contains("Suche")),
         "{:?}",
         st.warnings
     );

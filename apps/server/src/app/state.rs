@@ -137,6 +137,10 @@ pub(crate) struct Inner {
     pub(crate) webhooks: crate::webhooks::Hub,
     /// Attachments read from Jira, kept briefly (see `attachments`).
     pub(crate) attachments: crate::attachments::Cache,
+    /// The repos the GitHub access can see, kept for a few minutes (the start dialog and the
+    /// setup ask often; the list costs several calls).
+    pub(crate) repo_list:
+        std::sync::Mutex<Option<(std::time::Instant, cockpit_core::api::GitHubRepoList)>>,
 }
 
 impl AppState {
@@ -217,6 +221,7 @@ impl AppState {
                 agent: crate::agent_ops::Runs::default(),
                 webhooks: crate::webhooks::Hub::new(settings.webhooks.clone()),
                 attachments: Default::default(),
+                repo_list: Default::default(),
                 settings,
             }),
         }
@@ -274,6 +279,8 @@ impl AppState {
             Err(v) => *v.into_inner() = repos,
         }
         self.inner.webhooks.apply(c.webhooks, c.public_url.clone());
+        // Another address or sign-in may see other repos.
+        self.repo_list_forget();
     }
 
     /// A tick of the tasks in the background. The simulated agent only joins in if the server

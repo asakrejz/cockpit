@@ -1,7 +1,10 @@
 //! Which repos the agent may work in and where a start request goes.
 
+use super::super::agent_followup::github_message;
 use super::*;
 use cockpit_core::AgentOptions;
+use cockpit_core::AgentRepo;
+use cockpit_core::api::{AgentReposInput, ConfigChange};
 use cockpit_core::branch::{BranchType, DEFAULT_PATTERN};
 use cockpit_core::model::PrKey;
 use cockpit_i18n::{Msg, msg};
@@ -22,6 +25,128 @@ impl AppState {
         agent_run::repos_effective(&cfg.repos, cfg.default.as_deref(), &github)
     }
 
+    /// May the agent work in this repo? Any `owner/name` the person has access to: the repo is
+    /// chosen when the run starts (the clone fails if GitHub does not show it). A repo of the
+    /// configuration needs no check either.
+    pub(crate) fn repo_usable(&self, repo: &str) -> bool {
+        agent_git::repo_name_ok(repo)
+    }
+
+    /// Does the configuration hold the settings of this repo (`[[agent.repos]]` or the default
+    /// `[agent] repo`)? Blocking-free: only reads the kept configuration.
+    pub(crate) fn repo_configured(&self, repo: &str) -> bool {
+        let cfg = match self.inner.agent_repo_config.read() {
+            Ok(c) => c.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        };
+        cfg.default.as_deref() == Some(repo) || cfg.repos.iter().any(|r| r.repo == repo)
+    }
+
+    /// The repo an action is about, if it names one: the choice of a start, or the repo of the
+    /// pull request a follow-up or review works on.
+    fn action_repo(&self, action: &Action) -> Option<String> {
+        let ws = self.inner.live.copy();
+        let of_pr = |review: &PrKey| ws.sync.pr(review).map(|l| l.repo.clone());
+        match action {
+            Action::StartAgent { options, .. } => options.repo.clone().filter(|r| !r.is_empty()),
+            Action::StartPrReview { review }
+            | Action::AddressReviewThreads { review, .. }
+            | Action::FixFailedChecks { review, .. } => of_pr(review),
+            _ => None,
+        }
+    }
+
+    /// First use of a repo (real agent only): reads its default branch and the branch proposal
+    /// of its `CONTRIBUTING.md` from GitHub and stores them as an entry of `[[agent.repos]]`
+    /// (with `watch = false`, so the sync does not start loading all its pull requests). From
+    /// then on the settings are the same ones every other part uses – and the user can edit them
+    /// in the file. A repo that has settings already is left alone. Only reads from GitHub.
+    pub(crate) async fn repo_settings_prepare(&self, action: &Action) -> Result<(), Msg> {
+        if !self.agent_real() {
+            return Ok(());
+        }
+        let Some(repo) = self.action_repo(action) else {
+            return Ok(());
+        };
+        if !self.repo_usable(&repo) || self.repo_configured(&repo) {
+            return Ok(());
+        }
+        let client = self.github_client_async().await?;
+        let base = match self
+            .repo_list_kept()
+            .and_then(|l| l.repos.into_iter().find(|r| r.repo == repo))
+            .map(|r| r.default_branch)
+            .filter(|b| !b.is_empty())
+        {
+            Some(b) => b,
+            None => {
+                client
+                    .repo_access(&repo)
+                    .await
+                    .map_err(|e| github_message(msg!(ServerAgentWhatRepoRead), &e))?
+                    .default_branch
+            }
+        };
+        // The proposal from the contribution guidelines; none is as good as the default pattern.
+        let pattern = client
+            .contributing(&repo)
+            .await
+            .ok()
+            .flatten()
+            .and_then(|(_, text)| cockpit_core::branch::suggest(&text))
+            .map(|s| s.pattern)
+            .filter(|p| cockpit_core::branch::validate(p).is_ok());
+        let mut entry = AgentRepo::new(&repo);
+        entry.watch = false;
+        if agent_git::base_branch_ok(&base) {
+            entry.base_branch = base;
+        }
+        if let Some(p) = pattern {
+            entry.branch_pattern = p;
+        }
+        let s = self.clone();
+        tokio::task::spawn_blocking(move || s.repo_settings_save(entry))
+            .await
+            .map_err(|_| msg!(ServerAgentInternal))?;
+        Ok(())
+    }
+
+    /// Adds an entry to `[[agent.repos]]` in `config.toml` and applies it. Without a
+    /// configuration file (or if it cannot be written) the settings are only kept in memory until
+    /// the restart; the failure is logged. Blocking.
+    fn repo_settings_save(&self, entry: AgentRepo) {
+        let cfg = self.agent_repos_config();
+        let mut repos = cfg.repos.clone();
+        // A default repo without its own entry keeps the usual settings next to the new one.
+        if let Some(d) = &cfg.default
+            && !repos.iter().any(|r| &r.repo == d)
+        {
+            repos.push(AgentRepo::new(d));
+        }
+        if repos.iter().any(|r| r.repo == entry.repo) {
+            return;
+        }
+        repos.push(entry.clone());
+        let change = ConfigChange {
+            agent_repos: Some(AgentReposInput {
+                repos: repos.clone(),
+                default: cfg.default.clone(),
+            }),
+            ..ConfigChange::default()
+        };
+        if let Err((_, m)) = self.config_change(&change) {
+            tracing::warn!(
+                "Settings of {} not stored: {}",
+                entry.repo,
+                m.render(cockpit_i18n::Lang::En)
+            );
+            match self.inner.agent_repo_config.write() {
+                Ok(mut c) => c.repos = repos,
+                Err(v) => v.into_inner().repos = repos,
+            }
+        }
+    }
+
     /// The repo a run works in: the one it was started for, or the default for runs of an
     /// old state without repo (or with the placeholder repo of the sample data). Always one
     /// of the configured repos; otherwise the plain-text reason.
@@ -35,7 +160,7 @@ impl AppState {
         let Some(repo) = repo else {
             return Err(msg!(ServerAgentRepoNoneForRun));
         };
-        if !repos.allows(&repo) {
+        if !self.repo_usable(&repo) {
             return Err(msg!(ServerAgentRepoNotAllowedAnyMore, repo = repo));
         }
         Ok(repo)
@@ -84,7 +209,7 @@ impl AppState {
         options.pr_language = cockpit_i18n::Lang::En;
         options.branch_type = BranchType::Feature.as_str().into();
         if let Some(chosen) = options.repo.clone().filter(|r| !r.is_empty()) {
-            if !repos.allows(&chosen) {
+            if !self.repo_usable(&chosen) {
                 return Err(msg!(ServerAgentRepoNotAllowed, repo = chosen));
             }
             // The base branch always belongs to the repo, whatever the request carries.

@@ -20,8 +20,18 @@ pub struct EndpointConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GitHubConfig {
     pub api_url: String,
-    /// `owner/name`; without repos GitHub does not sync.
+    /// `owner/name`: the "watched" repos, of which all open pull requests are loaded. Without
+    /// repos the sync still finds the pull requests of the signed-in user by search.
     pub repos: Vec<String>,
+}
+
+impl Default for GitHubConfig {
+    fn default() -> Self {
+        Self {
+            api_url: super::DEFAULT_GITHUB_API.into(),
+            repos: Vec::new(),
+        }
+    }
 }
 
 /// The GitHub App for the sign-in. The client secret is in the .env file.

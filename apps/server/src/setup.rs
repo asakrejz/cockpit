@@ -81,7 +81,10 @@ impl AppState {
     }
 
     /// Changes `config.toml` and applies the result. Blocking.
-    fn config_change(&self, a: &ConfigChange) -> Result<ConfigResponse, (StatusCode, Msg)> {
+    pub(crate) fn config_change(
+        &self,
+        a: &ConfigChange,
+    ) -> Result<ConfigResponse, (StatusCode, Msg)> {
         let Some(path) = self.inner.settings.config_path.clone() else {
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -268,6 +271,7 @@ pub async fn key(
     .await;
     match result {
         Ok(Ok(())) => {
+            state.repo_list_forget();
             tracing::info!("Key for {name} stored");
             Json(KeyResponse { name, set: true }).into_response()
         }
@@ -295,6 +299,7 @@ pub async fn key_delete(State(state): State<AppState>, UrlPath(name): UrlPath<St
     let n = name.clone();
     match tokio::task::spawn_blocking(move || secrets.delete(&n)).await {
         Ok(Ok(())) => {
+            state.repo_list_forget();
             tracing::info!("Key for {name} deleted");
             Json(KeyResponse { name, set: false }).into_response()
         }

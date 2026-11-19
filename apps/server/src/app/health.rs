@@ -107,10 +107,7 @@ impl AppState {
             status: "ok",
             version: VERSION,
             sync: SyncState {
-                github: state(
-                    q.github.as_ref().is_some_and(|g| !g.repos.is_empty()) && github.connected,
-                    cockpit_core::Source::GitHub,
-                ),
+                github: state(github.connected, cockpit_core::Source::GitHub),
                 jira: state(
                     q.jira.is_some() && jira.connected,
                     cockpit_core::Source::Jira,

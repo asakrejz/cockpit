@@ -107,25 +107,36 @@ async fn a_followup_reads_and_pushes_in_the_repo_of_its_pull_request() {
 }
 
 #[tokio::test]
-async fn a_followup_in_a_repo_the_agent_may_not_use_is_refused() {
+async fn the_first_use_of_a_repo_stores_its_settings_from_github() {
     let github = MockServer::start().await;
-    comments_of(&github, "firma/web", "x").await;
+    Mock::given(method("GET"))
+        .and(path("/repos/firma/web"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "default_branch": "develop", "archived": false, "permissions": {"push": true}
+        })))
+        .mount(&github)
+        .await;
     let w = two_repo_welt(&github);
     *w.state.inner.agent_repo_config.write().unwrap() = crate::app::RepoConfig {
         repos: vec![cockpit_core::AgentRepo::new("firma/app")],
         default: Some("firma/app".into()),
     };
-    let e = w
-        .action(Action::AddressReviewThreads {
-            review: cockpit_core::PrKey::new("firma/web", 85),
-            options: direct(),
-        })
-        .await
-        .unwrap_err();
-    assert!(
-        e.contains("firma/web") && e.contains("nicht arbeiten"),
-        "{e}"
-    );
+    let action = Action::AddressReviewThreads {
+        review: cockpit_core::PrKey::new("firma/web", 85),
+        options: direct(),
+    };
+    w.state.repo_settings_prepare(&action).await.unwrap();
+    let stored = w.state.agent_repos_config();
+    let web = stored.find("firma/web").expect("stored");
+    assert_eq!(web.base_branch, "develop");
+    assert!(!web.watch, "the first use does not widen the sync");
+    assert!(stored.find("firma/app").is_some());
+    // The follow-up now branches off the repo's own default branch.
+    assert_eq!(w.state.agent_repos().base_branch("firma/web"), "develop");
+    // A second call changes nothing (and asks GitHub nothing).
+    let asked = github.received_requests().await.unwrap().len();
+    w.state.repo_settings_prepare(&action).await.unwrap();
+    assert_eq!(github.received_requests().await.unwrap().len(), asked);
 }
 
 #[tokio::test]

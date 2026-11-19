@@ -61,6 +61,10 @@ pub(super) struct FileAgentRepo {
     /// Language of the pull request title and text: `en` (default) or `de`.
     #[serde(default)]
     pub(super) pr_language: Option<String>,
+    /// `false`: the entry only keeps the settings of the repo; the sync does not load all of its
+    /// open pull requests. Written by the app on the first use of a repo.
+    #[serde(default)]
+    pub(super) watch: Option<bool>,
 }
 
 #[derive(Deserialize)]
@@ -222,6 +226,7 @@ pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>,
             projects,
             branch_pattern: pattern.to_string(),
             pr_language,
+            watch: r.watch.unwrap_or(true),
         });
     }
     Ok(out)
