@@ -73,14 +73,14 @@ pub use filters::{
     NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED, UNASSIGNED_NAME, filter_def,
 };
 pub use model::*;
+pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};
+pub use notify::{
+    Channel, Channels, Delivery, Event as NotifyEvent, NotifyReason, NotifySettings, QuietHours,
+};
 pub use permissions::{Access, Right, TokenKind};
 pub use project::{
     FieldDef, FieldKind, FieldValue, IssueLink, IssueRef, ProjectItem, ProjectMeta, ProjectOrigin,
     ProjectRef, ProjectSummary, SelectOption, TicketsFrom,
-};
-pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};
-pub use notify::{
-    Channel, Channels, Delivery, Event as NotifyEvent, NotifyReason, NotifySettings, QuietHours,
 };
 pub use repos::{AgentRepo, AgentRepos, RepoChoice};
 pub use review::{

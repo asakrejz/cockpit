@@ -90,10 +90,10 @@ pub const DEMO_REPO_TOKENS: &str = "acme/design-tokens";
 /// Due date of the demo ticket BAU-150: lies before the day the demo was made.
 pub const DEMO_OVERDUE: &str = "2026-11-09";
 
-/// What the server starts with for `COCKPIT_SEED=demo`, and what „Beispieldaten zurücksetzen“
-/// restores: the sample data plus two tickets of a sample GitHub project.
+/// What the server starts with for `COCKPIT_SEED=demo`: the sample data with two repos plus two
+/// tickets of a sample GitHub project (an issue and a draft).
 pub fn seed() -> Workspace {
-    let mut ws = workspace();
+    let mut ws = multi_repo_workspace();
     let (issue, draft) = project_tickets();
     ws.items.extend([issue, draft]);
     ws

@@ -34,7 +34,6 @@ pub fn TicketsFromPicker(ctx: Context) -> impl IntoView {
     let current = Signal::derive(move || ctx.setup.with(|s| s.github_projects.tickets_from));
     view! {
         <VStack spacing="8px">
-            <span class="t-headline">{t!(SetupProjectsFromLabel)}</span>
             <div class="ui-segmented" role="group" aria-label=move || t!(SetupProjectsFromLabel) style="align-self: stretch">
                 {TicketsFrom::ALL
                     .into_iter()

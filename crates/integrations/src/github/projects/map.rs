@@ -3,8 +3,8 @@
 use cockpit_core::project::{DEFAULT_TEAM_FIELD, draft_key, issue_key, status_of};
 use cockpit_core::{
     Comment, DetailField, DetailValue, Details, FieldKind, FieldValue, IssueLink, Item, Kind,
-    Person, Priority, PrKey, ProjectItem, ReasonKind, Scope, Source, Sprint, SprintState,
-    TeamRef, TicketStatus,
+    Person, PrKey, Priority, ProjectItem, ReasonKind, Scope, Source, Sprint, SprintState, TeamRef,
+    TicketStatus,
 };
 use cockpit_i18n::Lang;
 
@@ -419,7 +419,11 @@ pub fn heavy_of(d: &DetailNode, ctx: &MapCtx<'_>) -> Heavy {
         .iter()
         .flat_map(|c| c.items())
         .map(|c| {
-            let login = c.author.as_ref().map(|a| a.login.as_str()).unwrap_or("ghost");
+            let login = c
+                .author
+                .as_ref()
+                .map(|a| a.login.as_str())
+                .unwrap_or("ghost");
             let own = !ctx.me.is_empty() && login.eq_ignore_ascii_case(ctx.me);
             Comment {
                 author: person_of(login, ctx.me),

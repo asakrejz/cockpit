@@ -126,10 +126,11 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `GET /api/review/commit?repo=&number=&sha=[&path=]` | diff of one commit `{sha, files: [{name, status, additions, deletions, lines, total_lines, truncated, no_patch}], truncated_files}`; every file cut at 300 lines, with `path` that one file up to 5000 lines; read only (`GET commits/{sha}`); only for pull requests the app knows |
 | `GET /api/agent/check/container` | the same test from a container: `{checked, mac_reached, container_reached, key_ok, hint}` |
 | `GET /api/agent/models` | model IDs of the endpoint for the drop-down: `{loaded, reachable, key_ok, models, hint}`; only IDs, sorted (Claude models first), at most 200 |
+| `GET /api/github/projects` | the GitHub Projects the access can see `{connected, projects: [{id, owner, number, title, url, closed, origin, repos}], rights: {kind, scopes, missing}, problem, owners}`; reads only (GraphQL `viewer`); a refusal is in `problem`, with the exact missing right |
 | `GET /api/setup` | what the assistant prefills: Jira site/email/projects, client IDs, repos, provider, endpoint address and model, both callback addresses, and per key only `{name, set}` |
 | `POST /api/github/repos/check` | read-only look at repos (`{repos:[…]}` → per repo `Ok`/`ReadOnly`/`NotFound`/`NoAccess`/`Failed` plus the default branch); only `GET /repos/{owner}/{name}`, never changes anything |
 | `GET /api/agent/repo-suggestions?ticket=KEY` | repos to offer first for the ticket, best first, each with a reason (`previous_run`, `linked_pr`, `mentioned`, `rule`, `default`); only reads |
-| `PUT /api/config` | writes client IDs, Jira, repos, the agent's repos (`agent_repos`: list with base branch and projects, plus default), agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with plain text |
+| `PUT /api/config` | writes client IDs, Jira, repos, `[github_projects]` (`github_projects`: `tickets_from`, `projects`, `status_field`, `team_field`), the agent's repos (`agent_repos`: list with base branch and projects, plus default), agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with plain text |
 | `PUT /api/secrets/{name}` | stores a key in `config/.env`; body `{"value": "…"}`; names in [configuration.md](configuration.md#credentials-the-env-file) (plus `github-webhook`, `jira-webhook`); answer `{name, set}`, never the value |
 | `DELETE /api/secrets/{name}` | "Trennen" for tokens: deletes `jira` or `github` from `config/.env` (other names: `404`); answer `{name, set: false}` |
 | `POST /api/webhooks/github`, `POST /api/webhooks/jira` | optional (`[server] webhooks`), the only routes reachable with a foreign `Host`: HMAC-signed triggers for the sync; `202`/`200`/`204`/`401`/`404`/`413`/`415`/`429`, no body, payload never used as data |
@@ -163,6 +164,24 @@ routes.
 - New entries are added, removed ones disappear. Local state stays: read/done, snoozes, agent runs and hints,
   suggestions and decisions in a review, your own unsent line comments (they move with their line when the diff
   shifts), verdict and "sent".
+- **GitHub Projects** (`Source::GitHubProject`, `cockpit_integrations::github::projects`): a source of its own, because
+  the sync state, the removal of entries that vanished and the sync problems are per `Source`; the pull request sync
+  must never remove an issue and the project sync never a pull request. GraphQL only (`POST /graphql`, for GitHub
+  Enterprise Server `https://host/api/graphql`): `viewer` (own projects and organizations) and `repository(…){ projectsV2 }`
+  list the projects; `repositoryOwner(login){ … on ProjectV2Owner { projectV2(number) } }` reads one with its fields; the
+  items come in pages of 50 with `fieldValues`, assignees, labels and milestone (the *light* pass). Comments, the timeline
+  (`CONNECTED_EVENT`, `CROSS_REFERENCED_EVENT`), `closedByPullRequestsReferences`, issue type, parent and sub-issues are the
+  *heavy* pass (`nodes(ids:)`, 20 per call), asked only for issues that are new or whose `updatedAt` (of the item or the
+  issue) moved; the others keep what the workspace has. A server without `issueType`/`subIssues` answers
+  `undefinedField`; the pass is repeated without them and a hint says so. Every answer carries `rateLimit { cost remaining
+  resetAt }`; below 15 points the client stops before the next call (`Error::RateLimit` with the reset time → the source
+  pauses and keeps its data). A project that cannot be read this time keeps its old tickets. Refusals become
+  `Error::MissingRight { right, kind }` (`cockpit_core::permissions`): `INSUFFICIENT_SCOPES` names the scope, `FORBIDDEN`
+  / "Resource not accessible" the right the failed call needed (below `content` it is *Issues*, otherwise *Projects*);
+  classic scopes are read from `X-OAuth-Scopes`. The key of a ticket is `owner/repo#123` (`cockpit_core::project`), the item
+  keeps `ProjectItem` (node IDs for writing, field values, linked pull requests, parent, sub-issues); the project fields are
+  in `SyncState::projects`. Auto-link (`Workspace::auto_links`, `Review::belongs_to`) and the team filter understand
+  `#123`, `owner/repo#123`, `Fixes #123` and the timeline.
 - New comments and status, check and review changes from outside appear in the log with author "System" and trigger the
   notifications. `@your-login` in comments counts as a mention.
 - GitHub: no repo list is needed. Three searches (`cockpit_core::sync::discovery::QUERIES`: `author:@me`,

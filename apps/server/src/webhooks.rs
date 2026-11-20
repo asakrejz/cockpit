@@ -229,7 +229,9 @@ async fn receive(state: AppState, source: Source, req: Request) -> Response {
     // Authentication. GitHub: X-Hub-Signature-256. Jira: X-Hub-Signature, otherwise (senders
     // that cannot sign) the secret as ?token=.
     let signed = match source {
-        Source::GitHub | Source::GitHubProject => header_text(&parts.headers, "x-hub-signature-256"),
+        Source::GitHub | Source::GitHubProject => {
+            header_text(&parts.headers, "x-hub-signature-256")
+        }
         Source::Jira => header_text(&parts.headers, "x-hub-signature"),
     };
     let authentic = match (signed, source) {

@@ -412,7 +412,8 @@ impl Config {
                     projects.push(r);
                 }
             }
-            let name = |v: Option<String>| v.map(|f| f.trim().to_string()).filter(|f| !f.is_empty());
+            let name =
+                |v: Option<String>| v.map(|f| f.trim().to_string()).filter(|f| !f.is_empty());
             c.github_projects = Some(GitHubProjectsConfig {
                 tickets_from,
                 projects,

@@ -129,7 +129,7 @@ impl Workspace {
                 let inbox_filter = std::mem::take(&mut self.inbox_filter);
                 let language = self.language;
                 let team_choice = std::mem::take(&mut self.team_choice);
-                *self = demo::seed();
+                *self = demo::workspace();
                 self.jira_project = jira_project;
                 self.inbox_filter = inbox_filter;
                 self.language = language;

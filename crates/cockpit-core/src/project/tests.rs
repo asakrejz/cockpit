@@ -18,7 +18,10 @@ fn project_refs_read_owner_and_number() {
         ProjectRef::parse(" acme/3 "),
         Some(ProjectRef::new("acme", 3))
     );
-    assert_eq!(ProjectRef::parse("acme#4"), Some(ProjectRef::new("acme", 4)));
+    assert_eq!(
+        ProjectRef::parse("acme#4"),
+        Some(ProjectRef::new("acme", 4))
+    );
     for bad in ["", "acme", "acme/0", "/3", "ac me/3", "acme/x"] {
         assert_eq!(ProjectRef::parse(bad), None, "{bad}");
     }
@@ -56,10 +59,10 @@ fn short_qualified_and_closing_references_are_found() {
     assert_eq!(keys("Closes #12"), [("acme/app#12".into(), true)]);
     assert_eq!(keys("fixes: #12"), [("acme/app#12".into(), true)]);
     assert_eq!(keys("Resolved acme/web#3"), [("acme/web#3".into(), true)]);
-    assert_eq!(keys("see #4 and acme/web#5"), [
-        ("acme/app#4".into(), false),
-        ("acme/web#5".into(), false)
-    ]);
+    assert_eq!(
+        keys("see #4 and acme/web#5"),
+        [("acme/app#4".into(), false), ("acme/web#5".into(), false)]
+    );
     assert_eq!(
         keys("https://github.com/acme/web/issues/9"),
         [("acme/web#9".into(), false)]

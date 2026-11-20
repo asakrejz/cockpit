@@ -113,9 +113,10 @@ impl GitHubClient {
             .map_err(|e| Error::Response(e.to_string()))
             .map_err(|e| e.without_key(self.token.expose()))?;
         let data = env.data.unwrap_or(Value::Null);
-        if let Some(r) = data.get("rateLimit").and_then(|v| {
-            serde_json::from_value::<RateLimit>(v.clone()).ok()
-        }) && let Ok(mut slot) = self.rate.lock()
+        if let Some(r) = data
+            .get("rateLimit")
+            .and_then(|v| serde_json::from_value::<RateLimit>(v.clone()).ok())
+            && let Ok(mut slot) = self.rate.lock()
         {
             *slot = Some(Rate {
                 cost: r.cost,
@@ -136,10 +137,7 @@ impl GitHubClient {
 
     /// Remembers what an answer says about the credential: the scopes of a classic token.
     fn learn_access(&self, headers: &reqwest::header::HeaderMap) {
-        let Some(h) = headers
-            .get("x-oauth-scopes")
-            .and_then(|v| v.to_str().ok())
-        else {
+        let Some(h) = headers.get("x-oauth-scopes").and_then(|v| v.to_str().ok()) else {
             return;
         };
         if let Ok(mut a) = self.access.lock() {
@@ -198,7 +196,10 @@ impl GitHubClient {
         if kind_is("NOT_FOUND") {
             return Error::NotFound;
         }
-        let first = errors.first().map(|e| e.message.clone()).unwrap_or_default();
+        let first = errors
+            .first()
+            .map(|e| e.message.clone())
+            .unwrap_or_default();
         Error::Rejected(first)
     }
 
@@ -234,7 +235,12 @@ impl GitHubClient {
     /// linked to `repos` (`owner/name`). Without the right to read projects: [`Error::MissingRight`].
     pub async fn list_projects(&self, repos: &[String]) -> Result<ProjectList, Error> {
         let data = self
-            .graphql(&queries::list_viewer(), json!({}), Right::ProjectsRead, true)
+            .graphql(
+                &queries::list_viewer(),
+                json!({}),
+                Right::ProjectsRead,
+                true,
+            )
             .await?;
         let viewer = serde_json::from_value::<ViewerData>(data)
             .map_err(|e| Error::Response(e.to_string()))?
@@ -254,7 +260,11 @@ impl GitHubClient {
         );
         let mut out: Vec<ProjectSummary> = Vec::new();
         let mut add = |n: &ProjectNode, origin: ProjectOrigin, repo: Option<&str>| {
-            let owner = n.owner.as_ref().map(|o| o.login.clone()).unwrap_or_default();
+            let owner = n
+                .owner
+                .as_ref()
+                .map(|o| o.login.clone())
+                .unwrap_or_default();
             if n.id.is_empty() || owner.is_empty() {
                 return;
             }
@@ -419,12 +429,8 @@ impl GitHubClient {
                 .node
                 .and_then(|n| n.items)
                 .ok_or(Error::NotFound)?;
-            page.items.extend(
-                conn.nodes
-                    .into_iter()
-                    .flatten()
-                    .filter(|i| !i.is_archived),
-            );
+            page.items
+                .extend(conn.nodes.into_iter().flatten().filter(|i| !i.is_archived));
             if page.items.len() >= MAX_ITEMS {
                 page.truncated = conn.page_info.has_next_page;
                 page.items.truncate(MAX_ITEMS);
@@ -447,7 +453,12 @@ impl GitHubClient {
         for chunk in ids.chunks(DETAIL_CHUNK) {
             let vars = json!({ "ids": chunk });
             let mut answer = self
-                .graphql(&queries::issue_details(extras), vars.clone(), Right::IssuesRead, false)
+                .graphql(
+                    &queries::issue_details(extras),
+                    vars.clone(),
+                    Right::IssuesRead,
+                    false,
+                )
                 .await;
             if extras
                 && let Err(Error::Rejected(m)) = &answer
@@ -455,7 +466,12 @@ impl GitHubClient {
             {
                 extras = false;
                 answer = self
-                    .graphql(&queries::issue_details(false), vars, Right::IssuesRead, false)
+                    .graphql(
+                        &queries::issue_details(false),
+                        vars,
+                        Right::IssuesRead,
+                        false,
+                    )
                     .await;
             }
             let nodes = serde_json::from_value::<DetailsData>(answer?)

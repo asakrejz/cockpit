@@ -25,16 +25,31 @@ pub fn classify(name: &str) -> Option<TicketStatus> {
     let n = name.trim().to_lowercase();
     let has = |words: &[&str]| words.iter().any(|w| n.contains(w));
     // Order matters: "In Review" holds "in", "Done" must not be hidden by "progress" words.
-    if has(&["review", "testing", "qa", "verify", "prüf"]) {
+    if has(&["review", "testing", "qa", "verify", "pr\u{fc}f"]) {
         Some(TicketStatus::Review)
     } else if has(&[
-        "done", "closed", "complete", "finished", "shipped", "released", "merged", "fertig",
-        "erledigt", "abgeschlossen",
+        "done",
+        "closed",
+        "complete",
+        "finished",
+        "shipped",
+        "released",
+        "merged",
+        "fertig",
+        "erledigt",
+        "abgeschlossen",
     ]) {
         // "shipped" is a done word here, listed so that a project with it still maps.
         Some(TicketStatus::Done)
     } else if has(&[
-        "progress", "doing", "active", "started", "working", "development", "wip", "arbeit",
+        "progress",
+        "doing",
+        "active",
+        "started",
+        "working",
+        "development",
+        "wip",
+        "arbeit",
     ]) {
         Some(TicketStatus::InProgress)
     } else if has(&[
@@ -80,7 +95,7 @@ pub fn status_of(options: &[SelectOption], option_id: Option<&str>) -> TicketSta
 
 /// The option that stands for `status` (the first one if several do). `None` = the field has no
 /// such column, e.g. no review column.
-pub fn option_for<'a>(options: &'a [SelectOption], status: TicketStatus) -> Option<&'a SelectOption> {
+pub fn option_for(options: &[SelectOption], status: TicketStatus) -> Option<&SelectOption> {
     map_options(options)
         .into_iter()
         .find(|(_, s)| *s == status)

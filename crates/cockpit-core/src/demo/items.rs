@@ -211,7 +211,11 @@ pub fn project_tickets() -> (Item, Item) {
         project: DEMO_PROJECT.into(),
         project_title: "App roadmap".into(),
         item_id: item_id.into(),
-        content_id: if draft { String::new() } else { "I_demo_31".into() },
+        content_id: if draft {
+            String::new()
+        } else {
+            "I_demo_31".into()
+        },
         draft,
         number,
         status_option: Some(if draft { "s_todo" } else { "s_rev" }.into()),

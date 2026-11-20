@@ -48,7 +48,7 @@ impl Live {
     pub fn load(conn: &Connection, seed: Seed) -> Self {
         let start = || match seed {
             Seed::Empty => Workspace::default(),
-            Seed::Demo => demo::multi_repo_workspace(),
+            Seed::Demo => demo::seed(),
         };
         let stored = db::load_workspace(conn).unwrap_or_else(|e| {
             tracing::warn!("Stored workspace not readable: {e}");

@@ -67,7 +67,11 @@ pub enum TicketsFrom {
 }
 
 impl TicketsFrom {
-    pub const ALL: [TicketsFrom; 3] = [TicketsFrom::Jira, TicketsFrom::GitHubProjects, TicketsFrom::Both];
+    pub const ALL: [TicketsFrom; 3] = [
+        TicketsFrom::Jira,
+        TicketsFrom::GitHubProjects,
+        TicketsFrom::Both,
+    ];
 
     pub fn id(self) -> &'static str {
         match self {

@@ -259,7 +259,10 @@ fn projects_line(s: &Snapshot) -> Line {
             msg!(
                 CoreSetupProjectsChosen,
                 projects = ArgValue::joined(
-                    p.projects.iter().map(|n| Msg::raw(n.clone())).collect::<Vec<_>>(),
+                    p.projects
+                        .iter()
+                        .map(|n| Msg::raw(n.clone()))
+                        .collect::<Vec<_>>(),
                     ", "
                 )
             ),

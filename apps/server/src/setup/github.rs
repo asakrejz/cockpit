@@ -299,14 +299,21 @@ impl AppState {
     /// The GitHub Projects the access can see, what rights it has for them, and who a project
     /// could be created for. Read only; a failure is reported in `problem`, not as an error, so
     /// the assistant can show it next to the rest.
-    pub async fn github_projects_list(&self) -> Result<cockpit_core::api::ProjectsResponse, (StatusCode, Msg)> {
-        use cockpit_core::api::{MissingRight, ProjectRights, ProjectsResponse};
+    pub async fn github_projects_list(
+        &self,
+    ) -> Result<cockpit_core::api::ProjectsResponse, (StatusCode, Msg)> {
         use cockpit_core::Right;
+        use cockpit_core::api::{MissingRight, ProjectRights, ProjectsResponse};
         self.oauth_refresh().await;
         let s = self.clone();
         let access = tokio::task::spawn_blocking(move || s.github_assistant_access())
             .await
-            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, msg!(ServerSetupInternalError)))?
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    msg!(ServerSetupInternalError),
+                )
+            })?
             .map_err(|e| github_failure(&e))?;
         let Some(Access { client, app }) = access else {
             return Ok(ProjectsResponse::default());
@@ -318,7 +325,12 @@ impl AppState {
             .as_ref()
             .map(|g| g.repos.clone())
             .unwrap_or_default();
-        for r in self.agent_repos_config().repos.iter().map(|r| r.repo.clone()) {
+        for r in self
+            .agent_repos_config()
+            .repos
+            .iter()
+            .map(|r| r.repo.clone())
+        {
             if !repos.contains(&r) {
                 repos.push(r);
             }

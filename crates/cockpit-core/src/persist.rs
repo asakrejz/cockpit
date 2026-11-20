@@ -92,7 +92,7 @@ pub fn load_with_revision(text: &str) -> Result<(Workspace, u64), LoadError> {
 pub fn restore(saved: Option<&str>) -> (Workspace, bool) {
     match saved.map(load) {
         Some(Ok(workspace)) => (workspace, true),
-        _ => (demo::seed(), false),
+        _ => (demo::workspace(), false),
     }
 }
 

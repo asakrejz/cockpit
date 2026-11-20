@@ -126,7 +126,7 @@ impl SourceFilter {
             SourceFilter::GitHubProject,
         ]
         .into_iter()
-            .find(|f| f.id() == id)
+        .find(|f| f.id() == id)
     }
 
     pub fn matches(self, source: Source) -> bool {

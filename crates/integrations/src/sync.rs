@@ -10,11 +10,11 @@ use cockpit_i18n::msg;
 
 use crate::Error;
 use crate::github::dto::Pull;
+use crate::github::projects::{self, Heavy, MapCtx};
 use crate::github::{
     GitHubClient, PrRelation, changes_requested, check_runs_to_core, comments_with_reviews,
     pull_to_item_for, pull_to_review,
 };
-use crate::github::projects::{self, Heavy, MapCtx};
 use crate::jira::{self, JiraClient};
 use crate::outbound::{Outbound, Targets};
 
@@ -713,11 +713,7 @@ pub async fn projects_load(
             }
         }
         // The order of the project, not the order the heavy pass finished in.
-        let order: Vec<&str> = page
-            .items
-            .iter()
-            .map(|n| n.id.as_str())
-            .collect();
+        let order: Vec<&str> = page.items.iter().map(|n| n.id.as_str()).collect();
         ready.sort_by_key(|i| {
             order
                 .iter()

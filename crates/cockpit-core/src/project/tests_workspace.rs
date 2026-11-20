@@ -3,8 +3,8 @@
 
 use crate::demo;
 use crate::model::{Filter, PrKey, Scope, Source, SourceFilter, TeamRef};
-use crate::search::InboxFilter;
 use crate::project::ProjectItem;
+use crate::search::InboxFilter;
 use crate::setup::Step;
 use crate::{Action, Actor, TicketsFrom, Workspace};
 
@@ -27,15 +27,15 @@ fn say(w: &mut Workspace, branch: &str, title: &str, body: &str) {
 #[test]
 fn the_seed_has_a_project_issue_and_a_draft_and_the_base_demo_is_unchanged() {
     let w = ws();
-    assert_eq!(w.items.len(), demo::workspace().items.len() + 2);
+    assert_eq!(w.items.len(), demo::multi_repo_workspace().items.len() + 2);
     let issue = w.item_by_key("acme/app#31").unwrap();
     assert_eq!(issue.source, Source::GitHubProject);
     assert!(issue.is_ticket() && issue.is_mine());
-    assert!(w.items.iter().any(|i| i.project.as_ref().is_some_and(|p| p.draft)));
-    // A reset to the sample data brings them back.
-    let mut changed = demo::workspace();
-    changed.apply(Action::ResetDemo, Actor::User, T).unwrap();
-    assert!(changed.item_by_key("acme/app#31").is_some());
+    assert!(
+        w.items
+            .iter()
+            .any(|i| i.project.as_ref().is_some_and(|p| p.draft))
+    );
 }
 
 #[test]
@@ -47,7 +47,10 @@ fn a_short_reference_in_the_pr_text_links_the_issue_of_the_same_repo() {
     assert_eq!(links.len(), 1);
     assert_eq!(links[0].0, "gh-acme-app-31");
     w.apply(Action::AutoLinkPrs, Actor::System, T).unwrap();
-    assert_eq!(w.review(85).unwrap().ticket_key.as_deref(), Some("acme/app#31"));
+    assert_eq!(
+        w.review(85).unwrap().ticket_key.as_deref(),
+        Some("acme/app#31")
+    );
     assert_eq!(w.linked_reviews("gh-acme-app-31").len(), 1);
 }
 
@@ -77,7 +80,11 @@ fn the_timeline_of_the_issue_links_a_pr_that_never_names_it() {
     say(&mut w, "agent/x", "Something unrelated", "");
     assert!(w.linked_reviews("gh-acme-app-31").is_empty());
     let key = w.review(85).unwrap().key();
-    let issue = w.items.iter_mut().find(|i| i.id == "gh-acme-app-31").unwrap();
+    let issue = w
+        .items
+        .iter_mut()
+        .find(|i| i.id == "gh-acme-app-31")
+        .unwrap();
     issue.project.as_mut().unwrap().linked_prs = vec![key];
     assert_eq!(w.linked_reviews("gh-acme-app-31").len(), 1);
     assert_eq!(w.auto_links().len(), 1);
@@ -97,9 +104,16 @@ fn the_sprint_view_keeps_project_tickets_without_an_iteration() {
     let mut w = ws();
     let f = InboxFilter::default();
     let hits = w.inbox(Filter::All, SourceFilter::All, "", T, &f);
-    assert!(hits.iter().any(|i| i.id == "gh-acme-app-31"), "no iteration: shown");
+    assert!(
+        hits.iter().any(|i| i.id == "gh-acme-app-31"),
+        "no iteration: shown"
+    );
     // In a past iteration the ticket drops out under „Aktueller Sprint“.
-    let issue = w.items.iter_mut().find(|i| i.id == "gh-acme-app-31").unwrap();
+    let issue = w
+        .items
+        .iter_mut()
+        .find(|i| i.id == "gh-acme-app-31")
+        .unwrap();
     issue.sprint = Some(crate::Sprint {
         name: "Sprint 20".into(),
         state: crate::SprintState::Closed,
@@ -120,7 +134,10 @@ fn the_source_filter_separates_project_tickets() {
             .iter()
             .all(|i| i.source == Source::GitHub)
     );
-    assert_eq!(SourceFilter::from_id("project"), Some(SourceFilter::GitHubProject));
+    assert_eq!(
+        SourceFilter::from_id("project"),
+        Some(SourceFilter::GitHubProject)
+    );
 }
 
 #[test]
@@ -129,7 +146,10 @@ fn the_team_choice_applies_to_the_team_field_of_a_project_ticket() {
     // Someone else's ticket in team Web is hidden when only team Core is chosen.
     let id = "gh-acme-3-draft1";
     w.items.iter_mut().find(|i| i.id == id).unwrap().team = Some(TeamRef::new("t_web", "Web"));
-    assert_eq!(w.items.iter().find(|i| i.id == id).unwrap().scope, Scope::Team);
+    assert_eq!(
+        w.items.iter().find(|i| i.id == id).unwrap().scope,
+        Scope::Team
+    );
     w.team_choice = crate::TeamChoice {
         teams: vec![TeamRef::new("t_core", "Core")],
         include_no_team: false,
@@ -145,7 +165,11 @@ fn the_team_choice_applies_to_the_team_field_of_a_project_ticket() {
 fn a_pr_naming_an_issue_follows_the_team_of_that_issue() {
     let mut w = ws();
     // Issue 31 belongs to Core and is not mine; a pull request that fixes it follows its team.
-    let issue = w.items.iter_mut().find(|i| i.id == "gh-acme-app-31").unwrap();
+    let issue = w
+        .items
+        .iter_mut()
+        .find(|i| i.id == "gh-acme-app-31")
+        .unwrap();
     issue.scope = Scope::Team;
     issue.team = Some(TeamRef::new("t_core", "Core"));
     let pr = w.items.iter_mut().find(|i| i.id == "pr85").unwrap();
@@ -156,7 +180,10 @@ fn a_pr_naming_an_issue_follows_the_team_of_that_issue() {
         include_no_team: false,
     };
     let pr = w.item("pr85").unwrap().clone();
-    assert!(!w.team_visible(&pr), "the linked issue is hidden, so is the pull request");
+    assert!(
+        !w.team_visible(&pr),
+        "the linked issue is hidden, so is the pull request"
+    );
     w.team_choice.teams = vec![TeamRef::new("t_core", "Core")];
     assert!(w.team_visible(&pr));
 }
@@ -168,7 +195,10 @@ fn without_jira_the_projects_step_replaces_the_jira_step() {
     assert!(!Step::Jira.shown(GitHubProjects));
     assert_eq!(Step::Container.next_for(Jira), Some(Step::Jira));
     assert_eq!(Step::Container.next_for(GitHubProjects), Some(Step::GitHub));
-    assert_eq!(Step::Projects.previous_for(GitHubProjects), Some(Step::GitHub));
+    assert_eq!(
+        Step::Projects.previous_for(GitHubProjects),
+        Some(Step::GitHub)
+    );
     assert_eq!(Step::GitHub.next_for(Jira), Some(Step::Projects));
     assert_eq!(Step::Done.next_for(Both), None);
     assert_eq!(Step::from_id("projects"), Some(Step::Projects));
@@ -192,6 +222,10 @@ fn old_saves_without_project_fields_still_load() {
     assert!(!json.contains("co_assignees") && !json.contains("\"project\":{"));
     let (back, restored) = crate::persist::restore(Some(&json));
     assert!(restored);
-    assert!(back.items.iter().all(|i| i.project.is_none() && i.co_assignees.is_empty()));
+    assert!(
+        back.items
+            .iter()
+            .all(|i| i.project.is_none() && i.co_assignees.is_empty())
+    );
     let _ = (ProjectItem::default(), PrKey::new("a/b", 1));
 }

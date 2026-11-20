@@ -106,7 +106,7 @@ fn a_jira_project_narrows_the_inbox() {
     other.key = "WEB-7".into();
     w.items.push(other);
     assert_eq!(w.projects(), ["BAU", "DOC", "WEB"]);
-    let all = w.search(Filter::All, SourceFilter::Jira, "", 0).len();
+    let all = w.search(Filter::All, SourceFilter::All, "", 0).len();
 
     let applied = ok(
         &mut w,
@@ -144,7 +144,7 @@ fn a_jira_project_narrows_the_inbox() {
 
     let applied = ok(&mut w, Action::SelectJiraProject { project: None }, 1);
     assert_eq!(applied.summary, "Jira-Projekt: alle");
-    assert!(w.search(Filter::All, SourceFilter::Jira, "", 0).len() < all);
+    assert!(w.search(Filter::All, SourceFilter::All, "", 0).len() < all);
 }
 
 #[test]

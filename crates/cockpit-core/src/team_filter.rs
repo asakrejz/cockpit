@@ -126,7 +126,11 @@ impl Workspace {
         for text in [pr.branch.as_deref().unwrap_or_default(), pr.title.as_str()] {
             keys.extend(ticket_keys(text));
             // GitHub issues: `#12`, `acme/app#12`, `Fixes #12`.
-            keys.extend(crate::project::issue_refs(text, repo).iter().map(|r| r.key()));
+            keys.extend(
+                crate::project::issue_refs(text, repo)
+                    .iter()
+                    .map(|r| r.key()),
+            );
         }
         self.items
             .iter()

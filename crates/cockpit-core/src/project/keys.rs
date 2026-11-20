@@ -90,15 +90,16 @@ const CLOSING: &[&str] = &[
 /// ```
 pub fn issue_refs(text: &str, default_repo: &str) -> Vec<IssueRef> {
     let mut out: Vec<IssueRef> = Vec::new();
-    let mut add = |repo: String, number: u32, closing: bool| {
-        match out.iter_mut().find(|r| r.repo == repo && r.number == number) {
-            Some(r) => r.closing |= closing,
-            None => out.push(IssueRef {
-                repo,
-                number,
-                closing,
-            }),
-        }
+    let mut add = |repo: String, number: u32, closing: bool| match out
+        .iter_mut()
+        .find(|r| r.repo == repo && r.number == number)
+    {
+        Some(r) => r.closing |= closing,
+        None => out.push(IssueRef {
+            repo,
+            number,
+            closing,
+        }),
     };
     let bytes = text.as_bytes();
     let repo_char = |b: u8| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'/');

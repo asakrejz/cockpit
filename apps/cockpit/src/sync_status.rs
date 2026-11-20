@@ -2,7 +2,7 @@
 //! The data is in the workspace (`sync`), the sync runs in the
 //! backend. No key is here.
 
-use cockpit_core::{Source, SourceState};
+use cockpit_core::SourceState;
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -72,11 +72,7 @@ pub fn SyncStatus() -> impl IntoView {
         states
             .into_iter()
             .map(|st| {
-                let name = match st.source {
-                    Source::Jira => "Jira",
-                    Source::GitHub => "GitHub",
-                    Source::GitHubProject => "GitHub Projects",
-                };
+                let name = st.source.label();
                 let ok = st.is_ok();
                 view! {
                     <ListRow title=name subtitle=subtitle(&st, now) wrap=true>

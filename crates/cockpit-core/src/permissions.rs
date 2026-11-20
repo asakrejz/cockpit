@@ -182,7 +182,11 @@ mod tests {
     fn missing_lists_only_what_is_lacking() {
         let missing = missing_for_scopes(
             &scopes("repo, read:project"),
-            &[Right::ProjectsRead, Right::ProjectsWrite, Right::IssuesWrite],
+            &[
+                Right::ProjectsRead,
+                Right::ProjectsWrite,
+                Right::IssuesWrite,
+            ],
         );
         assert_eq!(missing, [Right::ProjectsWrite]);
     }

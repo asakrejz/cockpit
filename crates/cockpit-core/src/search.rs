@@ -266,10 +266,12 @@ impl InboxFilter {
             SprintView::AllOpen => true,
             // A project ticket without an iteration may come from a project that has none: it
             // stays visible, only a ticket in a past or future iteration drops out.
-            SprintView::Current => item.sprint.as_ref().map_or(
-                item.source == crate::model::Source::GitHubProject,
-                |s| s.state == SprintState::Active,
-            ),
+            SprintView::Current => item
+                .sprint
+                .as_ref()
+                .map_or(item.source == crate::model::Source::GitHubProject, |s| {
+                    s.state == SprintState::Active
+                }),
             SprintView::Backlog => item.sprint.is_none(),
             SprintView::Recent => item
                 .updated_ms

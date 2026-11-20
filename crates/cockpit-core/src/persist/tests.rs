@@ -157,7 +157,7 @@ fn missing_agent_options_get_defaults() {
 
 #[test]
 fn restore_falls_back_to_demo() {
-    let demo = demo::seed();
+    let demo = demo::workspace();
     assert_eq!(restore(None), (demo.clone(), false));
     assert_eq!(restore(Some("kaputt")), (demo.clone(), false));
     assert_eq!(restore(Some("{\"version\":99}")), (demo.clone(), false));
