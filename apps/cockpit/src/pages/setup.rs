@@ -19,6 +19,7 @@ mod model;
 mod optional;
 mod projects;
 mod repo_picker;
+mod source;
 pub(crate) use fields::error_text;
 pub(crate) use repo_picker::static_text;
 mod watched_repos;
@@ -37,6 +38,7 @@ use jira::JiraStep;
 use live::LiveStep;
 use model::ModelStep;
 use projects::ProjectsStep;
+use source::SourceStep;
 
 /// The progress display: one item per step in the order of [`Step::ALL`]. All steps before the
 /// current one count as done.
@@ -163,6 +165,7 @@ pub fn SetupPage() -> impl IntoView {
                         }
                         match step.get() {
                         Step::Container => view! { <ContainerStep ctx=ctx /> }.into_any(),
+                        Step::Source => view! { <SourceStep ctx=ctx /> }.into_any(),
                         Step::Jira => view! { <JiraStep ctx=ctx /> }.into_any(),
                         Step::GitHub => view! { <GitHubStep ctx=ctx /> }.into_any(),
                         Step::Projects => view! { <ProjectsStep ctx=ctx /> }.into_any(),

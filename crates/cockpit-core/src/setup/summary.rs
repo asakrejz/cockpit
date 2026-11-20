@@ -234,7 +234,18 @@ pub fn summary(s: &Snapshot) -> Vec<Line> {
         text: container.1,
         step: Step::Container,
     }];
-    // Without Jira the line for GitHub Projects replaces the Jira line.
+    // Which source the tickets come from is a choice with a default (Jira), so it is never open.
+    lines.push(Line {
+        name: msg!(CoreSetupNameSource),
+        tone: Tone::Good,
+        text: match from {
+            crate::TicketsFrom::Jira => msg!(CoreSetupSourceJira),
+            crate::TicketsFrom::GitHubProjects => msg!(CoreSetupSourceProjects),
+            crate::TicketsFrom::Both => msg!(CoreSetupSourceBoth),
+        },
+        step: Step::Source,
+    });
+    // Only the steps of the chosen source follow.
     if from.uses_jira() {
         lines.push(jira);
     }

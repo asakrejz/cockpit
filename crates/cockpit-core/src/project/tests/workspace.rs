@@ -189,19 +189,97 @@ fn a_pr_naming_an_issue_follows_the_team_of_that_issue() {
     assert!(w.team_visible(&pr));
 }
 
+/// The steps the assistant walks through for a choice of ticket source.
+fn walk(from: TicketsFrom) -> Vec<Step> {
+    let mut steps = vec![Step::Container];
+    while let Some(n) = steps.last().unwrap().next_for(from) {
+        steps.push(n);
+    }
+    steps
+}
+
 #[test]
-fn without_jira_the_projects_step_replaces_the_jira_step() {
+fn the_assistant_walks_only_the_steps_of_the_chosen_source() {
+    use Step as S;
     use TicketsFrom::*;
-    assert!(Step::Jira.shown(Jira) && Step::Jira.shown(Both));
-    assert!(!Step::Jira.shown(GitHubProjects));
-    assert_eq!(Step::Container.next_for(Jira), Some(Step::Jira));
-    assert_eq!(Step::Container.next_for(GitHubProjects), Some(Step::GitHub));
+    // The choice comes early, right after the container; GitHub is a step of its own either way.
     assert_eq!(
-        Step::Projects.previous_for(GitHubProjects),
-        Some(Step::GitHub)
+        walk(Jira),
+        [
+            S::Container,
+            S::Source,
+            S::Jira,
+            S::GitHub,
+            S::Model,
+            S::Live,
+            S::Done
+        ]
     );
-    assert_eq!(Step::GitHub.next_for(Jira), Some(Step::Projects));
-    assert_eq!(Step::Done.next_for(Both), None);
+    assert_eq!(
+        walk(GitHubProjects),
+        [
+            S::Container,
+            S::Source,
+            S::GitHub,
+            S::Projects,
+            S::Model,
+            S::Live,
+            S::Done
+        ]
+    );
+    assert_eq!(
+        walk(Both),
+        [
+            S::Container,
+            S::Source,
+            S::Jira,
+            S::GitHub,
+            S::Projects,
+            S::Model,
+            S::Live,
+            S::Done
+        ]
+    );
+}
+
+#[test]
+fn going_back_skips_the_same_steps() {
+    use TicketsFrom::*;
+    for from in TicketsFrom::ALL {
+        let mut forward = walk(from);
+        let mut back = vec![Step::Done];
+        while let Some(p) = back.last().unwrap().previous_for(from) {
+            back.push(p);
+        }
+        back.reverse();
+        assert_eq!(forward, back, "{from:?}");
+        forward.clear();
+    }
+    assert_eq!(Step::Source.previous_for(Jira), Some(Step::Container));
+    assert_eq!(Step::Container.previous_for(Jira), None);
+}
+
+#[test]
+fn only_the_steps_of_the_other_source_are_hidden() {
+    use TicketsFrom::*;
+    assert!(Step::Jira.shown(Jira) && Step::Jira.shown(Both) && !Step::Jira.shown(GitHubProjects));
+    assert!(
+        Step::Projects.shown(GitHubProjects)
+            && Step::Projects.shown(Both)
+            && !Step::Projects.shown(Jira)
+    );
+    for from in TicketsFrom::ALL {
+        for always in [
+            Step::Container,
+            Step::Source,
+            Step::GitHub,
+            Step::Model,
+            Step::Done,
+        ] {
+            assert!(always.shown(from), "{always:?} for {from:?}");
+        }
+    }
+    assert_eq!(Step::from_id("source"), Some(Step::Source));
     assert_eq!(Step::from_id("projects"), Some(Step::Projects));
 }
 

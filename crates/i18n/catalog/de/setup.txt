@@ -1,5 +1,6 @@
 # Setup page (frame, progress, navigation)
 setup.step_container = Container
+setup.step_source = Tickets
 setup.step_jira = Jira
 setup.step_github = GitHub
 setup.step_projects = GitHub Projects

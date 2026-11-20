@@ -82,3 +82,7 @@ core_setup.name_projects = GitHub Projects
 core_setup.projects_need_github = Connect GitHub first (step "GitHub").
 core_setup.projects_none = No project chosen yet.
 core_setup.projects_chosen = Tickets come from: {projects}
+core_setup.name_source = Tickets from
+core_setup.source_jira = Jira. Change it in the step "Tickets".
+core_setup.source_projects = GitHub Projects. Change it in the step "Tickets".
+core_setup.source_both = Jira and GitHub Projects. Change it in the step "Tickets".

@@ -47,6 +47,8 @@ pub const MAX_KEYS: usize = 4096;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Step {
     Container,
+    /// Where the tickets come from: Jira, GitHub Projects (or both).
+    Source,
     Jira,
     GitHub,
     /// GitHub Projects as the source of tickets.
@@ -57,8 +59,9 @@ pub enum Step {
 }
 
 impl Step {
-    pub const ALL: [Step; 7] = [
+    pub const ALL: [Step; 8] = [
         Step::Container,
+        Step::Source,
         Step::Jira,
         Step::GitHub,
         Step::Projects,
@@ -76,6 +79,7 @@ impl Step {
     pub fn msg(self) -> Msg {
         match self {
             Step::Container => msg!(SetupStepContainer),
+            Step::Source => msg!(SetupStepSource),
             Step::Jira => msg!(SetupStepJira),
             Step::GitHub => msg!(SetupStepGithub),
             Step::Projects => msg!(SetupStepProjects),
@@ -97,10 +101,15 @@ impl Step {
         self.index().checked_sub(1).map(|i| Self::ALL[i])
     }
 
-    /// Is the step part of the assistant for this choice of ticket source? Without Jira the step
-    /// „GitHub Projects“ takes the place of the step „Jira“.
+    /// Is the step part of the assistant for this choice of ticket source? The step „Jira“ only
+    /// for Jira (or both), the step „GitHub Projects“ only for GitHub Projects (or both); GitHub
+    /// itself (the connection for pull requests) is a step of its own either way.
     pub fn shown(self, from: crate::TicketsFrom) -> bool {
-        self != Step::Jira || from.uses_jira()
+        match self {
+            Step::Jira => from.uses_jira(),
+            Step::Projects => from.uses_projects(),
+            _ => true,
+        }
     }
 
     /// The next step that is shown for this choice.
@@ -131,6 +140,7 @@ impl Step {
     pub fn id(self) -> &'static str {
         match self {
             Step::Container => "container",
+            Step::Source => "source",
             Step::Jira => "jira",
             Step::GitHub => "github",
             Step::Projects => "projects",

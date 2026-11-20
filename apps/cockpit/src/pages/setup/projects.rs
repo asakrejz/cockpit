@@ -1,8 +1,9 @@
-//! Step „GitHub Projects“: where the tickets come from, and which projects are read. The list comes
+//! Step „GitHub Projects“: which projects the tickets are read from (shown when the tickets come
+//! from GitHub Projects; the choice of the source is the step „Tickets“). The list comes
 //! from `GET /api/github/projects` (read only); nothing is written to GitHub here.
 
 use cockpit_core::api::{ConfigChange, GitHubProjectsInput, ProjectsResponse};
-use cockpit_core::{ProjectOrigin, ProjectRef, Right, TicketsFrom, TokenKind};
+use cockpit_core::{ProjectOrigin, ProjectRef, Right, TokenKind};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -10,66 +11,12 @@ use leptos::task::spawn_local;
 use super::fields::{Context, Feedback, Intro, Message, Section, config_save, error_text};
 use crate::server;
 
-fn from_label(from: TicketsFrom) -> String {
-    match from {
-        TicketsFrom::Jira => t!(SetupProjectsFromJira),
-        TicketsFrom::GitHubProjects => t!(SetupProjectsFromProjects),
-        TicketsFrom::Both => t!(SetupProjectsFromBoth),
-    }
-}
-
 fn kind_label(kind: TokenKind) -> String {
     match kind {
         TokenKind::Classic => t!(SetupProjectsKindClassic),
         TokenKind::FineGrained => t!(SetupProjectsKindFineGrained),
         TokenKind::App => t!(SetupProjectsKindApp),
         TokenKind::Unknown => t!(SetupProjectsKindUnknown),
-    }
-}
-
-/// The choice „Tickets from: Jira / GitHub Projects / Both“. Saved at once.
-#[component]
-pub fn TicketsFromPicker(ctx: Context) -> impl IntoView {
-    let feedback: Feedback = RwSignal::new(None);
-    let current = Signal::derive(move || ctx.setup.with(|s| s.github_projects.tickets_from));
-    view! {
-        <VStack spacing="8px">
-            <div class="ui-segmented" role="group" aria-label=move || t!(SetupProjectsFromLabel) style="align-self: stretch">
-                {TicketsFrom::ALL
-                    .into_iter()
-                    .map(|from| {
-                        view! {
-                            <button
-                                type="button"
-                                style="flex: 1 1 0; padding-inline: 8px"
-                                aria-pressed=move || (current.get() == from).to_string()
-                                on:click=move |_| {
-                                    if current.get_untracked() == from {
-                                        return;
-                                    }
-                                    config_save(
-                                        ctx,
-                                        ConfigChange {
-                                            github_projects: Some(GitHubProjectsInput {
-                                                tickets_from: Some(from),
-                                                ..Default::default()
-                                            }),
-                                            ..Default::default()
-                                        },
-                                        feedback,
-                                        t!(SetupProjectsFromSaved),
-                                        || {},
-                                    );
-                                }
-                            >
-                                {move || from_label(from)}
-                            </button>
-                        }
-                    })
-                    .collect_view()}
-            </div>
-            <Message feedback=feedback />
-        </VStack>
     }
 }
 
@@ -254,9 +201,6 @@ pub fn ProjectsStep(ctx: Context) -> impl IntoView {
             <Intro title=t!(SetupProjectsTitle)>
                 <p>{t!(SetupProjectsIntro)}</p>
             </Intro>
-            <Section title=t!(SetupProjectsFromLabel)>
-                <TicketsFromPicker ctx=ctx />
-            </Section>
             <Show
                 when=move || connected.get()
                 fallback=move || {

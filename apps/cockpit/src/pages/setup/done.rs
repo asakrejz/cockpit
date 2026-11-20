@@ -94,7 +94,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                                 view! {
                                     <ListRow title=format!("{symbol}{}", z.name.render(lang())) subtitle=z.text.render(lang()) wrap=true>
                                         <Status tone=tone>{label}</Status>
-                                        {(z.tone != Tone::Good)
+                                        {(z.tone != Tone::Good || z.step == Step::Source)
                                             .then(|| {
                                                 view! {
                                                     <Button
