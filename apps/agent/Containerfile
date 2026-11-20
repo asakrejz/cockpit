@@ -7,7 +7,7 @@
 # go into that fingerprint.
 # Deliberately without BuildKit special features (no "# syntax=", no "RUN --mount") and with a fully
 # named base image, because Podman does not resolve short names without further ado.
-FROM docker.io/library/node:24-bookworm-slim
+FROM docker.io/library/node:26-trixie-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git ca-certificates ripgrep \
@@ -39,4 +39,4 @@ ENV HOME=/home/node \
     DISABLE_AUTOUPDATER=1 \
     NODE_ENV=production
 
-ENTRYPOINT ["node", "--disable-warning=ExperimentalWarning", "/opt/runner/src/main.ts"]
+ENTRYPOINT ["node", "/opt/runner/src/main.ts"]

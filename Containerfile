@@ -7,9 +7,9 @@
 # the server for $TARGETARCH (the web app is WebAssembly, the same for both architectures).
 
 # ---- build: web app (Trunk) and server --------------------------------------------------------
-FROM --platform=$BUILDPLATFORM docker.io/library/rust:1-bookworm AS build
+FROM --platform=$BUILDPLATFORM docker.io/library/rust:1-trixie AS build
 ARG TARGETARCH
-ARG TRUNK_VERSION=0.22.1
+ARG TRUNK_VERSION=0.22.2
 WORKDIR /src
 # rust-toolchain.toml first: `rustup target add` below must apply to the toolchain that builds the code.
 COPY rust-toolchain.toml ./
@@ -68,10 +68,10 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cp "/src/target-native/$triple/release/cockpit-server" /cockpit-server
 
 # ---- docker CLI (static binary, only used if the host socket is mounted) ------------------
-FROM docker.io/library/docker:27-cli AS dockercli
+FROM docker.io/library/docker:29-cli AS dockercli
 
 # ---- final image ------------------------------------------------------------------------------
-FROM docker.io/library/debian:bookworm-slim
+FROM docker.io/library/debian:trixie-slim
 
 # git: the backend clones the repos of the agent with it. ca-certificates: HTTPS to Jira, GitHub and the model endpoint.
 RUN apt-get update \

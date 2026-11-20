@@ -200,11 +200,11 @@ test("the hook fails closed", async () => {
   // as a process with an unreadable policy file
   const { execFileSync } = await import("node:child_process");
   const hook = new URL("../src/hook.ts", import.meta.url).pathname;
-  const out = execFileSync(process.execPath, ["--disable-warning=ExperimentalWarning", hook, "/nicht/da.json"], { input: "{}", encoding: "utf8" });
+  const out = execFileSync(process.execPath, [hook, "/nicht/da.json"], { input: "{}", encoding: "utf8" });
   assert.match(out, /"deny"/);
   const bad = join(repo(), "p.json");
   writeFileSync(bad, "[]");
-  assert.match(execFileSync(process.execPath, ["--disable-warning=ExperimentalWarning", hook, bad], { input: "{}", encoding: "utf8" }), /"deny"/);
+  assert.match(execFileSync(process.execPath, [hook, bad], { input: "{}", encoding: "utf8" }), /"deny"/);
 });
 
 test("settings: hook on every tool and denied tools", () => {

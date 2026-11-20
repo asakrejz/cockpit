@@ -10,14 +10,14 @@ jobs:
   no-env-files:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: No .env or config/ file is tracked
         run: scripts/check-tracked-files.sh
 
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -35,9 +35,9 @@ jobs:
         run: cargo test --workspace
 
       - name: Install Trunk
-        uses: jetli/trunk-action@v0.5.0
+        uses: taiki-e/install-action@v2
         with:
-          version: latest
+          tool: trunk@0.22.2
       - name: Build playground
         run: trunk build --release
         working-directory: apps/playground
@@ -49,10 +49,10 @@ jobs:
   laeufer:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version: 26
       - name: Runner tests
-        run: node --disable-warning=ExperimentalWarning --test test/*.test.ts
+        run: node --test test/*.test.ts
         working-directory: apps/agent/runner

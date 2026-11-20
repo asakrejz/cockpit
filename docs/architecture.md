@@ -515,10 +515,10 @@ cargo clippy --workspace --exclude cockpit-server --exclude cockpit-integrations
 cargo clippy -p cockpit-server -p cockpit-integrations --all-targets -- -D warnings
 cargo test --workspace
 (cd apps/playground && trunk build) && (cd apps/cockpit && trunk build)
-(cd apps/agent/runner && node --disable-warning=ExperimentalWarning --test test/*.test.ts)
+(cd apps/agent/runner && node --test test/*.test.ts)
 ```
 
-The agent runner tests need Node ≥ 22.18. Tests that start real containers are `#[ignore]`d:
+The agent runner tests need Node ≥ 26.13.1 (the current LTS). Tests that start real containers are `#[ignore]`d:
 `COCKPIT_CONTAINER=docker cargo test -- --ignored` (or `podman`).
 
 **UI work.** The playground: `(cd apps/playground && trunk serve --open)` (port 8080). The app against a server:

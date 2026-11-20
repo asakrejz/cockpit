@@ -2,7 +2,7 @@
 
 The Cockpit agent runs in its own container per run (Docker or Podman). This directory holds the image:
 
-- `Containerfile`: Node 24, Git, the runner and the agent CLIs; runs as the user `node` (not root).
+- `Containerfile`: Node 26, Git, the runner and the agent CLIs; runs as the user `node` (not root).
 - `clis/`: `package.json` + `package-lock.json` with the exact versions of `@anthropic-ai/claude-code` and `@openai/codex`
   (installed with `npm ci`, never "latest"; no secret file is written during the install). To update a CLI, change the
   version in `clis/package.json`, run `npm install --package-lock-only` there, review and rebuild (the fingerprint changes by itself).
@@ -183,5 +183,5 @@ The job is checked again in the runner (folder must be `<owner>__<name>`, branch
 ## Tests
 
 ```bash
-cd apps/agent/runner && npm install && npm test   # Node >= 22.18, no network; the SDK, `claude` and `codex` are stand-ins
+cd apps/agent/runner && npm install && npm test   # Node >= 26.13.1 (current LTS), no network; the SDK, `claude` and `codex` are stand-ins
 ```
