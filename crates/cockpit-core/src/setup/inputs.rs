@@ -106,16 +106,17 @@ pub fn projects_read(text: &str) -> Vec<String> {
     from
 }
 
-/// The agent's repos from the rows of the assistant: `(repo, base branch, projects)` per row
-/// plus the default. Empty rows are skipped. Rejects (with a plain-text reason) a repo that
-/// is not `owner/name`, one that is listed twice, a base branch with odd characters, a Jira
-/// project that is not a key or that goes to two repos, and a default outside the list.
+/// The agent's repos from the rows of the assistant: `(repo, base branch, branch pattern)` per
+/// row plus the default. Empty rows are skipped. Rejects (with a plain-text reason) a repo that
+/// is not `owner/name`, one that is listed twice, a base branch with odd characters, a bad
+/// branch pattern and a default outside the list. Jira projects are not part of it: a repo is
+/// chosen when the agent starts, not per board.
 pub fn agent_repos_read(
-    rows: &[(String, String, String, String)],
+    rows: &[(String, String, String)],
     default: &str,
 ) -> Result<crate::api::AgentReposInput, Msg> {
     let mut repos: Vec<crate::AgentRepo> = Vec::new();
-    for (repo, base, projects, pattern) in rows {
+    for (repo, base, pattern) in rows {
         if repo.trim().is_empty() {
             continue;
         }
@@ -140,15 +141,6 @@ pub fn agent_repos_read(
         {
             return Err(msg!(CoreSetupBaseInvalid, base = base, name = &name));
         }
-        let projects = projects_read(projects);
-        for p in &projects {
-            if !crate::model::is_project_key(p) {
-                return Err(msg!(CoreSetupNotProjectKey, project = p));
-            }
-            if let Some(other) = repos.iter().find(|r| r.projects.contains(p)) {
-                return Err(msg!(CoreSetupProjectTaken, project = p, repo = &other.repo));
-            }
-        }
         let pattern = pattern.trim();
         let pattern = if pattern.is_empty() {
             crate::branch::DEFAULT_PATTERN
@@ -160,7 +152,8 @@ pub fn agent_repos_read(
         repos.push(crate::AgentRepo {
             repo: name,
             base_branch: base.to_string(),
-            projects,
+            // Kept as stored by the caller (the assistant no longer edits it).
+            projects: Vec::new(),
             branch_pattern: pattern.to_string(),
             pr_language: cockpit_i18n::Lang::En,
             watch: true,

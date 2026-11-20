@@ -132,7 +132,7 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `GET /api/setup` | what the assistant prefills: Jira site/email/projects, client IDs, repos, provider, endpoint address and model, both callback addresses, and per key only `{name, set}` |
 | `POST /api/github/repos/check` | read-only look at repos (`{repos:[…]}` → per repo `Ok`/`ReadOnly`/`NotFound`/`NoAccess`/`Failed` plus the default branch); only `GET /repos/{owner}/{name}`, never changes anything |
 | `GET /api/agent/repo-suggestions?ticket=KEY` | repos to offer first for the ticket, best first, each with a reason (`previous_run`, `linked_pr`, `mentioned`, `rule`, `default`); only reads |
-| `PUT /api/config` | writes client IDs, Jira, repos, `[github_projects]` (`github_projects`: `tickets_from`, `projects`, `status_field`, `team_field`), the agent's repos (`agent_repos`: list with base branch and projects, plus default), agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with plain text |
+| `PUT /api/config` | writes client IDs, Jira, repos, `[github_projects]` (`github_projects`: `tickets_from`, `projects`, `status_field`, `team_field`), the agent's repos (`agent_repos`: list with base branch, branch pattern and language, plus default; `projects` of older files are kept as they are), agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with plain text |
 | `PUT /api/secrets/{name}` | stores a key in `config/.env`; body `{"value": "…"}`; names in [configuration.md](configuration.md#credentials-the-env-file) (plus `github-webhook`, `jira-webhook`); answer `{name, set}`, never the value |
 | `DELETE /api/secrets/{name}` | "Trennen" for tokens: deletes `jira` or `github` from `config/.env` (other names: `404`); answer `{name, set: false}` |
 | `POST /api/webhooks/github`, `POST /api/webhooks/jira` | optional (`[server] webhooks`), the only routes reachable with a foreign `Host`: HMAC-signed triggers for the sync; `202`/`200`/`204`/`401`/`404`/`413`/`415`/`429`, no body, payload never used as data |
@@ -247,7 +247,7 @@ routes.
   `cockpit_core::repos::suggest` (earlier runs of the same Jira project, linked pull requests, mentions in the ticket
   text, configured rules). The first run in a repo without settings stores them in `[[agent.repos]]` (`watch = false`,
   default branch from GitHub, `CONTRIBUTING.md` proposal; `AppState::repo_settings_prepare`).
-  `cockpit_core::AgentRepos` (`[[agent.repos]]`: repo, base branch, Jira projects, plus the default)
+  `cockpit_core::AgentRepos` (`[[agent.repos]]`: repo, base branch, branch pattern, plus the default; `projects` is only a quiet suggestion)
   still routes a ticket without a choice (`choose(project)`: rule, else default, else none). The backend applies it in
   `AppState::agent_route` before `StartAgent` (user's `AgentOptions.repo` wins if it is a configured repo) and
   `GET /api/health` reports the same rules under `agent.repos`, so the interface preselects identically. A run

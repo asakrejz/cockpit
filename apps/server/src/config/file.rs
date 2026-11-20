@@ -162,8 +162,8 @@ pub(super) fn repo_valid(r: &str) -> bool {
         .is_some_and(|(o, n)| teil(o) && teil(n) && !n.contains('/'))
 }
 
-/// `[[agent.repos]]`: every repo valid and once, every project a valid key and routed to one
-/// repo only (otherwise the rule would be ambiguous).
+/// `[[agent.repos]]`: every repo valid and once. `projects` (older files) is only read as a
+/// suggestion for the agent start and never an error.
 pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>, ConfigError> {
     let mut out: Vec<AgentRepo> = Vec::new();
     for r in list {
@@ -193,25 +193,12 @@ pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>,
                 repo = &repo
             )));
         }
+        // Only a silent suggestion for the agent start (see `cockpit_core::repos::suggest`), no
+        // longer a rule: a key that is invalid or listed twice is skipped instead of an error.
         let mut projects: Vec<String> = Vec::new();
         for p in &r.projects {
             let p = p.trim().to_ascii_uppercase();
-            if !is_project_key(&p) {
-                return Err(ConfigError::Wert(msg!(
-                    ServerConfigReposProjectKey,
-                    repo = &repo,
-                    project = &p
-                )));
-            }
-            if let Some(other) = out.iter().find(|o| o.projects.contains(&p)) {
-                return Err(ConfigError::Wert(msg!(
-                    ServerConfigReposProjectTaken,
-                    project = &p,
-                    owner = &other.repo,
-                    repo = &repo
-                )));
-            }
-            if !projects.contains(&p) {
+            if is_project_key(&p) && !projects.contains(&p) {
                 projects.push(p);
             }
         }

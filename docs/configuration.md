@@ -45,13 +45,12 @@ email = "me@acme.example"
 provider = "claude-agent-sdk"     # or "claude-code" or "codex"
 container = "podman"              # or "docker"; detected when omitted
 repo = "acme/app"                 # default repo of the agent (optional, see "Several repos")
-[[agent.repos]]                   # the repos the agent may work in; a Jira project goes to one repo
+[[agent.repos]]                   # optional settings per repo (the repo itself is chosen at the agent start)
 repo = "acme/web"
 base_branch = "develop"           # optional, default "main"
-projects = ["WEB", "SHOP"]        # Jira projects whose tickets go to this repo
 branch_pattern = "{type}/{ticket}-{slug}"   # optional, default "claude/{ticket}-{slug}", see "Branch names"
 [[agent.repos]]
-repo = "acme/app"                 # without projects: only a choice
+repo = "acme/app"
 [agent.endpoint]                  # model access, see "Model provider and endpoint"
 url = "https://litellm.example"   # empty or omitted = directly at Anthropic
 model = "claude-sonnet-5-5"
@@ -156,17 +155,19 @@ build context is `apps/agent`, and its `.dockerignore` excludes `config` as well
 the credential can see (`GET /user/repos`, or the installation repos with the GitHub App; kept for 5 minutes). Any
 `owner/name` is allowed. The dialog suggests repos first, each with a short reason: (1) repos earlier runs used for
 tickets of the same Jira project (remembered from the runs in the database), (2) repos of pull requests or branches
-linked to the ticket, (3) `owner/name` or GitHub addresses in the ticket text, (4) the `[[agent.repos]]` rules and
-`[agent] repo` below. A run can work in several repos (see [using-cockpit.md](using-cockpit.md#working-in-several-repos-at-once)).
+linked to the ticket, (3) `owner/name` or GitHub addresses in the ticket text, (4) the default repo `[agent] repo` and, in older files, `projects` lists (see below). A run can work in several repos (see [using-cockpit.md](using-cockpit.md#working-in-several-repos-at-once)).
 
-`[[agent.repos]]` holds the **settings per repo** (owner/name, base branch, branch pattern, PR language, Jira
-projects). It is optional. A repo without an entry uses its default branch from GitHub as the base branch and the
+`[[agent.repos]]` holds the **settings per repo** (owner/name, base branch, branch pattern, PR language). It is
+optional. A repo without an entry uses its default branch from GitHub as the base branch and the
 usual branch pattern (or the proposal from its `CONTRIBUTING.md`). The first time the agent starts in such a repo,
 Cockpit stores an entry with these values (`watch = false`) so you can edit it later. The branch pattern and path
 checks before the push stay as they are. `watch` (default `true`) says whether the sync also loads *all* open pull
 requests of that repo, as if it were in `[github] repos`; entries written by hand watch, entries stored on the first
 use do not. Older configs keep working unchanged: `[github] repos` and `[[agent.repos]]` entries are watched repos as
-before, and rules (`projects`, `[agent] repo`) still preselect the repo. A project may belong to one repo only. In the assistant the connection test looks at each watched repo
+before, and `[agent] repo` still preselects the repo. Jira projects are **no longer tied to repos**: the setup does not ask for them,
+and an old `projects = [...]` list in `[[agent.repos]]` is read without error (an invalid key is skipped, a key may appear
+in several repos) and only serves as a quiet suggestion in the start dialog; the assistant keeps it when it saves the list.
+Which pull requests the Reviews tab shows is a filter in the app (see [using-cockpit.md](using-cockpit.md#reviews-filter)), not configuration. In the assistant the connection test looks at each watched repo
 read-only (`GET /repos/{owner}/{name}`: exists, visible, push allowed) – it changes nothing. Pull requests are
 identified by `owner/name#number`: equal numbers from two repos stay separate in the inbox, review, agent view,
 log and notifications; addresses look like `#/review/acme/app/87`.

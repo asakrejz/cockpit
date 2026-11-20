@@ -76,10 +76,13 @@ The agent implements a ticket in a **container** (Claude Agent SDK, Claude Code 
    through the backend, and you choose one or several repos when you start the agent on a ticket (see
    [using-cockpit.md](using-cockpit.md#choosing-the-repo-at-the-start)). The step "GitHub" has two optional, collapsed
    sections: "Repos beobachten (optional)" (repos whose *all* open pull requests Cockpit loads, `[github] repos`) and
-   "Repo-Einstellungen für den Agenten (optional)" (base branch, branch pattern, PR language, Jira projects per repo,
-   `[[agent.repos]]`, see [configuration.md](configuration.md#several-repos)). Both read the list of reachable repos
+   "Repo-Einstellungen für den Agenten (optional)" (base branch, branch pattern, PR language,
+   `[[agent.repos]]`; Jira projects are not tied to repos any more, see [configuration.md](configuration.md#several-repos)). Both read the list of reachable repos
    (read-only `GET /api/github/repos`). The folder `apps/agent/` is looked up next to `apps/cockpit/dist`
    (`[agent] dir` or `COCKPIT_AGENT_DIR` overrides).
+
+Which pull requests the Reviews tab shows is not set up here: it finds everything that concerns you in every repo the
+credential can see, and the "Filter" button of the tab narrows the list (see [using-cockpit.md](using-cockpit.md#reviews-filter)).
 
 If something is not set up, no run starts; the message says in plain language what is missing and where in the
 assistant to fix it.

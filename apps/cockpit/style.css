@@ -191,3 +191,8 @@ body { margin: 0; }
   font: inherit;
   cursor: pointer;
 }
+
+/* Reviews filter: repos grouped by owner. */
+.ck-filter-groups { display: flex; flex-direction: column; gap: var(--ref-space-12); }
+.ck-filter-group { display: flex; flex-direction: column; gap: var(--ref-space-4); }
+.ck-filter-owner { padding-inline: 0; }

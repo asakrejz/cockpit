@@ -19,7 +19,7 @@ in English they read Tasks, Pull requests, Agents, Log, Limits & rules, Notifica
 |------|---------|--------------|
 | Einrichten | `#/setup`, `#/setup/<step>` | state and next step per service: sign in to / disconnect Jira and GitHub, check the agent endpoint, detect the container runtime |
 | Aufgaben | `#/tasks` (the filter chosen last), `#/`, `#/mine`, `#/team`, `#/snoozed` (the older addresses keep their filter) | inbox of tickets and pull requests, filtered by switchable rules (mention, review request, blocked PR, overdue ticket, agent done, assigned); snooze; change status, create a branch, reply, assign the agent; edit a ticket; pull requests link to their ticket automatically (the ticket key in the branch name or title; there is no manual linking), the section "Entwicklung" lists every linked PR with branch, state and checks; search; the button "Filter" (with the number of active filters) opens the filter dialog with all filters, chips under it remove single filters; keys `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
-| Review | `#/review/acme/app/87` | the description and all comments are shown as Markdown (headings, lists, code, links; no raw HTML); tabs „Dateien“ (file tree with +/− counts, one collapsible diff per file, „Angesehen“ per file, long diffs cut at 300 lines with „Mehr anzeigen“) and „Commits“ (list; a click shows only that commit's diff, read only); select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you) |
+| Review | `#/review/acme/app/87` | the list on the left has a "Filter" button (see [Reviews filter](#reviews-filter)); the description and all comments are shown as Markdown (headings, lists, code, links; no raw HTML); tabs „Dateien“ (file tree with +/− counts, one collapsible diff per file, „Angesehen“ per file, long diffs cut at 300 lines with „Mehr anzeigen“) and „Commits“ (list; a click shows only that commit's diff, read only); select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you) |
 | Übersicht | `#/overview` | open entries and load per person; "Hängt" shows failed checks, waiting reviews, tickets without a branch and agents waiting for you |
 | Benachrichtigungen | `#/notifications` | per occasion choose browser, email and Slack; quiet hours; permission request by button; test notification |
 | Agent | `#/agent/BAU-142` | assignment with options; plan for approval; five-step flow; answer questions, send hints, pause; history as a conversation; for a finished real run "Pull Request anlegen" (preview, editable); finished runs whose pull request is merged or closed (see below); "Aufräumen" |
@@ -153,11 +153,29 @@ and, after a pause or a cancel, a clone.
   without the label are never touched. If the container program is not reachable, only folders are listed. The
   removal re-checks every item and skips whatever started working in the meantime.
 
+## Reviews filter
+
+The Reviews tab lists the open pull requests that concern you (author, review requested, involved) in **every repo your
+GitHub access can see**, plus all open pull requests of the repos you watch (see
+[configuration.md](configuration.md#several-repos)). Nothing in the setup limits this by Jira project or repo. The button
+"Filter" above the list opens a dialog:
+
+- **Whose:** "Meine" (what concerns you) or "Alle".
+- **Repos:** every repo that has pull requests, grouped by owner or organization, each with its number of pull requests;
+  tick an owner to choose all its repos. A search field appears when there are more than eight repos. Nothing ticked
+  means all repos.
+- **GitHub Projects:** shown when GitHub Projects are connected; only pull requests that are linked to an item of the
+  chosen project (on the issue's timeline or named in it) stay.
+
+"Anwenden" stores the choice with the workspace, so it is still there after a restart; "Zurücksetzen" clears it. The
+filter only narrows the list: the sync still loads everything, and the review you have open stays in the list. A
+line under the button says how many repos or projects are shown and has "Alle zeigen".
+
 ## Choosing the repo at the start
 
 The start dialog of a ticket has a searchable list of every repo your GitHub access can see. The suggestions come first,
 each with a short reason: used before for tickets of the same Jira project, has a pull request or branch for this
-ticket, named in the ticket, or set in the settings. Type to search; a valid `owner/name` that is not listed can be
+ticket, named in the ticket, or the default repo. (Older configs may still list Jira projects per repo; they only act as a quiet suggestion, the setup no longer asks for them.) Type to search; a valid `owner/name` that is not listed can be
 used as typed. The first time the agent works in a repo, Cockpit reads its default branch (and a branch pattern proposal
 from `CONTRIBUTING.md`) from GitHub and remembers it in `[[agent.repos]]`.
 

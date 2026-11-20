@@ -296,7 +296,7 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), Msg> {
 }
 
 /// Writes `[agent] repo` (the default) and `[[agent.repos]]` (the list with base branch and
-/// Jira projects). An empty list removes both. Other values of `[agent]` stay.
+/// suggestion projects of older files). An empty list removes both. Other values of `[agent]` stay.
 pub(super) fn agent_repos_write(doc: &mut DocumentMut, input: &AgentReposInput) -> Result<(), Msg> {
     if let Some(d) = &input.default
         && !input.repos.iter().any(|r| &r.repo == d)
@@ -304,6 +304,29 @@ pub(super) fn agent_repos_write(doc: &mut DocumentMut, input: &AgentReposInput) 
         return Err(msg!(ServerSetupDefaultRepoMissing, repo = d));
     }
     let t = table(doc, "agent")?;
+    // The assistant no longer edits `projects` (a silent suggestion for the agent start): what
+    // the file has stays when the input names none.
+    let old_projects: Vec<(String, Vec<String>)> = t
+        .get("repos")
+        .and_then(Item::as_array_of_tables)
+        .map(|a| {
+            a.iter()
+                .filter_map(|e| {
+                    let repo = e.get("repo")?.as_str()?.to_string();
+                    let projects = e
+                        .get("projects")
+                        .and_then(Item::as_array)
+                        .map(|p| {
+                            p.iter()
+                                .filter_map(|v| v.as_str().map(str::to_string))
+                                .collect()
+                        })
+                        .unwrap_or_default();
+                    Some((repo, projects))
+                })
+                .collect()
+        })
+        .unwrap_or_default();
     t.remove("repos");
     // `[github] repos` (the watched repos) is a separate list and stays as it is.
     let t = table(doc, "agent")?;
@@ -326,8 +349,17 @@ pub(super) fn agent_repos_write(doc: &mut DocumentMut, input: &AgentReposInput) 
             if r.base_branch != cockpit_core::repos::DEFAULT_BASE {
                 e.insert("base_branch", value(r.base_branch.trim()));
             }
-            if !r.projects.is_empty() {
-                e.insert("projects", list(&r.projects));
+            let projects = if r.projects.is_empty() {
+                old_projects
+                    .iter()
+                    .find(|(repo, _)| *repo == r.repo.trim())
+                    .map(|(_, p)| p.clone())
+                    .unwrap_or_default()
+            } else {
+                r.projects.clone()
+            };
+            if !projects.is_empty() {
+                e.insert("projects", list(&projects));
             }
             let pattern = r.branch_pattern.trim();
             if !pattern.is_empty() && pattern != cockpit_core::branch::DEFAULT_PATTERN {

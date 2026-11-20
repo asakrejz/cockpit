@@ -472,21 +472,18 @@ fn only_tokens_and_client_secrets_can_be_deleted() {
     }
 }
 
-fn row(repo: &str, base: &str, projects: &str) -> (String, String, String, String) {
-    (repo.into(), base.into(), projects.into(), String::new())
+fn row(repo: &str, base: &str) -> (String, String, String) {
+    (repo.into(), base.into(), String::new())
 }
 
-fn row_with(repo: &str, pattern: &str) -> (String, String, String, String) {
-    (repo.into(), String::new(), String::new(), pattern.into())
+fn row_with(repo: &str, pattern: &str) -> (String, String, String) {
+    (repo.into(), String::new(), pattern.into())
 }
 
 #[test]
 fn branch_pattern_defaults_and_is_validated() {
     let a = agent_repos_read(
-        &[
-            row("a/b", "", ""),
-            row_with("a/c", " feature/{ticket}-{slug} "),
-        ],
+        &[row("a/b", ""), row_with("a/c", " feature/{ticket}-{slug} ")],
         "",
     )
     .unwrap();
@@ -502,9 +499,9 @@ fn branch_pattern_defaults_and_is_validated() {
 fn agent_repos_come_from_rows() {
     let a = agent_repos_read(
         &[
-            row("firma/app", "", ""),
-            row("https://github.com/firma/web.git", "develop", "web, shop"),
-            row("", "", ""),
+            row("firma/app", ""),
+            row("https://github.com/firma/web.git", "develop"),
+            row("", ""),
         ],
         "firma/app",
     )
@@ -512,11 +509,12 @@ fn agent_repos_come_from_rows() {
     assert_eq!(a.repos.len(), 2);
     assert_eq!(a.repos[0].base_branch, "main");
     assert_eq!(a.repos[1].repo, "firma/web");
-    assert_eq!(a.repos[1].projects, ["WEB", "SHOP"]);
+    // Jira projects are not part of the assistant any more.
+    assert!(a.repos.iter().all(|r| r.projects.is_empty()));
     assert_eq!(a.default.as_deref(), Some("firma/app"));
     // No default is fine; an empty form clears everything.
     assert_eq!(
-        agent_repos_read(&[row("a/b", "", "")], "").unwrap().default,
+        agent_repos_read(&[row("a/b", "")], "").unwrap().default,
         None
     );
     assert_eq!(agent_repos_read(&[], "").unwrap(), Default::default());
@@ -525,16 +523,10 @@ fn agent_repos_come_from_rows() {
 #[test]
 fn agent_repos_rows_with_mistakes_say_what_is_wrong() {
     for (rows, default, part) in [
-        (vec![row("firma", "", "")], "", "Repo"),
-        (vec![row("a/b", "", ""), row("a/b", "", "")], "", "doppelt"),
-        (vec![row("a/b", "-x", "")], "", "Basis-Branch"),
-        (vec![row("a/b", "", "1X")], "", "Projektschlüssel"),
-        (
-            vec![row("a/b", "", "WEB"), row("a/c", "", "web")],
-            "",
-            "WEB",
-        ),
-        (vec![row("a/b", "", "")], "a/c", "Standard-Repo"),
+        (vec![row("firma", "")], "", "Repo"),
+        (vec![row("a/b", ""), row("a/b", "")], "", "doppelt"),
+        (vec![row("a/b", "-x")], "", "Basis-Branch"),
+        (vec![row("a/b", "")], "a/c", "Standard-Repo"),
     ] {
         let e = agent_repos_read(&rows, default).unwrap_err();
         assert!(e.de().contains(part), "{}", e.de());

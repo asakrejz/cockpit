@@ -249,7 +249,7 @@ fn change_writes_agent_repos_and_keeps_the_rest_of_agent() {
 }
 
 #[test]
-fn change_rejects_a_default_outside_the_list_and_double_projects() {
+fn change_rejects_a_default_outside_the_list_and_accepts_shared_projects() {
     use cockpit_core::AgentRepo;
     use cockpit_core::api::AgentReposInput;
     let outside = ConfigChange {
@@ -277,7 +277,8 @@ fn change_rejects_a_default_outside_the_list_and_double_projects() {
         }),
         ..Default::default()
     };
-    assert!(change("", &double).unwrap_err().de().contains("WEB"));
+    // Jira projects are only suggestions now: two repos may list the same one.
+    assert!(change("", &double).is_ok());
 }
 
 #[test]
@@ -652,4 +653,19 @@ fn github_projects_are_written_in_place_and_checked() {
     };
     assert!(change(&text2, &cleared).is_ok());
     assert!(change(WITH_COMMENTS, &input(None, Some(&["not a project"]))).is_err());
+}
+
+#[test]
+fn saving_repos_without_projects_keeps_the_old_suggestions() {
+    // The assistant no longer edits `projects`; an older file keeps them for the agent start.
+    let old = "[[agent.repos]]\nrepo = \"firma/web\"\nprojects = [\"WEB\"]\n";
+    let input = ConfigChange {
+        agent_repos: Some(cockpit_core::api::AgentReposInput {
+            repos: vec![cockpit_core::AgentRepo::new("firma/web")],
+            default: None,
+        }),
+        ..Default::default()
+    };
+    let (updated, c) = change(old, &input).unwrap();
+    assert_eq!(c.agent_repos[0].projects, ["WEB"], "{updated}");
 }

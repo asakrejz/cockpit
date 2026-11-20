@@ -1,5 +1,5 @@
 //! Settings per repo for the agent (optional): base branch, branch pattern, language of the pull
-//! request text and the Jira projects whose tickets go there. Without an entry the agent uses the
+//! request text. Without an entry the agent uses the
 //! default branch of the repo; the first start in a repo stores an entry here by itself. A repo is
 //! chosen for each ticket when the agent starts, not here. The list to choose from comes from
 //! GitHub (read-only).
@@ -40,7 +40,6 @@ struct Row {
     id: usize,
     repo: RwSignal<String>,
     base: RwSignal<String>,
-    projects: RwSignal<String>,
     pattern: RwSignal<String>,
     /// Language code of the pull request text (`en` or `de`).
     pr_language: RwSignal<&'static str>,
@@ -60,14 +59,13 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
     // The signals of a row belong to the page, not to the effect or click that creates the row:
     // those owners are cleaned up again and would take the signals with them.
     let owner = StoredValue::new(Owner::current());
-    let new_row = move |repo: &str, base: &str, projects: &str, pattern: &str, watch: bool| {
+    let new_row = move |repo: &str, base: &str, pattern: &str, watch: bool| {
         let id = next_id.get_value();
         next_id.set_value(id + 1);
         let make = || Row {
             id,
             repo: RwSignal::new(repo.into()),
             base: RwSignal::new(base.into()),
-            projects: RwSignal::new(projects.into()),
             pattern: RwSignal::new(pattern.into()),
             pr_language: RwSignal::new(Lang::En.code()),
             watch,
@@ -97,13 +95,7 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
                     } else {
                         &r.branch_pattern
                     };
-                    let row = new_row(
-                        &r.repo,
-                        &r.base_branch,
-                        &r.projects.join(", "),
-                        pattern,
-                        r.watch,
-                    );
+                    let row = new_row(&r.repo, &r.base_branch, pattern, r.watch);
                     row.pr_language.set(r.pr_language.code());
                     row
                 })
@@ -162,7 +154,7 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
             } else {
                 &info.default_branch
             };
-            let r = new_row(&name, base, "", "", false);
+            let r = new_row(&name, base, "", false);
             rows.update(|l| l.push(r));
         }
     };
@@ -196,7 +188,7 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
         Ok(names) => {
             for n in names {
                 if !chosen.get_untracked().contains(&n) {
-                    let r = new_row(&n, "main", "", "", false);
+                    let r = new_row(&n, "main", "", false);
                     rows.update(|l| l.push(r));
                 }
             }
@@ -208,14 +200,13 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
 
     let feedback: Feedback = RwSignal::new(None);
     let save = move |_| {
-        let list: Vec<(String, String, String, String)> = rows
+        let list: Vec<(String, String, String)> = rows
             .get_untracked()
             .iter()
             .map(|r| {
                 (
                     r.repo.get_untracked(),
                     r.base.get_untracked(),
-                    r.projects.get_untracked(),
                     r.pattern.get_untracked(),
                 )
             })
@@ -349,13 +340,6 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
                     <div class="ck-agent-repo">
                         <span class="ck-repo-name">{move || row.repo.get()}</span>
                         <TextField label=t!(SetupReposBaseBranch) value=row.base placeholder="main" autocomplete="off" />
-                        <TextField
-                            label=t!(SetupReposProjects)
-                            value=row.projects
-                            placeholder="WEB, SHOP"
-                            hint=t!(SetupReposProjectsHint)
-                            autocomplete="off"
-                        />
                         <BranchPatternField repo=row.repo pattern=row.pattern />
                         <VStack spacing="6px">
                             <span class="t-subheadline">{t!(SetupReposPrLanguage)}</span>

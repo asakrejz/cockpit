@@ -173,3 +173,69 @@ async fn a_failed_search_keeps_the_known_pull_requests_and_says_so() {
         st.warnings
     );
 }
+
+#[tokio::test]
+async fn a_watched_repo_and_the_search_across_owners_show_up_together() {
+    let s = MockServer::start().await;
+    any_detail(&s).await;
+    // All open pull requests of the watched repo, colleagues' included …
+    list(
+        &s,
+        REPO,
+        1,
+        vec![pull(1, "lena", json!({})), pull(2, "lena", json!({}))],
+    )
+    .await;
+    // … and what concerns me elsewhere, in repos of two other owners.
+    search(&s, QUERIES[0], vec![hit("acme/web", 5)]).await;
+    search(&s, QUERIES[1], vec![hit("other-org/tool", 6)]).await;
+    search(
+        &s,
+        QUERIES[2],
+        vec![hit("other-org/tool", 6), hit("me/private", 7)],
+    )
+    .await;
+    single(&s, "acme/web", 5, "mkeller").await;
+    single(&s, "other-org/tool", 6, "lena").await;
+    single(&s, "me/private", 7, "mkeller").await;
+    let d = service(&s, &[REPO], PrLimits::default());
+
+    let (ws, _) = sync(&d, &Workspace::default(), NOW_MS).await;
+    let mut repos: Vec<_> = ws.reviews.iter().map(|r| r.repo.as_str()).collect();
+    repos.sort_unstable();
+    repos.dedup();
+    assert_eq!(repos, [REPO, "acme/web", "me/private", "other-org/tool"]);
+    assert_eq!(ws.reviews.len(), 5);
+}
+
+#[tokio::test]
+async fn the_sync_is_not_narrowed_by_a_jira_project_or_the_review_filter() {
+    let s = MockServer::start().await;
+    any_detail(&s).await;
+    search(&s, QUERIES[0], vec![hit("acme/app", 1), hit("acme/web", 2)]).await;
+    search(&s, QUERIES[1], vec![hit("acme/api", 3)]).await;
+    search(&s, QUERIES[2], vec![]).await;
+    single(&s, "acme/app", 1, "mkeller").await;
+    single(&s, "acme/web", 2, "mkeller").await;
+    single(&s, "acme/api", 3, "lena").await;
+    let d = service(&s, &[], PrLimits::default());
+    // The user looks at one Jira board and one repo in the Reviews tab.
+    let known = Workspace {
+        jira_project: Some("BAU".into()),
+        review_filter: cockpit_core::ReviewFilter {
+            repos: vec!["acme/app".into()],
+            ..Default::default()
+        },
+        ..Workspace::default()
+    };
+
+    let (ws, _) = sync(&d, &known, NOW_MS).await;
+    assert_eq!(
+        ws.reviews.len(),
+        3,
+        "every repo is loaded, only the list is filtered"
+    );
+    let shown = ws.reviews_filtered(&ws.review_filter, None);
+    assert_eq!(shown.len(), 1);
+    assert_eq!(shown[0].repo, "acme/app");
+}

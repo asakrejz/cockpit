@@ -107,6 +107,11 @@ pub enum Action {
     SetInboxFilter {
         filter: crate::InboxFilter,
     },
+    /// Apply the filter of the Reviews tab (repos, GitHub projects, whose pull requests). A
+    /// display filter only: nothing is written to GitHub and the sync is not narrowed.
+    SetReviewFilter {
+        filter: crate::review_filter::ReviewFilter,
+    },
     // GitHub Projects (tickets that are issues or drafts of a project)
     /// Adds a label to the issue (`on`) or removes it.
     SetLabel {
@@ -513,7 +518,8 @@ impl Workspace {
             | Action::SetStatusFollowsPr { .. }
             | Action::SelectJiraProject { .. }
             | Action::SetTeamChoice { .. }
-            | Action::SetInboxFilter { .. } => self.perform_inbox(action, at_ms),
+            | Action::SetInboxFilter { .. }
+            | Action::SetReviewFilter { .. } => self.perform_inbox(action, at_ms),
             Action::SetLabel { .. }
             | Action::SetIssueClosed { .. }
             | Action::SetProjectField { .. }

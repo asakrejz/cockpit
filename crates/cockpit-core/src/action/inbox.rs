@@ -266,6 +266,17 @@ impl Workspace {
                 }
                 Ok(vec![Note::coded(Target::Settings, text)])
             }
+            Action::SetReviewFilter { filter } => {
+                let text = if filter.is_default() {
+                    msg!(CoreActionLogFilterReset)
+                } else {
+                    msg!(CoreActionLogFilterApplied)
+                };
+                if !self.set_review_filter(filter) {
+                    return Err(ActionError::Unchanged);
+                }
+                Ok(vec![Note::coded(Target::Settings, text)])
+            }
             _ => unreachable!("inbox: dispatched by perform"),
         }
     }

@@ -227,6 +227,7 @@ mod real_agent;
 mod real_followups;
 mod repos;
 mod review;
+mod review_filter;
 mod status_sync;
 mod tickets;
 
