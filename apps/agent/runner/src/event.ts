@@ -11,13 +11,15 @@ export type Event =
   // against the diff and keeps them as drafts; nothing goes to GitHub from here.
   | { t: "review_comment"; path: string; line: number; start_line?: number; side: "RIGHT" | "LEFT"; text: string; suggestion?: string }
   | { t: "review_summary"; text: string }
-  | { t: "result"; text: string; branch: string; commit: string }
+  // `repos` only for a job in several repos: the branch and commit of each repo that has changes.
+  | { t: "result"; text: string; branch: string; commit: string; repos?: Array<{ repo: string; branch: string; commit: string }> }
   | { t: "check"; reachable: boolean; key_ok: boolean; hint: string }
   | { t: "error"; text: string };
 
 /** Longest string of a field; the backend discards lines over 64 KiB. */
 export const MAX_TEXT = 2000;
 const MAX_LIST = 200;
+const MAX_REPOS = 10;
 
 export function truncate(text: string, max = MAX_TEXT): string {
   const t = String(text ?? "");
@@ -32,7 +34,12 @@ function list(values: unknown): string[] {
 export function line(e: Event): string {
   const clean: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(e)) {
-    if (Array.isArray(v)) clean[k] = list(v);
+    if (Array.isArray(v) && v.every((x) => typeof x === "object" && x !== null)) {
+      // Lists of objects (the repos of a result): the text fields are truncated, nothing else is let through.
+      clean[k] = v.slice(0, MAX_REPOS).map((o) =>
+        Object.fromEntries(Object.entries(o as Record<string, unknown>).map(([a, b]) => [a, typeof b === "string" ? truncate(b, 200) : b])),
+      );
+    } else if (Array.isArray(v)) clean[k] = list(v);
     else if (typeof v === "string") clean[k] = truncate(v);
     else clean[k] = v;
   }

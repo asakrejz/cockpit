@@ -221,6 +221,7 @@ mod closed_runs;
 mod follow_ups;
 mod inbox_filter;
 mod limits;
+mod multi_repo;
 mod pull_requests;
 mod real_agent;
 mod real_followups;

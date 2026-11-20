@@ -1,0 +1,4 @@
+# Die Repos eines Agent-Laufs (Seite des Laufs)
+agent_repos.title = Repos in diesem Lauf
+agent_repos.pull_request_number = Pull Request #{number}
+agent_repos.pull_request_for = Pull Request in {repo}

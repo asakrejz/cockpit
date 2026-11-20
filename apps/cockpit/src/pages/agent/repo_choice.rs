@@ -37,6 +37,7 @@ pub(super) fn repo_choice(ctx: AgentCtx) -> impl IntoView {
         ..
     } = ctx;
     let repo = ctx.form.repo;
+    let others = ctx.form.others;
     let agent_repos = ctx.form.agent_repos;
     let query = RwSignal::new(String::new());
 
@@ -69,23 +70,64 @@ pub(super) fn repo_choice(ctx: AgentCtx) -> impl IntoView {
             && !rows.with(|r| r.iter().any(|row| row.repo.eq_ignore_ascii_case(&q))))
         .then_some(q)
     });
+    // All chosen repos, the first one is the primary one.
+    let selected = Memo::new(move |_| {
+        let first = repo.get();
+        if first.is_empty() {
+            return Vec::new();
+        }
+        std::iter::once(first)
+            .chain(others.get())
+            .collect::<Vec<_>>()
+    });
+    // Adds the repo, or takes it away again if it is already chosen. At least one stays chosen
+    // only in the sense that the start needs one; removing the last one leaves the choice empty.
     let pick = move |name: String| {
         repo_touched.set(true);
-        repo.set(name);
+        let mut all = selected.get_untracked();
+        if let Some(i) = all.iter().position(|r| *r == name) {
+            all.remove(i);
+        } else if all.len() < cockpit_core::MAX_REPOS_PER_RUN {
+            all.push(name);
+        }
+        let mut it = all.into_iter();
+        repo.set(it.next().unwrap_or_default());
+        others.set(it.collect());
     };
     // The repo has no entry in the settings yet.
     let first_use = Signal::derive(move || {
-        let r = repo.get();
-        !r.is_empty() && agent_repos.with(|a| a.find(&r).is_none())
+        selected.with(|s| s.iter().any(|r| agent_repos.with(|a| a.find(r).is_none())))
     });
 
     view! {
         <div class="ck-repo-choice">
             <span class="t-subheadline">{t!(AgentJobRepo)}</span>
             <Show when=move || !repo.get().is_empty()>
-                <p role="status">
-                    <Chip>{move || repo.get()}</Chip>
+                <p role="status" class="ui-hstack" style="--spacing: 6px; flex-wrap: wrap">
+                    <For each=move || selected.get() key=|r| r.clone() let:name>
+                        {
+                            let remove = name.clone();
+                            view! {
+                                <Chip>{name}</Chip>
+                                <Show when=move || !locked.get()>
+                                    <Button
+                                        size=ControlSize::Small
+                                        variant=ButtonStyle::Borderless
+                                        on_click={
+                                            let remove = remove.clone();
+                                            move |_| pick(remove.clone())
+                                        }
+                                    >
+                                        {t!(AgentJobRepoRemove)}
+                                    </Button>
+                                </Show>
+                            }
+                        }
+                    </For>
                 </p>
+                <Show when=move || { selected.with(Vec::len) > 1 }>
+                    <p class="t-footnote t-secondary">{t!(AgentJobReposHint)}</p>
+                </Show>
                 <Show when=move || first_use.get() && !locked.get()>
                     <p class="t-footnote t-secondary">{t!(AgentJobRepoNewHint)}</p>
                 </Show>
@@ -112,7 +154,7 @@ pub(super) fn repo_choice(ctx: AgentCtx) -> impl IntoView {
                             let name = row.repo.clone();
                             let chosen = {
                                 let name = name.clone();
-                                move || repo.get() == name
+                                move || selected.with(|s| s.contains(&name))
                             };
                             let on_pick = {
                                 let name = name.clone();
@@ -122,7 +164,7 @@ pub(super) fn repo_choice(ctx: AgentCtx) -> impl IntoView {
                                 <li>
                                     <label class="ck-repo-item">
                                         <input
-                                            type="radio"
+                                            type="checkbox"
                                             name="agent-repo"
                                             prop:checked=chosen
                                             on:change=on_pick

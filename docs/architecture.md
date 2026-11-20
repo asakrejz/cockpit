@@ -95,7 +95,13 @@ anything that builds or starts containers:
 8. **Verify with both.** Tests that start real containers are `#[ignore]` and run with
    `COCKPIT_CONTAINER=docker cargo test -- --ignored` or `=podman`. The PR names the runtime it was checked with.
 9. **Label per run:** `cockpit.run=<key>` lets the server remove orphaned containers at start (and mark their runs as
-   cancelled).
+   cancelled). A run in several repos is still **one** container with one label, so cleaning up by label covers all its
+   repos; the clone folders of the run (one per repo) are removed together with the run folder.
+10. **Layout of the clones.** A run in one repo mounts its clone directly as `/work`. A run in several repos
+    (`AgentRun::repos`, at most `MAX_REPOS_PER_RUN` = 10) mounts the folder that holds all clones as `/work`; each repo is
+    cloned to `/work/<owner>__<name>` (`cockpit_core::repo_dir`) on its own branch off its own base branch. The job file
+    lists them in `repos` (folder, branch, base branch, rules, guidelines file, PR language); the system text names them
+    all and says which rules apply where. The agent changes only the repos the task needs.
 
 ## HTTP API
 
@@ -311,7 +317,24 @@ to `Review::agent_summary`. A new run replaces the old suggestions (`begin_agent
 `Decide` / `EditSuggestion` actions as the demo suggestions; `outbound::review_data` turns the approved ones into line
 comments (range via `start_line`, `suggestion` block from `code`) of **one** `POST /repos/{repo}/pulls/{n}/reviews`, event
 `COMMENT` unless you choose otherwise. Nothing is sent before `SendReview`, and not while a draft is undecided. The run
-never pushes (no publish step; `finish_review_run` only marks the review as looked through). `CONTRACT` is 6.
+never pushes (no publish step; `finish_review_run` only marks the review as looked through). `CONTRACT` is 7.
+
+**One run in several repos.** The start options carry `repos` (the user's choice, first = primary); the backend replaces
+`targets` (base branch, pattern and PR language per repo, from the configuration, never from the request) and
+`AgentRun::repos` keeps, per repo (`RunRepo`), its settings, rules, pushed files, `RunRepoState`
+(`Pending` / `Unchanged` / `Pushed` / `PrCreated` / `Refused`), the refusal reason and its pull request. The old fields
+`repo`, `rules`, `pull_request` stay for the primary repo, and `AgentRun::repo_list` turns an old single-repo state into a
+one-entry list, so old runs load unchanged. Each repo's branch is named by that repo's own pattern from the same ticket
+and title (`AgentRun::branch_in`). After the container ends, `publish_repos` (`agent_ops/run.rs`) treats every repo on its
+own with the checks of `agent_git::publish_changes`: branch name against the repo's pattern, history built on the clone's
+start, path rules, new branch, then push. A repo without changes gets nothing (`Unchanged`), a repo that fails a check is
+`Refused` with its reason, the others are pushed anyway; only if nothing was pushed and something was refused (or nothing
+changed at all) does the run fail (`cockpit_core::judge`). The result is booked as one `AgentReport::Repos` before `Done`.
+Pull requests stay behind your click, **per repo**: `Action::CreatePullRequest` has a `repo`, `GET /api/agent/pull-request`
+takes `?repo=`, and the text of a pull request lists the sibling repos of the run (their pull request if it exists, otherwise
+the branch). Branch deletion (`/api/agent/branch`, `repo` in query and body) and the auto-link by ticket key work per repo
+pull request; a run counts as „erledigt“ when its first pull request is merged or closed. Never pushed: the base branch;
+never done: force-push, merge.
 
 **Pull request of a finished real run** (`Action::CreatePullRequest`, only you). The run is `Done` only after the
 backend pushed the branch. `GET /api/agent/pull-request` returns the preview (`Workspace::pull_request_draft`, plus the

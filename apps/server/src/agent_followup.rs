@@ -161,9 +161,9 @@ impl AppState {
     // ---------- Pull request ----------
 
     /// The finished real run behind `key`, or the sentence why there is no pull request to create.
-    fn pull_request_run(&self, ws: &Workspace, key: &str) -> Result<(), Msg> {
+    fn pull_request_run(&self, ws: &Workspace, key: &str, repo: &str) -> Result<(), Msg> {
         // The text comes from `cockpit-core` and has no code yet.
-        ws.check_pull_request(key)
+        ws.check_pull_request(key, repo)
             .map_err(|e| Msg::raw(e.message()))
     }
 
@@ -172,16 +172,18 @@ impl AppState {
     pub(crate) async fn pull_request_preview(
         &self,
         key: &str,
+        in_repo: &str,
     ) -> Result<PullRequestPreview, ActionFailure> {
         let ws = self.inner.live.copy();
-        let draft = ws
-            .pull_request_draft(key)
-            .ok_or_else(|| ActionFailure::Plan(msg!(ServerAgentRunNotFound)))?;
         let run = ws.runs.iter().find(|r| r.key() == key);
         // The pull request goes into the repo the run worked in – not into "the" configured repo.
+        // A run with several repos names the one it is about (empty = the primary one).
         let repo = run
             .ok_or_else(|| ActionFailure::Plan(msg!(ServerAgentRunNotFound)))
-            .and_then(|r| self.run_repo(r).map_err(ActionFailure::Plan))?;
+            .and_then(|r| self.run_repo_of(r, in_repo).map_err(ActionFailure::Plan))?;
+        let draft = ws
+            .pull_request_draft(key, &repo)
+            .ok_or_else(|| ActionFailure::Plan(msg!(ServerAgentRunNotFound)))?;
         let mut preview = PullRequestPreview {
             repo: repo.clone(),
             head: draft.head.clone(),
@@ -189,12 +191,14 @@ impl AppState {
             title: draft.title,
             body: draft.body,
             draft: run.is_some_and(|r| r.options.draft_pr),
-            existing: run.and_then(|r| r.pull_request.clone()),
+            existing: run
+                .and_then(|r| r.repo_entry(&repo))
+                .and_then(|e| e.pull_request),
         };
         if preview.existing.is_some() {
             return Ok(preview);
         }
-        self.pull_request_run(&ws, key)
+        self.pull_request_run(&ws, key, &repo)
             .map_err(ActionFailure::Plan)?;
         let client = self
             .github_client_async()
@@ -218,7 +222,11 @@ impl AppState {
         action: Action,
     ) -> Result<cockpit_core::api::ActionResponse, ActionFailure> {
         let Action::CreatePullRequest {
-            run, title, body, ..
+            run,
+            title,
+            body,
+            repo: in_repo,
+            ..
         } = action
         else {
             return Err(ActionFailure::Intern);
@@ -236,13 +244,11 @@ impl AppState {
                 number: 1,
                 ..Default::default()
             }),
+            repo: in_repo.clone(),
         };
         trial
             .apply(placeholder, Actor::User, now_ms())
             .map_err(ActionFailure::Rule)?;
-        let draft = before
-            .pull_request_draft(&run)
-            .ok_or(ActionFailure::Intern)?;
         let as_draft = before
             .runs
             .iter()
@@ -253,7 +259,10 @@ impl AppState {
             .iter()
             .find(|r| r.key() == run)
             .ok_or(ActionFailure::Intern)
-            .and_then(|r| self.run_repo(r).map_err(ActionFailure::Plan))?;
+            .and_then(|r| self.run_repo_of(r, &in_repo).map_err(ActionFailure::Plan))?;
+        let draft = before
+            .pull_request_draft(&run, &repo)
+            .ok_or(ActionFailure::Intern)?;
         let client = self
             .github_client_async()
             .await
@@ -302,6 +311,7 @@ impl AppState {
             title,
             body,
             pull: Some(pull),
+            repo,
         };
         let s = self.clone();
         let result = tokio::task::spawn_blocking(move || {

@@ -57,9 +57,10 @@ pub mod workspace;
 
 pub use action::{Action, ActionError, Actor, Applied, LogEntry, MAX_LOG, Target};
 pub use agent::{
-    AgentOptions, AgentPlan, AgentReport, AgentRun, Closure, FollowupTask, MessageKind, Plan,
-    PullRequestRef, Question, ReportEffect, RunKind, RunMessage, RunState, Speaker, Step,
-    StepState, Tick,
+    AgentOptions, AgentPlan, AgentReport, AgentRun, Closure, FollowupTask, Judgement,
+    MAX_REPOS_PER_RUN, MessageKind, Plan, PullRequestRef, Question, RepoResult, RepoTarget,
+    ReportEffect, RunKind, RunMessage, RunRepo, RunRepoState, RunState, Speaker, Step, StepState,
+    Tick, judge, repo_dir,
 };
 pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::{AuthChoice, AuthKind, Connections, OAuthTokens, ServiceStatus};

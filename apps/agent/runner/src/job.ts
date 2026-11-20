@@ -39,6 +39,23 @@ export const LIMITS = { threads: 30, comments: 8, notes: 8, checks: 8, text: 150
 /** Bounds for the diff of a review job. */
 export const REVIEW_LIMITS = { files: 200, lines: 1500, line: 300, description: 6000, total: 80_000 };
 
+/** One repo of a job in several repos: cloned by the backend to `/work/<dir>`. */
+export interface JobRepo {
+  repo: string;
+  /** Folder below the root: `<owner>__<name>`. */
+  dir: string;
+  branch: string;
+  base_branch: string;
+  rules: Rules;
+  /** Path of the repo's contribution guidelines inside the repo, "" if there are none. */
+  contributing: string;
+  /** Language of the commit message in this repo. */
+  pr_language: Lang;
+}
+
+/** Most repos of one job (same limit as the backend). */
+export const MAX_REPOS = 10;
+
 export interface Job {
   mode: Mode;
   ticket: { key: string; title: string; description: string; comments: string[] };
@@ -60,12 +77,56 @@ export interface Job {
   contributing: string;
   /** The repo (`owner/name`) the backend cloned into /work – only informational; "" if unknown. */
   repo: string;
+  /** A job in several repos (more than one): each repo with its own folder, branch and rules. Empty = one repo directly in /work. */
+  repos: JobRepo[];
   /** The runner may work for at most this many seconds. */
   max_seconds: number;
   /** Language of the interface: plan, summary, questions and review comments are written in it. Default "de" (older backends). */
   language: Lang;
   /** Language of the commit message (and of the pull request text the backend builds). Default "en". */
   pr_language: Lang;
+}
+
+const REPO_NAME = /^(?!\.{1,2}\/)[A-Za-z0-9._-]+\/(?!\.{1,2}$)[A-Za-z0-9._-]+$/;
+const BRANCH_NAME = /^[A-Za-z0-9][A-Za-z0-9._\/-]*$/;
+
+function branchOk(branch: string): boolean {
+  return BRANCH_NAME.test(branch) && !branch.includes("..") && !/^(main|master|head)$/i.test(branch);
+}
+
+function rulesFrom(r: any): Rules {
+  return {
+    allowed_paths: texts(r?.allowed_paths),
+    forbidden_paths: texts(r?.forbidden_paths),
+    required_tests: texts(r?.required_tests),
+    instructions: texts(r?.instructions),
+  };
+}
+
+/** The repos of a job in several repos; checks every entry (the folder must be the one the repo name gives). */
+function reposFrom(raw: unknown, mode: string): JobRepo[] {
+  if (!Array.isArray(raw) || raw.length < 2) return [];
+  if (raw.length > MAX_REPOS) throw new Error(`Ein Auftrag darf höchstens ${MAX_REPOS} Repos haben.`);
+  const seen = new Set<string>();
+  return raw.map((x: any) => {
+    const repo = String(x?.repo ?? "");
+    if (!REPO_NAME.test(repo)) throw new Error(`Der Repo-Name „${repo}“ ist ungültig.`);
+    const dir = String(x?.dir ?? "");
+    if (dir !== repo.replace("/", "__")) throw new Error(`Der Ordner „${dir}“ passt nicht zum Repo ${repo}.`);
+    if (seen.has(dir)) throw new Error(`Das Repo ${repo} kommt doppelt vor.`);
+    seen.add(dir);
+    const branch = String(x?.branch ?? "");
+    if (mode === "implement" && !branchOk(branch)) throw new Error(`Der Branch „${branch}“ ist kein erlaubter Branch-Name.`);
+    return {
+      repo,
+      dir,
+      branch,
+      base_branch: String(x?.base_branch ?? "main"),
+      rules: rulesFrom(x?.rules),
+      contributing: GUIDELINES.includes(x?.contributing) ? x.contributing : "",
+      pr_language: langOf(x?.pr_language, "en"),
+    };
+  });
 }
 
 const GUIDELINES = ["CONTRIBUTING.md", ".github/CONTRIBUTING.md", "docs/CONTRIBUTING.md"];
@@ -163,10 +224,7 @@ export function checkJob(raw: unknown): Job {
   const r = o.rules ?? {};
   const branch = String(o.branch ?? "");
   // The backend enforces the pattern of the repo; here only a plain, harmless name is let through.
-  if (
-    o.mode === "implement" &&
-    (!/^[A-Za-z0-9][A-Za-z0-9._\/-]*$/.test(branch) || branch.includes("..") || /^(main|master|head)$/i.test(branch))
-  ) {
+  if (o.mode === "implement" && !branchOk(branch)) {
     throw new Error(`Der Branch „${branch}“ ist kein erlaubter Branch-Name.`);
   }
   return {
@@ -196,6 +254,7 @@ export function checkJob(raw: unknown): Job {
     base_branch: String(o.base_branch ?? "main"),
     contributing: GUIDELINES.includes(o.contributing) ? o.contributing : "",
     repo: typeof o.repo === "string" && /^(?!\.{1,2}\/)[A-Za-z0-9._-]+\/(?!\.{1,2}$)[A-Za-z0-9._-]+$/.test(o.repo) ? o.repo : "",
+    repos: reposFrom(o.repos, o.mode),
     max_seconds: Number.isFinite(o.max_seconds) && o.max_seconds > 0 ? Math.floor(o.max_seconds) : 1800,
     language: langOf(o.language, "de"),
     pr_language: langOf(o.pr_language, "en"),
@@ -235,6 +294,7 @@ export function systemText(a: Job): string {
       .filter((z) => z !== "")
       .join("\n");
   }
+  if (a.repos.length > 1) return multiSystemText(a);
   return [
     "Du bist der Agent des Cockpits und arbeitest im Verzeichnis /work an einem geklonten Repository.",
     "Feste Regeln: Du arbeitest nur in /work. Du pushst nicht, mergst nicht und wechselst nicht auf den Hauptbranch;",
@@ -248,6 +308,25 @@ export function systemText(a: Job): string {
   ]
     .filter((z) => z !== "")
     .join("\n");
+}
+
+/** The instructions of a job in several repos: every repo with its folder, branch and rules. */
+export function multiSystemText(a: Job): string {
+  const z = [
+    "Du bist der Agent des Cockpits und arbeitest an mehreren geklonten Repositories. Jedes liegt in einem eigenen Ordner unter /work:",
+    ...a.repos.map((r) => `- /work/${r.dir} ist das Repository ${r.repo} (Basis-Branch ${r.base_branch}, Branch ${r.branch}).`),
+    "Feste Regeln: Du arbeitest nur in diesen Ordnern, und eine Datei gehört immer zu genau einem Repository. Du pushst nicht, mergst nicht und wechselst nicht auf den Hauptbranch;",
+    "pro Repository legt der Läufer selbst einen Commit auf dessen Branch an, du musst nicht committieren.",
+    "Ändere ein Repository nur, wenn die Aufgabe es verlangt. Ein Repository ohne Änderung bleibt unberührt und bekommt weder Commit noch Pull Request.",
+    `Du hast kein Netz außer dem Modellzugang. ${tx("answer_language", {}, a.language)}`,
+  ];
+  for (const r of a.repos) {
+    if (r.contributing) {
+      z.push(`Im Repository ${r.repo} gibt es Richtlinien in /work/${r.dir}/${r.contributing}. Lies sie und halte dich dort an die Konventionen, soweit sie nicht den festen Regeln hier widersprechen.`);
+    }
+    for (const t of RULES_TEXT(r.rules)) z.push(`Im Repository ${r.repo} (/work/${r.dir}): ${t}`);
+  }
+  return z.join("\n");
 }
 
 function ticketText(a: Job): string {
@@ -322,8 +401,8 @@ export function reviewText(a: Job): string {
 }
 
 /** Message of the commit that the runner creates. */
-export function commitMessage(a: Job): string {
-  const lang = a.pr_language;
+export function commitMessage(a: Job, language?: Lang): string {
+  const lang = language ?? a.pr_language;
   const what = !a.followup
     ? a.ticket.title
     : a.followup.kind === "review_comments"

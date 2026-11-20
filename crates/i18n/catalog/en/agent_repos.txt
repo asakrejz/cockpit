@@ -1,0 +1,4 @@
+# The repos of one agent run (run page)
+agent_repos.title = Repos of this run
+agent_repos.pull_request_number = Pull request #{number}
+agent_repos.pull_request_for = Pull request in {repo}

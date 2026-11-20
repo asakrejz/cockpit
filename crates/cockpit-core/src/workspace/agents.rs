@@ -1,3 +1,4 @@
+use crate::agent::{RunRepo, RunRepoState};
 use cockpit_i18n::msg;
 
 use super::*;
@@ -39,9 +40,15 @@ impl Workspace {
     ) -> Result<(), AgentError> {
         let mut run = self.run(ticket_key).ok_or(AgentError::UnknownTicket)?;
         // The repo the user (or the backend, by the routing rules) chose wins over the default.
-        if let Some(repo) = options.repo.clone().filter(|r| !r.is_empty()) {
-            run.rules = self.rules_for(&repo);
-            run.repo = repo;
+        let chosen = options.chosen_repos();
+        if let Some(first) = chosen.first() {
+            run.rules = self.rules_for(first);
+            run.repo.clone_from(first);
+            run.repos = chosen
+                .iter()
+                .enumerate()
+                .map(|(i, r)| RunRepo::from_options(&options, r, self.rules_for(r), i == 0))
+                .collect();
         }
         // Follow-up jobs start via the review, not via a ticket.
         if run.is_followup() {
@@ -387,17 +394,30 @@ impl Workspace {
 
     // ---------- Pull request for the branch of a finished real run ----------
 
-    /// Title and text the pull request would get, for the preview. `None` if the run does not exist.
-    pub fn pull_request_draft(&self, run_key: &str) -> Option<PullRequestDraft> {
+    /// Title and text the pull request in `repo` would get, for the preview. `None` if the run
+    /// does not exist or does not work in that repo. An empty `repo` means the primary one.
+    pub fn pull_request_draft(&self, run_key: &str, repo: &str) -> Option<PullRequestDraft> {
         let run = self.runs.iter().find(|r| r.key() == run_key)?;
-        let files: Vec<String> = run
-            .files
-            .iter()
-            .take(20)
-            .map(|f| format!("- `{f}`"))
-            .collect();
+        let repo = if repo.is_empty() {
+            run.repo.as_str()
+        } else {
+            repo
+        };
+        let entry = run.repo_entry(repo);
+        if entry.is_none() && !(repo == run.repo || run.repo.is_empty()) {
+            return None;
+        }
+        // Only the files of this repo (a multi run keeps them apart; a single run has them in `files`).
+        let own: Vec<String> = match &entry {
+            Some(e) if !e.files.is_empty() => e.files.clone(),
+            _ => run.files.clone(),
+        };
+        let files: Vec<String> = own.iter().take(20).map(|f| format!("- `{f}`")).collect();
         // The text follows the language of the repo (the team language), not the interface.
-        let lang = run.options.pr_language;
+        let lang = entry
+            .as_ref()
+            .filter(|_| run.is_multi_repo())
+            .map_or(run.options.pr_language, |e| e.pr_language);
         let text = |msg: cockpit_i18n::Msg| msg.render(lang);
         let mut body = format!(
             "## {}\n{}\n",
@@ -413,25 +433,50 @@ impl Workspace {
         if !files.is_empty() {
             body.push_str(&format!(
                 "\n## {}\n{}\n",
-                text(cockpit_i18n::msg!(CorePrFiles, n = run.files.len())),
+                text(cockpit_i18n::msg!(CorePrFiles, n = own.len())),
                 files.join("\n")
+            ));
+        }
+        // The sibling pull requests of the same run: linked if they exist, otherwise the branch.
+        let siblings: Vec<String> = run
+            .repo_list()
+            .iter()
+            .filter(|r| r.repo != repo && r.is_pushed())
+            .map(|r| match &r.pull_request {
+                Some(p) if !p.url.is_empty() => format!("- {}#{}: {}", r.repo, p.number, p.url),
+                Some(p) => format!("- {}#{}", r.repo, p.number),
+                None => format!("- {}: `{}`", r.repo, run.branch_in(&r.repo)),
+            })
+            .collect();
+        if run.is_multi_repo() && !siblings.is_empty() {
+            body.push_str(&format!(
+                "\n## {}\n{}\n",
+                text(cockpit_i18n::msg!(CorePrSiblings)),
+                siblings.join("\n")
             ));
         }
         body.push_str(&format!(
             "\n---\n{}\n",
             text(cockpit_i18n::msg!(CorePrFooter))
         ));
+        let base = entry
+            .as_ref()
+            .map(|e| e.base_branch.clone())
+            .filter(|b| !b.is_empty())
+            .unwrap_or_else(|| run.options.base_branch.clone());
         Some(PullRequestDraft {
             title: format!("{}: {}", run.ticket_key, run.ticket_title),
             body,
-            head: run.branch(),
-            base: run.options.base_branch.clone(),
+            head: run.branch_in(repo),
+            base,
         })
     }
 
     /// May a pull request be created for this run? The run must be a finished real run
     /// (the backend pushed its branch before reporting it done) without a pull request.
-    pub fn check_pull_request(&self, run_key: &str) -> Result<(), ActionError> {
+    /// With several repos the pull request is created per repo: only a repo whose branch was
+    /// pushed qualifies (not an unchanged or refused one), and each gets only one.
+    pub fn check_pull_request(&self, run_key: &str, repo: &str) -> Result<(), ActionError> {
         let run = self
             .runs
             .iter()
@@ -440,21 +485,49 @@ impl Workspace {
         if run.kind != RunKind::Implement || !run.real || !run.is_done() {
             return Err(ActionError::PullRequestNotReady);
         }
-        if let Some(p) = &run.pull_request {
+        let repo = if repo.is_empty() {
+            run.repo.as_str()
+        } else {
+            repo
+        };
+        if run.repos.is_empty() {
+            if let Some(p) = &run.pull_request {
+                return Err(ActionError::PullRequestExists(p.number));
+            }
+            return Ok(());
+        }
+        let entry = run
+            .repos
+            .iter()
+            .find(|r| r.repo == repo)
+            .ok_or(ActionError::PullRequestNotReady)?;
+        if let Some(p) = &entry.pull_request {
             return Err(ActionError::PullRequestExists(p.number));
+        }
+        if entry.state != RunRepoState::Pushed {
+            return Err(ActionError::PullRequestNotReady);
         }
         Ok(())
     }
 
     /// GitHub has created the pull request (or the existing one was found): book it on the run.
-    pub(crate) fn pull_request_created(&mut self, run_key: &str, pull: PullRequestRef) {
+    pub(crate) fn pull_request_created(&mut self, run_key: &str, repo: &str, pull: PullRequestRef) {
         let Some(run) = self.runs.iter_mut().find(|r| r.key() == run_key) else {
             return;
         };
-        run.pr_number = Some(pull.number);
         let ticket = run.ticket_key.clone();
         let number = pull.number;
-        run.pull_request = Some(pull);
+        let repo = if repo.is_empty() {
+            run.repo.clone()
+        } else {
+            repo.to_string()
+        };
+        if run.repos.is_empty() {
+            run.pr_number = Some(pull.number);
+            run.pull_request = Some(pull);
+        } else {
+            run.book_pull_request(&repo, pull);
+        }
         if let Some(item) = self.items.iter_mut().find(|i| i.key == ticket) {
             item.set_note(msg!(CoreWorkspacePrCreated, number = number));
         }

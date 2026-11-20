@@ -68,6 +68,7 @@ fn create(w: &mut Workspace, pull: Option<PullRequestRef>) -> Result<Applied, Ac
             title: "BAU-142: Fokus-Ring".into(),
             body: "Text".into(),
             pull,
+            repo: String::new(),
         },
         Actor::User,
         T,
@@ -203,6 +204,7 @@ fn only_you_may_commission_followups_and_pull_requests() {
                 title: "t".into(),
                 body: String::new(),
                 pull: pull(1, false),
+                repo: String::new(),
             },
         ] {
             assert_eq!(w.apply(a, actor, T), Err(ActionError::UserOnly(actor)));
@@ -275,7 +277,7 @@ fn a_finished_real_run_has_no_invented_pull_request_number() {
 #[test]
 fn the_draft_names_the_ticket_and_the_summary() {
     let w = done_ws();
-    let d = w.pull_request_draft("BAU-142").unwrap();
+    let d = w.pull_request_draft("BAU-142", "").unwrap();
     assert!(d.title.starts_with("BAU-142: "));
     // The text of the pull request follows the language of the repo; English is the default.
     assert!(d.body.starts_with("## What\n"));
@@ -285,7 +287,7 @@ fn the_draft_names_the_ticket_and_the_summary() {
     assert!(d.body.contains("src/ring.rs"));
     assert_eq!(d.head, "claude/BAU-142-toggle-fokus-ring-fehlt");
     assert_eq!(d.base, "main");
-    assert_eq!(w.pull_request_draft("gibt-es-nicht"), None);
+    assert_eq!(w.pull_request_draft("gibt-es-nicht", ""), None);
 }
 
 #[test]
@@ -349,6 +351,7 @@ fn the_pull_request_needs_a_finished_real_run_a_title_and_the_answer_of_github()
         title: "  ".into(),
         body: String::new(),
         pull: pull(1, false),
+        repo: String::new(),
     };
     assert_eq!(
         w.apply(blank, Actor::User, T),
@@ -395,7 +398,7 @@ fn the_draft_text_can_be_german_when_the_repo_says_so() {
         .unwrap()
         .options
         .pr_language = cockpit_i18n::Lang::De;
-    let d = w.pull_request_draft("BAU-142").unwrap();
+    let d = w.pull_request_draft("BAU-142", "").unwrap();
     assert!(d.body.starts_with("## Was\n"));
     assert!(d.body.contains("## Geänderte Dateien (1)"));
     assert!(d.body.contains("Vom Cockpit-Agenten umgesetzt."));

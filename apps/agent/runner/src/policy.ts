@@ -41,6 +41,18 @@ export interface Policy {
   root: string;
   allowed: string[];
   forbidden: string[];
+  /** A job in several repos: the rules of each repo, by its folder below the root. Then `allowed`/`forbidden` are unused. */
+  repos?: Array<{ dir: string; allowed: string[]; forbidden: string[] }>;
+}
+
+/** The rules that apply to a path (relative to the root) and the path inside its repo.
+ * `null` if the path is in none of the repos of a job in several repos. */
+export function scope(r: Policy, rel: string): { rel: string; allowed: string[]; forbidden: string[] } | null {
+  if (!r.repos) return { rel, allowed: r.allowed, forbidden: r.forbidden };
+  const [first, ...rest] = rel.split("/");
+  const repo = r.repos.find((x) => x.dir === first);
+  if (!repo || rest.length === 0) return null;
+  return { rel: rest.join("/"), allowed: repo.allowed, forbidden: repo.forbidden };
 }
 
 const Writing = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit"]);
@@ -69,14 +81,18 @@ export function decide(r: Policy, tool: string, input: Record<string, unknown>):
     const raw = String(input.file_path ?? input.notebook_path ?? input.path ?? "");
     const rel = repoRelative(r.root, raw);
     if (rel === null) return { behavior: "deny", message: `Außerhalb von ${r.root} darf der Agent nichts ändern.` };
-    if (rel === ".git" || rel.startsWith(".git/")) {
+    const sc = scope(r, rel);
+    if (sc === null) {
+      return { behavior: "deny", message: `„${rel}“ liegt in keinem der Repos dieses Auftrags.` };
+    }
+    if (sc.rel === ".git" || sc.rel.startsWith(".git/") || sc.rel.includes("/.git/")) {
       return { behavior: "deny", message: "Das .git-Verzeichnis fasst der Agent nicht an." };
     }
-    for (const v of r.forbidden) {
-      if (globFits(v, rel)) return { behavior: "deny", message: `„${rel}“ ist laut Regel „${v}“ verboten.` };
+    for (const v of sc.forbidden) {
+      if (globFits(v, sc.rel)) return { behavior: "deny", message: `„${rel}“ ist laut Regel „${v}“ verboten.` };
     }
-    if (r.allowed.length && !r.allowed.some((e) => globFits(e, rel))) {
-      return { behavior: "deny", message: `„${rel}“ liegt außerhalb der erlaubten Pfade (${r.allowed.join(", ")}).` };
+    if (sc.allowed.length && !sc.allowed.some((e) => globFits(e, sc.rel))) {
+      return { behavior: "deny", message: `„${rel}“ liegt außerhalb der erlaubten Pfade (${sc.allowed.join(", ")}).` };
     }
     return { behavior: "allow" };
   }
@@ -101,15 +117,35 @@ export function decide(r: Policy, tool: string, input: Record<string, unknown>):
 /** Why a changed file (path relative to the repo) is not allowed, or `null` if it is fine. This is the check after
  * the run for tools that cannot enforce the path rules themselves (Claude Code and Codex CLI). */
 export function pathViolation(r: Policy, rel: string): string | null {
-  if (rel === ".git" || rel.startsWith(".git/")) return `„${rel}“: Das .git-Verzeichnis darf nicht verändert werden.`;
   if (rel.startsWith("../") || isAbsolute(rel)) return `„${rel}“ liegt außerhalb von ${r.root}.`;
-  for (const v of r.forbidden) {
-    if (globFits(v, rel)) return `„${rel}“ ist laut Regel „${v}“ verboten.`;
+  const sc = scope(r, rel);
+  if (sc === null) return `„${rel}“ liegt in keinem der Repos dieses Auftrags.`;
+  if (sc.rel === ".git" || sc.rel.startsWith(".git/") || sc.rel.includes("/.git/")) {
+    return `„${rel}“: Das .git-Verzeichnis darf nicht verändert werden.`;
   }
-  if (r.allowed.length && !r.allowed.some((e) => globFits(e, rel))) {
-    return `„${rel}“ liegt außerhalb der erlaubten Pfade (${r.allowed.join(", ")}).`;
+  for (const v of sc.forbidden) {
+    if (globFits(v, sc.rel)) return `„${rel}“ ist laut Regel „${v}“ verboten.`;
+  }
+  if (sc.allowed.length && !sc.allowed.some((e) => globFits(e, sc.rel))) {
+    return `„${rel}“ liegt außerhalb der erlaubten Pfade (${sc.allowed.join(", ")}).`;
   }
   return null;
+}
+
+/** The policy of a job: one repo directly in the root, or the rules of each repo of a job in several repos. */
+export function policyOf(
+  root: string,
+  job: { rules: { allowed_paths: string[]; forbidden_paths: string[] }; repos: Array<{ dir: string; rules: { allowed_paths: string[]; forbidden_paths: string[] } }> },
+): Policy {
+  if (job.repos.length > 1) {
+    return {
+      root,
+      allowed: [],
+      forbidden: [],
+      repos: job.repos.map((x) => ({ dir: x.dir, allowed: x.rules.allowed_paths, forbidden: x.rules.forbidden_paths })),
+    };
+  }
+  return { root, allowed: job.rules.allowed_paths, forbidden: job.rules.forbidden_paths };
 }
 
 /** All violations among the changed files. */

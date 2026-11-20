@@ -173,7 +173,7 @@ async fn the_pull_request_goes_into_the_repo_the_run_worked_in() {
     })
     .await;
     w.wait_for_end().await;
-    let p = w.state.pull_request_preview("BAU-142").await.unwrap();
+    let p = w.state.pull_request_preview("BAU-142", "").await.unwrap();
     assert_eq!(p.repo, "firma/web");
     w.action(create("BAU-142: Web")).await.unwrap();
     let pull = w.run().pull_request.unwrap();

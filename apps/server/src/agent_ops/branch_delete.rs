@@ -33,8 +33,12 @@ fn ended(pull: &cockpit_integrations::github::dto::Pull) -> Option<Closure> {
 }
 
 /// The run of an implementation whose branch the user may delete.
-fn own_branch_run(run: &AgentRun) -> Result<u32, Msg> {
-    match (&run.kind, &run.pull_request) {
+fn own_branch_run(run: &AgentRun, repo: &str) -> Result<u32, Msg> {
+    let pull = run
+        .repo_entry(repo)
+        .and_then(|e| e.pull_request)
+        .or_else(|| run.pull_request.clone().filter(|_| repo == run.repo));
+    match (&run.kind, pull) {
         (RunKind::Implement, Some(p)) if run.real => Ok(p.number),
         _ => Err(msg!(ServerAgentBranchNoOwn)),
     }
@@ -79,16 +83,16 @@ impl AppState {
         }
     }
 
-    async fn branch_plan(&self, key: &str) -> Result<Plan, Msg> {
+    async fn branch_plan(&self, key: &str, in_repo: &str) -> Result<Plan, Msg> {
         let ws = self.inner.live.copy();
         let run = ws
             .runs
             .iter()
             .find(|r| r.key() == key)
             .ok_or_else(|| msg!(ServerAgentRunNotFound))?;
-        let number = own_branch_run(run)?;
-        let repo = self.run_repo(run)?;
-        let branch = run.branch();
+        let repo = self.run_repo_of(run, in_repo)?;
+        let number = own_branch_run(run, &repo)?;
+        let branch = run.branch_in(&repo);
         let repos = self.agent_repos();
         let (pattern, base) = (repos.branch_pattern(&repo), repos.base_branch(&repo));
         let client = self.github_client_async().await?;
@@ -125,8 +129,8 @@ impl AppState {
     }
 
     /// `GET /api/agent/branch?run=`: may the branch be deleted? Reads only.
-    pub(crate) async fn branch_check(&self, key: &str) -> BranchCheck {
-        match self.branch_plan(key).await {
+    pub(crate) async fn branch_check(&self, key: &str, repo: &str) -> BranchCheck {
+        match self.branch_plan(key, repo).await {
             Ok(p) => {
                 let reason = p.verdict.err();
                 BranchCheck {
@@ -144,7 +148,7 @@ impl AppState {
                     .runs
                     .iter()
                     .find(|r| r.key() == key)
-                    .map(AgentRun::branch)
+                    .map(|r| r.branch_in(if repo.is_empty() { &r.repo } else { repo }))
                     .unwrap_or_default(),
                 allowed: false,
                 reason: Some(reason.de()),
@@ -154,8 +158,15 @@ impl AppState {
     }
 
     /// `POST /api/agent/branch`: deletes the branch of the run – after checking everything again.
-    pub(crate) async fn branch_delete(&self, key: &str) -> Result<BranchDeleted, ActionFailure> {
-        let plan = self.branch_plan(key).await.map_err(ActionFailure::Plan)?;
+    pub(crate) async fn branch_delete(
+        &self,
+        key: &str,
+        repo: &str,
+    ) -> Result<BranchDeleted, ActionFailure> {
+        let plan = self
+            .branch_plan(key, repo)
+            .await
+            .map_err(ActionFailure::Plan)?;
         plan.verdict.map_err(ActionFailure::Plan)?;
         plan.client
             .branch_delete(&plan.repo, &plan.branch)

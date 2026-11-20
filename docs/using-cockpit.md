@@ -100,5 +100,18 @@ ticket, named in the ticket, or set in the settings. Type to search; a valid `ow
 used as typed. The first time the agent works in a repo, Cockpit reads its default branch (and a branch pattern proposal
 from `CONTRIBUTING.md`) from GitHub and remembers it in `[[agent.repos]]`.
 
+### Working in several repos at once
+
+You can tick **more than one repo**. The first one is the main repo. The agent works in all of them at the same time
+and changes only those the ticket needs. Each repo gets its own branch (named by the rules of that repo) and its own
+pull request.
+
+On the run page the section "Repos in diesem Lauf" shows every repo with its branch and its state:
+*Nichts geändert* (nothing was pushed), *Gepusht*, *Pull Request erstellt* or *Push abgelehnt* (with the reason). If one
+repo is refused – for example because of a forbidden path – the other repos are still pushed. You create the pull
+request per repo with its own button; the text of each lists the other pull requests of the same run. Deleting the branch
+after the merge also works per repo. The pull requests show up in the ticket under "Entwicklung" as usual, because they
+all carry the ticket key.
+
 More about agent behaviour (questions, steering, follow-up jobs, costs, limits, rules per repo) is in
 [docs/architecture.md](architecture.md#agent-behaviour).

@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use cockpit_core::api::PullRequestPreview;
-use cockpit_core::{Action, AgentRun, RunKind};
+use cockpit_core::{Action, AgentRun, RunKind, RunRepo};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -17,9 +17,32 @@ fn eligible(r: &AgentRun) -> bool {
     r.kind == RunKind::Implement && r.real && r.is_done()
 }
 
+/// One pull request panel per repo of the run whose branch was pushed. A run in one repo has one.
 #[component]
 pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
+    let repos = Memo::new(move |_| {
+        run.get()
+            .filter(eligible)
+            .map(|r| {
+                r.repo_list()
+                    .into_iter()
+                    .filter(RunRepo::is_pushed)
+                    .map(|e| e.repo)
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default()
+    });
+    view! {
+        <For each=move || repos.get() key=|r| r.clone() let:repo>
+            <RepoPullRequest run=run repo=repo />
+        </For>
+    }
+}
+
+#[component]
+fn RepoPullRequest(run: Memo<Option<AgentRun>>, repo: String) -> impl IntoView {
     let store = use_store();
+    let repo = StoredValue::new(repo);
     let preview = RwSignal::new(None::<PullRequestPreview>);
     let loading = RwSignal::new(false);
     let sending = RwSignal::new(false);
@@ -32,8 +55,9 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
         loading.set(true);
         problem.set(None);
         let key = key();
+        let repo_name = repo.get_value();
         spawn_local(async move {
-            match server::fetch_pull_request_preview(&key).await {
+            match server::fetch_pull_request_preview(&key, &repo_name).await {
                 Ok(p) => {
                     title.set(p.title.clone());
                     body.set(p.body.clone());
@@ -51,21 +75,33 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
             title: title.get_untracked(),
             body: body.get_untracked(),
             pull: None,
+            repo: repo.get_value(),
         });
         set_timeout(move || sending.set(false), Duration::from_secs(4));
     };
 
     move || {
         let r = run.get().filter(eligible)?;
+        let this = repo.get_value();
+        let entry = r.repo_entry(&this)?;
+        if !entry.is_pushed() {
+            return None;
+        }
+        // With several repos each panel says which repo it is for.
+        let heading = if r.is_multi_repo() {
+            t!(AgentReposPullRequestFor, repo = this.clone())
+        } else {
+            t!(AgentPullRequestPullRequest)
+        };
         // Already there: show the link.
-        if let Some(p) = r.pull_request.clone() {
+        if let Some(p) = entry.pull_request.clone() {
             let number = p.number;
-            let key = cockpit_core::PrKey::new(&r.repo, number);
+            let key = cockpit_core::PrKey::new(&this, number);
             let has_review = store.ws.with(|w| w.review(&key).is_some());
             return Some(
                 view! {
-                    <div class="ui-list__section" role="region" aria-label=t!(AgentPullRequestPullRequest)>
-                        <p class="ui-list__header">{t!(AgentPullRequestPullRequest)}</p>
+                    <div class="ui-list__section" role="region" aria-label=heading.clone()>
+                        <p class="ui-list__header">{heading.clone()}</p>
                         <div class="ui-hstack" style="--spacing: 8px">
                             <Status tone=StatusTone::Green>{t!(AgentPullRequestNumber, number = number)}</Status>
                             <span class="t-footnote t-secondary">
@@ -157,7 +193,7 @@ pub fn PullRequestPanel(run: Memo<Option<AgentRun>>) -> impl IntoView {
         Some(
             view! {
                 <div class="ui-list__section" role="region" aria-label=t!(AgentPullRequestCreate)>
-                    <p class="ui-list__header">{t!(AgentPullRequestPullRequest)}</p>
+                    <p class="ui-list__header">{heading}</p>
                     <p class="t-footnote t-secondary">
                         {t!(AgentPullRequestPushedNote)}
                     </p>

@@ -372,14 +372,66 @@ fn clone_existing(
 
 /// What was pushed after the check.
 #[derive(Debug, PartialEq, Eq)]
-pub struct Published {
+pub struct Pushed {
     pub commit: String,
     pub files: Vec<String>,
 }
 
 /// Checks the branch from the clone and pushes it. See the module docs for the order and why
 /// nothing is ever worked on in the clone itself. `export` is an empty folder for the bare repo.
+/// A branch without new commits or changes is an error here (a run in one repo has nothing to
+/// show then); a run in several repos uses [`publish_changes`], where that is a normal result.
 pub fn publish(
+    clone: &Path,
+    export: &Path,
+    base_sha: &str,
+    url: &str,
+    token: Option<&Secret>,
+    rules: &RepoRules,
+    rule: &BranchRule,
+) -> Result<Pushed, Msg> {
+    match publish_inner(clone, export, base_sha, url, token, rules, rule)? {
+        Published::Pushed(p) => Ok(p),
+        Published::NoCommit => Err(msg!(ServerRunNothingCommitted)),
+        Published::NoChange => Err(msg!(ServerRunNothingChanged)),
+    }
+}
+
+/// What a repo of a run in several repos came to.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Outcome {
+    /// The agent left this repo as it was: nothing is pushed.
+    Unchanged,
+    Pushed(Pushed),
+}
+
+/// Like [`publish`], but "nothing changed" is [`Outcome::Unchanged`], not an error. Every check
+/// (branch name, history, path rules, new branch) still applies before anything is pushed.
+pub fn publish_changes(
+    clone: &Path,
+    export: &Path,
+    base_sha: &str,
+    url: &str,
+    token: Option<&Secret>,
+    rules: &RepoRules,
+    rule: &BranchRule,
+) -> Result<Outcome, Msg> {
+    Ok(
+        match publish_inner(clone, export, base_sha, url, token, rules, rule)? {
+            Published::Pushed(p) => Outcome::Pushed(p),
+            Published::NoCommit | Published::NoChange => Outcome::Unchanged,
+        },
+    )
+}
+
+/// Result of the checks before a push.
+enum Published {
+    Pushed(Pushed),
+    NoCommit,
+    NoChange,
+}
+
+fn publish_inner(
     clone: &Path,
     export: &Path,
     base_sha: &str,
@@ -423,7 +475,7 @@ pub fn publish(
         None,
     )?;
     if count.trim() == "0" {
-        return Err(msg!(ServerRunNothingCommitted));
+        return Ok(Published::NoCommit);
     }
     let names = git(
         &[
@@ -444,7 +496,7 @@ pub fn publish(
         .map(str::to_string)
         .collect();
     if files.is_empty() {
-        return Err(msg!(ServerRunNothingChanged));
+        return Ok(Published::NoChange);
     }
     if files.len() > MAX_FILES {
         return Err(msg!(
@@ -470,7 +522,7 @@ pub fn publish(
         token,
     )
     .map_err(|m| msg!(ServerRunPushFailed, branch = branch, error = m))?;
-    Ok(Published { commit, files })
+    Ok(Published::Pushed(Pushed { commit, files }))
 }
 
 #[cfg(test)]
