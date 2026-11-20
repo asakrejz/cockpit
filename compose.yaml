@@ -32,20 +32,8 @@ services:
       start_period: 10s
       retries: 3
 
-    # --- Agent containers (opt-in) ------------------------------------------------------------
-    # SECURITY: a mounted engine socket is root-equivalent access to your host. Whoever controls Cockpit can start
-    # any container and read or change anything the engine can reach. Only on a machine you trust, only if you
-    # want the agent. See docs/container.md ("Agent containers"). Paths must match on host and inside, so a host
-    # folder replaces the named volume: remove the `cockpit-config:/app/config` line above, uncomment the
-    # lines below and replace /home/you/cockpit-config (create it first, writable for user id 10001 or use root).
-    # user: root
-    # environment:
-    #   COCKPIT_CONFIG: /home/you/cockpit-config/config.toml
-    #   COCKPIT_DB: /home/you/cockpit-config/cockpit.db
-    #   COCKPIT_ENV_FILE: /home/you/cockpit-config/.env
-    # volumes:
-    #   - /var/run/docker.sock:/var/run/docker.sock   # socket path depends on the engine, see the table in the docs
-    #   - /home/you/cockpit-config:/home/you/cockpit-config
+    # Agent containers (opt-in, root-equivalent access to the host!): add compose.agent.yaml, see that file:
+    #   docker compose -f compose.yaml -f compose.agent.yaml up -d
 
 volumes:
   cockpit-config:

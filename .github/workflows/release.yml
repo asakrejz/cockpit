@@ -41,7 +41,7 @@ jobs:
           cp apps/agent/Containerfile apps/agent/README.md "$name/apps/agent/"
           cp -R apps/agent/runner/package.json apps/agent/runner/package-lock.json apps/agent/runner/src "$name/apps/agent/runner/"
           cp start-cockpit.command "$name/"
-          cp compose.yaml "$name/"
+          cp compose.yaml compose.agent.yaml "$name/"
           mkdir -p "$name/scripts"
           cp scripts/cockpit-container.sh "$name/scripts/"
           mkdir -p "$name/config"

@@ -53,6 +53,11 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
     let text = move || match status() {
         None => t!(SetupContainerStatusChecking),
         Some(ContainerStatus {
+            in_container: true,
+            engine_running: false,
+            ..
+        }) => t!(SetupContainerStatusInContainer),
+        Some(ContainerStatus {
             runtime: Some(l),
             engine_running: true,
             ..
@@ -110,9 +115,13 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
     // Memos: the sections below only rebuild when the answer changes, not at every refresh.
     let engine_running =
         Memo::new(move |_| status().is_some_and(|s| s.runtime.is_some() && s.engine_running));
-    let missing = Memo::new(move |_| status().is_some_and(|s| s.runtime.is_none()));
-    let not_running =
-        Memo::new(move |_| status().is_some_and(|s| s.runtime.is_some() && !s.engine_running));
+    let in_container_blocked =
+        Memo::new(move |_| status().is_some_and(|s| s.in_container && !s.engine_running));
+    let missing =
+        Memo::new(move |_| status().is_some_and(|s| !s.in_container && s.runtime.is_none()));
+    let not_running = Memo::new(move |_| {
+        status().is_some_and(|s| !s.in_container && s.runtime.is_some() && !s.engine_running)
+    });
 
     view! {
         <VStack spacing="12px">
@@ -211,6 +220,27 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                                             view! { <CollapsibleLog lines=log_lines expanded=log_open /> }
                                         })
                                 }}
+                            </Section>
+                        }
+                    })
+            }}
+            {move || {
+                in_container_blocked
+                    .get()
+                    .then(|| {
+                        view! {
+                            <Section title=t!(SetupContainerIcTitle)>
+                                <p>{t!(SetupContainerIc1)}</p>
+                            </Section>
+                            <Section title=t!(SetupContainerIcATitle)>
+                                <p>{t!(SetupContainerIcA1)} " " <code>{command(&["scripts/start.sh", "--open"])}</code></p>
+                                <p>{t!(SetupContainerIcA2)}</p>
+                            </Section>
+                            <Section title=t!(SetupContainerIcBTitle)>
+                                <p class="ui-hint" role="alert">{t!(SetupContainerIcBWarning)}</p>
+                                <p>{t!(SetupContainerIcB1)} " " <code>{command(&["docker", "compose", "-f", "compose.yaml", "-f", "compose.agent.yaml", "up", "-d"])}</code></p>
+                                <p>{t!(SetupContainerIcB2)} " " <code>{command(&["scripts/cockpit-container.sh", "--agent"])}</code></p>
+                                <p>{t!(SetupContainerIcB3)}</p>
                             </Section>
                         }
                     })

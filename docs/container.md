@@ -108,12 +108,24 @@ The socket belongs to root, the image runs as a normal user, so the process need
 
 **Paths must match.** The engine runs on the host, so the folders Cockpit gives to an agent container
 (`<data folder>/…`) are resolved *on the host*. A named volume does not work for that. Use a host folder, mounted at
-the **same absolute path** inside, and point Cockpit at it:
+the **same absolute path** inside, and point Cockpit at it. Compose and the script do this for you:
+
+```bash
+mkdir -p "$HOME/cockpit-config"
+docker compose -f compose.yaml -f compose.agent.yaml up -d     # compose; override file, see why below
+scripts/cockpit-container.sh --agent                           # without compose
+```
+
+Both read `COCKPIT_DATA` (host folder, default `$HOME/cockpit-config`) and `DOCKER_SOCK` (socket on the host,
+default `/var/run/docker.sock`; Rancher Desktop on macOS: `~/.rd/docker.sock`), run as `user: root`, mount the socket
+and set `COCKPIT_CONFIG`, `COCKPIT_DB` and `COCKPIT_ENV_FILE` into that folder. Why an override file and not a
+profile: a profile would start next to the normal `cockpit` service and both would want the same port; an override
+changes the one service, so name and port stay the same. Switching modes recreates the container; your data stays
+in the volume or the folder.
 
 Plain `docker run` form (remove an existing container first, `docker rm -f cockpit`):
 
 ```bash
-mkdir -p "$HOME/cockpit-config"
 docker run -d --name cockpit --restart unless-stopped --user root \
   -p 127.0.0.1:8787:8787 \
   -v /var/run/docker.sock:/var/run/docker.sock \
@@ -128,6 +140,29 @@ docker run -d --name cockpit --restart unless-stopped --user root \
 the app builds it from the sources inside the image (`/app/apps/agent`) with the engine of your host. This opt-in
 setup has not been run against a real agent end to end; if it gives you trouble, use the native start
 (`start-cockpit.command`, see the [README](../README.md)), which is the tested way to use the agent.
+
+### Move the data to a host folder
+
+If you have been running with the named volume, copy your files once into the host folder (stop first so the database
+is not written meanwhile).:
+
+```bash
+docker compose down                          # keeps the volume (never `-v`); or: scripts/cockpit-container.sh stop
+mkdir -p "$HOME/cockpit-config"
+docker run --rm -v cockpit-config:/from:ro -v "$HOME/cockpit-config:/to" --user root \
+  --entrypoint sh ghcr.io/<owner>/cockpit:latest -c 'cp -a /from/. /to/'
+docker compose -f compose.yaml -f compose.agent.yaml up -d
+```
+
+That copies `config.toml`, `cockpit.db` and `.env` (mode `600` is kept). The old volume stays as a backup.
+
+### What the setup assistant says in a container
+
+Inside the image the "Container" step knows it runs in a container (`COCKPIT_IN_CONTAINER=1`, also detected via
+`/.dockerenv` or `/run/.containerenv`; `GET /api/health` reports `container.in_container` and `container.socket`:
+`missing`, `denied` or `reachable`). Without a socket it explains the two options above instead of "not installed";
+with a socket the user may not use (`denied`) it points to `--group-add`/`user: root`; with a working socket it
+proceeds as normal.
 
 Webhooks (a tunnel into Cockpit) need the native start as well: the webhook routes accept only a loopback peer.
 
