@@ -137,6 +137,11 @@ core_action.log_jira_project = Jira-Projekt gewählt: {project}
 core_action.log_jira_project_all = Jira-Projekt: alle
 core_action.log_team_chosen = Mein Team gewählt: {teams}
 core_action.log_team_all = Mein Team: alle Teams
+core_action.log_people_all = Übersicht: Jira und GitHub
+core_action.log_people_jira = Übersicht: nur Jira
+core_action.log_people_github = Übersicht: nur GitHub
+core_action.log_people_linked = Jira-Person {jira} und GitHub-Nutzer {github} verknüpft
+core_action.log_people_unlinked = Verknüpfung von {jira} aufgehoben
 core_action.log_filter_reset = Filter zurückgesetzt
 core_action.log_filter_applied = Filter angewendet
 core_action.log_status_auto = Status von {key} automatisch auf „{status}“ gesetzt – {why}
@@ -216,3 +221,9 @@ core_action.log_field_set = {field} von {key} auf „{value}“ gesetzt
 core_action.log_field_cleared = {field} von {key} geleert
 core_action.log_issue_created = Issue {key} im Projekt „{project}“ angelegt
 core_action.log_draft_converted = Entwurf in das Issue {key} umgewandelt
+
+# Remove runs from the list
+core_action.log_run_removed = Lauf für {label} aus der Liste entfernt
+core_action.log_runs_removed.one = {n} beendeter Lauf aus der Liste entfernt
+core_action.log_runs_removed.other = {n} beendete Läufe aus der Liste entfernt
+core_action.err_run_still_active = Der Lauf für {label} arbeitet oder wartet noch. Brich ihn zuerst ab.

@@ -17,6 +17,7 @@ mod job;
 mod labels;
 mod progress;
 mod pull_request;
+mod remove;
 mod repo_choice;
 mod repos;
 mod sidebar;
@@ -47,6 +48,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
             <PickerPane label=t!(AgentRuns) title=t!(AgentRuns)>
                 {sidebar::closed_switch(ctx, show_closed)}
                 <ul class="ui-sidebar__nav">{move || sidebar::sidebar_runs(ctx, show_closed.get())}</ul>
+                <remove::RemoveFinished ctx=ctx />
                 <div class="ck-cleanup">
                     <cleanup::CleanupButton />
                 </div>
@@ -84,6 +86,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
 
                         {controls::controls(ctx)}
                         {move || controls::blocked_hint(ctx)}
+                        <remove::RemoveRun ctx=ctx />
                         <repos::RunRepos run=run />
                         <pull_request::PullRequestPanel run=run />
                         <branch::BranchPanel run=run />

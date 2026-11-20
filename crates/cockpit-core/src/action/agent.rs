@@ -191,6 +191,29 @@ impl Workspace {
                     ),
                 )])
             }
+            Action::RemoveAgentRun { run } => {
+                let label = self.remove_run(&run).map_err(|active| {
+                    if active {
+                        ActionError::RunStillActive(self.label_of(&run).de())
+                    } else {
+                        ActionError::NothingToDo
+                    }
+                })?;
+                Ok(vec![Note::coded(
+                    Target::Run(run),
+                    msg!(CoreActionLogRunRemoved, label = label),
+                )])
+            }
+            Action::RemoveFinishedRuns => {
+                let keys = self.remove_finished_runs();
+                let Some(first) = keys.first().cloned() else {
+                    return Err(ActionError::NothingToDo);
+                };
+                Ok(vec![Note::coded(
+                    Target::Run(first),
+                    msg!(CoreActionLogRunsRemoved, n = keys.len()),
+                )])
+            }
             Action::AddressReview {
                 review,
                 comments,
@@ -284,9 +307,14 @@ impl Workspace {
                     msg!(CoreActionLogThreadsRequested, review = review.to_string()),
                 )])
             }
-            Action::StartPrReview { review } => {
+            Action::StartPrReview {
+                review,
+                language,
+                repo_language,
+            } => {
                 self.need_open_review(&review)?;
-                self.review_pr_with_agent(&review).map_err(agent_error)?;
+                self.review_pr_with_agent(&review, language, repo_language)
+                    .map_err(agent_error)?;
                 Ok(vec![Note::coded(
                     Target::Review(review.clone()),
                     msg!(CoreActionLogPrReviewRequested, review = review.to_string()),

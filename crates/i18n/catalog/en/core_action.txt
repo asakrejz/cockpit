@@ -137,6 +137,11 @@ core_action.log_jira_project = Jira project chosen: {project}
 core_action.log_jira_project_all = Jira project: all
 core_action.log_team_chosen = My team chosen: {teams}
 core_action.log_team_all = My team: all teams
+core_action.log_people_all = Overview: Jira and GitHub
+core_action.log_people_jira = Overview: Jira only
+core_action.log_people_github = Overview: GitHub only
+core_action.log_people_linked = Linked Jira person {jira} and GitHub user {github}
+core_action.log_people_unlinked = Removed the link of {jira}
 core_action.log_filter_reset = Filter reset
 core_action.log_filter_applied = Filter applied
 core_action.log_status_auto = Status of {key} set to "{status}" automatically: {why}
@@ -216,3 +221,9 @@ core_action.log_field_set = {field} of {key} set to "{value}"
 core_action.log_field_cleared = {field} of {key} cleared
 core_action.log_issue_created = Issue {key} created in the project "{project}"
 core_action.log_draft_converted = Draft converted to the issue {key}
+
+# Remove runs from the list
+core_action.log_run_removed = Run for {label} removed from the list
+core_action.log_runs_removed.one = {n} finished run removed from the list
+core_action.log_runs_removed.other = {n} finished runs removed from the list
+core_action.err_run_still_active = The run for {label} is still working or waiting. Cancel it first.

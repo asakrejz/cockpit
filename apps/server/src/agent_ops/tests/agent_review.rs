@@ -72,6 +72,8 @@ async fn a_review_run_reads_only_and_keeps_its_drafts_local() {
 
     w.action(Action::StartPrReview {
         review: PrKey::new("firma/app", 85),
+        language: None,
+        repo_language: None,
     })
     .await
     .unwrap();
@@ -141,6 +143,8 @@ async fn a_review_run_in_an_unknown_repo_needs_github_to_show_the_repo() {
     let err = w
         .action(Action::StartPrReview {
             review: PrKey::new("fremd/repo", 85),
+            language: None,
+            repo_language: None,
         })
         .await
         .unwrap_err();
@@ -159,6 +163,8 @@ async fn a_failing_container_ends_the_run_with_a_reason_and_no_drafts() {
     );
     w.action(Action::StartPrReview {
         review: PrKey::new("firma/app", 85),
+        language: None,
+        repo_language: None,
     })
     .await
     .unwrap();
@@ -196,6 +202,8 @@ async fn the_branch_pattern_does_not_block_a_read_only_review() {
     let branches_before = w.branches();
     w.action(Action::StartPrReview {
         review: PrKey::new("firma/app", 85),
+        language: None,
+        repo_language: None,
     })
     .await
     .unwrap();

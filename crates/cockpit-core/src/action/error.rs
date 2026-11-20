@@ -58,6 +58,8 @@ pub enum ActionError {
     NeedsBackend,
     /// The project has no such field, or the field has no such choice.
     UnknownField(String),
+    /// The run still works or waits (its label); it has to be cancelled before it can be removed.
+    RunStillActive(String),
 }
 
 impl ActionError {
@@ -117,6 +119,9 @@ impl ActionError {
             }
             ActionError::NotAnIssue => msg!(CoreActionErrNotAnIssue),
             ActionError::NotADraft => msg!(CoreActionErrNotADraft),
+            ActionError::RunStillActive(label) => {
+                msg!(CoreActionErrRunStillActive, label = label)
+            }
             ActionError::NeedsBackend => msg!(CoreActionErrNeedsBackend),
             ActionError::UnknownField(f) => msg!(CoreActionErrUnknownField, field = f),
             ActionError::PullRequestNotReady => msg!(CoreActionErrPrNotReady),

@@ -15,3 +15,4 @@ review_filter.summary_repos = Gezeigt: {n} Repos.
 review_filter.summary_projects = Gezeigt: {n} Projekte.
 review_filter.summary_both = Gezeigt: {repos} Repos in {projects} Projekten.
 review_filter.none_title = Kein Pull Request passt zum Filter
+review_filter.unknown_repo = Unbekanntes Repo

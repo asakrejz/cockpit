@@ -18,7 +18,7 @@ view! {
 | Layout | `VStack`, `HStack`, `ZStack`, `Spacer`, `Grid`, `Split`, `Container`, `PageSection` |
 | Controls | `Button`, `Link`, `Badge`, `Toggle`, `Segmented`, `Slider`, `Stepper` |
 | Input | `TextField`, `SearchField`, `Combobox` (text field with suggestions, see below) |
-| Content | `List`, `ListSection`, `ListRow`, `ListButtonRow`, `Card`, `CardBody`, `Media` |
+| Content | `List`, `ListSection`, `ListRow`, `ListButtonRow`, `Card`, `CardBody`, `CardFooter`, `CardGrid`, `Media` |
 | Navigation | `Navbar`, `IosNav`, `TabBar`, `Pager`, `Footer` |
 | Overlay | `Sheet` |
 | App | `SplitView` (with `StackLevel`: list and detail as two levels below 768 px, see [architecture.md](architecture.md#layout-and-navigation)), `Sidebar`, `BottomNav` (floating glass pill), `PickerPane`, `Pane`, `Status`, `Avatar`, `Chip`, `InboxRow`, `CommentBubble`, `RichText` (Jira text from ADF), `Markdown` (GitHub text: PR descriptions and comments, same look as `RichText`), `Textarea`, `Diff`, `SuggestionCard`, `Timeline`, `Progress`, `Log`, `Steps` |
@@ -116,3 +116,14 @@ For learning Rust through this code base: each concept names where you see it an
 
 A good exercise for every step: break something on purpose (for example `ButtonStyle::Glas` instead of `Glass`) and
 read the compiler message. Rust usually explains errors very precisely.
+
+**Overflow and cards.** Nothing may widen a pane or the page. In `extras.css`: prose breaks with
+`overflow-wrap: anywhere`, flex/grid children have `min-width: 0`, single-line labels (repo, branch, file) use
+`.ui-ellipsis` / `.ck-ellipsis` with a `title`, code blocks scroll inside their box. A card is a column: `CardBody`
+grows, `CardFooter` (name, meta, actions) sits at the bottom right whatever the text length. `CardGrid` puts cards in
+one row at equal height, so footers line up. Overview cards (`.ck-stuck`) and inbox rows follow the same pattern
+(last child pinned to the bottom).
+
+**Check.** The Playground story "Extreme Inhalte" (`#extreme`) has very long words and URLs, one-word and empty texts.
+Open it at 375, 768 and 1280 px and run `scripts/check-overflow.js` in the console: it must print `no overflow`
+(`scrollWidth <= clientWidth` for page, panes, cards and rows). Run the same script in the app.

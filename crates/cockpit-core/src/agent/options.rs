@@ -28,6 +28,10 @@ pub struct AgentOptions {
     /// configuration at the start.
     #[serde(skip_serializing_if = "crate::repos::is_english")]
     pub pr_language: cockpit_i18n::Lang,
+    /// Only for a review run: the language of the drafted comments and why it was chosen. Set when
+    /// the run starts.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub review_language: Option<crate::language::LangChoice>,
     /// The `{type}` of the branch: `feature`, `fix` or `chore`. Set by the backend from the
     /// Jira issue type.
     #[serde(skip_serializing_if = "is_feature")]
@@ -86,6 +90,7 @@ impl Default for AgentOptions {
             base_branch: "main".into(),
             branch_pattern: crate::branch::DEFAULT_PATTERN.into(),
             pr_language: cockpit_i18n::Lang::En,
+            review_language: None,
             branch_type: crate::branch::BranchType::Feature.as_str().into(),
             plan_first: true,
             repo: None,

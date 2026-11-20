@@ -35,7 +35,15 @@ fn comment(path: &str, line: u32, text: &str) -> AgentReport {
 
 fn started() -> Workspace {
     let mut w = ws();
-    ok(&mut w, Action::StartPrReview { review: 91.into() }, 1);
+    ok(
+        &mut w,
+        Action::StartPrReview {
+            review: 91.into(),
+            language: None,
+            repo_language: None,
+        },
+        1,
+    );
     report(
         &mut w,
         &key(),
@@ -51,10 +59,26 @@ fn started() -> Workspace {
 fn only_the_user_starts_a_review_run_and_it_is_a_read_only_job() {
     let mut w = ws();
     assert!(
-        w.apply(Action::StartPrReview { review: 91.into() }, Actor::Agent, T)
-            .is_err()
+        w.apply(
+            Action::StartPrReview {
+                review: 91.into(),
+                language: None,
+                repo_language: None
+            },
+            Actor::Agent,
+            T
+        )
+        .is_err()
     );
-    ok(&mut w, Action::StartPrReview { review: 91.into() }, 1);
+    ok(
+        &mut w,
+        Action::StartPrReview {
+            review: 91.into(),
+            language: None,
+            repo_language: None,
+        },
+        1,
+    );
     let run = w.runs.iter().find(|r| r.key() == key()).unwrap();
     assert!(run.is_running() && run.kind.runs_in_container());
     assert!(!run.options.plan_first, "your click is the approval");
@@ -62,7 +86,11 @@ fn only_the_user_starts_a_review_run_and_it_is_a_read_only_job() {
     assert!(!run.branch().is_empty());
     fails(
         &mut w,
-        Action::StartPrReview { review: 91.into() },
+        Action::StartPrReview {
+            review: 91.into(),
+            language: None,
+            repo_language: None,
+        },
         ActionError::Agent(AgentError::AlreadyRunning),
     );
 }
@@ -128,7 +156,15 @@ fn a_failed_review_run_leaves_the_reason_and_the_old_state_is_replaced_on_restar
     assert_eq!(run.ended.as_deref(), Some("Zeitlimit"));
     assert!(!w.review(91).unwrap().agent_reviewed);
     // A new run replaces the old drafts.
-    ok(&mut w, Action::StartPrReview { review: 91.into() }, 1);
+    ok(
+        &mut w,
+        Action::StartPrReview {
+            review: 91.into(),
+            language: None,
+            repo_language: None,
+        },
+        1,
+    );
     assert_eq!(w.review(91).unwrap().agent_drafts(), 0);
     assert!(
         w.runs
@@ -246,4 +282,87 @@ fn a_suggestion_without_new_fields_still_loads() {
         text: String::new(),
         suggestion: None,
     };
+}
+
+fn review_choice(w: &Workspace) -> crate::language::LangChoice {
+    w.runs
+        .iter()
+        .find(|r| r.key() == key())
+        .and_then(|r| r.options.review_language)
+        .expect("the review run records its language")
+}
+
+#[test]
+fn the_review_language_follows_the_order_of_the_rules() {
+    use crate::language::LangSource;
+    use cockpit_i18n::Lang;
+    // Nothing detectable in the sample text of #91 is not guaranteed, so the PR is set to be neutral first.
+    let neutral = |w: &mut Workspace| {
+        let r = w.reviews.iter_mut().find(|r| r.number == 91).unwrap();
+        r.title = "Fix".into();
+        r.description = String::new();
+        w.items.iter_mut().for_each(|i| i.description.clear());
+    };
+    // The user's switch wins.
+    let mut w = ws();
+    neutral(&mut w);
+    ok(
+        &mut w,
+        Action::StartPrReview {
+            review: 91.into(),
+            language: Some(Lang::De),
+            repo_language: Some(Lang::En),
+        },
+        1,
+    );
+    assert_eq!(review_choice(&w).lang, Lang::De);
+    assert_eq!(review_choice(&w).source, LangSource::Chosen);
+    // The repo's language when nothing can be detected.
+    let mut w = ws();
+    neutral(&mut w);
+    ok(
+        &mut w,
+        Action::StartPrReview {
+            review: 91.into(),
+            language: None,
+            repo_language: Some(Lang::De),
+        },
+        1,
+    );
+    assert_eq!(review_choice(&w).source, LangSource::Repo);
+    assert_eq!(review_choice(&w).lang, Lang::De);
+    // English otherwise.
+    let mut w = ws();
+    neutral(&mut w);
+    ok(
+        &mut w,
+        Action::StartPrReview {
+            review: 91.into(),
+            language: None,
+            repo_language: None,
+        },
+        1,
+    );
+    assert_eq!(review_choice(&w).lang, Lang::En);
+    assert_eq!(review_choice(&w).source, LangSource::Default);
+    // A description that is clearly English beats the repo.
+    let mut w = ws();
+    neutral(&mut w);
+    {
+        let r = w.reviews.iter_mut().find(|r| r.number == 91).unwrap();
+        r.description =
+            "This change fixes the list that is empty when the user has no access to the project."
+                .into();
+    }
+    ok(
+        &mut w,
+        Action::StartPrReview {
+            review: 91.into(),
+            language: None,
+            repo_language: Some(Lang::De),
+        },
+        1,
+    );
+    assert_eq!(review_choice(&w).source, LangSource::PrText);
+    assert_eq!(review_choice(&w).lang, Lang::En);
 }

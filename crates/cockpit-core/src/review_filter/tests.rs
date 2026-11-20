@@ -167,3 +167,156 @@ fn an_old_workspace_without_the_filter_loads_with_the_default() {
     let f: ReviewFilter = serde_json::from_str("{}").unwrap();
     assert!(f.is_default());
 }
+
+// ---------- Sections ----------
+
+fn section(repo: &str, keys: &[u32], attention: usize) -> ReviewSection {
+    ReviewSection {
+        repo: repo.into(),
+        keys: keys.iter().map(|n| PrKey::new(repo, *n)).collect(),
+        attention,
+    }
+}
+
+/// The sample data where `acme/shop#103` and `acme/design-tokens#102` ask for my review.
+fn asking() -> Workspace {
+    let mut ws = demo::seed();
+    for item in &mut ws.items {
+        if let Some(pr) = item.pr.as_mut()
+            && ((pr.repo == demo::DEMO_REPO_SHOP && pr.number == 103)
+                || (pr.repo == demo::DEMO_REPO_TOKENS && pr.number == 102))
+        {
+            pr.requested_me = true;
+        }
+    }
+    ws
+}
+
+#[test]
+fn sections_are_per_repo_sorted_by_attention_then_name_and_keep_the_order_inside() {
+    let ws = asking();
+    let list = ws.reviews_filtered(&ReviewFilter::default(), None);
+    let sections = ws.review_sections(&list);
+    let names: Vec<_> = sections.iter().map(|s| s.repo.as_str()).collect();
+    // Review requested from me first (design-tokens and shop), then the rest by name.
+    assert_eq!(
+        names,
+        [
+            demo::DEMO_REPO_TOKENS,
+            demo::DEMO_REPO_SHOP,
+            crate::DEMO_REPO
+        ]
+    );
+    assert_eq!(sections[0].attention, 1);
+    assert_eq!(sections[2].attention, 0);
+    let in_app: Vec<u32> = list
+        .iter()
+        .filter(|r| r.repo == crate::DEMO_REPO)
+        .map(|r| r.number)
+        .collect();
+    let section_numbers: Vec<u32> = sections[2].keys.iter().map(|k| k.number).collect();
+    assert_eq!(
+        section_numbers, in_app,
+        "the order inside a section is the list's"
+    );
+    assert_eq!(
+        sections.iter().map(|s| s.keys.len()).sum::<usize>(),
+        list.len()
+    );
+}
+
+#[test]
+fn a_hidden_repo_has_no_section() {
+    let ws = asking();
+    let f = ReviewFilter {
+        repos: vec![demo::DEMO_REPO_SHOP.into()],
+        ..Default::default()
+    };
+    let list = ws.reviews_filtered(&f, None);
+    let sections = ws.review_sections(&list);
+    assert_eq!(sections.len(), 1);
+    assert_eq!(sections[0].repo, demo::DEMO_REPO_SHOP);
+}
+
+#[test]
+fn my_own_pull_request_with_requested_changes_needs_attention() {
+    let mut ws = demo::seed();
+    let review = ws.reviews[0].clone();
+    assert!(!ws.review_needs_attention(&review));
+    let key = review.key();
+    let pr = ws
+        .items
+        .iter_mut()
+        .find_map(|i| i.pr.as_mut().filter(|p| p.key().same(&key)))
+        .unwrap();
+    pr.mine = true;
+    pr.changes_requested = true;
+    assert!(ws.review_needs_attention(&review));
+    ws.items
+        .iter_mut()
+        .find_map(|i| i.pr.as_mut().filter(|p| p.key().same(&key)))
+        .unwrap()
+        .merged = true;
+    assert!(
+        !ws.review_needs_attention(&review),
+        "a merged one needs nothing"
+    );
+}
+
+#[test]
+fn owners_group_first_only_with_many_repos_and_more_than_one_owner() {
+    let many: Vec<ReviewSection> = (0..4)
+        .map(|i| section(&format!("a/r{i}"), &[1], 0))
+        .chain((0..4).map(|i| section(&format!("b/r{i}"), &[1], usize::from(i == 3))))
+        .collect();
+    let groups = group_sections(many.clone(), OWNER_GROUPS_FROM);
+    assert_eq!(groups.len(), 2);
+    assert_eq!(groups[0].owner.as_deref(), Some("b"), "attention first");
+    assert_eq!(groups[0].count(), 4);
+    assert_eq!(groups[1].owner.as_deref(), Some("a"));
+    // Few repos, or one owner only: a single group without an owner header.
+    let few = group_sections(many[..3].to_vec(), OWNER_GROUPS_FROM);
+    assert_eq!(few.len(), 1);
+    assert_eq!(few[0].owner, None);
+    let one_owner: Vec<_> = (0..9)
+        .map(|i| section(&format!("a/r{i}"), &[1], 0))
+        .collect();
+    assert_eq!(group_sections(one_owner, OWNER_GROUPS_FROM)[0].owner, None);
+}
+
+#[test]
+fn collapsed_sections_drop_out_of_the_visible_order_except_the_open_one() {
+    let groups = group_sections(
+        vec![
+            section("a/x", &[1, 2], 0),
+            section("b/y", &[3], 0),
+            section("b/z", &[4], 0),
+        ],
+        2,
+    );
+    let nums = |keys: Vec<PrKey>| keys.iter().map(|k| k.number).collect::<Vec<_>>();
+    assert_eq!(nums(visible_keys(&groups, &[], None)), [1, 2, 3, 4]);
+    // A collapsed repo is skipped; a collapsed owner takes all its repos along.
+    assert_eq!(nums(visible_keys(&groups, &["A/X".into()], None)), [3, 4]);
+    assert_eq!(nums(visible_keys(&groups, &["b".into()], None)), [1, 2]);
+    // The open pull request keeps its section expanded (deep link).
+    let open = PrKey::new("b/y", 3);
+    assert_eq!(
+        nums(visible_keys(&groups, &["b".into()], Some(&open))),
+        [1, 2, 3]
+    );
+    assert!(is_collapsed(&["b".into()], Some("b"), "b/y"));
+    assert!(!is_collapsed(&["b/z".into()], Some("b"), "b/y"));
+}
+
+#[test]
+fn up_and_down_walk_the_visible_list_and_stop_at_the_ends() {
+    let keys: Vec<PrKey> = [1, 2, 3].iter().map(|n| PrKey::new("a/x", *n)).collect();
+    let at = |n: u32| PrKey::new("a/x", n);
+    assert_eq!(step_key(&keys, Some(&at(1)), true), Some(at(2)));
+    assert_eq!(step_key(&keys, Some(&at(3)), true), Some(at(3)));
+    assert_eq!(step_key(&keys, Some(&at(1)), false), Some(at(1)));
+    assert_eq!(step_key(&keys, Some(&at(3)), false), Some(at(2)));
+    assert_eq!(step_key(&keys, None, true), Some(at(1)));
+    assert_eq!(step_key(&[], None, true), None);
+}

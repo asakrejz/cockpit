@@ -85,7 +85,17 @@ fn the_job_carries_the_interface_language_and_the_language_of_the_pull_request()
     let mut ws = demo::workspace();
     start(&mut ws, false);
     let mut run = ws.run("BAU-142").unwrap();
-    // Not chosen yet: English; the pull request language is English by default.
+    // The demo ticket is German: the text of the pull request follows it, not the repo.
+    let j = job_json(&ws, &run, Mode::Implement, "claude/BAU-142-x", None);
+    assert_eq!(j["pr_language"], "de");
+    // A ticket without a language: the repo decides; English is the default.
+    ws.items
+        .iter_mut()
+        .find(|i| i.key == "BAU-142")
+        .unwrap()
+        .description
+        .clear();
+    run.ticket_title = "Toggle".into();
     let j = job_json(&ws, &run, Mode::Implement, "claude/BAU-142-x", None);
     assert_eq!(j["language"], "en");
     assert_eq!(j["pr_language"], "en");
@@ -95,4 +105,22 @@ fn the_job_carries_the_interface_language_and_the_language_of_the_pull_request()
     let j = job_json(&ws, &run, Mode::Implement, "claude/BAU-142-x", None);
     assert_eq!(j["language"], "de");
     assert_eq!(j["pr_language"], "de");
+}
+
+#[test]
+fn a_review_job_carries_the_language_of_the_review() {
+    let mut ws = demo::workspace();
+    start(&mut ws, false);
+    let mut run = ws.run("BAU-142").unwrap();
+    // Not a review: no review language.
+    assert!(job_json(&ws, &run, Mode::Implement, "b", None)["review_language"].is_null());
+    ws.language = Some(cockpit_i18n::Lang::De);
+    run.options.review_language = Some(cockpit_core::language::LangChoice {
+        lang: cockpit_i18n::Lang::En,
+        source: cockpit_core::language::LangSource::PrText,
+    });
+    let j = job_json(&ws, &run, Mode::Review, "b", None);
+    // The interface stays German, the review is English.
+    assert_eq!(j["language"], "de");
+    assert_eq!(j["review_language"], "en");
 }

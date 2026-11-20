@@ -229,7 +229,15 @@ impl Workspace {
     /// Commissions the **real** agent to read the pull request and prepare review comments as
     /// drafts. The run only reads: no push, no token, nothing goes to GitHub. Works on every
     /// branch. The old suggestions are replaced. Returns the key of the run (`prreview-…`).
-    pub fn review_pr_with_agent(&mut self, review: impl Into<PrKey>) -> Result<String, AgentError> {
+    ///
+    /// The language of the drafts: `chosen` (the user's switch), else detected from the pull request
+    /// (and the ticket if the description is short), else `repo_language`, else English.
+    pub fn review_pr_with_agent(
+        &mut self,
+        review: impl Into<PrKey>,
+        chosen: Option<cockpit_i18n::Lang>,
+        repo_language: Option<cockpit_i18n::Lang>,
+    ) -> Result<String, AgentError> {
         let review = review.into();
         let r = self.check_followup(&review)?;
         if r.files.is_empty() {
@@ -237,6 +245,12 @@ impl Workspace {
         }
         let review = r.key();
         let (title, branch) = (r.title.clone(), r.branch.clone());
+        let ticket_key = self.item_key_of_pr(&review);
+        let ticket = self
+            .item_by_key(&ticket_key)
+            .map_or("", |i| i.description.as_str());
+        let language =
+            crate::language::choose_review(chosen, &r.title, &r.description, ticket, repo_language);
         let run = AgentRun::followup(
             RunKind::ReviewPr {
                 review: review.clone(),
@@ -249,6 +263,7 @@ impl Workspace {
         let options = AgentOptions {
             plan_first: false,
             run_tests: false,
+            review_language: Some(language),
             ..AgentOptions::default()
         };
         if let Some(r) = self.review_mut(&review) {

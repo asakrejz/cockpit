@@ -287,6 +287,13 @@ impl AgentRun {
         true
     }
 
+    /// The run is in a final state and may be removed from the list: done, cancelled or failed
+    /// (ready again), stopped by a limit, or finished because its pull request ended. Running,
+    /// waiting and paused runs are not: they have to be cancelled first.
+    pub fn is_removable(&self) -> bool {
+        self.is_closed() || self.is_done() || self.is_idle() || self.is_stopped()
+    }
+
     pub fn is_followup(&self) -> bool {
         self.kind != RunKind::Implement
     }

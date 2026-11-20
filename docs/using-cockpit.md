@@ -10,7 +10,7 @@ Every column scrolls on its own. Details: [Layout and navigation](architecture.m
 
 **Language:** the app speaks German and English. It starts in the language of the browser (German for `de*`, otherwise
 English). You change it in the "More" menu ("Language") or in the first step of the setup assistant; the change applies at
-once and is saved in the workspace. The agents write their plans, summaries and review comments in the same language. The language of pull request titles and texts is a separate setting per repo (setup assistant, default English). Texts from Jira and GitHub stay as they are. The page names below are the German ones;
+once and is saved in the workspace. The agents write their plans and summaries in the same language. Review comments and the text of pull requests follow the language of the pull request or ticket instead (see below). The `pr_language` of a repo (setup assistant, default English) is the team default. Texts from Jira and GitHub stay as they are. The page names below are the German ones;
 in English they read Tasks, Pull requests, Agents, Log, Limits & rules, Notifications, Set up.
 
 ## Pages
@@ -19,7 +19,7 @@ in English they read Tasks, Pull requests, Agents, Log, Limits & rules, Notifica
 |------|---------|--------------|
 | Einrichten | `#/setup`, `#/setup/<step>` | state and next step per service: sign in to / disconnect Jira and GitHub, check the agent endpoint, detect the container runtime |
 | Aufgaben | `#/tasks` (the filter chosen last), `#/`, `#/mine`, `#/team`, `#/snoozed` (the older addresses keep their filter) | inbox of tickets and pull requests, filtered by switchable rules (mention, review request, blocked PR, overdue ticket, agent done, assigned); snooze; change status, create a branch, reply, assign the agent; edit a ticket; pull requests link to their ticket automatically (the ticket key in the branch name or title; there is no manual linking), the section "Entwicklung" lists every linked PR with branch, state and checks; search; the button "Filter" (with the number of active filters) opens the filter dialog with all filters, chips under it remove single filters; keys `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
-| Review | `#/review/acme/app/87` | the list on the left has a "Filter" button (see [Reviews filter](#reviews-filter)); the description and all comments are shown as Markdown (headings, lists, code, links; no raw HTML); tabs „Dateien“ (file tree with +/− counts, one collapsible diff per file, „Angesehen“ per file, long diffs cut at 300 lines with „Mehr anzeigen“) and „Commits“ (list; a click shows only that commit's diff, read only); select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you) |
+| Review | `#/review/acme/app/87` | the list on the left has a "Filter" button (see [Reviews filter](#reviews-filter)); the description and all comments are shown as Markdown (headings, lists, code, links; no raw HTML); tabs „Dateien“ (file tree with +/− counts, one collapsible diff per file, „Angesehen“ per file, long diffs cut at 300 lines with „Mehr anzeigen“) and „Commits“ (list; a click shows only that commit's diff, read only); select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you); before "PR reviewen" a switch Automatisch / DE / EN picks the language of the agent's comments |
 | Übersicht | `#/overview` | open entries and load per person; "Hängt" shows failed checks, waiting reviews, tickets without a branch and agents waiting for you |
 | Benachrichtigungen | `#/notifications` | per occasion choose browser, email and Slack; quiet hours; permission request by button; test notification |
 | Agent | `#/agent/BAU-142` | assignment with options; plan for approval; five-step flow; answer questions, send hints, pause; history as a conversation; for a finished real run "Pull Request anlegen" (preview, editable); finished runs whose pull request is merged or closed (see below); "Aufräumen" |
@@ -36,6 +36,25 @@ that list. Filters combine with AND. "Anwenden" applies the edits together (acti
 puts the edits back to the start state. The applied filters are part of the workspace (stored on the server like the
 rules and the Jira project, so they survive a reload). Every active filter is also a chip under the button; its "✕" removes
 only that filter. The left column shows entries only, no switches.
+
+## People per source
+
+Jira people and GitHub users are different identities, and the same person often has both a Jira display name and a
+GitHub login. The Übersicht therefore never mixes them by guess:
+
+- **Source filter:** under the title a segmented control "Alle / Jira / GitHub" (action `SetPeopleSource`, stored in the
+  workspace like the other filters). "GitHub" covers pull requests and GitHub Projects tickets. People, load and
+  "Hängt" follow it.
+- **Sections:** under "Alle" the list has the sections "Jira und GitHub" (you, the agent and linked people), "Jira" and
+  "GitHub". A person appears once per source; the same name in both sources stays two people.
+- **Linking (optional):** choose a person and use "Ist dieselbe Person wie …" in the detail: search the name in the
+  other source and pick it (action `LinkPeople`). The two then show as one person with both sources under "Alle"; the
+  name of the Jira person is shown and the GitHub name below it. "Verknüpfung aufheben" (action `UnlinkPeople`) splits
+  them again. Every name has at most one link. Nothing is written to Jira or GitHub.
+- **You** need no link: your Jira account and your GitHub login are both known, so "Du" is one person with both sources.
+
+The team choice below still applies on top of the source. The rules live in `cockpit_core::team` and
+`cockpit_core::people_link`.
 
 ## Mein Team
 
@@ -152,6 +171,20 @@ and, after a pause or a cancel, a clone.
   entfernen“ they are removed (containers with `docker`/`podman rm -f`, never via the socket). The image and containers
   without the label are never touched. If the container program is not reachable, only folders are listed. The
   removal re-checks every item and skips whatever started working in the meantime.
+- **Clearing old runs: „Entfernen“ and „Alle beendeten entfernen (n)“.** Until now finished, cancelled, failed and
+  stopped runs stayed in the list for good (only runs with a merged or closed pull request could be hidden). Every run
+  in a final state – done, cancelled or failed (ready again), halted by a limit, or „erledigt“ – now has the button
+  **„Entfernen“** under its buttons, and the list has **„Alle beendeten entfernen (n)“** with the number of runs that go.
+  Both ask first and say that the change is local. Runs that work, wait for approval or an answer, or are paused cannot
+  be removed: the pane shows the hint to cancel them first. The core does this as the actions `RemoveAgentRun` and
+  `RemoveFinishedRuns` (only you, never the agent or the system).
+  - **Local only.** Only the run disappears from the list of this computer. Branches and pull requests on GitHub are
+    never touched; „Branch löschen“ stays a separate click.
+  - **Leftovers.** Containers with the label `cockpit.run` that carry the name of a removed run, and its folder under
+    `<data>/agent/runs`, are removed right after (the same code as „Aufräumen“). Other containers are never touched.
+  - **Stays gone.** The removal is saved with the workspace, so the run does not come back after a sync, a reload or a
+    restart of the server. The consumption is a separate ledger: the spend of the month and the day keeps the cost of
+    removed runs, so the budget limits stay correct.
 
 ## Reviews filter
 
@@ -166,6 +199,16 @@ GitHub access can see**, plus all open pull requests of the repos you watch (see
   means all repos.
 - **GitHub Projects:** shown when GitHub Projects are connected; only pull requests that are linked to an item of the
   chosen project (on the issue's timeline or named in it) stay.
+
+**Sections.** The list itself is grouped by repo: one section per `owner/name` with a header that shows the number of
+pull requests (and, in a badge, how many need your attention: a review requested from you, or your own pull request with
+requested changes). Sections with the most pull requests that need you come first, then alphabetically; inside a section
+the order stays as it was. With only one repo the list has no header. With many repos (eight or more, from more than one
+owner) the repos sit under a header per owner or organization, like in the filter dialog. A click on a header collapses
+or expands it; the collapsed ones are remembered per browser (`localStorage`). Repos hidden by the filter have no
+section. With the focus in the list, ↑ and ↓ move to the previous or next pull request and skip collapsed sections. A
+link to a pull request (`#/review/acme/app/87`, "Zum Eintrag") opens it, expands its section if needed and scrolls the
+entry into view.
 
 "Anwenden" stores the choice with the workspace, so it is still there after a restart; "Zurücksetzen" clears it. The
 filter only narrows the list: the sync still loads everything, and the review you have open stays in the list. A
@@ -194,3 +237,19 @@ all carry the ticket key.
 
 More about agent behaviour (questions, steering, follow-up jobs, costs, limits, rules per repo) is in
 [architecture.md](architecture.md#agent-behaviour).
+
+## Language of agent reviews and pull request texts
+
+Agent reviews (summary, comments, suggestions) are written in the language of the pull request, German or English. The
+language is chosen in this order:
+
+1. the switch in the review panel (Automatisch / DE / EN), if you set it to DE or EN;
+2. the language detected from the title and description of the pull request, plus the description of the linked ticket if
+   the pull request description is short. Detection counts typical German and English words and umlauts; it stays silent for
+   very short, code-only or mixed texts;
+3. the `pr_language` of the repo in `[[agent.repos]]` (the team default);
+4. English.
+
+The review panel shows the result, for example "Sprache des Reviews: Englisch – erkannt aus der PR-Beschreibung" or
+"… – Team-Standard". The same rule (without the switch) writes the pull request texts and commit messages of the
+agent's own runs: detected from the ticket, else the repo's `pr_language`, else English. Nothing is sent without your approval.
