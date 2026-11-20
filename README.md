@@ -16,8 +16,8 @@ computer, for one person.
 ## Setup
 
 ```bash
-git clone https://github.com/acme/rust-playground.git
-cd rust-playground
+git clone https://github.com/asakrejz/cockpit.git
+cd cockpit
 scripts/start.sh --open
 ```
 

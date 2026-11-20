@@ -8,7 +8,7 @@ fn linking_connects_both_sides() {
     let applied = link(&mut w, "bau150", 85, 1);
     assert_eq!(
         applied.summary,
-        "BAU-150 automatisch mit asakrejz/rust-playground#85 verknüpft"
+        "BAU-150 automatisch mit acme/app#85 verknüpft"
     );
     let ticket = w.item("bau150").unwrap();
     assert_eq!(ticket.pr.as_ref().map(|p| p.number), Some(85));
@@ -53,7 +53,7 @@ fn the_branch_or_title_links_automatically() {
     let applied = ok(&mut w, Action::AutoLinkPrs, 1);
     assert_eq!(
         applied.summary,
-        "BAU-150 automatisch mit asakrejz/rust-playground#85 verknüpft"
+        "BAU-150 automatisch mit acme/app#85 verknüpft"
     );
     let entry = w.log.last().unwrap();
     assert_eq!(

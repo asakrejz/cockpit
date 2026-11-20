@@ -133,7 +133,7 @@ fn pre_repo_snapshots_get_their_repos_from_the_migration() {
     // The tokens repo's pull request keeps the repo of its entry instead of the default,
     // and a ticket's copy of #91 takes the default.
     let tokens = ws.item("pr12").unwrap().pr.as_ref().unwrap();
-    assert_eq!(tokens.repo, "asakrejz/design-tokens");
+    assert_eq!(tokens.repo, "acme/design-tokens");
     assert_eq!(ws.review(91).unwrap().repo, cockpit_core::DEMO_REPO);
     assert_eq!(
         ws.item("bau138").unwrap().pr.as_ref().unwrap().repo,
