@@ -25,6 +25,8 @@ from. Environment variables override the file:
 | `COCKPIT_AGENT_DIR` | folder with `Containerfile` and runner |
 | `COCKPIT_GIT_BASE` | git base for clones (tests, local remotes) |
 | `COCKPIT_DEV_PORT` | allow the `trunk serve` port (environment only, see [Developing with `trunk serve`](#developing-with-trunk-serve)) |
+| `COCKPIT_BIND` | listen address, default `127.0.0.1`; the container image sets `0.0.0.0` (environment only, see [container.md](container.md)) |
+| `COCKPIT_PUBLIC_PORT` | published host port of a container if it differs from the server port (environment only) |
 
 ```toml
 port = 8787

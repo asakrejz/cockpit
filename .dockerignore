@@ -1,0 +1,23 @@
+# The build context holds only the sources. Never in it: build output, local configuration,
+# keys and tooling folders.
+.git
+.github
+.claude
+target
+**/target
+**/node_modules
+config
+!config/config.example.toml
+.env
+.env.*
+**/.env
+**/.env.*
+apps/*/dist
+**/*.db
+**/*.db-*
+.DS_Store
+**/.DS_Store
+docs
+README.md
+start-cockpit.command
+scripts

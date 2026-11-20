@@ -564,3 +564,21 @@ fn the_pull_request_language_is_english_unless_a_repo_says_german() {
         Err(ConfigError::Wert(_))
     ));
 }
+
+#[test]
+fn bind_and_public_port_only_out_the_env() {
+    let c = Config::parse(None, no_env).unwrap();
+    assert!(c.bind.is_loopback());
+    assert_eq!(c.public_port, None);
+    let env = |k: &str| match k {
+        "COCKPIT_BIND" => Some("0.0.0.0".into()),
+        "COCKPIT_PUBLIC_PORT" => Some("18787".into()),
+        _ => None,
+    };
+    let c = Config::parse(None, env).unwrap();
+    assert!(!c.bind.is_loopback());
+    assert_eq!(c.public_port, Some(18787));
+    let bad = |k: &str| (k == "COCKPIT_BIND").then(|| "everywhere".to_string());
+    assert!(Config::parse(None, bad).is_err());
+    assert!(Config::parse(Some("bind = \"0.0.0.0\""), no_env).is_err());
+}

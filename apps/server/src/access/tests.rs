@@ -153,3 +153,18 @@ fn trunk_sends_the_host_without_port() {
     let k = head(&[("host", "boese.example")]);
     assert!(check(LOCAL, &Method::GET, &k, &[PORT, 8081], true).is_err());
 }
+
+#[test]
+fn container_mode_accepts_private_peers_but_keeps_host_check() {
+    let gateway = Some(IpAddr::V4(std::net::Ipv4Addr::new(172, 17, 0, 1)));
+    let public = Some(IpAddr::V4(std::net::Ipv4Addr::new(8, 8, 8, 8)));
+    let ok = head(&[("host", "127.0.0.1:8787")]);
+    let rebinding = head(&[("host", "evil.example:8787")]);
+    let get = Method::GET;
+    // Without container mode a bridge address is a stranger.
+    assert!(check(gateway, &get, &ok, &[PORT], false).is_err());
+    assert!(check_in(gateway, &get, &ok, &[PORT], false, true).is_ok());
+    assert!(check_in(public, &get, &ok, &[PORT], false, true).is_err());
+    assert!(check_in(None, &get, &ok, &[PORT], false, true).is_err());
+    assert!(check_in(gateway, &get, &rebinding, &[PORT], false, true).is_err());
+}
