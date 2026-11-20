@@ -93,3 +93,5 @@ server_run.repo_unchanged = Nichts geändert: {repo} (es gibt nichts zu pushen).
 server_run.repo_refused = Abgelehnt: {repo}: {reason}
 server_run.all_repos_refused = Es wurde nichts gepusht: {reason}
 server_run.github_no_people = GitHub liefert keine Personen: {error}
+server_run.in_container_no_socket = Cockpit läuft in einem Container und kann ohne Zugriff auf die Engine deines Rechners keine Agent-Container starten. Starte Cockpit direkt auf dem Rechner oder den Container mit der Agent-Datei; die Anleitung steht im Schritt „Container“.
+server_run.in_container_socket_denied = Der Engine-Socket ist eingebunden, aber der Benutzer im Cockpit-Container darf ihn nicht nutzen. Starte den Container mit der Agent-Datei (Benutzer root) oder gib ihm die Gruppe des Sockets mit --group-add.

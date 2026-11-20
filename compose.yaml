@@ -1,0 +1,41 @@
+# Cockpit as a container: `docker compose up -d` (or `podman compose up -d`).
+# Run the same command again to update: it pulls a newer image if there is one, recreates the container only
+# when the image changed, and leaves a running, up-to-date container alone. Docs: docs/container.md
+#
+# Log in to ghcr.io first (the image is private, see docs/container.md). Stop with `docker compose down`;
+# NEVER add `-v`: it deletes the volume with your config, database and keys.
+#
+# Optional overrides (shell environment or a `.env` file next to this file):
+#   COCKPIT_IMAGE   image to run         (default: ghcr.io/asakrejz/cockpit:latest)
+#   COCKPIT_PORT    host port            (default: 8787; also used inside, so the OAuth callback matches)
+#   COCKPIT_VOLUME  name of the volume   (default: cockpit-config)
+name: cockpit
+
+services:
+  cockpit:
+    image: ${COCKPIT_IMAGE:-ghcr.io/asakrejz/cockpit:latest}
+    pull_policy: always
+    restart: unless-stopped
+    ports:
+      # Publish on 127.0.0.1 only: a bare "8787:8787" would expose the server to your network (docs/security.md).
+      - "127.0.0.1:${COCKPIT_PORT:-8787}:8787"
+    environment:
+      # The server accepts this port in the Host header (needed when the host port is not 8787).
+      COCKPIT_PUBLIC_PORT: ${COCKPIT_PORT:-8787}
+      # COCKPIT_BIND=0.0.0.0 and COCKPIT_CONTAINER=docker are already set by the image.
+    volumes:
+      - cockpit-config:/app/config
+    healthcheck:
+      test: ["CMD", "cockpit-server", "health"]
+      interval: 30s
+      timeout: 8s
+      start_period: 10s
+      retries: 3
+
+    # Agent containers (opt-in, root-equivalent access to the host!): add compose.agent.yaml, see that file:
+    #   docker compose -f compose.yaml -f compose.agent.yaml up -d
+
+volumes:
+  cockpit-config:
+    # Fixed name, so an existing `cockpit-config` volume (from the old `docker run`) is reused, with its data.
+    name: ${COCKPIT_VOLUME:-cockpit-config}

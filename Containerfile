@@ -111,7 +111,8 @@ USER cockpit
 # only as 127.0.0.1 (-p 127.0.0.1:8787:8787), see docs/security.md.
 ENV COCKPIT_BIND=0.0.0.0 \
     COCKPIT_PORT=8787 \
-    COCKPIT_CONTAINER=docker
+    COCKPIT_CONTAINER=docker \
+    COCKPIT_IN_CONTAINER=1
 
 VOLUME /app/config
 EXPOSE 8787

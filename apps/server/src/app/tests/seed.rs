@@ -124,3 +124,27 @@ async fn health_reports_the_container_runtime() {
     assert_eq!(j["container"]["engine_running"], true);
     assert_eq!(j["container"]["source"], "detected");
 }
+
+#[tokio::test]
+async fn health_reports_whether_cockpit_runs_in_a_container() {
+    let app = router(
+        state(Arc::new(MemoryStore::new())),
+        PathBuf::from("/gibt/es/nicht"),
+    );
+    let (_, body) = hole(app, "/api/health").await;
+    let j = json(&body);
+    assert!(j["container"]["in_container"].is_boolean(), "{body}");
+    assert!(
+        ["missing", "denied", "reachable"].contains(&j["container"]["socket"].as_str().unwrap()),
+        "{body}"
+    );
+    // The wire format of the states the UI relies on.
+    let s = cockpit_core::api::ContainerStatus {
+        in_container: true,
+        socket: cockpit_core::api::SocketState::Denied,
+        ..Default::default()
+    };
+    let v = serde_json::to_value(&s).unwrap();
+    assert_eq!(v["in_container"], true);
+    assert_eq!(v["socket"], "denied");
+}
