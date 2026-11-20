@@ -1,8 +1,7 @@
 # Cockpit security model
 
 Cockpit runs on one person's computer and talks to Jira, GitHub, a model endpoint and a container runtime. This page
-lists what protects the credentials and what limits the agent. Entry page: [../README.md](../README.md); depth on the
-rest: [architecture.md](architecture.md).
+lists what protects the credentials and what limits the agent. Depth on the rest: [architecture.md](architecture.md).
 
 ## Local files in `config/`
 
@@ -23,8 +22,8 @@ Details: [configuration.md](configuration.md).
   start it sets them to `600`. If a real `.env` was ever committed: rotate the keys and run `git rm --cached config/.env`.
 - **Two ways in.** `cockpit-server token set <name>` in the terminal (the value comes from standard input, so it is
   neither in the process list nor in the shell history), or the password fields of the setup assistant, which send the
-  value once over loopback to `PUT /api/secrets/{name}`. For that route: only the fixed names `github-oauth`,
-  `atlassian-oauth`, `agent-key` (older `litellm`), `jira`, `github`; the answer is only `{name, set}`, never the value;
+  value once over loopback to `PUT /api/secrets/{name}`. For that route: only the fixed names listed in
+  [configuration.md](configuration.md#credentials-the-env-file) (plus the two webhook secrets); the answer is only `{name, set}`, never the value;
   the field is cleared right after submitting; no log, no `localStorage`, no URL, no error message with the value.
   `DELETE /api/secrets/{name}` ("Trennen") exists for `jira` and `github` only. The tokens of OAuth sign-ins are written
   by the backend itself.
@@ -177,10 +176,11 @@ off by default (`[server] webhooks = false`: `404`).
   that are still orphans: containers with the label `cockpit.run` that belong to no working run (command line
   `ps --filter label=…` and `rm -f`, never the socket) and folders directly under `<data>/agent/runs`. It never
   touches the image, other containers or any other path.
-- **One repo per run, only configured ones.** A run clones and pushes in exactly one repo. The repo comes from the
-  routing rules or from your choice in the interface, and the backend refuses (at start and again when the container
-  starts) any repo that is not in `[[agent.repos]]` / `[agent] repo` / `[github] repos`. The repo check in the assistant
-  only reads (`GET /repos/{owner}/{name}`).
+- **Only the repos you chose, each on its own.** A run clones and pushes only in the repos you chose when you started it
+  (one or several, see [using-cockpit.md](using-cockpit.md#working-in-several-repos-at-once)). The backend checks the
+  repos again at start and before every push and applies the branch pattern and path rules of **each** repo separately;
+  a repo that fails a check is refused and the others are still pushed. The repo check in the assistant only reads
+  (`GET /repos/{owner}/{name}`).
 - **Approval.** Comments and reviews of the agent go out only after your approval. Only you may merge. A plan that
   touches forbidden paths cannot be approved.
 - **Sandbox in the runner.** The agent writes only to `/work`; the runner blocks writing outside `/work`, `.git`,
@@ -219,6 +219,4 @@ off by default (`[server] webhooks = false`: `404`).
 
 ## Not verified against real services
 
-Everything that needs real credentials (GitHub and Jira sync and writes, OAuth exchange and refresh, the model endpoint,
-a real container run) has only been tested against recorded or mocked responses and local stand-ins. Treat the first
-real run with care and use a test account or read-only rights.
+See [architecture.md](architecture.md#development). Treat the first real run with care and use a test account or read-only rights.

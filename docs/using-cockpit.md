@@ -1,6 +1,6 @@
 # Using the Cockpit app
 
-Pages of the app (hash routes). Back to the [README](../README.md).
+What the pages of the app do and how to work with them. Setting up the services is in the [setup guide](setup-guide.md).
 
 **Navigation:** a floating glass pill at the bottom edge on every screen size: Aufgaben, Reviews, Agenten, Übersicht and
 **Mehr**. "Aufgaben" is the whole inbox; its filters (Alle, Ich, Team, Zurückgestellt) are switched on the page. It opens
@@ -13,19 +13,21 @@ English). You change it in the "More" menu ("Language") or in the first step of 
 once and is saved in the workspace. The agents write their plans, summaries and review comments in the same language. The language of pull request titles and texts is a separate setting per repo (setup assistant, default English). Texts from Jira and GitHub stay as they are. The page names below are the German ones;
 in English they read Tasks, Pull requests, Agents, Log, Limits & rules, Notifications, Set up.
 
-Pages (hash routes):
+## Pages
 
 | Page | Address | What it does |
 |------|---------|--------------|
 | Einrichten | `#/setup`, `#/setup/<step>` | state and next step per service: sign in to / disconnect Jira and GitHub, check the agent endpoint, detect the container runtime |
-| Aufgaben | `#/tasks` (the filter chosen last), `#/`, `#/mine`, `#/team`, `#/snoozed` (the older addresses keep their filter) | inbox of tickets and pull requests, filtered by switchable rules (mention, review request, blocked PR, overdue ticket, agent done, assigned); snooze; change status, create a branch, reply, assign the agent; edit a ticket; pull requests link to their ticket automatically (the ticket key in branch, title or body; no manual linking), the section "Entwicklung" lists every linked PR with branch, state and checks; search; the button "Filter" (with the number of active filters) opens the filter dialog with all filters, chips under it remove single filters; keys `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
-| Review | `#/review/87` | tabs „Dateien“ (file tree with +/− counts, one collapsible diff per file, „Angesehen“ per file, long diffs cut at 300 lines with „Mehr anzeigen“) and „Commits“ (list; a click shows only that commit's diff, read only); select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you) |
+| Aufgaben | `#/tasks` (the filter chosen last), `#/`, `#/mine`, `#/team`, `#/snoozed` (the older addresses keep their filter) | inbox of tickets and pull requests, filtered by switchable rules (mention, review request, blocked PR, overdue ticket, agent done, assigned); snooze; change status, create a branch, reply, assign the agent; edit a ticket; pull requests link to their ticket automatically (the ticket key in the branch name or title; there is no manual linking), the section "Entwicklung" lists every linked PR with branch, state and checks; search; the button "Filter" (with the number of active filters) opens the filter dialog with all filters, chips under it remove single filters; keys `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
+| Review | `#/review/acme/app/87` | the description and all comments are shown as Markdown (headings, lists, code, links; no raw HTML); tabs „Dateien“ (file tree with +/− counts, one collapsible diff per file, „Angesehen“ per file, long diffs cut at 300 lines with „Mehr anzeigen“) and „Commits“ (list; a click shows only that commit's diff, read only); select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you) |
 | Übersicht | `#/overview` | open entries and load per person; "Hängt" shows failed checks, waiting reviews, tickets without a branch and agents waiting for you |
 | Benachrichtigungen | `#/notifications` | per occasion choose browser, email and Slack; quiet hours; permission request by button; test notification |
 | Agent | `#/agent/BAU-142` | assignment with options; plan for approval; five-step flow; answer questions, send hints, pause; history as a conversation; for a finished real run "Pull Request anlegen" (preview, editable); finished runs whose pull request is merged or closed (see below); "Aufräumen" |
 | Grenzen & Regeln | `#/limits` | prices per million tokens, budget per run and month, time limit, parallel runs; per repo allowed/forbidden paths, required tests, instructions and plan requirement; usage today and this month |
 
-Inbox filters: the button "Filter" at the top of the inbox shows the number of active filters as a badge and opens the
+## Inbox filters
+
+The button "Filter" at the top of the inbox shows the number of active filters as a badge and opens the
 **filter dialog** (a centered card on wide screens, a sheet from the bottom on narrow ones). The dialog holds the Jira
 project, every filter below, and the attention rules ("Erwähnung", "Review-Anfrage", … and "Status folgt dem Pull
 Request"; these switches act at once). The filters are defined once as data (`cockpit_core::FILTERS`: ID, label,
@@ -35,7 +37,9 @@ puts the edits back to the start state. The applied filters are part of the work
 rules and the Jira project, so they survive a reload). Every active filter is also a chip under the button; its "✕" removes
 only that filter. The left column shows entries only, no switches.
 
-**Mein Team:** on the Übersicht page the button "Mein Team" (under the title) opens a dialog with the Jira teams seen in the
+## Mein Team
+
+On the Übersicht page the button "Mein Team" (under the title) opens a dialog with the Jira teams seen in the
 synced tickets (the "Team" field, see [configuration](configuration.md)). Choose one or more teams and "Übernehmen" (action
 `SetTeamChoice`, stored in the workspace like the filters); "Ohne Team einbeziehen" (off by default) also shows tickets
 without a team. With no team chosen everything shows, and a hint says you can choose your team. With a choice, the
@@ -46,6 +50,10 @@ tickets is shown. The rules live in `cockpit_core::team_filter`. Display only: n
 
 "Zugewiesen an" (`person`) is a drop-down with a search field: "Alle", "Mir", "Nicht zugewiesen" and the people of the
 tickets present. It is a display filter only; nothing is written to Jira.
+
+**Assignee of a ticket.** In the ticket detail the assignee is a search field with suggestions: people already seen in
+the workspace come first, then Jira's own search for people the ticket can be assigned to (`GET /api/jira/assignable`,
+read only). Choosing one sets the assignee in Cockpit; it is not sent to Jira yet.
 
 | ID | Label | Choices (default first) |
 |----|-------|-------------------------|
@@ -63,9 +71,33 @@ with a relation to you (author, requested reviewer, assignee) can. They appear i
 Pull Requests page (`#/review`) the "Besitz" selection (default "Meine") switches between your pull requests and all
 open pull requests of the watched repos (`[github] repos`; the others show the ones you are involved in).
 
+## Notifications
+
 Notifications are derived purely from comparing the workspace before and after an action
 (`crates/cockpit-core/src/notify.rs`). In the **browser** Cockpit never asks for permission by itself, only via the
 button. Email and Slack are only prepared: the choice is stored, sending will go through the backend later.
+
+## Jira project and sprint view
+
+If the Jira site has several projects, pick one in the filter dialog ("Jira-Projekt", the first field). The list comes
+from Jira (`GET /api/jira/projects`, behind it `GET /rest/api/3/project/search`) plus the projects of the tickets already
+present. With a project selected the inbox shows only its tickets (pull requests stay visible), and the choice takes
+precedence over `projects` and `jql` from `config.toml`. "Alle Projekte" restores those.
+
+What the sync fetches follows the choice (read queries only) and always covers all tickets of other people too, not only
+yours (what is neither assigned to nor watched by you appears under "Team" with "Im Projekt"):
+
+| Project | Sprint in the dialog | Query |
+|---------|----------------------|-------|
+| none | Aktueller Sprint (default) | `sprint in openSprints()` (restricted to `projects` from `config.toml`), or your own `jql` |
+| `BAU` | Aktueller Sprint | `project = BAU AND sprint in openSprints()` |
+| `BAU` or none | Alle offenen | `project in (BAU) AND statusCategory != Done` |
+| `BAU` or none | Backlog | … `AND sprint is EMPTY` |
+| `BAU` or none | Zuletzt aktualisiert | … `AND updated >= -14d` |
+
+Without a chosen project a sprint view other than "Aktueller Sprint" asks for the projects from `config.toml` (all
+projects if there are none); an own `jql` is only replaced when a project is chosen. The sprint view is saved with the
+other filters (action `SetInboxFilter`); after a change the server syncs immediately.
 
 ## What a run leaves behind
 
@@ -114,4 +146,4 @@ after the merge also works per repo. The pull requests show up in the ticket und
 all carry the ticket key.
 
 More about agent behaviour (questions, steering, follow-up jobs, costs, limits, rules per repo) is in
-[docs/architecture.md](architecture.md#agent-behaviour).
+[architecture.md](architecture.md#agent-behaviour).

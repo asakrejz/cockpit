@@ -172,7 +172,7 @@ fn the_choices_come_from_the_workspace() {
     let ws = demo::workspace();
     assert_eq!(
         ws.item_repos(),
-        [crate::demo::DEMO_REPO_TOKENS, crate::DEMO_REPO]
+        [crate::DEMO_REPO, crate::demo::DEMO_REPO_TOKENS]
     );
     assert_eq!(
         ws.labels(),

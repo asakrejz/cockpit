@@ -198,7 +198,7 @@ fn merging_marks_the_pull_request_and_finishes_the_ticket() {
     assert_eq!(entry.target, Some(Target::Item("bau138".into())));
     assert_eq!(
         entry.text,
-        "Status von BAU-138 automatisch auf „Fertig“ gesetzt – asakrejz/rust-playground#91 ist gemergt"
+        "Status von BAU-138 automatisch auf „Fertig“ gesetzt – acme/app#91 ist gemergt"
     );
     assert_eq!(w.review(91).unwrap().merged, Some(MergeMethod::Rebase));
     let ticket = w.item("bau138").unwrap();
@@ -220,7 +220,7 @@ fn merging_marks_the_pull_request_and_finishes_the_ticket() {
             review: 91.into(),
             verdict: Verdict::Approve,
         },
-        ActionError::Merged(PrKey::new("asakrejz/rust-playground", 91)),
+        ActionError::Merged(PrKey::new("acme/app", 91)),
     );
 }
 
@@ -280,7 +280,7 @@ fn a_failed_check_can_be_restarted_and_turns_green_after_a_few_ticks() {
     let applied = ok(&mut w, Action::AdvanceChecks, 1);
     assert_eq!(
         applied.summary,
-        "Check „Tests (Browser)“ in asakrejz/rust-playground#85 bestanden"
+        "Check „Tests (Browser)“ in acme/app#85 bestanden"
     );
     assert_eq!(w.log.last().unwrap().actor, Actor::System);
     assert_eq!(w.running_checks(), 0);

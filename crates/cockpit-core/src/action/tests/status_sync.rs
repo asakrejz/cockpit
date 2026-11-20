@@ -10,14 +10,14 @@ fn the_status_follows_the_pull_request() {
     let applied = link(&mut w, "bau150", 85, 2);
     assert_eq!(
         applied.summary,
-        "BAU-150 automatisch mit asakrejz/rust-playground#85 verknüpft"
+        "BAU-150 automatisch mit acme/app#85 verknüpft"
     );
     assert_eq!(status(&w, "bau150"), TicketStatus::InProgress);
     let entry = w.log.last().unwrap();
     assert_eq!(entry.actor, Actor::System);
     assert_eq!(
         entry.text,
-        "Status von BAU-150 automatisch auf „In Arbeit“ gesetzt – asakrejz/rust-playground#85 ist noch in Arbeit"
+        "Status von BAU-150 automatisch auf „In Arbeit“ gesetzt – acme/app#85 ist noch in Arbeit"
     );
 
     // Review requested → Review.
@@ -29,7 +29,7 @@ fn the_status_follows_the_pull_request() {
         (entry.actor, entry.text.as_str()),
         (
             Actor::System,
-            "Status von BAU-150 automatisch auf „Review“ gesetzt – für asakrejz/rust-playground#85 ist ein Review angefragt"
+            "Status von BAU-150 automatisch auf „Review“ gesetzt – für acme/app#85 ist ein Review angefragt"
         )
     );
     fails(
@@ -74,11 +74,7 @@ fn merging_finishes_the_linked_ticket_through_the_same_path() {
     assert!(ticket.read && ticket.agent_note.is_none());
     let entry = w.log.last().unwrap();
     assert_eq!(entry.actor, Actor::System);
-    assert!(
-        entry
-            .text
-            .ends_with("– asakrejz/rust-playground#91 ist gemergt")
-    );
+    assert!(entry.text.ends_with("– acme/app#91 ist gemergt"));
 }
 
 #[test]

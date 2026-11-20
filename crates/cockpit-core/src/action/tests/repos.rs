@@ -70,7 +70,7 @@ fn the_log_names_the_repo_and_points_at_the_right_review() {
     let entry = w.log.last().unwrap();
     assert_eq!(entry.target, Some(Target::Review(second())));
     assert!(
-        entry.text.contains("asakrejz/design-tokens#87"),
+        entry.text.contains("acme/design-tokens#87"),
         "{}",
         entry.text
     );
@@ -143,7 +143,7 @@ fn follow_up_runs_are_named_with_the_repo() {
         "t",
         "b",
     );
-    assert_eq!(run.key(), "review-asakrejz~design-tokens-87");
+    assert_eq!(run.key(), "review-acme~design-tokens-87");
     let other = AgentRun::followup(
         RunKind::AddressReview {
             review: first(),
@@ -252,11 +252,11 @@ fn real_followups_on_equal_numbers_are_separate_runs_in_their_repos() {
     }
     let keys: Vec<String> = w.runs.iter().map(AgentRun::key).collect();
     assert!(
-        keys.contains(&"threads-asakrejz~rust-playground-87".to_string()),
+        keys.contains(&"threads-acme~app-87".to_string()),
         "{keys:?}"
     );
     assert!(
-        keys.contains(&"threads-asakrejz~design-tokens-87".to_string()),
+        keys.contains(&"threads-acme~design-tokens-87".to_string()),
         "{keys:?}"
     );
     // Each run works in its own repo and on its own branch.

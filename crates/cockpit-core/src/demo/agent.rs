@@ -37,7 +37,7 @@ pub fn agent_question(ticket_key: &str) -> Option<(usize, Question)> {
             },
         )),
         // Follow-up job „Kommentare in #91 umsetzen“.
-        "review-asakrejz~rust-playground-91" => Some((
+        "review-acme~app-91" => Some((
             2,
             Question {
                 text: "Soll ich vor dem Push auch die Browser-Tests laufen lassen? Das dauert etwa zwei Minuten."

@@ -1,22 +1,22 @@
 # Cockpit architecture
 
 Shared ground for everyone who works on Cockpit, people and agents alike: the decisions that were made, how the
-pieces fit, the container rules, the HTTP API, what is synced and what goes outward, and how the agent behaves.
-The README is the entry page; this document holds the depth.
+pieces fit, the container rules, the HTTP API, what is synced and what goes outward, how the agent behaves, and how to
+develop (last section).
 
 ## Decisions
 
 | Question | Decision |
 |----------|----------|
-| Operation | **Local, for one person.** One service on your own computer (the author's checkout lives under `~/Documents/Web/rust-playground`). No hosting, no tenants. The repository stays private (no GitHub Pages). |
+| Operation | **Local, for one person.** One service on your own computer. No hosting, no tenants. |
 | Backend | Rust crate `apps/server/` (axum, tokio). It also serves the built web app. |
-| Data | SQLite in one file in the user's data directory. |
+| Data | SQLite in one file, `config/cockpit.db` in the project folder. |
 | Keys | Only in the backend, in the file `config/.env` (decision of 2026-11-13, risk accepted knowingly; never committed; older versions used the system keychain, `cockpit-server token import` copies those entries). **Never in the repo, the log, the database or browser storage.** Details: [security.md](security.md). |
 | Agent | Claude Agent SDK, Claude Code or Codex in a container per run, **with Docker (Rancher Desktop) or Podman**. The container gets only the cloned repo, never a GitHub token. |
 | Freshness | Polling every 2 minutes by default (`interval_s`). Webhooks are an optional accelerator, see [setup-guide.md](setup-guide.md#live-updates-and-webhooks). |
 | Sample data | The mode that showed sample data in the browser without a backend is gone: the app needs the server. `demo::workspace()` stays as test data, for the Playground stories and as the seed `COCKPIT_SEED=demo` (only on explicit request and only when no state is stored yet). The server starts empty. |
-| Agent provider and endpoint | Selectable (decision of 2026-11-12): tool `[agent] provider` (Claude Agent SDK, Claude Code CLI or Codex CLI, selected in the runner by `COCKPIT_PROVIDER`), endpoint `[agent.endpoint] url/model` (a proxy such as LiteLLM, another compatible endpoint, or without an address directly at Anthropic). The user has no Anthropic key of their own but an LiteLLM proxy, so LiteLLM is only one possible endpoint. With an address the container gets `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`, without one `ANTHROPIC_API_KEY` (Codex: `OPENAI_BASE_URL` + `OPENAI_API_KEY`, model in `COCKPIT_MODEL`); the model name is a setting chosen in the assistant from the endpoint's list. The key lives only in `config/.env` (`token set agent-key`). Older `[litellm]` values and the key `litellm` are still read. |
-| Jira sign-in | API token by default (the company does not approve OAuth apps); OAuth is the folded-away alternative. |
+| Agent provider and endpoint | Selectable (decision of 2026-11-12): tool `[agent] provider` (Claude Agent SDK, Claude Code CLI or Codex CLI, selected in the runner by `COCKPIT_PROVIDER`), endpoint `[agent.endpoint] url/model` (a proxy such as LiteLLM, another compatible endpoint, or without an address directly at Anthropic). LiteLLM is only one possible endpoint. With an address the container gets `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`, without one `ANTHROPIC_API_KEY` (Codex: `OPENAI_BASE_URL` + `OPENAI_API_KEY`, model in `COCKPIT_MODEL`); the model name is a setting chosen in the assistant from the endpoint's list. The key lives only in `config/.env` (`token set agent-key`). Older `[litellm]` values and the key `litellm` are still read. |
+| Sign-in | Token or OAuth, chosen per service (`[github] auth`, `[jira] auth`, see [configuration.md](configuration.md#choosing-the-sign-in-method-auth)). API token is the default; OAuth is the alternative. |
 | Setup | The setup assistant targets people without programming knowledge: everything that can be done locally by click is done by click (`PUT /api/config`, `PUT /api/secrets/{name}`, double-click start), the manual steps (creating your own OAuth apps, tokens) are guided and documented. Every person creates their **own** OAuth apps because client secrets cannot be shared. |
 | Language | Code, naming and docs are English. The interface is German or English (see [Languages](#languages-i18n)); technical messages (logs, `expect`/`panic`, tests, CLI) are always English and are not translated. Texts that core and server produce for people are structured messages (code and parameters), rendered by the UI in the chosen language; see [Languages](#languages-i18n). Old German wire and config names are still read as aliases (see `crates/cockpit-core/tests/wire_compat.rs`, `apps/server/src/config/tests.rs`, `apps/cockpit/src/route.rs`). |
 
@@ -130,7 +130,7 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `POST /api/github/repos/check` | read-only look at repos (`{repos:[…]}` → per repo `Ok`/`ReadOnly`/`NotFound`/`NoAccess`/`Failed` plus the default branch); only `GET /repos/{owner}/{name}`, never changes anything |
 | `GET /api/agent/repo-suggestions?ticket=KEY` | repos to offer first for the ticket, best first, each with a reason (`previous_run`, `linked_pr`, `mentioned`, `rule`, `default`); only reads |
 | `PUT /api/config` | writes client IDs, Jira, repos, the agent's repos (`agent_repos`: list with base branch and projects, plus default), agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with plain text |
-| `PUT /api/secrets/{name}` | stores a key in `config/.env`; body `{"value": "…"}`; names `github-oauth`, `atlassian-oauth`, `agent-key` (older `litellm`), `jira`, `github`, `github-webhook`, `jira-webhook`; answer `{name, set}`, never the value |
+| `PUT /api/secrets/{name}` | stores a key in `config/.env`; body `{"value": "…"}`; names in [configuration.md](configuration.md#credentials-the-env-file) (plus `github-webhook`, `jira-webhook`); answer `{name, set}`, never the value |
 | `DELETE /api/secrets/{name}` | "Trennen" for tokens: deletes `jira` or `github` from `config/.env` (other names: `404`); answer `{name, set: false}` |
 | `POST /api/webhooks/github`, `POST /api/webhooks/jira` | optional (`[server] webhooks`), the only routes reachable with a foreign `Host`: HMAC-signed triggers for the sync; `202`/`200`/`204`/`401`/`404`/`413`/`415`/`429`, no body, payload never used as data |
 | `POST /api/setup/webhook-secret/{source}` | generates a webhook secret (`github`\|`jira`), stores it in `config/.env`, returns it once: `{secret}` |
@@ -361,7 +361,7 @@ comments and reviews only after your approval; the agent never merges.
 
 **Status follows the pull request.** A ticket's status follows its linked pull request (draft/open → In Arbeit, review
 requested → Review, merged → Fertig); switchable in the inbox's filter dialog, author in the log: System. Ticket and pull request are
-linked automatically by the key in branch or title (`BAU-142`), otherwise by hand.
+linked automatically by the key in branch name or title (`BAU-142`); there is no manual linking.
 
 **Review mechanics.** For a line comment, "Änderung vorschlagen" lets you enter replacement code for the line
 (before/after diff, sent as a `suggestion` block). The checks of the pull request appear on the right with their log;
@@ -485,6 +485,68 @@ close button, a followed link and `hashchange` close it, focus returns to the bu
   812×375 on every page: no horizontal page scroll; from 768 px on no page scroll, equal pane heights, panes end above
   the pill; below 768 px the last content ends above the pill; the pill stays inside the viewport. Not checked: real
   devices (touch behaviour, notch, iOS address bar, on-screen keyboard) and real glass refraction.
+
+## Development
+
+Repository layout:
+
+```
+apps/
+  cockpit/      main application: UI (WASM), own index.html and Trunk.toml
+  server/       backend: axum, SQLite, key storage (binary cockpit-server)
+  agent/        container image and runner of the agent (Node/TypeScript)
+  playground/   shows every UI building block on its own
+crates/
+  cockpit-core/ domain logic: model, rules, Action; no UI, no network, with tests
+  integrations/ GitHub and Jira clients, native only
+  i18n/         message catalogs (German, English)
+  ui/           component library (crate `feature-ui`), tokens.css, components.css, extras.css
+config/         config.toml, cockpit.db, .env (created at the first start, ignored by Git) and config.example.toml
+scripts/        start.sh, check-tracked-files.sh, layout-check.js, launchd template
+docs/           these documents
+```
+
+Run before every PR (CI runs the same):
+
+```bash
+cargo fmt --all --check
+cargo clippy --workspace --exclude cockpit-server --exclude cockpit-integrations \
+  --all-targets --target wasm32-unknown-unknown -- -D warnings
+cargo clippy -p cockpit-server -p cockpit-integrations --all-targets -- -D warnings
+cargo test --workspace
+(cd apps/playground && trunk build) && (cd apps/cockpit && trunk build)
+(cd apps/agent/runner && node --disable-warning=ExperimentalWarning --test test/*.test.ts)
+```
+
+The agent runner tests need Node ≥ 22.18. Tests that start real containers are `#[ignore]`d:
+`COCKPIT_CONTAINER=docker cargo test -- --ignored` (or `podman`).
+
+**UI work.** The playground: `(cd apps/playground && trunk serve --open)` (port 8080). The app against a server:
+`apps/cockpit/Trunk.toml` forwards `/api` to `http://127.0.0.1:8787`. Server and dev server together:
+
+```bash
+COCKPIT_DEV_PORT=8081 cargo run -p cockpit-server   # terminal 1
+(cd apps/cockpit && trunk serve --open)             # terminal 2, http://localhost:8081
+```
+
+Trunk sends `Host` without the port and keeps the `Origin` of the dev page; the server allows both only when
+`COCKPIT_DEV_PORT` is set (environment variable only, never in the file), see [security.md](security.md#requests-to-the-backend).
+Layout check for the navigation (last element of every page visible and clickable, nothing under the pill) at 375, 768 and
+1280 px: [scripts/layout-check.js](../scripts/layout-check.js) explains how to run it in the Browser pane.
+
+**Trying things out.** Use your own database and an empty config (`COCKPIT_CONFIG`, `COCKPIT_DB`), once with an empty
+start and once with `COCKPIT_SEED=demo`; never against real Jira or GitHub boards. Automated tests use fixtures and
+recorded responses.
+
+**Rules for every PR.** One feature, one branch, one PR against `main`. Logic goes into `cockpit-core` with unit tests.
+CSS uses tokens only; `tokens.css` and `components.css` stay unchanged (own additions go into `extras.css`). New fields
+in persisted types need `#[serde(default)]`. What only real credentials can verify is tested against recorded responses
+and named in the PR as "not verified against the real service".
+
+**Not verified against real services.** Sync and writes at GitHub and Jira, OAuth exchange and refresh, webhooks through
+a real tunnel, the Claude Code and Codex adapters with the real CLIs and a real container with a real model have only
+been tested against recorded responses and local stand-ins. Ticket and limit edits (including the assignee) are not sent
+outward yet; email and Slack notifications are only prepared.
 
 ## Working with several agents
 

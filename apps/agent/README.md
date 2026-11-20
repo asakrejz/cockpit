@@ -31,8 +31,8 @@ fingerprint, not by a number in the tag:
   A run only starts with a `current` image.
 - Raise `CONTRACT` (rarely) when the job or event format between server and runner changes **without** any file of the
   image changing, so that old images are still recognised as outdated.
-- Images from the time of numbered tags are no longer used. Remove them by hand if wanted (Cockpit never does):
-  `docker image rm localhost/cockpit-agent:5`, or `docker image prune` for dangling layers (`podman` likewise).
+- Images from the time of numbered tags are no longer used. Remove them by hand if wanted (Cockpit never does), for
+  example with `docker image prune` (`podman` likewise).
 
 Rules for the `Containerfile` (they hold for Docker and Podman alike): a fully qualified base image, no BuildKit
 features (`# syntax=`, `RUN --mount`), the runner never works as root. See "Container rules" in
@@ -128,7 +128,7 @@ The prompt itself stays as it is; only the answer language is set. Technical out
 
 ## Follow-up jobs
 
-For a follow-up job on an existing pull request (image tag `:3` and later) `job.json` carries `followup`:
+For a follow-up job on an existing pull request `job.json` carries `followup`:
 `{kind: "review_comments" | "failed_checks", pull_request, threads: [{path, line, comments: [{author, text}]}],
 notes: [{author, state, text}], checks: [{name, excerpt}]}`; `branch` is the existing `claude/…` branch, already
 checked out in `/work`. The runner puts the texts into the prompt as data of third parties, limits them again

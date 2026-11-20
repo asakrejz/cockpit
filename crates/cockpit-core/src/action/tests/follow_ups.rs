@@ -10,7 +10,7 @@ fn address_review_pushes_to_the_same_branch_and_resolves_the_comments() {
         "{}",
         applied.summary
     );
-    let run = w.run("review-asakrejz~rust-playground-91").unwrap();
+    let run = w.run("review-acme~app-91").unwrap();
     assert!(run.is_running() && run.is_followup());
     assert_eq!(run.branch(), "claude/BAU-138-segmented-picker");
     assert_eq!(run.files, ["controls.rs", "components.css"]);
@@ -19,7 +19,7 @@ fn address_review_pushes_to_the_same_branch_and_resolves_the_comments() {
     assert!(w.run("BAU-138").unwrap().is_done());
 
     run_to_end(&mut w);
-    let run = w.run("review-asakrejz~rust-playground-91").unwrap();
+    let run = w.run("review-acme~app-91").unwrap();
     assert!(run.is_done());
     let review = w.review(91).unwrap();
     assert!(review.open_comments().is_empty());
@@ -27,7 +27,7 @@ fn address_review_pushes_to_the_same_branch_and_resolves_the_comments() {
         review
             .line_comments
             .iter()
-            .all(|c| c.resolved.as_deref() == Some("review-asakrejz~rust-playground-91"))
+            .all(|c| c.resolved.as_deref() == Some("review-acme~app-91"))
     );
     // The change suggestion from c1 is now in the diff.
     let file = review
@@ -59,7 +59,7 @@ fn address_review_pushes_to_the_same_branch_and_resolves_the_comments() {
     assert!(
         texts
             .iter()
-            .any(|t| t.contains("Kommentare in asakrejz/rust-playground#91: Branch ausgecheckt"))
+            .any(|t| t.contains("Kommentare in acme/app#91: Branch ausgecheckt"))
     );
     assert!(texts.last().unwrap().contains("auf den Branch gepusht"));
 }
@@ -110,7 +110,7 @@ fn address_review_takes_a_selection_and_rejects_bad_ones() {
 fn address_review_waits_for_plan_approval_and_can_be_steered() {
     let mut w = ws();
     ok(&mut w, address(91, &["c1"], AgentOptions::default()), 2);
-    let run = w.run("review-asakrejz~rust-playground-91").unwrap();
+    let run = w.run("review-acme~app-91").unwrap();
     assert!(run.is_awaiting());
     assert!(
         run.plan()
@@ -126,14 +126,14 @@ fn address_review_waits_for_plan_approval_and_can_be_steered() {
     ok(
         &mut w,
         Action::ApprovePlan {
-            ticket: "review-asakrejz~rust-playground-91".into(),
+            ticket: "review-acme~app-91".into(),
         },
         1,
     );
     ok(
         &mut w,
         Action::SteerAgent {
-            run: "review-asakrejz~rust-playground-91".into(),
+            run: "review-acme~app-91".into(),
             text: "Mit Tests".into(),
         },
         1,
@@ -141,7 +141,7 @@ fn address_review_waits_for_plan_approval_and_can_be_steered() {
     ok(
         &mut w,
         Action::PauseAgent {
-            run: "review-asakrejz~rust-playground-91".into(),
+            run: "review-acme~app-91".into(),
         },
         1,
     );
@@ -149,7 +149,7 @@ fn address_review_waits_for_plan_approval_and_can_be_steered() {
     ok(
         &mut w,
         Action::ResumeAgent {
-            run: "review-asakrejz~rust-playground-91".into(),
+            run: "review-acme~app-91".into(),
         },
         1,
     );
@@ -159,36 +159,28 @@ fn address_review_waits_for_plan_approval_and_can_be_steered() {
     ok(&mut w, Action::AdvanceAgents, 1);
     let step = w.apply(Action::AdvanceAgents, Actor::Agent, T).unwrap();
     assert!(step.logged >= 1);
-    assert!(
-        w.run("review-asakrejz~rust-playground-91")
-            .unwrap()
-            .is_asking()
-    );
+    assert!(w.run("review-acme~app-91").unwrap().is_asking());
     ok(
         &mut w,
         Action::AnswerAgent {
-            run: "review-asakrejz~rust-playground-91".into(),
+            run: "review-acme~app-91".into(),
             text: "Nein".into(),
         },
         1,
     );
     run_to_end(&mut w);
-    assert!(
-        w.run("review-asakrejz~rust-playground-91")
-            .unwrap()
-            .is_done()
-    );
+    assert!(w.run("review-acme~app-91").unwrap().is_done());
     // Rejecting removes the follow-up job completely.
     let mut w = ws();
     ok(&mut w, address(91, &["c1"], AgentOptions::default()), 2);
     ok(
         &mut w,
         Action::RejectPlan {
-            ticket: "review-asakrejz~rust-playground-91".into(),
+            ticket: "review-acme~app-91".into(),
         },
         1,
     );
-    assert!(w.run("review-asakrejz~rust-playground-91").is_none());
+    assert!(w.run("review-acme~app-91").is_none());
     assert_eq!(w.review(91).unwrap().open_comments().len(), 2);
 }
 
@@ -229,7 +221,7 @@ fn foreign_comments_stay_out_of_my_review_and_cannot_be_edited() {
 fn a_red_check_is_diagnosed_and_nothing_changes_before_you_accept() {
     let mut w = ws();
     investigate_85(&mut w, "Lint");
-    let key = "check-asakrejz~rust-playground-85-lint";
+    let key = "check-acme~app-85-lint";
     assert!(w.run(key).unwrap().is_running());
     let branch_before = w.review(85).unwrap().files.clone();
     run_to_end(&mut w);
@@ -303,16 +295,16 @@ fn discarding_a_diagnosis_ends_the_run_without_touching_the_branch() {
     ok(
         &mut w,
         Action::DiscardFix {
-            run: "check-asakrejz~rust-playground-85-lint".into(),
+            run: "check-acme~app-85-lint".into(),
         },
         1,
     );
-    assert!(w.run("check-asakrejz~rust-playground-85-lint").is_none());
+    assert!(w.run("check-acme~app-85-lint").is_none());
     assert_eq!(*w.review(85).unwrap(), before);
     fails(
         &mut w,
         Action::ApplyFix {
-            run: "check-asakrejz~rust-playground-85-lint".into(),
+            run: "check-acme~app-85-lint".into(),
         },
         ActionError::NothingToDo,
     );
@@ -324,7 +316,7 @@ fn discarding_a_diagnosis_ends_the_run_without_touching_the_branch() {
 fn a_flaky_check_is_only_restarted_and_turns_green() {
     let mut w = ws();
     investigate_85(&mut w, "Tests (Browser)");
-    let key = "check-asakrejz~rust-playground-85-tests-browser";
+    let key = "check-acme~app-85-tests-browser";
     run_to_end(&mut w);
     assert!(!w.run(key).unwrap().diagnosis.unwrap().changes_code());
     let files = w.review(85).unwrap().files.clone();
@@ -402,16 +394,12 @@ fn followups_notify_when_waiting_and_when_done() {
     let e = waiting.unwrap();
     assert_eq!(e.len(), 1);
     assert_eq!(e[0].reason, NotifyReason::AgentWaiting);
-    assert!(
-        e[0].title
-            .de()
-            .contains("Check „Lint“ in asakrejz/rust-playground#85")
-    );
-    assert_eq!(e[0].route, "#/agent/check-asakrejz~rust-playground-85-lint");
+    assert!(e[0].title.de().contains("Check „Lint“ in acme/app#85"));
+    assert_eq!(e[0].route, "#/agent/check-acme~app-85-lint");
     ok(
         &mut w,
         Action::ApplyFix {
-            run: "check-asakrejz~rust-playground-85-lint".into(),
+            run: "check-acme~app-85-lint".into(),
         },
         1,
     );
@@ -427,7 +415,7 @@ fn followups_notify_when_waiting_and_when_done() {
         .filter(|e| e.reason == NotifyReason::AgentFinished)
         .collect();
     assert_eq!(finished.len(), 1);
-    assert_eq!(finished[0].route, "#/review/asakrejz/rust-playground/85");
+    assert_eq!(finished[0].route, "#/review/acme/app/85");
 }
 
 #[test]
@@ -467,10 +455,10 @@ fn followup_actions_and_runs_survive_json_and_old_saves() {
             check: "Lint".into(),
         },
         Action::ApplyFix {
-            run: "check-asakrejz~rust-playground-85-lint".into(),
+            run: "check-acme~app-85-lint".into(),
         },
         Action::DiscardFix {
-            run: "check-asakrejz~rust-playground-85-lint".into(),
+            run: "check-acme~app-85-lint".into(),
         },
     ] {
         let json = serde_json::to_string(&a).unwrap();
@@ -482,11 +470,7 @@ fn followup_actions_and_runs_survive_json_and_old_saves() {
     run_to_end(&mut w);
     let (back, _) = persist::restore(Some(&persist::save(&w)));
     assert_eq!(back, w);
-    assert!(
-        back.run("check-asakrejz~rust-playground-85-lint")
-            .unwrap()
-            .is_diagnosed()
-    );
+    assert!(back.run("check-acme~app-85-lint").unwrap().is_diagnosed());
     // Old runs without `kind` are „implement ticket“.
     let old: crate::agent::AgentRun =
         serde_json::from_str(r#"{"ticket_key":"BAU-1","state":"Done"}"#).unwrap();

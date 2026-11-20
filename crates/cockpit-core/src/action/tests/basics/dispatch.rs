@@ -396,7 +396,7 @@ fn agent_steps_from_the_tick_are_logged_as_agent() {
             "BAU-142: Der Agent hat eine Frage und wartet auf deine Antwort",
             "BAU-142: Änderungen umgesetzt",
             "BAU-142: Tests ausgeführt",
-            "BAU-142: Pull Request asakrejz/rust-playground#92 als Entwurf erstellt",
+            "BAU-142: Pull Request acme/app#92 als Entwurf erstellt",
         ]
     );
     let last = w.log.last().unwrap();

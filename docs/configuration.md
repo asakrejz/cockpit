@@ -1,7 +1,7 @@
 # Configuration reference
 
-Everything here is optional. The setup assistant ("Einrichten") writes most of it for you; this page is the
-reference for editing by hand. Back to the [README](../README.md).
+The setup assistant ("Einrichten") writes most of it for you; this page is the
+reference for editing by hand. Step-by-step instructions are in the [setup guide](setup-guide.md).
 
 ## config.toml and environment variables
 
@@ -24,7 +24,7 @@ from. Environment variables override the file:
 | `COCKPIT_CONTAINER` | `docker` or `podman` |
 | `COCKPIT_AGENT_DIR` | folder with `Containerfile` and runner |
 | `COCKPIT_GIT_BASE` | git base for clones (tests, local remotes) |
-| `COCKPIT_DEV_PORT` | allow the `trunk serve` port (environment only, see [Developing with `trunk serve`](#developing-with-trunk-serve)) |
+| `COCKPIT_DEV_PORT` | allow the `trunk serve` port (environment only, see [architecture.md](architecture.md#development)) |
 | `COCKPIT_BIND` | listen address, default `127.0.0.1`; the container image sets `0.0.0.0` (environment only, see [container.md](container.md)) |
 | `COCKPIT_PUBLIC_PORT` | published host port of a container if it differs from the server port (environment only) |
 
@@ -157,7 +157,7 @@ the credential can see (`GET /user/repos`, or the installation repos with the Gi
 `owner/name` is allowed. The dialog suggests repos first, each with a short reason: (1) repos earlier runs used for
 tickets of the same Jira project (remembered from the runs in the database), (2) repos of pull requests or branches
 linked to the ticket, (3) `owner/name` or GitHub addresses in the ticket text, (4) the `[[agent.repos]]` rules and
-`[agent] repo` below. A run has one repo today; the choice is a list internally, so a run in several repos can follow.
+`[agent] repo` below. A run can work in several repos (see [using-cockpit.md](using-cockpit.md#working-in-several-repos-at-once)).
 
 `[[agent.repos]]` holds the **settings per repo** (owner/name, base branch, branch pattern, PR language, Jira
 projects). It is optional. A repo without an entry uses its default branch from GitHub as the base branch and the
@@ -210,7 +210,7 @@ test data and for the Playground stories.
 
 ## Credentials: the `.env` file
 
-All keys (Jira token, GitHub token, key of the agent endpoint, client secrets, sign-in tokens) live in the file
+The README lists the names for `token set`. All keys (Jira token, GitHub token, key of the agent endpoint, client secrets, sign-in tokens) live in the file
 `config/.env`, next to `config.toml` and `cockpit.db`. They stay separate from `config.toml` on purpose. The risk of a
 file inside the repository folder was a deliberate choice. **It is never committed**: `.gitignore` excludes
 `config/*` and `.env` / `.env.*` anywhere; no `.env*` file belongs in the repo.
@@ -289,19 +289,6 @@ The backend chooses: `COCKPIT_CONTAINER`, else `[agent] container`, else it look
 `podman`, then `docker` in the `PATH` and checks with `<runtime> info` whether the engine runs (a process call, never
 the socket; the result is cached for 10 seconds). `/api/health` reports under `container` `runtime`, `engine_running`,
 `source` (`env`, `config`, `detected`, `none`) and a `hint`.
-
-## Developing with `trunk serve`
-
-`apps/cockpit/Trunk.toml` forwards `/api` to `http://127.0.0.1:8787` (`[[proxy]]`). Server and dev server together:
-
-```bash
-COCKPIT_DEV_PORT=8081 COCKPIT_SEED=demo cargo run -p cockpit-server   # terminal 1
-(cd apps/cockpit && trunk serve --open)                               # terminal 2, http://localhost:8081
-```
-
-Trunk sends `Host` without the port and keeps the `Origin` of the dev page; the server allows both only when
-`COCKPIT_DEV_PORT` is set (environment variable only, never in the file). Without it the strict check in
-[docs/security.md](security.md) applies.
 
 ## Start at login (launchd, macOS)
 

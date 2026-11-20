@@ -91,7 +91,7 @@ fn review_threads_start_a_followup_on_the_branch_of_the_pull_request() {
     let run = w
         .runs
         .iter()
-        .find(|r| r.key() == "threads-asakrejz~rust-playground-85")
+        .find(|r| r.key() == "threads-acme~app-85")
         .unwrap();
     assert!(run.is_followup() && run.is_running());
     assert_eq!(run.branch(), "claude/BAU-127-list-separator");
@@ -128,7 +128,7 @@ fn failed_checks_are_named_in_the_run() {
     let run = w
         .runs
         .iter()
-        .find(|r| r.key() == "fixes-asakrejz~rust-playground-85")
+        .find(|r| r.key() == "fixes-acme~app-85")
         .unwrap();
     let RunKind::Followup {
         task: FollowupTask::FailedChecks { checks },
@@ -226,7 +226,7 @@ fn a_real_followup_finishes_with_a_note_and_no_new_branch_on_a_ticket() {
     );
     report(
         &mut w,
-        "threads-asakrejz~rust-playground-85",
+        "threads-acme~app-85",
         AgentReport::Started {
             detail: "docker".into(),
         },
@@ -234,7 +234,7 @@ fn a_real_followup_finishes_with_a_note_and_no_new_branch_on_a_ticket() {
     .unwrap();
     report(
         &mut w,
-        "threads-asakrejz~rust-playground-85",
+        "threads-acme~app-85",
         AgentReport::Done {
             summary: "Zwei Kommentare umgesetzt.".into(),
         },
@@ -243,7 +243,7 @@ fn a_real_followup_finishes_with_a_note_and_no_new_branch_on_a_ticket() {
     let run = w
         .runs
         .iter()
-        .find(|r| r.key() == "threads-asakrejz~rust-playground-85")
+        .find(|r| r.key() == "threads-acme~app-85")
         .unwrap();
     assert!(run.is_done());
     let item = w

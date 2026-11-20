@@ -97,7 +97,7 @@ async fn an_old_database_without_repos_opens_with_the_same_data() {
     assert!(ws.reviews.iter().all(|r| !r.repo.is_empty()));
     assert_eq!(
         ws.item("pr12").unwrap().pr.as_ref().unwrap().repo,
-        "asakrejz/design-tokens"
+        "acme/design-tokens"
     );
     // It is stored: the next start reads it without a change.
     assert_eq!(state.inner.live.revision(), 8);

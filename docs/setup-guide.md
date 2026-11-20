@@ -1,15 +1,30 @@
 # Setup guide
 
-Step-by-step instructions for connecting Cockpit to the real services. The easy way is the setup assistant: the
-"Einrichten" page walks through container, Jira, GitHub, model access and live updates and writes client IDs, Jira
-site, repos and endpoint into `config/config.toml` (in the project folder, created at the first start, ignored by Git) and keys into `config/.env`. The terminal route (edit `config/config.toml`, start from `config/config.example.toml`; run
-`cockpit-server token set <name>`) leads to the same result; both can be mixed. Back to the [README](../README.md).
-All keys end up in `config/.env`, see [configuration.md](configuration.md#credentials-the-env-file).
+Step by step from a fresh clone to a working Cockpit. The easy way is the setup assistant: the page "Einrichten" walks
+through container, Jira, GitHub, model access and live updates. It writes client IDs, the Jira site and the endpoint
+into `config/config.toml` and keys into `config/.env`. The terminal route leads to the same result (see
+[configuration.md](configuration.md)); both can be mixed.
 
-Without setup the workspace stays empty. As soon as **a source is configured and its token is in `.env`**, the backend
-syncs; a source without configuration or token stays off.
+Without setup the workspace stays empty. As soon as **a source is configured and its key is set**, the backend syncs; a
+source without configuration or key stays off. Every step can be skipped.
 
-## What only you can do
+## 1. Start Cockpit
+
+Install the programs from the [README](../README.md#prerequisites), then run `scripts/start.sh --open` or double-click
+`start-cockpit.command` (first time: right-click › "Open" › "Open"). It builds the app (5–15 minutes the first time),
+starts the server on `http://127.0.0.1:8787`, opens the browser and shows errors in plain language. Close the window to
+quit. `--release` builds the server as a release build. Without the script:
+
+```bash
+(cd apps/cockpit && trunk build) && cargo run -p cockpit-server
+```
+
+**Ready-made archive.** For every version tag (`v…`) `.github/workflows/release.yml` builds a macOS (Apple Silicon)
+archive with `cockpit-server`, `apps/cockpit/dist`, the agent image sources and `start-cockpit.command`, so no Rust or
+Trunk is needed. Unzip and right-click `start-cockpit.command` › "Open"; the programs are not signed, hence the macOS
+prompt. Other systems build themselves.
+
+## 2. What only you can do
 
 These steps cannot be automated; the assistant walks you through each one:
 
@@ -19,26 +34,23 @@ These steps cannot be automated; the assistant walks you through each one:
   prefer signing in in the browser, create your own OAuth app in the
   [Atlassian developer console](https://developer.atlassian.com/console/myapps/) (the second way in the Jira step, "OAuth"). Every person
   creates their **own** app because the client secret cannot be shared.
-- **GitHub App.** Create your own GitHub App in your account (or organisation) and install it on the repos.
-  Again: your own app, your own secret.
+- **GitHub token or App.** The easy way is a fine-grained personal access token (rights below). Only if you prefer
+  signing in in the browser, create your own GitHub App in your account (or organisation) and install it on the repos:
+  your own app, your own secret.
 - **Access to a model.** Either an Anthropic API key (direct), or the address and key of a proxy such as LiteLLM
   that your team runs. Without access Cockpit keeps working, but the real agent does not.
-- **Container runtime:** install and start it (see the [README](../README.md#prerequisites)).
+- **Container runtime:** install and start it (see the [README](../README.md#prerequisites)); only the agent needs it.
 
 Keys (client secrets, tokens, the key of the model endpoint) are typed or pasted into the password fields of the
 assistant. They go only to the server on your computer, which stores them in the **`config/.env` file**; never in browser storage, never in a tracked file. If you prefer the terminal, use
 `cockpit-server token set <name>` (see [Credentials: the `.env` file](configuration.md#credentials-the-env-file)).
 
-## Ready-made archive
- For every version tag (`v…`) `.github/workflows/release.yml`
-builds an archive for macOS (Apple Silicon) with `cockpit-server`, `apps/cockpit/dist`, the agent image sources
-and `start-cockpit.command` in one folder, no Rust or Trunk needed. Unzip, right-click `start-cockpit.command` ›
-"Open". The programs are not signed, hence the macOS prompt. Intel Macs, Windows and Linux build themselves
-(steps above).
+## 3. Connect the services
+
+The order does not matter. Jira and GitHub need only a token each; the agent additionally needs a container runtime and
+a model.
 
 ## Agent: container, image, model
-
-The agent implements a ticket in a **container** (Claude Agent SDK, Claude Code or Codex, one container per run).
 
 The agent implements a ticket in a **container** (Claude Agent SDK, Claude Code or Codex, one container per run). One-time setup:
 
@@ -61,7 +73,7 @@ The agent implements a ticket in a **container** (Claude Agent SDK, Claude Code 
    Rancher Desktop or Podman may not know the VPN route or name; the test then says that your Mac reaches the
    proxy but the container does not. Connect the VPN first and restart Rancher Desktop or the Podman machine.
 4. **Connect GitHub:** that is all the setup needs from GitHub – **no repos are assigned here**. The agent clones
-   through the backend, one repo per run, and you choose the repo when you start the agent on a ticket (see
+   through the backend, and you choose one or several repos when you start the agent on a ticket (see
    [using-cockpit.md](using-cockpit.md#choosing-the-repo-at-the-start)). The step "GitHub" has two optional, collapsed
    sections: "Repos beobachten (optional)" (repos whose *all* open pull requests Cockpit loads, `[github] repos`) and
    "Repo-Einstellungen für den Agenten (optional)" (base branch, branch pattern, PR language, Jira projects per repo,
@@ -89,41 +101,12 @@ summary shows whether the sign-in is "mit API-Token" or "mit OAuth"; "Token erne
 account or role without write permissions; a short expiry limits the damage. The token lives only in `config/.env` and never
 in browser storage, URL, database, `config.toml` or log.
 
-**Choosing a project and a sprint view.** If the Jira site has several projects (boards), pick one in the inbox: the button
-"Filter" opens the filter dialog, and "Jira-Projekt" is its first field. The list comes from Jira (`GET /api/jira/projects`,
-behind it `GET /rest/api/3/project/search`: all projects your token may see) plus the projects of the tickets already
-present. The choice is the action `SelectJiraProject` and is stored. With a project selected the inbox shows only its tickets
-(pull requests stay visible, they belong to no project), and the choice takes precedence over `projects` and `jql` from
-`config.toml`. "Alle Projekte" restores those.
+**Project and sprint view.** After the connection test you pick the Jira projects to show; the inbox filter dialog
+changes this later (see [using-cockpit.md](using-cockpit.md#jira-project-and-sprint-view)).
 
-What the sync fetches follows the choice (read queries only, never a change in Jira) and always covers **all tickets of
-other people** too, not only yours (what is neither assigned to nor watched by you appears under "Team" with "Im Projekt"):
-
-| Project | Sprint in the dialog | Query |
-|---------|----------------------|-------|
-| none | Aktueller Sprint (default) | as before: `sprint in openSprints()` (restricted to `projects` from `config.toml`), or your own `jql` |
-| `BAU` | Aktueller Sprint | `project = BAU AND sprint in openSprints()` |
-| `BAU` or none | Alle offenen | `project in (BAU) AND statusCategory != Done` |
-| `BAU` or none | Backlog | … `AND sprint is EMPTY` |
-| `BAU` or none | Zuletzt aktualisiert | … `AND updated >= -14d` |
-
-Without a chosen project a sprint view other than "Aktueller Sprint" asks for the projects from `config.toml` (all projects
-if there are none); an own `jql` in `config.toml` is only replaced when a project is chosen. The sprint view is saved with the
-other filters (action `SetInboxFilter`); after a change of project or sprint view the server syncs immediately.
-
-**Terminal route.** `config.toml`:
-
-```toml
-[jira]
-site = "https://acme.atlassian.net"
-email = "me@acme.example"
-projects = ["BAU", "WEB"]          # optional: assigned to me or watched, open, only in these projects
-# jql = "project = BAU AND labels = cockpit ORDER BY updated DESC"   # optional: own query instead of the projects
-```
-
-Without `projects` and `jql` Jira returns all open tickets assigned to or watched by you. For GitHub the pull
-requests come in without any list of repos: Cockpit searches GitHub for the pull requests you wrote, are asked to
-review or are involved in, across every repo your access can see (see "Pull requests" in [configuration.md](configuration.md)).
+**Terminal route.** Set `[jira] site` and `email` in `config/config.toml` and the token with `token set jira` (see
+[configuration.md](configuration.md)). Pull requests need no Jira setting: once GitHub is connected, Cockpit searches
+for the pull requests you wrote, are asked to review or are involved in.
 
 ## GitHub
 
@@ -132,7 +115,7 @@ new token works without restart.
 
 | Service | Token | Rights |
 |---------|-------|--------|
-| GitHub | *fine-grained personal access token*, limited to the configured repos | repository permissions **Contents** (read and write: create a branch), **Pull requests** (read and write: read, create the pull request of a finished agent run, send a review, merge), **Issues** (read and write: comments), **Commit statuses** (read-only: state of the checks), **Metadata** (read-only, automatic). There is **no "Checks" permission** for a fine-grained token: GitHub offers it only to GitHub Apps. If Cockpit should only read, everything *Read-only* is enough |
+| GitHub | *fine-grained personal access token*, limited to the repos you want Cockpit to see | repository permissions **Contents** (read and write: create a branch), **Pull requests** (read and write: read, create the pull request of a finished agent run, send a review, merge), **Issues** (read and write: comments), **Commit statuses** (read-only: state of the checks), **Metadata** (read-only, automatic). There is **no "Checks" permission** for a fine-grained token: GitHub offers it only to GitHub Apps. If Cockpit should only read, everything *Read-only* is enough |
 | Jira | *API token* of the Atlassian account | the account needs "Browse projects", "Add comments" and "Edit issues / Transition issues" in the projects; sign-in with the email from the configuration |
 
 **Checks with a fine-grained token.** The Checks API (`GET /repos/{repo}/commits/{sha}/check-runs`) answers `403
@@ -270,13 +253,8 @@ Feld „Client-Secret“ ein") and link to that step. The terminal commands rema
   per watched repo; read-only; never prints the token). The list of reachable repos (the start dialog and the optional
   pickers) comes from `GET /user/repos` (token; owner, collaborator, organization member; at most 500) or from the
   app's installations (OAuth), and the server keeps it for 5 minutes.
-- *Sign-in method (Jira and GitHub).* The picker is a persisted choice (`auth = "token"` or `"oauth"` in
-  `[jira]` / `[github]`), not only a switch of the visible form: the way you pick is the one the server uses. Saving a
-  token picks "token", completing an OAuth sign-in picks "oauth", and switching the picker to a way that is already
-  set up stores it at once. If "token" is chosen while an OAuth sign-in is still stored, a short note says it is kept
-  but not used; "trennen" in the OAuth way removes it (nothing is revoked automatically). Without a stored choice
-  the older rule applies: a working OAuth sign-in first, then the token. See
-  [Configuration](configuration.md#choosing-the-sign-in-method-auth).
+- *Sign-in method (Jira and GitHub).* The picker is a stored choice (`auth = "token"` or `"oauth"`), not only a switch
+  of the visible form. Rules: [configuration.md](configuration.md#choosing-the-sign-in-method-auth).
 - *Modell.* Provider, endpoint address, model, key and connection test.
 - *Live (optional).* Switch for webhooks, the public address of your tunnel (display only), a generated secret per
   source (shown once), copyable target addresses, short instructions for cloudflared/ngrok and for the webhook at

@@ -81,7 +81,7 @@ fn item(
 }
 
 /// The second repo of the sample data.
-pub const DEMO_REPO_TOKENS: &str = "asakrejz/design-tokens";
+pub const DEMO_REPO_TOKENS: &str = "acme/design-tokens";
 
 /// Due date of the demo ticket BAU-150: lies before the day the demo was made.
 pub const DEMO_OVERDUE: &str = "2026-11-09";
