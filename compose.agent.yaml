@@ -1,0 +1,26 @@
+# Agent setup (opt-in): lets Cockpit start agent containers on YOUR engine. Use it as an override file:
+#
+#   docker compose -f compose.yaml -f compose.agent.yaml up -d
+#
+# SECURITY: the mounted engine socket is root-equivalent access to your host. Whoever controls Cockpit (or the
+# code that runs in it) can start any container, mount any folder and read or change anything the engine can reach.
+# Only on a machine you trust, only if you want the agent. Alternative without this risk: start Cockpit natively
+# (scripts/start.sh), see docs/container.md ("Agent containers").
+#
+# "Paths must match": the engine runs on the host, so the folders Cockpit hands to an agent container are resolved
+# on the host. A named volume cannot do that, so config, database and keys live in a HOST folder that is mounted at
+# the same absolute path inside. Create it first (`mkdir -p ~/cockpit-config`); to move your data from the named
+# volume see docs/container.md ("Move the data to a host folder").
+#
+#   COCKPIT_DATA  host folder   (default: $HOME/cockpit-config)
+#   DOCKER_SOCK   engine socket (default: /var/run/docker.sock; Rancher Desktop on macOS: ~/.rd/docker.sock)
+services:
+  cockpit:
+    user: root
+    environment:
+      COCKPIT_CONFIG: ${COCKPIT_DATA:-${HOME}/cockpit-config}/config.toml
+      COCKPIT_DB: ${COCKPIT_DATA:-${HOME}/cockpit-config}/cockpit.db
+      COCKPIT_ENV_FILE: ${COCKPIT_DATA:-${HOME}/cockpit-config}/.env
+    volumes:
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
+      - ${COCKPIT_DATA:-${HOME}/cockpit-config}:${COCKPIT_DATA:-${HOME}/cockpit-config}

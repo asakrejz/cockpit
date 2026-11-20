@@ -11,7 +11,7 @@ use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use cockpit_core::api::ContainerStatus;
+use cockpit_core::api::{ContainerStatus, SocketState};
 use cockpit_i18n::{Msg, msg};
 
 /// This long `<cli> info` may take before it counts as "not running".
@@ -60,6 +60,7 @@ pub fn choose(
                 runtime: Some(cli),
                 engine_running: false,
                 source: source.into(),
+                ..Default::default()
             };
         }
         let engine_running = running(&cli);
@@ -74,6 +75,7 @@ pub fn choose(
             runtime: Some(cli),
             engine_running,
             source: source.into(),
+            ..Default::default()
         };
     }
     let mut first = None;
@@ -88,6 +90,7 @@ pub fn choose(
                 source: "detected".into(),
                 hint: None,
                 hint_msg: None,
+                ..Default::default()
             };
         }
         first.get_or_insert(cli);
@@ -101,6 +104,7 @@ pub fn choose(
                 source: "detected".into(),
                 hint,
                 hint_msg,
+                ..Default::default()
             }
         }
         None => {
@@ -111,6 +115,7 @@ pub fn choose(
                 source: "none".into(),
                 hint,
                 hint_msg,
+                ..Default::default()
             }
         }
     }
@@ -163,14 +168,92 @@ fn info_succeeds(program: &std::path::Path) -> bool {
     }
 }
 
+/// Whether Cockpit runs in its own image: the variable from the `Containerfile` first, then the
+/// marker files of Docker (`/.dockerenv`) and Podman (`/run/.containerenv`).
+pub fn is_in_container(env: Option<&str>, marker_file: bool) -> bool {
+    match env.map(str::trim) {
+        Some("" | "0") => marker_file,
+        Some(_) => true,
+        None => marker_file,
+    }
+}
+
+/// The socket as a pure function: `exists` says a socket file is there, `connect` is the error of
+/// the connection attempt (`None` = it worked).
+pub fn socket_state(exists: bool, connect: Option<std::io::ErrorKind>) -> SocketState {
+    match (exists, connect) {
+        (false, _) => SocketState::Missing,
+        (true, None) => SocketState::Reachable,
+        (true, Some(std::io::ErrorKind::PermissionDenied)) => SocketState::Denied,
+        // A stale file or a dead engine behind it: nothing the user can use.
+        (true, Some(_)) => SocketState::Missing,
+    }
+}
+
+/// Inside the Cockpit container, a missing engine is the normal case: replace the hint of
+/// "not installed / not running" by one that says what the container needs. Pure.
+pub fn in_container_view(
+    mut status: ContainerStatus,
+    in_container: bool,
+    socket: SocketState,
+) -> ContainerStatus {
+    status.in_container = in_container;
+    status.socket = if in_container {
+        socket
+    } else {
+        SocketState::Missing
+    };
+    if in_container && !status.engine_running {
+        let (hint, hint_msg) = hint(match socket {
+            SocketState::Denied => msg!(ServerRunInContainerSocketDenied),
+            _ => msg!(ServerRunInContainerNoSocket),
+        });
+        status.hint = hint;
+        status.hint_msg = hint_msg;
+    }
+    status
+}
+
+/// The socket the `docker` CLI would use: `DOCKER_HOST=unix://…`, otherwise the default path.
+#[cfg(unix)]
+fn probe_socket() -> SocketState {
+    let path = std::env::var("DOCKER_HOST")
+        .ok()
+        .and_then(|h| h.strip_prefix("unix://").map(PathBuf::from))
+        .unwrap_or_else(|| PathBuf::from("/var/run/docker.sock"));
+    let exists = path.exists();
+    let connect = exists
+        .then(|| std::os::unix::net::UnixStream::connect(&path).err())
+        .flatten()
+        .map(|e| e.kind());
+    socket_state(exists, connect)
+}
+
+#[cfg(not(unix))]
+fn probe_socket() -> SocketState {
+    SocketState::Missing
+}
+
 /// Detects the runtime with real process calls. Blocking.
 pub fn detect(config: Option<&str>, env: Option<&str>, path: &OsStr) -> ContainerStatus {
-    choose(
+    let status = choose(
         config,
         env,
         |cli| in_path(cli, path).is_some(),
         |cli| in_path(cli, path).is_some_and(|p| info_succeeds(&p)),
-    )
+    );
+    let marker = std::path::Path::new("/.dockerenv").exists()
+        || std::path::Path::new("/run/.containerenv").exists();
+    let in_container = is_in_container(
+        std::env::var("COCKPIT_IN_CONTAINER").ok().as_deref(),
+        marker,
+    );
+    let socket = if in_container {
+        probe_socket()
+    } else {
+        SocketState::Missing
+    };
+    in_container_view(status, in_container, socket)
 }
 
 /// Remembers the result briefly so that `/api/health` does not start `info` on every call.

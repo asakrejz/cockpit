@@ -103,3 +103,71 @@ fn cache_asks_only_once() {
     }
     assert_eq!(counter, 1);
 }
+
+#[test]
+fn in_container_detection_variable_and_marker_files() {
+    assert!(is_in_container(Some("1"), false));
+    assert!(is_in_container(None, true));
+    assert!(!is_in_container(None, false));
+    assert!(!is_in_container(Some("0"), false));
+    assert!(!is_in_container(Some(""), false));
+}
+
+#[test]
+fn socket_states() {
+    use std::io::ErrorKind::*;
+    assert_eq!(socket_state(false, None), SocketState::Missing);
+    assert_eq!(socket_state(true, None), SocketState::Reachable);
+    assert_eq!(
+        socket_state(true, Some(PermissionDenied)),
+        SocketState::Denied
+    );
+    assert_eq!(
+        socket_state(true, Some(ConnectionRefused)),
+        SocketState::Missing
+    );
+}
+
+#[test]
+fn in_container_without_socket_explains_instead_of_not_installed() {
+    let s = in_container_view(choose(None, None, all_ok, no), true, SocketState::Missing);
+    assert!(s.in_container && s.socket == SocketState::Missing && !s.engine_running);
+    let hint = s.hint.unwrap();
+    assert!(
+        hint.contains("Container") && !hint.contains("dockerd (moby)"),
+        "{hint}"
+    );
+    let s = in_container_view(choose(None, None, no, no), true, SocketState::Missing);
+    assert!(!s.hint.unwrap().contains("Weder podman noch docker"));
+}
+
+#[test]
+fn in_container_with_denied_socket_mentions_the_group() {
+    let s = in_container_view(choose(None, None, all_ok, no), true, SocketState::Denied);
+    assert_eq!(s.socket, SocketState::Denied);
+    let hint = s.hint.unwrap();
+    assert!(
+        hint.contains("group-add") && hint.contains("root"),
+        "{hint}"
+    );
+}
+
+#[test]
+fn in_container_with_working_engine_is_normal() {
+    let s = in_container_view(
+        choose(None, None, all_ok, all_ok),
+        true,
+        SocketState::Reachable,
+    );
+    assert!(s.in_container && s.engine_running && s.hint.is_none());
+    assert_eq!(s.socket, SocketState::Reachable);
+}
+
+#[test]
+fn outside_a_container_nothing_changes() {
+    let before = choose(None, None, no, no);
+    let s = in_container_view(before.clone(), false, SocketState::Denied);
+    assert!(!s.in_container);
+    assert_eq!(s.hint, before.hint);
+    assert_eq!(s.socket, SocketState::Missing);
+}
