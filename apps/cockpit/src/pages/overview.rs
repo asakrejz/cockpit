@@ -1,7 +1,11 @@
 //! Overview: on the left who works on what and how full they are; on the right what is stuck, and
 //! the entries of the chosen person. The rules for it are in `cockpit_core::team`.
 
-use cockpit_core::{Item, Kind, LoadLevel, Member, Person, Stuck, StuckKind, Tone, team};
+use cockpit_core::{
+    Action, Item, Kind, LoadLevel, Member, PeopleSource, Person, Stuck, StuckKind, Tone,
+    people_search,
+    team::{self, Group, Side},
+};
 use feature_ui::*;
 use leptos::prelude::*;
 
@@ -86,6 +90,49 @@ fn kind_tone(kind: StuckKind) -> Tone {
     }
 }
 
+fn group_label(group: Group) -> String {
+    match group {
+        Group::Both => t!(OverviewGroupBoth),
+        Group::Jira => t!(OverviewGroupJira),
+        Group::GitHub => t!(OverviewGroupGithub),
+    }
+}
+
+/// The segmented control „Alle / Jira / GitHub“. It is `Action::SetPeopleSource`, kept in the
+/// workspace like the other filters.
+fn source_picker(store: Store) -> impl IntoView {
+    let current = move || store.ws.with(|w| w.people_source);
+    let label = |source: PeopleSource| match source {
+        PeopleSource::All => t!(OverviewSourceAll),
+        PeopleSource::Jira => t!(OverviewSourceJira),
+        PeopleSource::GitHub => t!(OverviewSourceGithub),
+    };
+    view! {
+        <div class="ui-segmented" role="group" aria-label=t!(OverviewSourceLabel) style="align-self: flex-start">
+            {PeopleSource::ALL
+                .into_iter()
+                .map(|source| {
+                    view! {
+                        <button
+                            type="button"
+                            aria-pressed=move || (current() == source).to_string()
+                            on:click=move |_| {
+                                if let Err(e) = store.dispatch(Action::SetPeopleSource { source })
+                                    && e != cockpit_core::ActionError::Unchanged
+                                {
+                                    store.notify(e.msg().render(feature_ui::lang_untracked()));
+                                }
+                            }
+                        >
+                            {label(source)}
+                        </button>
+                    }
+                })
+                .collect_view()}
+        </div>
+    }
+}
+
 fn person_avatar(person: &Person) -> impl IntoView + use<> {
     view! {
         <Avatar
@@ -106,7 +153,7 @@ pub fn OverviewPage() -> impl IntoView {
     // is shown. On a narrow screen a choice also opens the detail level.
     let level = Signal::derive(move || store.route.with(Route::level));
     let chosen = Memo::new(move |_| match store.route.get() {
-        Route::OverviewMember(name) => Some(name),
+        Route::OverviewMember(key) => Some(key),
         _ => None,
     });
     // `None`: everybody (also if the chosen person has nothing open any more).
@@ -126,17 +173,39 @@ pub fn OverviewPage() -> impl IntoView {
                         {t!(OverviewSubtitle)}
                     </p>
                     <TeamPicker />
+                    {source_picker(store)}
                 </PaneHeader>
                 <ul class="ck-inbox">
                     {move || {
-                        let active = current.get().map(|m| m.person.name);
+                        let active = current.get().map(|m| m.key);
                         let all = store.ws.with(|w| members.with(|l| team::entry_ids(w, l, None))).len();
-                        let rows = members
-                            .get()
+                        let list = members.get();
+                        let sections = store.ws.with(|w| {
+                            team::sections(w, &list)
+                                .into_iter()
+                                .map(|(group, people)| {
+                                    (group, people.into_iter().cloned().collect::<Vec<_>>())
+                                })
+                                .collect::<Vec<_>>()
+                        });
+                        let rows = sections
                             .into_iter()
-                            .map(|m| {
-                                let selected = active.as_deref() == Some(m.person.name.as_str());
-                                member_row(m, selected)
+                            .map(|(group, people)| {
+                                let heading = group.map(group_label);
+                                let rows = people
+                                    .into_iter()
+                                    .map(|m| {
+                                        let selected = active.as_deref() == Some(m.key.as_str());
+                                        member_row(m, selected)
+                                    })
+                                    .collect_view();
+                                view! {
+                                    {heading
+                                        .map(|h| {
+                                            view! { <li class="ui-list__header t-footnote t-secondary">{h}</li> }
+                                        })}
+                                    {rows}
+                                }
                             })
                             .collect_view();
                         view! { {everyone_row(all, active.is_none())} {rows} }
@@ -174,7 +243,7 @@ pub fn OverviewPage() -> impl IntoView {
 
 /// A person in the left list: numbers by status and the workload.
 fn member_row(m: Member, selected: bool) -> impl IntoView {
-    let name = m.person.name.clone();
+    let key = m.key.clone();
     let total = m.total();
     let level = m.load_level();
     let summary = t!(
@@ -185,7 +254,7 @@ fn member_row(m: Member, selected: bool) -> impl IntoView {
     );
     view! {
         <InboxRow selected=selected on_select=move |_| {
-            navigate(&Route::OverviewMember(name.clone()));
+            navigate(&Route::OverviewMember(key.clone()));
         }>
             {person_avatar(&m.person)}
             <span class="ui-vstack" style="--spacing: 6px; flex: 1 1 auto; min-width: 0">
@@ -193,6 +262,12 @@ fn member_row(m: Member, selected: bool) -> impl IntoView {
                     <span class="t-headline ck-ellipsis" style="flex: 1 1 auto">{m.person.name.clone()}</span>
                     <Badge variant=BadgeVariant::Neutral>{total.to_string()}</Badge>
                 </span>
+                {m
+                    .github
+                    .clone()
+                    .map(|name| {
+                        view! { <span class="t-footnote t-secondary ck-ellipsis">{t!(OverviewGithubName, name = name)}</span> }
+                    })}
                 <span class="t-subheadline t-secondary">{counts(&m)}</span>
                 <Progress value=total.min(team::CAPACITY) max=team::CAPACITY label=summary />
                 <span class="t-footnote t-secondary">{load_label(level)}</span>
@@ -325,6 +400,7 @@ fn person_items(store: Store, member: Option<Member>, all: Vec<Member>) -> impl 
         ),
         None => (t!(OverviewEntriesAll), t!(OverviewNothingOpen)),
     };
+    let link = member.clone().map(|m| link_section(store, m));
     let body = if items.is_empty() {
         view! { <p class="t-subheadline t-secondary">{nothing}</p> }.into_any()
     } else {
@@ -363,7 +439,86 @@ fn person_items(store: Store, member: Option<Member>, all: Vec<Member>) -> impl 
     view! {
         <section class="ui-vstack" style="--spacing: 12px" aria-label=heading>
             <h3 class="ui-list__header">{heading.clone()}</h3>
+            {link}
             {body}
         </section>
     }
+}
+
+/// „Ist dieselbe Person wie …“: link a Jira person to a GitHub user (or the other way round), or
+/// remove the link. Nothing is guessed; the link is `Action::LinkPeople`.
+fn link_section(store: Store, m: Member) -> impl IntoView {
+    if m.is_linked() {
+        let jira = m.person.name.clone();
+        let github = m.github.clone().unwrap_or_default();
+        return view! {
+            <div class="ui-vstack" style="--spacing: 8px">
+                <p class="t-subheadline t-secondary">{t!(OverviewLinkedWith, name = github)}</p>
+                <div>
+                    <Button
+                        size=ControlSize::Small
+                        on_click=move |_| {
+                            let _ = store.dispatch(Action::UnlinkPeople { jira: jira.clone() });
+                            navigate(&Route::OverviewAll);
+                        }
+                    >
+                        {t!(OverviewUnlink)}
+                    </Button>
+                </div>
+            </div>
+        }
+        .into_any();
+    }
+    let Some(side) = m.unlinked_side() else {
+        return ().into_any();
+    };
+    let me = m.person.name.clone();
+    let query = RwSignal::new(String::new());
+    let found = Memo::new(move |_| {
+        let local = store.ws.with(|w| w.link_candidates(side));
+        people_search::search(&local, &[], &query.get())
+    });
+    let options = Signal::derive(move || {
+        found
+            .get()
+            .into_iter()
+            .map(|p| ComboOption::new(p.name.clone(), p.name).initials(p.initials))
+            .collect::<Vec<_>>()
+    });
+    let on_select = move |other: String| {
+        let (jira, github) = match side {
+            Side::Jira => (me.clone(), other.clone()),
+            Side::GitHub => (other.clone(), me.clone()),
+        };
+        let jira_name = jira.clone();
+        match store.dispatch(Action::LinkPeople { jira, github }) {
+            Ok(_) => {
+                store.notify(t!(OverviewLinkDone, name = other));
+                // The person is now the linked member: stay on them.
+                navigate(&Route::OverviewMember(team::linked_key(&jira_name)));
+            }
+            Err(e) => store.notify(e.msg().render(feature_ui::lang_untracked())),
+        }
+    };
+    let hint = match side {
+        Side::Jira => t!(OverviewLinkHintJira),
+        Side::GitHub => t!(OverviewLinkHintGithub),
+    };
+    view! {
+        <div class="ui-vstack" style="--spacing: 8px">
+            <h4 class="t-headline">{t!(OverviewLinkTitle)}</h4>
+            <p class="t-footnote t-secondary">{hint}</p>
+            <Combobox
+                label=t!(OverviewLinkLabel)
+                label_hidden=true
+                value=Signal::derive(String::new)
+                query=query
+                options=options
+                on_select=on_select
+                placeholder=t!(OverviewLinkPlaceholder)
+                empty_text=t!(OverviewLinkEmpty)
+            />
+        </div>
+    }
+    .into_any()
 }

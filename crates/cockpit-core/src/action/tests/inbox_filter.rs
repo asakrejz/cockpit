@@ -220,3 +220,39 @@ fn the_team_choice_is_an_action_and_filters_the_inbox() {
     );
     assert_eq!(list(&w, Filter::All, &by).len(), all);
 }
+
+#[test]
+fn the_overview_source_and_person_links_are_actions() {
+    use crate::PeopleSource;
+    let mut w = demo::seed();
+    ok(
+        &mut w,
+        Action::SetPeopleSource {
+            source: PeopleSource::Jira,
+        },
+        1,
+    );
+    assert_eq!(w.people_source, PeopleSource::Jira);
+    fails(
+        &mut w,
+        Action::SetPeopleSource {
+            source: PeopleSource::Jira,
+        },
+        ActionError::Unchanged,
+    );
+    let link = |j: &str, g: &str| Action::LinkPeople {
+        jira: j.into(),
+        github: g.into(),
+    };
+    ok(&mut w, link("Jonas Berg", "Jonas"), 1);
+    assert_eq!(w.person_links.len(), 1);
+    fails(&mut w, link("Jonas Berg", "Jonas"), ActionError::Unchanged);
+    fails(&mut w, link("Du", "Jonas"), ActionError::InvalidInput);
+    fails(&mut w, link("Jonas Berg", " "), ActionError::InvalidInput);
+    let unlink = Action::UnlinkPeople {
+        jira: "Jonas Berg".into(),
+    };
+    ok(&mut w, unlink.clone(), 1);
+    assert!(w.person_links.is_empty());
+    fails(&mut w, unlink, ActionError::Unchanged);
+}

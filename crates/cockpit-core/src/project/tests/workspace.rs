@@ -27,7 +27,8 @@ fn say(w: &mut Workspace, branch: &str, title: &str, body: &str) {
 #[test]
 fn the_seed_has_a_project_issue_and_a_draft_and_the_base_demo_is_unchanged() {
     let w = ws();
-    assert_eq!(w.items.len(), demo::multi_repo_workspace().items.len() + 2);
+    assert_eq!(w.items.len(), demo::multi_repo_workspace().items.len() + 4);
+    // (the issue, the draft and two tickets of colleagues in Jira)
     let issue = w.item_by_key("acme/app#31").unwrap();
     assert_eq!(issue.source, Source::GitHubProject);
     assert!(issue.is_ticket() && issue.is_mine());

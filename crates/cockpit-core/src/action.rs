@@ -101,6 +101,20 @@ pub enum Action {
     SetTeamChoice {
         choice: crate::team_filter::TeamChoice,
     },
+    /// Choose the source the overview shows (Alle / Jira / GitHub). Display only.
+    SetPeopleSource {
+        source: crate::people_link::PeopleSource,
+    },
+    /// Say that a Jira person and a GitHub login are the same human (see
+    /// [`crate::people_link`]). Display only.
+    LinkPeople {
+        jira: String,
+        github: String,
+    },
+    /// Remove the link of a Jira person.
+    UnlinkPeople {
+        jira: String,
+    },
     /// Apply the inbox filters (see [`crate::filters`]). A display filter only: nothing is
     /// written to Jira or GitHub. In server mode a changed sprint view makes the next sync
     /// fetch other tickets.
@@ -513,6 +527,9 @@ impl Workspace {
             | Action::SetStatusFollowsPr { .. }
             | Action::SelectJiraProject { .. }
             | Action::SetTeamChoice { .. }
+            | Action::SetPeopleSource { .. }
+            | Action::LinkPeople { .. }
+            | Action::UnlinkPeople { .. }
             | Action::SetInboxFilter { .. } => self.perform_inbox(action, at_ms),
             Action::SetLabel { .. }
             | Action::SetIssueClosed { .. }
