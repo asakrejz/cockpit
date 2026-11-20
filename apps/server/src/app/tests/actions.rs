@@ -7,7 +7,7 @@ async fn workspace_starts_with_the_demo_data() {
     let (status, body) = hole(app_without_dist(), "/api/workspace").await;
     assert_eq!(status, StatusCode::OK);
     let (ws, revision) = cockpit_core::persist::load_with_revision(&body).unwrap();
-    assert_eq!(ws, cockpit_core::demo::multi_repo_workspace());
+    assert_eq!(ws, cockpit_core::demo::seed());
     assert_eq!(revision, 0);
 }
 
