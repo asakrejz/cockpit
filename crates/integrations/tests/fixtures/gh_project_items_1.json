@@ -1,0 +1,31 @@
+{"data":{"node":{"items":{
+ "pageInfo":{"hasNextPage":true,"endCursor":"c1"},
+ "nodes":[
+  {"id":"PVTI_12","type":"ISSUE","updatedAt":"2024-05-14T10:00:00Z","isArchived":false,
+   "fieldValues":{"nodes":[
+     {"__typename":"ProjectV2ItemFieldTextValue","text":"Fix the avatar upload","field":{"id":"PVTF_title","name":"Title"}},
+     {"__typename":"ProjectV2ItemFieldSingleSelectValue","name":"In Progress","optionId":"s_prog","field":{"id":"PVTSSF_status","name":"Status"}},
+     {"__typename":"ProjectV2ItemFieldSingleSelectValue","name":"High","optionId":"p_hi","field":{"id":"PVTSSF_prio","name":"Priority"}},
+     {"__typename":"ProjectV2ItemFieldSingleSelectValue","name":"Core","optionId":"t_core","field":{"id":"PVTSSF_team","name":"Team"}},
+     {"__typename":"ProjectV2ItemFieldIterationValue","title":"Sprint 21","iterationId":"it_21","startDate":"2024-05-13","duration":14,"field":{"id":"PVTIF_sprint","name":"Sprint"}},
+     {"__typename":"ProjectV2ItemFieldNumberValue","number":5.0,"field":{"id":"PVTF_est","name":"Estimate"}},
+     {"__typename":"ProjectV2ItemFieldDateValue","date":"2024-05-20","field":{"id":"PVTF_due","name":"Due date"}},
+     {"__typename":"ProjectV2ItemFieldTextValue","text":"Check with design","field":{"id":"PVTF_notes","name":"Notes"}},
+     {"__typename":"ProjectV2ItemFieldLabelValue"}]},
+   "content":{"__typename":"Issue","id":"I_12","number":12,"title":"Fix the avatar upload","body":"The **upload** fails for PNGs.\n\n- [ ] repro","state":"OPEN","stateReason":null,
+     "createdAt":"2024-05-10T08:00:00Z","updatedAt":"2024-05-14T09:30:00Z","url":"https://github.com/acme/app/issues/12",
+     "author":{"login":"tobias-lang"},"repository":{"nameWithOwner":"acme/app"},
+     "assignees":{"nodes":[{"login":"mkeller"},{"login":"tobias-lang"}]},
+     "labels":{"nodes":[{"name":"bug"},{"name":"upload"}]},
+     "milestone":{"title":"v1.4","dueOn":"2024-06-01T00:00:00Z"}}},
+  {"id":"PVTI_draft1","type":"DRAFT_ISSUE","updatedAt":"2024-05-12T10:00:00Z","isArchived":false,
+   "fieldValues":{"nodes":[{"__typename":"ProjectV2ItemFieldSingleSelectValue","name":"Todo","optionId":"s_todo","field":{"id":"PVTSSF_status","name":"Status"}}]},
+   "content":{"__typename":"DraftIssue","id":"DI_1","title":"Think about dark mode","body":"Ideas only","createdAt":"2024-05-12T09:00:00Z","updatedAt":"2024-05-12T10:00:00Z",
+     "creator":{"login":"mkeller"},"assignees":{"nodes":[]}}},
+  {"id":"PVTI_pr","type":"PULL_REQUEST","updatedAt":"2024-05-13T10:00:00Z","isArchived":false,"fieldValues":{"nodes":[]},
+   "content":{"__typename":"PullRequest","number":20,"repository":{"nameWithOwner":"acme/app"}}},
+  {"id":"PVTI_old","type":"ISSUE","updatedAt":"2024-01-01T10:00:00Z","isArchived":true,"fieldValues":{"nodes":[]},
+   "content":{"__typename":"Issue","id":"I_1","number":1,"title":"Archived","body":"","state":"CLOSED","createdAt":"2024-01-01T10:00:00Z","updatedAt":"2024-01-01T10:00:00Z",
+     "repository":{"nameWithOwner":"acme/app"},"assignees":{"nodes":[]},"labels":{"nodes":[]}}}
+ ]}},
+ "rateLimit":{"cost":1,"remaining":4970,"resetAt":"2024-05-14T13:00:00Z"}}}

@@ -30,3 +30,6 @@ server_config.env_tracked = The file {file} is tracked by Git. A commit would pu
 server_config.env_not_ignored = The file {file} is not protected by .gitignore. Add "{name}" to the .gitignore so that it is never committed by accident.
 server_config.repos_pr_language = Repo {repo}: the pull request language "{value}" is not known. Use "en" or "de".
 server_config.legacy_env = The old secrets file {path} is still there, but Cockpit now uses config/.env. You can delete the old file.
+
+server_config.tickets_from_unknown = [github_projects] tickets_from "{value}" is unknown (use jira, github_projects or both)
+server_config.project_form = GitHub project "{project}" is not of the form owner/number (e.g. acme/3)

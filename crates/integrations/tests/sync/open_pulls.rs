@@ -71,6 +71,7 @@ pub(super) fn service(s: &MockServer, repos: &[&str], limits: PrLimits) -> Servi
             repos: repos.iter().map(|r| r.to_string()).collect(),
         }),
         jira: None,
+        ..Default::default()
     }
 }
 

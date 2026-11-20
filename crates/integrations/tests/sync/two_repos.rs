@@ -50,6 +50,7 @@ fn two_repo_services(g: &MockServer) -> Services {
             repos: vec![REPO.into(), REPO_B.into()],
         }),
         jira: None,
+        ..Default::default()
     }
 }
 

@@ -67,6 +67,7 @@ fn the_reasons_keep_their_order_and_every_repo_appears_once() {
     let linked = vec!["acme/linked".to_string(), "acme/web".to_string()];
     let visible = vec!["acme/text".to_string()];
     let s = suggest_repos(&SuggestInput {
+        issue_repo: None,
         project: Some("WEB"),
         used: &used,
         linked: &linked,
@@ -208,4 +209,27 @@ fn the_picker_lists_suggestions_first_then_the_rest_and_the_search_narrows_both(
         names(&picker_rows(&s, &[], "", 10)),
         ["acme/web", "acme/shop"]
     );
+}
+
+#[test]
+fn the_repo_of_an_issue_comes_first_before_any_other_reason() {
+    let used = vec![("WEB".to_string(), "acme/web".to_string())];
+    let linked = vec!["acme/linked".to_string()];
+    let s = suggest_repos(&SuggestInput {
+        issue_repo: Some("acme/app"),
+        project: Some("WEB"),
+        used: &used,
+        linked: &linked,
+        ..Default::default()
+    });
+    assert_eq!(names(&s), ["acme/app", "acme/web", "acme/linked"]);
+    assert_eq!(s[0].reason, SuggestReason::Issue);
+    // The same repo from another reason is not listed twice.
+    let again = suggest_repos(&SuggestInput {
+        issue_repo: Some("acme/linked"),
+        linked: &linked,
+        ..Default::default()
+    });
+    assert_eq!(names(&again), ["acme/linked"]);
+    assert_eq!(again[0].reason, SuggestReason::Issue);
 }

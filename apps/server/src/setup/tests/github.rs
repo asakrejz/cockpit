@@ -331,3 +331,91 @@ async fn the_proposal_needs_a_connection_and_a_real_repo_name() {
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert!(gh.received_requests().await.unwrap().is_empty());
 }
+
+// ---- GitHub Projects ----
+
+async fn projects(app: &Router) -> serde_json::Value {
+    let (status, body) = send_request(
+        app,
+        request("GET", "/api/github/projects")
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(!body.contains(TOKEN), "token in the answer: {body}");
+    serde_json::from_str(&body).unwrap()
+}
+
+#[tokio::test]
+async fn without_a_token_the_project_list_says_not_connected() {
+    let gh = MockServer::start().await;
+    let v = projects(&gh_app(&gh.uri(), None, None)).await;
+    assert_eq!(v["connected"], false);
+    assert!(gh.received_requests().await.unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn the_project_list_shows_projects_and_what_a_classic_token_lacks() {
+    let gh = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/user"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .insert_header("x-oauth-scopes", "repo, read:project")
+                .set_body_json(json!({"login": "mkeller"})),
+        )
+        .mount(&gh)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/graphql"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"data": {
+            "viewer": {"login": "mkeller", "projectsV2": {"nodes": [
+                {"id": "PVT_1", "number": 1, "title": "My board", "closed": false,
+                 "url": "https://github.com/users/mkeller/projects/1",
+                 "owner": {"__typename": "User", "login": "mkeller"}}]},
+              "organizations": {"nodes": []}},
+            "rateLimit": {"cost": 1, "remaining": 4999, "resetAt": "2999-01-01T00:00:00Z"}}})))
+        .mount(&gh)
+        .await;
+    let v = projects(&gh_app(&gh.uri(), Some(TOKEN), None)).await;
+    assert_eq!(v["connected"], true);
+    assert_eq!(v["projects"][0]["title"], "My board");
+    assert_eq!(v["owners"], json!(["mkeller"]));
+    assert_eq!(v["rights"]["kind"], "classic");
+    // Reading is allowed; changing projects is not (needs `project`), and the answer names the fix.
+    let missing: Vec<String> = v["rights"]["missing"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| m["right"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(missing, ["projects_write"]);
+    assert!(v["problem"].is_null());
+}
+
+#[tokio::test]
+async fn a_refused_project_list_names_the_missing_right_for_a_fine_grained_token() {
+    let gh = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/user"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({"login": "mkeller"})))
+        .mount(&gh)
+        .await;
+    Mock::given(method("POST"))
+        .and(path("/graphql"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "data": {"viewer": null},
+            "errors": [{"type": "FORBIDDEN", "path": ["viewer", "projectsV2"],
+                        "message": "Resource not accessible by personal access token"}]})))
+        .mount(&gh)
+        .await;
+    let v = projects(&gh_app(&gh.uri(), Some("github_pat_11AAA"), None)).await;
+    assert_eq!(v["rights"]["kind"], "fine_grained");
+    let problem = v["problem"].to_string();
+    assert!(
+        problem.contains("CoreRightMissing") || problem.contains("core_right.missing"),
+        "{problem}"
+    );
+    assert!(v["projects"].as_array().unwrap().is_empty());
+}

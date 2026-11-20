@@ -238,13 +238,28 @@ pub fn render(pattern: &str, ticket: &str, title: &str, kind: BranchType) -> Str
     for p in list {
         match p {
             Part::Text(t) => out.push_str(t),
-            Part::Ticket => out.push_str(ticket),
+            Part::Ticket => out.push_str(&ticket_part(ticket)),
             Part::Slug => out.push_str(&crate::text::slug(title, 24)),
             Part::Type => out.push_str(kind.as_str()),
         }
     }
     // An empty slug (a title without letters) must not leave a dangling separator.
     out.trim_end_matches(['-', '_', '.', '/']).to_string()
+}
+
+/// What `{ticket}` stands for in a branch name: a Jira key as it is, a GitHub issue key
+/// (`acme/app#31`, with characters a branch should not have) as `gh-31`.
+///
+/// ```
+/// use cockpit_core::branch::ticket_part;
+/// assert_eq!(ticket_part("BAU-142"), "BAU-142");
+/// assert_eq!(ticket_part("acme/app#31"), "gh-31");
+/// ```
+pub fn ticket_part(ticket: &str) -> String {
+    match crate::project::parse_issue_key(ticket) {
+        Some((_, number)) => format!("gh-{number}"),
+        None => ticket.to_string(),
+    }
 }
 
 /// Cheap check used by [`render`] so it never recurses into [`validate`].

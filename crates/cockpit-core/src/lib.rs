@@ -42,7 +42,9 @@ pub mod model;
 pub mod notice;
 pub mod notify;
 pub mod people_search;
+pub mod permissions;
 pub mod persist;
+pub mod project;
 pub mod repos;
 pub mod review;
 pub mod rules;
@@ -74,6 +76,11 @@ pub use model::*;
 pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};
 pub use notify::{
     Channel, Channels, Delivery, Event as NotifyEvent, NotifyReason, NotifySettings, QuietHours,
+};
+pub use permissions::{Access, Right, TokenKind};
+pub use project::{
+    FieldDef, FieldKind, FieldValue, IssueLink, IssueRef, ProjectItem, ProjectMeta, ProjectOrigin,
+    ProjectRef, ProjectSummary, SelectOption, TicketsFrom,
 };
 pub use repos::{AgentRepo, AgentRepos, RepoChoice};
 pub use review::{

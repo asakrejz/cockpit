@@ -28,3 +28,4 @@ agent_job.reason_rule = In den Einstellungen für das Projekt {project} festgele
 agent_job.reason_default = Standard-Repo aus den Einstellungen
 agent_job.repo_remove = Entfernen
 agent_job.repos_hint = Der Agent arbeitet in allen gewählten Repos gleichzeitig. Jedes Repo bekommt einen eigenen Branch und einen eigenen Pull Request.
+agent_job.reason_issue = Das Ticket ist ein Issue dieses Repos

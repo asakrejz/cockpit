@@ -28,3 +28,4 @@ agent_job.reason_rule = Set for the project {project} in the settings
 agent_job.reason_default = Default repo from the settings
 agent_job.repo_remove = Remove
 agent_job.repos_hint = The agent works in all chosen repos at once. Every repo gets its own branch and its own pull request.
+agent_job.reason_issue = The ticket is an issue of this repo

@@ -150,6 +150,25 @@ pub async fn fetch_jira_assignable(
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
+/// People GitHub lets you assign issues of `repo` to, matching `query`
+/// (`GET /api/github/assignable`, read only).
+pub async fn fetch_github_assignable(
+    repo: &str,
+    query: &str,
+) -> Result<JiraAssignableResponse, CallError> {
+    let resp = Request::get("/api/github/assignable")
+        .query([("repo", repo), ("query", query)])
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection(resp).await);
+    }
+    resp.json::<JiraAssignableResponse>()
+        .await
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
+}
+
 /// Preview of the pull request for the branch of a finished real run
 /// (`GET /api/agent/pull-request?run=…`). Creates nothing.
 pub async fn fetch_pull_request_preview(
@@ -487,6 +506,20 @@ pub async fn fetch_github_repos() -> Result<GitHubRepoList, CallError> {
         return Err(rejection_own(resp).await);
     }
     resp.json::<GitHubRepoList>()
+        .await
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
+}
+
+/// The GitHub Projects the connected access can see (`GET /api/github/projects`). Only reads.
+pub async fn fetch_github_projects() -> Result<cockpit_core::api::ProjectsResponse, CallError> {
+    let resp = Request::get("/api/github/projects")
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection_own(resp).await);
+    }
+    resp.json::<cockpit_core::api::ProjectsResponse>()
         .await
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }

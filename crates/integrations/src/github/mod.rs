@@ -6,6 +6,7 @@ pub mod followup;
 mod map;
 mod panel;
 mod patch;
+pub mod projects;
 
 pub use client::{
     GitHubClient, LoadedChecks, MAX_REPOS, OpenPulls, PrLimits, Relation, RepoAccess, RepoInfo,

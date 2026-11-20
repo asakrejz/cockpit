@@ -54,6 +54,7 @@ async fn errors_become_the_source_state_and_nothing_is_lost() {
             repos: vec![REPO.into()],
         }),
         jira: None,
+        ..Default::default()
     };
     let (after, _) = sync(&gone, &ws, NOW_MS + 4).await;
     assert_eq!(
@@ -159,6 +160,7 @@ async fn unknown_repo_is_a_hint_not_an_outage() {
             repos: vec!["gibt/es-nicht".into(), REPO.into()],
         }),
         jira: None,
+        ..Default::default()
     };
     Mock::given(method("GET"))
         .and(path("/repos/gibt/es-nicht/pulls"))

@@ -94,11 +94,13 @@ impl AppState {
             .item_by_key(ticket)
             .and_then(cockpit_core::Item::project)
             .map(str::to_string);
+        let issue_repo = cockpit_core::project::parse_issue_key(ticket).map(|(repo, _)| repo);
         let used = runs_used(&ws);
         let linked = linked_repos(&ws, ticket);
         let text = ticket_text(&ws, ticket);
         RepoSuggestions {
             suggestions: suggest_repos(&SuggestInput {
+                issue_repo: issue_repo.as_deref(),
                 project: project.as_deref(),
                 used: &used,
                 linked: &linked,

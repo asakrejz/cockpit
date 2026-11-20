@@ -14,6 +14,7 @@ fn service(s: &MockServer, site: Option<&str>) -> Services {
             in_project: false,
             fields: Default::default(),
         }),
+        ..Default::default()
     }
 }
 

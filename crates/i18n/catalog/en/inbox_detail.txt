@@ -77,3 +77,6 @@ inbox_detail.field_created = Created
 inbox_detail.field_updated = Updated
 inbox_detail.field_parent = Parent
 inbox_detail.field_issuelinks = Linked tickets
+inbox_detail.field_project = Project
+inbox_detail.field_milestone = Milestone
+inbox_detail.field_sub_issues = Sub-issues

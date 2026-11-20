@@ -168,6 +168,40 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), Msg> {
         }
         empty_remove(&mut doc, "jira");
     }
+    if let Some(g) = &a.github_projects {
+        {
+            let t = table(&mut doc, "github_projects")?;
+            if let Some(from) = g.tickets_from {
+                set(t, "tickets_from", value(from.id()));
+            }
+            if let Some(list_in) = &g.projects {
+                let mut projects: Vec<String> = Vec::new();
+                for text in list_in {
+                    let r = cockpit_core::ProjectRef::parse(text)
+                        .ok_or_else(|| msg!(ServerConfigProjectForm, project = text.as_str()))?;
+                    if !projects.contains(&r.to_string()) {
+                        projects.push(r.to_string());
+                    }
+                }
+                set(t, "projects", list(&projects));
+            }
+            for (key, input) in [
+                ("status_field", &g.status_field),
+                ("team_field", &g.team_field),
+            ] {
+                if let Some(name) = input {
+                    let name = name.trim();
+                    if name.is_empty() {
+                        t.remove(key);
+                    } else if name.chars().any(char::is_control) {
+                        return Err(msg!(ServerSetupFieldNameInvalid));
+                    } else {
+                        set(t, key, value(name));
+                    }
+                }
+            }
+        }
+    }
     for (name, input) in [
         ("atlassian", &a.atlassian),
         ("github_oauth", &a.github_oauth),

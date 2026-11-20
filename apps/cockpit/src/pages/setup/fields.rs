@@ -93,9 +93,21 @@ pub fn step_label(step: Step) -> String {
         Step::Container => t!(SetupStepContainer),
         Step::Jira => t!(SetupStepJira),
         Step::GitHub => t!(SetupStepGithub),
+        Step::Projects => t!(SetupStepProjects),
         Step::Model => t!(SetupStepModel),
         Step::Live => t!(SetupStepLive),
         Step::Done => t!(SetupStepDone),
+    }
+}
+
+/// A link to a step.
+#[component]
+pub fn StepLink(step: Step) -> impl IntoView {
+    view! {
+        " "
+        <a class="ui-link" href=step.hash()>
+            {move || t!(SetupFieldsGoToStep, name = step_label(step))}
+        </a>
     }
 }
 

@@ -17,6 +17,7 @@ mod jira;
 mod live;
 mod model;
 mod optional;
+mod projects;
 mod repo_picker;
 pub(crate) use fields::error_text;
 pub(crate) use repo_picker::static_text;
@@ -35,11 +36,15 @@ use github::GitHubStep;
 use jira::JiraStep;
 use live::LiveStep;
 use model::ModelStep;
+use projects::ProjectsStep;
 
 /// The progress display: one item per step in the order of [`Step::ALL`]. All steps before the
 /// current one count as done.
 #[component]
-fn StepProgress(#[prop(into)] current: Signal<usize>) -> impl IntoView {
+fn StepProgress(
+    #[prop(into)] current: Signal<usize>,
+    #[prop(into)] from: Signal<cockpit_core::TicketsFrom>,
+) -> impl IntoView {
     view! {
         <ol class="ui-steps" aria-label=move || t!(SetupProgress)>
             {Step::ALL
@@ -50,6 +55,7 @@ fn StepProgress(#[prop(into)] current: Signal<usize>) -> impl IntoView {
                     view! {
                         <li
                             class="ui-steps__item"
+                            style:display=move || (!step.shown(from.get())).then_some("none")
                             aria-current=move || (current.get() == i).then_some("step")
                             data-done=move || (current.get() > i).then_some("")
                         >
@@ -119,13 +125,14 @@ pub fn SetupPage() -> impl IntoView {
         store.replace_route(&Route::SetupStep(first_open_step(&lines)));
     });
 
+    let from = Signal::derive(move || ctx.setup.with(|s| s.github_projects.tickets_from));
     let next_step = move |_| {
-        if let Some(n) = step.get_untracked().next() {
+        if let Some(n) = step.get_untracked().next_for(from.get_untracked()) {
             step.set(n);
         }
     };
     let back = move |_| {
-        if let Some(v) = step.get_untracked().previous() {
+        if let Some(v) = step.get_untracked().previous_for(from.get_untracked()) {
             step.set(v);
         }
     };
@@ -148,7 +155,7 @@ pub fn SetupPage() -> impl IntoView {
                         <p class="t-title3 t-secondary">{t!(SetupIntro)}</p>
                     </VStack>
 
-                    <StepProgress current=index />
+                    <StepProgress current=index from=from />
 
                     {move || {
                         if !ready.get() {
@@ -158,6 +165,7 @@ pub fn SetupPage() -> impl IntoView {
                         Step::Container => view! { <ContainerStep ctx=ctx /> }.into_any(),
                         Step::Jira => view! { <JiraStep ctx=ctx /> }.into_any(),
                         Step::GitHub => view! { <GitHubStep ctx=ctx /> }.into_any(),
+                        Step::Projects => view! { <ProjectsStep ctx=ctx /> }.into_any(),
                         Step::Model => view! { <ModelStep ctx=ctx /> }.into_any(),
                         Step::Live => view! { <LiveStep ctx=ctx /> }.into_any(),
                         Step::Done => {
@@ -168,7 +176,7 @@ pub fn SetupPage() -> impl IntoView {
 
                     <HStack css="justify-content:space-between;flex-wrap:wrap">
                         <Button
-                            disabled=Signal::derive(move || step.get().previous().is_none())
+                            disabled=Signal::derive(move || step.get().previous_for(from.get()).is_none())
                             on_click=back
                         >
                             {t!(SetupBack)}
@@ -176,7 +184,7 @@ pub fn SetupPage() -> impl IntoView {
                         {move || {
                             step
                                 .get()
-                                .next()
+                                .next_for(from.get())
                                 .map(|_| {
                                     view! {
                                         <HStack spacing="12px">

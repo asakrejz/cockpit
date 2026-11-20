@@ -1,0 +1,17 @@
+{"data":{"nodes":[
+ {"__typename":"Issue","id":"I_12",
+  "comments":{"nodes":[
+    {"author":{"login":"tobias-lang"},"body":"Reproduced with `avatar.png`.","createdAt":"2024-05-14T08:00:00Z"},
+    {"author":{"login":"mkeller"},"body":"On it.","createdAt":"2024-05-14T09:30:00Z"}]},
+  "timelineItems":{"nodes":[
+    {"__typename":"ConnectedEvent","subject":{"__typename":"PullRequest","number":20,"repository":{"nameWithOwner":"acme/app"}}},
+    {"__typename":"CrossReferencedEvent","willCloseTarget":true,"source":{"__typename":"PullRequest","number":4,"repository":{"nameWithOwner":"acme/web"}}},
+    {"__typename":"CrossReferencedEvent","willCloseTarget":false,"source":{"__typename":"Issue"}}]},
+  "closedByPullRequestsReferences":{"nodes":[{"number":20,"repository":{"nameWithOwner":"acme/app"}}]},
+  "issueType":{"name":"Bug"},
+  "parent":{"number":10,"title":"Profile page","state":"OPEN","repository":{"nameWithOwner":"acme/app"}},
+  "subIssues":{"nodes":[{"number":13,"title":"Resize","state":"CLOSED","repository":{"nameWithOwner":"acme/app"}},{"number":14,"title":"Crop","state":"OPEN","repository":{"nameWithOwner":"acme/app"}}]}},
+ {"__typename":"Issue","id":"I_15","comments":{"nodes":[]},"timelineItems":{"nodes":[]},
+  "closedByPullRequestsReferences":{"nodes":[]},"issueType":null,"parent":null,"subIssues":{"nodes":[]}}
+ ],
+ "rateLimit":{"cost":1,"remaining":4968,"resetAt":"2024-05-14T13:00:00Z"}}}

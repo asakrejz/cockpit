@@ -251,7 +251,7 @@ async fn sync_without_source_lets_the_demo_data() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(answer["active"], false);
     let (ws, revision) = snapshot(&state).await;
-    assert_eq!(ws, cockpit_core::demo::multi_repo_workspace());
+    assert_eq!(ws, cockpit_core::demo::seed());
     assert_eq!(revision, 0);
     let h = health(&state).await;
     assert_eq!(h["sync"]["github"], "off");

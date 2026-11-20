@@ -1,0 +1,2 @@
+{"data":null,"errors":[{"type":"INSUFFICIENT_SCOPES","path":["viewer","projectsV2"],"locations":[{"line":1,"column":30}],
+ "message":"Your token has not been granted the required scopes to execute this query. The 'projectsV2' field requires one of the following scopes: ['read:project'], but your token has only been granted the: ['repo'] scopes. Please modify your token's scopes at: https://github.com/settings/tokens."}]}

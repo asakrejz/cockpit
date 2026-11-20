@@ -1,6 +1,8 @@
 //! The tickets and pull requests of the sample data.
 
 use super::*;
+use crate::filters::UNASSIGNED_NAME;
+use crate::project::{FieldKind, FieldValue, ProjectItem};
 
 /// BAU-142, #87, BAU-138, #85, BAU-150, DOC-7 and #12, in this order.
 pub(super) fn items() -> [Item; 7] {
@@ -195,4 +197,90 @@ pub(super) fn items() -> [Item; 7] {
         )
     };
     [bau142, pr87, bau138, pr85, bau150, doc7, pr12]
+}
+
+/// The name of the sample GitHub project.
+pub const DEMO_PROJECT: &str = "acme/3";
+
+/// Two tickets of a sample GitHub project („acme/3“): an issue in review and a draft. They show
+/// the source `GitHubProject`, Markdown text, project fields and a pull request found on the
+/// timeline. Nothing here reaches a real project.
+pub fn project_tickets() -> (Item, Item) {
+    let project = |item_id: &str, number: Option<u32>, draft: bool| ProjectItem {
+        project_id: "PVT_demo".into(),
+        project: DEMO_PROJECT.into(),
+        project_title: "App roadmap".into(),
+        item_id: item_id.into(),
+        content_id: if draft {
+            String::new()
+        } else {
+            "I_demo_31".into()
+        },
+        draft,
+        number,
+        status_option: Some(if draft { "s_todo" } else { "s_rev" }.into()),
+        ..ProjectItem::default()
+    };
+    let issue = Item {
+        source: Source::GitHubProject,
+        repo: Some(DEMO_REPO.into()),
+        status: TicketStatus::Review,
+        labels: vec!["enhancement".into(), "a11y".into()],
+        reporter: Some("Lena".into()),
+        issue_type: Some("Feature".into()),
+        milestone: Some("v1.4".into()),
+        priority: Priority::High,
+        team: Some(TeamRef::new("t_core", "Core")),
+        due: Some(DEMO_OVERDUE.into()),
+        url: Some("https://github.com/acme/app/issues/31".into()),
+        description: "Der **Fokusring** fehlt bei Tab-Navigation.\n\n- [x] Reproduziert\n- [ ] Test ergänzen\n\nSiehe `docs/a11y.md`.".into(),
+        comments: vec![Comment {
+            author: lena(),
+            time: "vor 2 Std.".into(),
+            text: "Ich habe das mit **VoiceOver** geprüft: der Ring fehlt nur im Dark Mode.".into(),
+            text_msg: None,
+            rich: None,
+            own: false,
+        }],
+        project: Some(ProjectItem {
+            fields: vec![FieldValue {
+                field_id: "PVTF_est".into(),
+                name: "Estimate".into(),
+                kind: FieldKind::Number,
+                text: "3".into(),
+                option_id: None,
+            }],
+            assignees: vec!["me".into()],
+            milestone: Some("v1.4".into()),
+            ..project("PVTI_demo_31", Some(31), false)
+        }),
+        ..item(
+            "gh-acme-app-31",
+            Kind::Ticket,
+            "acme/app#31",
+            "Fokusring bei Tab-Navigation sichtbar machen",
+            "",
+            (ReasonKind::Assigned, "Dir zugewiesen"),
+            "vor 2 Std.",
+            Person::me(),
+        )
+    };
+    let draft = Item {
+        source: Source::GitHubProject,
+        status: TicketStatus::Open,
+        reporter: Some("Du".into()),
+        description: "Nur eine Idee: **Dark Mode** für die Handbuch-Seiten.".into(),
+        project: Some(project("PVTI_demo_draft", None, true)),
+        ..item(
+            "gh-acme-3-draft1",
+            Kind::Ticket,
+            "acme/3#draft-demo01",
+            "Dark Mode für das Handbuch prüfen",
+            "",
+            (ReasonKind::Comment, "Im Projekt"),
+            "gestern",
+            Person::new(UNASSIGNED_NAME, "–"),
+        )
+    };
+    (issue, draft)
 }

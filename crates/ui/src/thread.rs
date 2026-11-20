@@ -39,6 +39,9 @@ pub fn CommentBubble(
     /// The comment comes from the agent.
     #[prop(optional)]
     agent: bool,
+    /// The text is Markdown (GitHub comments) and is shown formatted.
+    #[prop(optional)]
+    markdown: bool,
 ) -> impl IntoView {
     view! {
         <div class="ui-comment" data-own=own.then_some("")>
@@ -47,6 +50,7 @@ pub fn CommentBubble(
                 <p class="t-footnote t-secondary">{format!("{who} · {time}")}</p>
                 {match rich {
                     doc if !doc.is_empty() => view! { <RichText doc=doc /> }.into_any(),
+                    _ if markdown => view! { <crate::Markdown text=text /> }.into_any(),
                     _ => view! { <p class="t-body" style="white-space: pre-line">{text}</p> }.into_any(),
                 }}
             </div>

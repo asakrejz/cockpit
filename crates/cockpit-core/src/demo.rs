@@ -14,6 +14,7 @@ mod items;
 mod reviews;
 mod rich;
 use items::items;
+pub use items::{DEMO_PROJECT, project_tickets};
 pub use reviews::*;
 
 mod agent;
@@ -77,6 +78,9 @@ fn item(
         updated_ms: None,
         url: None,
         details: None,
+        project: None,
+        co_assignees: Vec::new(),
+        milestone: None,
     }
 }
 
@@ -85,6 +89,15 @@ pub const DEMO_REPO_TOKENS: &str = "acme/design-tokens";
 
 /// Due date of the demo ticket BAU-150: lies before the day the demo was made.
 pub const DEMO_OVERDUE: &str = "2026-11-09";
+
+/// What the server starts with for `COCKPIT_SEED=demo`: the sample data with two repos plus two
+/// tickets of a sample GitHub project (an issue and a draft).
+pub fn seed() -> Workspace {
+    let mut ws = multi_repo_workspace();
+    let (issue, draft) = project_tickets();
+    ws.items.extend([issue, draft]);
+    ws
+}
 
 /// The initial state of the cockpit.
 pub fn workspace() -> Workspace {

@@ -45,6 +45,7 @@ fn services(s: &MockServer, query: JiraQuery) -> Services {
             in_project: query.in_selection,
             fields: Default::default(),
         }),
+        ..Default::default()
     }
 }
 

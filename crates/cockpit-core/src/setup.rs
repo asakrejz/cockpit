@@ -49,16 +49,19 @@ pub enum Step {
     Container,
     Jira,
     GitHub,
+    /// GitHub Projects as the source of tickets.
+    Projects,
     Model,
     Live,
     Done,
 }
 
 impl Step {
-    pub const ALL: [Step; 6] = [
+    pub const ALL: [Step; 7] = [
         Step::Container,
         Step::Jira,
         Step::GitHub,
+        Step::Projects,
         Step::Model,
         Step::Live,
         Step::Done,
@@ -75,6 +78,7 @@ impl Step {
             Step::Container => msg!(SetupStepContainer),
             Step::Jira => msg!(SetupStepJira),
             Step::GitHub => msg!(SetupStepGithub),
+            Step::Projects => msg!(SetupStepProjects),
             Step::Model => msg!(SetupStepModel),
             Step::Live => msg!(SetupStepLive),
             Step::Done => msg!(SetupStepDone),
@@ -93,12 +97,43 @@ impl Step {
         self.index().checked_sub(1).map(|i| Self::ALL[i])
     }
 
+    /// Is the step part of the assistant for this choice of ticket source? Without Jira the step
+    /// „GitHub Projects“ takes the place of the step „Jira“.
+    pub fn shown(self, from: crate::TicketsFrom) -> bool {
+        self != Step::Jira || from.uses_jira()
+    }
+
+    /// The next step that is shown for this choice.
+    pub fn next_for(self, from: crate::TicketsFrom) -> Option<Step> {
+        let mut s = self.next();
+        while let Some(step) = s {
+            if step.shown(from) {
+                return Some(step);
+            }
+            s = step.next();
+        }
+        None
+    }
+
+    /// The previous step that is shown for this choice.
+    pub fn previous_for(self, from: crate::TicketsFrom) -> Option<Step> {
+        let mut s = self.previous();
+        while let Some(step) = s {
+            if step.shown(from) {
+                return Some(step);
+            }
+            s = step.previous();
+        }
+        None
+    }
+
     /// ID for the address (`#/setup/jira`).
     pub fn id(self) -> &'static str {
         match self {
             Step::Container => "container",
             Step::Jira => "jira",
             Step::GitHub => "github",
+            Step::Projects => "projects",
             Step::Model => "model",
             Step::Live => "live",
             Step::Done => "done",

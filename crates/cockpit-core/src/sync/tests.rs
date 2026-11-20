@@ -45,6 +45,9 @@ fn ticket(key: &str, title: &str) -> Item {
         updated_ms: None,
         url: None,
         details: None,
+        project: None,
+        co_assignees: Vec::new(),
+        milestone: None,
     }
 }
 
@@ -131,6 +134,7 @@ fn github(items: Vec<Item>, reviews: Vec<Review>) -> Remote {
                 items,
                 reviews,
                 prs,
+                projects: Vec::new(),
                 warnings: Vec::new(),
                 warning_msgs: Vec::new(),
             }),

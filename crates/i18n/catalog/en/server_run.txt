@@ -92,3 +92,4 @@ server_run.repo_pushed = Pushed: {repo} on {branch} ({n} files).
 server_run.repo_unchanged = Unchanged: {repo} (nothing to push).
 server_run.repo_refused = Refused: {repo}: {reason}
 server_run.all_repos_refused = Nothing was pushed: {reason}
+server_run.github_no_people = GitHub does not return any people: {error}

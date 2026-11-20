@@ -99,6 +99,29 @@ Without a chosen project a sprint view other than "Aktueller Sprint" asks for th
 projects if there are none); an own `jql` is only replaced when a project is chosen. The sprint view is saved with the
 other filters (action `SetInboxFilter`); after a change the server syncs immediately.
 
+## Tickets from GitHub Projects
+
+With `[github_projects]` set up (see [setup-guide.md](setup-guide.md#github-projects-tickets-without-jira)) the project
+items appear as tickets with the badge "GitHub Projects":
+
+- **Key.** `acme/app#123`; a draft issue (it lives only in the project and has no number) is `acme/3#draft-1a2b3c`. In
+  texts of that repo the short form `#123` is understood, and pull requests are linked to the ticket by `#123`,
+  `owner/repo#123` or `Fixes #123` in branch, title or body, or by GitHub's own connection (the "Entwicklung" section lists
+  them with their checks).
+- **Status.** The columns of the project's status field map onto Offen / In Arbeit / Review / Fertig by their names ("In
+  Progress", "In Review", "Done" …; a column Cockpit cannot place takes its position in the row). A closed issue
+  without a status column is "Fertig".
+- **Lists and filters.** "Alle / Ich / Team": a ticket is yours if you are one of its assignees. The source filter has an
+  entry "GitHub Projects". The sprint view "Aktueller Sprint" uses the iteration field; a ticket without an iteration
+  stays visible. "Mein Team" uses the project field `Team`. Repo and label filters work on the issue's repo and labels.
+- **Detail.** Body and comments are shown as Markdown; the detail lists assignees, milestone, project, issue type, parent,
+  sub-issues and every other project field (number, date, text, iteration, single select).
+- **Agent.** The repo of the issue is offered first when you start the agent; the pull request it opens carries
+  `Fixes #123`.
+
+Changing things at GitHub (status, assignees, labels, comments, close and reopen, editing, project fields, creating
+issues) follows the same rule as for Jira: only on your click.
+
 ## What a run leaves behind
 
 Containers are started with `--rm`, and the clone under `<data>/agent/runs/<run>` is deleted when a run ends (it only

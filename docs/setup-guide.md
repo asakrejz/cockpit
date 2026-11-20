@@ -127,6 +127,41 @@ pull request itself still loads and merging is not blocked by it. The denial is 
 runs, so later syncs do not ask again; a restart or another token (a change of the sign-in method) asks anew. Check logs,
 annotations and "Restart" show a plain message that this access cannot read checks. A GitHub App sign-in sees all of it.
 
+## GitHub Projects (tickets without Jira)
+
+Cockpit can read your tickets from the **Projects** tab of GitHub (Projects v2) instead of Jira or next to it. In the
+setup assistant the step "GitHub Projects" (after "GitHub") asks "Tickets from: Jira / GitHub Projects / Both"; with
+"GitHub Projects" alone the step "Jira" disappears. Then pick one or more projects from the list (your own, those of
+your organizations, those linked to the repos in use) or type `owner/number` (`acme/3` for
+`github.com/orgs/acme/projects/3`).
+
+The Projects API exists only in GraphQL, and it needs rights that pull requests do not:
+
+| Access | Read projects and their issues | Change projects (later: status, fields) | Issues |
+|--------|-------------------------------|------------------------------------------|--------|
+| classic personal access token | scope `read:project` | scope `project` | scope `repo` |
+| fine-grained personal access token | account or organization permission **Projects: Read-only** | **Projects: Read and write** | repository permission **Issues** (Read-only to read, Read and write to comment, assign, close) |
+| GitHub App (sign-in) | permission **Projects** (read) | **Projects** (write) | repository permission **Issues** |
+
+A fine-grained token can only be given the "Projects" permission for an organization or account when its *resource owner*
+is that organization or account (for an organization the owner may have to approve the token). A project that belongs to
+the account of a different person cannot be read with a token of yours.
+
+**How Cockpit finds out what is missing.** A classic token reports its scopes in the header `X-OAuth-Scopes`: the step
+lists what is missing before anything fails. GitHub never tells a fine-grained token or a GitHub App what it may do, so
+for those the first refusal (`FORBIDDEN`, "Resource not accessible …") names the right that the failed call needed – for
+example "Projects: Read-only" – in the step "GitHub Projects" and in the notice at the top of the app. Nothing is tested
+against GitHub with a write call to find out.
+
+**What is read.** For every chosen project: the fields (single select, iteration, number, date, text), and per item the
+issue (title, Markdown body, state, assignees, labels, milestone, author, comments) or the draft issue, plus the values of
+the project fields. The field `Status` (or the field named under "Field for the status") becomes the ticket status; a
+field named `Team` (or the one you name) feeds "Mein Team"; `Priority`, an iteration field (`Sprint`) and a date field
+named `Due date` fill priority, sprint and due date. Sub-issues, the parent and the issue type are read when the server has
+them. Pull requests that GitHub connects to an issue (timeline events *connected* and *cross-referenced*, closing
+references) are linked to the ticket; so are pull requests whose branch, title or body say `#123`, `owner/repo#123` or
+`Fixes #123`. Comments, timeline and sub-issues are fetched only for issues that are new or changed since the last sync.
+
 ## OAuth (alternative to tokens)
 
 Instead of a token you sign in in the browser. Tokens and client secret live only in the backend's `config/.env`, never in

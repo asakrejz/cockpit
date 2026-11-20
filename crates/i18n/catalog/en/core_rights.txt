@@ -1,0 +1,12 @@
+# Rights that GitHub Projects need, and how to get them (setup, sync notes, failed actions)
+core_right.missing = The GitHub access lacks a right: it cannot {what}. {fix}
+core_right.what_projects_read = read GitHub Projects
+core_right.what_projects_write = change GitHub Projects
+core_right.what_issues_read = read issues
+core_right.what_issues_write = change issues
+core_right.fix_classic = Add the scope `{scope}` to the classic token, or create a new token with it.
+core_right.fix_fine_projects = Give the fine-grained token the permission "Projects" of the organization or account (access: {level}).
+core_right.fix_fine_issues = Give the fine-grained token the repository permission "Issues" (access: {level}) for the repos in use.
+core_right.fix_app_projects = Give the GitHub App the permission "Projects" (access: {level}) and accept the new permission in the installation.
+core_right.fix_app_issues = Give the GitHub App the repository permission "Issues" (access: {level}) and accept the new permission in the installation.
+core_right.fix_unknown = Classic token: scope `{scope}`. Fine-grained token or GitHub App: permission "{permission}" (access: {level}).

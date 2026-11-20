@@ -97,7 +97,7 @@ pub struct Hub {
 
 pub(super) fn idx(source: Source) -> usize {
     match source {
-        Source::GitHub => 0,
+        Source::GitHub | Source::GitHubProject => 0,
         Source::Jira => 1,
     }
 }

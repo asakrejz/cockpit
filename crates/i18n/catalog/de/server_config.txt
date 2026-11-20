@@ -30,3 +30,6 @@ server_config.env_tracked = Die Datei {file} wird von Git verfolgt. Ein Commit w
 server_config.env_not_ignored = Die Datei {file} ist nicht durch .gitignore geschützt. Trage „{name}“ in die .gitignore ein, damit sie nie versehentlich committet wird.
 server_config.repos_pr_language = Repo {repo}: Die Sprache "{value}" für Pull Requests gibt es nicht. Nimm "en" oder "de".
 server_config.legacy_env = Die alte Schlüsseldatei {path} liegt noch da, Cockpit nutzt aber jetzt config/.env. Du kannst die alte Datei löschen.
+
+server_config.tickets_from_unknown = [github_projects] tickets_from „{value}“ ist unbekannt (erlaubt: jira, github_projects oder both)
+server_config.project_form = GitHub-Projekt „{project}“ ist nicht von der Form owner/nummer (z. B. acme/3)

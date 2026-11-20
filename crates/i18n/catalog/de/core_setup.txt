@@ -80,3 +80,7 @@ core_setup.repos_summary = {parts}
 core_setup.webhook_none = Noch nichts empfangen (seit dem Start von Cockpit).
 core_setup.webhook_event = Zuletzt empfangen {when} ({event}).
 core_setup.webhook_at = Zuletzt empfangen {when}.
+core_setup.name_projects = GitHub Projects
+core_setup.projects_need_github = Verbinde zuerst GitHub (Schritt „GitHub“).
+core_setup.projects_none = Noch kein Projekt gewählt.
+core_setup.projects_chosen = Tickets kommen aus: {projects}

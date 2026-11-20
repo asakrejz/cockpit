@@ -202,11 +202,27 @@ to follow the commit conventions in it.
 
 The pattern is enforced by the backend, see [security.md](security.md#the-agent).
 
+## GitHub Projects as the source of tickets
+
+```toml
+[github_projects]
+tickets_from = "github_projects"     # "jira", "github_projects" or "both" (default "both" when the section exists)
+projects = ["acme/3", "mkeller/1"]   # owner/number, as in the project's address
+status_field = "Status"              # optional: the single-select field that is the ticket status (default "Status")
+team_field = "Team"                  # optional: the field that holds the team (default "Team")
+```
+
+Without the section Jira is the only source of tickets, as before. With `tickets_from = "github_projects"` Jira is not
+asked at all (its settings stay in the file). The credential is the GitHub one (token or sign-in), see the
+[rights table](setup-guide.md#github-projects-tickets-without-jira). A project that GitHub does not show to the credential
+is a hint under "Einrichten" › Übersicht › Abgleich, and its old tickets stay until it can be read again.
+
 ## Seed data
 
 The server starts with an empty workspace. `COCKPIT_SEED=demo` (or `seed = "demo"`) loads sample data, **only if no state
 has been stored yet**; for a fresh seed use a new database (`COCKPIT_DB=/path/to/new.db`). Sample data otherwise serves as
-test data and for the Playground stories.
+test data and for the Playground stories. The demo seed contains a sample GitHub project (`acme/3`) with an issue
+(`acme/app#31`) and a draft issue.
 
 ## Credentials: the `.env` file
 

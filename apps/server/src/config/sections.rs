@@ -34,6 +34,17 @@ impl Default for GitHubConfig {
     }
 }
 
+/// `[github_projects]`: GitHub Projects as the source of tickets.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct GitHubProjectsConfig {
+    pub tickets_from: cockpit_core::TicketsFrom,
+    pub projects: Vec<cockpit_core::ProjectRef>,
+    /// The field that counts as the ticket status; `None` = `Status`.
+    pub status_field: Option<String>,
+    /// The field that holds the team; `None` = `Team`.
+    pub team_field: Option<String>,
+}
+
 /// The GitHub App for the sign-in. The client secret is in the .env file.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OAuthConfig {

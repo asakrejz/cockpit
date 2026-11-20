@@ -11,6 +11,8 @@ pub(super) fn detail(
 ) -> impl IntoView {
     let id = StoredValue::new(item.id.clone());
     let is_ticket = item.is_ticket();
+    // Tickets from GitHub Projects carry Markdown (body and comments), not Jira formatting.
+    let is_project = item.source == cockpit_core::Source::GitHubProject;
     let source = item.source.label();
     let review_href = item
         .pr
@@ -265,6 +267,7 @@ pub(super) fn detail(
                     text=c.text_msg.as_ref().map_or_else(|| c.text.clone(), |m| m.render(lang()))
                     rich=c.rich.clone().unwrap_or_default()
                     own=c.own
+                    markdown=is_project
                 />
             }
         })
@@ -345,6 +348,9 @@ pub(super) fn detail(
             <div hidden=move || edit.on.get() && is_ticket>
                 {match item.description_rich.clone() {
                     Some(doc) => view! { <RichText doc=doc /> }.into_any(),
+                    None if is_project => {
+                        view! { <Markdown text=item.description.clone() /> }.into_any()
+                    }
                     None => view! { <p class="t-body">{item.description.clone()}</p> }.into_any(),
                 }}
             </div>

@@ -430,6 +430,11 @@ impl Workspace {
             run.ticket_key,
             run.ticket_title
         ));
+        // A GitHub issue is closed by the merge: `Fixes` is GitHub's own keyword, so it stays English
+        // whatever language the text has.
+        if crate::project::parse_issue_key(&run.ticket_key).is_some() {
+            body.push_str(&format!("\nFixes {}\n", run.ticket_key));
+        }
         if !files.is_empty() {
             body.push_str(&format!(
                 "\n## {}\n{}\n",

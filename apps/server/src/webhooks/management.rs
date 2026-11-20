@@ -75,7 +75,7 @@ impl AppState {
         // The body differs every time so that the replay check does not swallow a second test.
         let nonce = format!("{}-{}", now_ms(), std::process::id());
         let (path, body, headers) = match source {
-            Source::GitHub => (
+            Source::GitHub | Source::GitHubProject => (
                 GITHUB_PATH,
                 format!(r#"{{"zen":"cockpit local test","nonce":"{nonce}"}}"#),
                 "X-GitHub-Event: ping\r\n",
@@ -88,7 +88,7 @@ impl AppState {
         };
         let signature = signature_header(secret.expose().as_bytes(), body.as_bytes());
         let signature_name = match source {
-            Source::GitHub => "X-Hub-Signature-256",
+            Source::GitHub | Source::GitHubProject => "X-Hub-Signature-256",
             Source::Jira => "X-Hub-Signature",
         };
         let port = self.inner.port;

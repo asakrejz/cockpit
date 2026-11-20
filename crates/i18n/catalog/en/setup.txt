@@ -2,6 +2,7 @@
 setup.step_container = Container
 setup.step_jira = Jira
 setup.step_github = GitHub
+setup.step_projects = GitHub Projects
 setup.step_model = Model
 setup.step_live = Live
 setup.step_done = Done

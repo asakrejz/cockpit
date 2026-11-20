@@ -16,14 +16,28 @@ const DEBOUNCE: Duration = Duration::from_millis(250);
 const ME: &str = "me";
 const NOBODY: &str = "unassigned";
 
+/// Whom to ask for suggestions.
+#[derive(Clone)]
+enum Ask {
+    Jira(String),
+    GitHub(String),
+}
+
 /// The person picker for one ticket (`item` is the id, `key` e.g. `BAU-142`).
 #[component]
 pub(super) fn AssigneeField(store: Store, item: String, key: String) -> impl IntoView {
+    // Where the suggestions come from: the Jira project of the key, or for an issue of a GitHub
+    // project the people the issue's repo lets you assign.
+    let github_repo = store.ws.with_untracked(|w| {
+        w.item(&item)
+            .filter(|i| i.source == cockpit_core::Source::GitHubProject)
+            .and_then(|i| i.repo.clone())
+    });
     let project = key
         .split('-')
         .next()
         .map(str::to_string)
-        .filter(|p| is_project_key(p));
+        .filter(|p| is_project_key(p) && github_repo.is_none());
     let id = StoredValue::new(item);
     let query = RwSignal::new(String::new());
     let remote = RwSignal::new(Vec::<Person>::new());
@@ -38,8 +52,10 @@ pub(super) fn AssigneeField(store: Store, item: String, key: String) -> impl Int
         generation.set_value(n);
         remote.set(Vec::new());
         busy.set(false);
-        let Some(project) = project.clone() else {
-            return;
+        let ask = match (&github_repo, &project) {
+            (Some(repo), _) => Ask::GitHub(repo.clone()),
+            (None, Some(project)) => Ask::Jira(project.clone()),
+            (None, None) => return,
         };
         if text.chars().count() < people_search::MIN_QUERY_CHARS {
             return;
@@ -51,7 +67,10 @@ pub(super) fn AssigneeField(store: Store, item: String, key: String) -> impl Int
                 }
                 busy.set(true);
                 spawn_local(async move {
-                    let answer = server::fetch_jira_assignable(&project, &text).await;
+                    let answer = match &ask {
+                        Ask::Jira(project) => server::fetch_jira_assignable(project, &text).await,
+                        Ask::GitHub(repo) => server::fetch_github_assignable(repo, &text).await,
+                    };
                     if generation.get_value() != n {
                         return;
                     }

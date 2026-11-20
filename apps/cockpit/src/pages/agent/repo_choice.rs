@@ -18,6 +18,7 @@ fn reason_text(reason: &SuggestReason) -> String {
         SuggestReason::PreviousRun { project, .. } => {
             t!(AgentJobReasonPreviousRun, project = project.clone())
         }
+        SuggestReason::Issue => t!(AgentJobReasonIssue),
         SuggestReason::LinkedPr => t!(AgentJobReasonLinkedPr),
         SuggestReason::Mentioned => t!(AgentJobReasonMentioned),
         SuggestReason::Rule { project } => t!(AgentJobReasonRule, project = project.clone()),

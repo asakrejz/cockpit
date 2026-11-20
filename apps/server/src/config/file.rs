@@ -12,6 +12,7 @@ pub(super) struct File {
     pub(super) interval_s: Option<u64>,
     pub(super) github: Option<FileGitHub>,
     pub(super) jira: Option<FileJira>,
+    pub(super) github_projects: Option<FileGitHubProjects>,
     pub(super) github_oauth: Option<FileOAuth>,
     pub(super) atlassian: Option<FileAtlassian>,
     pub(super) seed: Option<String>,
@@ -19,6 +20,21 @@ pub(super) struct File {
     pub(super) agent: Option<FileAgent>,
     pub(super) server: Option<FileServer>,
     pub(super) sync: Option<FileSync>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(super) struct FileGitHubProjects {
+    /// `jira`, `github_projects` or `both`; missing = `both` (the section exists).
+    #[serde(default)]
+    pub(super) tickets_from: Option<String>,
+    /// `owner/number`
+    #[serde(default)]
+    pub(super) projects: Vec<String>,
+    #[serde(default)]
+    pub(super) status_field: Option<String>,
+    #[serde(default)]
+    pub(super) team_field: Option<String>,
 }
 
 #[derive(Deserialize)]

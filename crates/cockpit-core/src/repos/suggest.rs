@@ -3,6 +3,7 @@
 //! The picker lists every repo the credential can see; this module only decides which of them
 //! come first and why. The order of the reasons is fixed:
 //!
+//! 0. the repo of a GitHub issue ticket (the issue lives there, so the work does too),
 //! 1. repos earlier runs used for tickets of the same Jira project (remembered from the runs in
 //!    the database, no configuration),
 //! 2. repos of pull requests or branches already linked to the ticket,
@@ -21,6 +22,8 @@ use crate::model::repo_name_valid;
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SuggestReason {
+    /// The ticket is an issue of this repo (GitHub Projects).
+    Issue,
     /// A run for a ticket of the same Jira project worked in it (`runs` times).
     PreviousRun { project: String, runs: usize },
     /// A pull request or branch of the ticket lives in it.
@@ -43,6 +46,8 @@ pub struct RepoSuggestion {
 /// Everything the ranking looks at.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SuggestInput<'a> {
+    /// The repo of a GitHub issue ticket (`acme/app` for `acme/app#12`).
+    pub issue_repo: Option<&'a str>,
     /// Jira project of the ticket (`WEB`).
     pub project: Option<&'a str>,
     /// Earlier runs as `(Jira project, repo)`, oldest first.
@@ -83,6 +88,11 @@ pub fn suggest_repos(input: &SuggestInput) -> Vec<RepoSuggestion> {
             });
         }
     };
+
+    // 0. A GitHub issue belongs to its own repo.
+    if let Some(repo) = input.issue_repo {
+        add(repo, SuggestReason::Issue);
+    }
 
     // 1. Earlier runs for the same project: most used first, ties by the latest use.
     if let Some(project) = input.project {
