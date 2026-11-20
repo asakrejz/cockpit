@@ -1,7 +1,7 @@
 # Image of the Cockpit agent. Builds the same with Docker and Podman:
 #   docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:local apps/agent
 #   podman build -f apps/agent/Containerfile -t localhost/cockpit-agent:local apps/agent
-# (the backend does that via "Image bauen" in the setup assistant and adds the label
+# (the backend does that via "Build image" in the setup assistant and adds the label
 # `cockpit.fingerprint`, by which it recognises an outdated image; no tag to raise).
 # Everything copied below (runner/package*.json, runner/src, clis/package*.json) and this file
 # go into that fingerprint.

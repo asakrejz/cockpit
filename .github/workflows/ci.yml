@@ -46,7 +46,7 @@ jobs:
         working-directory: apps/cockpit
 
   # The runner of the agent (Node/TypeScript). The tests need neither network nor the real SDK.
-  laeufer:
+  runner-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
