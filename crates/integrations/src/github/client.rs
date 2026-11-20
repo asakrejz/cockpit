@@ -450,7 +450,10 @@ impl GitHubClient {
             .await
     }
 
-    async fn pages<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<Vec<T>, Error> {
+    pub(super) async fn pages<T: serde::de::DeserializeOwned>(
+        &self,
+        path: &str,
+    ) -> Result<Vec<T>, Error> {
         let mut all = Vec::new();
         for page in 1..=MAX_PAGES {
             let part: Vec<T> = self

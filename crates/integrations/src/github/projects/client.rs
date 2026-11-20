@@ -229,6 +229,26 @@ impl GitHubClient {
         Ok((login, self.access()))
     }
 
+    /// People who can be assigned to issues of `repo` (`GET /repos/{repo}/assignees`) whose login
+    /// contains `query` (case-insensitive), at most 30. Read only.
+    pub async fn assignees(&self, repo: &str, query: &str) -> Result<Vec<String>, Error> {
+        if !cockpit_core::project::repo_valid(repo) {
+            return Err(Error::Config(format!("not a repo: {repo}")));
+        }
+        #[derive(serde::Deserialize)]
+        struct Login {
+            login: String,
+        }
+        let people: Vec<Login> = self.pages(&format!("/repos/{repo}/assignees")).await?;
+        let q = query.trim().to_lowercase();
+        Ok(people
+            .into_iter()
+            .map(|p| p.login)
+            .filter(|l| q.is_empty() || l.to_lowercase().contains(&q))
+            .take(30)
+            .collect())
+    }
+
     // ---------- Reading ----------
 
     /// The projects the credential can see: its own, those of its organizations, and those

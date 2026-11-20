@@ -582,3 +582,42 @@ fn bind_and_public_port_only_out_the_env() {
     assert!(Config::parse(None, bad).is_err());
     assert!(Config::parse(Some("bind = \"0.0.0.0\""), no_env).is_err());
 }
+
+#[test]
+fn github_projects_are_read_with_defaults_and_validated() {
+    use cockpit_core::{ProjectRef, TicketsFrom};
+    // No section: Jira only.
+    assert!(
+        Config::parse(None, no_env)
+            .unwrap()
+            .github_projects
+            .is_none()
+    );
+    // A section without `tickets_from` means both.
+    let c = Config::parse(
+        Some("[github_projects]\nprojects = [\"acme/3\", \"acme/3\", \"mkeller/1\"]\nstatus_field = \" Stage \"\n"),
+        no_env,
+    )
+    .unwrap();
+    let p = c.github_projects.unwrap();
+    assert_eq!(p.tickets_from, TicketsFrom::Both);
+    assert_eq!(
+        p.projects,
+        [ProjectRef::new("acme", 3), ProjectRef::new("mkeller", 1)]
+    );
+    assert_eq!(p.status_field.as_deref(), Some("Stage"));
+    assert_eq!(p.team_field, None);
+    let c = Config::parse(
+        Some("[github_projects]\ntickets_from = \"github_projects\"\n"),
+        no_env,
+    )
+    .unwrap();
+    assert_eq!(
+        c.github_projects.unwrap().tickets_from,
+        TicketsFrom::GitHubProjects
+    );
+    // Mistakes are named.
+    assert!(Config::parse(Some("[github_projects]\ntickets_from = \"jra\"\n"), no_env).is_err());
+    assert!(Config::parse(Some("[github_projects]\nprojects = [\"acme\"]\n"), no_env).is_err());
+    assert!(Config::parse(Some("[github_projects]\nunknown_key = 1\n"), no_env).is_err());
+}

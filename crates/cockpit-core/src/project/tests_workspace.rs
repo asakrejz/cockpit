@@ -229,3 +229,52 @@ fn old_saves_without_project_fields_still_load() {
     );
     let _ = (ProjectItem::default(), PrKey::new("a/b", 1));
 }
+
+#[test]
+fn an_issue_branch_uses_the_number_not_the_key_with_slashes() {
+    use crate::branch::{BranchType, matches, render};
+    let branch = render(
+        "claude/{ticket}-{slug}",
+        "acme/app#31",
+        "Fokusring sichtbar",
+        BranchType::Fix,
+    );
+    assert_eq!(branch, "claude/gh-31-fokusring-sichtbar");
+    assert!(matches("claude/{ticket}-{slug}", &branch));
+    // A Jira key stays as it was.
+    assert_eq!(
+        render("claude/{ticket}-{slug}", "BAU-142", "x", BranchType::Fix),
+        "claude/BAU-142-x"
+    );
+}
+
+#[test]
+fn the_pull_request_text_of_an_issue_closes_it() {
+    use crate::{AgentRun, Workspace};
+    let mut w = Workspace::default();
+    let mut run = AgentRun::new("acme/app#31", "Fokusring");
+    run.repo = "acme/app".into();
+    run.summary = "Ring added".into();
+    w.runs.push(run);
+    let draft = w.pull_request_draft("acme/app#31", "acme/app").unwrap();
+    assert!(
+        draft.body.contains("\nFixes acme/app#31\n"),
+        "{}",
+        draft.body
+    );
+    // The text the draft carries links back to the issue by its key.
+    assert!(
+        crate::project::issue_refs(&draft.body, "acme/app")
+            .iter()
+            .any(|r| r.closing && r.key() == "acme/app#31")
+    );
+    // A Jira ticket gets no such line.
+    let mut j = Workspace::default();
+    j.runs.push(AgentRun::new("BAU-142", "x"));
+    assert!(
+        !j.pull_request_draft("BAU-142", "")
+            .unwrap()
+            .body
+            .contains("Fixes")
+    );
+}

@@ -306,6 +306,49 @@ impl AppState {
         })
     }
 
+    /// People GitHub lets you assign issues of `repo` to, whose login matches `query`. Read only.
+    /// Without GitHub or key: `active: false`.
+    pub async fn github_assignable(
+        &self,
+        repo: &str,
+        query: &str,
+    ) -> Result<JiraAssignableResponse, ActionFailure> {
+        self.oauth_refresh().await;
+        let s = self.clone();
+        let credentials = tokio::task::spawn_blocking(move || s.github_credentials())
+            .await
+            .map_err(|_| ActionFailure::Intern)?;
+        let Some((token, app)) = credentials else {
+            return Ok(JiraAssignableResponse::default());
+        };
+        let client = GitHubClient::new(&self.sources().github_config().api_url, token)
+            .map_err(|e| {
+                ActionFailure::Plan(msg!(ServerRunJiraError, error = Msg::raw(e.to_string())))
+            })?
+            .with_app(app);
+        let me = client.me().await.unwrap_or_default();
+        let logins = client.assignees(repo, query).await.map_err(|e| {
+            tracing::warn!("GitHub assignees: {e}");
+            ActionFailure::Service(msg!(
+                ServerRunGithubNoPeople,
+                error = Msg::raw(e.to_string())
+            ))
+        })?;
+        Ok(JiraAssignableResponse {
+            active: true,
+            people: logins
+                .into_iter()
+                .map(|l| {
+                    if !me.is_empty() && l.eq_ignore_ascii_case(&me) {
+                        cockpit_core::Person::me()
+                    } else {
+                        cockpit_core::Person::new(&l, &cockpit_integrations::text::initials(&l))
+                    }
+                })
+                .collect(),
+        })
+    }
+
     async fn services(&self) -> Services {
         // First refresh (network), then build (.env file).
         self.oauth_refresh().await;

@@ -177,6 +177,19 @@ pub(super) async fn jira_assignable(
     }
 }
 
+/// `GET /api/github/assignable?repo=…&query=…`: people the issues of the repo can be assigned to
+/// (read only).
+pub(super) async fn github_assignable(
+    State(state): State<AppState>,
+    axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Response {
+    let get = |k: &str| q.get(k).map(String::as_str).unwrap_or_default();
+    match state.github_assignable(get("repo"), get("query")).await {
+        Ok(answer) => Json(answer).into_response(),
+        Err(e) => action_error(e),
+    }
+}
+
 pub(super) fn action_error(e: ActionFailure) -> Response {
     match e {
         // All rejections by the rules are 422 – without listing individual errors.

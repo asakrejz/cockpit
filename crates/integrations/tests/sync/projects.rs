@@ -627,3 +627,23 @@ async fn nothing_is_sent_to_the_project_source_when_it_is_paused() {
     assert!(remote.sources.is_empty());
     assert!(s.received_requests().await.unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn the_assignees_of_a_repo_are_searched_by_login() {
+    let s = MockServer::start().await;
+    get(
+        &s,
+        "/repos/acme/app/assignees",
+        ok(r#"[{"login":"mkeller"},{"login":"tobias-lang"},{"login":"Mira-T"}]"#),
+    )
+    .await;
+    let c = client(&s, "ghp_x");
+    assert_eq!(c.assignees("acme/app", "mi").await.unwrap(), ["Mira-T"]);
+    assert_eq!(c.assignees("acme/app", "").await.unwrap().len(), 3);
+    assert_eq!(
+        c.assignees("acme/app", " LANG ").await.unwrap(),
+        ["tobias-lang"]
+    );
+    // Nothing is sent for something that is no repo.
+    assert!(c.assignees("../etc", "x").await.is_err());
+}

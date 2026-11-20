@@ -607,3 +607,49 @@ fn change_writes_the_chosen_sign_in_method_and_reads_it_back() {
 fn an_unknown_sign_in_method_in_the_file_is_an_error() {
     assert!(Config::parse(Some("[github]\nauth = \"magic\"\n"), |_| None).is_err());
 }
+
+#[test]
+fn github_projects_are_written_in_place_and_checked() {
+    use cockpit_core::TicketsFrom;
+    use cockpit_core::api::GitHubProjectsInput;
+    let input = |from: Option<TicketsFrom>, projects: Option<&[&str]>| ConfigChange {
+        github_projects: Some(GitHubProjectsInput {
+            tickets_from: from,
+            projects: projects.map(|p| p.iter().map(|s| (*s).to_string()).collect()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    let (text, config) = change(
+        WITH_COMMENTS,
+        &input(
+            Some(TicketsFrom::GitHubProjects),
+            Some(&["acme/3", " mkeller/1 "]),
+        ),
+    )
+    .unwrap();
+    assert!(
+        text.contains("# Diese Repos gleicht Cockpit ab"),
+        "other comments stay"
+    );
+    assert!(
+        text.contains("[github_projects]") && text.contains("tickets_from = \"github_projects\"")
+    );
+    let p = config.github_projects.unwrap();
+    assert_eq!(p.tickets_from, TicketsFrom::GitHubProjects);
+    assert_eq!(p.projects.len(), 2);
+    // Only the choice changes: the projects stay.
+    let (text2, config2) = change(&text, &input(Some(TicketsFrom::Both), None)).unwrap();
+    assert_eq!(config2.github_projects.unwrap().projects.len(), 2);
+    assert!(text2.contains("tickets_from = \"both\""));
+    // An empty field name removes the choice; a malformed project is refused and nothing is written.
+    let cleared = ConfigChange {
+        github_projects: Some(GitHubProjectsInput {
+            team_field: Some("  ".into()),
+            ..Default::default()
+        }),
+        ..Default::default()
+    };
+    assert!(change(&text2, &cleared).is_ok());
+    assert!(change(WITH_COMMENTS, &input(None, Some(&["not a project"]))).is_err());
+}
