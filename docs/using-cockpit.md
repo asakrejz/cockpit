@@ -119,8 +119,14 @@ items appear as tickets with the badge "GitHub Projects":
 - **Agent.** The repo of the issue is offered first when you start the agent; the pull request it opens carries
   `Fixes #123`.
 
-Changing things at GitHub (status, assignees, labels, comments, close and reopen, editing, project fields, creating
-issues) follows the same rule as for Jira: only on your click.
+**Changing things.** Only on your click, and GitHub is asked first (if it says no, nothing changes in Cockpit and the
+message names the missing right): the status buttons move the item to the matching column of the project; "Zugewiesen an"
+assigns or unassigns (the search lists the people the repo lets you assign); labels are added and removed in the section of
+the project; "Issue schließen" / "Issue wieder öffnen"; "Bearbeiten" changes title and text (also of a draft); the comment
+box posts a comment; priority and every other project field have their own control (empty clears the field); a draft shows
+"In Issue umwandeln" with the repo to create it in; and "Neues Issue" next to the filters creates an issue in a project
+(optionally in a column) and adds it to the project. "Status folgt dem Pull Request" works as for Jira: it brings the status
+of a linked ticket in line on your screen when the pull request moves; it does not write to GitHub by itself.
 
 ## What a run leaves behind
 

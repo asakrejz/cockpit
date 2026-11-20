@@ -199,6 +199,56 @@ pub(super) fn items() -> [Item; 7] {
     [bau142, pr87, bau138, pr85, bau150, doc7, pr12]
 }
 
+/// The fields of the sample GitHub project, as a sync would leave them.
+pub fn project_meta() -> crate::project::ProjectMeta {
+    use crate::project::{FieldDef, SelectOption};
+    let options = |names: &[(&str, &str)]| -> Vec<SelectOption> {
+        names
+            .iter()
+            .map(|(id, name)| SelectOption {
+                id: (*id).into(),
+                name: (*name).into(),
+            })
+            .collect()
+    };
+    let field = |id: &str, name: &str, kind, options| FieldDef {
+        id: id.into(),
+        name: name.into(),
+        kind,
+        options,
+    };
+    crate::project::ProjectMeta {
+        id: "PVT_demo".into(),
+        owner: "acme".into(),
+        number: 3,
+        title: "App roadmap".into(),
+        url: "https://github.com/orgs/acme/projects/3".into(),
+        fields: vec![
+            field(
+                "PVTSSF_status",
+                "Status",
+                FieldKind::SingleSelect,
+                options(&[
+                    ("s_todo", "Todo"),
+                    ("s_prog", "In Progress"),
+                    ("s_rev", "In Review"),
+                    ("s_done", "Done"),
+                ]),
+            ),
+            field(
+                "PVTSSF_team",
+                "Team",
+                FieldKind::SingleSelect,
+                options(&[("t_core", "Core"), ("t_web", "Web")]),
+            ),
+            field("PVTF_est", "Estimate", FieldKind::Number, vec![]),
+            field("PVTF_due", "Due date", FieldKind::Date, vec![]),
+            field("PVTF_notes", "Notes", FieldKind::Text, vec![]),
+        ],
+        status_field: None,
+    }
+}
+
 /// The name of the sample GitHub project.
 pub const DEMO_PROJECT: &str = "acme/3";
 
@@ -211,11 +261,7 @@ pub fn project_tickets() -> (Item, Item) {
         project: DEMO_PROJECT.into(),
         project_title: "App roadmap".into(),
         item_id: item_id.into(),
-        content_id: if draft {
-            String::new()
-        } else {
-            "I_demo_31".into()
-        },
+        content_id: if draft { "DI_demo_1" } else { "I_demo_31" }.into(),
         draft,
         number,
         status_option: Some(if draft { "s_todo" } else { "s_rev" }.into()),

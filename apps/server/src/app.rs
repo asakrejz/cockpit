@@ -101,6 +101,10 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
         .route("/api/github/access", get(crate::setup::github_access_route))
         .route("/api/github/projects", get(crate::setup::projects_list))
         .route(
+            "/api/github/projects/create",
+            post(crate::setup::projects_create),
+        )
+        .route(
             "/api/github/branch-suggestion",
             post(crate::setup::branch_suggestion_route),
         )

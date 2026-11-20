@@ -27,6 +27,8 @@ pub(super) fn github_failure(e: &Error) -> (StatusCode, Msg) {
             StatusCode::FORBIDDEN,
             github_cause_msg(GitHubCause::Permission, None),
         ),
+        // The exact right that is missing, in plain words.
+        Error::MissingRight { .. } => (StatusCode::FORBIDDEN, e.msg()),
         Error::NotFound => (StatusCode::NOT_FOUND, msg!(ServerSetupGithubUnknownAddress)),
         Error::RateLimit { .. } => (
             StatusCode::TOO_MANY_REQUESTS,
@@ -380,6 +382,88 @@ impl AppState {
 pub async fn projects_list(State(state): State<AppState>) -> Response {
     match state.github_projects_list().await {
         Ok(list) => Json(list).into_response(),
+        Err((status, m)) => error_msg(status, m),
+    }
+}
+
+impl AppState {
+    /// Creates a GitHub project for `owner`, links it to `repo` and makes sure it has the status
+    /// field with Todo, In Progress, In Review and Done. Only for the click "Projekt anlegen";
+    /// adds things at GitHub and never deletes anything.
+    pub async fn github_project_create(
+        &self,
+        req: cockpit_core::api::CreateProjectRequest,
+    ) -> Result<cockpit_core::api::CreateProjectResponse, (StatusCode, Msg)> {
+        let owner = req.owner.trim().to_string();
+        let title = req.title.trim().to_string();
+        let owner_ok = !owner.is_empty()
+            && owner
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
+        if !owner_ok
+            || title.is_empty()
+            || title.chars().count() > 100
+            || title.chars().any(char::is_control)
+        {
+            return Err((
+                StatusCode::UNPROCESSABLE_ENTITY,
+                msg!(ServerSetupProjectInput),
+            ));
+        }
+        let repo = req
+            .repo
+            .map(|r| r.trim().to_string())
+            .filter(|r| !r.is_empty());
+        if repo
+            .as_deref()
+            .is_some_and(|r| !cockpit_core::project::repo_valid(r))
+        {
+            return Err((
+                StatusCode::UNPROCESSABLE_ENTITY,
+                msg!(ServerSetupProjectInput),
+            ));
+        }
+        self.oauth_refresh().await;
+        let s = self.clone();
+        let access = tokio::task::spawn_blocking(move || s.github_assistant_access())
+            .await
+            .map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    msg!(ServerSetupInternalError),
+                )
+            })?
+            .map_err(|e| github_failure(&e))?;
+        let Some(Access { client, app }) = access else {
+            return Err((
+                StatusCode::UNPROCESSABLE_ENTITY,
+                github_cause_msg(GitHubCause::NotConnected, None),
+            ));
+        };
+        let client = client.with_app(app);
+        let project = client
+            .create_project(&owner, &title, repo.as_deref())
+            .await
+            .map_err(|e| {
+                tracing::warn!("GitHub project not created: {e}");
+                github_failure(&e)
+            })?;
+        tracing::info!(
+            "GitHub project {}/{} created",
+            project.owner,
+            project.number
+        );
+        Ok(cockpit_core::api::CreateProjectResponse { project })
+    }
+}
+
+/// `POST /api/github/projects/create`: creates a project (see [`AppState::github_project_create`]).
+pub async fn projects_create(
+    State(state): State<AppState>,
+    Json(req): Json<cockpit_core::api::CreateProjectRequest>,
+) -> Response {
+    match state.github_project_create(req).await {
+        Ok(a) => Json(a).into_response(),
         Err((status, m)) => error_msg(status, m),
     }
 }

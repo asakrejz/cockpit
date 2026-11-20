@@ -78,6 +78,17 @@ impl Services {
             a,
             Outbound::JiraComment { .. } | Outbound::JiraStatus { .. }
         );
+        // Changes at GitHub Projects go through the client of the project source.
+        if matches!(
+            a,
+            Outbound::ProjectField { .. } | Outbound::DraftEdit { .. } | Outbound::Issue { .. }
+        ) {
+            return match (&self.projects, &self.github) {
+                (Some(p), _) => p.client.execute(a).await,
+                (None, Some(g)) => g.client.execute(a).await,
+                (None, None) => Err(Error::Coded(msg!(IntegrationsPlanProjectsOff))),
+            };
+        }
         if jira {
             match &self.jira {
                 Some(j) => j.client.execute(a).await,

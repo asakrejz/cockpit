@@ -159,7 +159,9 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                         }
                         aria_label=t!(InboxTabsLabel)
                     />
-                    <div class="ck-filters">{filter_button(store, filter_open)}</div>
+                    <div class="ck-filters">
+                        {filter_button(store, filter_open)} <project::NewIssue store=store />
+                    </div>
                     {filter_chips(store)}
                     <div class="ck-search">
                         <SearchBox value=query placeholder=t!(InboxSearch) />
@@ -414,6 +416,7 @@ mod filters;
 mod keyboard;
 pub mod labels;
 pub mod picker;
+mod project;
 mod row;
 
 use controls::is_narrowed;

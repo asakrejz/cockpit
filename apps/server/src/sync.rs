@@ -349,7 +349,7 @@ impl AppState {
         })
     }
 
-    async fn services(&self) -> Services {
+    pub(crate) async fn services(&self) -> Services {
         // First refresh (network), then build (.env file).
         self.oauth_refresh().await;
         let s = self.clone();
@@ -396,6 +396,13 @@ impl AppState {
         if matches!(action, Action::CreatePullRequest { .. }) {
             return self.pull_request_create(action).await;
         }
+        // So do a new issue in a project and the conversion of a draft (several calls at GitHub).
+        if matches!(
+            action,
+            Action::CreateIssue { .. } | Action::ConvertDraft { .. }
+        ) {
+            return self.project_issue_flow(action).await;
+        }
         // A follow-up job only starts if GitHub has something for it to do.
         if self.agent_real() {
             self.followup_precheck(&action).await?;
@@ -421,7 +428,7 @@ impl AppState {
                         ActionFailure::Service(msg!(
                             ServerRunServiceFailed,
                             service = call.service().to_string(),
-                            error = Msg::raw(e.to_string())
+                            error = e.msg()
                         ))
                     })?;
                     inner

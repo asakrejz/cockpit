@@ -16,12 +16,14 @@ mod client;
 mod dto;
 mod map;
 pub mod queries;
+mod write;
 
 pub use client::{ItemsPage, MAX_ITEMS, ProjectList, Rate};
 pub use dto::{DetailNode, ItemNode};
 pub use map::{
     Heavy, MapCtx, apply_details, apply_heavy, heavy_of, iteration_state, map_item, priority_of,
 };
+pub use write::{Assignee, IssueWrite, default_status_options, field_value_json, path_segment};
 
 use cockpit_core::TokenKind;
 

@@ -1,7 +1,7 @@
 # Cockpit
 
-Cockpit is a local dashboard that brings Jira, GitHub and a coding agent together in one place: an inbox of tickets and
-pull requests, a review page with a diff, and an agent that implements a ticket in a container. It runs on your own
+Cockpit is a local dashboard that brings Jira (or the Projects tab of GitHub), GitHub and a coding agent together in one
+place: an inbox of tickets and pull requests, a review page with a diff, and an agent that implements a ticket in a container. It runs on your own
 computer, for one person.
 
 ## Prerequisites

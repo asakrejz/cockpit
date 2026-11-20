@@ -79,8 +79,8 @@ pub use notify::{
 };
 pub use permissions::{Access, Right, TokenKind};
 pub use project::{
-    FieldDef, FieldKind, FieldValue, IssueLink, IssueRef, ProjectItem, ProjectMeta, ProjectOrigin,
-    ProjectRef, ProjectSummary, SelectOption, TicketsFrom,
+    CreatedIssue, FieldDef, FieldInput, FieldKind, FieldValue, IssueLink, IssueRef, ProjectItem,
+    ProjectMeta, ProjectOrigin, ProjectRef, ProjectSummary, SelectOption, TicketsFrom,
 };
 pub use repos::{AgentRepo, AgentRepos, RepoChoice};
 pub use review::{

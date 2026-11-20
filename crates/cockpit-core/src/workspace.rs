@@ -179,7 +179,7 @@ impl Workspace {
         })
     }
 
-    fn item_mut(&mut self, id: &str) -> Option<&mut Item> {
+    pub(crate) fn item_mut(&mut self, id: &str) -> Option<&mut Item> {
         self.items.iter_mut().find(|i| i.id == id)
     }
 

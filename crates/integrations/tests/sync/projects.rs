@@ -10,15 +10,15 @@ use wiremock::matchers::{body_string_contains, method, path};
 
 use super::*;
 
-fn proj(owner: &str, n: u32) -> ProjectRef {
+pub(super) fn proj(owner: &str, n: u32) -> ProjectRef {
     ProjectRef::new(owner, n)
 }
 
-fn client(s: &MockServer, token: &str) -> GitHubClient {
+pub(super) fn client(s: &MockServer, token: &str) -> GitHubClient {
     GitHubClient::new(&s.uri(), Secret::new(token)).unwrap()
 }
 
-fn svc(s: &MockServer) -> Services {
+pub(super) fn svc(s: &MockServer) -> Services {
     Services {
         projects: Some(ProjectsService {
             client: client(s, "ghp_x"),
@@ -31,7 +31,7 @@ fn svc(s: &MockServer) -> Services {
 }
 
 /// A POST to `/graphql` whose body contains `needle` answers `text`.
-async fn gql(s: &MockServer, needle: &str, text: &str) {
+pub(super) async fn gql(s: &MockServer, needle: &str, text: &str) {
     Mock::given(method("POST"))
         .and(path("/graphql"))
         .and(body_string_contains(needle))
@@ -52,7 +52,7 @@ async fn gql_page(s: &MockServer, cursor: Option<&str>, text: &str) {
     m.respond_with(ok(text)).mount(s).await;
 }
 
-async fn project_server() -> MockServer {
+pub(super) async fn project_server() -> MockServer {
     let s = MockServer::start().await;
     get(&s, "/user", ok(fixture!("github_user.json"))).await;
     gql(&s, "repositoryOwner", fixture!("gh_project_meta.json")).await;
@@ -62,7 +62,7 @@ async fn project_server() -> MockServer {
     s
 }
 
-async fn count_calls(s: &MockServer, needle: &str) -> usize {
+pub(super) async fn count_calls(s: &MockServer, needle: &str) -> usize {
     s.received_requests()
         .await
         .unwrap()
@@ -248,7 +248,7 @@ async fn a_draft_is_a_ticket_without_an_issue_number() {
         .find(|i| i.title == "Think about dark mode")
         .unwrap();
     let p = draft.project.as_ref().unwrap();
-    assert!(p.draft && p.number.is_none() && p.content_id.is_empty());
+    assert!(p.draft && p.number.is_none() && p.content_id == "DI_1");
     assert!(draft.key.starts_with("acme/3#draft-"), "{}", draft.key);
     assert_eq!(draft.repo, None);
     assert_eq!(draft.status, TicketStatus::Open);

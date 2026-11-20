@@ -107,6 +107,48 @@ pub enum Action {
     SetInboxFilter {
         filter: crate::InboxFilter,
     },
+    // GitHub Projects (tickets that are issues or drafts of a project)
+    /// Adds a label to the issue (`on`) or removes it.
+    SetLabel {
+        item: String,
+        label: String,
+        on: bool,
+    },
+    /// Closes the issue or opens it again.
+    SetIssueClosed {
+        item: String,
+        closed: bool,
+    },
+    /// Sets a field of the project (`value`), or clears it (`None`). The status has its own
+    /// action ([`Action::SetStatus`]).
+    SetProjectField {
+        item: String,
+        field_id: String,
+        #[serde(default)]
+        value: Option<crate::FieldInput>,
+    },
+    /// Creates an issue in `repo` and adds it to the project `project` (its node ID), with a status
+    /// if given. `created` is filled in by the backend after GitHub has answered; a value sent by
+    /// the browser is dropped.
+    CreateIssue {
+        project: String,
+        repo: String,
+        title: String,
+        #[serde(default)]
+        body: String,
+        #[serde(default)]
+        status: Option<TicketStatus>,
+        #[serde(default)]
+        created: Option<crate::CreatedIssue>,
+    },
+    /// Turns a draft issue of the project into an issue of `repo`. `created` is filled in by the
+    /// backend, as for [`Action::CreateIssue`].
+    ConvertDraft {
+        item: String,
+        repo: String,
+        #[serde(default)]
+        created: Option<crate::CreatedIssue>,
+    },
     // Review
     Decide {
         review: PrKey,
@@ -324,7 +366,12 @@ impl Action {
     pub fn user_only(&self) -> bool {
         matches!(
             self,
-            Action::AddressReviewThreads { .. }
+            Action::SetLabel { .. }
+                | Action::SetIssueClosed { .. }
+                | Action::SetProjectField { .. }
+                | Action::CreateIssue { .. }
+                | Action::ConvertDraft { .. }
+                | Action::AddressReviewThreads { .. }
                 | Action::FixFailedChecks { .. }
                 | Action::StartPrReview { .. }
                 | Action::CreatePullRequest { .. }
@@ -337,6 +384,7 @@ mod error;
 mod inbox;
 pub(crate) mod labels;
 mod note;
+mod projects;
 mod review;
 mod settings;
 #[cfg(test)]
@@ -466,6 +514,11 @@ impl Workspace {
             | Action::SelectJiraProject { .. }
             | Action::SetTeamChoice { .. }
             | Action::SetInboxFilter { .. } => self.perform_inbox(action, at_ms),
+            Action::SetLabel { .. }
+            | Action::SetIssueClosed { .. }
+            | Action::SetProjectField { .. }
+            | Action::CreateIssue { .. }
+            | Action::ConvertDraft { .. } => self.perform_projects(action),
             Action::Decide { .. }
             | Action::EditSuggestion { .. }
             | Action::AddLineComment { .. }

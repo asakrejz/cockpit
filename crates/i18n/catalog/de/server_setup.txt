@@ -46,3 +46,4 @@ server_setup.jira_permission = Der Token ist gültig, aber Jira verweigert den Z
 server_setup.jira_reachable = Jira ist nicht erreichbar. Stimmt die Adresse, und bist du im richtigen Netz oder VPN?
 server_setup.jira_other = Jira hat unerwartet geantwortet. Versuche es in einer Minute noch einmal.
 server_setup.field_name_invalid = Ein Feldname darf keine Steuerzeichen enthalten
+server_setup.project_input = Gib den Namen des Besitzers (du oder eine Organisation) und einen Titel mit höchstens 100 Zeichen ein

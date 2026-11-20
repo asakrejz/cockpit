@@ -73,6 +73,92 @@ pub fn TicketsFromPicker(ctx: Context) -> impl IntoView {
     }
 }
 
+/// "Projekt anlegen" for one repo that has no linked project. Nothing is created before the click.
+#[component]
+fn CreateProject(
+    ctx: Context,
+    repo: String,
+    owners: Vec<String>,
+    created: Callback<cockpit_core::ProjectSummary>,
+) -> impl IntoView {
+    let repo = StoredValue::new(repo);
+    // The owner of the repo if it is one of the choices, otherwise the first (the user).
+    let default_owner = owners
+        .iter()
+        .find(|o| {
+            repo.with_value(|r| {
+                r.split('/')
+                    .next()
+                    .is_some_and(|x| x.eq_ignore_ascii_case(o))
+            })
+        })
+        .or(owners.first())
+        .cloned()
+        .unwrap_or_default();
+    let owner = RwSignal::new(default_owner);
+    let title = RwSignal::new(format!(
+        "{} board",
+        repo.with_value(|r| r.split('/').nth(1).unwrap_or(r).to_string())
+    ));
+    let running = RwSignal::new(false);
+    let feedback: Feedback = RwSignal::new(None);
+    let options: Vec<(String, String)> = owners.iter().map(|o| (o.clone(), o.clone())).collect();
+    let create = move |_| {
+        running.set(true);
+        feedback.set(None);
+        let request = cockpit_core::api::CreateProjectRequest {
+            owner: owner.get_untracked(),
+            title: title.get_untracked(),
+            repo: Some(repo.get_value()),
+        };
+        spawn_local(async move {
+            match server::post_project_create(&request).await {
+                Ok(done) => {
+                    feedback.set(Some((
+                        true,
+                        t!(
+                            SetupProjectsCreateDone,
+                            title = done.project.title.clone(),
+                            repo = repo.get_value()
+                        ),
+                    )));
+                    created.run(done.project);
+                    ctx.reload();
+                }
+                Err(e) => feedback.set(Some((
+                    false,
+                    t!(SetupProjectsCreateFailed, text = error_text(&e)),
+                ))),
+            }
+            running.set(false);
+        });
+    };
+    view! {
+        <VStack spacing="8px">
+            <p class="t-footnote t-secondary">{t!(SetupProjectsCreateIntro, repo = repo.get_value())}</p>
+            <Select
+                options=options
+                value=owner
+                label=t!(SetupProjectsCreateOwner)
+                on_change=move |v: String| owner.set(v)
+            />
+            <TextField label=t!(SetupProjectsCreateName) value=title />
+            <HStack spacing="12px">
+                <Button
+                    variant=ButtonStyle::GlassProminent
+                    disabled=Signal::derive(move || {
+                        running.get() || title.with(|t| t.trim().is_empty()) || owner.with(String::is_empty)
+                    })
+                    on_click=create
+                >
+                    {move || if running.get() { t!(SetupProjectsCreateRunning) } else { t!(SetupProjectsCreateButton) }}
+                </Button>
+            </HStack>
+            <Message feedback=feedback />
+        </VStack>
+    }
+}
+
 #[component]
 pub fn ProjectsStep(ctx: Context) -> impl IntoView {
     let connected = Signal::derive(move || {
@@ -304,6 +390,50 @@ pub fn ProjectsStep(ctx: Context) -> impl IntoView {
                     </HStack>
                     <Message feedback=feedback />
                 </Section>
+                // A repo in use without a linked project gets the offer to create one.
+                {move || {
+                    let linked = list.get().map(|l| l.projects).unwrap_or_default();
+                    let owners = list.get().map(|l| l.owners).unwrap_or_default();
+                    let repos = ctx.setup.with(|s| s.github_repos.clone());
+                    let loaded = list.with(|l| l.as_ref().is_some_and(|l| l.problem.is_none()));
+                    (loaded && !owners.is_empty())
+                        .then(|| {
+                            repos
+                                .into_iter()
+                                .filter(|r| !linked.iter().any(|p| p.repos.contains(r)))
+                                .map(|repo| {
+                                    let owners = owners.clone();
+                                    let added = Callback::new(move |p: cockpit_core::ProjectSummary| {
+                                        let name = p.reference().to_string();
+                                        chosen.update(|c| {
+                                            if !c.contains(&name) {
+                                                c.push(name);
+                                            }
+                                        });
+                                        // The new project is chosen right away.
+                                        config_save(
+                                            ctx,
+                                            ConfigChange {
+                                                github_projects: Some(GitHubProjectsInput {
+                                                    projects: Some(chosen.get_untracked()),
+                                                    ..Default::default()
+                                                }),
+                                                ..Default::default()
+                                            },
+                                            RwSignal::new(None),
+                                            String::new(),
+                                            load,
+                                        );
+                                    });
+                                    view! {
+                                        <Section title=t!(SetupProjectsCreateTitle)>
+                                            <CreateProject ctx=ctx repo=repo owners=owners created=added />
+                                        </Section>
+                                    }
+                                })
+                                .collect_view()
+                        })
+                }}
                 <Section title=t!(SetupProjectsRightsTitle)>
                     {move || {
                         list.get()

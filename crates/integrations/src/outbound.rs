@@ -69,6 +69,26 @@ pub enum Outbound {
         number: u32,
         check: String,
     },
+    /// GitHub Projects: set a field of an item (the status is the field of its column).
+    ProjectField {
+        project_id: String,
+        item_id: String,
+        field_id: String,
+        /// `None` clears the field.
+        value: Option<cockpit_core::FieldInput>,
+    },
+    /// GitHub Projects: title and body of a draft issue.
+    DraftEdit {
+        draft_id: String,
+        title: String,
+        body: String,
+    },
+    /// GitHub Projects: a change at the issue itself (comment, state, text, assignee, label).
+    Issue {
+        repo: String,
+        number: u32,
+        write: crate::github::projects::IssueWrite,
+    },
 }
 
 /// A review as it goes to GitHub.
@@ -135,6 +155,9 @@ pub fn plane(
             .filter(|_| targets.github)
             .map(|l| (l.repo.clone(), l.head_sha.clone(), l.number))
     };
+    if let Some(planned) = plan_project(before, action, targets) {
+        return planned;
+    }
     Ok(match action {
         Action::Reply { item, text } => {
             let Some(i) = before.item(item).filter(|i| before.sync.is_synced(&i.id)) else {
@@ -218,6 +241,150 @@ pub fn plane(
         }
         _ => None,
     })
+}
+
+// ---------- GitHub Projects ----------
+
+/// The call for an action on a ticket of a GitHub project. `None` = the action does not concern one
+/// (the caller goes on with Jira and pull requests). A ticket from a project needs the connection
+/// to GitHub Projects: without it nothing is changed locally either, because the next sync would
+/// undo it.
+fn plan_project(
+    before: &Workspace,
+    action: &Action,
+    targets: &Targets,
+) -> Option<Result<Option<Outbound>, PlanError>> {
+    use crate::github::projects::{Assignee, IssueWrite, priority_of};
+    use cockpit_core::project::option_for;
+    use cockpit_core::{FieldInput, Person};
+    use cockpit_i18n::msg;
+
+    let id = match action {
+        Action::Reply { item, .. }
+        | Action::SetStatus { item, .. }
+        | Action::EditTicket { item, .. }
+        | Action::AssignTicket { item, .. }
+        | Action::SetPriority { item, .. }
+        | Action::SetLabel { item, .. }
+        | Action::SetIssueClosed { item, .. }
+        | Action::SetProjectField { item, .. }
+        | Action::ConvertDraft { item, .. } => item,
+        _ => return None,
+    };
+    let item = before
+        .item(id)
+        .filter(|i| i.source == cockpit_core::Source::GitHubProject)
+        .filter(|i| before.sync.is_synced(&i.id))?;
+    let p = item.project.as_ref()?;
+    // Creating and converting have flows of their own (several calls, the answer is booked).
+    if matches!(action, Action::ConvertDraft { .. }) {
+        return Some(Ok(None));
+    }
+    let fail = |m: cockpit_i18n::Msg| Some(Err(PlanError::new(m)));
+    if !targets.projects {
+        return fail(msg!(IntegrationsPlanProjectsOff));
+    }
+    let issue = || -> Option<(String, u32)> { Some((item.repo.clone()?, p.number?)) };
+    let field_call = |field_id: &str, value: Option<FieldInput>| Outbound::ProjectField {
+        project_id: p.project_id.clone(),
+        item_id: p.item_id.clone(),
+        field_id: field_id.to_string(),
+        value,
+    };
+    let issue_call = |write: IssueWrite| {
+        issue().map(|(repo, number)| Outbound::Issue {
+            repo,
+            number,
+            write,
+        })
+    };
+    Some(Ok(match action {
+        Action::Reply { text, .. } => {
+            let text = text.trim().to_string();
+            if text.is_empty() {
+                return Some(Ok(None));
+            }
+            if p.draft {
+                return fail(msg!(IntegrationsPlanDraftNoComments));
+            }
+            issue_call(IssueWrite::Comment(text))
+        }
+        Action::SetStatus { status, .. } => {
+            let Some(meta) = before.sync.project(&p.project_id) else {
+                return fail(msg!(IntegrationsPlanNoProject));
+            };
+            let Some(def) = meta.status_def() else {
+                return fail(msg!(IntegrationsPlanNoStatusField));
+            };
+            let Some(option) = option_for(&def.options, *status) else {
+                return fail(msg!(
+                    IntegrationsPlanNoColumn,
+                    status = cockpit_core::TicketStatus::OPTIONS
+                        .iter()
+                        .find(|(id, _)| *id == status.id())
+                        .map_or("", |(_, label)| *label)
+                ));
+            };
+            Some(field_call(
+                &def.id,
+                Some(FieldInput::Select(option.id.clone())),
+            ))
+        }
+        Action::EditTicket {
+            title, description, ..
+        } => {
+            let (title, body) = (title.trim().to_string(), description.trim().to_string());
+            if p.draft {
+                Some(Outbound::DraftEdit {
+                    draft_id: p.content_id.clone(),
+                    title,
+                    body,
+                })
+            } else {
+                issue_call(IssueWrite::Edit { title, body })
+            }
+        }
+        Action::AssignTicket { person, .. } => {
+            if p.draft {
+                return fail(msg!(IntegrationsPlanDraftNoAssignee));
+            }
+            let who = if *person == Person::me() {
+                Assignee::Me
+            } else if person.name == cockpit_core::UNASSIGNED_NAME {
+                Assignee::Nobody
+            } else {
+                Assignee::Login(person.name.clone())
+            };
+            issue_call(IssueWrite::Assign(who))
+        }
+        Action::SetPriority { priority, .. } => {
+            let Some(meta) = before.sync.project(&p.project_id) else {
+                return fail(msg!(IntegrationsPlanNoProject));
+            };
+            let def = meta
+                .field_named("Priority")
+                .filter(|d| d.kind == cockpit_core::FieldKind::SingleSelect);
+            let option = def.and_then(|d| {
+                d.options
+                    .iter()
+                    .find(|o| priority_of(&o.name) == *priority)
+                    .map(|o| (d.id.clone(), o.id.clone()))
+            });
+            let Some((field, option)) = option else {
+                return fail(msg!(IntegrationsPlanNoPriority));
+            };
+            Some(field_call(&field, Some(FieldInput::Select(option))))
+        }
+        Action::SetLabel { label, on, .. } => issue_call(IssueWrite::Label {
+            label: label.trim().to_string(),
+            on: *on,
+        }),
+        Action::SetIssueClosed { closed, .. } => issue_call(IssueWrite::State { closed: *closed }),
+        Action::SetProjectField {
+            field_id, value, ..
+        } => Some(field_call(field_id, value.clone())),
+        _ => return None,
+    }))
 }
 
 // ---------- Review ----------
@@ -394,7 +561,10 @@ impl Outbound {
             }
             Outbound::JiraStatus { .. }
             | Outbound::GitHubBranch { .. }
-            | Outbound::GitHubRecheck { .. } => return None,
+            | Outbound::GitHubRecheck { .. }
+            | Outbound::ProjectField { .. }
+            | Outbound::DraftEdit { .. }
+            | Outbound::Issue { .. } => return None,
         })
     }
 }

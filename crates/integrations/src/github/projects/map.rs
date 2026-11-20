@@ -148,14 +148,14 @@ pub fn map_item(
     let (key, id, repo_opt) = if draft {
         (
             draft_key(&project, &node.id),
-            text::id_from(&["ghd", &node.id]),
+            cockpit_core::project::draft_id(&node.id),
             None,
         )
     } else {
         let (repo, number) = (repo?, number?);
         (
             issue_key(&repo, number),
-            text::id_from(&["ghi", &repo, &number.to_string()]),
+            cockpit_core::project::issue_id(&repo, number),
             Some(repo),
         )
     };
@@ -356,7 +356,7 @@ pub fn map_item(
             project,
             project_title: meta.title.clone(),
             item_id: node.id.clone(),
-            content_id: if draft { String::new() } else { c.id.clone() },
+            content_id: c.id.clone(),
             draft,
             closed,
             number: if draft { None } else { number },

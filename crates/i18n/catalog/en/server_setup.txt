@@ -46,3 +46,4 @@ server_setup.jira_permission = The token is valid, but Jira refuses access. Your
 server_setup.jira_reachable = Jira cannot be reached. Is the address right, and are you in the right network or VPN?
 server_setup.jira_other = Jira answered in an unexpected way. Try again in a minute.
 server_setup.field_name_invalid = A field name must not contain control characters
+server_setup.project_input = Enter the login of the owner (you or an organization) and a title of at most 100 characters

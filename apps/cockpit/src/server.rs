@@ -524,6 +524,25 @@ pub async fn fetch_github_projects() -> Result<cockpit_core::api::ProjectsRespon
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
+/// Creates a GitHub project (`POST /api/github/projects/create`). Only for the click "Projekt
+/// anlegen"; adds things at GitHub, never deletes.
+pub async fn post_project_create(
+    request: &cockpit_core::api::CreateProjectRequest,
+) -> Result<cockpit_core::api::CreateProjectResponse, CallError> {
+    let resp = Request::post("/api/github/projects/create")
+        .json(request)
+        .map_err(|_| CallError::Unreachable)?
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection_own(resp).await);
+    }
+    resp.json::<cockpit_core::api::CreateProjectResponse>()
+        .await
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
+}
+
 /// The repos to offer first when the agent starts on a ticket
 /// (`GET /api/agent/repo-suggestions?ticket=…`). Only reads.
 pub async fn fetch_repo_suggestions(ticket: &str) -> Result<RepoSuggestions, CallError> {
