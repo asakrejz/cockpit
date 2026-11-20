@@ -200,6 +200,16 @@ GitHub access can see**, plus all open pull requests of the repos you watch (see
 - **GitHub Projects:** shown when GitHub Projects are connected; only pull requests that are linked to an item of the
   chosen project (on the issue's timeline or named in it) stay.
 
+**Sections.** The list itself is grouped by repo: one section per `owner/name` with a header that shows the number of
+pull requests (and, in a badge, how many need your attention: a review requested from you, or your own pull request with
+requested changes). Sections with the most pull requests that need you come first, then alphabetically; inside a section
+the order stays as it was. With only one repo the list has no header. With many repos (eight or more, from more than one
+owner) the repos sit under a header per owner or organization, like in the filter dialog. A click on a header collapses
+or expands it; the collapsed ones are remembered per browser (`localStorage`). Repos hidden by the filter have no
+section. With the focus in the list, ↑ and ↓ move to the previous or next pull request and skip collapsed sections. A
+link to a pull request (`#/review/acme/app/87`, "Zum Eintrag") opens it, expands its section if needed and scrolls the
+entry into view.
+
 "Anwenden" stores the choice with the workspace, so it is still there after a restart; "Zurücksetzen" clears it. The
 filter only narrows the list: the sync still loads everything, and the review you have open stays in the list. A
 line under the button says how many repos or projects are shown and has "Alle zeigen".

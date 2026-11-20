@@ -80,29 +80,11 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
 
     // Which pull requests the list shows: the persisted filter (repos, projects, whose).
     let filter_open = RwSignal::new(false);
-    let list = move || {
-        store.ws.with(|w| {
-            // With reviews from more than one repo the list names the repo.
-            let multi_repo = {
-                let mut repos = w.reviews.iter().map(|r| r.repo.as_str());
-                repos.next().is_some_and(|first| repos.any(|r| r != first))
-            };
-            let current = number.get_value();
-            w.reviews_filtered(&w.review_filter, current.as_ref())
-                .into_iter()
-                .map(|r| {
-                    view! {
-                        <SidebarItem
-                            href=Route::Review(Some(r.key())).hash()
-                            label=review_label(r, multi_repo)
-                            current=number.get_value().is_some_and(|n| n.same(&r.key()))
-                            count=if r.sent { t!(ReviewSent) } else { String::new() }
-                        />
-                    }
-                })
-                .collect_view()
-        })
-    };
+    // Sections per repo; collapsed ones are remembered per browser.
+    let collapsed = RwSignal::new(sections::load());
+    sections::reveal(store, collapsed, number.get_value());
+    sections::keys(store, collapsed, number.get_value());
+    let list = move || sections::list(store, collapsed, number.get_value());
     let filtered_out = move || {
         store.ws.with(|w| {
             !w.reviews.is_empty() && w.reviews_filtered(&w.review_filter, None).is_empty()
@@ -123,7 +105,7 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
                     {filter::filter_summary(store)}
                 </Show>
                 {filter::filter_dialog(store, filter_open)}
-                <ul class="ui-sidebar__nav">{list}</ul>
+                {list}
                 <Show when=move || filtered_out()>
                     <p class="ck-empty t-footnote t-secondary">{t!(ReviewFilterNoneTitle)}</p>
                 </Show>
@@ -262,6 +244,7 @@ mod filter;
 mod followups;
 mod merge;
 mod panel;
+mod sections;
 mod suggestions;
 
 use checks::{checks_label, checks_section};

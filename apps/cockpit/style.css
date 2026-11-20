@@ -196,3 +196,16 @@ body { margin: 0; }
 .ck-filter-groups { display: flex; flex-direction: column; gap: var(--ref-space-12); }
 .ck-filter-group { display: flex; flex-direction: column; gap: var(--ref-space-4); }
 .ck-filter-owner { padding-inline: 0; }
+
+/* Reviews list in sections per repo (and per owner when there are many). */
+.ck-section-group, .ck-section { display: flex; flex-direction: column; gap: 2px; }
+.ck-section-group { gap: var(--ref-space-8); }
+.ck-section-head { display: flex; align-items: center; gap: var(--ref-space-8); width: 100%; padding: var(--ref-space-6) var(--ref-space-8); border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; border-radius: var(--ref-radius-8); }
+.ck-section-head:hover { background: var(--sys-color-fill-hover, rgba(127,127,127,.12)); }
+.ck-section-head__name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.ck-section-head[data-level="owner"] .ck-section-head__name { text-transform: none; font-size: 1.05em; }
+.ck-section-head[data-level="repo"] { padding-inline-start: var(--ref-space-8); }
+.ck-section-head__chevron { display: inline-flex; transition: transform .15s; }
+.ck-section-head__chevron[data-open] { transform: rotate(90deg); }
+.ck-section-group > .ck-section { padding-inline-start: 0; }
+.ck-section-head[data-level="owner"] ~ .ck-section .ck-section-head { padding-inline-start: var(--ref-space-16); }
