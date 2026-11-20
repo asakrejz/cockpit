@@ -307,9 +307,14 @@ impl Workspace {
                     msg!(CoreActionLogThreadsRequested, review = review.to_string()),
                 )])
             }
-            Action::StartPrReview { review } => {
+            Action::StartPrReview {
+                review,
+                language,
+                repo_language,
+            } => {
                 self.need_open_review(&review)?;
-                self.review_pr_with_agent(&review).map_err(agent_error)?;
+                self.review_pr_with_agent(&review, language, repo_language)
+                    .map_err(agent_error)?;
                 Ok(vec![Note::coded(
                     Target::Review(review.clone()),
                     msg!(CoreActionLogPrReviewRequested, review = review.to_string()),

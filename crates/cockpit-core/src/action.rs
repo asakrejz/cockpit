@@ -288,6 +288,13 @@ pub enum Action {
     /// to GitHub; the drafts wait for your decision.
     StartPrReview {
         review: PrKey,
+        /// The language picked in the review panel; `None` = detect it.
+        #[serde(default)]
+        language: Option<cockpit_i18n::Lang>,
+        /// The repo's `pr_language`. The backend sets it from the configuration; whatever a
+        /// request carries is replaced.
+        #[serde(default)]
+        repo_language: Option<cockpit_i18n::Lang>,
     },
     AddressReviewThreads {
         review: PrKey,

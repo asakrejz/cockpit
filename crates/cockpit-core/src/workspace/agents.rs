@@ -423,6 +423,19 @@ impl Workspace {
 
     // ---------- Pull request for the branch of a finished real run ----------
 
+    /// The language of the text (pull request, commit message) the agent writes for `run`: the
+    /// language detected from the ticket, else `repo_lang` (the repo's `pr_language`), else English.
+    pub fn pr_text_language(
+        &self,
+        run: &AgentRun,
+        repo_lang: cockpit_i18n::Lang,
+    ) -> crate::language::LangChoice {
+        let description = self
+            .item_by_key(&run.ticket_key)
+            .map_or("", |i| i.description.as_str());
+        crate::language::choose_text(&run.ticket_title, description, Some(repo_lang))
+    }
+
     /// Title and text the pull request in `repo` would get, for the preview. `None` if the run
     /// does not exist or does not work in that repo. An empty `repo` means the primary one.
     pub fn pull_request_draft(&self, run_key: &str, repo: &str) -> Option<PullRequestDraft> {
@@ -442,11 +455,12 @@ impl Workspace {
             _ => run.files.clone(),
         };
         let files: Vec<String> = own.iter().take(20).map(|f| format!("- `{f}`")).collect();
-        // The text follows the language of the repo (the team language), not the interface.
-        let lang = entry
+        // The text follows the language of the ticket, else the repo (the team language), never the interface.
+        let repo_lang = entry
             .as_ref()
             .filter(|_| run.is_multi_repo())
             .map_or(run.options.pr_language, |e| e.pr_language);
+        let lang = self.pr_text_language(run, repo_lang).lang;
         let text = |msg: cockpit_i18n::Msg| msg.render(lang);
         let mut body = format!(
             "## {}\n{}\n",
