@@ -9,6 +9,7 @@ mod button;
 mod combobox;
 mod common;
 mod controls;
+mod extreme;
 mod fields;
 mod foundations;
 mod layout;
@@ -52,6 +53,7 @@ pub static STORIES: &[Story] = &[
     combobox::STORY,
     list::STORY,
     media_card::STORY,
+    extreme::STORY,
     navigation::STORY,
     pager::STORY,
     layout::STORY,
