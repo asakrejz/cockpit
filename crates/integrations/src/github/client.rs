@@ -138,12 +138,16 @@ fn is_denied(e: &Error) -> bool {
 const MAX_PAGES: u32 = 3;
 
 pub struct GitHubClient {
-    http: reqwest::Client,
-    base: String,
-    token: Secret,
+    pub(super) http: reqwest::Client,
+    pub(super) base: String,
+    pub(super) token: Secret,
     limits: PrLimits,
     /// Key of the denial cache: base address and token, never shown.
     scope: u64,
+    /// What the answers so far told about the credential (kind, classic scopes).
+    pub(super) access: std::sync::Mutex<cockpit_core::Access>,
+    /// The GraphQL rate limit as of the last answer.
+    pub(super) rate: std::sync::Mutex<Option<super::projects::Rate>>,
 }
 
 impl std::fmt::Debug for GitHubClient {
@@ -164,13 +168,31 @@ impl GitHubClient {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         base.hash(&mut hasher);
         token.expose().hash(&mut hasher);
+        let kind = super::projects::kind_from_prefix(token.expose());
         Ok(Self {
             http: client()?,
             scope: hasher.finish(),
             base,
             token,
             limits: PrLimits::default(),
+            access: std::sync::Mutex::new(cockpit_core::Access { kind, scopes: None }),
+            rate: std::sync::Mutex::new(None),
         })
+    }
+
+    /// The credential is a sign-in through a GitHub App (user token): its rights are the
+    /// permissions of the App, not scopes.
+    pub fn with_app(self, app: bool) -> Self {
+        if app && let Ok(mut a) = self.access.lock() {
+            a.kind = cockpit_core::TokenKind::App;
+        }
+        self
+    }
+
+    /// What is known about the credential: its kind and, for a classic token, its scopes (as far
+    /// as an answer has told).
+    pub fn access(&self) -> cockpit_core::Access {
+        self.access.lock().map(|a| a.clone()).unwrap_or_default()
     }
 
     /// Changes how many pull requests the sync loads (default: [`PrLimits::default`]).
@@ -218,7 +240,7 @@ impl GitHubClient {
         })
     }
 
-    fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
+    pub(super) fn request(&self, method: reqwest::Method, path: &str) -> reqwest::RequestBuilder {
         self.http
             .request(method, format!("{}{path}", self.base))
             .bearer_auth(self.token.expose())
@@ -226,19 +248,19 @@ impl GitHubClient {
             .header("X-GitHub-Api-Version", "2022-11-28")
     }
 
-    fn get(&self, path: &str) -> reqwest::RequestBuilder {
+    pub(super) fn get(&self, path: &str) -> reqwest::RequestBuilder {
         self.request(reqwest::Method::GET, path)
     }
 
     /// Sends the request; a key that the service echoes back in a message
     /// is made unrecognizable.
-    async fn text(&self, req: reqwest::RequestBuilder) -> Result<String, Error> {
+    pub(super) async fn text(&self, req: reqwest::RequestBuilder) -> Result<String, Error> {
         send(req)
             .await
             .map_err(|e| e.without_key(self.token.expose()))
     }
 
-    async fn lies_json<T: DeserializeOwned>(
+    pub(super) async fn lies_json<T: DeserializeOwned>(
         &self,
         req: reqwest::RequestBuilder,
     ) -> Result<T, Error> {

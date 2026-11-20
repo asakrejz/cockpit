@@ -122,8 +122,11 @@ impl Workspace {
     fn linked_tickets(&self, pr: &Item) -> Vec<&Item> {
         let own = pr.pr.as_ref().map(|p| p.key());
         let mut keys: Vec<String> = Vec::new();
+        let repo = pr.pr.as_ref().map_or("", |p| p.repo.as_str());
         for text in [pr.branch.as_deref().unwrap_or_default(), pr.title.as_str()] {
             keys.extend(ticket_keys(text));
+            // GitHub issues: `#12`, `acme/app#12`, `Fixes #12`.
+            keys.extend(crate::project::issue_refs(text, repo).iter().map(|r| r.key()));
         }
         self.items
             .iter()
@@ -134,6 +137,11 @@ impl Workspace {
                         .as_ref()
                         .zip(t.pr.as_ref())
                         .is_some_and(|(a, b)| a.same(&b.key()))
+                    || own.as_ref().is_some_and(|a| {
+                        t.project
+                            .as_ref()
+                            .is_some_and(|p| p.linked_prs.iter().any(|k| k.same(a)))
+                    })
             })
             .collect()
     }

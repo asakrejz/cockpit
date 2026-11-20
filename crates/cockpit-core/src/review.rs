@@ -382,6 +382,22 @@ impl Review {
             .as_deref()
             .is_some_and(|k| k.eq_ignore_ascii_case(ticket_key))
             || crate::link::mentions(&[&self.branch, &self.title, &self.description], ticket_key)
+            || self.names_issue(ticket_key)
+    }
+
+    /// Does the text of the pull request name the GitHub issue `ticket_key` (`acme/app#12`):
+    /// as `#12` (in the pull request's own repo), `acme/app#12` or `Fixes #12`?
+    pub fn names_issue(&self, ticket_key: &str) -> bool {
+        let Some((repo, number)) = crate::project::parse_issue_key(ticket_key) else {
+            return false;
+        };
+        [&self.branch, &self.title, &self.description]
+            .iter()
+            .any(|text| {
+                crate::project::issue_refs(text, &self.repo)
+                    .iter()
+                    .any(|r| r.number == number && r.repo.eq_ignore_ascii_case(&repo))
+            })
     }
 
     /// Identity of the pull request: repo and number.

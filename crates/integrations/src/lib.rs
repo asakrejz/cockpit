@@ -29,4 +29,4 @@ pub mod jira;
 
 pub use error::Error;
 pub use secret::Secret;
-pub use sync::{GitHubService, JiraService, Services};
+pub use sync::{GitHubService, JiraService, ProjectsService, Services};

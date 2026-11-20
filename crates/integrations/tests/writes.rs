@@ -455,6 +455,7 @@ async fn services_route_to_the_right_client() {
             in_project: false,
             fields: Default::default(),
         }),
+        ..Default::default()
     };
     assert!(services.targets().github && services.targets().jira);
     services
@@ -476,6 +477,7 @@ async fn services_route_to_the_right_client() {
     let github_only = Services {
         jira: None,
         github: None,
+        projects: None,
     };
     assert!(github_only.is_empty());
     assert!(

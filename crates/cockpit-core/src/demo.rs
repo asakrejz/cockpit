@@ -77,6 +77,9 @@ fn item(
         updated_ms: None,
         url: None,
         details: None,
+        project: None,
+        co_assignees: Vec::new(),
+        milestone: None,
     }
 }
 

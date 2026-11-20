@@ -62,6 +62,7 @@ fn service(s: &MockServer, jql: &str) -> Services {
             in_project: false,
             fields: Default::default(),
         }),
+        ..Default::default()
     }
 }
 

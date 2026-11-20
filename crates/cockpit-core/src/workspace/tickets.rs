@@ -123,9 +123,14 @@ impl Workspace {
         let Some(item) = self.item(ticket_id).filter(|i| i.is_ticket()) else {
             return Vec::new();
         };
+        // The timeline of a GitHub issue also names pull requests that never mention it.
+        let timeline: &[PrKey] = item
+            .project
+            .as_ref()
+            .map_or(&[], |p| p.linked_prs.as_slice());
         self.reviews
             .iter()
-            .filter(|r| r.belongs_to(&item.key))
+            .filter(|r| r.belongs_to(&item.key) || timeline.iter().any(|k| k.same(&r.key())))
             .collect()
     }
 
@@ -251,11 +256,22 @@ impl Workspace {
                 .iter()
                 .filter(|i| i.is_ticket() && i.pr.is_none() && !taken.contains(&i.key.as_str()));
             let known = free.clone().map(|i| i.key.as_str());
-            if let Some(key) = crate::link::find_ticket(
+            let by_jira_key = crate::link::find_ticket(
                 &[&review.branch, &review.title, &review.description],
                 known,
-            ) && let Some(ticket) = free.clone().find(|i| i.key == key)
-            {
+            )
+            .and_then(|key| free.clone().find(|i| i.key == key));
+            // GitHub issues: named in the text (`#12`, `acme/app#12`, `Fixes #12`) or connected
+            // on the issue's timeline.
+            let by_issue = || {
+                free.clone().find(|i| {
+                    review.names_issue(&i.key)
+                        || i.project
+                            .as_ref()
+                            .is_some_and(|p| p.linked_prs.iter().any(|k| k.same(&review.key())))
+                })
+            };
+            if let Some(ticket) = by_jira_key.or_else(by_issue) {
                 taken.push(&ticket.key);
                 links.push((ticket.id.clone(), review.key()));
             }

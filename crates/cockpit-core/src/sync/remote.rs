@@ -35,6 +35,9 @@ pub struct Loaded {
     /// GitHub only: which number belongs to which repo.
     #[serde(default)]
     pub prs: Vec<PrLink>,
+    /// GitHub Projects only: the projects that were read (fields and their choices).
+    #[serde(default)]
+    pub projects: Vec<crate::project::ProjectMeta>,
     /// Hints for the state of the source (e.g. skipped pull requests).
     #[serde(default)]
     pub warnings: Vec<String>,

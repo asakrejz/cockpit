@@ -55,6 +55,9 @@ fn item(id: &str, key: &str, source: Source) -> Item {
         updated_ms: None,
         url: None,
         details: None,
+        project: None,
+        co_assignees: Vec::new(),
+        milestone: None,
     }
 }
 
@@ -128,6 +131,7 @@ fn ws() -> Workspace {
                         repo: "a/x".into(),
                         head_sha: "abc123".into(),
                     }],
+                    projects: vec![],
                     warnings: vec![],
                     warning_msgs: vec![],
                 }),
@@ -141,6 +145,7 @@ fn all() -> Targets {
     Targets {
         github: true,
         jira: true,
+        projects: false,
         repos: vec!["a/x".into()],
         routing: Default::default(),
     }
@@ -463,6 +468,7 @@ fn ws_two() -> Workspace {
             outcome: Outcome::Loaded(Loaded {
                 items: vec![item("gh-a-x-7", "#7", Source::GitHub), other_item],
                 reviews: vec![review(), other],
+                projects: vec![],
                 prs: vec![
                     PrLink {
                         number: 7,

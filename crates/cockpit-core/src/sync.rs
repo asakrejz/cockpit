@@ -106,6 +106,9 @@ fn merge_source(ws: &mut Workspace, source: Source, loaded: &Loaded, changes: &m
     if source == Source::GitHub {
         merge_reviews(ws, loaded, changes);
     }
+    if source == Source::GitHubProject {
+        ws.sync.projects = loaded.projects.clone();
+    }
 }
 
 fn merge_items(ws: &mut Workspace, source: Source, remote: &[Item], changes: &mut Vec<Change>) {

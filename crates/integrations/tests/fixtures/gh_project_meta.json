@@ -1,0 +1,20 @@
+{"data":{"repositoryOwner":{"projectV2":{
+ "id":"PVT_acme3","number":3,"title":"App roadmap","closed":false,"url":"https://github.com/orgs/acme/projects/3","shortDescription":"",
+ "owner":{"__typename":"Organization","login":"acme"},
+ "fields":{"nodes":[
+  {"__typename":"ProjectV2Field","id":"PVTF_title","name":"Title","dataType":"TITLE"},
+  {"__typename":"ProjectV2Field","id":"PVTF_assignees","name":"Assignees","dataType":"ASSIGNEES"},
+  {"__typename":"ProjectV2SingleSelectField","id":"PVTSSF_status","name":"Status","dataType":"SINGLE_SELECT","options":[
+    {"id":"s_todo","name":"Todo"},{"id":"s_prog","name":"In Progress"},{"id":"s_rev","name":"In Review"},{"id":"s_done","name":"Done"}]},
+  {"__typename":"ProjectV2SingleSelectField","id":"PVTSSF_prio","name":"Priority","dataType":"SINGLE_SELECT","options":[
+    {"id":"p_hi","name":"High"},{"id":"p_med","name":"Medium"},{"id":"p_lo","name":"Low"}]},
+  {"__typename":"ProjectV2SingleSelectField","id":"PVTSSF_team","name":"Team","dataType":"SINGLE_SELECT","options":[
+    {"id":"t_core","name":"Core"},{"id":"t_web","name":"Web"}]},
+  {"__typename":"ProjectV2IterationField","id":"PVTIF_sprint","name":"Sprint","dataType":"ITERATION","configuration":{
+    "iterations":[{"id":"it_21","title":"Sprint 21","startDate":"2024-05-13","duration":14}],
+    "completedIterations":[{"id":"it_20","title":"Sprint 20","startDate":"2024-04-29","duration":14}]}},
+  {"__typename":"ProjectV2Field","id":"PVTF_est","name":"Estimate","dataType":"NUMBER"},
+  {"__typename":"ProjectV2Field","id":"PVTF_due","name":"Due date","dataType":"DATE"},
+  {"__typename":"ProjectV2Field","id":"PVTF_notes","name":"Notes","dataType":"TEXT"}
+ ]}}},
+ "rateLimit":{"cost":1,"remaining":4980,"resetAt":"2024-05-14T13:00:00Z"}}}

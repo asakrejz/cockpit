@@ -16,7 +16,7 @@ pub(crate) fn client() -> Result<reqwest::Client, Error> {
         .map_err(|e| Error::Config(e.without_url().to_string()))
 }
 
-fn now_s() -> u64 {
+pub(crate) fn now_s() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs())

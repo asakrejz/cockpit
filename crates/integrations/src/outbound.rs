@@ -23,6 +23,8 @@ use crate::jira::{status_from, text_to_adf};
 pub struct Targets {
     pub github: bool,
     pub jira: bool,
+    /// GitHub Projects are set up as a source of tickets.
+    pub projects: bool,
     /// Configured GitHub repos (`owner/name`). A branch for a Jira ticket goes to the repo the
     /// routing rules name for its project, otherwise to the first one.
     pub repos: Vec<String>,

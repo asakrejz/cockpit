@@ -1,0 +1,2 @@
+{"data":{"node":{"items":{"pageInfo":{"hasNextPage":false,"endCursor":null},"nodes":[{"id":"PVTI_12","type":"ISSUE","updatedAt":"2024-05-14T10:00:00Z","isArchived":false,"fieldValues":{"nodes":[]},"content":null}]}}},
+ "errors":[{"type":"FORBIDDEN","path":["node","items","nodes",0,"content"],"message":"Resource not accessible by integration"}]}

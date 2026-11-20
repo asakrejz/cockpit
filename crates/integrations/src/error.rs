@@ -32,6 +32,12 @@ pub enum Error {
     NotPossible(String),
     /// A message of this program with a code, shown to people in their language.
     Coded(Msg),
+    /// GitHub refused because the credential lacks a right (a missing scope, or a permission
+    /// of a fine-grained token or GitHub App). The message says exactly which one.
+    MissingRight {
+        right: cockpit_core::Right,
+        kind: cockpit_core::TokenKind,
+    },
 }
 
 impl Error {
@@ -57,6 +63,10 @@ impl Error {
         match self {
             Error::NotSignedIn => Problem::Unauthorized,
             Error::NoPermission => Problem::NoPermission,
+            Error::MissingRight { right, kind } => Problem::MissingRight {
+                right: *right,
+                kind: *kind,
+            },
             Error::RateLimit { wait_s } => Problem::RateLimited {
                 until_ms: wait_s.map(|s| now_ms + s * 1000),
             },
@@ -84,6 +94,7 @@ impl Error {
             Error::Config(m) => msg!(IntegrationsBadConfig, reason = Msg::raw(m)),
             Error::NotPossible(m) => Msg::raw(m),
             Error::Coded(m) => m.clone(),
+            Error::MissingRight { right, kind } => right.msg(*kind),
         }
     }
 }

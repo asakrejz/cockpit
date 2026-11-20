@@ -27,6 +27,7 @@ mod jira_teams;
 mod open_pulls;
 mod outages;
 mod pat_checks;
+mod projects;
 mod services;
 mod two_repos;
 
@@ -167,6 +168,7 @@ fn services(g: Option<&MockServer>, j: Option<&MockServer>) -> Services {
             in_project: false,
             fields: Default::default(),
         }),
+        ..Default::default()
     }
 }
 

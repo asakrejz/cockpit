@@ -42,7 +42,9 @@ pub mod model;
 pub mod notice;
 pub mod notify;
 pub mod people_search;
+pub mod permissions;
 pub mod persist;
+pub mod project;
 pub mod repos;
 pub mod review;
 pub mod rules;
@@ -71,6 +73,11 @@ pub use filters::{
     NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED, UNASSIGNED_NAME, filter_def,
 };
 pub use model::*;
+pub use permissions::{Access, Right, TokenKind};
+pub use project::{
+    FieldDef, FieldKind, FieldValue, IssueLink, IssueRef, ProjectItem, ProjectMeta, ProjectOrigin,
+    ProjectRef, ProjectSummary, SelectOption,
+};
 pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};
 pub use notify::{
     Channel, Channels, Delivery, Event as NotifyEvent, NotifyReason, NotifySettings, QuietHours,

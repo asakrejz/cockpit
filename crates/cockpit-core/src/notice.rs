@@ -74,6 +74,7 @@ fn name(source: Source) -> &'static str {
     match source {
         Source::Jira => "Jira",
         Source::GitHub => "GitHub",
+        Source::GitHubProject => "GitHub Projects",
     }
 }
 
@@ -101,6 +102,17 @@ pub fn source_notice(st: &SourceState, now_ms: u64) -> Option<SourceNotice> {
             NoticeTone::Error,
             msg!(CoreNoticeTitleNoPermission, source = source),
             msg!(CoreNoticeDetailNoPermission, stand = stand),
+            NoticeAction::OpenSetup,
+            None,
+        ),
+        Problem::MissingRight { right, kind } => (
+            NoticeTone::Error,
+            msg!(CoreNoticeTitleNoPermission, source = source),
+            msg!(
+                CoreNoticeDetailMissingRight,
+                right = right.msg(*kind),
+                stand = stand
+            ),
             NoticeAction::OpenSetup,
             None,
         ),

@@ -1,0 +1,8 @@
+{"data":{"viewer":{"login":"mkeller",
+ "projectsV2":{"nodes":[
+  {"id":"PVT_user1","number":1,"title":"My board","closed":false,"url":"https://github.com/users/mkeller/projects/1","shortDescription":"","owner":{"__typename":"User","login":"mkeller"}}]},
+ "organizations":{"nodes":[
+  {"login":"acme","projectsV2":{"nodes":[
+   {"id":"PVT_acme3","number":3,"title":"App roadmap","closed":false,"url":"https://github.com/orgs/acme/projects/3","shortDescription":"Everything for the app","owner":{"__typename":"Organization","login":"acme"}},
+   {"id":"PVT_acme2","number":2,"title":"Old board","closed":true,"url":"https://github.com/orgs/acme/projects/2","shortDescription":"","owner":{"__typename":"Organization","login":"acme"}}]}}]}},
+ "rateLimit":{"cost":1,"remaining":4990,"resetAt":"2024-05-14T13:00:00Z"}}}

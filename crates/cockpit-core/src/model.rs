@@ -14,7 +14,12 @@ pub use pull_request::*;
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Source {
     Jira,
+    /// GitHub pull requests (the review inbox).
     GitHub,
+    /// Issues and draft issues of GitHub Projects (v2), used as tickets. A source of its own
+    /// because the sync, the removal of vanished entries and the sync state are per source: the
+    /// pull request sync must never remove an issue, and the project sync never a pull request.
+    GitHubProject,
 }
 
 impl Source {
@@ -22,6 +27,7 @@ impl Source {
         match self {
             Source::Jira => "Jira",
             Source::GitHub => "GitHub",
+            Source::GitHubProject => "GitHub Projects",
         }
     }
 }
@@ -90,24 +96,36 @@ pub enum SourceFilter {
     All,
     Jira,
     GitHub,
+    /// Tickets from GitHub Projects.
+    GitHubProject,
 }
 
 impl SourceFilter {
     /// ID and label, in display order.
-    pub const OPTIONS: &'static [(&'static str, &'static str)] =
-        &[("all", "Alle"), ("jira", "Jira"), ("github", "GitHub")];
+    pub const OPTIONS: &'static [(&'static str, &'static str)] = &[
+        ("all", "Alle"),
+        ("jira", "Jira"),
+        ("github", "GitHub"),
+        ("project", "GitHub Projects"),
+    ];
 
     pub fn id(self) -> &'static str {
         match self {
             SourceFilter::All => "all",
             SourceFilter::Jira => "jira",
             SourceFilter::GitHub => "github",
+            SourceFilter::GitHubProject => "project",
         }
     }
 
     pub fn from_id(id: &str) -> Option<SourceFilter> {
-        [SourceFilter::All, SourceFilter::Jira, SourceFilter::GitHub]
-            .into_iter()
+        [
+            SourceFilter::All,
+            SourceFilter::Jira,
+            SourceFilter::GitHub,
+            SourceFilter::GitHubProject,
+        ]
+        .into_iter()
             .find(|f| f.id() == id)
     }
 
@@ -116,6 +134,7 @@ impl SourceFilter {
             SourceFilter::All => true,
             SourceFilter::Jira => source == Source::Jira,
             SourceFilter::GitHub => source == Source::GitHub,
+            SourceFilter::GitHubProject => source == Source::GitHubProject,
         }
     }
 }
@@ -204,6 +223,17 @@ pub struct Item {
     /// data, demo without extras).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub details: Option<crate::details::Details>,
+    /// GitHub Projects only: where the ticket sits in its project (IDs for writing, the values
+    /// of the project fields, linked pull requests, parent and sub-issues).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project: Option<crate::project::ProjectItem>,
+    /// People the ticket is assigned to besides the owner (GitHub allows several), in the name
+    /// shown in lists (`Du` for me). Empty = at most the owner.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub co_assignees: Vec<String>,
+    /// Milestone of an issue, `None` = none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub milestone: Option<String>,
 }
 
 /// The team of a ticket: the Atlassian team's ID (a UUID) and its name.

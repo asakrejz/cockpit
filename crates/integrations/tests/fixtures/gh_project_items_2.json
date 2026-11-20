@@ -1,0 +1,11 @@
+{"data":{"node":{"items":{
+ "pageInfo":{"hasNextPage":false,"endCursor":"c2"},
+ "nodes":[
+  {"id":"PVTI_15","type":"ISSUE","updatedAt":"2024-05-13T12:00:00Z","isArchived":false,
+   "fieldValues":{"nodes":[{"__typename":"ProjectV2ItemFieldSingleSelectValue","name":"Done","optionId":"s_done","field":{"id":"PVTSSF_status","name":"Status"}}]},
+   "content":{"__typename":"Issue","id":"I_15","number":15,"title":"Header spacing","body":"","state":"CLOSED","stateReason":"COMPLETED",
+     "createdAt":"2024-05-01T08:00:00Z","updatedAt":"2024-05-13T12:00:00Z","url":"https://github.com/acme/web/issues/15",
+     "author":{"login":"mkeller"},"repository":{"nameWithOwner":"acme/web"},
+     "assignees":{"nodes":[]},"labels":{"nodes":[]},"milestone":null}}
+ ]}},
+ "rateLimit":{"cost":1,"remaining":4969,"resetAt":"2024-05-14T13:00:00Z"}}}

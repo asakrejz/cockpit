@@ -108,6 +108,9 @@ pub fn issue_to_item_full(
         // Filled by the sync: the link needs the site, the details the field prefs.
         url: None,
         details: None,
+        project: None,
+        co_assignees: Vec::new(),
+        milestone: None,
     }
 }
 

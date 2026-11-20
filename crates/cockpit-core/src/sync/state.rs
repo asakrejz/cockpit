@@ -15,6 +15,11 @@ pub enum Problem {
     RateLimited { until_ms: Option<u64> },
     /// No connection to the service.
     Offline,
+    /// 403 at GitHub Projects: the credential lacks this right (see [`crate::permissions`]).
+    MissingRight {
+        right: crate::permissions::Right,
+        kind: crate::permissions::TokenKind,
+    },
     /// Everything else, with a German message (without key).
     Other(String),
 }
@@ -27,6 +32,7 @@ impl Problem {
             Problem::RateLimited { until_ms: Some(_) } => msg!(CoreSyncProblemRateLimitedPaused),
             Problem::RateLimited { until_ms: None } => msg!(CoreSyncProblemRateLimited),
             Problem::Offline => msg!(CoreSyncProblemOffline),
+            Problem::MissingRight { right, kind } => right.msg(*kind),
             Problem::Other(m) => Msg::raw(m.clone()),
         }
     }
@@ -72,7 +78,7 @@ impl SourceState {
         match &self.problem {
             None => "ok",
             Some(Problem::Unauthorized) => "unauthorized",
-            Some(Problem::NoPermission) => "no_permission",
+            Some(Problem::NoPermission | Problem::MissingRight { .. }) => "no_permission",
             Some(Problem::RateLimited { .. }) => "quota",
             Some(Problem::Offline) => "offline",
             Some(Problem::Other(_)) => "error",
@@ -95,9 +101,18 @@ pub struct SyncState {
     /// The sample data are already removed.
     #[serde(default)]
     pub demo_dropped: bool,
+    /// The GitHub projects of the last successful sync (fields and their choices): what is
+    /// needed to write a status or another field.
+    #[serde(default)]
+    pub projects: Vec<crate::project::ProjectMeta>,
 }
 
 impl SyncState {
+    /// The project with this node ID.
+    pub fn project(&self, id: &str) -> Option<&crate::project::ProjectMeta> {
+        self.projects.iter().find(|p| p.id == id)
+    }
+
     pub fn state_of(&self, source: Source) -> Option<&SourceState> {
         self.sources.iter().find(|s| s.source == source)
     }
