@@ -127,6 +127,35 @@ impl Workspace {
         Some(label)
     }
 
+    /// Removes the run with this key from the list. The consumption (`spend`) is a separate
+    /// ledger and stays. `Err(true)` if the run still works or waits, `Err(false)` if there is
+    /// no such run. Returns the label of the removed run.
+    pub fn remove_run(&mut self, key: &str) -> Result<cockpit_i18n::Msg, bool> {
+        let run = self.runs.iter().find(|r| r.key() == key).ok_or(false)?;
+        if !run.is_removable() {
+            return Err(true);
+        }
+        let label = crate::action::labels::run_label(run);
+        self.clear_agent_note(key);
+        self.runs.retain(|r| r.key() != key);
+        Ok(label)
+    }
+
+    /// Removes every run in a final state; returns the keys that went.
+    pub fn remove_finished_runs(&mut self) -> Vec<String> {
+        let keys: Vec<String> = self
+            .runs
+            .iter()
+            .filter(|r| r.is_removable())
+            .map(|r| r.key())
+            .collect();
+        for key in &keys {
+            self.clear_agent_note(key);
+        }
+        self.runs.retain(|r| !r.is_removable());
+        keys
+    }
+
     /// The runs whose pull request the backend should ask GitHub about (see
     /// [`AgentRun::pr_to_watch`]), with the key of the run.
     pub fn runs_to_watch(&self) -> Vec<(String, PrKey)> {

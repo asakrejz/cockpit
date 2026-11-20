@@ -94,3 +94,43 @@ pub(super) fn cleanup_done(containers: usize, folders: usize) -> String {
         folders = folders
     )
 }
+
+pub(super) fn remove_button() -> String {
+    t!(AgentCleanupRemoveButton)
+}
+
+pub(super) fn remove_title() -> String {
+    t!(AgentCleanupRemoveTitle)
+}
+
+pub(super) fn remove_question(label: &str) -> String {
+    t!(AgentCleanupRemoveQuestion, label = label)
+}
+
+pub(super) fn remove_scope() -> String {
+    t!(AgentCleanupRemoveScope)
+}
+
+pub(super) fn remove_active_hint() -> String {
+    t!(AgentCleanupRemoveActiveHint)
+}
+
+pub(super) fn remove_all_button(n: usize) -> String {
+    t!(AgentCleanupRemoveAllButton, n = n)
+}
+
+pub(super) fn remove_all_title() -> String {
+    t!(AgentCleanupRemoveAllTitle)
+}
+
+pub(super) fn remove_all_question(n: usize) -> String {
+    t!(AgentCleanupRemoveAllQuestion, n = n)
+}
+
+pub(super) fn remove_all_keep() -> String {
+    t!(AgentCleanupRemoveAllKeep)
+}
+
+pub(super) fn remove_confirm() -> String {
+    t!(AgentCleanupRemoveConfirm)
+}

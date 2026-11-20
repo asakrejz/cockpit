@@ -84,6 +84,35 @@ impl AppState {
         }
     }
 
+    /// After runs were removed from the list: removes only what *those* runs left behind – their
+    /// labelled containers and their working folders – and only if no remaining run uses it.
+    /// Everything else (other orphans, containers without the label) is not touched. Blocking.
+    pub(crate) fn cleanup_removed(&self, keys: &[String]) -> CleanupResult {
+        if keys.is_empty() {
+            return CleanupResult::default();
+        }
+        let prefixes: Vec<String> = keys
+            .iter()
+            .map(|k| agent_run::container_name_prefix(k))
+            .collect();
+        let folders: Vec<String> = keys.iter().map(|k| agent_run::run_dir(k)).collect();
+        let preview = self.cleanup_preview();
+        self.cleanup_apply(&CleanupRequest {
+            containers: preview
+                .containers
+                .iter()
+                .filter(|c| prefixes.iter().any(|p| c.name.starts_with(p.as_str())))
+                .map(|c| c.id.clone())
+                .collect(),
+            folders: preview
+                .folders
+                .iter()
+                .filter(|f| folders.contains(f))
+                .cloned()
+                .collect(),
+        })
+    }
+
     /// Removes what the request confirms and what is still an orphan right now. Blocking.
     pub(crate) fn cleanup_apply(&self, confirmed: &CleanupRequest) -> CleanupResult {
         let now = self.cleanup_preview();

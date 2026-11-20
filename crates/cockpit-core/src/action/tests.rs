@@ -225,6 +225,7 @@ mod multi_repo;
 mod pull_requests;
 mod real_agent;
 mod real_followups;
+mod remove_runs;
 mod repos;
 mod review;
 mod status_sync;
