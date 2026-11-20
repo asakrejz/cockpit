@@ -200,6 +200,16 @@ impl AppState {
             callback_github: redirect_uri(Service::GitHub, port),
             callback_atlassian: redirect_uri(Service::Atlassian, port),
             webhooks: self.webhooks_info(),
+            github_projects: q
+                .github_projects
+                .as_ref()
+                .map(|p| cockpit_core::api::GitHubProjectsSetup {
+                    tickets_from: p.tickets_from,
+                    projects: p.projects.iter().map(ToString::to_string).collect(),
+                    status_field: p.status_field.clone(),
+                    team_field: p.team_field.clone(),
+                })
+                .unwrap_or_default(),
             keys: KEY_NAMES
                 .iter()
                 .map(|n| KeyResponse {

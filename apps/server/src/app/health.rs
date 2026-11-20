@@ -24,6 +24,8 @@ pub struct SignIn {
 pub struct SyncState {
     pub github: String,
     pub jira: String,
+    /// GitHub Projects as the source of tickets.
+    pub github_projects: String,
     pub interval_s: u64,
     /// Per source that was fetched at least once: what went wrong and since when. Contains
     /// no key and no service message, only the kind of problem and times.
@@ -112,6 +114,10 @@ impl AppState {
                     q.jira.is_some() && jira.connected,
                     cockpit_core::Source::Jira,
                 ),
+                github_projects: state(
+                    q.github_projects.is_some() && github.connected,
+                    cockpit_core::Source::GitHubProject,
+                ),
                 interval_s: q.interval.as_secs(),
                 details: ws
                     .sync
@@ -121,6 +127,7 @@ impl AppState {
                         source: match st.source {
                             cockpit_core::Source::Jira => "jira",
                             cockpit_core::Source::GitHub => "github",
+                            cockpit_core::Source::GitHubProject => "github_projects",
                         },
                         status: st.id().to_string(),
                         since_ms: st.since_ms,

@@ -36,7 +36,7 @@ pub struct Loaded {
     #[serde(default)]
     pub prs: Vec<PrLink>,
     /// GitHub Projects only: the projects that were read (fields and their choices).
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub projects: Vec<crate::project::ProjectMeta>,
     /// Hints for the state of the source (e.g. skipped pull requests).
     #[serde(default)]

@@ -68,6 +68,16 @@
 //! model = "claude-sonnet-5-5"          # name as the endpoint offers it
 //! ```
 //!
+//! GitHub Projects as the source of tickets (instead of or next to Jira):
+//!
+//! ```toml
+//! [github_projects]
+//! tickets_from = "github_projects"     # "jira", "github_projects" or "both" (default "both" when the section exists)
+//! projects = ["acme/3", "mkeller/1"]   # owner/number as in the project's address
+//! status_field = "Status"              # optional: the single-select field that counts as the ticket status
+//! team_field = "Team"                  # optional: the field that holds the team
+//! ```
+//!
 //! Optional webhooks (speed up the sync; off by default, see docs/setup-guide.md):
 //!
 //! ```toml
@@ -137,6 +147,8 @@ pub struct Config {
     pub db: PathBuf,
     pub github: Option<GitHubConfig>,
     pub jira: Option<JiraConfig>,
+    /// `[github_projects]`: GitHub Projects as the source of tickets (`None` = Jira only).
+    pub github_projects: Option<GitHubProjectsConfig>,
     /// `[github] auth`: the sign-in method the user picked (`None`: OAuth first, then token).
     pub github_auth: Option<cockpit_core::AuthChoice>,
     /// `[jira] auth`, as `github_auth`.
@@ -238,6 +250,7 @@ impl Config {
             db: default_db_path(),
             github: None,
             jira: None,
+            github_projects: None,
             github_auth: None,
             jira_auth: None,
             github_oauth: None,
@@ -380,6 +393,31 @@ impl Config {
                     .team_field
                     .map(|f| f.trim().to_string())
                     .filter(|f| !f.is_empty()),
+            });
+        }
+
+        if let Some(p) = d.github_projects {
+            let tickets_from = match p.tickets_from.as_deref().map(str::trim) {
+                None | Some("") => cockpit_core::TicketsFrom::Both,
+                Some(t) => cockpit_core::TicketsFrom::from_id(t).ok_or_else(|| {
+                    ConfigError::Wert(msg!(ServerConfigTicketsFromUnknown, value = t))
+                })?,
+            };
+            let mut projects = Vec::new();
+            for text in &p.projects {
+                let r = cockpit_core::ProjectRef::parse(text).ok_or_else(|| {
+                    ConfigError::Wert(msg!(ServerConfigProjectForm, project = text))
+                })?;
+                if !projects.contains(&r) {
+                    projects.push(r);
+                }
+            }
+            let name = |v: Option<String>| v.map(|f| f.trim().to_string()).filter(|f| !f.is_empty());
+            c.github_projects = Some(GitHubProjectsConfig {
+                tickets_from,
+                projects,
+                status_field: name(p.status_field),
+                team_field: name(p.team_field),
             });
         }
 

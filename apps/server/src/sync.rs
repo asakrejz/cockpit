@@ -22,7 +22,8 @@ use cockpit_core::{AuthChoice, AuthKind};
 
 use crate::app::{AppState, now_ms};
 use crate::config::{
-    AtlassianConfig, Config, DEFAULT_INTERVAL_S, GitHubConfig, JiraConfig, OAuthConfig,
+    AtlassianConfig, Config, DEFAULT_INTERVAL_S, GitHubConfig, GitHubProjectsConfig, JiraConfig,
+    OAuthConfig,
 };
 use crate::live::Error as LiveError;
 use crate::secrets;
@@ -35,6 +36,8 @@ const RETRIES: usize = 2;
 pub struct Sources {
     pub github: Option<GitHubConfig>,
     pub jira: Option<JiraConfig>,
+    /// GitHub Projects as the source of tickets.
+    pub github_projects: Option<GitHubProjectsConfig>,
     /// The picked sign-in method per service (`None`: OAuth first, then token).
     pub github_auth: Option<cockpit_core::AuthChoice>,
     pub jira_auth: Option<cockpit_core::AuthChoice>,
@@ -53,6 +56,7 @@ impl Default for Sources {
         Self {
             github: None,
             jira: None,
+            github_projects: None,
             github_auth: None,
             jira_auth: None,
             github_oauth: None,
@@ -69,6 +73,7 @@ impl Sources {
         Self {
             github: config.github.clone(),
             jira: config.jira.clone(),
+            github_projects: config.github_projects.clone(),
             github_auth: config.github_auth,
             jira_auth: config.jira_auth,
             github_oauth: config.github_oauth.clone(),
@@ -83,6 +88,13 @@ impl Sources {
     /// watched repos) apply, because the sync needs no repo list.
     pub fn github_config(&self) -> GitHubConfig {
         self.github.clone().unwrap_or_default()
+    }
+
+    /// Where tickets come from (Jira alone unless `[github_projects]` says otherwise).
+    pub fn tickets_from(&self) -> cockpit_core::TicketsFrom {
+        self.github_projects
+            .as_ref()
+            .map_or(cockpit_core::TicketsFrom::Jira, |p| p.tickets_from)
     }
 }
 
@@ -109,19 +121,38 @@ impl AppState {
         {
             let g = sources.github_config();
             // The sign-in via OAuth goes before the token.
-            if let Some(t) = self.github_access() {
+            if let Some((t, app)) = self.github_credentials() {
                 match GitHubClient::new(&g.api_url, t) {
                     Ok(client) => {
                         services.github = Some(GitHubService {
-                            client: client.with_limits(sources.pr_limits),
+                            client: client.with_limits(sources.pr_limits).with_app(app),
                             repos: g.repos.clone(),
                         })
                     }
                     Err(e) => tracing::warn!("GitHub: {e}"),
                 }
             }
+            if let (Some(p), Some((t, app))) = (&sources.github_projects, self.github_credentials())
+                && p.tickets_from.uses_projects()
+                && !p.projects.is_empty()
+            {
+                match GitHubClient::new(&g.api_url, t) {
+                    Ok(client) => {
+                        services.projects = Some(cockpit_integrations::ProjectsService {
+                            client: client.with_app(app),
+                            projects: p.projects.clone(),
+                            status_field: p.status_field.clone(),
+                            team_field: p.team_field.clone(),
+                        })
+                    }
+                    Err(e) => tracing::warn!("GitHub Projects: {e}"),
+                }
+            }
         }
-        if let Some(j) = &sources.jira
+        if let Some(j) = sources
+            .jira
+            .as_ref()
+            .filter(|_| sources.tickets_from().uses_jira())
             && let Some(client) = self.jira_client()
         {
             // A project chosen in the app takes precedence over `projects` and `jql` of the file.
@@ -372,7 +403,8 @@ impl AppState {
     /// quota limit. Was something written in the meantime? Then the fetch is
     /// outdated and is repeated.
     pub async fn sync(&self) -> Result<SyncResponse, ActionFailure> {
-        self.sync_sources(&[Source::GitHub, Source::Jira]).await
+        self.sync_sources(&[Source::GitHub, Source::Jira, Source::GitHubProject])
+            .await
     }
 
     /// Like [`AppState::sync`], but only asks the given sources (a webhook names one; the
@@ -392,7 +424,7 @@ impl AppState {
             let snapshot = inner.written.load(std::sync::atomic::Ordering::SeqCst);
             let now = now_ms();
             let known = inner.live.copy();
-            let paused: Vec<Source> = [Source::GitHub, Source::Jira]
+            let paused: Vec<Source> = [Source::GitHub, Source::Jira, Source::GitHubProject]
                 .into_iter()
                 .filter(|s| !only.contains(s) || known.sync.paused_until(*s, now).is_some())
                 .collect();

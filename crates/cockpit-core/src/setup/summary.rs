@@ -227,15 +227,48 @@ pub fn summary(s: &Snapshot) -> Vec<Line> {
         }
     };
 
-    vec![
-        Line {
-            name: msg!(CoreSetupNameContainer),
-            tone: container.0,
-            text: container.1,
-            step: Step::Container,
-        },
-        jira,
-        github,
-        model,
-    ]
+    let from = e.github_projects.tickets_from;
+    let mut lines = vec![Line {
+        name: msg!(CoreSetupNameContainer),
+        tone: container.0,
+        text: container.1,
+        step: Step::Container,
+    }];
+    // Without Jira the line for GitHub Projects replaces the Jira line.
+    if from.uses_jira() {
+        lines.push(jira);
+    }
+    lines.push(github);
+    if from.uses_projects() {
+        lines.push(projects_line(s));
+    }
+    lines.push(model);
+    lines
+}
+
+/// The GitHub Projects row: which projects the tickets come from.
+fn projects_line(s: &Snapshot) -> Line {
+    let p = &s.setup.github_projects;
+    let (tone, text) = if !s.github.connected {
+        (Tone::Open, msg!(CoreSetupProjectsNeedGithub))
+    } else if p.projects.is_empty() {
+        (Tone::Open, msg!(CoreSetupProjectsNone))
+    } else {
+        (
+            Tone::Good,
+            msg!(
+                CoreSetupProjectsChosen,
+                projects = ArgValue::joined(
+                    p.projects.iter().map(|n| Msg::raw(n.clone())).collect::<Vec<_>>(),
+                    ", "
+                )
+            ),
+        )
+    };
+    Line {
+        name: msg!(CoreSetupNameProjects),
+        tone,
+        text,
+        step: Step::Projects,
+    }
 }

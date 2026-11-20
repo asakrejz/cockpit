@@ -65,6 +65,9 @@ fn field_name(f: &DetailField) -> String {
         "updated" => t!(InboxDetailFieldUpdated),
         "parent" => t!(InboxDetailFieldParent),
         "issuelinks" => t!(InboxDetailFieldIssuelinks),
+        "project" => t!(InboxDetailFieldProject),
+        "milestone" => t!(InboxDetailFieldMilestone),
+        "ghp:sub_issues" => t!(InboxDetailFieldSubIssues),
         _ if !f.name.is_empty() => f.name.clone(),
         _ => f.id.clone(),
     }

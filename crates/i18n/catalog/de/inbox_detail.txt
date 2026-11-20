@@ -77,3 +77,6 @@ inbox_detail.field_created = Erstellt
 inbox_detail.field_updated = Aktualisiert
 inbox_detail.field_parent = Übergeordnet
 inbox_detail.field_issuelinks = Verknüpfte Tickets
+inbox_detail.field_project = Projekt
+inbox_detail.field_milestone = Meilenstein
+inbox_detail.field_sub_issues = Unter-Issues

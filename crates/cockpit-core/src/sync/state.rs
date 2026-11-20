@@ -103,7 +103,7 @@ pub struct SyncState {
     pub demo_dropped: bool,
     /// The GitHub projects of the last successful sync (fields and their choices): what is
     /// needed to write a status or another field.
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub projects: Vec<crate::project::ProjectMeta>,
 }
 

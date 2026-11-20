@@ -76,7 +76,7 @@ pub use model::*;
 pub use permissions::{Access, Right, TokenKind};
 pub use project::{
     FieldDef, FieldKind, FieldValue, IssueLink, IssueRef, ProjectItem, ProjectMeta, ProjectOrigin,
-    ProjectRef, ProjectSummary, SelectOption,
+    ProjectRef, ProjectSummary, SelectOption, TicketsFrom,
 };
 pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};
 pub use notify::{

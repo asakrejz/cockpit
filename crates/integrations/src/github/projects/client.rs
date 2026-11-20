@@ -33,6 +33,14 @@ pub struct Rate {
     pub reset_s: Option<i64>,
 }
 
+/// The projects the credential can see, and the owners (the user and their organizations) a new
+/// project could be created for.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ProjectList {
+    pub projects: Vec<ProjectSummary>,
+    pub owners: Vec<String>,
+}
+
 /// The items of a project as loaded.
 #[derive(Debug, Default)]
 pub struct ItemsPage {
@@ -224,7 +232,7 @@ impl GitHubClient {
 
     /// The projects the credential can see: its own, those of its organizations, and those
     /// linked to `repos` (`owner/name`). Without the right to read projects: [`Error::MissingRight`].
-    pub async fn list_projects(&self, repos: &[String]) -> Result<Vec<ProjectSummary>, Error> {
+    pub async fn list_projects(&self, repos: &[String]) -> Result<ProjectList, Error> {
         let data = self
             .graphql(&queries::list_viewer(), json!({}), Right::ProjectsRead, true)
             .await?;
@@ -232,6 +240,18 @@ impl GitHubClient {
             .map_err(|e| Error::Response(e.to_string()))?
             .viewer
             .unwrap_or_default();
+        let mut owners: Vec<String> = Vec::new();
+        if !viewer.login.is_empty() {
+            owners.push(viewer.login.clone());
+        }
+        owners.extend(
+            viewer
+                .organizations
+                .iter()
+                .flat_map(|c| c.items())
+                .map(|o| o.login.clone())
+                .filter(|l| !l.is_empty()),
+        );
         let mut out: Vec<ProjectSummary> = Vec::new();
         let mut add = |n: &ProjectNode, origin: ProjectOrigin, repo: Option<&str>| {
             let owner = n.owner.as_ref().map(|o| o.login.clone()).unwrap_or_default();
@@ -299,7 +319,10 @@ impl GitHubClient {
         out.sort_by(|a, b| {
             (a.owner.to_lowercase(), a.number).cmp(&(b.owner.to_lowercase(), b.number))
         });
-        Ok(out)
+        Ok(ProjectList {
+            projects: out,
+            owners,
+        })
     }
 
     /// One project with its fields. `status_field`: the name of the field that counts as the

@@ -56,6 +56,42 @@ impl std::fmt::Display for ProjectRef {
     }
 }
 
+/// Where the tickets come from: Jira, GitHub Projects or both.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum TicketsFrom {
+    #[default]
+    Jira,
+    GitHubProjects,
+    Both,
+}
+
+impl TicketsFrom {
+    pub const ALL: [TicketsFrom; 3] = [TicketsFrom::Jira, TicketsFrom::GitHubProjects, TicketsFrom::Both];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            TicketsFrom::Jira => "jira",
+            TicketsFrom::GitHubProjects => "github_projects",
+            TicketsFrom::Both => "both",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<TicketsFrom> {
+        Self::ALL.into_iter().find(|t| t.id() == id.trim())
+    }
+
+    /// Does Jira deliver tickets?
+    pub fn uses_jira(self) -> bool {
+        self != TicketsFrom::GitHubProjects
+    }
+
+    /// Do GitHub Projects deliver tickets?
+    pub fn uses_projects(self) -> bool {
+        self != TicketsFrom::Jira
+    }
+}
+
 /// Who owns a project and how the credential reaches it (for the list in the setup).
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -251,3 +287,5 @@ impl ProjectItem {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_workspace;

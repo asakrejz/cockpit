@@ -17,7 +17,7 @@ mod dto;
 mod map;
 pub mod queries;
 
-pub use client::{ItemsPage, MAX_ITEMS, Rate};
+pub use client::{ItemsPage, MAX_ITEMS, ProjectList, Rate};
 pub use dto::{DetailNode, ItemNode};
 pub use map::{
     Heavy, MapCtx, apply_details, apply_heavy, heavy_of, iteration_state, map_item, priority_of,

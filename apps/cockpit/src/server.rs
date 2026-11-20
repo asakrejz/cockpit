@@ -491,6 +491,20 @@ pub async fn fetch_github_repos() -> Result<GitHubRepoList, CallError> {
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
+/// The GitHub Projects the connected access can see (`GET /api/github/projects`). Only reads.
+pub async fn fetch_github_projects() -> Result<cockpit_core::api::ProjectsResponse, CallError> {
+    let resp = Request::get("/api/github/projects")
+        .send()
+        .await
+        .map_err(|_| CallError::Unreachable)?;
+    if !resp.ok() {
+        return Err(rejection_own(resp).await);
+    }
+    resp.json::<cockpit_core::api::ProjectsResponse>()
+        .await
+        .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
+}
+
 /// The repos to offer first when the agent starts on a ticket
 /// (`GET /api/agent/repo-suggestions?ticket=…`). Only reads.
 pub async fn fetch_repo_suggestions(ticket: &str) -> Result<RepoSuggestions, CallError> {

@@ -10,8 +10,6 @@ use wiremock::matchers::{body_string_contains, method, path};
 
 use super::*;
 
-const ME: &str = "mkeller";
-
 fn proj(owner: &str, n: u32) -> ProjectRef {
     ProjectRef::new(owner, n)
 }
@@ -98,6 +96,8 @@ async fn the_list_has_user_org_and_repo_projects_once_each() {
         .list_projects(&["acme/app".into(), "acme/secret".into(), "not a repo".into()])
         .await
         .unwrap();
+    assert_eq!(list.owners, ["mkeller", "acme"]);
+    let list = list.projects;
     let names: Vec<_> = list
         .iter()
         .map(|p| format!("{}/{}", p.owner, p.number))

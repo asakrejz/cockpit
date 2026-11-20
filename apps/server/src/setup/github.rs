@@ -292,3 +292,82 @@ pub async fn github_check_route(
 ) -> Response {
     Json(state.github_check(req.repos).await).into_response()
 }
+
+// ---------- GitHub Projects ----------
+
+impl AppState {
+    /// The GitHub Projects the access can see, what rights it has for them, and who a project
+    /// could be created for. Read only; a failure is reported in `problem`, not as an error, so
+    /// the assistant can show it next to the rest.
+    pub async fn github_projects_list(&self) -> Result<cockpit_core::api::ProjectsResponse, (StatusCode, Msg)> {
+        use cockpit_core::api::{MissingRight, ProjectRights, ProjectsResponse};
+        use cockpit_core::Right;
+        self.oauth_refresh().await;
+        let s = self.clone();
+        let access = tokio::task::spawn_blocking(move || s.github_assistant_access())
+            .await
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, msg!(ServerSetupInternalError)))?
+            .map_err(|e| github_failure(&e))?;
+        let Some(Access { client, app }) = access else {
+            return Ok(ProjectsResponse::default());
+        };
+        let client = client.with_app(app);
+        let sources = self.sources();
+        let mut repos: Vec<String> = sources
+            .github
+            .as_ref()
+            .map(|g| g.repos.clone())
+            .unwrap_or_default();
+        for r in self.agent_repos_config().repos.iter().map(|r| r.repo.clone()) {
+            if !repos.contains(&r) {
+                repos.push(r);
+            }
+        }
+        let mut out = ProjectsResponse {
+            connected: true,
+            ..Default::default()
+        };
+        // The scopes of a classic token come with any answer; read them first so that a refusal
+        // below can be explained.
+        match client.probe_access().await {
+            Ok(_) => {}
+            Err(Error::NotSignedIn) => {
+                out.problem = Some(Error::NotSignedIn.msg());
+                return Ok(out);
+            }
+            Err(e) => tracing::warn!("GitHub access probe: {e}"),
+        }
+        match client.list_projects(&repos).await {
+            Ok(list) => {
+                out.projects = list.projects;
+                out.owners = list.owners;
+            }
+            Err(e) => {
+                tracing::warn!("GitHub Projects: {e}");
+                out.problem = Some(e.msg());
+            }
+        }
+        let known = client.access();
+        out.rights = ProjectRights {
+            kind: known.kind,
+            missing: known
+                .missing(&Right::ALL)
+                .into_iter()
+                .map(|right| MissingRight {
+                    right,
+                    msg: right.msg(known.kind),
+                })
+                .collect(),
+            scopes: known.scopes,
+        };
+        Ok(out)
+    }
+}
+
+/// `GET /api/github/projects`.
+pub async fn projects_list(State(state): State<AppState>) -> Response {
+    match state.github_projects_list().await {
+        Ok(list) => Json(list).into_response(),
+        Err((status, m)) => error_msg(status, m),
+    }
+}

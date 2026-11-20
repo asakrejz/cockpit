@@ -278,7 +278,7 @@ pub fn map_item(
             value,
         });
     };
-    put("project", "Project", DetailValue::Text(meta.title.clone()));
+    put("project", "", DetailValue::Text(meta.title.clone()));
     if logins.len() > 1 {
         put(
             "assignee",
@@ -293,7 +293,7 @@ pub fn map_item(
         put("labels", "", DetailValue::List(labels.clone()));
     }
     if let Some(m) = &milestone {
-        put("milestone", "Milestone", DetailValue::Text(m.clone()));
+        put("milestone", "", DetailValue::Text(m.clone()));
     }
     if let Some(d) = &due {
         put("duedate", "", DetailValue::Date(d.clone()));
@@ -494,7 +494,7 @@ pub fn apply_heavy(item: &mut Item, h: Heavy) {
         if !h.sub_issues.is_empty() {
             details.fields.push(DetailField {
                 id: "ghp:sub_issues".into(),
-                name: "Sub-issues".into(),
+                name: String::new(),
                 value: DetailValue::List(
                     h.sub_issues
                         .iter()

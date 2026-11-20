@@ -163,14 +163,14 @@ pub async fn jira(State(state): State<AppState>, req: Request) -> Response {
 
 fn name(source: Source) -> &'static str {
     match source {
-        Source::GitHub => "GitHub",
+        Source::GitHub | Source::GitHubProject => "GitHub",
         Source::Jira => "Jira",
     }
 }
 
 fn secret_name(source: Source) -> &'static str {
     match source {
-        Source::GitHub => secrets::GITHUB_WEBHOOK,
+        Source::GitHub | Source::GitHubProject => secrets::GITHUB_WEBHOOK,
         Source::Jira => secrets::JIRA_WEBHOOK,
     }
 }
@@ -229,11 +229,11 @@ async fn receive(state: AppState, source: Source, req: Request) -> Response {
     // Authentication. GitHub: X-Hub-Signature-256. Jira: X-Hub-Signature, otherwise (senders
     // that cannot sign) the secret as ?token=.
     let signed = match source {
-        Source::GitHub => header_text(&parts.headers, "x-hub-signature-256"),
+        Source::GitHub | Source::GitHubProject => header_text(&parts.headers, "x-hub-signature-256"),
         Source::Jira => header_text(&parts.headers, "x-hub-signature"),
     };
     let authentic = match (signed, source) {
-        (Some(_), _) | (None, Source::GitHub) => {
+        (Some(_), _) | (None, Source::GitHub | Source::GitHubProject) => {
             signature_valid(secret.expose().as_bytes(), &body, signed)
         }
         (None, Source::Jira) => query_token(parts.uri.query())
@@ -247,7 +247,7 @@ async fn receive(state: AppState, source: Source, req: Request) -> Response {
     // The event type is all we take from the request.
     let test = parts.headers.contains_key("x-cockpit-test");
     let event = match source {
-        Source::GitHub => header_text(&parts.headers, "x-github-event")
+        Source::GitHub | Source::GitHubProject => header_text(&parts.headers, "x-github-event")
             .filter(|e| event_name_ok(e))
             .map(str::to_string),
         Source::Jira => serde_json::from_slice::<serde_json::Value>(&body)
@@ -267,7 +267,7 @@ async fn receive(state: AppState, source: Source, req: Request) -> Response {
     // Replay: the same delivery ID, or the same body again, within ten minutes.
     let mut keys = vec![format!("body:{}", hex(&Sha256::digest(&body)))];
     let delivery = match source {
-        Source::GitHub => header_text(&parts.headers, "x-github-delivery"),
+        Source::GitHub | Source::GitHubProject => header_text(&parts.headers, "x-github-delivery"),
         Source::Jira => header_text(&parts.headers, "x-atlassian-webhook-identifier"),
     };
     if let Some(d) = delivery.filter(|d| d.len() <= 100 && !d.is_empty()) {
@@ -280,7 +280,7 @@ async fn receive(state: AppState, source: Source, req: Request) -> Response {
 
     let is_ping = test || event == "ping" || event == "cockpit:test";
     let relevant = match source {
-        Source::GitHub => GITHUB_EVENTS.contains(&event.as_str()),
+        Source::GitHub | Source::GitHubProject => GITHUB_EVENTS.contains(&event.as_str()),
         Source::Jira => JIRA_EVENTS.contains(&event.as_str()),
     };
     let shown = if test { TEST_EVENT } else { &event };

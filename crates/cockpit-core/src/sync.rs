@@ -91,7 +91,7 @@ pub fn merge(local: &Workspace, remote: &Remote, now_ms: u64) -> (Workspace, Vec
 
 /// Removes what still comes exactly like this from the sample data.
 fn drop_demo(ws: &mut Workspace) {
-    let demo = demo::workspace();
+    let demo = demo::seed();
     ws.items
         .retain(|i| !demo.items.iter().any(|d| d.id == i.id) || ws.sync.is_synced(&i.id));
     ws.reviews.retain(|r| {

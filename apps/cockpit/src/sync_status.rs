@@ -75,6 +75,7 @@ pub fn SyncStatus() -> impl IntoView {
                 let name = match st.source {
                     Source::Jira => "Jira",
                     Source::GitHub => "GitHub",
+                    Source::GitHubProject => "GitHub Projects",
                 };
                 let ok = st.is_ok();
                 view! {

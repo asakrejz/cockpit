@@ -45,3 +45,4 @@ server_setup.jira_token = Jira lehnt den Token ab. Prüfe die E-Mail-Adresse (di
 server_setup.jira_permission = Der Token ist gültig, aber Jira verweigert den Zugriff. Dein Konto braucht Zugang zu dieser Site – frag die Administration.
 server_setup.jira_reachable = Jira ist nicht erreichbar. Stimmt die Adresse, und bist du im richtigen Netz oder VPN?
 server_setup.jira_other = Jira hat unerwartet geantwortet. Versuche es in einer Minute noch einmal.
+server_setup.field_name_invalid = Ein Feldname darf keine Steuerzeichen enthalten
