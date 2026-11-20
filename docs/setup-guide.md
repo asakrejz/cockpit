@@ -1,7 +1,8 @@
 # Setup guide
 
 Step by step from a fresh clone to a working Cockpit. The easy way is the setup assistant: the page "Einrichten" walks
-through container, Jira, GitHub, model access and live updates. It writes client IDs, the Jira site and the endpoint
+through container, the ticket source (Jira or GitHub Projects), the steps of that source, GitHub, model access and live
+updates. It writes client IDs, the Jira site and the endpoint
 into `config/config.toml` and keys into `config/.env`. The terminal route leads to the same result (see
 [configuration.md](configuration.md)); both can be mixed.
 
@@ -87,6 +88,24 @@ credential can see, and the "Filter" button of the tab narrows the list (see [us
 If something is not set up, no run starts; the message says in plain language what is missing and where in the
 assistant to fix it.
 
+## Where your tickets come from
+
+Early in the assistant (step "Tickets", right after "Container") you choose the ticket source: **Jira** or **GitHub
+Projects**; "Jira und GitHub Projects zusammen nutzen" is a quieter third option for people who really use both. The
+choice is saved at once as `[github_projects] tickets_from` (`"jira"`, `"github_projects"` or `"both"`; without the
+section Jira is the source). The assistant then walks only through the steps of that choice:
+
+| Choice | Steps after "Tickets" |
+|--------|-----------------------|
+| Jira | Jira (site, sign-in method, projects) › GitHub › Model › Live |
+| GitHub Projects | GitHub › GitHub Projects (pick or create a project, field mapping, rights check) › Model › Live |
+| Both | Jira › GitHub › GitHub Projects › Model › Live |
+
+GitHub itself (the connection for pull requests) is its own step either way. The summary at the end and the progress bar
+show only the steps of the chosen source. You can change the choice at any time: open the last step and press "Ansehen"
+on the line "Tickets aus", or click "Tickets" in the progress bar. Nothing is deleted when you switch; the credentials
+and projects of the other source stay stored and are simply not asked for.
+
 ## Jira
 
 **Default: API token (three entries).** In the app under "Einrichten" › "Jira" enter (1) the address of your Jira
@@ -133,8 +152,8 @@ annotations and "Restart" show a plain message that this access cannot read chec
 ## GitHub Projects (tickets without Jira)
 
 Cockpit can read your tickets from the **Projects** tab of GitHub (Projects v2) instead of Jira or next to it. In the
-setup assistant the step "GitHub Projects" (after "GitHub") asks "Tickets from: Jira / GitHub Projects / Both"; with
-"GitHub Projects" alone the step "Jira" disappears. Then pick one or more projects from the list (your own, those of
+setup assistant you choose "GitHub Projects" in the step "Tickets" (see above); the step "Jira" then disappears and
+the step "GitHub Projects" (after "GitHub") appears. There pick one or more projects from the list (your own, those of
 your organizations, those linked to the repos in use) or type `owner/number` (`acme/3` for
 `github.com/orgs/acme/projects/3`).
 

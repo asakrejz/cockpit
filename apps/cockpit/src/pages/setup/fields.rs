@@ -91,6 +91,7 @@ pub fn command(words: &[&str]) -> String {
 pub fn step_label(step: Step) -> String {
     match step {
         Step::Container => t!(SetupStepContainer),
+        Step::Source => t!(SetupStepSource),
         Step::Jira => t!(SetupStepJira),
         Step::GitHub => t!(SetupStepGithub),
         Step::Projects => t!(SetupStepProjects),

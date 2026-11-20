@@ -5,7 +5,8 @@ use cockpit_i18n::Msg;
 #[test]
 fn steps_walk_forward_and_back() {
     assert_eq!(Step::Container.previous(), None);
-    assert_eq!(Step::Container.next(), Some(Step::Jira));
+    assert_eq!(Step::Container.next(), Some(Step::Source));
+    assert_eq!(Step::Source.next(), Some(Step::Jira));
     assert_eq!(Step::Done.next(), None);
     assert_eq!(Step::Done.previous(), Some(Step::Live));
     assert_eq!(Step::Live.previous(), Some(Step::Model));
@@ -217,16 +218,25 @@ fn oauth(connected: bool) -> ServiceStatus {
 #[test]
 fn summary_explains_in_plain_words() {
     let empty = summary(&Snapshot::default());
-    assert_eq!(empty.len(), 4);
-    assert!(empty.iter().all(|z| z.tone == Tone::Open), "{empty:?}");
+    assert_eq!(empty.len(), 5);
+    // The choice of the ticket source has a default and is never open; everything else is.
+    assert_eq!(empty[1].step, Step::Source);
+    assert_eq!(empty[1].tone, Tone::Good);
+    assert!(
+        empty
+            .iter()
+            .filter(|z| z.step != Step::Source)
+            .all(|z| z.tone == Tone::Open),
+        "{empty:?}"
+    );
 
     // Client ID there, secret missing: a problem that names the step.
     let mut s = Snapshot::default();
     s.setup.github_client_id = Some("Iv1".into());
     let z = summary(&s);
-    assert_eq!(z[2].tone, Tone::Problem);
-    assert_eq!(z[2].step, Step::GitHub);
-    assert!(z[2].text.de().contains("Client-Secret"));
+    assert_eq!(z[3].tone, Tone::Problem);
+    assert_eq!(z[3].step, Step::GitHub);
+    assert!(z[3].text.de().contains("Client-Secret"));
 
     // Both there, only signing in missing: open with instructions.
     s.setup.keys = vec![KeyResponse {
@@ -234,14 +244,14 @@ fn summary_explains_in_plain_words() {
         set: true,
     }];
     let z = summary(&s);
-    assert_eq!(z[2].tone, Tone::Open);
-    assert!(z[2].text.de().contains("Mit GitHub anmelden"));
+    assert_eq!(z[3].tone, Tone::Open);
+    assert!(z[3].text.de().contains("Mit GitHub anmelden"));
 
     // Signed in is enough: without any repo the pull requests are found by search.
     s.github = oauth(true);
-    assert_eq!(summary(&s)[2].tone, Tone::Good);
+    assert_eq!(summary(&s)[3].tone, Tone::Good);
     s.setup.github_repos = vec!["firma/app".into()];
-    assert_eq!(summary(&s)[2].tone, Tone::Good);
+    assert_eq!(summary(&s)[3].tone, Tone::Good);
 }
 
 #[test]
@@ -254,11 +264,11 @@ fn container_and_model_lines() {
     assert_eq!(summary(&s)[0].tone, Tone::Good);
 
     s.endpoint.configured = true;
-    assert_eq!(summary(&s)[3].tone, Tone::Problem);
+    assert_eq!(summary(&s)[4].tone, Tone::Problem);
     s.endpoint.key = true;
-    assert!(summary(&s)[3].text.de().contains("Modellname"));
+    assert!(summary(&s)[4].text.de().contains("Modellname"));
     s.endpoint.model = Some("m".into());
-    assert_eq!(summary(&s)[3].tone, Tone::Open);
+    assert_eq!(summary(&s)[4].tone, Tone::Open);
     s.check = Some(EndpointCheck {
         configured: true,
         reachable: true,
@@ -267,7 +277,7 @@ fn container_and_model_lines() {
         hint: None,
         msg: None,
     });
-    assert_eq!(summary(&s)[3].tone, Tone::Good);
+    assert_eq!(summary(&s)[4].tone, Tone::Good);
 }
 
 #[test]
@@ -368,10 +378,10 @@ fn hand_typed_model_names_are_checked() {
 #[test]
 fn the_summary_names_the_chosen_tool() {
     let mut s = Snapshot::default();
-    assert!(!summary(&s)[3].text.de().contains("Codex"));
+    assert!(!summary(&s)[4].text.de().contains("Codex"));
     s.endpoint.provider = Provider::Codex;
     s.endpoint.configured = true;
-    let z = &summary(&s)[3];
+    let z = &summary(&s)[4];
     assert_eq!(z.tone, Tone::Problem);
     assert!(z.text.de().starts_with("Codex: "), "{}", z.text.de());
 }
@@ -387,11 +397,11 @@ fn jira_line_names_the_kind_of_login() {
         jira: token,
         ..Default::default()
     };
-    let z = &summary(&s)[1];
+    let z = &summary(&s)[2];
     assert_eq!((z.tone, z.name.de()), (Tone::Good, "Jira".to_string()));
     assert!(z.text.de().contains("mit API-Token"), "{}", z.text.de());
     s.jira = oauth(true);
-    let z = &summary(&s)[1];
+    let z = &summary(&s)[2];
     assert_eq!(z.tone, Tone::Good);
     assert!(z.text.de().contains("mit OAuth"), "{}", z.text.de());
 }
@@ -399,23 +409,23 @@ fn jira_line_names_the_kind_of_login() {
 #[test]
 fn jira_line_says_what_the_token_way_lacks() {
     let mut s = Snapshot::default();
-    let z = &summary(&s)[1];
+    let z = &summary(&s)[2];
     assert_eq!(z.tone, Tone::Open);
     assert!(z.text.de().contains("API-Token"));
     s.setup.jira_site = "https://firma.atlassian.net".into();
-    let z = &summary(&s)[1];
+    let z = &summary(&s)[2];
     assert!(
         z.text.de().contains("E-Mail-Adresse, Token"),
         "{}",
         z.text.de()
     );
     s.setup.jira_email = "a@b.de".into();
-    let z = &summary(&s)[1];
+    let z = &summary(&s)[2];
     assert!(z.text.de().ends_with(": Token."), "{}", z.text.de());
     // The way via the app is kept.
     let mut o = Snapshot::default();
     o.setup.atlassian_client_id = Some("id".into());
-    let z = &summary(&o)[1];
+    let z = &summary(&o)[2];
     assert_eq!(z.tone, Tone::Problem);
     assert!(z.text.de().contains("Client-Secret"));
 }
@@ -691,7 +701,7 @@ fn github_summary_says_when_repos_are_hidden_or_the_sign_in_ran_out() {
     };
     s.setup.github_repos = vec!["acme/app".into()];
     s.setup.github_client_id = Some("Iv1.dummy".into());
-    assert_eq!(summary(&s)[2].tone, Tone::Good);
+    assert_eq!(summary(&s)[3].tone, Tone::Good);
     // Everything visible: still fine.
     let sight = |v| GitHubAccess {
         connected: true,
@@ -703,10 +713,10 @@ fn github_summary_says_when_repos_are_hidden_or_the_sign_in_ran_out() {
         ..Default::default()
     };
     s.github_access = Some(sight(RepoVisibility::Visible));
-    assert_eq!(summary(&s)[2].tone, Tone::Good);
+    assert_eq!(summary(&s)[3].tone, Tone::Good);
     // One repo the app cannot see: connected, but a problem that names the repo.
     s.github_access = Some(sight(RepoVisibility::NotVisible));
-    let z = &summary(&s)[2];
+    let z = &summary(&s)[3];
     assert_eq!(z.tone, Tone::Problem);
     assert!(z.text.de().contains("acme/app"), "{}", z.text.de());
     // An expired sign-in without a token is not "not set up".
@@ -718,7 +728,57 @@ fn github_summary_says_when_repos_are_hidden_or_the_sign_in_ran_out() {
         ..Default::default()
     };
     s.setup.github_client_id = Some("Iv1.dummy".into());
-    let z = &summary(&s)[2];
+    let z = &summary(&s)[3];
     assert_eq!(z.tone, Tone::Problem);
     assert!(z.text.de().contains("abgelaufen"), "{}", z.text.de());
+}
+
+#[test]
+fn the_summary_reflects_only_the_chosen_ticket_source() {
+    let steps = |from| {
+        let mut s = Snapshot::default();
+        s.setup.github_projects.tickets_from = from;
+        summary(&s).into_iter().map(|z| z.step).collect::<Vec<_>>()
+    };
+    assert_eq!(
+        steps(crate::TicketsFrom::Jira),
+        [
+            Step::Container,
+            Step::Source,
+            Step::Jira,
+            Step::GitHub,
+            Step::Model
+        ]
+    );
+    assert_eq!(
+        steps(crate::TicketsFrom::GitHubProjects),
+        [
+            Step::Container,
+            Step::Source,
+            Step::GitHub,
+            Step::Projects,
+            Step::Model
+        ]
+    );
+    assert_eq!(
+        steps(crate::TicketsFrom::Both),
+        [
+            Step::Container,
+            Step::Source,
+            Step::Jira,
+            Step::GitHub,
+            Step::Projects,
+            Step::Model
+        ]
+    );
+    // The source line names the choice.
+    let mut s = Snapshot::default();
+    s.setup.github_projects.tickets_from = crate::TicketsFrom::GitHubProjects;
+    assert!(summary(&s)[1].text.de().starts_with("GitHub Projects"));
+    assert!(
+        summary(&s)[1]
+            .text
+            .render(Lang::En)
+            .starts_with("GitHub Projects")
+    );
 }
