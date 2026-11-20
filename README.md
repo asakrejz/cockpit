@@ -26,7 +26,16 @@ minutes. Then the browser opens Cockpit at `http://127.0.0.1:8787`, and the setu
 through Jira, GitHub and the model. Every step can be skipped. What only you can do (creating tokens and apps) is in the
 [setup guide](docs/setup-guide.md).
 
-<!-- Run with Docker: a short hint to docs/container.md goes here. -->
+## Run with Docker
+
+Instead of building, you can run the ready-made image (log in to `ghcr.io` first, see the guide):
+
+```bash
+docker run -d --name cockpit -p 127.0.0.1:8787:8787 -v cockpit-config:/app/config ghcr.io/<owner>/cockpit:latest
+```
+
+Publish on `127.0.0.1` only. Your configuration and keys live in the `cockpit-config` volume. Details:
+[docs/container.md](docs/container.md).
 
 ## Keys
 
@@ -54,6 +63,7 @@ committed, rotate it. Everything else (`config/config.toml`, ports, the database
 | Document | Contents |
 |----------|----------|
 | [docs/setup-guide.md](docs/setup-guide.md) | Jira, GitHub, OAuth, agent image, model, webhooks, step by step |
+| [docs/container.md](docs/container.md) | run Cockpit as a container image |
 | [docs/configuration.md](docs/configuration.md) | `config.toml`, environment variables, `config/.env` |
 | [docs/using-cockpit.md](docs/using-cockpit.md) | pages of the app, filters, teams, agent runs |
 | [docs/architecture.md](docs/architecture.md) | decisions, HTTP API, sync, agent behaviour, development |

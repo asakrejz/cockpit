@@ -37,7 +37,8 @@ Details: [configuration.md](configuration.md).
 
 ## Requests to the backend
 
-- The server listens only on `127.0.0.1`.
+- The server listens only on `127.0.0.1`. The one exception is the container image, see
+  [Running in a container](#running-in-a-container).
 - Every route under `/api` checks the peer (only loopback) and the `Host` header (`127.0.0.1:<port>` or
   `localhost:<port>`), which protects against DNS rebinding.
 - Writing requests additionally need `Content-Type: application/json` and a missing or own `Origin`. This also applies
@@ -48,6 +49,30 @@ Details: [configuration.md](configuration.md).
   only, never from `config.toml`.
 - Endpoint calls of the backend (`GET <url>/v1/models`, connection tests) do not follow redirects and have a timeout and
   a size limit; they are only made when a key exists and they return IDs and booleans, never the key.
+
+## Running in a container
+
+The image ([container.md](container.md)) sets `COCKPIT_BIND=0.0.0.0`, because inside a container `127.0.0.1` is
+unreachable from the host. Outside a container the default stays `127.0.0.1`; the variable exists only in the
+environment (never in `config.toml`). With a non-loopback `COCKPIT_BIND` the server logs a warning.
+
+- **The host side protects, so publish only on `127.0.0.1`:** `-p 127.0.0.1:8787:8787`. A port published on `0.0.0.0`
+  (`-p 8787:8787`) is reachable from your network, and then the checks below no longer keep strangers out: the `Host`
+  header can be set by anyone.
+- With port publishing the peer is the gateway of the container network, not loopback. In this mode the peer check
+  therefore accepts loopback and private addresses (`10/8`, `172.16/12`, `192.168/16`, link-local, IPv6 unique-local)
+  and rejects public ones. Any other container on the same container network could therefore call `/api` as well.
+- The **`Host` check is unchanged** (`127.0.0.1:<port>` or `localhost:<port>`, against DNS rebinding), as are the
+  `Origin` and JSON content-type rules for writing requests. If the published host port differs from the container
+  port, `COCKPIT_PUBLIC_PORT` adds that port to the accepted ones (environment only).
+- The webhook routes keep requiring a loopback peer, so they do not work through a published container port.
+- Keys stay in `config/.env` inside the volume; none is baked into the image or passed as a build argument. The
+  process runs as the unprivileged user `10001`.
+- **Mounting the container socket** (`-v /var/run/docker.sock:/var/run/docker.sock`, for agent runs) gives Cockpit
+  root-equivalent access to the host: it could start a privileged container with the whole disk mounted. It is opt-in,
+  off by default, and meant only for a machine you trust.
+- The workflow publishes to a private package and deletes all other versions after each push, so no old image with
+  old code lingers. Reading it needs a token with `read:packages`.
 
 ## Jira attachments (`GET /api/jira/attachment/{id}`)
 
@@ -151,10 +176,11 @@ off by default (`[server] webhooks = false`: `404`).
   that are still orphans: containers with the label `cockpit.run` that belong to no working run (command line
   `ps --filter label=…` and `rm -f`, never the socket) and folders directly under `<data>/agent/runs`. It never
   touches the image, other containers or any other path.
-- **One repo per run, only configured ones.** A run clones and pushes in exactly one repo. The repo comes from the
-  routing rules or from your choice in the interface, and the backend refuses (at start and again when the container
-  starts) any repo that is not in `[[agent.repos]]` / `[agent] repo` / `[github] repos`. The repo check in the assistant
-  only reads (`GET /repos/{owner}/{name}`).
+- **Only the repos you chose, each on its own.** A run clones and pushes only in the repos you chose when you started it
+  (one or several, see [using-cockpit.md](using-cockpit.md#working-in-several-repos-at-once)). The backend checks the
+  repos again at start and before every push and applies the branch pattern and path rules of **each** repo separately;
+  a repo that fails a check is refused and the others are still pushed. The repo check in the assistant only reads
+  (`GET /repos/{owner}/{name}`).
 - **Approval.** Comments and reviews of the agent go out only after your approval. Only you may merge. A plan that
   touches forbidden paths cannot be approved.
 - **Sandbox in the runner.** The agent writes only to `/work`; the runner blocks writing outside `/work`, `.git`,

@@ -93,8 +93,10 @@
 //! Umgebungsvariablen: `COCKPIT_PORT`, `COCKPIT_DIST`, `COCKPIT_DB`, `COCKPIT_CONFIG`
 //! (path of the configuration file), `COCKPIT_SEED` (`empty` or `demo`; `leer` still applies), `COCKPIT_CONTAINER`
 //! (`docker` or `podman`), `COCKPIT_AGENT_DIR` (folder `agent`), `COCKPIT_GIT_BASE` (older `COCKPIT_GIT_BASIS`; base address for cloning, tests only),
+//! `COCKPIT_BIND` (listen address; default `127.0.0.1`, `0.0.0.0` only inside the container image) and `COCKPIT_PUBLIC_PORT` (published host port if it differs),
 //! `COCKPIT_DEV_PORT` (port of `trunk serve`, for development only), `COCKPIT_ENV_FILE` (path of the `.env` file with the keys, default `config/.env`).
 
+use std::net::{IpAddr, Ipv4Addr};
 use std::path::{Path, PathBuf};
 
 use cockpit_core::api::Provider;
@@ -164,6 +166,12 @@ pub struct Config {
     pub git_base: Option<String>,
     /// `COCKPIT_DEV_PORT`: port of `trunk serve` for development (environment only, never file).
     pub dev_port: Option<u16>,
+    /// `COCKPIT_BIND`: address the server listens on (environment only, never file). Default `127.0.0.1`;
+    /// anything else is meant for the container image (`0.0.0.0`) and switches on `container_mode`.
+    pub bind: IpAddr,
+    /// `COCKPIT_PUBLIC_PORT`: the port under which the host reaches the published container port (`-p 127.0.0.1:18787:8787`),
+    /// so `Host` and `Origin` with that port are accepted (environment only).
+    pub public_port: Option<u16>,
     /// The file that was read from (and that the setup assistant writes to); `None`
     /// if there is no configuration directory.
     pub config_path: Option<PathBuf>,
@@ -245,6 +253,8 @@ impl Config {
             agent_dir: None,
             git_base: None,
             dev_port: None,
+            bind: IpAddr::V4(Ipv4Addr::LOCALHOST),
+            public_port: None,
             config_path: None,
             config_dir: None,
             legacy_files: Vec::new(),
@@ -507,6 +517,21 @@ impl Config {
                 return Err(ConfigError::Wert(msg!(ServerConfigDevPortZero)));
             }
             c.dev_port = Some(nr);
+        }
+        if let Some(b) = env("COCKPIT_BIND").filter(|s| !s.trim().is_empty()) {
+            c.bind = b.trim().parse().map_err(|_| {
+                ConfigError::Wert(Msg::raw(format!(
+                    "COCKPIT_BIND must be an IP address such as 0.0.0.0, got \"{b}\""
+                )))
+            })?;
+        }
+        if let Some(p) = env("COCKPIT_PUBLIC_PORT").filter(|s| !s.trim().is_empty()) {
+            let nr: u16 = p.trim().parse().ok().filter(|n| *n != 0).ok_or_else(|| {
+                ConfigError::Wert(Msg::raw(format!(
+                    "COCKPIT_PUBLIC_PORT must be a port number, got \"{p}\""
+                )))
+            })?;
+            c.public_port = Some(nr);
         }
         if let Some(p) = env("COCKPIT_PORT").filter(|s| !s.is_empty()) {
             c.port = p

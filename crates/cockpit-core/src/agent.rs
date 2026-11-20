@@ -32,6 +32,9 @@ use crate::usage::{AgentLimits, StopReason, Usage};
 mod options;
 pub use options::*;
 
+mod repos;
+pub use repos::*;
+
 mod types;
 pub use types::*;
 
@@ -94,6 +97,10 @@ pub struct AgentRun {
     /// the rules. Empty in old states (then the only configured repo applies).
     #[serde(default)]
     pub repo: String,
+    /// All repos of the run (the first is `repo`), each with its branch settings and result.
+    /// Old states have none: see [`AgentRun::repo_list`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub repos: Vec<RunRepo>,
     /// The rules of the repo as they applied at start (or at planning).
     #[serde(default)]
     pub rules: RepoRules,
@@ -148,6 +155,7 @@ impl AgentRun {
             target_branch: String::new(),
             diagnosis: None,
             repo: String::new(),
+            repos: Vec::new(),
             rules: RepoRules::default(),
             step_usage: Vec::new(),
             extra_budget_cents: 0,
@@ -235,10 +243,14 @@ impl AgentRun {
         if self.repo.is_empty() {
             return None;
         }
-        match (&self.kind, &self.pull_request) {
-            (RunKind::Implement, Some(p)) => Some(PrKey::new(&self.repo, p.number)),
-            (RunKind::Implement, None) => None,
-            (kind, _) => kind.review(),
+        match &self.kind {
+            // With several repos the first pull request decides; the others follow on their own.
+            RunKind::Implement => self
+                .pull_requests()
+                .into_iter()
+                .next()
+                .map(|(repo, p)| PrKey::new(&repo, p.number)),
+            kind => kind.review(),
         }
     }
 
@@ -379,15 +391,7 @@ impl AgentRun {
 
     /// `claude/BAU-142-toggle-fokus-ring-fehlt` (or whatever the pattern of the repo makes of it)
     pub fn branch(&self) -> String {
-        if !self.target_branch.is_empty() {
-            return self.target_branch.clone();
-        }
-        crate::branch::render(
-            &self.options.branch_pattern,
-            &self.ticket_key,
-            &self.ticket_title,
-            crate::branch::BranchType::from_word(&self.options.branch_type),
-        )
+        self.branch_in(&self.repo)
     }
 }
 

@@ -73,7 +73,7 @@ The agent implements a ticket in a **container** (Claude Agent SDK, Claude Code 
    Rancher Desktop or Podman may not know the VPN route or name; the test then says that your Mac reaches the
    proxy but the container does not. Connect the VPN first and restart Rancher Desktop or the Podman machine.
 4. **Connect GitHub:** that is all the setup needs from GitHub – **no repos are assigned here**. The agent clones
-   through the backend, one repo per run, and you choose the repo when you start the agent on a ticket (see
+   through the backend, and you choose one or several repos when you start the agent on a ticket (see
    [using-cockpit.md](using-cockpit.md#choosing-the-repo-at-the-start)). The step "GitHub" has two optional, collapsed
    sections: "Repos beobachten (optional)" (repos whose *all* open pull requests Cockpit loads, `[github] repos`) and
    "Repo-Einstellungen für den Agenten (optional)" (base branch, branch pattern, PR language, Jira projects per repo,

@@ -11,8 +11,8 @@ import { createInterface } from "node:readline";
 import { type Event, type Sink, truncate } from "../event.ts";
 import { type Job, commitMessage } from "../job.ts";
 import { tx } from "../texts.ts";
-import { changedFiles, record } from "../git.ts";
-import { type Policy, violations } from "../policy.ts";
+import { headsOf, recordJob, touchedFiles } from "../git.ts";
+import { type Policy, policyOf, violations } from "../policy.ts";
 import { finishReview } from "../review.ts";
 import { planFromAnswer } from "./claude-messages.ts";
 import type { AdapterEnv } from "./interface.ts";
@@ -95,16 +95,12 @@ export async function runCli(job: Job, d: AdapterEnv, make: (sink: Sink) => Spec
     sink({ t: "error", text: spec });
     return 1;
   }
-  const policy: Policy = { root: d.root, allowed: job.rules.allowed_paths, forbidden: job.rules.forbidden_paths };
+  const policy: Policy = policyOf(d.root, job);
   const review = job.mode === "review";
   const plan = job.mode === "plan" || review;
   try {
-    let head = "";
-    try {
-      head = (await d.git(["rev-parse", "HEAD"], d.root)).trim();
-    } catch {
-      /* no readable HEAD: the check below then only looks at the working tree */
-    }
+    // The commit each repo starts from (no readable HEAD: the check below then only looks at the working tree).
+    const heads = await headsOf(d.git, job, d.root);
 
     const child = spawn(spec.command, spec.args, { cwd: d.root, env: spec.env, stdio: ["pipe", "pipe", "pipe"] });
     let missing = false;
@@ -170,12 +166,7 @@ export async function runCli(job: Job, d: AdapterEnv, make: (sink: Sink) => Spec
     // Whatever the tool did, the rules of the job decide: check every file that differs from the start.
     let files: string[];
     try {
-      files = await changedFiles(d.git, d.root);
-      const now = head ? (await d.git(["rev-parse", "HEAD"], d.root)).trim() : head;
-      if (head && now !== head) {
-        const moved = await d.git(["diff", "--name-only", "-z", `${head}..${now}`], d.root);
-        files = [...new Set([...files, ...moved.split("\0").filter(Boolean)])];
-      }
+      files = await touchedFiles(d.git, job, d.root, heads);
     } catch (e) {
       sink({ t: "error", text: (e as Error).message });
       return 1;
@@ -199,13 +190,19 @@ export async function runCli(job: Job, d: AdapterEnv, make: (sink: Sink) => Spec
       sink({ t: "plan", summary: p.summary, files: p.files, steps: p.steps });
       return 0;
     }
-    const f = await record(d.git, d.root, job.branch, commitMessage(job));
+    const f = await recordJob(d.git, d.root, job);
     if (!f) {
       sink({ t: "error", text: tx("error_nothing_changed") });
       return 1;
     }
     sink({ t: "files", files: f.files });
-    sink({ t: "result", text: truncate(out.text.trim() || tx("result_done", { key: job.ticket.key }), 1500), branch: job.branch, commit: f.commit });
+    sink({
+      t: "result",
+      text: truncate(out.text.trim() || tx("result_done", { key: job.ticket.key }), 1500),
+      branch: job.branch,
+      commit: f.commit,
+      ...(job.repos.length > 1 ? { repos: f.repos } : {}),
+    });
     return 0;
   } catch (e) {
     sink({ t: "error", text: scrub((e as Error).message, secrets) });

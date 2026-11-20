@@ -109,7 +109,7 @@ from the person's shell ends up in the container.
 | `hints_arrived` | none | a hint from the user reached the agent |
 | `review_comment` | `path`, `line`, `start_line?`, `side` (`RIGHT`\|`LEFT`), `text`, `suggestion?` | a draft review comment (mode `review`); the backend checks it against the diff |
 | `review_summary` | `text` | the agent's summary of the pull request (mode `review`); stays local |
-| `result` | `text`, `branch`, `commit` | done; the commit is on the branch in the clone (mode `review`: no commit, `commit` is empty) |
+| `result` | `text`, `branch`, `commit`, `repos?` | done; the commit is on the branch in the clone (mode `review`: no commit, `commit` is empty). In a job in several repos `repos` lists `{repo, branch, commit}` of every repo that has a commit; repos without changes are missing and get nothing |
 | `check` | `reachable`, `key_ok`, `hint` | result of the check mode |
 | `error` | `text` | abort with a reason |
 
@@ -161,6 +161,24 @@ names it (`contributing`) and the system text tells the agent to follow its comm
 The runner additionally blocks writing outside `/work`, `.git`, forbidden paths and commands such as `git push` and
 `curl` (see the adapters above for how each tool enforces it). A review run is stricter still: read-only clone, no
 commit. The agent asks questions through the tool `ask_user`.
+
+## Jobs in several repos
+
+If the job has `repos` (two or more entries `{repo, dir, branch, base_branch, rules, contributing, pr_language}`), the backend
+has cloned each repo to `/work/<owner>__<name>` (`dir`) instead of cloning one repo into `/work`. The runner then works
+from `/work`:
+
+- the system text (`multiSystemText`) names every repo with folder, base branch and branch and repeats each repo's rules
+  and guidelines file under its own name;
+- the path policy (`policyOf`) takes the first folder of a path to find the repo and applies **that repo's** allowed and
+  forbidden paths; a path outside every repo folder, the root itself and any `.git` are denied; the check after CLI runs
+  uses the same policy on `<dir>/<file>` paths;
+- after the run `recordJob` commits each repo that changed on its own branch (commit text in that repo's `pr_language`)
+  and leaves the others untouched; if nothing changed anywhere the usual `error` is sent. The `result` event carries
+  `repos`; its `branch`/`commit` are those of the first changed repo.
+
+The job is checked again in the runner (folder must be `<owner>__<name>`, branch names, at most 10 repos). A job without
+`repos` behaves exactly as before. This is `CONTRACT` 7.
 
 ## Tests
 

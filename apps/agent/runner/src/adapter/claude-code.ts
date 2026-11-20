@@ -15,7 +15,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { type Job, systemText, tasksText } from "../job.ts";
-import type { Policy } from "../policy.ts";
+import { type Policy, policyOf } from "../policy.ts";
 import { type Outcome, type Spec, type Translator, baseEnv, runCli } from "./cli.ts";
 import { ClaudeTranslator } from "./claude-messages.ts";
 import type { Adapter } from "./interface.ts";
@@ -106,7 +106,7 @@ export function claudeCode(): Adapter {
         // Plan and review only read.
         const plan = job.mode === "plan" || job.mode === "review";
         const dir = mkdtempSync(join(tmpdir(), "cockpit-claude-"));
-        const policy: Policy = { root: d.root, allowed: job.rules.allowed_paths, forbidden: job.rules.forbidden_paths };
+        const policy: Policy = policyOf(d.root, job);
         const policyFile = join(dir, "policy.json");
         const settingsFile = join(dir, "settings.json");
         writeFileSync(policyFile, JSON.stringify(policy));

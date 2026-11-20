@@ -1,6 +1,6 @@
 //! Who may call the routes under `/api` – protection against foreign web pages.
 //!
-//! The backend only listens on `127.0.0.1`, but that alone does not protect against a web page
+//! The backend only listens on `127.0.0.1` (in the container image: `0.0.0.0` inside, published on `127.0.0.1` of the host; then private peers count too), but that alone does not protect against a web page
 //! in the same browser. Therefore the following applies to all `/api` routes:
 //!
 //! * The peer is a loopback address.
@@ -32,6 +32,7 @@ use cockpit_i18n::msg;
 
 /// Checks a request. `peer` is the address of the peer if known – if it is missing,
 /// the request is rejected.
+#[cfg(test)]
 pub fn check(
     peer: Option<IpAddr>,
     method: &Method,
@@ -39,7 +40,40 @@ pub fn check(
     ports: &[u16],
     dev: bool,
 ) -> Result<(), (StatusCode, cockpit_i18n::Msg)> {
-    if !peer.is_some_and(|ip| ip.is_loopback()) {
+    check_in(peer, method, head, ports, dev, false)
+}
+
+/// Is `ip` a loopback or a private address (Docker/Podman bridge, VM network of Rancher Desktop)?
+/// In a container the published port arrives from the gateway of the container network, not from loopback.
+fn is_local_network(ip: IpAddr) -> bool {
+    match ip {
+        IpAddr::V4(v4) => v4.is_loopback() || v4.is_private() || v4.is_link_local(),
+        IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || (v6.segments()[0] & 0xfe00) == 0xfc00
+                || (v6.segments()[0] & 0xffc0) == 0xfe80
+                || v6.to_ipv4_mapped().is_some_and(|v4| v4.is_private())
+        }
+    }
+}
+
+/// Like [`check`]; with `container` the peer may also come from a private network.
+pub fn check_in(
+    peer: Option<IpAddr>,
+    method: &Method,
+    head: &HeaderMap,
+    ports: &[u16],
+    dev: bool,
+    container: bool,
+) -> Result<(), (StatusCode, cockpit_i18n::Msg)> {
+    let peer_ok = peer.is_some_and(|ip| {
+        if container {
+            is_local_network(ip)
+        } else {
+            ip.is_loopback()
+        }
+    });
+    if !peer_ok {
         return Err((StatusCode::FORBIDDEN, msg!(ServerAccessLocalOnly)));
     }
     let host = head.get(HOST).and_then(|h| h.to_str().ok());
@@ -91,6 +125,8 @@ pub struct Access {
     pub ports: Vec<u16>,
     /// Development mode: host also without a port.
     pub dev: bool,
+    /// Container image (`COCKPIT_BIND` is not loopback): private peers are accepted, the `Host` check stays.
+    pub container: bool,
 }
 
 /// Middleware for the `/api` part of the router.
@@ -99,12 +135,13 @@ pub async fn protect(State(access): State<Access>, request: Request, next: Next)
         .extensions()
         .get::<ConnectInfo<SocketAddr>>()
         .map(|c| c.0.ip());
-    match check(
+    match check_in(
         peer,
         request.method(),
         request.headers(),
         &access.ports,
         access.dev,
+        access.container,
     ) {
         Ok(()) => next.run(request).await,
         Err((status, message)) => (status, Json(ErrorBody::coded(message))).into_response(),

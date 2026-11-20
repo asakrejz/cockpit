@@ -18,6 +18,7 @@ mod labels;
 mod progress;
 mod pull_request;
 mod repo_choice;
+mod repos;
 mod sidebar;
 mod texts;
 
@@ -83,6 +84,7 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
 
                         {controls::controls(ctx)}
                         {move || controls::blocked_hint(ctx)}
+                        <repos::RunRepos run=run />
                         <pull_request::PullRequestPanel run=run />
                         <branch::BranchPanel run=run />
                         {move || controls::ended_banner(ctx)}

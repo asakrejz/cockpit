@@ -38,9 +38,9 @@ pub async fn post_cleanup(request: &CleanupRequest) -> Result<CleanupResult, Cal
 }
 
 /// May the branch of the run be deleted (`GET /api/agent/branch?run=…`)? Reads only.
-pub async fn fetch_branch_check(run: &str) -> Result<BranchCheck, CallError> {
+pub async fn fetch_branch_check(run: &str, repo: &str) -> Result<BranchCheck, CallError> {
     let resp = Request::get("/api/agent/branch")
-        .query([("run", run)])
+        .query([("run", run), ("repo", repo)])
         .send()
         .await
         .map_err(|_| CallError::Unreachable)?;
@@ -51,9 +51,12 @@ pub async fn fetch_branch_check(run: &str) -> Result<BranchCheck, CallError> {
 }
 
 /// Deletes the branch of the run on GitHub (`POST /api/agent/branch`), only on a click.
-pub async fn post_branch_delete(run: &str) -> Result<BranchDeleted, CallError> {
+pub async fn post_branch_delete(run: &str, repo: &str) -> Result<BranchDeleted, CallError> {
     let resp = Request::post("/api/agent/branch")
-        .json(&BranchDeleteRequest { run: run.into() })
+        .json(&BranchDeleteRequest {
+            run: run.into(),
+            repo: repo.into(),
+        })
         .map_err(|_| CallError::Rejected(feature_ui::t!(ServerRequestNotStarted)))?
         .send()
         .await

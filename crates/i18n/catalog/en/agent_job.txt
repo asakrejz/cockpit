@@ -26,3 +26,5 @@ agent_job.reason_linked_pr = Has a pull request or branch for this ticket
 agent_job.reason_mentioned = Named in the ticket
 agent_job.reason_rule = Set for the project {project} in the settings
 agent_job.reason_default = Default repo from the settings
+agent_job.repo_remove = Remove
+agent_job.repos_hint = The agent works in all chosen repos at once. Every repo gets its own branch and its own pull request.

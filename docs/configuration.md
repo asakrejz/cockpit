@@ -25,6 +25,8 @@ from. Environment variables override the file:
 | `COCKPIT_AGENT_DIR` | folder with `Containerfile` and runner |
 | `COCKPIT_GIT_BASE` | git base for clones (tests, local remotes) |
 | `COCKPIT_DEV_PORT` | allow the `trunk serve` port (environment only, see [architecture.md](architecture.md#development)) |
+| `COCKPIT_BIND` | listen address, default `127.0.0.1`; the container image sets `0.0.0.0` (environment only, see [container.md](container.md)) |
+| `COCKPIT_PUBLIC_PORT` | published host port of a container if it differs from the server port (environment only) |
 
 ```toml
 port = 8787
@@ -155,7 +157,7 @@ the credential can see (`GET /user/repos`, or the installation repos with the Gi
 `owner/name` is allowed. The dialog suggests repos first, each with a short reason: (1) repos earlier runs used for
 tickets of the same Jira project (remembered from the runs in the database), (2) repos of pull requests or branches
 linked to the ticket, (3) `owner/name` or GitHub addresses in the ticket text, (4) the `[[agent.repos]]` rules and
-`[agent] repo` below. A run has one repo today; the choice is a list internally, so a run in several repos can follow.
+`[agent] repo` below. A run can work in several repos (see [using-cockpit.md](using-cockpit.md#working-in-several-repos-at-once)).
 
 `[[agent.repos]]` holds the **settings per repo** (owner/name, base branch, branch pattern, PR language, Jira
 projects). It is optional. A repo without an entry uses its default branch from GitHub as the base branch and the

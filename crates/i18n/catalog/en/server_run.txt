@@ -88,3 +88,7 @@ server_run.nothing_changed = The agent has not changed anything, there is nothin
 server_run.too_many_files = The agent changed {n} files – Cockpit does not push more than {max}.
 server_run.rules_violated = The changes break the rules of the repo and are not pushed: {reasons}.
 server_run.push_failed = Pushing to {branch} failed: {error}
+server_run.repo_pushed = Pushed: {repo} on {branch} ({n} files).
+server_run.repo_unchanged = Unchanged: {repo} (nothing to push).
+server_run.repo_refused = Refused: {repo}: {reason}
+server_run.all_repos_refused = Nothing was pushed: {reason}

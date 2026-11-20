@@ -154,9 +154,10 @@ pub async fn fetch_jira_assignable(
 /// (`GET /api/agent/pull-request?run=…`). Creates nothing.
 pub async fn fetch_pull_request_preview(
     run: &str,
+    repo: &str,
 ) -> Result<cockpit_core::api::PullRequestPreview, CallError> {
     let resp = Request::get("/api/agent/pull-request")
-        .query([("run", run)])
+        .query([("run", run), ("repo", repo)])
         .send()
         .await
         .map_err(|_| CallError::Unreachable)?;

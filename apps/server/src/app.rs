@@ -56,7 +56,9 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub fn router(state: AppState, dist: PathBuf) -> Router {
     let mut ports = vec![state.inner.port];
     ports.extend(state.inner.settings.dev_port);
+    ports.extend(state.inner.settings.public_port);
     let access = access::Access {
+        container: state.inner.settings.container_mode,
         dev: state.inner.settings.dev_port.is_some(),
         ports,
     };

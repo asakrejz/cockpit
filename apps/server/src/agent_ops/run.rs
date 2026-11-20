@@ -136,36 +136,83 @@ pub(super) async fn run_run(
     };
 
     let branch = run.branch();
-    // The pattern comes from the configuration of the repo, never from the run's own options.
-    let pattern = state.agent_repos().branch_pattern(&repo);
     let base_dir = state.agent_dir().join("runs").join(agent_run::run_dir(key));
-    let clone = base_dir.join(match mode {
+    let mode_dir = base_dir.join(match mode {
         Mode::Plan => "plan",
         Mode::Review => "review",
         Mode::Implement => "run",
     });
-    let base_file = base_dir.join("base");
-    let url = agent_git::clone_url(&access.git_base, &repo);
+    // A run in several repos (only "implement ticket" and its plan): every repo gets its own
+    // clone in `<mode>/<owner>__<name>`, and the container sees `/work/<owner>__<name>`. A run in
+    // one repo keeps the clone directly in `/work`.
+    let multi = !run.is_followup() && mode != Mode::Review && run.repos.len() > 1;
+    let mut targets: Vec<Target> = Vec::new();
+    if multi {
+        for entry in &run.repos {
+            let name = match state.run_repo_of(&run, &entry.repo) {
+                Ok(r) => r,
+                Err(m) => return End::Error(m),
+            };
+            let dir = cockpit_core::repo_dir(&name);
+            targets.push(Target {
+                branch: run.branch_in(&name),
+                // The pattern comes from the configuration of the repo, never from the run's own options.
+                pattern: state.agent_repos().branch_pattern(&name),
+                base: if entry.base_branch.is_empty() {
+                    run.options.base_branch.clone()
+                } else {
+                    entry.base_branch.clone()
+                },
+                url: agent_git::clone_url(&access.git_base, &name),
+                clone: mode_dir.join(&dir),
+                base_file: base_dir.join(format!("base-{dir}")),
+                export: base_dir.join(format!("export-{dir}.git")),
+                rules: entry.rules.clone(),
+                base_sha: String::new(),
+                repo: name,
+            });
+        }
+    } else {
+        targets.push(Target {
+            branch: branch.clone(),
+            // The pattern comes from the configuration of the repo, never from the run's own options.
+            pattern: state.agent_repos().branch_pattern(&repo),
+            base: run.options.base_branch.clone(),
+            url: agent_git::clone_url(&access.git_base, &repo),
+            clone: mode_dir.clone(),
+            base_file: base_dir.join("base"),
+            export: base_dir.join("export.git"),
+            rules: run.rules.clone(),
+            base_sha: String::new(),
+            repo: repo.clone(),
+        });
+    }
+    let clone = mode_dir.clone();
 
     // Clone: fresh, unless a halted run is resumed.
-    let present = mode == Mode::Implement && clone.join(".git").is_dir() && base_file.is_file();
-    let base_sha = if present {
-        std::fs::read_to_string(&base_file)
-            .unwrap_or_default()
-            .trim()
-            .to_string()
-    } else {
-        let (k, u, t, b, br, pt) = (
-            clone.clone(),
-            url.clone(),
+    let present = mode == Mode::Implement
+        && targets
+            .iter()
+            .all(|t| t.clone.join(".git").is_dir() && t.base_file.is_file());
+    for t in &mut targets {
+        if present {
+            t.base_sha = std::fs::read_to_string(&t.base_file)
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            continue;
+        }
+        let (k, u, tk, b, br, pt) = (
+            t.clone.clone(),
+            t.url.clone(),
             access.github.clone(),
-            run.options.base_branch.clone(),
-            branch.clone(),
-            pattern.clone(),
+            t.base.clone(),
+            t.branch.clone(),
+            t.pattern.clone(),
         );
         let on_existing_branch = run.kind.review().is_some();
         let read_only_review = mode == Mode::Review;
-        let bd = base_file.clone();
+        let bd = t.base_file.clone();
         let cloned = tokio::task::spawn_blocking(move || {
             let _ = std::fs::remove_dir_all(&k);
             if let Some(p) = k.parent() {
@@ -181,11 +228,11 @@ pub(super) async fn run_run(
             };
             let sha = if read_only_review {
                 // Any branch of the pull request: the agent only reads this clone.
-                agent_git::clone_for_review(&u, &k, Some(&t), &br)?
+                agent_git::clone_for_review(&u, &k, Some(&tk), &br)?
             } else if on_existing_branch {
-                agent_git::clone_branch(&u, &k, Some(&t), &rule)?
+                agent_git::clone_branch(&u, &k, Some(&tk), &rule)?
             } else {
-                agent_git::clone(&u, &k, Some(&t), &rule)?
+                agent_git::clone(&u, &k, Some(&tk), &rule)?
             };
             std::fs::write(&bd, &sha)
                 .map_err(|e| msg!(ServerRunStateNotSaved, error = e.to_string()))?;
@@ -193,21 +240,30 @@ pub(super) async fn run_run(
         })
         .await;
         match cloned {
-            Ok(Ok(sha)) => sha,
+            Ok(Ok(sha)) => t.base_sha = sha,
             Ok(Err(m)) => {
                 // The git errors are redacted where they are made.
-                return End::Error(msg!(ServerRunCloneFailed, repo = &repo, reason = m));
+                return End::Error(msg!(ServerRunCloneFailed, repo = &t.repo, reason = m));
             }
             Err(_) => return End::Error(msg!(ServerRunInternalClone)),
         }
-    };
+    }
 
     let job_dir = base_dir.join(format!("job-{}", mode.id()));
     let mut job = agent_run::job_json(&ws, &run, mode, &branch, followup.as_ref().map(|f| &f.0));
     if let Some((_, redacted)) = &followup {
         job["followup"] = redacted.clone();
     }
-    if let Some(file) = agent_git::guideline_file(&clone) {
+    if multi {
+        let guides: HashMap<String, &'static str> = targets
+            .iter()
+            .filter_map(|t| agent_git::guideline_file(&t.clone).map(|f| (t.repo.clone(), f)))
+            .collect();
+        job["repos"] = agent_run::repos_json(&run, &guides);
+    } else if let Some(file) = targets
+        .first()
+        .and_then(|t| agent_git::guideline_file(&t.clone))
+    {
         job["contributing"] = file.into();
     }
     // The diff and the description come from third parties: whatever looks like one of our keys goes.
@@ -314,6 +370,7 @@ pub(super) async fn run_run(
     let mut discarded = 0usize;
     let mut result: Option<(String, String)> = None;
     let mut error_text: Option<String> = None;
+    let mut result_repos: Vec<agent_run::ResultRepo> = Vec::new();
     let mut plan_reported = false;
     let mut quiet = false;
     let mut too_much: Option<Msg> = None;
@@ -332,7 +389,10 @@ pub(super) async fn run_run(
                     Err(_) => { discarded += 1; continue; }
                 };
                 match &e {
-                    Event::Result { text, branch: b, .. } => { result = Some((text.clone(), b.clone())); }
+                    Event::Result { text, branch: b, repos, .. } => {
+                        result = Some((text.clone(), b.clone()));
+                        result_repos = repos.clone();
+                    }
                     Event::Error { text } => { error_text = Some(text.clone()); }
                     Event::Question { .. } if mode == Mode::Implement => {
                         lock(info).question_open = true;
@@ -458,7 +518,7 @@ pub(super) async fn run_run(
         // Nothing to push: the drafts are already booked on the review.
         return End::Done(text);
     }
-    if result_branch != branch {
+    if !multi && result_branch != branch {
         return End::Error(msg!(
             ServerRunBranchMismatch,
             got = result_branch,
@@ -467,45 +527,184 @@ pub(super) async fn run_run(
     }
 
     // Check and push – the backend, not the container.
-    let export = base_dir.join("export.git");
-    let (k, e, b, sha, u, t, rules) = (
-        clone.clone(),
-        export.clone(),
-        branch.clone(),
-        base_sha,
-        url,
-        access.github.clone(),
-        run.rules.clone(),
-    );
-    let (pt, base, existing) = (
-        pattern,
-        run.options.base_branch.clone(),
-        run.kind.review().is_some(),
-    );
-    let published = tokio::task::spawn_blocking(move || {
-        let _ = std::fs::remove_dir_all(&e);
-        let rule = agent_git::BranchRule {
-            branch: &b,
-            pattern: &pt,
-            base: &base,
-            existing,
+    if !multi {
+        let t = targets.remove(0);
+        let (k, e, b, sha, u, tk, rules) = (
+            clone.clone(),
+            t.export.clone(),
+            branch.clone(),
+            t.base_sha.clone(),
+            t.url.clone(),
+            access.github.clone(),
+            t.rules.clone(),
+        );
+        let (pt, base, existing) = (
+            t.pattern.clone(),
+            run.options.base_branch.clone(),
+            run.kind.review().is_some(),
+        );
+        let published = tokio::task::spawn_blocking(move || {
+            let _ = std::fs::remove_dir_all(&e);
+            let rule = agent_git::BranchRule {
+                branch: &b,
+                pattern: &pt,
+                base: &base,
+                existing,
+            };
+            agent_git::publish(&k, &e, &sha, &u, Some(&tk), &rules, &rule)
+        })
+        .await;
+        return match published {
+            Ok(Ok(v)) => {
+                // The result per repo is booked for an implementation (a follow-up has none).
+                if run.kind == RunKind::Implement {
+                    let one = cockpit_core::RepoResult {
+                        repo: t.repo.clone(),
+                        state: cockpit_core::RunRepoState::Pushed,
+                        files: v.files.clone(),
+                        reason: String::new(),
+                    };
+                    let _ = apply(state, key, AgentReport::Repos { repos: vec![one] }).await;
+                }
+                // The summary of the run takes plain text (no codes there yet).
+                End::Done(
+                    msg!(
+                        ServerRunDonePushed,
+                        text = text,
+                        branch = &branch,
+                        n = v.files.len()
+                    )
+                    .de(),
+                )
+            }
+            Ok(Err(m)) => End::Error(m),
+            Err(_) => End::Error(msg!(ServerRunInternalPush)),
         };
-        agent_git::publish(&k, &e, &sha, &u, Some(&t), &rules, &rule)
-    })
-    .await;
-    match published {
-        // The summary of the run takes plain text (no codes there yet).
-        Ok(Ok(v)) => End::Done(
-            msg!(
-                ServerRunDonePushed,
-                text = text,
-                branch = &branch,
-                n = v.files.len()
-            )
-            .de(),
-        ),
-        Ok(Err(m)) => End::Error(m),
-        Err(_) => End::Error(msg!(ServerRunInternalPush)),
+    }
+    publish_repos(state, key, &run, targets, &result_repos, &text, &access).await
+}
+
+/// One repo of a run in several repos, with everything needed to clone, check and push it.
+pub(super) struct Target {
+    pub repo: String,
+    pub branch: String,
+    pub pattern: String,
+    pub base: String,
+    pub url: String,
+    pub clone: PathBuf,
+    pub base_file: PathBuf,
+    pub export: PathBuf,
+    pub rules: cockpit_core::RepoRules,
+    pub base_sha: String,
+}
+
+/// Each repo is handled on its own: a changed repo is checked (branch pattern, path rules) and
+/// pushed, an unchanged one gets nothing, and one that fails its checks is refused without
+/// blocking the others. The pull requests are created later, on your click, per repo.
+async fn publish_repos(
+    state: &AppState,
+    key: &str,
+    run: &cockpit_core::AgentRun,
+    targets: Vec<Target>,
+    reported: &[agent_run::ResultRepo],
+    text: &str,
+    access: &super::Access,
+) -> End {
+    use cockpit_core::{RepoResult, RunRepoState};
+    let mut results: Vec<RepoResult> = Vec::new();
+    let mut lines: Vec<Msg> = Vec::new();
+    for t in targets {
+        // The runner names the branch it committed on; a different one is not pushed.
+        let wrong = reported
+            .iter()
+            .find(|r| r.repo == t.repo)
+            .filter(|r| r.branch != t.branch)
+            .map(|r| {
+                msg!(
+                    ServerRunBranchMismatch,
+                    got = r.branch.clone(),
+                    expected = &t.branch
+                )
+            });
+        let outcome = match wrong {
+            Some(m) => Err(m),
+            None => {
+                let (k, e, b, sha, u, tk, rules, pt, base) = (
+                    t.clone.clone(),
+                    t.export.clone(),
+                    t.branch.clone(),
+                    t.base_sha.clone(),
+                    t.url.clone(),
+                    access.github.clone(),
+                    t.rules.clone(),
+                    t.pattern.clone(),
+                    t.base.clone(),
+                );
+                match tokio::task::spawn_blocking(move || {
+                    let _ = std::fs::remove_dir_all(&e);
+                    let rule = agent_git::BranchRule {
+                        branch: &b,
+                        pattern: &pt,
+                        base: &base,
+                        existing: false,
+                    };
+                    agent_git::publish_changes(&k, &e, &sha, &u, Some(&tk), &rules, &rule)
+                })
+                .await
+                {
+                    Ok(r) => r,
+                    Err(_) => Err(msg!(ServerRunInternalPush)),
+                }
+            }
+        };
+        let (state_of, files, reason, line) = match outcome {
+            Ok(agent_git::Outcome::Pushed(v)) => (
+                RunRepoState::Pushed,
+                v.files.clone(),
+                String::new(),
+                msg!(
+                    ServerRunRepoPushed,
+                    repo = &t.repo,
+                    branch = &t.branch,
+                    n = v.files.len()
+                ),
+            ),
+            Ok(agent_git::Outcome::Unchanged) => (
+                RunRepoState::Unchanged,
+                Vec::new(),
+                String::new(),
+                msg!(ServerRunRepoUnchanged, repo = &t.repo),
+            ),
+            Err(m) => (
+                RunRepoState::Refused,
+                Vec::new(),
+                m.de(),
+                msg!(ServerRunRepoRefused, repo = &t.repo, reason = m),
+            ),
+        };
+        results.push(RepoResult {
+            repo: t.repo.clone(),
+            state: state_of,
+            files,
+            reason,
+        });
+        lines.push(line);
+    }
+    match cockpit_core::judge(&results) {
+        cockpit_core::Judgement::Done { .. } => {
+            let _ = apply(state, key, AgentReport::Repos { repos: results }).await;
+            let mut summary = text.to_string();
+            for l in &lines {
+                summary.push('\n');
+                summary.push_str(&l.de());
+            }
+            let _ = run;
+            End::Done(summary)
+        }
+        cockpit_core::Judgement::NothingChanged => End::Error(msg!(ServerRunNothingChanged)),
+        cockpit_core::Judgement::AllRefused { reason } => {
+            End::Error(msg!(ServerRunAllReposRefused, reason = Msg::raw(reason)))
+        }
     }
 }
 

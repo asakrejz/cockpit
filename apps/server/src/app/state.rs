@@ -19,6 +19,10 @@ pub struct Settings {
     pub search_path: Option<std::ffi::OsString>,
     /// `COCKPIT_DEV_PORT`: the port of `trunk serve`, whose requests (host, origin) also apply.
     pub dev_port: Option<u16>,
+    /// `COCKPIT_PUBLIC_PORT`: published host port of a container.
+    pub public_port: Option<u16>,
+    /// `COCKPIT_BIND` is not loopback: the server runs in a container, peers come from the container network.
+    pub container_mode: bool,
     /// The `config.toml` into which the setup assistant writes.
     pub config_path: Option<PathBuf>,
     /// The folder `config/` (Git and permission checks in `/api/health`).
@@ -56,6 +60,8 @@ impl Settings {
             container_env: config.container_env.clone(),
             search_path: None,
             dev_port: config.dev_port,
+            public_port: config.public_port,
+            container_mode: !config.bind.is_loopback(),
             config_path: config.config_path.clone(),
             config_dir: config.config_dir.clone(),
             legacy_files: config.legacy_files.clone(),

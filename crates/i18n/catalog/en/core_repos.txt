@@ -1,0 +1,6 @@
+# The state of one repo of an agent run
+core_repos.state_pending = Not finished
+core_repos.state_unchanged = Unchanged
+core_repos.state_pushed = Pushed
+core_repos.state_pr_created = Pull request created
+core_repos.state_refused = Push refused

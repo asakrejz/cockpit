@@ -137,6 +137,12 @@ impl AgentRun {
                     );
                 }
             }
+            AgentReport::Repos { repos } => {
+                if !self.is_working() {
+                    return None;
+                }
+                self.book_repos(&repos);
+            }
             AgentReport::Done { summary } => {
                 if !self.is_working() {
                     return None;

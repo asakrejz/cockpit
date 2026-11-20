@@ -61,6 +61,9 @@ pub struct BranchCheck {
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct BranchDeleteRequest {
     pub run: String,
+    /// The repo of a run in several repos whose branch is meant. Empty = the primary one.
+    #[serde(default)]
+    pub repo: String,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]

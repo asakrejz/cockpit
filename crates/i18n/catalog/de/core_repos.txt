@@ -1,0 +1,6 @@
+# Der Stand eines Repos in einem Agent-Lauf
+core_repos.state_pending = Noch nicht fertig
+core_repos.state_unchanged = Nichts geändert
+core_repos.state_pushed = Gepusht
+core_repos.state_pr_created = Pull Request erstellt
+core_repos.state_refused = Push abgelehnt

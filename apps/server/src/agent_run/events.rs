@@ -72,6 +72,11 @@ pub enum Event {
         text: String,
         branch: String,
         commit: String,
+        /// A run in several repos: the branch and commit per repo that has changes. Repos the
+        /// agent left alone are missing. The backend checks everything itself and only compares
+        /// the branch names.
+        #[serde(default)]
+        repos: Vec<ResultRepo>,
     },
     Check {
         reachable: bool,
@@ -105,6 +110,15 @@ pub(super) fn list(v: Vec<String>) -> Vec<String> {
         .take(MAX_LIST)
         .map(|s| truncate(&s, 300))
         .collect()
+}
+
+/// One repo in the result of a run in several repos.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct ResultRepo {
+    pub repo: String,
+    pub branch: String,
+    #[serde(default)]
+    pub commit: String,
 }
 
 /// Reads a line of the runner. Too large, unreadable or unknown lines are discarded;
@@ -164,10 +178,20 @@ pub fn line_read(line: &str) -> Result<Event, Discarded> {
             text,
             branch,
             commit,
+            repos,
         } => Event::Result {
             text: truncate(&text, 1_500),
             branch: truncate(&branch, 200),
             commit: truncate(&commit, 64),
+            repos: repos
+                .into_iter()
+                .take(cockpit_core::MAX_REPOS_PER_RUN)
+                .map(|r| ResultRepo {
+                    repo: truncate(&r.repo, 200),
+                    branch: truncate(&r.branch, 200),
+                    commit: truncate(&r.commit, 64),
+                })
+                .collect(),
         },
         Event::Check {
             reachable,
