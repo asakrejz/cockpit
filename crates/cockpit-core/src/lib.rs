@@ -49,6 +49,7 @@ pub mod persist;
 pub mod project;
 pub mod repos;
 pub mod review;
+pub mod review_filter;
 pub mod rules;
 pub mod search;
 pub mod setup;
@@ -92,6 +93,7 @@ pub use review::{
     SHOWN_LINES, SendError, Suggestion, SuggestionDiff, TreeRow, Verdict, Viewed, commit_date,
     file_tree, merge_blockers, short_sha,
 };
+pub use review_filter::{ProjectChoice, RepoGroup, ReviewFilter};
 pub use rules::{DEMO_REPO, PathViolation, RepoRules, ViolationKind, glob_match};
 pub use search::InboxFilter;
 pub use sync::{

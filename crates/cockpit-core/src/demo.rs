@@ -86,11 +86,14 @@ fn item(
 
 /// The second repo of the sample data.
 pub const DEMO_REPO_TOKENS: &str = "acme/design-tokens";
+/// A third repo of the sample data (pull requests of colleagues): the Reviews filter has
+/// several repos to choose from.
+pub const DEMO_REPO_SHOP: &str = "acme/shop";
 
 /// Due date of the demo ticket BAU-150: lies before the day the demo was made.
 pub const DEMO_OVERDUE: &str = "2026-11-09";
 
-/// What the server starts with for `COCKPIT_SEED=demo`: the sample data with two repos plus two
+/// What the server starts with for `COCKPIT_SEED=demo`: the sample data with three repos plus two
 /// tickets of a sample GitHub project (an issue and a draft).
 pub fn seed() -> Workspace {
     let mut ws = multi_repo_workspace();
@@ -260,7 +263,7 @@ fn add_team_pull_requests(ws: &mut Workspace) {
         ),
         (
             103,
-            DEMO_REPO,
+            DEMO_REPO_SHOP,
             "SHOP-5: Warenkorb-Symbol",
             "feature/shop-5-cart-icon",
             mira(),

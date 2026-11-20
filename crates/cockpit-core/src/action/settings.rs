@@ -127,11 +127,13 @@ impl Workspace {
                 let repo_rules = std::mem::take(&mut self.repo_rules);
                 let jira_project = self.jira_project.take();
                 let inbox_filter = std::mem::take(&mut self.inbox_filter);
+                let review_filter = std::mem::take(&mut self.review_filter);
                 let language = self.language;
                 let team_choice = std::mem::take(&mut self.team_choice);
                 *self = demo::workspace();
                 self.jira_project = jira_project;
                 self.inbox_filter = inbox_filter;
+                self.review_filter = review_filter;
                 self.language = language;
                 self.team_choice = team_choice;
                 self.notifications = notifications;

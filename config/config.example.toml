@@ -39,15 +39,15 @@ container = "podman"            # or "docker"; omit to detect the runtime
 repo = "acme/app"               # optional default repo; remove it to choose the repo at every start
 
 # Optional settings per repo. Without an entry a repo uses its default branch and the usual branch pattern;
-# the first start in a repo stores one (with watch = false). A Jira project can be routed to a repo here.
+# the first start in a repo stores one (with watch = false). The repo itself is chosen when you start the agent
+# on a ticket; older files may still carry `projects = ["WEB"]` here, which only acts as a quiet suggestion.
 [[agent.repos]]
 repo = "acme/web"
 base_branch = "develop"         # optional, default "main"
-projects = ["WEB"]              # tickets of these Jira projects go to this repo
 branch_pattern = "feature/{ticket}-{slug}"   # optional; default "claude/{ticket}-{slug}"; also {type} = feature/fix/chore
 
 [[agent.repos]]
-repo = "acme/app"               # a repo without projects only keeps its settings
+repo = "acme/app"               # a repo entry only keeps its settings
 # watch = false                 # true (default): the sync also loads all open pull requests of this repo
 
 [agent.endpoint]

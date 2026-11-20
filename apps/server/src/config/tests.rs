@@ -386,6 +386,17 @@ fn agent_repos_with_base_branch_and_projects() {
 }
 
 #[test]
+fn old_project_lists_are_read_leniently_as_suggestions_only() {
+    // Jira projects are no longer tied to a repo: a bad key or one that two repos list is
+    // skipped or shared, never an error.
+    let toml = "[[agent.repos]]\nrepo = \"a/b\"\nprojects = [\"1X\", \"web\", \"WEB\"]\n\
+                [[agent.repos]]\nrepo = \"a/c\"\nprojects = [\"WEB\"]";
+    let c = Config::parse(Some(toml), no_env).unwrap();
+    assert_eq!(c.agent_repos[0].projects, ["WEB"]);
+    assert_eq!(c.agent_repos[1].projects, ["WEB"]);
+}
+
+#[test]
 fn the_branch_pattern_defaults_and_can_be_set_per_repo() {
     let toml = r#"
         [[agent.repos]]
@@ -446,8 +457,6 @@ fn broken_agent_repos_are_rejected_with_a_reason() {
     for broken in [
         "[[agent.repos]]\nrepo = \"firma\"",
         "[[agent.repos]]\nrepo = \"a/b\"\n[[agent.repos]]\nrepo = \"a/b\"",
-        "[[agent.repos]]\nrepo = \"a/b\"\nprojects = [\"1X\"]",
-        "[[agent.repos]]\nrepo = \"a/b\"\nprojects = [\"WEB\"]\n[[agent.repos]]\nrepo = \"a/c\"\nprojects = [\"WEB\"]",
         "[[agent.repos]]\nrepo = \"a/b\"\nbase_branch = \"-x\"",
         "[[agent.repos]]\nrepo = \"a/b\"\nunknown = 1",
     ] {

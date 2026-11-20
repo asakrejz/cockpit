@@ -154,6 +154,13 @@ pub struct Workspace {
     /// The chosen inbox filters (see [`crate::filters`]); change by `Action::SetInboxFilter`.
     #[serde(default)]
     pub inbox_filter: InboxFilter,
+    /// The chosen filter of the Reviews tab (see [`crate::review_filter`]); change by
+    /// `Action::SetReviewFilter`.
+    #[serde(
+        default,
+        skip_serializing_if = "crate::review_filter::ReviewFilter::is_default"
+    )]
+    pub review_filter: crate::review_filter::ReviewFilter,
     /// Which source the overview shows (Alle / Jira / GitHub); change by
     /// `Action::SetPeopleSource`.
     #[serde(default, skip_serializing_if = "is_default_source")]

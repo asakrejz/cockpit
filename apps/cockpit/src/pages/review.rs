@@ -78,34 +78,16 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
         review_language: RwSignal::new(None),
     };
 
-    // Whose pull requests the list shows; starts with those that concern me.
-    let owner = RwSignal::new(Ownership::default().id().to_string());
-    let owner_options: Vec<(String, String)> = vec![
-        ("mine".to_string(), t!(ReviewOwnerMine)),
-        ("all".to_string(), t!(ReviewOwnerAll)),
-    ];
-    let list = move || {
-        let ownership = Ownership::from_id(&owner.get()).unwrap_or_default();
+    // Which pull requests the list shows: the persisted filter (repos, projects, whose).
+    let filter_open = RwSignal::new(false);
+    // Sections per repo; collapsed ones are remembered per browser.
+    let collapsed = RwSignal::new(sections::load());
+    sections::reveal(store, collapsed, number.get_value());
+    sections::keys(store, collapsed, number.get_value());
+    let list = move || sections::list(store, collapsed, number.get_value());
+    let filtered_out = move || {
         store.ws.with(|w| {
-            // With reviews from more than one repo the list names the repo.
-            let multi_repo = {
-                let mut repos = w.reviews.iter().map(|r| r.repo.as_str());
-                repos.next().is_some_and(|first| repos.any(|r| r != first))
-            };
-            let current = number.get_value();
-            w.reviews_for(ownership, current.as_ref())
-                .into_iter()
-                .map(|r| {
-                    view! {
-                        <SidebarItem
-                            href=Route::Review(Some(r.key())).hash()
-                            label=review_label(r, multi_repo)
-                            current=number.get_value().is_some_and(|n| n.same(&r.key()))
-                            count=if r.sent { t!(ReviewSent) } else { String::new() }
-                        />
-                    }
-                })
-                .collect_view()
+            !w.reviews.is_empty() && w.reviews_filtered(&w.review_filter, None).is_empty()
         })
     };
     let no_reviews = move || store.ws.with(|w| w.reviews.is_empty());
@@ -118,16 +100,15 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
             back_href=Route::Review(None).hash()
         >
             <PickerPane label=t!(ReviewListLabel) title=t!(ReviewTitle)>
-                <Show when=move || store.ws.with(|w| w.reviews.iter().any(|r| !w.review_is_mine(r)))>
-                    <Select
-                        options=owner_options.clone()
-                        value=owner
-                        on_change=move |v: String| owner.set(v)
-                        aria_label=t!(ReviewOwnerLabel)
-                        compact=true
-                    />
+                <Show when=move || !no_reviews()>
+                    {filter::filter_button(store, filter_open)}
+                    {filter::filter_summary(store)}
                 </Show>
-                <ul class="ui-sidebar__nav">{list}</ul>
+                {filter::filter_dialog(store, filter_open)}
+                {list}
+                <Show when=move || filtered_out()>
+                    <p class="ck-empty t-footnote t-secondary">{t!(ReviewFilterNoneTitle)}</p>
+                </Show>
                 <Show when=move || no_reviews() && problem_of(&access).is_none()>
                     <p class="ck-empty t-footnote t-secondary">{t!(ReviewListEmpty)}</p>
                 </Show>
@@ -259,9 +240,11 @@ mod checks;
 mod comments;
 mod diff;
 mod drafts;
+mod filter;
 mod followups;
 mod merge;
 mod panel;
+mod sections;
 mod suggestions;
 
 use checks::{checks_label, checks_section};

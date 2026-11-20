@@ -233,3 +233,61 @@ fn the_repo_of_an_issue_comes_first_before_any_other_reason() {
     assert_eq!(names(&again), ["acme/linked"]);
     assert_eq!(again[0].reason, SuggestReason::Issue);
 }
+
+#[test]
+fn the_start_dialog_suggests_without_any_project_rule() {
+    // Jira projects are not tied to repos in the setup any more: earlier runs, linked pull
+    // requests and mentions are enough, and the default repo comes last.
+    let used = vec![("WEB".to_string(), "acme/web".to_string())];
+    let linked = vec!["acme/api".to_string()];
+    let rules = AgentRepos {
+        repos: vec![AgentRepo::new("acme/app")],
+        default: Some("acme/app".into()),
+    };
+    let s = suggest_repos(&SuggestInput {
+        project: Some("WEB"),
+        used: &used,
+        linked: &linked,
+        text: "see https://github.com/acme/docs/pull/3",
+        rules: Some(&rules),
+        ..Default::default()
+    });
+    let names: Vec<_> = s.iter().map(|x| x.repo.as_str()).collect();
+    assert_eq!(names, ["acme/web", "acme/api", "acme/docs", "acme/app"]);
+    assert!(
+        s.iter()
+            .all(|x| !matches!(x.reason, SuggestReason::Rule { .. }))
+    );
+}
+
+#[test]
+fn an_old_project_list_still_suggests_quietly() {
+    let rules = AgentRepos {
+        repos: vec![AgentRepo {
+            projects: vec!["WEB".into()],
+            ..AgentRepo::new("acme/web")
+        }],
+        default: None,
+    };
+    let s = suggest_repos(&SuggestInput {
+        project: Some("web"),
+        rules: Some(&rules),
+        ..Default::default()
+    });
+    assert_eq!(s.len(), 1);
+    assert_eq!(
+        s[0].reason,
+        SuggestReason::Rule {
+            project: "WEB".into()
+        }
+    );
+    // Another board gets nothing from it.
+    assert!(
+        suggest_repos(&SuggestInput {
+            project: Some("SHOP"),
+            rules: Some(&rules),
+            ..Default::default()
+        })
+        .is_empty()
+    );
+}

@@ -1,0 +1,18 @@
+# Filter of the Reviews list: repos, GitHub projects, whose pull requests.
+review_filter.open = Open the filter
+review_filter.button = Filter
+review_filter.title = Filter pull requests
+review_filter.repos = Repos
+review_filter.all_hint = Nothing chosen shows every repo that has pull requests. This only narrows the list; nothing is hidden from the sync.
+review_filter.search = Search repos
+review_filter.no_repos = No repos found.
+review_filter.projects = GitHub Projects
+review_filter.projects_hint = Only pull requests that are linked to an item of the project.
+review_filter.reset = Reset
+review_filter.apply = Apply
+review_filter.show_all = Show all
+review_filter.summary_repos = Showing {n} repos.
+review_filter.summary_projects = Showing {n} projects.
+review_filter.summary_both = Showing {repos} repos in {projects} projects.
+review_filter.none_title = No pull request matches the filter
+review_filter.unknown_repo = Unknown repo
