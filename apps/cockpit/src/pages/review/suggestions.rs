@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_core::language::LangSource;
 
 /// Right: suggestions of the agent, own comment, verdict and sending.
 pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView {
@@ -32,6 +33,8 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
     // The real run: only you start it; the agent reads, nothing goes to GitHub.
     let review_run = move |_| {
         let _ = store.dispatch(Action::StartPrReview {
+            language: panel.review_language.get_untracked(),
+            repo_language: None,
             review: number.get_value(),
         });
     };
@@ -100,6 +103,25 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                 {real
                     .then(|| {
                         view! {
+                            <div class="ui-vstack" style="--spacing: 6px">
+                                {segmented(
+                                    vec![
+                                        ("auto", t!(ReviewSuggestionsLangAuto)),
+                                        ("de", "DE".to_string()),
+                                        ("en", "EN".to_string()),
+                                    ],
+                                    move || panel.review_language.get().map_or("auto", |l| l.code()),
+                                    move |id| panel.review_language.set(cockpit_i18n::Lang::from_code(id)),
+                                    t!(ReviewSuggestionsLangLabel),
+                                    false,
+                                )}
+                                <span class="t-footnote t-secondary" style="padding-inline: 4px">
+                                    {move || match panel.review_language.get() {
+                                        Some(l) => t!(ReviewSuggestionsLangNote, lang = lang_name(l), why = lang_why(LangSource::Chosen)),
+                                        None => t!(ReviewSuggestionsLangAutoHint),
+                                    }}
+                                </span>
+                            </div>
                             <Button
                                 variant=ButtonStyle::BorderedProminent
                                 size=ControlSize::Large
@@ -113,7 +135,14 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                     })}
                 {move || {
                     (if real { run_state() } else { None }).map(|run| {
-                        if run.is_active() {
+                        let used = run.options.review_language.map(|c| {
+                            view! {
+                                <p class="t-footnote t-secondary">
+                                    {t!(ReviewSuggestionsLangUsed, lang = lang_name(c.lang), why = lang_why(c.source))}
+                                </p>
+                            }
+                        });
+                        let state = if run.is_active() {
                             let key = run.key();
                             view! {
                                 <div class="ui-hstack" style="--spacing: 8px">
@@ -132,7 +161,8 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                             .into_any()
                         } else {
                             ().into_any()
-                        }
+                        };
+                        view! { {used} {state} }
                     })
                 }}
                 {(!summary_text.is_empty())
@@ -243,6 +273,25 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                 {merge_section(store, &r, panel)}
             </PaneBody>
         </Pane>
+    }
+}
+
+/// The name of a review language in the language of the interface.
+fn lang_name(lang: cockpit_i18n::Lang) -> String {
+    match lang {
+        cockpit_i18n::Lang::De => t!(ReviewSuggestionsLangDe),
+        cockpit_i18n::Lang::En => t!(ReviewSuggestionsLangEn),
+    }
+}
+
+/// Why a review language was chosen, in words.
+fn lang_why(source: LangSource) -> String {
+    match source {
+        LangSource::Chosen => t!(ReviewSuggestionsLangWhyChosen),
+        LangSource::PrText => t!(ReviewSuggestionsLangWhyPr),
+        LangSource::Ticket => t!(ReviewSuggestionsLangWhyTicket),
+        LangSource::Repo => t!(ReviewSuggestionsLangWhyRepo),
+        LangSource::Default => t!(ReviewSuggestionsLangWhyDefault),
     }
 }
 

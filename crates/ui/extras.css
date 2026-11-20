@@ -861,3 +861,74 @@ body.ui-scroll-locked { overflow: hidden; }
 .ui-md [data-align="left"] { text-align: left; }
 .ui-md [data-align="center"] { text-align: center; }
 .ui-md [data-align="right"] { text-align: right; }
+
+/* ---------------------------------------------------------------------
+   Overflow: nothing widens a pane, long strings wrap or end with "…".
+   - prose breaks anywhere (`overflow-wrap: anywhere`), flex/grid children may shrink (`min-width: 0`);
+   - single-line labels (repo, branch, file) use `.ck-ellipsis` / `.ui-ellipsis` plus a `title`;
+   - code scrolls inside its own box.
+   --------------------------------------------------------------------- */
+.ui-root { max-width: 100%; overflow-x: clip; }
+.ui-pane, .ui-pane__header, .ui-pane__body, .ui-card, .ui-card__body, .ui-list__group, .ui-dialog, .ui-sheet,
+.ui-bottomnav-sheet, .ui-banner, .ui-comment__bubble, .ui-inbox-row, .ui-list__row { min-width: 0; overflow-wrap: anywhere; }
+.ui-ellipsis { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-vstack, .ui-hstack, .ui-hstack > *, .ui-vstack > *, .ui-list__row > *, .ui-inbox-row > *, .ui-comment > *,
+.ui-card > *, .ui-pane__header > *, .ui-pane__body > * { min-width: 0; }
+.ui-list__title { overflow-wrap: anywhere; }
+.ui-list__detail { min-width: 0; max-width: 50%; overflow-wrap: anywhere; text-align: end; }
+.ui-badge { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-badge[data-variant="count"], .ui-avatar, .ui-status, .ui-list__icon, .ui-list__chevron { flex: none; }
+.ui-button { max-width: 100%; }
+.ui-root img, .ui-root video, .ui-root svg { max-width: 100%; }
+.ui-root svg { flex-shrink: 0; }
+/* Code: blocks scroll sideways inside their box, inline code breaks. */
+.ui-root pre, .ui-log, .doc-code { max-width: 100%; overflow-x: auto; }
+.ui-root code { overflow-wrap: anywhere; }
+.ui-root pre code { overflow-wrap: normal; }
+.ui-root a, .ui-root kbd, .ui-root summary { overflow-wrap: anywhere; }
+.ui-field__input, .ui-select, .ui-root textarea, .ui-root input { max-width: 100%; min-width: 0; }
+.ui-field__label, .ui-field__hint { overflow-wrap: anywhere; }
+.ui-empty, .ck-empty, .ck-gate { overflow-wrap: anywhere; }
+
+/* ---------------------------------------------------------------------
+   Cards: a column, the body grows, the footer (name, meta, actions) sits at the bottom.
+   `.ui-card-grid` puts cards in one row at equal height, so footers line up.
+   --------------------------------------------------------------------- */
+.ui-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  align-items: stretch;
+  gap: var(--ui-card-gap, var(--ref-space-12));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ui-card-grid > .ui-card, .ui-card-grid > li { min-width: 0; height: 100%; }
+.ui-card-grid > li > .ui-card { height: 100%; }
+.ui-card__body { flex: 1 1 auto; }
+.ui-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--ref-space-4) var(--ref-space-8);
+  margin-block-start: auto;
+  padding: 0 var(--comp-card-pad) var(--comp-card-pad);
+  min-width: 0;
+  text-align: end;
+}
+/* In a body, the last child (name, meta, buttons) sits at the bottom right when the card is taller. */
+.ui-card__body > .ui-card__footer { margin-block-start: auto; padding: 0; }
+
+/* Cards of the app: Overview, inbox rows, agent runs, reviews. */
+.ck-stuck-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 20rem), 1fr));
+  align-items: stretch;
+}
+.ck-stuck { min-width: 0; overflow-wrap: anywhere; }
+.ck-stuck > .ui-vstack { flex: 1 1 auto; align-self: stretch; min-width: 0; }
+.ck-stuck > .ui-vstack > :last-child { margin-block-start: auto; justify-content: flex-end; }
+.ui-inbox-row > .ui-vstack, .ui-inbox-row > span:last-child { align-self: stretch; }
+.ui-inbox-row > .ui-vstack > :last-child { margin-block-start: auto; }
+.ui-list__row > .ui-vstack { flex: 1 1 auto; align-self: stretch; }

@@ -16,6 +16,8 @@ const GERMAN_WORDS: &[&str] = &[
 /// and the slug rules.
 const ALLOWED_FILES: &[&str] = &[
     "crates/cockpit-core/src/text.rs",
+    // The German stopwords the language detection counts are matching data.
+    "crates/cockpit-core/src/language.rs",
     // Jira issue types and words in branch names are matching data.
     "crates/cockpit-core/src/branch.rs",
     // German option labels that only fill the German plain-text rendering of log entries and wire

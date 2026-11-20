@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { tasksText, checkJob, systemText, commitMessage, LIMITS } from "../src/job.ts";
+import { tasksText, checkJob, systemText, reviewText, commitMessage, LIMITS } from "../src/job.ts";
 import { job } from "./helpers.ts";
 
 test("a job gets default values", () => {
@@ -143,5 +143,22 @@ test("the model is told to answer in the chosen language", () => {
   assert.match(systemText(job({ language: "de" })), /Antworte auf Deutsch\./);
   assert.match(systemText(job({ language: "en" })), /Answer in English\./);
   assert.doesNotMatch(systemText(job({ language: "en" })), /Antworte auf Deutsch/);
-  assert.match(systemText(job({ mode: "review", language: "en" })), /Answer in English\./);
+  assert.match(systemText(job({ mode: "review", language: "en" })), /in English, the language of the pull request/);
+});
+
+test("a review is written in the language of the pull request, not of the interface", () => {
+  const a = job({ mode: "review", language: "de", review_language: "en" });
+  assert.match(systemText(a), /in English, the language of the pull request/);
+  assert.doesNotMatch(systemText(a), /Antworte auf Deutsch/);
+  assert.match(reviewText(a), /in English, the language of the pull request/);
+  const de = job({ mode: "review", language: "en", review_language: "de" });
+  assert.match(systemText(de), /auf Deutsch, der Sprache des Pull Requests/);
+  assert.match(reviewText(de), /auf Deutsch, der Sprache des Pull Requests/);
+});
+
+test("review_language comes from the job, falls back to the interface language, then to German", () => {
+  assert.equal(checkJob({ mode: "review", language: "en" }).review_language, "en");
+  assert.equal(checkJob({ mode: "review", language: "en", review_language: "de" }).review_language, "de");
+  assert.equal(checkJob({ mode: "review", review_language: "fr" }).review_language, "de");
+  assert.equal(checkJob({ mode: "review" }).review_language, "de");
 });

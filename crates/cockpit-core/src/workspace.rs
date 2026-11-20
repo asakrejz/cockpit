@@ -161,9 +161,21 @@ pub struct Workspace {
         skip_serializing_if = "crate::review_filter::ReviewFilter::is_default"
     )]
     pub review_filter: crate::review_filter::ReviewFilter,
+    /// Which source the overview shows (Alle / Jira / GitHub); change by
+    /// `Action::SetPeopleSource`.
+    #[serde(default, skip_serializing_if = "is_default_source")]
+    pub people_source: crate::people_link::PeopleSource,
+    /// Jira persons linked to GitHub logins (see [`crate::people_link`]); change by
+    /// `Action::LinkPeople` and `Action::UnlinkPeople`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub person_links: Vec<crate::people_link::PersonLink>,
     /// Language of the interface. `None` = not chosen yet, the browser language applies.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub language: Option<cockpit_i18n::Lang>,
+}
+
+fn is_default_source(s: &crate::people_link::PeopleSource) -> bool {
+    *s == crate::people_link::PeopleSource::All
 }
 
 impl Workspace {

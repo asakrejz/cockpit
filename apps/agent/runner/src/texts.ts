@@ -70,6 +70,10 @@ const TEXTS = {
   },
   result_done: { de: "{key} umgesetzt.", en: "{key} done." },
   answer_language: { de: "Antworte auf Deutsch.", en: "Answer in English." },
+  review_language: {
+    de: "Schreibe die Zusammenfassung und alle Review-Kommentare auf Deutsch, der Sprache des Pull Requests.",
+    en: "Write the summary and all review comments in English, the language of the pull request.",
+  },
   commit_followup_comments: { de: "Review-Kommentare umsetzen (#{pr})", en: "Address review comments (#{pr})" },
   commit_followup_checks: { de: "Rote Checks beheben (#{pr})", en: "Fix failing checks (#{pr})" },
   commit_footer: { de: "Umgesetzt vom Cockpit-Agenten.", en: "Implemented by the Cockpit agent." },

@@ -117,12 +117,20 @@ Lines arriving on stdin: `{"t":"answer","text":…}` and `{"t":"hint","text":…
 
 ## Languages
 
-`job.json` carries two language codes (`"de"` or `"en"`):
+`job.json` carries three language codes (`"de"` or `"en"`):
 
 - `language`: the language of the interface. The system prompt ends with "Answer in English." or "Antworte auf Deutsch."; plan,
-  summary, questions and review comments are written in it. Step titles and error texts of the runner (`src/texts.ts`) are in it
+  summary and questions are written in it (review runs use `review_language`, below). Step titles and error texts of the runner (`src/texts.ts`) are in it
   too. Missing: `"de"` (older backends).
-- `pr_language`: the team language of the repo. The commit message the runner creates is written in it. Missing: `"en"`.
+- `pr_language`: the language of the text the agent creates for a pull request. The commit message the runner creates is
+  written in it. The backend picks it per run: detected from the ticket description, else the repo's `pr_language`
+  (`[[agent.repos]]`), else English. Missing: `"en"`.
+- `review_language`: only for mode `review`. The language of the summary, every comment and every `suggestion` text. The
+  system prompt and the task both say so ("Write the summary and all review comments in English/auf Deutsch …"); file names,
+  identifiers and JSON keys stay as they are. The backend picks it in this order: the switch in the review panel, the
+  language detected from the pull request title and description (plus the ticket description if the description is short),
+  the repo's `pr_language`, English. It does not change the language of step titles (that is `language`). Missing: `language`.
+  No `CONTRACT` bump: the runner sources changed, so the image fingerprint changes anyway.
 
 The prompt itself stays as it is; only the answer language is set. Technical output (stderr, logs, `expect`) is English.
 

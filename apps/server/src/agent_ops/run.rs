@@ -259,7 +259,7 @@ pub(super) async fn run_run(
             .iter()
             .filter_map(|t| agent_git::guideline_file(&t.clone).map(|f| (t.repo.clone(), f)))
             .collect();
-        job["repos"] = agent_run::repos_json(&run, &guides);
+        job["repos"] = agent_run::repos_json(&ws, &run, &guides);
     } else if let Some(file) = targets
         .first()
         .and_then(|t| agent_git::guideline_file(&t.clone))

@@ -101,6 +101,20 @@ pub enum Action {
     SetTeamChoice {
         choice: crate::team_filter::TeamChoice,
     },
+    /// Choose the source the overview shows (Alle / Jira / GitHub). Display only.
+    SetPeopleSource {
+        source: crate::people_link::PeopleSource,
+    },
+    /// Say that a Jira person and a GitHub login are the same human (see
+    /// [`crate::people_link`]). Display only.
+    LinkPeople {
+        jira: String,
+        github: String,
+    },
+    /// Remove the link of a Jira person.
+    UnlinkPeople {
+        jira: String,
+    },
     /// Apply the inbox filters (see [`crate::filters`]). A display filter only: nothing is
     /// written to Jira or GitHub. In server mode a changed sprint view makes the next sync
     /// fetch other tickets.
@@ -257,6 +271,13 @@ pub enum Action {
         run: String,
         closure: Closure,
     },
+    /// Removes one run in a final state (done, cancelled, stopped, finished) from the local list.
+    /// Never touches branches or pull requests, and the consumption stays booked.
+    RemoveAgentRun {
+        run: String,
+    },
+    /// Removes every run in a final state from the local list (see `RemoveAgentRun`).
+    RemoveFinishedRuns,
     /// Follow-up job: the agent implements comments of a review (IDs of the line comments)
     /// and pushes to the pull request's branch. The run is then called `review-<number>`.
     AddressReview {
@@ -286,6 +307,13 @@ pub enum Action {
     /// to GitHub; the drafts wait for your decision.
     StartPrReview {
         review: PrKey,
+        /// The language picked in the review panel; `None` = detect it.
+        #[serde(default)]
+        language: Option<cockpit_i18n::Lang>,
+        /// The repo's `pr_language`. The backend sets it from the configuration; whatever a
+        /// request carries is replaced.
+        #[serde(default)]
+        repo_language: Option<cockpit_i18n::Lang>,
     },
     AddressReviewThreads {
         review: PrKey,
@@ -372,6 +400,8 @@ impl Action {
         matches!(
             self,
             Action::SetLabel { .. }
+                | Action::RemoveAgentRun { .. }
+                | Action::RemoveFinishedRuns
                 | Action::SetIssueClosed { .. }
                 | Action::SetProjectField { .. }
                 | Action::CreateIssue { .. }
@@ -518,6 +548,9 @@ impl Workspace {
             | Action::SetStatusFollowsPr { .. }
             | Action::SelectJiraProject { .. }
             | Action::SetTeamChoice { .. }
+            | Action::SetPeopleSource { .. }
+            | Action::LinkPeople { .. }
+            | Action::UnlinkPeople { .. }
             | Action::SetInboxFilter { .. }
             | Action::SetReviewFilter { .. } => self.perform_inbox(action, at_ms),
             Action::SetLabel { .. }
@@ -548,6 +581,8 @@ impl Workspace {
             | Action::AdvanceAgents
             | Action::ReportAgent { .. }
             | Action::CloseAgentRun { .. }
+            | Action::RemoveAgentRun { .. }
+            | Action::RemoveFinishedRuns
             | Action::AddressReview { .. }
             | Action::InvestigateCheck { .. }
             | Action::ApplyFix { .. }

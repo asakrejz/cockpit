@@ -280,7 +280,7 @@ fn spread() -> Workspace {
 fn a_chosen_person_narrows_stuck_entries_and_entries_to_theirs() {
     let w = spread();
     let list = members(&w);
-    let jonas = chosen(&list, Some("Jonas"));
+    let jonas = chosen(&list, Some("github:Jonas"));
     assert!(jonas.is_some());
     let ids = entry_ids(&w, &list, jonas);
     assert_eq!(ids, jonas.unwrap().item_ids);
@@ -356,4 +356,260 @@ fn the_team_choice_hides_the_stuck_entries_of_other_teams() {
     assert!(stuck(&w).iter().all(|s| s.key != "WEB-21"));
     w.team_choice.teams = vec![TeamRef::new("team-web", "Web")];
     assert!(stuck(&w).iter().any(|s| s.key == "WEB-21"));
+}
+
+// ---------- People per source ----------
+
+use crate::{PeopleSource, Source, TeamRef};
+
+/// Jira: Du, "Jonas Berg" and "Mira". GitHub: Du, "Jonas" and "Mira". Nothing linked.
+fn two_sources() -> Workspace {
+    demo::seed()
+}
+
+fn keys(list: &[Member]) -> Vec<&str> {
+    list.iter().map(|m| m.key.as_str()).collect()
+}
+
+#[test]
+fn the_same_name_in_both_sources_stays_two_people() {
+    let list = members(&two_sources());
+    let mira: Vec<_> = list.iter().filter(|m| m.person.name == "Mira").collect();
+    assert_eq!(mira.len(), 2);
+    assert_ne!(mira[0].key, mira[1].key);
+    assert_eq!(mira[0].sides.len(), 1);
+    // Jonas Berg (Jira) and Jonas (GitHub) are not merged by guess.
+    assert!(keys(&list).contains(&"jira:Jonas Berg"));
+    assert!(keys(&list).contains(&"github:Jonas"));
+}
+
+#[test]
+fn the_source_filter_limits_people_and_load() {
+    let mut w = two_sources();
+    w.people_source = PeopleSource::Jira;
+    let list = members(&w);
+    assert!(!keys(&list).contains(&"github:Jonas"));
+    assert!(keys(&list).contains(&"jira:Jonas Berg"));
+    // Du keeps only Jira entries: the three tickets, no pull request.
+    assert_eq!(member(&list, "Du").pull_requests, 0);
+    assert_eq!(
+        member(&list, "Du").open + member(&list, "Du").in_progress,
+        3
+    );
+
+    w.people_source = PeopleSource::GitHub;
+    let list = members(&w);
+    assert!(!keys(&list).contains(&"jira:Jonas Berg"));
+    assert!(keys(&list).contains(&"github:Jonas"));
+    let me = member(&list, "Du");
+    assert_eq!(me.pull_requests, 1);
+    assert!(me.item_ids.iter().all(|id| {
+        w.item(id)
+            .is_some_and(|i| PeopleSource::GitHub.allows(i.source))
+    }));
+}
+
+#[test]
+fn github_projects_tickets_count_as_github() {
+    let mut w = two_sources();
+    let issue = w
+        .items
+        .iter()
+        .find(|i| i.source == Source::GitHubProject)
+        .expect("the seed has a project ticket")
+        .id
+        .clone();
+    w.people_source = PeopleSource::GitHub;
+    let on_github: Vec<String> = members(&w).into_iter().flat_map(|m| m.item_ids).collect();
+    assert!(on_github.contains(&issue));
+    w.people_source = PeopleSource::Jira;
+    let on_jira: Vec<String> = members(&w).into_iter().flat_map(|m| m.item_ids).collect();
+    assert!(!on_jira.contains(&issue));
+}
+
+#[test]
+fn stuck_follows_the_source_filter() {
+    let mut w = two_sources();
+    let all = stuck(&w);
+    w.people_source = PeopleSource::Jira;
+    let jira = stuck(&w);
+    w.people_source = PeopleSource::GitHub;
+    let github = stuck(&w);
+    assert!(jira.len() <= all.len() && github.len() <= all.len());
+    assert_eq!(jira.len() + github.len(), all.len());
+    assert!(
+        jira.iter()
+            .all(|s| w.item(&s.item_id).unwrap().source == Source::Jira)
+    );
+    assert!(
+        github
+            .iter()
+            .all(|s| w.item(&s.item_id).unwrap().source != Source::Jira)
+    );
+}
+
+#[test]
+fn sections_group_by_source_under_all_and_are_flat_otherwise() {
+    let mut w = two_sources();
+    let list = members(&w);
+    let secs = sections(&w, &list);
+    let groups: Vec<_> = secs.iter().map(|(g, _)| *g).collect();
+    assert_eq!(
+        groups,
+        [Some(Group::Both), Some(Group::Jira), Some(Group::GitHub)]
+    );
+    let names = |g| -> Vec<String> {
+        secs.iter()
+            .find(|(x, _)| *x == Some(g))
+            .unwrap()
+            .1
+            .iter()
+            .map(|m| m.key.clone())
+            .collect()
+    };
+    assert_eq!(names(Group::Both), ["Du", "Agent"]);
+    assert!(names(Group::Jira).contains(&"jira:Jonas Berg".to_string()));
+    assert!(names(Group::GitHub).contains(&"github:Jonas".to_string()));
+
+    w.people_source = PeopleSource::Jira;
+    let list = members(&w);
+    let secs = sections(&w, &list);
+    assert_eq!(secs.len(), 1);
+    assert_eq!(secs[0].0, None);
+    assert_eq!(secs[0].1.len(), list.len());
+}
+
+#[test]
+fn a_link_joins_two_people_into_one_member_with_both_sources() {
+    let mut w = two_sources();
+    assert!(w.link_people("Jonas Berg", "Jonas"));
+    let list = members(&w);
+    let jonas: Vec<_> = list.iter().filter(|m| m.key.starts_with("link:")).collect();
+    assert_eq!(jonas.len(), 1);
+    let j = jonas[0];
+    assert_eq!(j.person.name, "Jonas Berg");
+    assert_eq!(j.github.as_deref(), Some("Jonas"));
+    assert_eq!(j.sides.len(), 2);
+    assert_eq!(j.group(), Group::Both);
+    assert_eq!(j.pull_requests, 2);
+    assert_eq!(j.in_progress, 1);
+    // One source only: the member shows just that part.
+    w.people_source = PeopleSource::GitHub;
+    let list = members(&w);
+    let j = list.iter().find(|m| m.key == "link:Jonas Berg").unwrap();
+    assert_eq!((j.pull_requests, j.total()), (2, 2));
+    // The other Mira stays untouched.
+    assert_eq!(list.iter().filter(|m| m.person.name == "Mira").count(), 1);
+}
+
+#[test]
+fn unlinking_splits_the_member_again() {
+    let mut w = two_sources();
+    w.link_people("Jonas Berg", "Jonas");
+    assert!(w.unlink_people("Jonas Berg"));
+    assert!(!w.unlink_people("Jonas Berg"));
+    let list = members(&w);
+    assert!(keys(&list).contains(&"jira:Jonas Berg") && keys(&list).contains(&"github:Jonas"));
+}
+
+#[test]
+fn a_link_is_one_to_one_and_never_for_me_or_the_agent() {
+    let mut w = Workspace::default();
+    assert!(w.link_people("Jonas Berg", "jonas"));
+    assert!(!w.link_people("Jonas Berg", "jonas"));
+    // A new link of either side replaces the old one.
+    assert!(w.link_people("Jonas Berg", "jb"));
+    assert!(w.link_people("Jonas B.", "jb"));
+    assert_eq!(w.person_links.len(), 1);
+    assert_eq!(w.person_links[0].jira, "Jonas B.");
+    for (a, b) in [
+        ("Du", "x"),
+        ("x", "Du"),
+        ("Agent", "x"),
+        ("", "x"),
+        (" ", "x"),
+        ("x", ""),
+    ] {
+        assert!(!w.link_people(a, b), "{a:?} {b:?}");
+    }
+}
+
+#[test]
+fn me_is_one_member_with_both_sources_without_a_link() {
+    let list = members(&two_sources());
+    let me = member(&list, "Du");
+    assert_eq!(me.group(), Group::Both);
+    assert!(me.sides.contains(&Side::Jira) && me.sides.contains(&Side::GitHub));
+    assert!(me.unlinked_side().is_none() && !me.is_linked());
+    assert_eq!(list.iter().filter(|m| m.person == Person::me()).count(), 1);
+}
+
+#[test]
+fn the_team_filter_still_applies_per_source() {
+    let mut w = two_sources();
+    let team = TeamRef::new("a", "Team a");
+    for i in w.items.iter_mut().filter(|i| i.id == "bau160") {
+        i.team = Some(team.clone());
+    }
+    w.team_choice = crate::TeamChoice {
+        teams: vec![TeamRef::new("zzz", "Other")],
+        include_no_team: false,
+    };
+    // Jonas Berg's ticket is of another team: hidden in every source view.
+    for source in PeopleSource::ALL {
+        w.people_source = source;
+        assert!(!keys(&members(&w)).contains(&"jira:Jonas Berg"));
+    }
+}
+
+#[test]
+fn chosen_finds_the_member_by_key() {
+    let list = members(&two_sources());
+    assert_eq!(
+        chosen(&list, Some("github:Mira")).unwrap().key,
+        "github:Mira"
+    );
+    assert_eq!(chosen(&list, Some("jira:Mira")).unwrap().key, "jira:Mira");
+    assert!(chosen(&list, Some("Mira")).is_none());
+    assert!(chosen(&list, None).is_none());
+}
+
+#[test]
+fn old_saved_states_load_without_the_new_fields() {
+    let w: Workspace = serde_json::from_str("{}").unwrap();
+    assert_eq!(w.people_source, PeopleSource::All);
+    assert!(w.person_links.is_empty());
+    let json = serde_json::to_string(&Workspace::default()).unwrap();
+    assert!(!json.contains("person_links") && !json.contains("people_source"));
+}
+
+#[test]
+fn link_candidates_are_the_unlinked_people_of_the_other_source() {
+    use crate::team::Side;
+    let mut w = two_sources();
+    let github: Vec<_> = w
+        .link_candidates(Side::Jira)
+        .into_iter()
+        .map(|p| p.name)
+        .collect();
+    assert!(github.contains(&"Jonas".to_string()));
+    assert!(!github.contains(&"Du".to_string()) && !github.contains(&"Jonas Berg".to_string()));
+    let jira: Vec<_> = w
+        .link_candidates(Side::GitHub)
+        .into_iter()
+        .map(|p| p.name)
+        .collect();
+    assert!(jira.contains(&"Jonas Berg".to_string()));
+    // A person that is linked is no candidate any more.
+    w.link_people("Jonas Berg", "Jonas");
+    assert!(
+        !w.link_candidates(Side::Jira)
+            .iter()
+            .any(|p| p.name == "Jonas")
+    );
+    assert!(
+        !w.link_candidates(Side::GitHub)
+            .iter()
+            .any(|p| p.name == "Jonas Berg")
+    );
 }

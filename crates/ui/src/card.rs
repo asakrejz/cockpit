@@ -37,6 +37,18 @@ pub fn CardBody(#[prop(optional, into)] css: Option<String>, children: Children)
     view! { <div class="ui-card__body" style=css>{children()}</div> }
 }
 
+/// Footer of a card (name, meta, actions): pinned to the bottom right, whatever the text length.
+#[component]
+pub fn CardFooter(children: Children) -> impl IntoView {
+    view! { <div class="ui-card__footer">{children()}</div> }
+}
+
+/// Cards in one row at equal height: the footers line up.
+#[component]
+pub fn CardGrid(children: Children) -> impl IntoView {
+    view! { <div class="ui-card-grid">{children()}</div> }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum MediaRatio {
     #[default]

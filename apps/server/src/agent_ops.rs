@@ -229,7 +229,7 @@ impl AppState {
                 let st = self.agent_status();
                 (!st.ready).then(|| cannot_start(&st))
             }
-            Action::StartPrReview { review } => {
+            Action::StartPrReview { review, .. } => {
                 let st = self.agent_status();
                 if !st.ready {
                     return Some(cannot_start(&st));
