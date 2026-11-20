@@ -101,7 +101,9 @@ pub fn job_json(
         // The agent writes plan, summary and comments in the language of the interface; commit
         // message and pull request text follow the language of the repo.
         "language": ws.language.unwrap_or_default().code(),
-        "pr_language": run.options.pr_language.code(),
+        "pr_language": ws.pr_text_language(run, run.options.pr_language).lang.code(),
+        // A review is written in the language of the pull request, not of the interface.
+        "review_language": run.options.review_language.map(|c| c.lang.code()),
     })
 }
 
@@ -162,7 +164,7 @@ pub fn check_job() -> Value {
 /// The repos of a run in several repos for the runner (`repos` in the job file). Each repo is
 /// cloned to `/work/<dir>` and has its own branch, base branch and rules; the runner tells the
 /// agent about all of them. `guides` maps a repo to the path of its contribution guidelines.
-pub fn repos_json(run: &AgentRun, guides: &HashMap<String, &'static str>) -> Value {
+pub fn repos_json(ws: &Workspace, run: &AgentRun, guides: &HashMap<String, &'static str>) -> Value {
     let list: Vec<Value> = run
         .repos
         .iter()
@@ -180,7 +182,7 @@ pub fn repos_json(run: &AgentRun, guides: &HashMap<String, &'static str>) -> Val
                 "dir": r.dir(),
                 "branch": run.branch_in(&r.repo),
                 "base_branch": r.base_branch,
-                "pr_language": r.pr_language.code(),
+                "pr_language": ws.pr_text_language(run, r.pr_language).lang.code(),
                 "contributing": guides.get(&r.repo).copied().unwrap_or(""),
                 "rules": {
                     "allowed_paths": r.rules.allowed_paths,

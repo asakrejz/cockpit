@@ -276,10 +276,11 @@ fn a_finished_real_run_has_no_invented_pull_request_number() {
 
 #[test]
 fn the_draft_names_the_ticket_and_the_summary() {
-    let w = done_ws();
+    let mut w = done_ws();
+    english_ticket(&mut w);
     let d = w.pull_request_draft("BAU-142", "").unwrap();
     assert!(d.title.starts_with("BAU-142: "));
-    // The text of the pull request follows the language of the repo; English is the default.
+    // An English ticket without a repo language: English.
     assert!(d.body.starts_with("## What\n"));
     assert!(d.body.contains("## Changed files (1)"));
     assert!(d.body.contains("Implemented by the Cockpit agent."));
@@ -389,9 +390,45 @@ fn the_new_fields_are_backward_compatible() {
     );
 }
 
+/// Gives BAU-142 an English description, so detection finds English (the title stays: it names the branch).
+fn english_ticket(w: &mut Workspace) {
+    let text = "The focus ring is missing on the toggle in dark mode, so the keyboard users cannot see it.";
+    w.items
+        .iter_mut()
+        .find(|i| i.key == "BAU-142")
+        .unwrap()
+        .description = text.into();
+}
+
+#[test]
+fn a_german_ticket_gives_a_german_draft_even_if_the_repo_says_english() {
+    let w = done_ws();
+    let d = w.pull_request_draft("BAU-142", "").unwrap();
+    assert!(d.body.starts_with("## Was\n"), "{}", d.body);
+}
+
+#[test]
+fn an_english_ticket_gives_an_english_draft_even_if_the_repo_says_german() {
+    let mut w = done_ws();
+    english_ticket(&mut w);
+    w.runs
+        .iter_mut()
+        .find(|r| r.key() == "BAU-142")
+        .unwrap()
+        .options
+        .pr_language = cockpit_i18n::Lang::De;
+    let d = w.pull_request_draft("BAU-142", "").unwrap();
+    assert!(d.body.starts_with("## What\n"), "{}", d.body);
+}
+
 #[test]
 fn the_draft_text_can_be_german_when_the_repo_says_so() {
     let mut w = done_ws();
+    w.items
+        .iter_mut()
+        .find(|i| i.key == "BAU-142")
+        .unwrap()
+        .description = String::new();
     w.runs
         .iter_mut()
         .find(|r| r.key() == "BAU-142")

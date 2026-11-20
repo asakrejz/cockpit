@@ -75,6 +75,7 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
         merge_method: RwSignal::new(MergeMethod::default().id()),
         open_check: RwSignal::new(None),
         deselected: RwSignal::new(Vec::new()),
+        review_language: RwSignal::new(None),
     };
 
     // Whose pull requests the list shows; starts with those that concern me.
@@ -233,6 +234,8 @@ struct Panel {
     open_check: RwSignal<Option<String>>,
     /// IDs of the comments that the agent should not implement. Default: all open ones.
     deselected: RwSignal<Vec<String>>,
+    /// The language of the next agent review picked by the user; `None` = detect it.
+    review_language: RwSignal<Option<cockpit_i18n::Lang>>,
 }
 
 /// Inputs of the line comments in the diff.

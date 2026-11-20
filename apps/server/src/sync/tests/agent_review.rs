@@ -55,7 +55,9 @@ async fn only_approved_drafts_go_out_in_one_review_with_event_comment() {
     assert!(apply(
         &state,
         Action::StartPrReview {
-            review: PrKey::new("a/x", 7)
+            review: PrKey::new("a/x", 7),
+            language: None,
+            repo_language: None
         },
         Actor::User
     ));

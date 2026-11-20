@@ -37,6 +37,7 @@ pub mod demo;
 pub mod details;
 pub mod diagnosis;
 pub mod filters;
+pub mod language;
 pub mod link;
 pub mod model;
 pub mod notice;

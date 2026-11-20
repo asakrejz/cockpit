@@ -55,7 +55,7 @@ impl AppState {
         };
         match action {
             Action::StartAgent { options, .. } => options.chosen_repos(),
-            Action::StartPrReview { review }
+            Action::StartPrReview { review, .. }
             | Action::AddressReviewThreads { review, .. }
             | Action::FixFailedChecks { review, .. } => of_pr(review),
             _ => Vec::new(),
@@ -228,6 +228,26 @@ impl AppState {
             } => {
                 self.pattern_for_pull_request(&repos, &review, &mut options);
                 return Ok(Action::FixFailedChecks { review, options });
+            }
+            // A review is written in the language the user picked, else the one detected from the
+            // pull request, else the repo's: the repo's comes from the configuration only.
+            Action::StartPrReview {
+                review, language, ..
+            } => {
+                let repo = self
+                    .inner
+                    .live
+                    .copy()
+                    .sync
+                    .pr(&review)
+                    .map(|l| l.repo.clone())
+                    .unwrap_or_default();
+                let repo_language = self.agent_repos().find(&repo).map(|r| r.pr_language);
+                return Ok(Action::StartPrReview {
+                    review,
+                    language,
+                    repo_language,
+                });
             }
             other => return Ok(other),
         };
