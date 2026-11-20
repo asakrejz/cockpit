@@ -97,7 +97,42 @@ pub fn seed() -> Workspace {
     let (issue, draft) = project_tickets();
     ws.items.extend([issue, draft]);
     ws.sync.projects.push(items::project_meta());
+    add_people_in_both_sources(&mut ws);
     ws
+}
+
+/// Jira tickets of people who also have pull requests: „Jonas Berg“ in Jira is probably the
+/// GitHub user „Jonas“ (not linked, so the overview shows both; link them to join), and a Jira
+/// „Mira“ carries the same name as the GitHub „Mira“ and still stays a second person.
+fn add_people_in_both_sources(ws: &mut Workspace) {
+    let tickets = [
+        (
+            "bau160",
+            "BAU-160",
+            "Lieferzeit im Warenkorb anzeigen",
+            Person::new("Jonas Berg", "JB"),
+        ),
+        (
+            "bau161",
+            "BAU-161",
+            "Farbwerte für den Dunkelmodus prüfen",
+            Person::new("Mira", "MT"),
+        ),
+    ];
+    for (id, key, title, owner) in tickets {
+        let mut t = item(
+            id,
+            Kind::Ticket,
+            key,
+            title,
+            "Ticket einer Kollegin oder eines Kollegen in Jira.",
+            (ReasonKind::Comment, "Ticket im Team"),
+            "vor 2 Tg.",
+            owner,
+        );
+        t.status = TicketStatus::InProgress;
+        ws.items.push(t);
+    }
 }
 
 /// The initial state of the cockpit.

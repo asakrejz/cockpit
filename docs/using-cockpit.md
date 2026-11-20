@@ -37,6 +37,25 @@ puts the edits back to the start state. The applied filters are part of the work
 rules and the Jira project, so they survive a reload). Every active filter is also a chip under the button; its "✕" removes
 only that filter. The left column shows entries only, no switches.
 
+## People per source
+
+Jira people and GitHub users are different identities, and the same person often has both a Jira display name and a
+GitHub login. The Übersicht therefore never mixes them by guess:
+
+- **Source filter:** under the title a segmented control "Alle / Jira / GitHub" (action `SetPeopleSource`, stored in the
+  workspace like the other filters). "GitHub" covers pull requests and GitHub Projects tickets. People, load and
+  "Hängt" follow it.
+- **Sections:** under "Alle" the list has the sections "Jira und GitHub" (you, the agent and linked people), "Jira" and
+  "GitHub". A person appears once per source; the same name in both sources stays two people.
+- **Linking (optional):** choose a person and use "Ist dieselbe Person wie …" in the detail: search the name in the
+  other source and pick it (action `LinkPeople`). The two then show as one person with both sources under "Alle"; the
+  name of the Jira person is shown and the GitHub name below it. "Verknüpfung aufheben" (action `UnlinkPeople`) splits
+  them again. Every name has at most one link. Nothing is written to Jira or GitHub.
+- **You** need no link: your Jira account and your GitHub login are both known, so "Du" is one person with both sources.
+
+The team choice below still applies on top of the source. The rules live in `cockpit_core::team` and
+`cockpit_core::people_link`.
+
 ## Mein Team
 
 On the Übersicht page the button "Mein Team" (under the title) opens a dialog with the Jira teams seen in the

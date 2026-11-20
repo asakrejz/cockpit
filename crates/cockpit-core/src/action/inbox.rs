@@ -255,6 +255,46 @@ impl Workspace {
                 }
                 Ok(vec![Note::coded(Target::Settings, text)])
             }
+            Action::SetPeopleSource { source } => {
+                if !self.set_people_source(source) {
+                    return Err(ActionError::Unchanged);
+                }
+                Ok(vec![Note::coded(
+                    Target::Settings,
+                    match source {
+                        crate::PeopleSource::All => msg!(CoreActionLogPeopleAll),
+                        crate::PeopleSource::Jira => msg!(CoreActionLogPeopleJira),
+                        crate::PeopleSource::GitHub => msg!(CoreActionLogPeopleGithub),
+                    },
+                )])
+            }
+            Action::LinkPeople { jira, github } => {
+                if !self.link_people(&jira, &github) {
+                    let valid = !jira.trim().is_empty() && !github.trim().is_empty();
+                    return Err(if valid && self.link_of_jira(jira.trim()).is_some() {
+                        ActionError::Unchanged
+                    } else {
+                        ActionError::InvalidInput
+                    });
+                }
+                Ok(vec![Note::coded(
+                    Target::Settings,
+                    msg!(
+                        CoreActionLogPeopleLinked,
+                        jira = jira.trim(),
+                        github = github.trim()
+                    ),
+                )])
+            }
+            Action::UnlinkPeople { jira } => {
+                if !self.unlink_people(&jira) {
+                    return Err(ActionError::Unchanged);
+                }
+                Ok(vec![Note::coded(
+                    Target::Settings,
+                    msg!(CoreActionLogPeopleUnlinked, jira = &jira),
+                )])
+            }
             Action::SetInboxFilter { filter } => {
                 let text = if filter.is_default() {
                     msg!(CoreActionLogFilterReset)

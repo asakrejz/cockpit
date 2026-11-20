@@ -51,3 +51,22 @@ overview.team_include_none = Ohne Team einbeziehen
 overview.team_include_none_hint = Zeigt auch Tickets, die zu keinem Team gehören.
 overview.team_apply = Übernehmen
 overview.team_reset = Alle Teams zeigen
+
+# People per source: the filter, the sections and the link between a Jira person and a GitHub user.
+overview.source_label = Quelle
+overview.source_all = Alle
+overview.source_jira = Jira
+overview.source_github = GitHub
+overview.group_both = Jira und GitHub
+overview.group_jira = Jira
+overview.group_github = GitHub
+overview.github_name = GitHub: {name}
+overview.link_title = Ist dieselbe Person wie …
+overview.link_hint_jira = Gleiche Person in GitHub? Suche den GitHub-Namen. Dann siehst du beide zusammen.
+overview.link_hint_github = Gleiche Person in Jira? Suche den Jira-Namen. Dann siehst du beide zusammen.
+overview.link_label = Gleiche Person
+overview.link_placeholder = Name suchen
+overview.link_empty = Niemand gefunden.
+overview.linked_with = Verknüpft mit GitHub: {name}
+overview.unlink = Verknüpfung aufheben
+overview.link_done = Verknüpft: {name}

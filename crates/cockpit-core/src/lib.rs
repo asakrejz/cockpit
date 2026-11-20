@@ -42,6 +42,7 @@ pub mod link;
 pub mod model;
 pub mod notice;
 pub mod notify;
+pub mod people_link;
 pub mod people_search;
 pub mod permissions;
 pub mod persist;
@@ -78,6 +79,7 @@ pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};
 pub use notify::{
     Channel, Channels, Delivery, Event as NotifyEvent, NotifyReason, NotifySettings, QuietHours,
 };
+pub use people_link::{PeopleSource, PersonLink};
 pub use permissions::{Access, Right, TokenKind};
 pub use project::{
     CreatedIssue, FieldDef, FieldInput, FieldKind, FieldValue, IssueLink, IssueRef, ProjectItem,
