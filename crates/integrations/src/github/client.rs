@@ -589,6 +589,25 @@ impl GitHubClient {
                 number,
                 check,
             } => self.check_again_start(repo, *number, check).await,
+            Outbound::ProjectField {
+                project_id,
+                item_id,
+                field_id,
+                value,
+            } => {
+                self.set_field(project_id, item_id, field_id, value.as_ref())
+                    .await
+            }
+            Outbound::DraftEdit {
+                draft_id,
+                title,
+                body,
+            } => self.update_draft(draft_id, title, body).await,
+            Outbound::Issue {
+                repo,
+                number,
+                write,
+            } => self.issue_write(repo, *number, write).await,
             other => match other.request() {
                 Some(request) => self.send(&request).await.map(|_| ()),
                 None => Err(Error::Config("not a GitHub call".into())),

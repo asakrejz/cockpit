@@ -94,3 +94,49 @@ pub fn issue_details(extras: bool) -> String {
            {extras} }} }} {RATE} }}"
     )
 }
+
+// ---------- Writing ----------
+//
+// Cockpit changes nothing at GitHub unless the user clicked. There is no mutation here that
+// deletes a project, an issue or an item.
+
+/// Sets a field of an item. `value` is `ProjectV2FieldValue` (exactly one of
+/// `singleSelectOptionId`, `iterationId`, `text`, `number`, `date`).
+pub const SET_FIELD: &str = "mutation($project: ID!, $item: ID!, $field: ID!, $value: ProjectV2FieldValue!) { \
+    updateProjectV2ItemFieldValue(input: { projectId: $project, itemId: $item, fieldId: $field, value: $value }) { \
+      projectV2Item { id } } }";
+
+pub const CLEAR_FIELD: &str = "mutation($project: ID!, $item: ID!, $field: ID!) { \
+    clearProjectV2ItemFieldValue(input: { projectId: $project, itemId: $item, fieldId: $field }) { \
+      projectV2Item { id } } }";
+
+pub const UPDATE_DRAFT: &str = "mutation($draft: ID!, $title: String, $body: String) { \
+    updateProjectV2DraftIssue(input: { draftIssueId: $draft, title: $title, body: $body }) { \
+      draftIssue { id } } }";
+
+pub const ADD_ITEM: &str = "mutation($project: ID!, $content: ID!) { \
+    addProjectV2ItemById(input: { projectId: $project, contentId: $content }) { item { id } } }";
+
+pub const CONVERT_DRAFT: &str = "mutation($item: ID!, $repo: ID!) { \
+    convertProjectV2DraftIssueItemToIssue(input: { itemId: $item, repositoryId: $repo }) { \
+      item { id content { ... on Issue { id number url repository { nameWithOwner } } } } } }";
+
+pub const REPO_ID: &str = "query($owner: String!, $name: String!) { \
+    repository(owner: $owner, name: $name) { id nameWithOwner } }";
+
+pub const OWNER_ID: &str = "query($login: String!) { repositoryOwner(login: $login) { id login } }";
+
+pub const CREATE_PROJECT: &str = "mutation($owner: ID!, $title: String!) { \
+    createProjectV2(input: { ownerId: $owner, title: $title }) { projectV2 { \
+      id number title url closed owner { __typename ... on User { login } ... on Organization { login } } } } }";
+
+pub const LINK_PROJECT: &str = "mutation($project: ID!, $repo: ID!) { \
+    linkProjectV2ToRepository(input: { projectId: $project, repositoryId: $repo }) { repository { id } } }";
+
+pub const CREATE_STATUS_FIELD: &str = "mutation($project: ID!, $options: [ProjectV2SingleSelectFieldOptionInput!]!) { \
+    createProjectV2Field(input: { projectId: $project, dataType: SINGLE_SELECT, name: \"Status\", singleSelectOptions: $options }) { \
+      projectV2Field { ... on ProjectV2SingleSelectField { id name options { id name } } } } }";
+
+pub const UPDATE_STATUS_FIELD: &str = "mutation($field: ID!, $options: [ProjectV2SingleSelectFieldOptionInput!]!) { \
+    updateProjectV2Field(input: { fieldId: $field, singleSelectOptions: $options }) { \
+      projectV2Field { ... on ProjectV2SingleSelectField { id name options { id name } } } } }";

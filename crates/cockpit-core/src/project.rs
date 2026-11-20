@@ -14,6 +14,9 @@ pub use keys::*;
 mod status;
 pub use status::*;
 
+mod write;
+pub use write::*;
+
 /// A project chosen in the setup: the owner's login (user or organization) and the number
 /// shown in the project's address (`https://github.com/orgs/acme/projects/3`).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
@@ -208,6 +211,8 @@ impl ProjectMeta {
 
 /// The name of the field that counts as status unless the setup names another one.
 pub const DEFAULT_STATUS_FIELD: &str = "Status";
+/// The name of the built-in field with the title of an item (not a value to show or set).
+pub const TITLE_FIELD: &str = "Title";
 /// The name of the field that holds the team unless the setup names another one.
 pub const DEFAULT_TEAM_FIELD: &str = "Team";
 
@@ -291,5 +296,3 @@ impl ProjectItem {
 
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod tests_workspace;

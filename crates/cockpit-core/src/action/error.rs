@@ -50,6 +50,14 @@ pub enum ActionError {
     PullRequestNotReady,
     /// The run already has its pull request (number).
     PullRequestExists(u32),
+    /// This only works for issues of a GitHub project (not for drafts, Jira tickets or pull requests).
+    NotAnIssue,
+    /// This only works for drafts of a GitHub project.
+    NotADraft,
+    /// The change needs the backend: it happens at GitHub first.
+    NeedsBackend,
+    /// The project has no such field, or the field has no such choice.
+    UnknownField(String),
 }
 
 impl ActionError {
@@ -107,6 +115,10 @@ impl ActionError {
             ActionError::UserOnly(actor) => {
                 msg!(CoreActionErrUserOnly, who = labels::who(*actor))
             }
+            ActionError::NotAnIssue => msg!(CoreActionErrNotAnIssue),
+            ActionError::NotADraft => msg!(CoreActionErrNotADraft),
+            ActionError::NeedsBackend => msg!(CoreActionErrNeedsBackend),
+            ActionError::UnknownField(f) => msg!(CoreActionErrUnknownField, field = f),
             ActionError::PullRequestNotReady => msg!(CoreActionErrPrNotReady),
             ActionError::PullRequestExists(n) => msg!(CoreActionErrPrExists, n = *n),
             ActionError::MergeBlocked(blockers) => msg!(

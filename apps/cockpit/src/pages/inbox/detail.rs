@@ -323,6 +323,7 @@ pub(super) fn detail(
         }
     };
 
+    let project_part = project::project_section(store, &item);
     let key_link = super::details::key_link(&item);
     let detail_sections = super::details::details_sections(item.details.as_ref());
     view! {
@@ -358,6 +359,8 @@ pub(super) fn detail(
             {detail_sections}
 
             <List>{ticket_props}</List>
+
+            {project_part}
 
             <List>
                 <ListSection header=t!(InboxDetailDevelopment) nested=true>

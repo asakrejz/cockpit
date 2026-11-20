@@ -162,6 +162,16 @@ them. Pull requests that GitHub connects to an issue (timeline events *connected
 references) are linked to the ticket; so are pull requests whose branch, title or body say `#123`, `owner/repo#123` or
 `Fixes #123`. Comments, timeline and sub-issues are fetched only for issues that are new or changed since the last sync.
 
+**Changing things, and creating a project.** Every change is one click and goes to GitHub first; if GitHub refuses, nothing
+changes in Cockpit and the message names the missing right (for example "Projects: Read and write"). What can be changed:
+the status (moves the item to the matching column), assignees, labels, comments, closing and reopening an issue, title and
+text, the other project fields (single select, iteration, number, date, text, or empty), creating an issue in the project,
+and converting a draft into an issue of a repo. In the step "GitHub Projects", a repo you use that has **no linked project**
+shows "Projekt anlegen": you choose the owner (yourself or an organization) and a title; on the click Cockpit creates a Projects
+v2 project (`createProjectV2`), links it to the repo (`linkProjectV2ToRepository`) and makes sure it has a `Status` field with
+Todo, In Progress, In Review and Done. It needs the write rights above (`project`, "Projects: Read and write"). Cockpit never
+deletes a project.
+
 ## OAuth (alternative to tokens)
 
 Instead of a token you sign in in the browser. Tokens and client secret live only in the backend's `config/.env`, never in

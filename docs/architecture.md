@@ -127,6 +127,8 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `GET /api/agent/check/container` | the same test from a container: `{checked, mac_reached, container_reached, key_ok, hint}` |
 | `GET /api/agent/models` | model IDs of the endpoint for the drop-down: `{loaded, reachable, key_ok, models, hint}`; only IDs, sorted (Claude models first), at most 200 |
 | `GET /api/github/projects` | the GitHub Projects the access can see `{connected, projects: [{id, owner, number, title, url, closed, origin, repos}], rights: {kind, scopes, missing}, problem, owners}`; reads only (GraphQL `viewer`); a refusal is in `problem`, with the exact missing right |
+| `POST /api/github/projects/create` | body `{owner, title, repo?}`: creates a project (see below), links it to `repo`, gives it the four status columns; answer `{project}`; only on the click "Projekt anlegen"; a refusal is `403` with the exact missing right |
+| `GET /api/github/assignable?repo=&query=` | people GitHub lets you assign issues of the repo to (`GET /repos/{repo}/assignees`, read only; you come as `Du`): `{active, people}` |
 | `GET /api/setup` | what the assistant prefills: Jira site/email/projects, client IDs, repos, provider, endpoint address and model, both callback addresses, and per key only `{name, set}` |
 | `POST /api/github/repos/check` | read-only look at repos (`{repos:[…]}` → per repo `Ok`/`ReadOnly`/`NotFound`/`NoAccess`/`Failed` plus the default branch); only `GET /repos/{owner}/{name}`, never changes anything |
 | `GET /api/agent/repo-suggestions?ticket=KEY` | repos to offer first for the ticket, best first, each with a reason (`previous_run`, `linked_pr`, `mentioned`, `rule`, `default`); only reads |
@@ -182,6 +184,22 @@ routes.
   keeps `ProjectItem` (node IDs for writing, field values, linked pull requests, parent, sub-issues); the project fields are
   in `SyncState::projects`. Auto-link (`Workspace::auto_links`, `Review::belongs_to`) and the team filter understand
   `#123`, `owner/repo#123`, `Fixes #123` and the timeline.
+- **Writing to GitHub Projects** (`outbound::plan_project`, `github::projects::write`): each action on a ticket of the source
+  becomes one call, and only after the rules of the workspace accepted it (as on a copy): `SetStatus` → the option of the
+  matching column (`option_for`) through `updateProjectV2ItemFieldValue`; `SetPriority` → the option of the field `Priority`;
+  `SetProjectField` → the same mutation with `singleSelectOptionId`, `iterationId`, `text`, `number` or `date`, or
+  `clearProjectV2ItemFieldValue`; `EditTicket` → `PATCH /repos/{repo}/issues/{n}` (a draft: `updateProjectV2DraftIssue`);
+  `AssignTicket` → `PATCH …/issues/{n}` with `assignees` (me, a login, or none); `SetLabel` → `POST …/labels` or `DELETE
+  …/labels/{name}`; `Reply` → `POST …/comments`; `SetIssueClosed` → `PATCH` with `state`. A refusal (REST 403, `FORBIDDEN`)
+  is `Error::MissingRight`: *Issues* for REST, *Projects* for GraphQL. Two actions need several calls and have their own
+  course in `AppState::project_issue_flow` (the answer of GitHub, never the browser's `created`, is what gets booked):
+  `CreateIssue` (`POST /repos/{repo}/issues`, `addProjectV2ItemById`, then the status) and `ConvertDraft`
+  (`convertProjectV2DraftIssueItemToIssue`, with the repo's node ID). A ticket from a project is not changed locally when
+  GitHub Projects is not connected (the next sync would undo it); tickets of the sample data stay local. "Status follows PR"
+  is the same local tick as for Jira (`SyncTicketStatus`). **Create a project** (`POST /api/github/projects/create`,
+  `GitHubClient::create_project`): `createProjectV2` for the owner's node ID, `linkProjectV2ToRepository`, then the `Status`
+  field is created or its choices are replaced by Todo, In Progress, In Review and Done (only for the project that was just
+  created). No query in the code deletes a project, an item or an issue (a test checks the requests).
 - New comments and status, check and review changes from outside appear in the log with author "System" and trigger the
   notifications. `@your-login` in comments counts as a mention.
 - GitHub: no repo list is needed. Three searches (`cockpit_core::sync::discovery::QUERIES`: `author:@me`,

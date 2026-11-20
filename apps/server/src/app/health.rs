@@ -115,7 +115,10 @@ impl AppState {
                     cockpit_core::Source::Jira,
                 ),
                 github_projects: state(
-                    q.github_projects.is_some() && github.connected,
+                    q.github_projects
+                        .as_ref()
+                        .is_some_and(|p| p.tickets_from.uses_projects() && !p.projects.is_empty())
+                        && github.connected,
                     cockpit_core::Source::GitHubProject,
                 ),
                 interval_s: q.interval.as_secs(),

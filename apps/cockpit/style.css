@@ -181,3 +181,13 @@ body { margin: 0; }
 }
 /* Language row at the end of the "More" sheet. */
 .ck-sheet-lang { padding: var(--ref-space-4) var(--ref-space-12) var(--ref-space-12); }
+
+/* Remove button inside a label chip (GitHub project tickets). */
+.ck-chip-x {
+  background: none;
+  border: 0;
+  padding: 0 0 0 2px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}

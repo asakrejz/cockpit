@@ -535,6 +535,7 @@ async fn other_actions_stay_local() {
     assert_eq!(g.received_requests().await.unwrap().len(), before);
 }
 mod agent_review;
+mod projects;
 
 /// GitHub without any configured repo: the pull request is only reachable through the search.
 async fn github_search_only() -> MockServer {

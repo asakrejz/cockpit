@@ -28,6 +28,7 @@ mod open_pulls;
 mod outages;
 mod pat_checks;
 mod projects;
+mod projects_write;
 mod services;
 mod two_repos;
 

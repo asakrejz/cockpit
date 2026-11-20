@@ -96,6 +96,7 @@ pub fn seed() -> Workspace {
     let mut ws = multi_repo_workspace();
     let (issue, draft) = project_tickets();
     ws.items.extend([issue, draft]);
+    ws.sync.projects.push(items::project_meta());
     ws
 }
 

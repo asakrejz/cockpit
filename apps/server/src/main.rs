@@ -29,6 +29,7 @@ mod container;
 mod db;
 mod live;
 mod oauth;
+mod projects_write;
 mod review_panel;
 mod secrets;
 mod setup;

@@ -103,6 +103,22 @@ pub struct ProjectsResponse {
     pub owners: Vec<String>,
 }
 
+/// Body of `POST /api/github/projects/create`: a new project for `owner` (the user or an
+/// organization), optionally linked to `repo`. Only sent when the user clicks "Projekt anlegen".
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+pub struct CreateProjectRequest {
+    pub owner: String,
+    pub title: String,
+    #[serde(default)]
+    pub repo: Option<String>,
+}
+
+/// Response to `POST /api/github/projects/create`.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct CreateProjectResponse {
+    pub project: crate::ProjectSummary,
+}
+
 /// Provider, address and model of the agent. `None` leaves a value unchanged; an empty
 /// address means „directly at the provider“, an empty model removes the name.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
