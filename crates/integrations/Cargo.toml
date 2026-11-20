@@ -12,10 +12,10 @@ cockpit-i18n = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 # rustls instead of OpenSSL: no system library needed.
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "query", "form", "rustls"] }
 # PKCE and random values for `state` (backend only)
-sha2 = "0.10"
-base64 = "0.22"
+sha2 = "0.11"
+base64 = "0.23"
 getrandom = "0.4"
 
 [dev-dependencies]

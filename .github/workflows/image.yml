@@ -1,5 +1,6 @@
 name: Container image
 
+# On a pull request that touches the image: builds the image and checks its size, nothing else (no login, push or prune).
 # On every push to main: builds the Cockpit image (linux/amd64 and linux/arm64), checks its compressed size,
 # publishes it as ghcr.io/<owner>/cockpit:latest and deletes every other package version, so that the
 # storage of the private repo never grows. Only `latest` exists. How to use it: docs/container.md.
@@ -9,11 +10,23 @@ name: Container image
 on:
   push:
     branches: [main]
+  pull_request:
+    paths:
+      - Containerfile
+      - .dockerignore
+      - rust-toolchain.toml
+      - Cargo.toml
+      - Cargo.lock
+      - apps/**
+      - crates/**
+      - scripts/image-size.sh
+      - .github/workflows/image.yml
   workflow_dispatch:
 
 # Two pushes after each other must not prune each other's versions.
 concurrency:
-  group: container-image
+  # Pull requests get their own group per ref; only publishing runs queue behind each other.
+  group: container-image-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
   cancel-in-progress: false
 
 permissions:
@@ -29,19 +42,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Lower-case owner (GHCR names are lower case)
         run: echo "OWNER=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_ENV"
 
-      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-qemu-action@v4
         with:
           platforms: arm64
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       # 1. Build without pushing and measure the compressed size. Too big: fail before anything is published.
       - name: Build (not pushed)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Containerfile
@@ -55,7 +68,8 @@ jobs:
       - name: Check size (limit ${{ env.SIZE_LIMIT_MB }} MB compressed)
         run: LIMIT_MB="$SIZE_LIMIT_MB" scripts/image-size.sh "$RUNNER_TEMP/image.tar"
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -65,7 +79,8 @@ jobs:
       #    attestation manifests that would show up as additional package versions.
       - name: Push latest
         id: push
-        uses: docker/build-push-action@v6
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Containerfile
@@ -82,6 +97,7 @@ jobs:
 
       # 3. Delete everything except the version just pushed (see scripts/prune-image-versions.sh).
       - name: Prune old versions
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DIGEST: ${{ steps.push.outputs.digest }}

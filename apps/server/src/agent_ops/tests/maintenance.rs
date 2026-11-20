@@ -49,7 +49,7 @@ async fn build_the_images_with_progress_and_error() {
     let w = welt(true);
     w.write(
         "build.out",
-        "Step 1/5 : FROM docker.io/library/node:24-bookworm-slim\nStep 2/5 : RUN apt-get update\n",
+        "Step 1/5 : FROM docker.io/library/node:26-trixie-slim\nStep 2/5 : RUN apt-get update\n",
     );
     let st = w.state.clone();
     let b = tokio::task::spawn_blocking(move || st.image_build())

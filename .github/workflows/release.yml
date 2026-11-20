@@ -14,15 +14,15 @@ jobs:
   archive:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - name: Install Trunk
-        uses: jetli/trunk-action@v0.5.0
+        uses: taiki-e/install-action@v2
         with:
-          version: latest
+          tool: trunk@0.22.2
 
       - name: Build the app
         run: trunk build --release
@@ -47,12 +47,12 @@ jobs:
           chmod +x "$name/cockpit-server" "$name/start-cockpit.command"
           # `ditto` keeps the permissions (executable).
           ditto -c -k --keepParent "$name" "$name.zip"
-          echo "ARCHIV=$name.zip" >> "$GITHUB_ENV"
+          echo "ARCHIVE=$name.zip" >> "$GITHUB_ENV"
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "$ARCHIV" \
+          gh release create "$GITHUB_REF_NAME" "$ARCHIVE" \
             --title "Cockpit $GITHUB_REF_NAME" \
             --notes "Ready-made archive for macOS (Apple Silicon). Unzip, then right-click start-cockpit.command and choose Open. Instructions: README.md in the archive, section "Quick start for beginners"."

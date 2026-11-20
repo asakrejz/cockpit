@@ -113,7 +113,7 @@ export function claudeCode(): Adapter {
         const hook = fileURLToPath(new URL("../hook.ts", import.meta.url));
         writeFileSync(
           settingsFile,
-          JSON.stringify(claudeSettings(`'${process.execPath}' --disable-warning=ExperimentalWarning '${hook}' '${policyFile}'`)),
+          JSON.stringify(claudeSettings(`'${process.execPath}' '${hook}' '${policyFile}'`)),
         );
         return {
           label: "Claude Code",
