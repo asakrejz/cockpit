@@ -106,13 +106,11 @@ async fn serve(f: &Fixture) -> u16 {
 
 #[tokio::test]
 async fn the_test_button_makes_a_signed_round_trip_over_loopback() {
-    let probe = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let port = probe.local_addr().unwrap().port();
-    drop(probe);
+    // Bind first and keep the listener: releasing a probed port and binding it again later lets
+    // a test running in parallel take it in between.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
     let f = fixture(true, true, Duration::from_millis(50), port).await;
-    let listener = tokio::net::TcpListener::bind(("127.0.0.1", port))
-        .await
-        .unwrap();
     let app = router(f.state.clone(), PathBuf::from("/x"));
     tokio::spawn(async move {
         axum::serve(
