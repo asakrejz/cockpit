@@ -252,6 +252,13 @@ pub enum Action {
         run: String,
         closure: Closure,
     },
+    /// Removes one run in a final state (done, cancelled, stopped, finished) from the local list.
+    /// Never touches branches or pull requests, and the consumption stays booked.
+    RemoveAgentRun {
+        run: String,
+    },
+    /// Removes every run in a final state from the local list (see `RemoveAgentRun`).
+    RemoveFinishedRuns,
     /// Follow-up job: the agent implements comments of a review (IDs of the line comments)
     /// and pushes to the pull request's branch. The run is then called `review-<number>`.
     AddressReview {
@@ -367,6 +374,8 @@ impl Action {
         matches!(
             self,
             Action::SetLabel { .. }
+                | Action::RemoveAgentRun { .. }
+                | Action::RemoveFinishedRuns
                 | Action::SetIssueClosed { .. }
                 | Action::SetProjectField { .. }
                 | Action::CreateIssue { .. }
@@ -542,6 +551,8 @@ impl Workspace {
             | Action::AdvanceAgents
             | Action::ReportAgent { .. }
             | Action::CloseAgentRun { .. }
+            | Action::RemoveAgentRun { .. }
+            | Action::RemoveFinishedRuns
             | Action::AddressReview { .. }
             | Action::InvestigateCheck { .. }
             | Action::ApplyFix { .. }

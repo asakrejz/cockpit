@@ -438,8 +438,28 @@ impl AppState {
                 }
             }
         }
+        // Which runs a removal takes out of the list (their leftovers are cleaned up afterwards).
+        let removed: Vec<String> = if matches!(
+            action,
+            Action::RemoveAgentRun { .. } | Action::RemoveFinishedRuns
+        ) {
+            before
+                .runs
+                .iter()
+                .filter(|r| !afterwards.runs.iter().any(|a| a.key() == r.key()))
+                .map(|r| r.key())
+                .collect()
+        } else {
+            Vec::new()
+        };
         match self.local_apply(action, Actor::User).await {
-            Ok(answer) => Ok(answer),
+            Ok(answer) => {
+                if !removed.is_empty() {
+                    let s = self.clone();
+                    let _ = tokio::task::spawn_blocking(move || s.cleanup_removed(&removed)).await;
+                }
+                Ok(answer)
+            }
             Err(LiveError::Action(e)) if outside => Err(ActionFailure::Service(msg!(
                 ServerRunServiceDoneNotApplied,
                 error = Msg::raw(e.to_string())

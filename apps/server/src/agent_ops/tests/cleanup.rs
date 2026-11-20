@@ -158,3 +158,61 @@ async fn nothing_to_clean_is_an_empty_preview() {
     let p = preview(&w).await;
     assert!(p.is_empty(), "{p:?}");
 }
+
+/// Removing runs from the list cleans up only what those runs left: their labelled containers and
+/// folders. A working run, other orphans and unlabelled containers stay.
+#[tokio::test]
+async fn removing_runs_cleans_up_only_their_leftovers() {
+    let w = welt(true);
+    let mut ws = demo::workspace();
+    let mut done = AgentRun::new("BAU-7", "Done");
+    done.state = RunState::Done;
+    let mut busy = AgentRun::new("BAU-142", "Busy");
+    busy.state = RunState::Running;
+    busy.real = true;
+    ws.runs = vec![done, busy];
+    w.state.inner.live.set_state_for_test(ws);
+    w.write(
+        "ps.out",
+        "aaa111 cockpit-run-BAU-7-1600\nbbb222 cockpit-run-BAU-142-1700\nccc333 cockpit-run-old-1\n",
+    );
+    make_folders(&w, &["BAU-7", "BAU-142", "alt"]);
+
+    w.state
+        .action_run(cockpit_core::Action::RemoveFinishedRuns)
+        .await
+        .unwrap();
+
+    let calls = w.log("calls.log");
+    let removals: Vec<&str> = calls.lines().filter(|l| l.starts_with("rm ")).collect();
+    assert_eq!(removals, ["rm -f aaa111"], "{calls}");
+    assert!(!runs_dir(&w).join("BAU-7").exists());
+    assert!(runs_dir(&w).join("BAU-142").exists(), "the working run");
+    assert!(runs_dir(&w).join("alt").exists(), "other orphans stay");
+    let keys: Vec<String> = w
+        .state
+        .inner
+        .live
+        .copy()
+        .runs
+        .iter()
+        .map(|r| r.key())
+        .collect();
+    assert_eq!(keys, ["BAU-142"]);
+}
+
+#[tokio::test]
+async fn a_working_run_is_not_removed_and_nothing_is_cleaned() {
+    let w = busy_world();
+    w.write("ps.out", "bbb222 cockpit-run-BAU-142-1700\n");
+    make_folders(&w, &["BAU-142"]);
+    let err = w
+        .state
+        .action_run(cockpit_core::Action::RemoveAgentRun {
+            run: "BAU-142".into(),
+        })
+        .await;
+    assert!(err.is_err());
+    assert!(!w.log("calls.log").contains("rm "));
+    assert!(runs_dir(&w).join("BAU-142").exists());
+}

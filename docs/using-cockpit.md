@@ -152,6 +152,20 @@ and, after a pause or a cancel, a clone.
   entfernen“ they are removed (containers with `docker`/`podman rm -f`, never via the socket). The image and containers
   without the label are never touched. If the container program is not reachable, only folders are listed. The
   removal re-checks every item and skips whatever started working in the meantime.
+- **Clearing old runs: „Entfernen“ and „Alle beendeten entfernen (n)“.** Until now finished, cancelled, failed and
+  stopped runs stayed in the list for good (only runs with a merged or closed pull request could be hidden). Every run
+  in a final state – done, cancelled or failed (ready again), halted by a limit, or „erledigt“ – now has the button
+  **„Entfernen“** under its buttons, and the list has **„Alle beendeten entfernen (n)“** with the number of runs that go.
+  Both ask first and say that the change is local. Runs that work, wait for approval or an answer, or are paused cannot
+  be removed: the pane shows the hint to cancel them first. The core does this as the actions `RemoveAgentRun` and
+  `RemoveFinishedRuns` (only you, never the agent or the system).
+  - **Local only.** Only the run disappears from the list of this computer. Branches and pull requests on GitHub are
+    never touched; „Branch löschen“ stays a separate click.
+  - **Leftovers.** Containers with the label `cockpit.run` that carry the name of a removed run, and its folder under
+    `<data>/agent/runs`, are removed right after (the same code as „Aufräumen“). Other containers are never touched.
+  - **Stays gone.** The removal is saved with the workspace, so the run does not come back after a sync, a reload or a
+    restart of the server. The consumption is a separate ledger: the spend of the month and the day keeps the cost of
+    removed runs, so the budget limits stay correct.
 
 ## Choosing the repo at the start
 

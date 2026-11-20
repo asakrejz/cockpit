@@ -216,3 +216,9 @@ core_action.log_field_set = {field} of {key} set to "{value}"
 core_action.log_field_cleared = {field} of {key} cleared
 core_action.log_issue_created = Issue {key} created in the project "{project}"
 core_action.log_draft_converted = Draft converted to the issue {key}
+
+# Remove runs from the list
+core_action.log_run_removed = Run for {label} removed from the list
+core_action.log_runs_removed.one = {n} finished run removed from the list
+core_action.log_runs_removed.other = {n} finished runs removed from the list
+core_action.err_run_still_active = The run for {label} is still working or waiting. Cancel it first.

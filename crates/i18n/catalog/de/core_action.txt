@@ -216,3 +216,9 @@ core_action.log_field_set = {field} von {key} auf „{value}“ gesetzt
 core_action.log_field_cleared = {field} von {key} geleert
 core_action.log_issue_created = Issue {key} im Projekt „{project}“ angelegt
 core_action.log_draft_converted = Entwurf in das Issue {key} umgewandelt
+
+# Remove runs from the list
+core_action.log_run_removed = Lauf für {label} aus der Liste entfernt
+core_action.log_runs_removed.one = {n} beendeter Lauf aus der Liste entfernt
+core_action.log_runs_removed.other = {n} beendete Läufe aus der Liste entfernt
+core_action.err_run_still_active = Der Lauf für {label} arbeitet oder wartet noch. Brich ihn zuerst ab.
