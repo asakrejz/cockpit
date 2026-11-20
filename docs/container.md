@@ -15,7 +15,43 @@ echo "<token>" | docker login ghcr.io -u <github-user> --password-stdin
 
 (`podman login ghcr.io` works the same.) The token only reads packages; do not give it more.
 
-## Pull and start
+## Start and update (one command)
+
+Get `compose.yaml` (it is in the repository and in the release archive) and run, in its folder:
+
+```bash
+docker compose up -d
+```
+
+Then open <http://127.0.0.1:8787>. The setup assistant takes you from there.
+
+**The same command updates Cockpit.** Run it again whenever you want: it pulls `latest` (`pull_policy: always`),
+recreates the container only if the image changed, and otherwise leaves the running container alone. Your data
+is in the volume and survives. (`podman compose up -d` works the same.)
+
+Without compose, use the script (`docker` or `podman`, detected; `COCKPIT_CONTAINER=podman` overrides):
+
+```bash
+scripts/cockpit-container.sh          # up (default): pull, start or replace, or report "up to date"
+scripts/cockpit-container.sh status   # also: stop, logs
+```
+
+- **Stop:** `docker compose down` removes the container and keeps the volume. **Never add `-v`**: it deletes the
+  volume, i.e. your config, database and keys.
+- **Publish on `127.0.0.1` only** (the compose file does). A bare `-p 8787:8787` would expose the server to your
+  network. See [security.md](security.md#running-in-a-container).
+- Another host port: `COCKPIT_PORT=18787 docker compose up -d` (the script reads the same variable). The server
+  then accepts that port in the `Host` header (`COCKPIT_PUBLIC_PORT`, set for you). For the OAuth sign-in the callback
+  address of your OAuth app must use that port too; the simplest setup is the same port on both sides.
+- `docker ps` shows the state `healthy` once the server answers (`cockpit-server health` is the healthcheck).
+- **If you started Cockpit earlier with `docker run --name cockpit`:** remove that container once
+  (`docker rm -f cockpit`; the volume `cockpit-config` stays and is reused), then use the commands above.
+  Compose may warn that the volume "was not created by Docker Compose"; that is harmless.
+
+### Manual `docker run` (reference)
+
+Only for reference; it fails with "already exists" when run twice. Remove an existing container first
+(`docker rm -f cockpit`), and pull yourself to update:
 
 ```bash
 docker pull ghcr.io/<owner>/cockpit:latest
@@ -24,15 +60,6 @@ docker run -d --name cockpit --restart unless-stopped \
   -v cockpit-config:/app/config \
   ghcr.io/<owner>/cockpit:latest
 ```
-
-Then open <http://127.0.0.1:8787>. The setup assistant takes you from there.
-
-- **Publish on `127.0.0.1` only** (`-p 127.0.0.1:8787:8787`). A bare `-p 8787:8787` would expose the server to your
-  network. See [security.md](security.md#running-in-a-container).
-- Another host port, for example `-p 127.0.0.1:18787:8787`, needs `-e COCKPIT_PUBLIC_PORT=18787` so the server accepts
-  that port in the `Host` header. For the OAuth sign-in the callback address of your OAuth app must use that port too;
-  the simplest setup is the same port on both sides.
-- `docker ps` shows the state `healthy` once the server answers (`cockpit-server health` is the healthcheck).
 
 ## What lives where
 
@@ -55,16 +82,12 @@ is writable for user id `10001` (the user inside the image).
 
 ## Update
 
-```bash
-docker pull ghcr.io/<owner>/cockpit:latest
-docker rm -f cockpit
-docker run -d --name cockpit ...   # same command as above; the volume keeps your data
-```
+Run the same command again: `docker compose up -d` (or `scripts/cockpit-container.sh`). See above.
 
 ## Agent containers (opt-in)
 
 Cockpit starts agent containers with the `docker` command. In the image that works only if you give it the container
-engine of your host: mount its socket. The `docker` CLI is part of the image (about 39 MB on disk).
+engine of your host: mount its socket. The `docker` CLI is part of the image (about 39 MB on disk). In `compose.yaml` this is a commented block.
 
 > **A mounted socket is root-equivalent access to your host.** Whoever controls Cockpit (or the code that runs in it)
 > can start any container, mount any folder and read or change anything the engine can reach. Do this only on a
@@ -86,6 +109,8 @@ The socket belongs to root, the image runs as a normal user, so the process need
 **Paths must match.** The engine runs on the host, so the folders Cockpit gives to an agent container
 (`<data folder>/…`) are resolved *on the host*. A named volume does not work for that. Use a host folder, mounted at
 the **same absolute path** inside, and point Cockpit at it:
+
+Plain `docker run` form (remove an existing container first, `docker rm -f cockpit`):
 
 ```bash
 mkdir -p "$HOME/cockpit-config"

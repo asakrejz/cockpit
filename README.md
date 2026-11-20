@@ -28,13 +28,15 @@ through Jira, GitHub and the model. Every step can be skipped. What only you can
 
 ## Run with Docker
 
-Instead of building, you can run the ready-made image (log in to `ghcr.io` first, see the guide):
+Instead of building, you can run the ready-made image (log in to `ghcr.io` first, see the guide). One command starts
+Cockpit, and the same command updates it (it pulls a newer image and replaces the container only if there is one):
 
 ```bash
-docker run -d --name cockpit -p 127.0.0.1:8787:8787 -v cockpit-config:/app/config ghcr.io/<owner>/cockpit:latest
+docker compose up -d
 ```
 
-Publish on `127.0.0.1` only. Your configuration and keys live in the `cockpit-config` volume. Details:
+Without compose: `scripts/cockpit-container.sh` does the same with `docker` or `podman`. Your configuration and keys
+live in the `cockpit-config` volume; `docker compose down` keeps it (never add `-v`). Details:
 [docs/container.md](docs/container.md).
 
 ## Keys
