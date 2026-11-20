@@ -152,3 +152,6 @@ body { margin: 0; }
 
 /* Frame with a real narrow window (story "Ebenen"). */
 .pg-stack-frame { width: 375px; max-width: 100%; height: 640px; border: 0; border-radius: 32px; box-shadow: 0 0 0 8px var(--sys-color-label), var(--ref-shadow-3); background: var(--sys-color-grouped-background); }
+
+/* Story "Extreme Inhalte": the panes keep their width whatever the content. */
+[data-extreme-pane] { max-width: 100%; }
