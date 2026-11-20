@@ -96,6 +96,25 @@ pub struct ContainerStatus {
     /// The same as `hint`, as code and parameters (the UI shows it in its language).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hint_msg: Option<cockpit_i18n::Msg>,
+    /// Cockpit runs inside its own container image (`COCKPIT_IN_CONTAINER`, `/.dockerenv`, `/run/.containerenv`).
+    #[serde(default)]
+    pub in_container: bool,
+    /// Only meaningful with `in_container`: the host's engine socket inside the container.
+    #[serde(default)]
+    pub socket: SocketState,
+}
+
+/// The engine socket as seen from inside the Cockpit container.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SocketState {
+    /// No socket mounted (or not checked).
+    #[default]
+    Missing,
+    /// A socket is there, but this user may not use it.
+    Denied,
+    /// A socket is there and accepts connections.
+    Reachable,
 }
 
 /// Whether the real agent can start, as `GET /api/health` reports it.
