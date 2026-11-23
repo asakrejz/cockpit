@@ -58,11 +58,11 @@ async fn key_only_with_allowed_names_and_valid_value() {
         ("kein json test-wert-123", StatusCode::BAD_REQUEST),
         (r#"{"anders":"test-wert-123"}"#, StatusCode::BAD_REQUEST),
     ] {
-        let (status, answer) = put(&p.app, "/api/secrets/litellm", body).await;
+        let (status, answer) = put(&p.app, "/api/secrets/agent-key", body).await;
         assert_eq!(status, expected, "{body}");
         assert!(!answer.contains("test-wert"), "{answer}");
     }
-    assert!(p.secrets.get("litellm").unwrap().is_none());
+    assert!(p.secrets.get("agent-key").unwrap().is_none());
 }
 
 #[tokio::test]
@@ -75,7 +75,7 @@ async fn new_routes_have_same_checks_like_all_api_routes() {
         Some("text/plain"),
         Some("application/x-www-form-urlencoded"),
     ] {
-        let mut b = request("PUT", "/api/secrets/litellm");
+        let mut b = request("PUT", "/api/secrets/agent-key");
         if let Some(t) = kind {
             b = b.header("content-type", t);
         }
@@ -85,7 +85,7 @@ async fn new_routes_have_same_checks_like_all_api_routes() {
     // Foreign origin, foreign host, foreign peer.
     let (status, _) = send_request(
         &p.app,
-        request("PUT", "/api/secrets/litellm")
+        request("PUT", "/api/secrets/agent-key")
             .header("content-type", "application/json")
             .header("origin", "https://boese.example")
             .body(Body::from(value))
@@ -97,7 +97,7 @@ async fn new_routes_have_same_checks_like_all_api_routes() {
         &p.app,
         Request::builder()
             .method("PUT")
-            .uri("/api/secrets/litellm")
+            .uri("/api/secrets/agent-key")
             .header("host", "boese.example")
             .header("content-type", "application/json")
             .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 50000))))
@@ -130,7 +130,7 @@ async fn new_routes_have_same_checks_like_all_api_routes() {
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    assert!(p.secrets.get("litellm").unwrap().is_none());
+    assert!(p.secrets.get("agent-key").unwrap().is_none());
     assert!(!p.path.exists());
 }
 
@@ -181,11 +181,11 @@ async fn config_writes_the_file_and_takes_effect_without_restart() {
     let h = get(&p.app, "/api/health").await;
     assert_eq!(h["endpoint"]["url"], "http://localhost:4000");
     assert_eq!(h["endpoint"]["model"], "claude-sonnet-5-5");
-    // The older names of the request (`litellm`) still apply too.
+    // Changing the address alone keeps the model.
     let (status, answer) = put(
         &p.app,
         "/api/config",
-        r#"{"litellm":{"url":"localhost:4001"}}"#,
+        r#"{"endpoint":{"url":"localhost:4001"}}"#,
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{answer}");

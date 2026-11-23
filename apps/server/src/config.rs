@@ -91,9 +91,9 @@
 //! max_prs_total = 500                      # … and over all repos together (default 500)
 //! ```
 //!
-//! Older files are still read: `[litellm]` (`url`, `modell`) and the key `litellm`
-//! (equivalent to `[agent.endpoint]` and `agent-key`), `[agent] anbieter`, `[agent.endpunkt]`
-//! with `modell`, and `intervall_s`; if both are present the new one applies.
+//! Older files are still read: `[litellm]` (`url`, `modell`; equivalent to `[agent.endpoint]`),
+//! `[agent] anbieter`, `[agent.endpunkt]` with `modell`, and `intervall_s`; if both are present
+//! the new one applies.
 //! The assistant writes the new format.
 //!
 //! A source only syncs if it is set up here **and** its key is in the

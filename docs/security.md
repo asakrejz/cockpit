@@ -29,8 +29,6 @@ Details: [configuration.md](configuration.md).
   by the backend itself.
 - **Precedence.** A real environment variable of the same name wins over the file; a value set that way cannot be
   overwritten or deleted in the assistant.
-- **Old keychain entries** (before 2026-11-13): `cockpit-server token import` copies them once; it deletes nothing, does
-  not overwrite and never runs by itself.
 - **Jira API token** has the rights of the Atlassian account: while Cockpit should only read, use an account or role
   without write permissions and a short expiry. GitHub tokens should be fine-grained and limited to the configured
   repos (see the rights table in the [setup guide](setup-guide.md#github)).

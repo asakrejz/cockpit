@@ -149,7 +149,7 @@ pub struct ConfigChange {
     pub github: Option<GitHubInput>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_repos: Option<AgentReposInput>,
-    #[serde(default, skip_serializing_if = "Option::is_none", alias = "litellm")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub endpoint: Option<EndpointInput>,
     /// `[github] auth`: the chosen sign-in method for GitHub.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -206,9 +206,9 @@ pub struct Setup {
     #[serde(default)]
     pub provider: Provider,
     /// Address of the endpoint; `None` = directly at the provider.
-    #[serde(default, alias = "litellm_url")]
+    #[serde(default)]
     pub endpoint_url: Option<String>,
-    #[serde(default, alias = "litellm_modell")]
+    #[serde(default)]
     pub endpoint_model: Option<String>,
     /// The address entered as callback in the GitHub App.
     #[serde(default)]
@@ -230,8 +230,6 @@ pub struct Setup {
 impl Setup {
     /// Is the key `name` in the .env file?
     pub fn has_key(&self, name: &str) -> bool {
-        let da = |n: &str| self.keys.iter().any(|s| s.name == n && s.set);
-        // The endpoint's key was called `litellm` until #31 and still applies.
-        da(name) || (name == "agent-key" && da("litellm"))
+        self.keys.iter().any(|s| s.name == name && s.set)
     }
 }

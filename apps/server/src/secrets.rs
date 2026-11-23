@@ -1,15 +1,12 @@
 //! Storage of the keys. They are in the `.env` file in the folder `config/` of the project (`EnvFileStore`, never
 //! commit it), never in the database, never in the configuration file. `Secret` only shows as
-//! `Secret(***)` in `Debug`. The system keychain (`KeyringStore`) is only read for the one-time,
-//! explicit takeover of old entries.
+//! `Secret(***)` in `Debug`.
 
 mod env_check;
 mod env_file;
 
 pub use env_check::{EnvFileStatus, status as env_file_status};
-pub use env_file::{
-    DEFAULT_FILE_NAME as ENV_FILE_NAME, ENV_FILE_VAR, EnvFileStore, Takeover, take_over,
-};
+pub use env_file::{DEFAULT_FILE_NAME as ENV_FILE_NAME, ENV_FILE_VAR, EnvFileStore};
 
 #[cfg(test)]
 use std::collections::HashMap;
@@ -17,9 +14,6 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 
 use cockpit_integrations::Secret;
-
-/// Name of the entry in the keychain.
-const SERVICE: &str = "cockpit";
 
 /// Names of the keys that the backend knows.
 pub const GITHUB: &str = "github";
@@ -29,8 +23,6 @@ pub const GITHUB_OAUTH: &str = "github-oauth";
 pub const ATLASSIAN_OAUTH: &str = "atlassian-oauth";
 /// Key for the endpoint of the agent (`token set agent-key`); only goes to the agent container at start.
 pub const AGENT_KEY: &str = "agent-key";
-/// The older name of the same key (until #31 `litellm`); is still read if `agent-key` is missing.
-pub const LITELLM: &str = "litellm";
 /// Shared secrets for the signature of incoming webhooks (`GITHUB_WEBHOOK_SECRET`,
 /// `JIRA_WEBHOOK_SECRET`); the assistant can generate them.
 pub const GITHUB_WEBHOOK: &str = "github-webhook";
@@ -64,45 +56,6 @@ pub trait SecretStore: Send + Sync {
     /// The file that holds the keys (only `EnvFileStore`); for status and warnings.
     fn env_file(&self) -> Option<&std::path::Path> {
         None
-    }
-}
-
-/// Keychain of the system (macOS Keychain, Windows Credential Manager, Secret Service
-/// on Linux).
-#[derive(Debug, Default)]
-pub struct KeyringStore;
-
-impl KeyringStore {
-    fn entry(name: &str) -> Result<keyring::Entry, SecretError> {
-        keyring::Entry::new(SERVICE, name).map_err(error)
-    }
-}
-
-/// The error message of the keychain never contains the value.
-fn error(e: keyring::Error) -> SecretError {
-    SecretError(e.to_string())
-}
-
-impl SecretStore for KeyringStore {
-    fn get(&self, name: &str) -> Result<Option<Secret>, SecretError> {
-        match Self::entry(name)?.get_password() {
-            Ok(w) => Ok(Some(Secret::new(w))),
-            Err(keyring::Error::NoEntry) => Ok(None),
-            Err(e) => Err(error(e)),
-        }
-    }
-
-    fn set(&self, name: &str, value: &Secret) -> Result<(), SecretError> {
-        Self::entry(name)?
-            .set_password(value.expose())
-            .map_err(error)
-    }
-
-    fn delete(&self, name: &str) -> Result<(), SecretError> {
-        match Self::entry(name)?.delete_credential() {
-            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-            Err(e) => Err(error(e)),
-        }
     }
 }
 

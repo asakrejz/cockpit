@@ -30,7 +30,6 @@ pub const KEY_NAMES: &[&str] = &[
     "github-oauth",
     "atlassian-oauth",
     "agent-key",
-    "litellm",
     "jira",
     "github",
     "github-webhook",

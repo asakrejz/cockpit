@@ -101,7 +101,7 @@ impl AppState {
             provider: choice.provider,
             url: choice.endpoint.as_ref().and_then(|e| e.url.clone()),
             model: choice.endpoint.as_ref().and_then(|e| e.model.clone()),
-            key: has_key(secrets::AGENT_KEY) || has_key(secrets::LITELLM),
+            key: has_key(secrets::AGENT_KEY),
         };
         let container = self.container_status();
         let agent = self.agent_status();
@@ -166,15 +166,11 @@ pub(super) async fn health(State(state): State<AppState>) -> Result<Json<Health>
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
 }
 
-/// The key of the endpoint from the .env file: `agent-key`, alternatively the older `litellm`.
-/// Blockierend.
+/// The key of the endpoint from the .env file (`agent-key`). Blocking.
 pub(crate) fn agent_key_read(
     secrets: &dyn crate::secrets::SecretStore,
 ) -> Result<Option<cockpit_integrations::Secret>, crate::secrets::SecretError> {
-    match secrets.get(secrets::AGENT_KEY)? {
-        Some(k) => Ok(Some(k)),
-        None => secrets.get(secrets::LITELLM),
-    }
+    secrets.get(secrets::AGENT_KEY)
 }
 
 impl AppState {
