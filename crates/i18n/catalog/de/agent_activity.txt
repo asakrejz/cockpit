@@ -14,3 +14,4 @@ agent_activity.created = Erstellt
 agent_activity.no_merge = Der Agent führt keinen Merge aus. Das Review liegt bei dir.
 agent_activity.activity = Aktivität
 agent_activity.history = Verlauf
+agent_activity.no_files = Bisher keine geänderten Dateien.

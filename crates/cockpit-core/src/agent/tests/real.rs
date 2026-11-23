@@ -30,6 +30,61 @@ fn step(tokens_in: u64, tokens_out: u64, millis: u64) -> AgentReport {
 }
 
 #[test]
+fn a_real_implementation_starts_without_the_placeholder_files() {
+    let mut r = run();
+    assert!(
+        !r.files.is_empty(),
+        "a ready-to-start run carries placeholders"
+    );
+    r.start(
+        AgentOptions {
+            plan_first: false,
+            ..AgentOptions::default()
+        },
+        92,
+    );
+    r.report(
+        AgentReport::Started {
+            detail: "Container gestartet".into(),
+        },
+        &AgentLimits::unlimited(),
+        0,
+    );
+    assert!(r.files.is_empty());
+    r.report(
+        AgentReport::Files {
+            files: vec!["src/toggle.rs".into()],
+        },
+        &AgentLimits::unlimited(),
+        0,
+    );
+    assert_eq!(r.files, ["src/toggle.rs"]);
+}
+
+#[test]
+fn a_followup_keeps_the_files_of_its_comments_when_the_container_starts() {
+    let mut r = AgentRun::followup(
+        RunKind::Followup {
+            review: PrKey::from(91),
+            task: FollowupTask::ReviewThreads,
+        },
+        "BAU-138",
+        "Segmented: Pfeiltasten",
+        "claude/bau-138",
+    );
+    r.files = vec!["controls.rs".into()];
+    r.start(AgentOptions::default(), 91);
+    r.report(
+        AgentReport::Started {
+            detail: "Container gestartet".into(),
+        },
+        &AgentLimits::unlimited(),
+        0,
+    );
+    assert_eq!(r.files, ["controls.rs"]);
+}
+
+#[test]
 fn a_real_run_is_not_touched_by_the_simulated_tick() {
     let mut r = real_run();
     assert!(r.real);
