@@ -7,7 +7,7 @@ reference for editing by hand. Step-by-step instructions are in the [setup guide
 
 Everything is optional. The file `config.toml` lives in the folder `config/` of the project, next to the database
 `cockpit.db` (`config/config.toml`, `config/cockpit.db`). "Project folder" is the working directory of the server, the
-same folder that holds `config/`; `scripts/start.sh`, `start-cockpit.command` (also in the release archive) and
+same folder that holds `config/`; `scripts/start.sh`, `start-cockpit.command` and
 the launchd template (`WorkingDirectory`) all start there. The server creates `config/` at the first start (mode `700`,
 files `600`) and an empty `config.toml` if there is none. Git ignores everything in `config/` except
 [`config/config.example.toml`](../config/config.example.toml), a fully commented example with dummy values to copy
@@ -147,8 +147,7 @@ migrating. Stop a still running server of the old version before the first start
 server warns when Git tracks a file in `config/` other than the example, when one is not ignored, or when permissions
 are looser than `700`/`600` (at start they are tightened). CI (`scripts/check-tracked-files.sh`, first step of the `check` job)
 fails when anything but `config/config.example.toml` is tracked there. The folder never enters the agent image: the
-build context is `apps/agent`, and its `.dockerignore` excludes `config` as well. The release archive contains only
-`config/config.example.toml`.
+build context is `apps/agent`, and its `.dockerignore` excludes `config` as well.
 
 ## Several repos
 
@@ -304,7 +303,7 @@ summary names the chosen tool. An endpoint that offers no model list: enter the 
 ## Container runtime
 
 The backend chooses: `COCKPIT_CONTAINER`, else `[agent] container`, else it looks for
-`podman`, then `docker` in the `PATH` and checks with `<runtime> info` whether the engine runs (a process call, never
+`docker`, then `podman` in the `PATH` and checks with `<runtime> info` whether the engine runs (a process call, never
 the socket; the result is cached for 10 seconds). `/api/health` reports under `container` `runtime`, `engine_running`,
 `source` (`env`, `config`, `detected`, `none`) and a `hint`.
 

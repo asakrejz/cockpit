@@ -20,11 +20,6 @@ quit. `--release` builds the server as a release build. Without the script:
 (cd apps/cockpit && trunk build) && cargo run -p cockpit-server
 ```
 
-**Ready-made archive.** For every version tag (`v…`) `.github/workflows/release.yml` builds a macOS (Apple Silicon)
-archive with `cockpit-server`, `apps/cockpit/dist`, the agent image sources and `start-cockpit.command`, so no Rust or
-Trunk is needed. Unzip and right-click `start-cockpit.command` › "Open"; the programs are not signed, hence the macOS
-prompt. Other systems build themselves.
-
 ## 2. What only you can do
 
 These steps cannot be automated; the assistant walks you through each one:

@@ -86,7 +86,7 @@ impl Settings {
 }
 
 /// The folder `agent` with Containerfile and runner: `[agent] dir` or `COCKPIT_AGENT_DIR`, otherwise
-/// next to the built app (`<dist>/../../agent`, so it lies in the repo and in the release archive),
+/// next to the built app (`<dist>/../../agent`, so it lies in the repo and in the image),
 /// otherwise `./apps/agent`.
 pub(super) fn agent_dir_find(config: &Config) -> PathBuf {
     if let Some(d) = &config.agent_dir {
