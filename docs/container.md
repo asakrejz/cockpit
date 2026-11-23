@@ -17,7 +17,7 @@ echo "<token>" | docker login ghcr.io -u <github-user> --password-stdin
 
 ## Start and update (one command)
 
-Get `compose.yaml` (it is in the repository and in the release archive) and run, in its folder:
+Get `compose.yaml` (it is in the repository) and run, in its folder:
 
 ```bash
 docker compose up -d
@@ -29,7 +29,7 @@ Then open <http://127.0.0.1:8787>. The setup assistant takes you from there.
 recreates the container only if the image changed, and otherwise leaves the running container alone. Your data
 is in the volume and survives. (`podman compose up -d` works the same.)
 
-Without compose, use the script (`docker` or `podman`, detected; `COCKPIT_CONTAINER=podman` overrides):
+Without compose, use the script (`docker` or `podman`, detected in this order; `COCKPIT_CONTAINER=podman` overrides):
 
 ```bash
 scripts/cockpit-container.sh          # up (default): pull, start or replace, or report "up to date"
@@ -176,7 +176,7 @@ docker run --rm -v "$HOME/cockpit-config:/from:ro" -v cockpit-config:/to --user 
 
   then start as in "Only the image" or with compose. The host folder stays as a backup.
 
-The agent image itself is **not** part of this release: "Build image" in the app builds it from the sources inside the
+The agent image itself is **not** part of this image: "Build image" in the app builds it from the sources inside the
 image (`/app/apps/agent`) with the engine of your host (the build context is sent through the CLI, so no host path is
 needed). The native start (`start-cockpit.command`, see the [README](../README.md)) remains the best-tested way to use
 the agent.

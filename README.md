@@ -87,7 +87,6 @@ committed, rotate it. Everything else (`config/config.toml`, ports, the database
 | [docs/architecture.md](docs/architecture.md) | decisions, HTTP API, sync, agent behaviour, development |
 | [docs/security.md](docs/security.md) | credentials, request checks, webhooks, agent sandbox |
 | [docs/components.md](docs/components.md) | component library and design tokens |
-| [docs/roadmap.md](docs/roadmap.md) | planned features |
 | [apps/agent/README.md](apps/agent/README.md) | agent image, adapters, event protocol |
 
 MIT license (see `Cargo.toml`).

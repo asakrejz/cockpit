@@ -48,7 +48,7 @@ app_outdated() {
   local target="apps/cockpit/dist/index.html"
   [ -f "$target" ] || return 0
   [ -n "$(find apps/cockpit/src apps/cockpit/index.html apps/cockpit/style.css apps/cockpit/Trunk.toml \
-    crates/cockpit-core/src crates/ui Cargo.toml Cargo.lock \
+    crates/cockpit-core/src crates/ui crates/i18n Cargo.toml Cargo.lock \
     -type f -newer "$target" -print -quit 2> /dev/null)" ]
 }
 

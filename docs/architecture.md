@@ -77,7 +77,7 @@ anything that builds or starts containers:
    library. Only commands and switches both understand the same way are used (`build -f`, `run --rm`, `-e`, `-v`,
    `--network`, `--add-host`, `--user`, `--label`, `create`, `start -a`, `cp`, `ps`, `rm -f`, `image inspect`).
 2. **Runtime selectable.** Configuration `[agent] container = "docker" | "podman"`, overridable by `COCKPIT_CONTAINER`.
-   Without either, the backend looks for `podman` first, then `docker` in the `PATH` and checks with `<cli> info` whether
+   Without either, the backend looks for `docker` first, then `podman` in the `PATH` and checks with `<cli> info` whether
    the engine runs. `/api/health` reports which one was found.
 3. **Name images fully.** `docker.io/library/node:…` instead of `node:…`; Podman does not resolve short names, or only
    after asking. The build file is named `Containerfile`; both build it with `-f Containerfile`. No BuildKit features
