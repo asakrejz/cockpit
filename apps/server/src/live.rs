@@ -20,6 +20,9 @@ const PUFFER: usize = 64;
 pub struct Live {
     snapshot: Mutex<Snapshot>,
     tx: broadcast::Sender<ServerEvent>,
+    /// Set when an unreadable stored state could not be kept aside: nothing is saved then, so
+    /// the stored row is never overwritten.
+    protected: Option<String>,
 }
 
 struct Snapshot {
@@ -36,37 +39,88 @@ pub enum Error {
     Save(String),
 }
 
+/// Why `raw` is not a readable stored state, in words for the log and for `workspace_unreadable`.
+/// [`persist`] only says "unreadable"; this names the broken part.
+fn unreadable_reason(raw: &str, e: &persist::LoadError) -> String {
+    match e {
+        persist::LoadError::Version(found) => format!(
+            "unknown version {found}, this build reads version {}",
+            persist::VERSION
+        ),
+        persist::LoadError::Unreadable => match serde_json::from_str::<serde_json::Value>(raw) {
+            Err(e) => format!("not valid JSON: {e}"),
+            Ok(value) if !value.get("version").is_some_and(|v| v.is_u64()) => {
+                "no valid version number".to_string()
+            }
+            Ok(value) => match value.get("workspace") {
+                None => "no \"workspace\" field".to_string(),
+                Some(ws) => match serde_json::from_value::<Workspace>(ws.clone()) {
+                    Err(e) => format!("does not fit the workspace: {e}"),
+                    Ok(_) => "does not fit the stored shape".to_string(),
+                },
+            },
+        },
+    }
+}
+
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     // A crashed handler should not paralyze all others.
     m.lock().unwrap_or_else(|e| e.into_inner())
 }
 
 impl Live {
-    /// Loads the stored state; without (or with an unreadable) state the server starts with
-    /// the seed: by default an empty workspace, with `Seed::Demo` the sample data.
-    /// A stored state always goes before the seed.
+    /// Loads the stored state; without a stored state the server starts with the seed: by
+    /// default an empty workspace, with `Seed::Demo` the sample data. A stored state always
+    /// goes before the seed.
+    ///
+    /// A stored state that cannot be read (broken JSON, unknown version, a field that no longer
+    /// fits) is never discarded: the raw row is first moved into `workspace_unreadable`
+    /// ([`db::workspace_keep_unreadable`]), then the server starts with the seed. If even that
+    /// fails, the server starts with the seed but saves nothing, so the row stays as it is.
     pub fn load(conn: &Connection, seed: Seed) -> Self {
         let start = || match seed {
             Seed::Empty => Workspace::default(),
             Seed::Demo => demo::seed(),
         };
-        let stored = db::load_workspace(conn).unwrap_or_else(|e| {
-            tracing::warn!("Stored workspace not readable: {e}");
-            None
-        });
-        let (ws, revision) = match stored.as_deref().map(persist::load_with_revision) {
-            Some(Ok(snapshot)) => snapshot,
-            Some(Err(e)) => {
-                tracing::warn!(
-                    "Stored workspace does not fit ({e:?}), starting with the seed ({seed:?})"
-                );
-                (start(), 0)
-            }
-            None => (start(), 0),
+        let stored = match db::load_workspace(conn) {
+            Ok(None) => Ok(None),
+            Ok(Some(raw)) => persist::load_with_revision(&raw)
+                .map(Some)
+                .map_err(|e| unreadable_reason(&raw, &e)),
+            Err(e) => Err(format!("the row cannot be read from the database: {e}")),
+        };
+        let (ws, revision, protected) = match stored {
+            Ok(Some((ws, revision))) => (ws, revision, None),
+            Ok(None) => (start(), 0, None),
+            Err(reason) => match db::workspace_keep_unreadable(conn, &reason) {
+                Ok(_) => {
+                    tracing::warn!(
+                        "Stored workspace is not readable ({reason}). The stored data was kept \
+                         unchanged in the table workspace_unreadable of the database; starting \
+                         with the seed ({seed:?})"
+                    );
+                    (start(), 0, None)
+                }
+                Err(e) => {
+                    tracing::error!(
+                        "Stored workspace is not readable ({reason}) and could not be kept aside \
+                         ({e}). Nothing will be saved, so the stored data stays as it is. \
+                         Starting with the seed ({seed:?})"
+                    );
+                    (
+                        start(),
+                        0,
+                        Some(format!(
+                            "The stored workspace is not readable and could not be kept aside: {e}"
+                        )),
+                    )
+                }
+            },
         };
         Self {
             snapshot: Mutex::new(Snapshot { ws, revision }),
             tx: broadcast::channel(PUFFER).0,
+            protected,
         }
     }
 
@@ -74,6 +128,9 @@ impl Live {
     /// supported (see [`Workspace::fill_repos`]); `only_repo` is the one configured repo, if
     /// there is exactly one. Saves the result if anything changed.
     pub fn fill_repos(&self, db: &Connection, only_repo: Option<&str>) {
+        if self.protected.is_some() {
+            return;
+        }
         let mut snapshot = lock(&self.snapshot);
         let mut updated = snapshot.ws.clone();
         if !updated.fill_repos(only_repo) {
@@ -119,6 +176,9 @@ impl Live {
         actor: Actor,
         at_ms: u64,
     ) -> Result<ActionResponse, Error> {
+        if let Some(reason) = &self.protected {
+            return Err(Error::Save(reason.clone()));
+        }
         let mut snapshot = lock(&self.snapshot);
         // Work on a copy: if the rule or the saving fails, everything stays as it was.
         let mut updated = snapshot.ws.clone();

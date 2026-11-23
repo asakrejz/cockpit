@@ -128,6 +128,19 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                 ctx.store
                     .health
                     .get()
+                    .and_then(|h| h.unreadable_state)
+                    .map(|kept| {
+                        view! {
+                            <p class="t-footnote" role="alert" style="padding-inline: 4px; color: var(--red, #c00)">
+                                {kept.shown()}
+                            </p>
+                        }
+                    })
+            }}
+            {move || {
+                ctx.store
+                    .health
+                    .get()
                     .and_then(|h| h.env_file)
                     .map(|datei| {
                         view! {

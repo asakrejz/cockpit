@@ -258,6 +258,32 @@ pub struct Health {
     /// The folder `config/` with configuration and database: path, warnings, old files.
     #[serde(default)]
     pub config_files: Option<ConfigFilesStatus>,
+    /// Saved workspaces that could not be read and are kept aside in the database.
+    #[serde(default)]
+    pub unreadable_state: Option<UnreadableState>,
+}
+
+/// Saved workspaces the server could not read; it kept them unchanged and started over.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize)]
+pub struct UnreadableState {
+    #[serde(default)]
+    pub count: u32,
+    /// The notice in German (for readers that only know plain text).
+    #[serde(default)]
+    pub notice: String,
+    /// The notice as code and parameters (shown in the current language).
+    #[serde(default)]
+    pub notice_msg: Option<cockpit_i18n::Msg>,
+}
+
+impl UnreadableState {
+    /// The notice in the current language.
+    pub fn shown(&self) -> String {
+        match &self.notice_msg {
+            Some(m) => m.render(feature_ui::lang_untracked()),
+            None => self.notice.clone(),
+        }
+    }
 }
 
 /// Path of the folder `config/`, warnings (Git, permissions) and hints about old files.

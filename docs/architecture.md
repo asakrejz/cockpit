@@ -111,7 +111,7 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 
 | Route | Purpose |
 |-------|---------|
-| `GET /api/health` | `{status, version, connections, sign_in, sync, endpoint, container, agent, env_file}`; per connection only yes/no |
+| `GET /api/health` | `{status, version, connections, sign_in, sync, endpoint, container, agent, env_file, config_files, unreadable_state}`; per connection only yes/no |
 | `GET /api/workspace` | state as JSON (shape of `cockpit_core::persist`, plus `revision`) |
 | `POST /api/actions` | body `{"action": <Action>}`; applied as the user. Answer `{revision, summary, logged}`; a rejected action is `422` (unknown shape `400`) with `{"error": "…"}`; a failed outward call is `502` |
 | `POST /api/sync` | "sync now" with Jira and GitHub. Answer `{active, revision, logged}`; `active: false` when no source is set up |
@@ -409,9 +409,13 @@ red ones can be restarted. "Mergen" (merge/squash/rebase) works only with green 
 
 ## Persistence
 
-Everything the app shows lives in the backend (SQLite, migration 2) as JSON with a version number, see
-`crates/cockpit-core/src/persist.rs`. If the version does not match or the data is unreadable, the server starts with the
-seed (empty or sample data). New fields in the types need `#[serde(default)]` so older states stay readable. The
+Everything the app shows lives in the backend (SQLite) as JSON with a version number, see
+`crates/cockpit-core/src/persist.rs`. If the version does not match or the data is unreadable, the server first moves the
+stored row, unchanged, into the table `workspace_unreadable` (with its revision, the reason and the time), logs a warning,
+and only then starts with the seed (empty or sample data). `/api/health` reports it under `unreadable_state` as long as
+such rows exist, and the last assistant step shows it; the rows are only ever added, never read back or deleted by the
+program. If the row cannot be moved either, the server starts with the seed but saves nothing, so the stored row stays
+as it is. To look at a kept row: `sqlite3 <database file> "SELECT id, revision, error, kept_at FROM workspace_unreadable"`. New fields in the types need `#[serde(default)]` so older states stay readable. The
 compatibility of stored JSON across renames is guarded by `crates/cockpit-core/tests/wire_compat.rs`
 (`wire_*.json` current snapshots, `legacy_*.json` older ones that must keep loading); regenerate the snapshots with
 `BLESS=1 cargo test -p cockpit-core --test wire_compat` only on purpose.

@@ -1,0 +1,3 @@
+# Notices about the stored state of the server (shown with the health report)
+server_state.unreadable.one = The saved workspace could not be read, so Cockpit started over. Nothing was deleted: the old data is kept unchanged in the table "workspace_unreadable" of the database {path} (kept on {at} UTC).
+server_state.unreadable.other = {n} saved workspaces could not be read, so Cockpit started over each time. Nothing was deleted: the old data is kept unchanged in the table "workspace_unreadable" of the database {path} (the latest kept on {at} UTC).

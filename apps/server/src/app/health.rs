@@ -60,6 +60,45 @@ pub struct Health {
     /// Where the folder `config/` with configuration and database lives, what to warn about,
     /// and a hint while old files still exist at the old place.
     pub config_files: Option<crate::config::files_check::ConfigFilesStatus>,
+    /// Set while saved workspaces that could not be read are kept aside in the database.
+    pub unreadable_state: Option<UnreadableState>,
+}
+
+/// Saved workspaces that could not be read and are kept, unchanged, in the table
+/// `workspace_unreadable`. Contains no stored data, only counts, a time and the place.
+#[derive(Debug, Serialize, PartialEq, Eq)]
+pub struct UnreadableState {
+    /// How many are kept.
+    pub count: u32,
+    /// When the newest was kept (`YYYY-MM-DD HH:MM:SS`, UTC).
+    pub kept_at: String,
+    /// German text of the notice (for readers that only know plain text).
+    pub notice: String,
+    /// The same notice as code and parameters; the interface shows it in its language.
+    pub notice_msg: cockpit_i18n::Msg,
+}
+
+impl AppState {
+    /// The notice about kept workspaces, if there are any. Blocking (database).
+    fn unreadable_state(&self) -> Option<UnreadableState> {
+        let db = self.inner.db.lock().unwrap_or_else(|e| e.into_inner());
+        let kept = crate::db::workspaces_kept(&db)
+            .inspect_err(|e| tracing::warn!("Could not check for unreadable workspaces: {e}"))
+            .ok()??;
+        let path = db.path().unwrap_or_default().to_string();
+        let notice_msg = cockpit_i18n::msg!(
+            ServerStateUnreadable,
+            n = kept.count,
+            at = &kept.last_kept_at,
+            path = path
+        );
+        Some(UnreadableState {
+            count: kept.count,
+            kept_at: kept.last_kept_at,
+            notice: notice_msg.de(),
+            notice_msg,
+        })
+    }
 }
 
 impl AppState {
@@ -155,6 +194,7 @@ impl AppState {
                     self.inner.settings.legacy_env.as_deref(),
                 )
             }),
+            unreadable_state: self.unreadable_state(),
         }
     }
 }

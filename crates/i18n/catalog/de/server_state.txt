@@ -1,0 +1,3 @@
+# Hinweise zum gespeicherten Stand des Servers (kommen mit dem Gesundheitsbericht)
+server_state.unreadable.one = Der gespeicherte Arbeitsstand ließ sich nicht lesen, deshalb hat Cockpit neu angefangen. Es wurde nichts gelöscht: Die alten Daten liegen unverändert in der Tabelle „workspace_unreadable“ der Datenbank {path} (gesichert am {at} UTC).
+server_state.unreadable.other = {n} gespeicherte Arbeitsstände ließen sich nicht lesen, deshalb hat Cockpit jeweils neu angefangen. Es wurde nichts gelöscht: Die alten Daten liegen unverändert in der Tabelle „workspace_unreadable“ der Datenbank {path} (zuletzt gesichert am {at} UTC).
