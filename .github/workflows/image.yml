@@ -67,19 +67,7 @@ jobs:
           outputs: type=oci,dest=${{ runner.temp }}/image.tar
           cache-from: type=gha
           # Only main writes the cache (empty = not at all).
-          cache-to: type=gha,mode=max # TEMP-MEASURE
-      # TEMP-MEASURE: the same build once more (as the push step on main would), to see that it hits the cache of step 1.
-      - name: Build again (TEMP-MEASURE)
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: Containerfile
-          platforms: linux/amd64,linux/arm64
-          push: false
-          provenance: false
-          sbom: false
-          outputs: type=oci,dest=${{ runner.temp }}/image2.tar
-          cache-from: type=gha
+          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max' || '' }}
       - name: Check size (limit ${{ env.SIZE_LIMIT_MB }} MB compressed)
         run: LIMIT_MB="$SIZE_LIMIT_MB" scripts/image-size.sh "$RUNNER_TEMP/image.tar"
 
