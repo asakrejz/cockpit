@@ -26,6 +26,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # Static check of the Containerfile (BuildKit build checks: nothing is built, a second). It exits non-zero on any
+      # violation of the default rules. `# check=error=true` is deliberately not in the Containerfile: it would also
+      # fail every local build as soon as a newer BuildKit adds a rule. The real image build runs on `main` only.
+      - name: Containerfile checks
+        run: docker buildx build --check -f Containerfile .
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
