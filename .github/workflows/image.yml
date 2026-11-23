@@ -67,7 +67,7 @@ jobs:
           outputs: type=oci,dest=${{ runner.temp }}/image.tar
           cache-from: type=gha
           # Only main writes the cache (empty = not at all).
-          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max' || '' }}
+          cache-to: type=gha,mode=max # TEMP-MEASURE
       - name: Check size (limit ${{ env.SIZE_LIMIT_MB }} MB compressed)
         run: LIMIT_MB="$SIZE_LIMIT_MB" scripts/image-size.sh "$RUNNER_TEMP/image.tar"
 
