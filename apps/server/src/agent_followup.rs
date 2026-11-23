@@ -36,11 +36,7 @@ pub(crate) fn github_message(what: Msg, e: &ServiceError) -> Msg {
                 detail = Msg::raw(m)
             )
         }
-        other => msg!(
-            ServerAgentGithubOther,
-            what = what,
-            error = Msg::raw(other.to_string())
-        ),
+        other => msg!(ServerAgentGithubOther, what = what, error = other.msg()),
     }
 }
 
@@ -56,12 +52,8 @@ impl AppState {
         if api == crate::config::DEFAULT_GITHUB_API {
             return Err(Msg::raw("tests do not call the real GitHub"));
         }
-        GitHubClient::new(&api, token).map_err(|e| {
-            msg!(
-                ServerAgentGithubAccessInvalid,
-                error = Msg::raw(e.to_string())
-            )
-        })
+        GitHubClient::new(&api, token)
+            .map_err(|e| msg!(ServerAgentGithubAccessInvalid, error = e.msg()))
     }
 
     pub(crate) async fn github_client_async(&self) -> Result<GitHubClient, Msg> {
@@ -334,7 +326,7 @@ impl AppState {
             }
             Err(LiveError::Action(e)) => Err(ActionFailure::Service(msg!(
                 ServerAgentGithubDoneNotApplied,
-                error = Msg::raw(e.to_string())
+                error = e.msg()
             ))),
             Err(LiveError::Save(m)) => Err(ActionFailure::Save(m)),
         }

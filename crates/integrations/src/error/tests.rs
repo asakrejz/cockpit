@@ -23,6 +23,27 @@ fn problem_per_error() {
         Problem::RateLimited { until_ms: None }
     );
     assert!(matches!(Error::Status(500).problem(0), Problem::Other(_)));
-    assert!(Error::Status(503).to_string().contains("Serverfehler"));
-    assert!(Error::Status(418).to_string().contains("Unerwarteter"));
+}
+
+/// The text for logs is English, whatever language the reader has.
+#[test]
+fn display_is_english() {
+    assert!(Error::Status(503).to_string().contains("server error"));
+    assert!(Error::Status(418).to_string().contains("Unexpected status"));
+    assert_eq!(
+        Error::NotFound.to_string(),
+        cockpit_i18n::plain(Lang::En, cockpit_i18n::Key::IntegrationsNotFound)
+    );
+}
+
+/// The state that is stored for a failed fetch is a message, so it reads right in either language.
+#[test]
+fn other_problem_is_a_catalog_message_in_both_languages() {
+    let Problem::Other(m) = Error::Status(503).problem(0) else {
+        panic!("expected Problem::Other");
+    };
+    assert_eq!(m, Error::Status(503).msg());
+    assert_eq!(m.code, "integrations.server_error");
+    assert!(m.render(Lang::En).contains("server error"));
+    assert!(m.render(Lang::De).contains("Serverfehler"));
 }

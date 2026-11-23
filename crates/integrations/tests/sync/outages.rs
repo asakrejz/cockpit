@@ -82,7 +82,15 @@ async fn partial_outage_server_error_and_recovery() {
     let partial = services(Some(&g), Some(&broken));
     let (after, _) = sync(&partial, &ws, NOW_MS + 1_000).await;
     let jira = after.sync.state_of(Source::Jira).unwrap();
-    assert!(matches!(jira.problem, Some(Problem::Other(ref m)) if m.contains("500")));
+    let Some(Problem::Other(m)) = &jira.problem else {
+        panic!("expected a problem with a message, got {:?}", jira.problem);
+    };
+    assert!(m.render(cockpit_i18n::Lang::En).contains("500"));
+    assert!(m.render(cockpit_i18n::Lang::De).contains("500"));
+    assert_ne!(
+        m.render(cockpit_i18n::Lang::En),
+        m.render(cockpit_i18n::Lang::De)
+    );
     assert_eq!(jira.since_ms, Some(NOW_MS + 1_000));
     assert_eq!(jira.last_ok_ms, Some(NOW_MS), "last good state is kept");
     assert!(after.sync.state_of(Source::GitHub).unwrap().is_ok());

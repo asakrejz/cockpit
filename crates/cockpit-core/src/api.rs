@@ -6,8 +6,8 @@
 //! * `GET /api/oauth/{github|atlassian}/start` and `…/callback`: sign-in via OAuth (navigation of the
 //!   browser, redirects to `/`); `POST …/revoke`: [`RevokeResponse`]
 //! * `GET /api/jira/projects`: the Jira projects for the selection, [`JiraProjectsResponse`]
-//! * `GET /api/jira/assignable?project=&query=`: people a ticket of the project can be assigned to (read only),
-//!   [`JiraAssignableResponse`]
+//! * `GET /api/jira/assignable?project=&query=` and `GET /api/github/assignable?repo=&query=`: people a ticket
+//!   can be assigned to (read only), [`AssignableResponse`]
 //! * `GET /api/agent/models`: the model IDs of the endpoint for the drop-down, [`ModelList`]
 //! * `GET /api/agent/check`: connection test to the endpoint, [`EndpointCheck`]
 //! * `POST /api/jira/check`: connection test for Jira via API token (read only), [`JiraCheck`]
@@ -29,6 +29,9 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{Action, AgentRepo, AgentRepos, LogEntry, PullRequestRef};
+
+mod assignable;
+pub use assignable::*;
 
 mod cleanup;
 pub use cleanup::*;

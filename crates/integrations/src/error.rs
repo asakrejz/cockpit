@@ -1,7 +1,7 @@
 use std::fmt;
 
 use cockpit_core::Problem;
-use cockpit_i18n::{Msg, msg};
+use cockpit_i18n::{Lang, Msg, msg};
 
 /// What can go wrong in a call. The messages never contain a key.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -71,7 +71,7 @@ impl Error {
                 until_ms: wait_s.map(|s| now_ms + s * 1000),
             },
             Error::Network(_) => Problem::Offline,
-            other => Problem::Other(other.to_string()),
+            other => Problem::Other(other.msg()),
         }
     }
 }
@@ -99,9 +99,10 @@ impl Error {
     }
 }
 
+/// The English text, for logs and tests. People get [`Error::msg`] in their language.
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.msg().de())
+        write!(f, "{}", self.msg().render(Lang::En))
     }
 }
 
