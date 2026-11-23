@@ -560,32 +560,26 @@ cargo test --workspace
 The agent runner tests need Node ≥ 26.13.1 (the current LTS). Tests that start real containers are `#[ignore]`d:
 `COCKPIT_CONTAINER=docker cargo test -- --ignored` (or `podman`).
 
-**UI work.** The playground: `(cd apps/playground && trunk serve --open)` (port 8080). The app against a server:
-`apps/cockpit/Trunk.toml` forwards `/api` to `http://127.0.0.1:8787`. Server and dev server together:
+**CI** ([`ci.yml`](../.github/workflows/ci.yml), [`image.yml`](../.github/workflows/image.yml)). Actions minutes are
+limited, so every run is meant to be needed:
 
-```bash
-COCKPIT_DEV_PORT=8081 cargo run -p cockpit-server   # terminal 1
-(cd apps/cockpit && trunk serve --open)             # terminal 2, http://localhost:8081
-```
-
-Trunk sends `Host` without the port and keeps the `Origin` of the dev page; the server allows both only when
-`COCKPIT_DEV_PORT` is set (environment variable only, never in the file), see [security.md](security.md#requests-to-the-backend).
-Layout check for the navigation (last element of every page visible and clickable, nothing under the pill) at 375, 768 and
-1280 px: [scripts/layout-check.js](../scripts/layout-check.js) explains how to run it in the Browser pane.
-
-**Trying things out.** Use your own database and an empty config (`COCKPIT_CONFIG`, `COCKPIT_DB`), once with an empty
-start and once with `COCKPIT_SEED=demo`; never against real Jira or GitHub boards. Automated tests use fixtures and
-recorded responses.
-
-**Rules for every PR.** One feature, one branch, one PR against `main`. Logic goes into `cockpit-core` with unit tests.
-CSS uses tokens only; `tokens.css` and `components.css` stay unchanged (own additions go into `extras.css`). New fields
-in persisted types need `#[serde(default)]`. What only real credentials can verify is tested against recorded responses
-and named in the PR as "not verified against the real service".
-
-**Not verified against real services.** Sync and writes at GitHub and Jira, OAuth exchange and refresh, webhooks through
-a real tunnel, the Claude Code and Codex adapters with the real CLIs and a real container with a real model have only
-been tested against recorded responses and local stand-ins. Ticket and limit edits (including the assignee) are not sent
-outward yet; email and Slack notifications are only prepared.
+- `ci.yml` runs once per commit: on `pull_request` for a PR, on `push` only for `main` (and by hand). A newer commit on
+  the same PR cancels the run still in progress; `main` is never cancelled.
+- Everything is one job, `check` (the tracked-files check first, the agent runner tests last), because Actions bills
+  each job rounded up to a full minute: a 10-second job costs as much as a 60-second one.
+- The `check` job builds Trunk as a dev build, not a release build: the same code is compiled, so it fails on the same
+  errors. The release build (opt-level `z`, LTO, wasm-opt) is made once, by the image workflow on `main`. It also runs
+  the static BuildKit checks of the `Containerfile` (`docker buildx build --check -f Containerfile .`, builds nothing and
+  fails on any violation of the default rules).
+- The Rust cache (`Swatinem/rust-cache`) is saved only by `main`; a PR restores it and never adds entries. The same
+  goes for the image's layer cache. `[profile.dev]` keeps only line tables (`debug = "line-tables-only"`, none for
+  dependencies): panics and backtraces still show `file:line`, `target/` and the cache stay small.
+- [`image.yml`](../.github/workflows/image.yml) builds the image only on a push to `main` (and by hand), never on a PR.
+  It builds before it pushes, so a broken `Containerfile` or a failed size check fails the run without publishing or
+  pruning anything, and the previous `latest` stays. In the `Containerfile` the compiled dependencies are their own layer
+  (cargo-chef), so a source change on `main` rebuilds only the workspace crates. If a PR adds a native dependency or
+  touches the cross-compile setup, run the workflow by hand on the branch first (Actions › Container image › Run
+  workflow): it builds both platforms and checks the size, and off `main` it publishes nothing.
 
 ## Working with several agents
 

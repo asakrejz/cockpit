@@ -1,28 +1,41 @@
 name: CI
 
+# One run per commit: pull requests run on `pull_request`, `main` on `push` (a branch with an open PR is not run twice).
+# A newer commit on the same PR cancels the run still in progress; `main` is never cancelled.
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  # Credentials live in a local `config/.env` and the local configuration in `config/`; neither may be
-  # tracked (only `config/config.example.toml` may be).
-  no-env-files:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: No .env or config/ file is tracked
-        run: scripts/check-tracked-files.sh
-
+  # One job on purpose: Actions bills every job rounded up to a full minute, so small checks are steps, not jobs.
   check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      # Credentials live in a local `config/.env` and the local configuration in `config/`; neither may be
+      # tracked (only `config/config.example.toml` may be). First, so it fails fast.
+      - name: No .env or config/ file is tracked
+        run: scripts/check-tracked-files.sh
+      # Static check of the Containerfile (BuildKit build checks: nothing is built, a second). It exits non-zero on any
+      # violation of the default rules. `# check=error=true` is deliberately not in the Containerfile: it would also
+      # fail every local build as soon as a newer BuildKit adds a rule. The real image build runs on `main` only.
+      - name: Containerfile checks
+        run: docker buildx build --check -f Containerfile .
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
           components: rustfmt, clippy
+      # Only `main` saves the cache; pull requests restore it and never add entries of their own.
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: check-dev
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Format
         run: cargo fmt --all --check
@@ -38,18 +51,16 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: trunk@0.22.2
+      # Dev builds: they compile the same code and fail on the same errors as a release build. The release build
+      # (opt-level z, LTO, wasm-opt) is made once, by the image workflow on `main`.
       - name: Build playground
-        run: trunk build --release
+        run: trunk build
         working-directory: apps/playground
       - name: Build cockpit
-        run: trunk build --release
+        run: trunk build
         working-directory: apps/cockpit
 
-  # The runner of the agent (Node/TypeScript). The tests need neither network nor the real SDK.
-  runner-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
+      # The runner of the agent (Node/TypeScript). The tests need neither network nor the real SDK.
       - uses: actions/setup-node@v7
         with:
           node-version: 26

@@ -26,3 +26,12 @@ cockpit-integrations = { path = "crates/integrations" }
 opt-level = "z"   # small instead of fast – usually the better choice for WASM
 lto = true
 codegen-units = 1
+
+# Dev and test builds (`cargo test`, `cargo build`, `trunk build`): only the line tables, so panics and backtraces still
+# name file:line, but no variable info. Dependencies get no debug info at all. Keeps `target/` and the CI cache small.
+# `profile.test` inherits from `dev`, so this covers `cargo test` as well.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
