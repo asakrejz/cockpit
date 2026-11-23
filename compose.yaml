@@ -2,8 +2,7 @@
 # Run the same command again to update: it pulls a newer image if there is one, recreates the container only
 # when the image changed, and leaves a running, up-to-date container alone. Docs: docs/container.md
 #
-# Log in to ghcr.io first (the image is private, see docs/container.md). Stop with `docker compose down`;
-# NEVER add `-v`: it deletes the volume with your config, database and keys.
+# Stop with `docker compose down`; NEVER add `-v`: it deletes the volume with your config, database and keys.
 #
 # Optional overrides (shell environment or a `.env` file next to this file):
 #   COCKPIT_IMAGE   image to run         (default: ghcr.io/asakrejz/cockpit:latest)
@@ -37,5 +36,5 @@ services:
 
 volumes:
   cockpit-config:
-    # Fixed name, so an existing `cockpit-config` volume (from the old `docker run`) is reused, with its data.
+    # Fixed name, so `docker run`, scripts/cockpit-container.sh and compose all use the same volume and the same data.
     name: ${COCKPIT_VOLUME:-cockpit-config}

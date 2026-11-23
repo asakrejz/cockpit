@@ -73,8 +73,8 @@ environment (never in `config.toml`). With a non-loopback `COCKPIT_BIND` the ser
   root-equivalent access to the host: it could start a privileged container with the whole disk mounted. It is opt-in,
   off by default, and meant only for a machine you trust. Agent runs need no host folder: the working folders are copied
   into the agent container and the result back (`docker cp`), so Cockpit never hands paths of its own container to the engine.
-- The workflow publishes to a private package and deletes all other versions after each push, so no old image with
-  old code lingers. Reading it needs a token with `read:packages`.
+- The workflow publishes the image as a public package and deletes all other versions after each push, so no old image
+  with old code lingers. Pulling it needs no sign-in; the image holds no key (see above).
 
 ## Jira attachments (`GET /api/jira/attachment/{id}`)
 
