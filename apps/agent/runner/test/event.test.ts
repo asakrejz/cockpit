@@ -34,6 +34,6 @@ test("step titles and errors follow the language of the job", async () => {
     assert.equal(tx("step_change"), "Datei ändern");
     assert.equal(tx("error_timeout", { minutes: 5 }), "Das Zeitlimit von 5 Minuten im Container ist überschritten.");
   } finally {
-    setLanguage("de");
+    setLanguage("en");
   }
 });

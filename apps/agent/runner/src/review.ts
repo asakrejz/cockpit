@@ -4,6 +4,7 @@
 
 import { type Sink, truncate } from "./event.ts";
 import type { Job } from "./job.ts";
+import { tx } from "./texts.ts";
 
 /** At most this many drafts leave the runner (the backend limits again). */
 export const MAX_COMMENTS = 40;
@@ -67,7 +68,7 @@ export function finishReview(sink: Sink, job: Job, answer: string): void {
   const n = r.comments.length;
   sink({
     t: "result",
-    text: n === 0 ? "Nichts zu beanstanden." : `${n} ${n === 1 ? "Kommentar" : "Kommentare"} als Entwurf vorbereitet.`,
+    text: n === 0 ? tx("review_nothing") : n === 1 ? tx("review_drafted_one") : tx("review_drafted_many", { n }),
     branch: job.branch,
     commit: "",
   });

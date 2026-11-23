@@ -29,7 +29,7 @@ test("success: lines become steps, files and a result with a commit", async () =
   assert.equal(code, 0);
   const types = s.e.map((e) => e.t);
   assert.deepEqual(types, ["step", "step", "files", "files", "result"]);
-  assert.deepEqual(s.e[0], { t: "step", title: "Datei lesen", text: "/work/src/a.txt", tokens_in: 100, tokens_out: 20, ms: (s.e[0] as any).ms });
+  assert.deepEqual(s.e[0], { t: "step", title: "Read file", text: "/work/src/a.txt", tokens_in: 100, tokens_out: 20, ms: (s.e[0] as any).ms });
   assert.deepEqual((s.e[3] as any).files, ["src/b.txt"]);
   const r = s.e[4] as any;
   assert.equal(r.branch, "claude/BAU-142-fokus-ring");
@@ -55,7 +55,7 @@ test("the call: no key in arguments, a clean environment, restrictive tools, no 
   assert.equal(seen.args[seen.args.indexOf("--setting-sources") + 1], "user");
   assert.ok(seen.args.includes("--strict-mcp-config"));
   assert.equal(seen.args[seen.args.indexOf("--model") + 1], "claude-sonnet-5-5");
-  assert.match(seen.args[seen.args.indexOf("--append-system-prompt") + 1], /pushst nicht/);
+  assert.match(seen.args[seen.args.indexOf("--append-system-prompt") + 1], /do not push/);
   // the prompt (ticket) goes through stdin
   assert.match(seen.stdin, /BAU-142/);
   assert.doesNotMatch(seen.stdin, /ask_user/);
@@ -96,7 +96,7 @@ test("plan mode that changes a file is discarded", async () => {
   bin.install("claude", { write: { "src/x.txt": "x" }, lines: [ok("{}")] });
   const { s, d } = adapterEnv(bin.dir, root, PROXY);
   assert.equal(await claudeCode().run(job({ mode: "plan" }), d), 1);
-  assert.match((s.e.at(-1) as any).text, /im Planmodus Dateien verändert/);
+  assert.match((s.e.at(-1) as any).text, /changed files in plan mode/);
 });
 
 test("an error result becomes an error event", async () => {
@@ -104,7 +104,7 @@ test("an error result becomes an error event", async () => {
   const { s, d } = adapterEnv(bin.dir, repo(), PROXY);
   bin.install("claude", { lines: [j({ type: "result", subtype: "error_max_turns", is_error: true })] });
   assert.equal(await claudeCode().run(job(), d), 1);
-  assert.deepEqual(s.e, [{ t: "error", text: "Das Modell hat den Lauf mit „error_max_turns“ beendet." }]);
+  assert.deepEqual(s.e, [{ t: "error", text: "The model ended the run with “error_max_turns”." }]);
 });
 
 test("a broken line is skipped, the rest still counts", async () => {
@@ -124,9 +124,9 @@ test("partial output without a result is an error with the end of stderr", async
   assert.equal(await claudeCode().run(job(), d), 1);
   const e = s.e.at(-1) as any;
   assert.equal(e.t, "error");
-  assert.match(e.text, /Status 3/);
+  assert.match(e.text, /status 3/);
   assert.match(e.text, /529 overloaded/);
-  assert.match(e.text, /1 unlesbare/);
+  assert.match(e.text, /1 unreadable/);
 });
 
 test("abort by the time limit", async () => {
@@ -134,7 +134,7 @@ test("abort by the time limit", async () => {
   bin.install("claude", { sleep: 10_000, lines: [ok("zu spät")] });
   const { s, d } = adapterEnv(bin.dir, repo(), PROXY);
   assert.equal(await claudeCode().run(job({ max_seconds: 1 }), d), 1);
-  assert.match((s.e.at(-1) as any).text, /Zeitlimit/);
+  assert.match((s.e.at(-1) as any).text, /time limit/);
 });
 
 test("a file against the rules aborts the run, nothing is committed", async () => {
@@ -145,7 +145,7 @@ test("a file against the rules aborts the run, nothing is committed", async () =
   assert.equal(await claudeCode().run(job({ rules: { forbidden_paths: [".github/"] } }), d), 1);
   const e = s.e.at(-1) as any;
   assert.equal(e.t, "error");
-  assert.match(e.text, /verstoßen/);
+  assert.match(e.text, /broke the rules/);
   assert.match(e.text, /\.github\/workflows\/x\.yml/);
   assert.equal(commits(root), 1);
 });
@@ -156,7 +156,7 @@ test("a file outside the allowed paths aborts the run", async () => {
   bin.install("claude", { write: { "docs/n.md": "n" }, lines: [ok("fertig")] });
   const { s, d } = adapterEnv(bin.dir, root, PROXY);
   assert.equal(await claudeCode().run(job({ rules: { allowed_paths: ["src/**"] } }), d), 1);
-  assert.match((s.e.at(-1) as any).text, /außerhalb der erlaubten Pfade/);
+  assert.match((s.e.at(-1) as any).text, /outside the allowed paths/);
 });
 
 test("an agent that commits itself is checked as well", async () => {
@@ -217,8 +217,8 @@ test("settings: hook on every tool and denied tools", () => {
 test("missing program and missing model", async () => {
   const { s, d } = adapterEnv("/nicht/da", repo(), PROXY);
   assert.equal(await claudeCode().run(job(), d), 2);
-  assert.match((s.e[0] as any).text, /Claude Code ist im Image nicht vorhanden/);
+  assert.match((s.e[0] as any).text, /Claude Code is not in the image/);
   const x = adapterEnv("/nicht/da", repo(), {});
   assert.equal(await claudeCode().run(job(), x.d), 1);
-  assert.match((x.s.e[0] as any).text, /ANTHROPIC_MODEL fehlt/);
+  assert.match((x.s.e[0] as any).text, /ANTHROPIC_MODEL is missing/);
 });

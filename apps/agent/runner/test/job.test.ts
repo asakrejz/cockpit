@@ -11,12 +11,12 @@ test("a job gets default values", () => {
 });
 
 test("unknown mode and foreign branch are rejected", () => {
-  assert.throws(() => checkJob({ mode: "böse" }), /Unbekannter Modus/);
-  assert.throws(() => checkJob({ mode: "implement", branch: "main" }), /Branch-Name/);
-  assert.throws(() => checkJob({ mode: "implement", branch: "claude/../main x" }), /Branch-Name/);
-  assert.throws(() => checkJob({ mode: "implement", branch: "-x" }), /Branch-Name/);
-  assert.throws(() => checkJob({ mode: "implement", branch: "" }), /Branch-Name/);
-  assert.throws(() => checkJob(null), /kein Objekt/);
+  assert.throws(() => checkJob({ mode: "böse" }), /Unknown mode/);
+  assert.throws(() => checkJob({ mode: "implement", branch: "main" }), /not an allowed branch name/);
+  assert.throws(() => checkJob({ mode: "implement", branch: "claude/../main x" }), /not an allowed branch name/);
+  assert.throws(() => checkJob({ mode: "implement", branch: "-x" }), /not an allowed branch name/);
+  assert.throws(() => checkJob({ mode: "implement", branch: "" }), /not an allowed branch name/);
+  assert.throws(() => checkJob(null), /not an object/);
 });
 
 test("a branch from another pattern of the repo is let through (the backend enforces the pattern)", () => {
@@ -27,28 +27,28 @@ test("a branch from another pattern of the repo is let through (the backend enfo
 test("the guidelines of the repo are pointed out to the agent, only from the usual places", () => {
   const none = checkJob({ mode: "plan", ticket: { key: "X-1" } });
   assert.equal(none.contributing, "");
-  assert.doesNotMatch(systemText(none), /Richtlinien/);
+  assert.doesNotMatch(systemText(none), /guidelines/);
   const a = checkJob({ mode: "plan", ticket: { key: "X-1" }, contributing: ".github/CONTRIBUTING.md" });
-  assert.match(systemText(a), /Richtlinien in \.github\/CONTRIBUTING\.md[\s\S]*Commit-Nachrichten/);
+  assert.match(systemText(a), /guidelines in \.github\/CONTRIBUTING\.md[\s\S]*commit messages/);
   assert.equal(checkJob({ mode: "plan", ticket: { key: "X-1" }, contributing: "/etc/passwd" }).contributing, "");
   assert.equal(checkJob({ mode: "plan", ticket: { key: "X-1" }, contributing: "../../x.md" }).contributing, "");
 });
 
 test("the fixed rules are in the system text, so are the rules of the repo", () => {
   const t = systemText(job({ rules: { forbidden_paths: ["*.lock"], required_tests: ["cargo test"], instructions: ["Kleine Commits"] } }));
-  assert.match(t, /pushst nicht, mergst nicht/);
+  assert.match(t, /do not push, do not merge/);
   assert.match(t, /\*\.lock/);
   assert.match(t, /cargo test/);
   assert.match(t, /Kleine Commits/);
 });
 
 test("task text per mode", () => {
-  assert.match(tasksText(job({ mode: "plan", plan_notes: ["Auch Tests"] })), /nur lesen[\s\S]*Auch Tests/);
+  assert.match(tasksText(job({ mode: "plan", plan_notes: ["Auch Tests"] })), /read only[\s\S]*Auch Tests/);
   const u = tasksText(job({ plan: { summary: "Ring", files: [], steps: ["a"] }, earlier: ["Datei gelesen"] }));
-  assert.match(u, /Freigegebener Plan: Ring/);
+  assert.match(u, /Approved plan: Ring/);
   assert.match(u, /ask_user/);
   assert.match(u, /Datei gelesen/);
-  assert.match(tasksText(job({ run_tests: false })), /keine Tests/);
+  assert.match(tasksText(job({ run_tests: false })), /Do not run any tests/);
 });
 
 test("the repo of the job is named in the system text; odd values are dropped", () => {
@@ -58,7 +58,7 @@ test("the repo of the job is named in the system text; odd values are dropped", 
   for (const bad of ["../x", "a/b/c", "x y/z", 5, null]) {
     assert.equal(checkJob({ mode: "plan", ticket: { key: "X-1" }, repo: bad }).repo, "");
   }
-  assert.doesNotMatch(systemText(checkJob({ mode: "plan", ticket: { key: "X-1" } })), /Das Repository in/);
+  assert.doesNotMatch(systemText(checkJob({ mode: "plan", ticket: { key: "X-1" } })), /The repository in/);
 });
 
 // ---------- Follow-up jobs ----------
@@ -73,19 +73,19 @@ const followupReview = {
 
 test("a job without follow-up input keeps working as before", () => {
   assert.equal(job().followup, null);
-  assert.match(tasksText(job()), /Setze das Ticket um/);
+  assert.match(tasksText(job()), /Implement the ticket/);
 });
 
 test("review comments become the task, marked as texts of third parties", () => {
   const a = job({ followup: followupReview });
   const t = tasksText(a);
-  assert.match(t, /Folgeauftrag zum bestehenden Pull Request #85 auf dem Branch claude\/BAU-142-fokus-ring/);
+  assert.match(t, /follow-up job for the existing pull request #85 on the branch claude\/BAU-142-fokus-ring/);
   assert.match(t, /src\/a\.rs:4/);
   assert.match(t, /mira: Warum unwrap\?/);
-  assert.match(t, /Review von mira \(CHANGES_REQUESTED\): Bitte Tests\./);
-  assert.match(t, /von Dritten/);
-  assert.doesNotMatch(t, /Setze das Ticket um/);
-  assert.match(t, /Review-Kommentare/);
+  assert.match(t, /Review by mira \(CHANGES_REQUESTED\): Bitte Tests\./);
+  assert.match(t, /from third parties/);
+  assert.doesNotMatch(t, /Implement the ticket/);
+  assert.match(t, /Review comments:/);
   // The plan mode gets the same input.
   assert.match(tasksText(job({ mode: "plan", followup: followupReview })), /Warum unwrap/);
 });
@@ -93,10 +93,10 @@ test("review comments become the task, marked as texts of third parties", () => 
 test("failed checks are named with their excerpt", () => {
   const a = job({ followup: { kind: "failed_checks", pull_request: 85, threads: [], notes: [], checks: [{ name: "Lint", excerpt: "src/a.rs:7: ungenutzte Variable" }] } });
   const t = tasksText(a);
-  assert.match(t, /Fehlgeschlagene Checks/);
+  assert.match(t, /Failed checks:/);
   assert.match(t, /- Lint/);
   assert.match(t, /ungenutzte Variable/);
-  assert.match(t, /Behebe die Ursache/);
+  assert.match(t, /Fix the cause of the failed checks/);
 });
 
 test("amounts and sizes are limited again in the runner", () => {
@@ -113,7 +113,7 @@ test("amounts and sizes are limited again in the runner", () => {
 });
 
 test("an unknown kind of follow-up is rejected, garbage is ignored", () => {
-  assert.throws(() => job({ followup: { kind: "böse" } }), /Unbekannter Folgeauftrag/);
+  assert.throws(() => job({ followup: { kind: "böse" } }), /Unknown follow-up kind/);
   const a = job({ followup: { kind: "review_comments", threads: "kaputt", notes: [1, null], checks: {} } });
   assert.deepEqual(a.followup!.threads, []);
   assert.deepEqual(a.followup!.notes, []);
@@ -131,34 +131,51 @@ test("commit message names what was done, in the language of the pull request", 
   assert.match(commitMessage(de), /Umgesetzt vom Cockpit-Agenten\./);
 });
 
-test("the language of the interface and of the pull request come from the job", () => {
-  assert.equal(job().language, "de");
+test("the language of the interface and of the pull request come from the job, English by default", () => {
+  assert.equal(job().language, "en");
   assert.equal(job().pr_language, "en");
-  assert.equal(checkJob({ mode: "plan", language: "en", pr_language: "de" }).language, "en");
-  assert.equal(checkJob({ mode: "plan", language: "fr" }).language, "de");
+  assert.equal(checkJob({ mode: "plan", language: "de", pr_language: "en" }).language, "de");
+  assert.equal(checkJob({ mode: "plan", language: "en", pr_language: "de" }).pr_language, "de");
+  assert.equal(checkJob({ mode: "plan", language: "fr" }).language, "en");
   assert.equal(checkJob({ mode: "plan", pr_language: 3 }).pr_language, "en");
 });
 
 test("the model is told to answer in the chosen language", () => {
-  assert.match(systemText(job({ language: "de" })), /Antworte auf Deutsch\./);
-  assert.match(systemText(job({ language: "en" })), /Answer in English\./);
-  assert.doesNotMatch(systemText(job({ language: "en" })), /Antworte auf Deutsch/);
+  assert.match(systemText(job({ language: "de" })), /Write your answer in German\./);
+  assert.match(systemText(job({ language: "en" })), /Write your answer in English\./);
+  assert.doesNotMatch(systemText(job({ language: "en" })), /in German/);
   assert.match(systemText(job({ mode: "review", language: "en" })), /in English, the language of the pull request/);
+});
+
+test("the prompts are English whatever the language of the job is; only the answer language differs", () => {
+  const shown = (a: ReturnType<typeof job>) => [systemText(a), tasksText(a), tasksText(a, { canAsk: false })].join("\n----\n");
+  const withRepos = { repos: [{ repo: "acme/app", dir: "acme__app", branch: "b1", base_branch: "main" }, { repo: "acme/web", dir: "acme__web", branch: "b2", base_branch: "main" }] };
+  for (const part of [{}, { mode: "plan" }, withRepos, { followup: followupReview }]) {
+    const de = shown(job({ ...part, language: "de" }));
+    const en = shown(job({ ...part, language: "en" }));
+    assert.equal(de.replaceAll("Write your answer in German.", "Write your answer in English."), en);
+  }
+  const review = { mode: "review", review: { pull_request: 7, title: "T", description: "", branch: "b", base: "main", files: [], omitted_files: 0 } };
+  const de = job({ ...review, language: "en", review_language: "de" });
+  const en = job({ ...review, language: "de", review_language: "en" });
+  const both = (a: ReturnType<typeof job>) => `${systemText(a)}\n${reviewText(a)}`;
+  assert.equal(both(de).replaceAll("in German, the language", "in English, the language"), both(en));
 });
 
 test("a review is written in the language of the pull request, not of the interface", () => {
   const a = job({ mode: "review", language: "de", review_language: "en" });
   assert.match(systemText(a), /in English, the language of the pull request/);
-  assert.doesNotMatch(systemText(a), /Antworte auf Deutsch/);
+  assert.doesNotMatch(systemText(a), /in German/);
   assert.match(reviewText(a), /in English, the language of the pull request/);
   const de = job({ mode: "review", language: "en", review_language: "de" });
-  assert.match(systemText(de), /auf Deutsch, der Sprache des Pull Requests/);
-  assert.match(reviewText(de), /auf Deutsch, der Sprache des Pull Requests/);
+  assert.match(systemText(de), /in German, the language of the pull request/);
+  assert.match(reviewText(de), /in German, the language of the pull request/);
 });
 
-test("review_language comes from the job, falls back to the interface language, then to German", () => {
+test("review_language comes from the job, falls back to the interface language, then to English", () => {
   assert.equal(checkJob({ mode: "review", language: "en" }).review_language, "en");
+  assert.equal(checkJob({ mode: "review", language: "de" }).review_language, "de");
   assert.equal(checkJob({ mode: "review", language: "en", review_language: "de" }).review_language, "de");
-  assert.equal(checkJob({ mode: "review", review_language: "fr" }).review_language, "de");
-  assert.equal(checkJob({ mode: "review" }).review_language, "de");
+  assert.equal(checkJob({ mode: "review", review_language: "fr" }).review_language, "en");
+  assert.equal(checkJob({ mode: "review" }).review_language, "en");
 });
