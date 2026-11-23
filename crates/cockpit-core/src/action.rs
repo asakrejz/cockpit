@@ -381,36 +381,88 @@ pub enum Action {
 }
 
 impl Action {
-    /// Actions that only the backend itself may trigger (never the UI).
-    pub fn system_only(&self) -> bool {
-        matches!(
-            self,
-            Action::SyncRemote { .. } | Action::CloseAgentRun { .. }
-        )
-    }
-
-    /// Actions that only the agent (container, via the backend) may trigger.
-    pub fn agent_only(&self) -> bool {
-        matches!(self, Action::ReportAgent { .. })
-    }
-
-    /// Actions with an effect on GitHub or on the agent's work that only you may trigger – neither
-    /// the agent nor the system.
-    pub fn user_only(&self) -> bool {
-        matches!(
-            self,
-            Action::SetLabel { .. }
-                | Action::RemoveAgentRun { .. }
-                | Action::RemoveFinishedRuns
-                | Action::SetIssueClosed { .. }
-                | Action::SetProjectField { .. }
-                | Action::CreateIssue { .. }
-                | Action::ConvertDraft { .. }
-                | Action::AddressReviewThreads { .. }
-                | Action::FixFailedChecks { .. }
-                | Action::StartPrReview { .. }
-                | Action::CreatePullRequest { .. }
-        )
+    /// The one actor that may apply this action; `None` for a local change that anyone may
+    /// trigger (the user in the browser, the ticks of the server).
+    ///
+    /// * `Some(Actor::User)`: everything that reaches Jira or GitHub (every action that
+    ///   `cockpit_integrations::outbound::plane` can turn into a call, and the pull request and
+    ///   project flows of the server), merging, the follow-up jobs of the real agent and removing
+    ///   runs. Neither the agent nor the system may do those.
+    /// * `Some(Actor::System)`: only the backend itself (the sync, closing a finished run).
+    /// * `Some(Actor::Agent)`: only the agent in the container, through the backend.
+    ///
+    /// The `match` has no wildcard arm on purpose: a new variant does not compile until it is
+    /// classified here. [`Workspace::apply`] enforces the result before anything else happens.
+    pub fn required_actor(&self) -> Option<Actor> {
+        match self {
+            Action::SetStatus { .. }
+            | Action::CreateBranch { .. }
+            | Action::Reply { .. }
+            | Action::EditTicket { .. }
+            | Action::AssignTicket { .. }
+            | Action::SetPriority { .. }
+            | Action::SetLabel { .. }
+            | Action::SetIssueClosed { .. }
+            | Action::SetProjectField { .. }
+            | Action::CreateIssue { .. }
+            | Action::ConvertDraft { .. }
+            | Action::SendReview { .. }
+            | Action::RestartCheck { .. }
+            | Action::MergePr { .. }
+            | Action::RemoveAgentRun { .. }
+            | Action::RemoveFinishedRuns
+            | Action::AddressReviewThreads { .. }
+            | Action::FixFailedChecks { .. }
+            | Action::StartPrReview { .. }
+            | Action::CreatePullRequest { .. } => Some(Actor::User),
+            Action::SyncRemote { .. } | Action::CloseAgentRun { .. } => Some(Actor::System),
+            Action::ReportAgent { .. } => Some(Actor::Agent),
+            Action::MarkDone { .. }
+            | Action::Snooze { .. }
+            | Action::Unsnooze { .. }
+            | Action::WakeSnoozed
+            | Action::SetRule { .. }
+            | Action::AutoLinkPrs
+            | Action::RequestReview { .. }
+            | Action::SyncTicketStatus
+            | Action::SetStatusFollowsPr { .. }
+            | Action::SelectJiraProject { .. }
+            | Action::SetTeamChoice { .. }
+            | Action::SetPeopleSource { .. }
+            | Action::LinkPeople { .. }
+            | Action::UnlinkPeople { .. }
+            | Action::SetInboxFilter { .. }
+            | Action::SetReviewFilter { .. }
+            | Action::Decide { .. }
+            | Action::EditSuggestion { .. }
+            | Action::AddLineComment { .. }
+            | Action::EditLineComment { .. }
+            | Action::DeleteLineComment { .. }
+            | Action::SetVerdict { .. }
+            | Action::RequestAgentReview { .. }
+            | Action::AdvanceChecks
+            | Action::StartAgent { .. }
+            | Action::CancelAgent { .. }
+            | Action::ApprovePlan { .. }
+            | Action::RejectPlan { .. }
+            | Action::RevisePlan { .. }
+            | Action::AnswerAgent { .. }
+            | Action::SteerAgent { .. }
+            | Action::PauseAgent { .. }
+            | Action::ResumeAgent { .. }
+            | Action::AdvanceAgents
+            | Action::AddressReview { .. }
+            | Action::InvestigateCheck { .. }
+            | Action::ApplyFix { .. }
+            | Action::DiscardFix { .. }
+            | Action::ResumeStopped { .. }
+            | Action::SetLanguage { .. }
+            | Action::SetAgentLimits { .. }
+            | Action::SetRepoRules { .. }
+            | Action::SetNotifyChannel { .. }
+            | Action::SetQuietHours { .. }
+            | Action::ResetDemo => None,
+        }
     }
 }
 
@@ -444,18 +496,19 @@ impl Workspace {
         actor: Actor,
         at_ms: u64,
     ) -> Result<Applied, ActionError> {
-        // Merging is the user's business: the layer already checks this, not only the UI.
-        if matches!(action, Action::MergePr { .. }) && actor != Actor::User {
-            return Err(ActionError::MergeNotAllowed(actor));
-        }
-        if action.user_only() && actor != Actor::User {
-            return Err(ActionError::UserOnly(actor));
-        }
-        if action.system_only() && actor != Actor::System {
-            return Err(ActionError::SystemOnly);
-        }
-        if action.agent_only() && actor != Actor::Agent {
-            return Err(ActionError::AgentOnly);
+        // Who may apply what is decided here, not only in the UI: the check runs before anything else.
+        if let Some(required) = action.required_actor()
+            && actor != required
+        {
+            return Err(match required {
+                // Merging has a message of its own.
+                Actor::User if matches!(action, Action::MergePr { .. }) => {
+                    ActionError::MergeNotAllowed(actor)
+                }
+                Actor::User => ActionError::UserOnly(actor),
+                Actor::System => ActionError::SystemOnly,
+                Actor::Agent => ActionError::AgentOnly,
+            });
         }
         let notes = self.perform(action, at_ms)?;
         let mut summary = String::new();

@@ -111,8 +111,8 @@ fn review() -> Review {
     r
 }
 
-fn ws() -> Workspace {
-    let remote = Remote {
+fn remote() -> Remote {
+    Remote {
         sources: vec![
             SourceData {
                 source: Source::Jira,
@@ -137,8 +137,11 @@ fn ws() -> Workspace {
                 }),
             },
         ],
-    };
-    cockpit_core::sync::merge(&Workspace::default(), &remote, T).0
+    }
+}
+
+fn ws() -> Workspace {
+    cockpit_core::sync::merge(&Workspace::default(), &remote(), T).0
 }
 
 fn all() -> Targets {
@@ -548,3 +551,5 @@ fn a_branch_for_a_ticket_goes_to_the_repo_its_project_is_routed_to() {
     };
     assert_eq!(repo, "b/y");
 }
+
+mod actor_rule;
