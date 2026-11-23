@@ -15,10 +15,9 @@ async fn check_reports_reachable_key_and_model_under_both_addresses() {
         .expect(1)
         .mount(&proxy)
         .await;
-    // The key is under the older name `litellm`.
     let secrets = Arc::new(MemoryStore::new());
     secrets
-        .set(secrets::LITELLM, &Secret::new("sk-geheim-123456"))
+        .set(secrets::AGENT_KEY, &Secret::new("sk-geheim-123456"))
         .unwrap();
     for path in ["/api/agent/check"] {
         let (status, body) = hole(

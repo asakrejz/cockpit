@@ -236,7 +236,9 @@ fn welt_with(set_up: bool, provider: Provider) -> World {
 
     let secrets = Arc::new(MemoryStore::new());
     if set_up {
-        secrets.set(secrets::LITELLM, &Secret::new(TOKEN)).unwrap();
+        secrets
+            .set(secrets::AGENT_KEY, &Secret::new(TOKEN))
+            .unwrap();
         secrets.set(secrets::GITHUB, &Secret::new(GITHUB)).unwrap();
     }
     let settings = Settings {

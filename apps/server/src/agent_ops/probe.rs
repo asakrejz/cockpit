@@ -90,7 +90,7 @@ impl AppState {
         *lock(&self.inner.agent.image) = None;
     }
 
-    /// The key of the endpoint: `agent-key`, alternatively the older `litellm`.
+    /// The key of the endpoint (`agent-key`).
     pub(super) fn agent_key(&self) -> Option<Secret> {
         match crate::app::agent_key_read(self.inner.secrets.as_ref()) {
             Ok(k) => k.filter(|s| !s.is_empty()),

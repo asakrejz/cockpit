@@ -107,13 +107,19 @@ fn only_known_key_names() {
         "github-oauth",
         "atlassian-oauth",
         "agent-key",
-        "litellm",
         "jira",
         "github",
     ] {
         assert!(key_name_allowed(n));
     }
-    for n in ["", "github-oauth-token", "../x", "Jira", "atlassian"] {
+    for n in [
+        "",
+        "github-oauth-token",
+        "../x",
+        "Jira",
+        "atlassian",
+        "litellm",
+    ] {
         assert!(!key_name_allowed(n), "{n}");
     }
 }
@@ -477,7 +483,7 @@ fn only_tokens_and_client_secrets_can_be_deleted() {
     for n in ["jira", "github", "atlassian-oauth", "github-oauth"] {
         assert!(key_deletable(n), "{n}");
     }
-    for n in ["litellm", "agent-key", "", "Jira"] {
+    for n in ["agent-key", "", "Jira"] {
         assert!(!key_deletable(n), "{n}");
     }
 }

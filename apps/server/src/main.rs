@@ -8,13 +8,10 @@
 //! cockpit-server                                 start
 //! cockpit-server token set <name>                store a key from standard input
 //! cockpit-server token delete <name>             remove a key
-//! cockpit-server token import                    copy old keychain entries into the .env file
 //! ```
 //!
-//! The older German spellings `setzen`, `loeschen` and `uebernehmen` are still accepted.
-//!
 //! `<name>`: `github`, `jira` (API token), `github-oauth` and `atlassian-oauth` (client secret
-//! of the OAuth apps) as well as `agent-key` (key of the agent endpoint; `litellm` counts as an older name). The tokens of the sign-in are stored by the backend itself.
+//! of the OAuth apps) as well as `agent-key` (key of the agent endpoint). The tokens of the sign-in are stored by the backend itself.
 
 mod access;
 mod agent_followup;
@@ -43,7 +40,7 @@ use std::sync::Arc;
 
 use cockpit_integrations::Secret;
 use config::Config;
-use secrets::{EnvFileStore, KeyringStore, SecretStore};
+use secrets::{EnvFileStore, SecretStore};
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -64,9 +61,8 @@ async fn main() -> ExitCode {
         [] => start().await,
         ["health"] => health(),
         ["token", action, name] => token(action, name),
-        ["token", "import" | "uebernehmen"] => take_over_keychain(),
         _ => Err(
-            "Usage: cockpit-server [health] | [token set|delete <github|jira|github-oauth|atlassian-oauth|agent-key>] | [token import]"
+            "Usage: cockpit-server [health] | [token set|delete <github|jira|github-oauth|atlassian-oauth|agent-key>]"
                 .into(),
         ),
     };
@@ -120,7 +116,6 @@ const NAMES: &[&str] = &[
     secrets::GITHUB_OAUTH,
     secrets::ATLASSIAN_OAUTH,
     secrets::AGENT_KEY,
-    secrets::LITELLM,
 ];
 
 /// Stores a key or deletes it. The value comes from standard input so that it ends up
@@ -134,7 +129,7 @@ fn token(action: &str, name: &str) -> Result<(), String> {
     }
     let store = EnvFileStore::from_environment();
     match action {
-        "set" | "setzen" => {
+        "set" => {
             let mut input = String::new();
             std::io::stdin()
                 .read_to_string(&mut input)
@@ -149,7 +144,7 @@ fn token(action: &str, name: &str) -> Result<(), String> {
             tracing::info!("Key for {name} stored");
             Ok(())
         }
-        "delete" | "loeschen" => {
+        "delete" => {
             store.delete(name).map_err(|e| e.to_string())?;
             tracing::info!("Key for {name} deleted");
             Ok(())
@@ -158,27 +153,6 @@ fn token(action: &str, name: &str) -> Result<(), String> {
             "Unknown action \"{action}\", allowed: set and delete"
         )),
     }
-}
-
-/// Copies keys from the system keychain into the `.env` file. Only on explicit call
-/// (`cockpit-server token import`): reads the keychain, deletes nothing there and does not
-/// overwrite anything in the file that already has a value.
-fn take_over_keychain() -> Result<(), String> {
-    let target = EnvFileStore::from_environment();
-    let report = secrets::take_over(&KeyringStore, &target).map_err(|e| e.to_string())?;
-    for (name, outcome) in report {
-        let text = match outcome {
-            secrets::Takeover::Taken => "imported",
-            secrets::Takeover::AlreadyPresent => "already has a value, left unchanged",
-            secrets::Takeover::NotFound => "not in the keychain",
-        };
-        tracing::info!("{name}: {text}");
-    }
-    tracing::info!(
-        "Done. The keychain entries remain; the file is {}",
-        target.path().display()
-    );
-    Ok(())
 }
 
 async fn start() -> Result<(), String> {

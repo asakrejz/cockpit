@@ -1,5 +1,4 @@
 use super::*;
-use crate::secrets::MemoryStore;
 
 fn store_in(dir: &Path) -> EnvFileStore {
     EnvFileStore::with_env(dir.join(".env"), |_| None)
@@ -152,19 +151,6 @@ fn process_environment_wins_over_the_file() {
 }
 
 #[test]
-fn old_name_litellm_reads_agent_key() {
-    let dir = tempfile::tempdir().unwrap();
-    let s = store_in(dir.path());
-    s.set(AGENT_KEY, &Secret::new("dummy-agent")).unwrap();
-    assert_eq!(read(dir.path()), "AGENT_KEY=dummy-agent\n");
-    assert_eq!(value(&s, LITELLM).as_deref(), Some("dummy-agent"));
-    assert_eq!(variable_for(LITELLM), variable_for(AGENT_KEY));
-    // The fallback of the backend still finds the key.
-    let found = crate::app::agent_key_read(&s).unwrap().unwrap();
-    assert_eq!(found.expose(), "dummy-agent");
-}
-
-#[test]
 fn unknown_names_are_refused() {
     let dir = tempfile::tempdir().unwrap();
     let s = store_in(dir.path());
@@ -277,29 +263,4 @@ fn default_path_prefers_the_variable() {
             std::ffi::OsStr::new("config")
         );
     }
-}
-
-#[test]
-fn take_over_copies_but_never_overwrites_or_deletes() {
-    let source = MemoryStore::new();
-    source.set(JIRA, &Secret::new("dummy-old-jira")).unwrap();
-    source.set(GITHUB, &Secret::new("dummy-old-gh")).unwrap();
-    source.set(LITELLM, &Secret::new("dummy-old-llm")).unwrap();
-    let dir = tempfile::tempdir().unwrap();
-    let target = store_in(dir.path());
-    target.set(GITHUB, &Secret::new("dummy-new-gh")).unwrap();
-    let report = take_over(&source, &target).unwrap();
-    let outcome = |n: &str| report.iter().find(|(m, _)| *m == n).unwrap().1;
-    assert_eq!(outcome(JIRA), Takeover::Taken);
-    assert_eq!(outcome(GITHUB), Takeover::AlreadyPresent);
-    assert_eq!(outcome(ATLASSIAN_OAUTH), Takeover::NotFound);
-    assert_eq!(value(&target, JIRA).as_deref(), Some("dummy-old-jira"));
-    assert_eq!(value(&target, GITHUB).as_deref(), Some("dummy-new-gh"));
-    assert_eq!(value(&target, AGENT_KEY).as_deref(), Some("dummy-old-llm"));
-    // The source is untouched.
-    assert_eq!(
-        source.get(JIRA).unwrap().unwrap().expose(),
-        "dummy-old-jira"
-    );
-    assert!(source.has(GITHUB).unwrap());
 }

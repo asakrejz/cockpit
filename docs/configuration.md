@@ -252,7 +252,7 @@ file inside the repository folder was a deliberate choice. **It is never committ
   |---|---|
   | `jira` | `JIRA_TOKEN` |
   | `github` | `GITHUB_TOKEN` |
-  | `agent-key` (older: `litellm`) | `AGENT_KEY` |
+  | `agent-key` | `AGENT_KEY` |
   | `github-oauth` | `GITHUB_OAUTH_CLIENT_SECRET` |
   | `atlassian-oauth` | `ATLASSIAN_OAUTH_CLIENT_SECRET` |
   | tokens of the GitHub sign-in (written by the backend) | `GITHUB_OAUTH_TOKENS` |
@@ -271,11 +271,7 @@ Terminal commands (the value always comes from standard input, never from the co
 ```bash
 echo "$TOKEN" | cargo run -p cockpit-server -- token set github     # or jira, github-oauth, atlassian-oauth, agent-key
 cargo run -p cockpit-server -- token delete github                  # remove a key
-cargo run -p cockpit-server -- token import                         # copy old keychain entries into config/.env, once
 ```
-
-`token import` reads the system keychain (where older versions kept keys), deletes nothing there, overwrites
-nothing that already has a value and never runs by itself.
 
 ## Model provider and endpoint
 

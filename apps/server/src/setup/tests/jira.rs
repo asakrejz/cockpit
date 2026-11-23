@@ -87,7 +87,7 @@ async fn jira_test_gives_the_token_never_out_also_when_jira_it_echoes() {
 #[tokio::test]
 async fn deleting_a_key_is_limited_to_tokens_and_client_secrets() {
     let (app, secrets) = jira_state("", "", true);
-    secrets.set("litellm", &Secret::new(TOKEN)).unwrap();
+    secrets.set("agent-key", &Secret::new(TOKEN)).unwrap();
     let delete = |name: &str| {
         request("DELETE", &format!("/api/secrets/{name}"))
             .header("content-type", "application/json")
@@ -107,13 +107,13 @@ async fn deleting_a_key_is_limited_to_tokens_and_client_secrets() {
     let (status, _) = send_request(&app, delete("atlassian-oauth")).await;
     assert_eq!(status, StatusCode::OK);
     assert!(secrets.get("atlassian-oauth").unwrap().is_none());
-    for name in ["litellm", "agent-key", "unsinn"] {
+    for name in ["agent-key", "litellm", "unsinn"] {
         assert_eq!(
             send_request(&app, delete(name)).await.0,
             StatusCode::NOT_FOUND
         );
     }
-    assert!(secrets.get("litellm").unwrap().is_some());
+    assert!(secrets.get("agent-key").unwrap().is_some());
     // Without a JSON content type the shared check rejects.
     let raw = request("DELETE", "/api/secrets/jira")
         .body(Body::empty())

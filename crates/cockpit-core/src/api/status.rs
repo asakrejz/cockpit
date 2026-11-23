@@ -73,7 +73,7 @@ pub struct EndpointStatus {
     /// The model name.
     #[serde(default)]
     pub model: Option<String>,
-    /// A key is in the .env file (`agent-key`, alternatively the older `litellm`).
+    /// The key (`agent-key`) is in the .env file.
     #[serde(default)]
     pub key: bool,
 }
