@@ -1,6 +1,6 @@
 //! The „Aktivität“ pane: conversation, log, changed files and result.
 
-use cockpit_core::{MessageKind, RunMessage, Speaker};
+use cockpit_core::{AgentRun, FileDiff, MessageKind, RunMessage, Speaker};
 use feature_ui::*;
 use leptos::prelude::*;
 
@@ -42,38 +42,79 @@ pub(super) fn history(ctx: AgentCtx) -> AnyView {
     messages.into_iter().map(bubble).collect_view().into_any()
 }
 
+/// One row of the changed-files list. The line counts are only known from a diff.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct ChangedFile {
+    name: String,
+    stat: Option<String>,
+}
+
+/// The files to list for a run: the diff of its pull request when the workspace has it (it
+/// carries the line counts), otherwise the file names the backend reported for the run
+/// (`AgentRun::files` mirrors the pushed files of every repo). Never anything else, so a run
+/// without files lists none.
+fn changed_file_list(run: &AgentRun, review_files: Option<&[FileDiff]>) -> Vec<ChangedFile> {
+    if let Some(diffs) = review_files.filter(|d| !d.is_empty()) {
+        return diffs
+            .iter()
+            .map(|f| ChangedFile {
+                name: f.name.clone(),
+                stat: Some(f.stat()),
+            })
+            .collect();
+    }
+    run.files
+        .iter()
+        .map(|name| ChangedFile {
+            name: name.clone(),
+            stat: None,
+        })
+        .collect()
+}
+
 /// As soon as the agent works on the files, they appear here.
 pub(super) fn changed_files(ctx: AgentCtx) -> Option<impl IntoView> {
     let AgentCtx { store, run, .. } = ctx;
-    // As soon as the agent works on the files, they appear here.
     let run = run.get().filter(|r| r.completed >= 2)?;
     let files = store.ws.with(|w| {
-        run.pr_number
-            .and_then(|n| w.review(n))
-            .map(|r| r.files.clone())
+        let review = run.pr_number.and_then(|n| w.review(n));
+        changed_file_list(&run, review.map(|r| r.files.as_slice()))
     });
-    let files = files.unwrap_or_else(|| cockpit_core::demo::agent_changes(&run.ticket_key));
+    let rows = if files.is_empty() {
+        view! {
+            <li>
+                <div class="ui-list__row">
+                    <span class="ui-list__title t-footnote t-secondary">
+                        {t!(AgentActivityNoFiles)}
+                    </span>
+                </div>
+            </li>
+        }
+        .into_any()
+    } else {
+        files
+            .into_iter()
+            .map(|f| {
+                view! {
+                    <li>
+                        <div class="ui-list__row">
+                            <span class="ui-list__title t-mono t-subheadline">{f.name}</span>
+                            {f.stat
+                                .map(|stat| {
+                                    view! {
+                                        <span class="ui-list__detail t-footnote t-mono">{stat}</span>
+                                    }
+                                })}
+                        </div>
+                    </li>
+                }
+            })
+            .collect_view()
+            .into_any()
+    };
     Some(view! {
         <List>
-            <ListSection header=t!(AgentActivityChangedFiles) nested=true>
-                {files
-                    .into_iter()
-                    .map(|f| {
-                        view! {
-                            <li>
-                                <div class="ui-list__row">
-                                    <span class="ui-list__title t-mono t-subheadline">
-                                        {f.name.clone()}
-                                    </span>
-                                    <span class="ui-list__detail t-footnote t-mono">
-                                        {f.stat()}
-                                    </span>
-                                </div>
-                            </li>
-                        }
-                    })
-                    .collect_view()}
-            </ListSection>
+            <ListSection header=t!(AgentActivityChangedFiles) nested=true>{rows}</ListSection>
         </List>
     })
 }
@@ -145,3 +186,6 @@ pub(super) fn pane(ctx: AgentCtx) -> impl IntoView {
         </Pane>
     }
 }
+
+#[cfg(test)]
+mod tests;
