@@ -4,9 +4,9 @@
 
 use cockpit_core::ServiceStatus;
 use cockpit_core::api::{
-    ActionRequest, ActionResponse, AgentStatus, BranchSuggestion, BranchSuggestionRequest,
-    ConfigChange, ConfigResponse, ContainerCheck, ContainerStatus, EndpointCheck, EndpointStatus,
-    ErrorBody, GitHubCheck, GitHubRepoList, ImageBuild, JiraAssignableResponse, JiraCheck,
+    ActionRequest, ActionResponse, AgentStatus, AssignableResponse, BranchSuggestion,
+    BranchSuggestionRequest, ConfigChange, ConfigResponse, ContainerCheck, ContainerStatus,
+    EndpointCheck, EndpointStatus, ErrorBody, GitHubCheck, GitHubRepoList, ImageBuild, JiraCheck,
     JiraProjectsResponse, KeyInput, KeyResponse, ModelList, RepoCheckRequest, RepoSuggestions,
     RevokeResponse, ServerEvent, Setup, SyncResponse, WebhookSecretResponse, WebhookTestResponse,
 };
@@ -136,7 +136,7 @@ pub async fn fetch_jira_projects() -> Result<JiraProjectsResponse, CallError> {
 pub async fn fetch_jira_assignable(
     project: &str,
     query: &str,
-) -> Result<JiraAssignableResponse, CallError> {
+) -> Result<AssignableResponse, CallError> {
     let resp = Request::get("/api/jira/assignable")
         .query([("project", project), ("query", query)])
         .send()
@@ -145,7 +145,7 @@ pub async fn fetch_jira_assignable(
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<JiraAssignableResponse>()
+    resp.json::<AssignableResponse>()
         .await
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
@@ -155,7 +155,7 @@ pub async fn fetch_jira_assignable(
 pub async fn fetch_github_assignable(
     repo: &str,
     query: &str,
-) -> Result<JiraAssignableResponse, CallError> {
+) -> Result<AssignableResponse, CallError> {
     let resp = Request::get("/api/github/assignable")
         .query([("repo", repo), ("query", query)])
         .send()
@@ -164,7 +164,7 @@ pub async fn fetch_github_assignable(
     if !resp.ok() {
         return Err(rejection(resp).await);
     }
-    resp.json::<JiraAssignableResponse>()
+    resp.json::<AssignableResponse>()
         .await
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
@@ -258,6 +258,19 @@ pub struct Health {
     /// The folder `config/` with configuration and database: path, warnings, old files.
     #[serde(default)]
     pub config_files: Option<ConfigFilesStatus>,
+    /// Saved workspaces that could not be read and are kept aside in the database.
+    #[serde(default)]
+    pub unreadable_state: Option<UnreadableState>,
+}
+
+/// Saved workspaces the server could not read; it kept them unchanged and started over.
+#[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize)]
+pub struct UnreadableState {
+    #[serde(default)]
+    pub count: u32,
+    /// The notice as code and parameters (shown in the current language).
+    #[serde(default)]
+    pub notice: cockpit_i18n::Msg,
 }
 
 /// Path of the folder `config/`, warnings (Git, permissions) and hints about old files.

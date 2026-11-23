@@ -8,30 +8,30 @@ fn no(_: &str) -> bool {
 }
 
 #[test]
-fn without_choice_comes_podman_before_docker() {
+fn without_choice_comes_docker_before_podman() {
     let s = choose(None, None, all_ok, all_ok);
-    assert_eq!(s.runtime.as_deref(), Some("podman"));
+    assert_eq!(s.runtime.as_deref(), Some("docker"));
     assert!(s.engine_running && s.hint.is_none());
     assert_eq!(s.source, "detected");
 }
 
 #[test]
-fn running_podman_not_is_docker_taken() {
-    let s = choose(None, None, all_ok, |cli| cli == "docker");
-    assert_eq!(s.runtime.as_deref(), Some("docker"));
+fn running_docker_not_is_podman_taken() {
+    let s = choose(None, None, all_ok, |cli| cli == "podman");
+    assert_eq!(s.runtime.as_deref(), Some("podman"));
     assert!(s.engine_running);
-    let s = choose(None, None, |cli| cli == "docker", all_ok);
-    assert_eq!(s.runtime.as_deref(), Some("docker"));
+    let s = choose(None, None, |cli| cli == "podman", all_ok);
+    assert_eq!(s.runtime.as_deref(), Some("podman"));
 }
 
 #[test]
 fn present_but_without_engine_gives_a_hint() {
     let s = choose(None, None, all_ok, no);
-    assert_eq!(s.runtime.as_deref(), Some("podman"), "the first one found");
+    assert_eq!(s.runtime.as_deref(), Some("docker"), "the first one found");
     assert!(!s.engine_running);
-    assert!(s.hint.unwrap().contains("Podman-Maschine"));
-    let s = choose(None, None, |c| c == "docker", no);
     assert!(s.hint.unwrap().contains("dockerd (moby)"));
+    let s = choose(None, None, |c| c == "podman", no);
+    assert!(s.hint.unwrap().contains("Podman-Maschine"));
 }
 
 #[test]
@@ -72,13 +72,13 @@ mod process {
     #[test]
     fn calls_info_on_and_evaluates_the_status() {
         let dir = tempfile::tempdir().unwrap();
-        program(dir.path(), "podman", "[ \"$1\" = info ] && exit 1; exit 2");
-        program(dir.path(), "docker", "[ \"$1\" = info ] && exit 0; exit 2");
+        program(dir.path(), "docker", "[ \"$1\" = info ] && exit 1; exit 2");
+        program(dir.path(), "podman", "[ \"$1\" = info ] && exit 0; exit 2");
         let s = detect(None, None, dir.path().as_os_str());
-        assert_eq!(s.runtime.as_deref(), Some("docker"));
-        assert!(s.engine_running);
-        let s = detect(Some("podman"), None, dir.path().as_os_str());
         assert_eq!(s.runtime.as_deref(), Some("podman"));
+        assert!(s.engine_running);
+        let s = detect(Some("docker"), None, dir.path().as_os_str());
+        assert_eq!(s.runtime.as_deref(), Some("docker"));
         assert!(!s.engine_running);
     }
 

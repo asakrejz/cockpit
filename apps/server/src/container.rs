@@ -2,7 +2,7 @@
 //!
 //! Rules (see "Container rules" in `docs/architecture.md`): the backend calls `docker` or `podman` as a
 //! process, never the socket. The choice is made in this order: `COCKPIT_CONTAINER`,
-//! `[agent] container` in `config.toml`, otherwise first `podman`, then `docker` in the `PATH`. Whether the
+//! `[agent] container` in `config.toml`, otherwise first `docker`, then `podman` in the `PATH`. Whether the
 //! engine runs is shown by `<cli> info`. Nothing is built or started here.
 
 use std::ffi::OsStr;
@@ -19,7 +19,7 @@ const INFO_TIME: Duration = Duration::from_secs(8);
 /// This long a result applies before `/api/health` asks again (`info` can take seconds).
 const VALID: Duration = Duration::from_secs(10);
 /// Order of the search without an explicit choice.
-const SEARCH: [&str; 2] = ["podman", "docker"];
+const SEARCH: [&str; 2] = ["docker", "podman"];
 
 /// The choice from environment and file; the environment goes first.
 fn chosen(config: Option<&str>, env: Option<&str>) -> Option<(String, &'static str)> {

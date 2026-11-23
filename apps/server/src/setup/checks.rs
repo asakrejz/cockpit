@@ -94,10 +94,7 @@ impl AppState {
                             repo,
                             RepoState::Failed,
                             None,
-                            msg!(
-                                ServerSetupGithubAddressInvalid,
-                                reason = Msg::raw(e.to_string())
-                            ),
+                            msg!(ServerSetupGithubAddressInvalid, reason = e.msg()),
                         ),
                         Ok(client) => repo_lookup(&client, repo).await,
                     }

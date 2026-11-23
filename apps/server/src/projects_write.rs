@@ -148,7 +148,7 @@ impl AppState {
             Ok(answer) => Ok(answer),
             Err(LiveError::Action(e)) => Err(ActionFailure::Service(msg!(
                 ServerRunServiceDoneNotApplied,
-                error = cockpit_i18n::Msg::raw(e.to_string())
+                error = e.msg()
             ))),
             Err(LiveError::Save(m)) => Err(ActionFailure::Save(m)),
         }

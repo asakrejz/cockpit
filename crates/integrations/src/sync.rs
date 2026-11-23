@@ -237,16 +237,14 @@ pub async fn github_load(
                 }
             }
             Err(e) if all_repos(&e) => return Err(e),
-            Err(e) if only_hint(&e) => out.warn(msg!(
-                IntegrationsSyncRepoHint,
-                repo = repo,
-                error = e.to_string()
-            )),
+            Err(e) if only_hint(&e) => {
+                out.warn(msg!(IntegrationsSyncRepoHint, repo = repo, error = e.msg()))
+            }
             Err(e) => {
                 out.warn(msg!(
                     IntegrationsSyncRepoStale,
                     repo = repo,
-                    error = e.to_string()
+                    error = e.msg()
                 ));
                 carry_over(known, repo, |_| true, &mut out, &mut taken);
             }
@@ -277,7 +275,7 @@ pub async fn github_load(
                     IntegrationsSyncPrStale,
                     repo = &repo,
                     number = nr,
-                    error = e.to_string()
+                    error = e.msg()
                 ));
                 carry_over(known, &repo, |n| n == nr, &mut out, &mut taken);
             }
@@ -307,7 +305,7 @@ pub async fn github_load(
                     IntegrationsSyncPrStale,
                     repo = &repo,
                     number = nr,
-                    error = e.to_string()
+                    error = e.msg()
                 ));
                 taken.retain(|(r, n)| !(*r == repo && *n == nr));
                 carry_over(known, &repo, |n| n == nr, &mut out, &mut taken);
@@ -339,7 +337,7 @@ async fn discover(
             Err(e) => {
                 // A search limit is separate from the normal one: keep going without it.
                 failed = true;
-                out.warn(msg!(IntegrationsSyncSearchFailed, error = e.to_string()));
+                out.warn(msg!(IntegrationsSyncSearchFailed, error = e.msg()));
                 break;
             }
         }
@@ -449,10 +447,7 @@ pub async fn jira_load(
         Ok(f) => f,
         Err(e @ (Error::RateLimit { .. } | Error::NotSignedIn)) => return Err(e),
         Err(e) => {
-            out.warn(msg!(
-                IntegrationsSyncSprintFieldFailed,
-                error = e.to_string()
-            ));
+            out.warn(msg!(IntegrationsSyncSprintFieldFailed, error = e.msg()));
             None
         }
     };
@@ -462,7 +457,7 @@ pub async fn jira_load(
         Ok(f) => f,
         Err(e @ (Error::RateLimit { .. } | Error::NotSignedIn)) => return Err(e),
         Err(e) => {
-            out.warn(msg!(IntegrationsSyncTeamFieldFailed, error = e.to_string()));
+            out.warn(msg!(IntegrationsSyncTeamFieldFailed, error = e.msg()));
             None
         }
     };
@@ -621,7 +616,7 @@ pub async fn projects_load(
                 out.warn(msg!(
                     IntegrationsSyncProjectStale,
                     project = &name,
-                    error = e.to_string()
+                    error = e.msg()
                 ));
                 carry_project(known, project, &mut out);
                 continue;
@@ -644,7 +639,7 @@ pub async fn projects_load(
                 out.warn(msg!(
                     IntegrationsSyncProjectStale,
                     project = &name,
-                    error = e.to_string()
+                    error = e.msg()
                 ));
                 carry_project(known, project, &mut out);
                 continue;
@@ -710,7 +705,7 @@ pub async fn projects_load(
                     out.warn(msg!(
                         IntegrationsSyncProjectDetailsFailed,
                         project = &name,
-                        error = e.to_string()
+                        error = e.msg()
                     ));
                     for (_, mut item) in fresh {
                         // Keep the old heavy part if there is one, and ask again next time.

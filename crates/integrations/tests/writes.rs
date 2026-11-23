@@ -301,8 +301,12 @@ async fn jira_without_matching_transition_calls_nothing() {
         .await
         .unwrap_err();
     assert_eq!(
-        error.to_string(),
+        error.msg().render(cockpit_i18n::Lang::De),
         "Jira bietet für ABC-1 keine Transition nach „Review“ an"
+    );
+    assert_eq!(
+        error.to_string(),
+        "Jira offers no transition to \"Review\" for ABC-1"
     );
 }
 
@@ -379,8 +383,12 @@ async fn merge_is_rejected_with_the_service_message() {
         .await
         .unwrap_err();
     assert_eq!(
-        error.to_string(),
+        error.msg().render(cockpit_i18n::Lang::De),
         "Der Dienst lehnt die Anfrage ab: Pull Request is not mergeable"
+    );
+    assert_eq!(
+        error.to_string(),
+        "The service rejects the request: Pull Request is not mergeable"
     );
 }
 

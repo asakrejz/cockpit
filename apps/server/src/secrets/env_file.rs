@@ -27,7 +27,7 @@ use cockpit_integrations::Secret;
 
 use super::{
     AGENT_KEY, ATLASSIAN_OAUTH, ATLASSIAN_OAUTH_TOKENS, GITHUB, GITHUB_OAUTH, GITHUB_OAUTH_TOKENS,
-    GITHUB_WEBHOOK, JIRA, JIRA_WEBHOOK, LITELLM, SecretError, SecretStore,
+    GITHUB_WEBHOOK, JIRA, JIRA_WEBHOOK, SecretError, SecretStore,
 };
 
 /// Variable that points the server to a different file (tests, operation).
@@ -36,15 +36,13 @@ pub const ENV_FILE_VAR: &str = "COCKPIT_ENV_FILE";
 /// `cockpit.db`).
 pub const DEFAULT_FILE_NAME: &str = ".env";
 
-/// Every secret name and the environment variable it lives in. `litellm` is the old name of
-/// `agent-key`; it is read from (and written to) the same variable.
+/// Every secret name and the environment variable it lives in.
 pub const VARIABLES: &[(&str, &str)] = &[
     (GITHUB, "GITHUB_TOKEN"),
     (JIRA, "JIRA_TOKEN"),
     (GITHUB_OAUTH, "GITHUB_OAUTH_CLIENT_SECRET"),
     (ATLASSIAN_OAUTH, "ATLASSIAN_OAUTH_CLIENT_SECRET"),
     (AGENT_KEY, "AGENT_KEY"),
-    (LITELLM, "AGENT_KEY"),
     (GITHUB_OAUTH_TOKENS, "GITHUB_OAUTH_TOKENS"),
     (ATLASSIAN_OAUTH_TOKENS, "ATLASSIAN_OAUTH_TOKENS"),
     (GITHUB_WEBHOOK, "GITHUB_WEBHOOK_SECRET"),
@@ -323,37 +321,6 @@ fn replace(text: &str, var: &str, value: Option<&str>) -> String {
         result.push('\n');
     }
     result
-}
-
-/// Result of taking over one name from another store.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Takeover {
-    Taken,
-    AlreadyPresent,
-    NotFound,
-}
-
-/// Copies the known names from `source` (the old keychain) into `target`. Only reads from
-/// `source`, never deletes; a name that already has a value in `target` is left alone.
-pub fn take_over(
-    source: &dyn SecretStore,
-    target: &dyn SecretStore,
-) -> Result<Vec<(&'static str, Takeover)>, SecretError> {
-    let mut report = Vec::new();
-    for (name, _) in VARIABLES {
-        if target.has(name)? {
-            report.push((*name, Takeover::AlreadyPresent));
-            continue;
-        }
-        match source.get(name)? {
-            Some(v) => {
-                target.set(name, &v)?;
-                report.push((*name, Takeover::Taken));
-            }
-            None => report.push((*name, Takeover::NotFound)),
-        }
-    }
-    Ok(report)
 }
 
 #[cfg(test)]

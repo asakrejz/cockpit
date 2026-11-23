@@ -13,7 +13,7 @@
 #           the flag; the image drops root itself and picks up the group of the socket (docs/container.md,
 #           "Agent containers"). Switching between modes replaces the container, the data stays.
 #
-# Works with docker and podman (detected; COCKPIT_CONTAINER=podman|docker overrides). Environment:
+# Works with docker and podman (detected, docker first; COCKPIT_CONTAINER=podman|docker overrides). Environment:
 #   COCKPIT_IMAGE   image            (default ghcr.io/asakrejz/cockpit:latest)
 #   COCKPIT_NAME    container name   (default cockpit)
 #   COCKPIT_VOLUME  volume name      (default cockpit-config)

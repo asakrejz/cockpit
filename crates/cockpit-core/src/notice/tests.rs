@@ -77,9 +77,18 @@ fn unreachable_shows_the_last_good_state() {
 
 #[test]
 fn server_error_keeps_the_message() {
-    let p = Problem::Other("Unerwarteter Status vom Dienst: 502".into());
+    let p = Problem::Other(msg!(IntegrationsUnexpectedStatus, code = 502));
     let n = source_notice(&state(Some(p)), NOW).unwrap();
-    assert!(n.detail.de().contains("502"));
+    assert!(
+        n.detail
+            .de()
+            .contains("Unerwarteter Status vom Dienst: 502")
+    );
+    assert!(
+        n.detail
+            .render(cockpit_i18n::Lang::En)
+            .contains("Unexpected status from the service: 502")
+    );
     assert_eq!(n.action, NoticeAction::RetryNow);
 }
 

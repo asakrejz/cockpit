@@ -20,5 +20,5 @@ export function chooseAdapter(name: string | undefined, adapter: Record<string, 
   const n = (name ?? "").trim() || DEFAULT_PROVIDER;
   const build = adapter[n];
   if (build) return build();
-  throw new Error(`Der Anbieter „${n}“ ist unbekannt. Möglich sind ${Object.keys(adapter).join(", ")}.`);
+  throw new Error(`The provider “${n}” is unknown. Possible: ${Object.keys(adapter).join(", ")}.`);
 }

@@ -81,7 +81,7 @@ function user_message(text: string) {
 export async function run(a: Job, d: Dependencies): Promise<number> {
   const model = d.env.ANTHROPIC_MODEL ?? "";
   if (!model) {
-    d.sink({ t: "error", text: "Es ist kein Modell eingestellt (ANTHROPIC_MODEL fehlt)." });
+    d.sink({ t: "error", text: "No model is set (ANTHROPIC_MODEL is missing)." });
     return 1;
   }
   const review = a.mode === "review";
@@ -101,7 +101,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
       const z = await d.input.next();
       if (!z) return;
       if (z.t === "hint") {
-        input.push(user_message(`Hinweis des Nutzers: ${z.text}`));
+        input.push(user_message(`Hint from the user: ${z.text}`));
         d.sink({ t: "hints_arrived" });
       } else if (z.t === "answer") {
         answers.push(z.text);
@@ -114,7 +114,7 @@ export async function run(a: Job, d: Dependencies): Promise<number> {
     const it = answers[Symbol.asyncIterator]();
     const r = await it.next();
     tr.restartClock(); // Time waiting for the user does not count as run time
-    return r.done ? "(keine Antwort)" : r.value;
+    return r.done ? "(no answer)" : r.value;
   };
 
   const options: QueryOptions = {
@@ -209,7 +209,7 @@ export async function loadSdk(): Promise<Sdk> {
         tools: [
           m.tool(
             "ask_user",
-            "Stellt dem Nutzer eine Frage und wartet auf seine Antwort. Nur für Dinge, die du aus dem Code nicht klären kannst.",
+            "Asks the user a question and waits for the answer. Only for things you cannot clarify from the code.",
             { question: z.string(), suggestions: z.array(z.string()).optional() },
             async (a: { question: string; suggestions?: string[] }) => ({
               content: [{ type: "text", text: await question(a.question, a.suggestions ?? []) }],

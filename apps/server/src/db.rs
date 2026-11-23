@@ -24,6 +24,16 @@ const MIGRATIONS: &[&str] = &[
          json       TEXT NOT NULL,
          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
      );",
+    // 3: stored workspaces the server could not read. The raw row is moved here, unchanged,
+    //    before the server starts from the seed, so that nothing that was stored gets overwritten.
+    "CREATE TABLE workspace_unreadable (
+         id        INTEGER PRIMARY KEY AUTOINCREMENT,
+         revision  INTEGER NOT NULL,
+         json      TEXT NOT NULL,      -- the raw value of `workspace.json`
+         error     TEXT NOT NULL,      -- why it could not be read
+         stored_at TEXT NOT NULL,      -- `workspace.updated_at` of the kept row
+         kept_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+     );",
 ];
 
 /// The version to which [`migrate`] brings the database.
@@ -139,6 +149,42 @@ pub fn workspace_save(conn: &Connection, revision: u64, json: &str) -> Result<()
         params![revision as i64, json],
     )?;
     Ok(())
+}
+
+/// Moves the stored workspace row into `workspace_unreadable`, byte for byte, with the reason
+/// and the time. Insert and delete happen in one transaction, so the row is never in neither
+/// table and never overwritten. Returns whether there was a row.
+pub fn workspace_keep_unreadable(conn: &Connection, error: &str) -> Result<bool, DbError> {
+    let tx = conn.unchecked_transaction()?;
+    let kept = tx.execute(
+        "INSERT INTO workspace_unreadable (revision, json, error, stored_at)
+         SELECT revision, json, ?1, updated_at FROM workspace WHERE id = 1",
+        params![error],
+    )?;
+    tx.execute("DELETE FROM workspace WHERE id = 1", [])?;
+    tx.commit()?;
+    Ok(kept > 0)
+}
+
+/// What `workspace_unreadable` holds: how many rows and when the newest one was kept
+/// (`YYYY-MM-DD HH:MM:SS`, UTC).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct KeptWorkspaces {
+    pub count: u32,
+    pub last_kept_at: String,
+}
+
+/// The rows kept aside, or `None` if there are none.
+pub fn workspaces_kept(conn: &Connection) -> Result<Option<KeptWorkspaces>, DbError> {
+    let (count, last): (u32, Option<String>) = conn.query_row(
+        "SELECT COUNT(*), MAX(kept_at) FROM workspace_unreadable",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    Ok(last.map(|last_kept_at| KeptWorkspaces {
+        count,
+        last_kept_at,
+    }))
 }
 
 /// Names of all stored connections (the status no longer reads them: the key store decides).

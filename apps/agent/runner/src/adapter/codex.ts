@@ -167,8 +167,8 @@ export function codex(): Adapter {
     run(job: Job, d) {
       return runCli(job, d, (sink): Spec | string => {
         const model = (d.env.COCKPIT_MODEL ?? "").trim();
-        if (!model) return "Es ist kein Modell eingestellt (COCKPIT_MODEL fehlt).";
-        if (!d.env[CODEX.keyVariable]) return "Es ist kein Key eingestellt (OPENAI_API_KEY fehlt).";
+        if (!model) return "No model is set (COCKPIT_MODEL is missing).";
+        if (!d.env[CODEX.keyVariable]) return "No key is set (OPENAI_API_KEY is missing).";
         const home = mkdtempSync(join(tmpdir(), "cockpit-codex-"));
         return {
           label: "Codex",

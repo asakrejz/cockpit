@@ -41,7 +41,7 @@ export async function record(
 ): Promise<Recorded | null> {
   const current = (await git(["rev-parse", "--abbrev-ref", "HEAD"], cwd)).trim();
   if (current !== branch) {
-    throw new Error(`Der Läufer steht auf „${current}“, erwartet war „${branch}“.`);
+    throw new Error(`The runner is on “${current}”, expected “${branch}”.`);
   }
   const files = await changedFiles(git, cwd);
   if (files.length === 0) return null;

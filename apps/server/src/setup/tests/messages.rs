@@ -8,7 +8,7 @@ use cockpit_integrations::oauth::Service;
 use crate::oauth::{secret_missing_msg, step_name};
 
 /// Phrases of terminal commands that must not appear in a text for the interface.
-const COMMANDS: &[&str] = &["token set", "token delete", "token import", "cargo run"];
+const COMMANDS: &[&str] = &["token set", "token delete", "cargo run"];
 
 #[test]
 fn oauth_messages_name_the_step_and_the_field() {

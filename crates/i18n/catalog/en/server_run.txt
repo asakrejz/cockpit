@@ -1,5 +1,6 @@
 # Texts of the server about runs, containers, the agent image, git and the sync
 server_run.jira_error = Jira: {error}
+server_run.github_error = GitHub: {error}
 server_run.jira_no_projects = Jira does not return any projects: {error}
 server_run.jira_no_people = Jira does not return any people: {error}
 server_run.service_failed = {service} did not carry out the action: {error}. Nothing was changed.

@@ -4,7 +4,7 @@
 //! it is read back safely:
 //!
 //! * The text carries a **version number** ([`VERSION`]). Whoever changes the shape of the data
-//!   incompatibly raises it – old states are then discarded.
+//!   incompatibly raises it – the server then keeps the old state aside and starts over.
 //! * **New fields** in the types are uncritical: old data without the field gets
 //!   the default value (`#[serde(default)]`), unknown fields are ignored. New
 //!   fields therefore get this attribute, as long as their type implements `Default`.

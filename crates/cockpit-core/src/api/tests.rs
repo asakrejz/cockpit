@@ -84,7 +84,7 @@ fn providers_have_stable_names_and_know_their_endpoint_family() {
 }
 
 #[test]
-fn the_old_key_name_counts_as_the_agent_key() {
+fn has_key_looks_only_at_the_name_asked_for() {
     let with = |n: &str| Setup {
         keys: vec![KeyResponse {
             name: n.into(),
@@ -93,17 +93,6 @@ fn the_old_key_name_counts_as_the_agent_key() {
         ..Default::default()
     };
     assert!(with("agent-key").has_key("agent-key"));
-    assert!(with("litellm").has_key("agent-key"));
-    assert!(!with("agent-key").has_key("litellm"));
+    assert!(!with("agent-key").has_key("jira"));
     assert!(!Setup::default().has_key("agent-key"));
-}
-
-#[test]
-fn old_setup_names_still_read() {
-    let e: Setup =
-        serde_json::from_str(r#"{"litellm_url":"http://x:1","litellm_modell":"m"}"#).unwrap();
-    assert_eq!(e.endpoint_url.as_deref(), Some("http://x:1"));
-    assert_eq!(e.endpoint_model.as_deref(), Some("m"));
-    let k: ConfigChange = serde_json::from_str(r#"{"litellm":{"url":"http://x:1"}}"#).unwrap();
-    assert_eq!(k.endpoint.unwrap().url.as_deref(), Some("http://x:1"));
 }

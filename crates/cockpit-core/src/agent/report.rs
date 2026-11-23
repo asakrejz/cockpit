@@ -18,6 +18,11 @@ impl AgentRun {
         match report {
             AgentReport::Started { detail } => {
                 self.real = true;
+                // A ready-to-start run carries placeholder names. The container reports the
+                // files it really changes (`Files`, `Repos`), so an implementation starts empty.
+                if self.kind == RunKind::Implement {
+                    self.files.clear();
+                }
                 effect
                     .notes
                     .push(msg!(CoreAgentNContainerStarted, label = self.label_msg()));

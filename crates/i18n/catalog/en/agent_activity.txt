@@ -14,3 +14,4 @@ agent_activity.created = Created
 agent_activity.no_merge = The agent does not merge. The review is up to you.
 agent_activity.activity = Activity
 agent_activity.history = History
+agent_activity.no_files = No changed files so far.

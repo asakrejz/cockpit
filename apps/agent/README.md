@@ -119,20 +119,24 @@ Lines arriving on stdin: `{"t":"answer","text":…}` and `{"t":"hint","text":…
 
 `job.json` carries three language codes (`"de"` or `"en"`):
 
-- `language`: the language of the interface. The system prompt ends with "Answer in English." or "Antworte auf Deutsch."; plan,
-  summary and questions are written in it (review runs use `review_language`, below). Step titles and error texts of the runner (`src/texts.ts`) are in it
-  too. Missing: `"de"` (older backends).
+- `language`: the language of the interface. The prompts themselves are always English; only one sentence in the system
+  prompt names the language the model writes in ("Write your answer in English." / "Write your answer in German."), and
+  plan, summary and questions follow it (review runs use `review_language`, below). Whatever a person reads from the
+  runner is in it too: step titles, error texts, the deny messages of `policy.ts` (the policy file of the Claude Code
+  hook carries the language) and the result line of a review, all from the catalog in `src/texts.ts`. Missing: `"en"`.
 - `pr_language`: the language of the text the agent creates for a pull request. The commit message the runner creates is
   written in it. The backend picks it per run: detected from the ticket description, else the repo's `pr_language`
   (`[[agent.repos]]`), else English. Missing: `"en"`.
 - `review_language`: only for mode `review`. The language of the summary, every comment and every `suggestion` text. The
-  system prompt and the task both say so ("Write the summary and all review comments in English/auf Deutsch …"); file names,
-  identifiers and JSON keys stay as they are. The backend picks it in this order: the switch in the review panel, the
-  language detected from the pull request title and description (plus the ticket description if the description is short),
-  the repo's `pr_language`, English. It does not change the language of step titles (that is `language`). Missing: `language`.
+  system prompt and the task both say so ("Write the summary and all review comments in English/German, the language of
+  the pull request."); file names, identifiers and JSON keys stay as they are. The backend picks it in this order: the
+  switch in the review panel, the language detected from the pull request title and description (plus the ticket
+  description if the description is short), the repo's `pr_language`, English. It does not change the language of step
+  titles (that is `language`). Missing: `language`.
   No `CONTRACT` bump: the runner sources changed, so the image fingerprint changes anyway.
 
-The prompt itself stays as it is; only the answer language is set. Technical output (stderr, logs, `expect`) is English.
+Technical output (stderr, logs, `expect`) is English, and so are the errors that arise before the language is known
+(an unreadable or invalid job, an unknown provider).
 
 ## Follow-up jobs
 
@@ -170,6 +174,10 @@ The runner additionally blocks writing outside `/work`, `.git`, forbidden paths 
 `curl` (see the adapters above for how each tool enforces it). A review run is stricter still: read-only clone, no
 commit. The agent asks questions through the tool `ask_user`.
 
+Path patterns (`*`, `?`, `**`, a leading `./` or `/`, a trailing `/` for a whole folder) mean the same in the runner
+(`globFits` in `runner/src/policy.ts`) and in the backend (`glob_match` in `crates/cockpit-core/src/rules.rs`). Both are
+tested against `crates/cockpit-core/tests/fixtures/glob_cases.json`; change the rules and the file together.
+
 ## Jobs in several repos
 
 If the job has `repos` (two or more entries `{repo, dir, branch, base_branch, rules, contributing, pr_language}`), the backend
@@ -193,3 +201,6 @@ The job is checked again in the runner (folder must be `<owner>__<name>`, branch
 ```bash
 cd apps/agent/runner && npm install && npm test   # Node >= 26.13.1 (current LTS), no network; the SDK, `claude` and `codex` are stand-ins
 ```
+
+The test of the path rules also reads `crates/cockpit-core/tests/fixtures/glob_cases.json`, so it needs the whole checkout; the
+image build only copies `runner/src` and the package files and never sees it.

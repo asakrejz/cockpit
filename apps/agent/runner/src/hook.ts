@@ -9,6 +9,7 @@
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { type Policy, decide } from "./policy.ts";
+import { langOf } from "./texts.ts";
 
 function deny(reason: string): string {
   return JSON.stringify({
@@ -22,12 +23,12 @@ export function hookAnswer(policy: Policy, raw: string): string {
   try {
     call = JSON.parse(raw);
   } catch {
-    return deny("Der Aufruf des Werkzeugs ist nicht lesbar.");
+    return deny("The tool call cannot be read.");
   }
-  if (typeof call.tool_name !== "string") return deny("Der Aufruf nennt kein Werkzeug.");
+  if (typeof call.tool_name !== "string") return deny("The tool call names no tool.");
   const input = typeof call.tool_input === "object" && call.tool_input !== null ? (call.tool_input as Record<string, unknown>) : {};
   const d = decide(policy, call.tool_name, input);
-  return d.behavior === "allow" ? "" : deny(d.message ?? "Nicht erlaubt.");
+  return d.behavior === "allow" ? "" : deny(d.message ?? "Not allowed.");
 }
 
 async function main(): Promise<void> {
@@ -37,9 +38,10 @@ async function main(): Promise<void> {
     if (typeof policy.root !== "string" || !Array.isArray(policy.allowed) || !Array.isArray(policy.forbidden)) throw new Error("policy");
     const chunks: Buffer[] = [];
     for await (const c of process.stdin) chunks.push(c as Buffer);
-    out = hookAnswer(policy, Buffer.concat(chunks).toString("utf8"));
+    // The deny messages follow the language of the job, which the adapter wrote into the policy.
+    out = hookAnswer({ ...policy, language: langOf(policy.language, "en") }, Buffer.concat(chunks).toString("utf8"));
   } catch {
-    out = deny("Die Richtlinie des Cockpits ist nicht lesbar; aus Sicherheitsgründen wird nichts ausgeführt.");
+    out = deny("The Cockpit policy cannot be read; nothing is run for safety.");
   }
   if (out) process.stdout.write(`${out}\n`);
 }
