@@ -21,17 +21,6 @@ pub struct JiraProjectsResponse {
     pub projects: Vec<JiraProject>,
 }
 
-/// Response to `GET /api/jira/assignable?project=…&query=…`: people Jira would let you assign
-/// tickets of the project to. Read only.
-#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
-pub struct JiraAssignableResponse {
-    /// `false` if Jira is not set up or the key is missing (the list is then empty).
-    pub active: bool,
-    /// You yourself come as [`Person::me`].
-    #[serde(default)]
-    pub people: Vec<crate::Person>,
-}
-
 /// What the connection test to Jira failed on (or `Ok`).
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]

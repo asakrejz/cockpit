@@ -5,9 +5,15 @@
 //! `wire_pre_repo_*.json` are the current snapshots as they were before several repos were
 //! supported (no `repo` on reviews and pull request references); they must keep loading and
 //! resaving byte-identically (empty repos are not written).
+//! `legacy_sync_state_problem.json` is a sync state in which one problem is stored as a plain text
+//! and one as a message; both must load.
 //! Regenerate `wire_*` with `BLESS=1 cargo test -p cockpit-core --test wire_compat` only on purpose.
 
-use cockpit_core::{Action, Actor, AgentOptions, Rule, TicketStatus, Workspace, demo, persist};
+use cockpit_core::{
+    Action, Actor, AgentOptions, Problem, Rule, Source, SyncState, TicketStatus, Workspace, demo,
+    persist,
+};
+use cockpit_i18n::{Lang, Msg};
 
 const USER: Actor = Actor::User;
 
@@ -147,6 +153,33 @@ fn pre_repo_snapshots_get_their_repos_from_the_migration() {
 fn the_busy_legacy_snapshot_really_uses_the_old_name() {
     assert!(read("legacy_busy_workspace.json").contains("\"actor\":\"Du\""));
     assert!(!read("wire_busy_workspace.json").contains("\"actor\":\"Du\""));
+}
+
+/// A problem that was stored as a plain text still loads, as a raw message that reads the same in
+/// every language; a stored message keeps its code and renders in the chosen language.
+#[test]
+fn a_stored_problem_loads_as_text_or_as_message() {
+    let state: SyncState = serde_json::from_str(&read("legacy_sync_state_problem.json"))
+        .expect("old sync state loads");
+
+    let jira = state.state_of(Source::Jira).unwrap();
+    let text = "Unexpected status from the service: 502";
+    assert_eq!(jira.problem, Some(Problem::Other(Msg::raw(text))));
+    for lang in Lang::ALL {
+        assert_eq!(jira.problem.as_ref().unwrap().msg().render(lang), text);
+    }
+
+    let github = state.state_of(Source::GitHub).unwrap();
+    let message = github.problem.as_ref().unwrap().msg();
+    assert_eq!(message.code, "integrations.server_error");
+    assert!(message.render(Lang::En).contains("503"));
+    assert!(message.render(Lang::De).contains("503"));
+    assert_ne!(message.render(Lang::En), message.render(Lang::De));
+
+    // Saving writes the message form, which loads again unchanged.
+    let saved = serde_json::to_string(&state).unwrap();
+    assert!(!saved.contains("\"Other\":\"Unexpected"), "{saved}");
+    assert_eq!(serde_json::from_str::<SyncState>(&saved).unwrap(), state);
 }
 
 fn read(name: &str) -> String {

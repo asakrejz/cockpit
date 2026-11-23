@@ -1,0 +1,1 @@
+{"sources":[{"source":"Jira","problem":{"Other":"Unexpected status from the service: 502"},"last_ok_ms":1700000000000,"last_try_ms":1700000060000,"since_ms":1700000060000},{"source":"GitHub","problem":{"Other":{"code":"integrations.server_error","args":[["code","503"]]}},"last_try_ms":1700000060000,"since_ms":1700000060000}]}

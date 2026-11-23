@@ -110,10 +110,15 @@ fn site_choice() {
     let eine = [site("abc-1", "firma")];
     assert_eq!(site_choose(&eine, None).unwrap().id, "abc-1");
     let two = [site("abc-1", "firma"), site("def-2", "privat")];
-    let f = site_choose(&two, None).unwrap_err().to_string();
+    let f = site_choose(&two, None).unwrap_err();
+    let (de, en) = (f.msg().render(cockpit_i18n::Lang::De), f.to_string());
     assert!(
-        f.contains("firma") && f.contains("privat") && f.contains("Schritt „Jira“"),
-        "{f}"
+        de.contains("firma") && de.contains("privat") && de.contains("Schritt „Jira“"),
+        "{de}"
+    );
+    assert!(
+        en.contains("firma") && en.contains("privat") && en.contains("step \"Jira\""),
+        "{en}"
     );
     for requested in ["privat", "PRIVAT", "def-2", "https://privat.atlassian.net/"] {
         assert_eq!(
@@ -123,12 +128,13 @@ fn site_choice() {
         );
     }
     assert!(site_choose(&two, Some("fremd")).is_err());
+    let none = site_choose(&[], None).unwrap_err();
     assert!(
-        site_choose(&[], None)
-            .unwrap_err()
-            .to_string()
+        none.msg()
+            .render(cockpit_i18n::Lang::De)
             .contains("keine Jira-Site")
     );
+    assert!(none.to_string().contains("no Jira site"));
     // An empty request counts as none.
     assert!(site_choose(&eine, Some(" ")).is_ok());
 }

@@ -257,7 +257,7 @@ routes.
   again at start. `CreateBranch` for a Jira ticket uses the same routing.
 
 **What goes outward.** In server mode these actions go to the service first; **only when it confirms is the action
-applied locally**. If the call fails, a German message (status 502) comes back and nothing changes. The rules of the
+applied locally**. If the call fails, a message (status 502) comes back and nothing changes. The rules of the
 workspace (also "only you may merge", "review only after deciding on every suggestion") apply before every call.
 
 | Action | Call |
@@ -447,8 +447,10 @@ The interface is available in German and English and switches at once, without a
   readers). Log entries keep `text` (German rendering) next to `msg`; old entries without `msg` are shown as text. Stored texts
   that cannot change type get a parallel optional `*_msg` field (skipped when empty, so old snapshots stay byte-identical).
   A code this build does not know renders as the code itself. Texts from outside (a message of GitHub, git stderr) use
-  `Msg::raw`. A scan test (`tests/scan_core.rs`) fails when core, server or integrations contain German literals (demo data and
-  tests excepted).
+  `Msg::raw`. An error of Jira or GitHub (`cockpit_integrations::Error`) is passed on as `Error::msg()` (a nested message, never
+  `to_string()` wrapped in `Msg::raw`), and a failed fetch is stored as `Problem::Other(Msg)` in the sync state; the `Display` of
+  the error is English and only for logs. A scan test (`tests/scan_core.rs`) fails when core, server or integrations contain German
+  literals (demo data and tests excepted).
 - **Agent texts.** `job.json` carries `language` (interface language: plan, summary, questions, review comments) and
   `pr_language` (team language of the repo: commit message, pull request title and text). The default of `pr_language` is English;
   it is set per repo (`pr_language` in `[[agent.repos]]`, a switch in the setup assistant) and stored in the run options when the run

@@ -144,11 +144,7 @@ pub fn source_notice(st: &SourceState, now_ms: u64) -> Option<SourceNotice> {
         Problem::Other(m) => (
             NoticeTone::Warning,
             msg!(CoreNoticeTitleFailed, source = source),
-            msg!(
-                CoreNoticeDetailFailed,
-                message = Msg::raw(m.clone()),
-                stand = stand
-            ),
+            msg!(CoreNoticeDetailFailed, message = m.clone(), stand = stand),
             NoticeAction::RetryNow,
             None,
         ),

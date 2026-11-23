@@ -20,8 +20,26 @@ pub enum Problem {
         right: crate::permissions::Right,
         kind: crate::permissions::TokenKind,
     },
-    /// Everything else, with a German message (without key).
-    Other(String),
+    /// Everything else, with a message of its own (without key). A stored plain text reads as a
+    /// raw message.
+    Other(#[serde(deserialize_with = "msg_or_text")] Msg),
+}
+
+/// A [`Msg`], or a plain text that becomes [`Msg::raw`].
+fn msg_or_text<'de, D>(deserializer: D) -> Result<Msg, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Stored {
+        Msg(Msg),
+        Text(String),
+    }
+    Ok(match Stored::deserialize(deserializer)? {
+        Stored::Msg(m) => m,
+        Stored::Text(t) => Msg::raw(t),
+    })
 }
 
 impl Problem {
@@ -33,7 +51,7 @@ impl Problem {
             Problem::RateLimited { until_ms: None } => msg!(CoreSyncProblemRateLimited),
             Problem::Offline => msg!(CoreSyncProblemOffline),
             Problem::MissingRight { right, kind } => right.msg(*kind),
-            Problem::Other(m) => Msg::raw(m.clone()),
+            Problem::Other(m) => m.clone(),
         }
     }
 

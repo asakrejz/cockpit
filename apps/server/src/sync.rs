@@ -8,7 +8,7 @@
 use std::time::Duration;
 
 use cockpit_core::api::{
-    ActionResponse, JiraAssignableResponse, JiraProject, JiraProjectsResponse, SyncResponse,
+    ActionResponse, AssignableResponse, JiraProject, JiraProjectsResponse, SyncResponse,
 };
 use cockpit_core::{Action, ActionError, Actor, Source};
 use cockpit_i18n::{Msg, msg};
@@ -250,15 +250,11 @@ impl AppState {
         let Some(client) = client else {
             return Ok(JiraProjectsResponse::default());
         };
-        let client = client.map_err(|e| {
-            ActionFailure::Plan(msg!(ServerRunJiraError, error = Msg::raw(e.to_string())))
-        })?;
+        let client =
+            client.map_err(|e| ActionFailure::Plan(msg!(ServerRunJiraError, error = e.msg())))?;
         let projects = client.projects().await.map_err(|e| {
             tracing::warn!("Jira projects: {e}");
-            ActionFailure::Service(msg!(
-                ServerRunJiraNoProjects,
-                error = Msg::raw(e.to_string())
-            ))
+            ActionFailure::Service(msg!(ServerRunJiraNoProjects, error = e.msg()))
         })?;
         Ok(JiraProjectsResponse {
             active: true,
@@ -278,9 +274,9 @@ impl AppState {
         &self,
         project: &str,
         query: &str,
-    ) -> Result<JiraAssignableResponse, ActionFailure> {
+    ) -> Result<AssignableResponse, ActionFailure> {
         if self.sources().jira.is_none() {
-            return Ok(JiraAssignableResponse::default());
+            return Ok(AssignableResponse::default());
         }
         self.oauth_refresh().await;
         let s = self.clone();
@@ -288,19 +284,18 @@ impl AppState {
             .await
             .map_err(|_| ActionFailure::Intern)?;
         let Some(client) = client else {
-            return Ok(JiraAssignableResponse::default());
+            return Ok(AssignableResponse::default());
         };
-        let client = client.map_err(|e| {
-            ActionFailure::Plan(msg!(ServerRunJiraError, error = Msg::raw(e.to_string())))
-        })?;
+        let client =
+            client.map_err(|e| ActionFailure::Plan(msg!(ServerRunJiraError, error = e.msg())))?;
         let people = client
             .assignable_people(project, query)
             .await
             .map_err(|e| {
                 tracing::warn!("Jira assignable users: {e}");
-                ActionFailure::Service(msg!(ServerRunJiraNoPeople, error = Msg::raw(e.to_string())))
+                ActionFailure::Service(msg!(ServerRunJiraNoPeople, error = e.msg()))
             })?;
-        Ok(JiraAssignableResponse {
+        Ok(AssignableResponse {
             active: true,
             people,
         })
@@ -312,29 +307,24 @@ impl AppState {
         &self,
         repo: &str,
         query: &str,
-    ) -> Result<JiraAssignableResponse, ActionFailure> {
+    ) -> Result<AssignableResponse, ActionFailure> {
         self.oauth_refresh().await;
         let s = self.clone();
         let credentials = tokio::task::spawn_blocking(move || s.github_credentials())
             .await
             .map_err(|_| ActionFailure::Intern)?;
         let Some((token, app)) = credentials else {
-            return Ok(JiraAssignableResponse::default());
+            return Ok(AssignableResponse::default());
         };
         let client = GitHubClient::new(&self.sources().github_config().api_url, token)
-            .map_err(|e| {
-                ActionFailure::Plan(msg!(ServerRunJiraError, error = Msg::raw(e.to_string())))
-            })?
+            .map_err(|e| ActionFailure::Plan(msg!(ServerRunGithubError, error = e.msg())))?
             .with_app(app);
         let me = client.me().await.unwrap_or_default();
         let logins = client.assignees(repo, query).await.map_err(|e| {
             tracing::warn!("GitHub assignees: {e}");
-            ActionFailure::Service(msg!(
-                ServerRunGithubNoPeople,
-                error = Msg::raw(e.to_string())
-            ))
+            ActionFailure::Service(msg!(ServerRunGithubNoPeople, error = e.msg()))
         })?;
-        Ok(JiraAssignableResponse {
+        Ok(AssignableResponse {
             active: true,
             people: logins
                 .into_iter()
@@ -420,7 +410,7 @@ impl AppState {
         let services = self.services().await;
         if !services.is_empty() {
             match plane(&before, &afterwards, &action, &services.targets()) {
-                Err(e) => return Err(ActionFailure::Plan(Msg::raw(e.0))),
+                Err(e) => return Err(ActionFailure::Plan(e.1)),
                 Ok(None) => {}
                 Ok(Some(call)) => {
                     services.execute(&call).await.map_err(|e| {
@@ -462,7 +452,7 @@ impl AppState {
             }
             Err(LiveError::Action(e)) if outside => Err(ActionFailure::Service(msg!(
                 ServerRunServiceDoneNotApplied,
-                error = Msg::raw(e.to_string())
+                error = e.msg()
             ))),
             Err(LiveError::Action(e)) => Err(ActionFailure::Rule(e)),
             Err(LiveError::Save(m)) => Err(ActionFailure::Save(m)),
