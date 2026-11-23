@@ -50,6 +50,7 @@ impl AppState {
             endpoint.url.as_deref(),
             &key,
             endpoint.model.as_deref().unwrap_or("-"),
+            self.agent_io(&status),
         )
         .await;
         let (reached, key_ok, text) = match &in_container {
@@ -164,6 +165,7 @@ pub(super) async fn check_container(
     endpoint_url: Option<&str>,
     key: &Secret,
     model: &str,
+    io: agent_run::AgentIo,
 ) -> Result<Event, Msg> {
     let dir = state.agent_dir().join("check").join(now_ms().to_string());
     check_job_write(&dir).map_err(|e| msg!(ServerRunCheckJobNotWritable, error = e.to_string()))?;
@@ -176,14 +178,23 @@ pub(super) async fn check_container(
         job: &dir,
         stdin_open: false,
         provider,
+        io,
     });
     let mut cmd = Command::new(cli);
-    cmd.args(&args)
-        .stdin(Stdio::null())
+    cmd.args(&args);
+    kind_env(&mut cmd, provider, endpoint_url, key.expose(), model);
+    if io == agent_run::AgentIo::Copy {
+        if let Err(m) = copy_io::prepare(cli, cmd, &name, &dir, &dir).await {
+            let _ = std::fs::remove_dir_all(&dir);
+            return Err(m);
+        }
+        cmd = Command::new(cli);
+        cmd.args(agent_run::start_args(&name, false));
+    }
+    cmd.stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
-    kind_env(&mut cmd, provider, endpoint_url, key.expose(), model);
     let run = tokio::time::timeout(CHECK_TIME, cmd.output()).await;
     let result = match run {
         Err(_) => {
@@ -218,6 +229,9 @@ pub(super) async fn check_container(
             }
         }
     };
+    if io == agent_run::AgentIo::Copy {
+        container_remove(cli, &name).await;
+    }
     let _ = std::fs::remove_dir_all(&dir);
     result
 }

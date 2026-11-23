@@ -168,6 +168,9 @@ pub struct Config {
     pub container: Option<String>,
     /// Value of `COCKPIT_CONTAINER`, goes before the file.
     pub container_env: Option<String>,
+    /// `COCKPIT_AGENT_IO` (`bind` or `copy`): how folders get into the agent container; without it the
+    /// server decides (copy inside the Cockpit container, bind otherwise).
+    pub agent_io: Option<String>,
     /// `[agent] repo`: the default repo in which the agent works (`owner/name`).
     pub agent_repo: Option<String>,
     /// `[[agent.repos]]`: the repos the agent may work in, with base branch and Jira projects.
@@ -261,6 +264,7 @@ impl Config {
             endpoint: None,
             container: None,
             container_env: None,
+            agent_io: None,
             agent_repo: None,
             agent_repos: Vec::new(),
             agent_dir: None,
@@ -546,6 +550,16 @@ impl Config {
         }
         if let Some(p) = env("COCKPIT_CONTAINER").filter(|s| !s.trim().is_empty()) {
             c.container_env = Some(runtime(&p)?);
+        }
+        if let Some(p) = env("COCKPIT_AGENT_IO").filter(|s| !s.trim().is_empty()) {
+            let v = p.trim().to_ascii_lowercase();
+            if !matches!(v.as_str(), "bind" | "copy") {
+                return Err(ConfigError::Wert(msg!(
+                    ServerConfigAgentIoInvalid,
+                    value = &p
+                )));
+            }
+            c.agent_io = Some(v);
         }
         if let Some(p) = env("COCKPIT_DEV_PORT").filter(|s| !s.trim().is_empty()) {
             let nr: u16 = p

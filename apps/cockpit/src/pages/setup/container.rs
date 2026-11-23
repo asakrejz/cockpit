@@ -238,8 +238,8 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                             </Section>
                             <Section title=t!(SetupContainerIcBTitle)>
                                 <p class="ui-hint" role="alert">{t!(SetupContainerIcBWarning)}</p>
-                                <p>{t!(SetupContainerIcB1)} " " <code>{command(&["docker", "compose", "-f", "compose.yaml", "-f", "compose.agent.yaml", "up", "-d"])}</code></p>
-                                <p>{t!(SetupContainerIcB2)} " " <code>{command(&["scripts/cockpit-container.sh", "--agent"])}</code></p>
+                                <p>{t!(SetupContainerIcB1)} " " <code>{command(&["-v", "/var/run/docker.sock:/var/run/docker.sock"])}</code></p>
+                                <p>{t!(SetupContainerIcB2)} " " <code>{command(&["docker", "compose", "-f", "compose.yaml", "-f", "compose.agent.yaml", "up", "-d"])}</code> " / " <code>{command(&["scripts/cockpit-container.sh", "--agent"])}</code></p>
                                 <p>{t!(SetupContainerIcB3)}</p>
                             </Section>
                         }

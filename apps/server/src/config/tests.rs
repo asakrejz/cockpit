@@ -225,6 +225,19 @@ fn endpoint_and_container() {
         Config::parse(None, env).unwrap().container_env.as_deref(),
         Some("docker")
     );
+    let io = |v: &'static str| move |k: &str| (k == "COCKPIT_AGENT_IO").then(|| v.to_string());
+    assert_eq!(Config::parse(None, no_env).unwrap().agent_io, None);
+    assert_eq!(
+        Config::parse(None, io(" Copy "))
+            .unwrap()
+            .agent_io
+            .as_deref(),
+        Some("copy")
+    );
+    assert!(matches!(
+        Config::parse(None, io("mount")),
+        Err(ConfigError::Wert(_))
+    ));
     for broken in [
         "[agent.endpoint]\nurl = \"localhost:4000\"",
         "[agent.endpoint]\nurl = \"http://\"",

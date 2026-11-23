@@ -98,14 +98,19 @@ RUN apt-get update \
     && chown -R cockpit:cockpit /app
 
 COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
-COPY --from=server /cockpit-server /usr/local/bin/cockpit-server
+# The real binary lives outside the PATH. `cockpit-server` (for `docker exec`, the healthcheck) and the entrypoint are
+# small scripts that drop root first: the server never runs as root. See container/entrypoint.sh.
+COPY --from=server /cockpit-server /usr/local/libexec/cockpit-server
+COPY --chmod=0755 container/cockpit-server.sh /usr/local/bin/cockpit-server
+COPY --chmod=0755 container/entrypoint.sh /usr/local/bin/cockpit-entrypoint
 # The working directory is the project folder: the server looks for config/, apps/cockpit/dist and apps/agent there.
 COPY --from=web /src/apps/cockpit/dist /app/apps/cockpit/dist
 # Containerfile and runner of the agent: "Build image" in the app needs them (the agent image itself is not part of this image).
 COPY apps/agent /app/apps/agent
 
 WORKDIR /app
-USER cockpit
+# No `USER`: the entrypoint starts as root only to pick up the group of a mounted engine socket and then drops to
+# `cockpit` (uid 10001) with setpriv. Without a socket it simply drops.
 
 # Opt-in, only for the container: listen on all interfaces inside it. Publish the port on the host
 # only as 127.0.0.1 (-p 127.0.0.1:8787:8787), see docs/security.md.
@@ -120,4 +125,4 @@ EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=8s --start-period=10s --retries=3 \
     CMD ["cockpit-server", "health"]
 
-ENTRYPOINT ["cockpit-server"]
+ENTRYPOINT ["cockpit-entrypoint"]

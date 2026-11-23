@@ -15,6 +15,8 @@ pub struct Settings {
     pub container: Option<String>,
     /// `COCKPIT_CONTAINER` (goes before the file).
     pub container_env: Option<String>,
+    /// `COCKPIT_AGENT_IO`: `bind` or `copy`; `None` = automatic.
+    pub agent_io: Option<String>,
     /// Where to search for `docker` and `podman`; `None` = `PATH` of the process (tests set it).
     pub search_path: Option<std::ffi::OsString>,
     /// `COCKPIT_DEV_PORT`: the port of `trunk serve`, whose requests (host, origin) also apply.
@@ -58,6 +60,7 @@ impl Settings {
             anthropic_api: None,
             container: config.container.clone(),
             container_env: config.container_env.clone(),
+            agent_io: config.agent_io.clone(),
             search_path: None,
             dev_port: config.dev_port,
             public_port: config.public_port,

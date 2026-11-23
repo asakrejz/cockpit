@@ -22,6 +22,7 @@ from. Environment variables override the file:
 | `COCKPIT_ENV_FILE` | path of the secrets file (`config/.env` in the project folder) |
 | `COCKPIT_SEED` | `empty` or `demo` |
 | `COCKPIT_CONTAINER` | `docker` or `podman` |
+| `COCKPIT_AGENT_IO` | `bind` or `copy`: how folders reach the agent container; default `copy` inside the Cockpit container, otherwise `bind` ([container.md](container.md#no-paths-must-match-copy-instead-of-bind-mounts)) |
 | `COCKPIT_AGENT_DIR` | folder with `Containerfile` and runner |
 | `COCKPIT_GIT_BASE` | git base for clones (tests, local remotes) |
 | `COCKPIT_DEV_PORT` | allow the `trunk serve` port (environment only, see [architecture.md](architecture.md#development)) |

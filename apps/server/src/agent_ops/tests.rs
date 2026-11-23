@@ -22,7 +22,36 @@ case "$1" in
   image) [ -e "$d/no-image" ] && exit 1; [ -e "$d/inspect-error" ] && { echo "boom" >&2; exit 125; }; cat "$d/label.out" 2>/dev/null; exit 0 ;;
   build) cat "$d/build.out" 2>/dev/null; [ -e "$d/build.error" ] && { echo "write: no space left on device" >&2; exit 1; }; exit 0 ;;
   ps) cat "$d/ps.out" 2>/dev/null; exit 0 ;;
-  rm) for a in "$@"; do touch "$d/stopped-$a"; done; exit 0 ;;
+  rm) for a in "$@"; do touch "$d/stopped-$a"; rm -rf "$d/ctr-$a"; done; exit 0 ;;
+  create)
+shift
+name=""; prev=""
+for a in "$@"; do
+  [ "$prev" = "--name" ] && name="$a"
+  prev="$a"
+done
+[ -e "$d/create-error" ] && { echo "Error response from daemon: no such image" >&2; exit 125; }
+mkdir -p "$d/ctr-$name/work" "$d/ctr-$name/job"
+echo "TOKEN=$ANTHROPIC_AUTH_TOKEN BASE=$ANTHROPIC_BASE_URL MODEL=$ANTHROPIC_MODEL PROVIDER=$COCKPIT_PROVIDER OAIKEY=$OPENAI_API_KEY OAIBASE=$OPENAI_BASE_URL CMODEL=$COCKPIT_MODEL ANTKEY=$ANTHROPIC_API_KEY" >> "$d/env.log"
+exit 0 ;;
+  cp)
+[ -e "$d/cp-error" ] && { echo "Error: No such container" >&2; exit 1; }
+src="$2"; dst="$3"
+case "$dst" in
+  *:*) n="${dst%%:*}"; p="${dst#*:}"; [ -d "$d/ctr-$n" ] || exit 1
+       mkdir -p "$d/ctr-$n$p"; cp -a "${src%/.}/." "$d/ctr-$n$p/" || exit 1 ;;
+  *) n="${src%%:*}"; p="${src#*:}"; p="${p%/.}"; [ -d "$d/ctr-$n$p" ] || exit 1
+     mkdir -p "$dst"; cp -a "$d/ctr-$n$p/." "$dst/" || exit 1 ;;
+esac
+exit 0 ;;
+  start)
+for a in "$@"; do name="$a"; done
+clone="$d/ctr-$name/work"; job="$d/ctr-$name/job"
+[ -d "$d/ctr-$name" ] || exit 125
+mode="run"
+grep -q '"mode":"\(plan\|review\|check\)"' "$job/job.json" && mode="plan"
+. "$d/scenario-$mode.sh"
+;;
   pause|unpause) echo "$1" >> "$d/pause.log"; exit 0 ;;
   run)
 shift
@@ -32,6 +61,7 @@ for a in "$@"; do
   case "$a" in
     *:/work:ro) clone="${a%%:/work:ro}"; mode="plan" ;;
     *:/work) clone="${a%%:/work}" ;;
+    *:/job:ro) job="${a%%:/job:ro}" ;;
   esac
   prev="$a"
 done
@@ -301,6 +331,7 @@ mod branch_delete;
 mod branch_pattern;
 mod cleanup;
 mod container_check;
+mod copy_io;
 mod followup;
 mod maintenance;
 mod pure;

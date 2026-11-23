@@ -11,6 +11,7 @@ server_config.endpoint_url_scheme = {place} url muss mit http:// oder https:// b
 server_config.sync_limit = [sync] {name} = {value} muss zwischen 1 und {max} liegen
 server_config.webhook_fallback_range = [sync] webhook_fallback_interval_s = {value} muss zwischen interval_s ({interval}) und {max} liegen
 server_config.dev_port_invalid = COCKPIT_DEV_PORT={value} ist keine Portnummer
+server_config.agent_io_invalid = COCKPIT_AGENT_IO={value} ist weder „bind“ noch „copy“
 server_config.dev_port_zero = COCKPIT_DEV_PORT 0 ist nicht erlaubt
 server_config.port_invalid = COCKPIT_PORT={value} ist keine Portnummer
 server_config.port_zero = Port 0 ist nicht erlaubt
