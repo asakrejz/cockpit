@@ -142,12 +142,12 @@ fn in_container_without_socket_explains_instead_of_not_installed() {
 }
 
 #[test]
-fn in_container_with_denied_socket_mentions_the_group() {
+fn in_container_with_denied_socket_says_to_pull_the_current_image() {
     let s = in_container_view(choose(None, None, all_ok, no), true, SocketState::Denied);
     assert_eq!(s.socket, SocketState::Denied);
     let hint = s.hint.unwrap();
     assert!(
-        hint.contains("group-add") && hint.contains("root"),
+        hint.contains("docker pull") && hint.contains("Gruppe des Sockets"),
         "{hint}"
     );
 }

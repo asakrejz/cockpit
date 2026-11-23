@@ -108,6 +108,8 @@ struct Access {
     model: String,
     git_base: String,
     github: Secret,
+    /// How the folders reach the agent container.
+    io: agent_run::AgentIo,
 }
 
 enum End {
@@ -185,7 +187,16 @@ impl AppState {
             github: self
                 .github_access()
                 .ok_or_else(|| vec![msg!(ServerRunAccessNoGithub)])?,
+            io: self.agent_io(&container),
         })
+    }
+
+    /// `COCKPIT_AGENT_IO`, otherwise copy inside the Cockpit container and bind mounts natively.
+    fn agent_io(&self, container: &ContainerStatus) -> agent_run::AgentIo {
+        agent_run::AgentIo::choose(
+            self.inner.settings.agent_io.as_deref(),
+            container.in_container,
+        )
     }
 
     fn agent_dir(&self) -> PathBuf {
@@ -300,6 +311,7 @@ fn cannot_start(st: &AgentStatus) -> Msg {
 mod branch_delete;
 mod cleanup;
 mod container_check;
+mod copy_io;
 mod image_build;
 mod lines;
 mod probe;

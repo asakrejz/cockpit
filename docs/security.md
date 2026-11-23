@@ -67,10 +67,14 @@ environment (never in `config.toml`). With a non-loopback `COCKPIT_BIND` the ser
   port, `COCKPIT_PUBLIC_PORT` adds that port to the accepted ones (environment only).
 - The webhook routes keep requiring a loopback peer, so they do not work through a published container port.
 - Keys stay in `config/.env` inside the volume; none is baked into the image or passed as a build argument. The
-  process runs as the unprivileged user `10001`.
+  server process runs as the unprivileged user `10001`: the entrypoint starts as root only to read the group of a mounted
+  socket, then drops with `setpriv` (`--no-new-privs`, supplementary group = the socket's group, or `0` for the
+  `root:root 660` socket of Docker/Rancher Desktop on macOS; container.md explains what that does and does not mean).
+  `cockpit-server` in the image drops root too, so `docker exec` never runs the server as root.
 - **Mounting the container socket** (`-v /var/run/docker.sock:/var/run/docker.sock`, for agent runs) gives Cockpit
   root-equivalent access to the host: it could start a privileged container with the whole disk mounted. It is opt-in,
-  off by default, and meant only for a machine you trust.
+  off by default, and meant only for a machine you trust. Agent runs need no host folder: the working folders are copied
+  into the agent container and the result back (`docker cp`), so Cockpit never hands paths of its own container to the engine.
 - The workflow publishes to a private package and deletes all other versions after each push, so no old image with
   old code lingers. Reading it needs a token with `read:packages`.
 

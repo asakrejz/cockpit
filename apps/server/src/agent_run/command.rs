@@ -2,7 +2,36 @@
 
 use super::*;
 
-/// Everything `docker run` / `podman run` needs for a run.
+/// How the folders of a run get into the agent container.
+///
+/// * `Bind`: `-v <host folder>:/work` and `/job` (native start; the engine resolves the paths on the same machine).
+/// * `Copy`: no mounts. The container is created, the clone and the job are copied in with `cp`, it is
+///   started, and the clone is copied out again afterwards. Needed when Cockpit itself runs in a container:
+///   the engine would resolve a path of the Cockpit container on the host, where it does not exist.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum AgentIo {
+    #[default]
+    Bind,
+    Copy,
+}
+
+impl AgentIo {
+    /// `COCKPIT_AGENT_IO=bind|copy` decides; without it a run inside the Cockpit container copies.
+    pub fn choose(env: Option<&str>, in_container: bool) -> Self {
+        match env.map(|e| e.trim().to_ascii_lowercase()).as_deref() {
+            Some("bind") => Self::Bind,
+            Some("copy") => Self::Copy,
+            _ if in_container => Self::Copy,
+            _ => Self::Bind,
+        }
+    }
+}
+
+/// Where the clone and the job live inside the agent container.
+pub const WORK_DIR: &str = "/work";
+pub const JOB_DIR: &str = "/job";
+
+/// Everything `docker run` / `podman run` (or `create`) needs for a run.
 pub struct RunCommand<'a> {
     pub name: &'a str,
     /// Value of the label `cockpit.run` (the key of the run).
@@ -15,14 +44,19 @@ pub struct RunCommand<'a> {
     pub stdin_open: bool,
     /// The tool of the agent: selects the runner's adapter and which endpoint names `-e` passes on.
     pub provider: Provider,
+    pub io: AgentIo,
 }
 
 /// The arguments after `docker`/`podman`. Never contains a secret: the runner gets address,
 /// key and model as `-e NAME` and reads the values from the environment of the child process
-/// ([`env_for_kind`]).
+/// ([`env_for_kind`]). `Bind`: `run --rm` with mounts. `Copy`: `create` without mounts and without
+/// `--rm` (the clone is copied out after the end; the backend removes the container itself).
 pub fn run_args(b: &RunCommand) -> Vec<String> {
     let s = |x: &str| x.to_string();
-    let mut a = vec![s("run"), s("--rm")];
+    let mut a = match b.io {
+        AgentIo::Bind => vec![s("run"), s("--rm")],
+        AgentIo::Copy => vec![s("create")],
+    };
     if b.stdin_open {
         a.push(s("-i"));
     }
@@ -41,20 +75,53 @@ pub fn run_args(b: &RunCommand) -> Vec<String> {
         s("1024"),
         s("--memory"),
         s("4g"),
-        s("-v"),
-        format!(
-            "{}:/work{}",
-            b.clone.display(),
-            if b.clone_only_read { ":ro" } else { "" }
-        ),
-        s("-v"),
-        format!("{}:/job:ro", b.job.display()),
     ]);
+    if b.io == AgentIo::Bind {
+        a.extend([
+            s("-v"),
+            format!(
+                "{}:{WORK_DIR}{}",
+                b.clone.display(),
+                if b.clone_only_read { ":ro" } else { "" }
+            ),
+            s("-v"),
+            format!("{}:{JOB_DIR}:ro", b.job.display()),
+        ]);
+    }
     for name in kind_env_names(b.provider) {
         a.extend([s("-e"), s(name)]);
     }
     a.push(s(IMAGE));
     a
+}
+
+/// `docker start` for a container made with `create`: attached (output of the runner), with stdin if the
+/// container was created with `-i`.
+pub fn start_args(name: &str, stdin_open: bool) -> Vec<String> {
+    let mut a = vec!["start".to_string(), "-a".to_string()];
+    if stdin_open {
+        a.push("-i".into());
+    }
+    a.push(name.into());
+    a
+}
+
+/// `docker cp <folder>/. <name>:<target>`: the contents of the folder into the (existing) target folder.
+pub fn copy_in_args(folder: &Path, name: &str, target: &str) -> Vec<String> {
+    vec![
+        "cp".into(),
+        format!("{}/.", folder.display()),
+        format!("{name}:{target}"),
+    ]
+}
+
+/// `docker cp <name>:/work/. <folder>`: everything the agent left in `/work` into the folder.
+pub fn copy_out_args(name: &str, folder: &Path) -> Vec<String> {
+    vec![
+        "cp".into(),
+        format!("{name}:{WORK_DIR}/."),
+        folder.display().to_string(),
+    ]
 }
 
 /// The names that `docker run` passes on via `-e NAME` (only the name, never a value) for a tool:

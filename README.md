@@ -39,6 +39,22 @@ Without compose: `scripts/cockpit-container.sh` does the same with `docker` or `
 live in the `cockpit-config` volume; `docker compose down` keeps it (never add `-v`). Details:
 [docs/container.md](docs/container.md).
 
+### Only the image
+
+No clone and no compose needed. Log in to `ghcr.io` once (guide: [docs/container.md](docs/container.md#sign-in-to-the-registry-private-repo)), then:
+
+```bash
+docker pull ghcr.io/<owner>/cockpit:latest
+docker run -d --name cockpit --restart unless-stopped -p 127.0.0.1:8787:8787 -v cockpit-config:/app/config -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/<owner>/cockpit:latest
+```
+
+The last `-v` lets Cockpit start agent containers on your engine; the left side is the socket path (Rancher Desktop:
+`~/.rd/docker.sock`; Podman: `$XDG_RUNTIME_DIR/podman/podman.sock`). **A mounted socket is root-equivalent access to your
+machine, so only use it on a computer you trust.** Leave that line out and Cockpit runs without the agent.
+
+Update: `docker pull ghcr.io/<owner>/cockpit:latest`, then `docker rm -f cockpit`, then the same `docker run` again
+(the volume keeps your data).
+
 ## Keys
 
 Keys live only in `config/.env` (mode `600`, created on first use). Set them in the assistant, or in a terminal; the

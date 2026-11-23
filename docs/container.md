@@ -48,18 +48,23 @@ scripts/cockpit-container.sh status   # also: stop, logs
   (`docker rm -f cockpit`; the volume `cockpit-config` stays and is reused), then use the commands above.
   Compose may warn that the volume "was not created by Docker Compose"; that is harmless.
 
-### Manual `docker run` (reference)
+### Only the image (no clone, no compose)
 
-Only for reference; it fails with "already exists" when run twice. Remove an existing container first
-(`docker rm -f cockpit`), and pull yourself to update:
+Everything above also works with `docker run` alone; you do not need the repository. After logging in to `ghcr.io`
+(see above):
 
 ```bash
 docker pull ghcr.io/<owner>/cockpit:latest
 docker run -d --name cockpit --restart unless-stopped \
   -p 127.0.0.1:8787:8787 \
   -v cockpit-config:/app/config \
+  -v /var/run/docker.sock:/var/run/docker.sock \
   ghcr.io/<owner>/cockpit:latest
 ```
+
+Update: `docker pull ghcr.io/<owner>/cockpit:latest`, `docker rm -f cockpit`, then the same `docker run` again (the volume
+keeps your data). Without the socket line Cockpit runs without the agent. `docker run` fails with "already exists" when the
+container exists; remove it first.
 
 ## What lives where
 
@@ -74,7 +79,7 @@ The container is stateless. Everything that belongs to you is in **one volume** 
 Keys never enter the image. Set them in the setup assistant, or from a terminal:
 
 ```bash
-docker exec -i cockpit cockpit-server token set jira      # the value is read from standard input
+docker exec -i -u cockpit cockpit cockpit-server token set jira      # the value is read from standard input
 ```
 
 Back up or remove the volume with `docker volume`; a bind mount (`-v "$HOME/cockpit-config:/app/config"`) works too, if the folder
@@ -87,14 +92,15 @@ Run the same command again: `docker compose up -d` (or `scripts/cockpit-containe
 ## Agent containers (opt-in)
 
 Cockpit starts agent containers with the `docker` command. In the image that works only if you give it the container
-engine of your host: mount its socket. The `docker` CLI is part of the image (about 39 MB on disk). In `compose.yaml` this is a commented block.
+engine of your host: mount its socket (`-v /var/run/docker.sock:/var/run/docker.sock`, in compose the override file
+`compose.agent.yaml`, with the script `--agent`). The `docker` CLI is part of the image (about 39 MB on disk).
 
 > **A mounted socket is root-equivalent access to your host.** Whoever controls Cockpit (or the code that runs in it)
 > can start any container, mount any folder and read or change anything the engine can reach. Do this only on a
 > machine you trust and only if you want the agent. Without the mount Cockpit works, but the agent features show the
 > container engine as "not running".
 
-Socket paths:
+Socket paths (the left side of the `-v` line; the right side stays `/var/run/docker.sock`):
 
 | Engine | Socket on the host |
 | --- | --- |
@@ -103,66 +109,85 @@ Socket paths:
 | Podman (Linux, rootless) | `$XDG_RUNTIME_DIR/podman/podman.sock` |
 | Podman machine (macOS) | path from `podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}'` |
 
-The socket belongs to root, the image runs as a normal user, so the process needs access to it: add
-`--group-add "$(stat -c %g /var/run/docker.sock)"` on Linux, or run with `--user root` (on macOS VMs usually needed).
-
-**Paths must match.** The engine runs on the host, so the folders Cockpit gives to an agent container
-(`<data folder>/…`) are resolved *on the host*. A named volume does not work for that. Use a host folder, mounted at
-the **same absolute path** inside, and point Cockpit at it. Compose and the script do this for you:
+Compose and the script take the path from `DOCKER_SOCK`:
 
 ```bash
-mkdir -p "$HOME/cockpit-config"
-docker compose -f compose.yaml -f compose.agent.yaml up -d     # compose; override file, see why below
-scripts/cockpit-container.sh --agent                           # without compose
+DOCKER_SOCK=~/.rd/docker.sock docker compose -f compose.yaml -f compose.agent.yaml up -d
+scripts/cockpit-container.sh --agent
 ```
 
-Both read `COCKPIT_DATA` (host folder, default `$HOME/cockpit-config`) and `DOCKER_SOCK` (socket on the host,
-default `/var/run/docker.sock`; Rancher Desktop on macOS: `~/.rd/docker.sock`), run as `user: root`, mount the socket
-and set `COCKPIT_CONFIG`, `COCKPIT_DB` and `COCKPIT_ENV_FILE` into that folder. Why an override file and not a
-profile: a profile would start next to the normal `cockpit` service and both would want the same port; an override
-changes the one service, so name and port stay the same. Switching modes recreates the container; your data stays
-in the volume or the folder.
+Why an override file and not a profile: a profile would start next to the normal `cockpit` service and both would want
+the same port; an override changes the one service, so name and port stay the same. Switching modes recreates the
+container; the volume stays.
 
-Plain `docker run` form (remove an existing container first, `docker rm -f cockpit`):
+### Socket access without `--user root`
+
+The image starts its entrypoint (`container/entrypoint.sh`) as root for one reason: to find out which group may use the
+socket. It reads the group id of `/var/run/docker.sock` (or of the path in `DOCKER_HOST=unix://…`), then drops to the
+user `cockpit` (uid 10001) with `setpriv` and gives that process the socket's group as a supplementary group. No
+group is created, `/etc` is not touched. Without a socket it just drops. **The server never runs as root**: the
+`cockpit-server` command in the image (healthcheck, `docker exec`) drops root the same way.
+
+Docker Desktop and Rancher Desktop for macOS present the socket as `root:root` with mode `660` (group id 0). Then the
+supplementary group is `0`. That means the server process may read and write files inside the Cockpit container that are
+group-owned by root and group-accessible; the image has none that matter (config, database and keys belong to
+`cockpit`). The socket is root-equivalent access to the host anyway; that is the risk you accept (see above), and the
+group does not add to it. If the socket is world-accessible (mode `…6`/`…7`), no group is added at all.
+
+`docker exec -i -u cockpit cockpit cockpit-server token set jira` is the form for commands in a running container; the
+command drops root itself, but `-u cockpit` states it.
+
+### No "paths must match": copy instead of bind mounts
+
+The engine runs on the host, so a folder that Cockpit hands to an agent container with `-v <path>:/work` would be
+resolved *on the host*, where a path of the Cockpit container does not exist. Earlier versions therefore needed a host
+folder mounted at the same absolute path. That is gone. Inside the image Cockpit uses the **copy strategy**
+(`COCKPIT_AGENT_IO=copy`, chosen automatically when Cockpit runs in a container):
+
+1. `docker create` the agent container (same switches as before: label `cockpit.run`, no capabilities, no token in the
+   arguments, secrets only as `-e NAME` from the environment of the process), without mounts.
+2. `docker cp` the prepared clone(s) to `/work` and the job file to `/job`. The files get `a+rwX` for this copy because
+   `docker cp` makes root the owner and the agent runs as another user; the copy only lives in the throw-away container.
+3. `docker start -a -i`: the runner talks to the backend over stdout/stdin exactly as before.
+4. When it ends (also when it is stopped, halted by a limit or cancelled) the backend copies `/work` back into a fresh
+   folder and swaps it in for the clone (so files the agent deleted are gone too), then `docker rm -f`. A halted run
+   resumes from that clone. Plan and review runs change nothing and are not copied out.
+
+Everything else is unchanged: the backend checks the branch pattern and the path rules and pushes, the container has no
+GitHub token. The native start keeps the bind mounts (`COCKPIT_AGENT_IO=bind`, the default outside a container).
+`COCKPIT_AGENT_IO=bind|copy` overrides the choice. One difference: a plan or review run no longer gets a read-only mount
+(there is none); its copy is discarded unread.
+
+### Migrating from the host folder
+
+If you started with the old agent file (`user: root`, a host folder mounted at the same path, `COCKPIT_CONFIG`,
+`COCKPIT_DB`, `COCKPIT_ENV_FILE` pointing into it), your data still works. Two ways:
+
+* **Keep the host folder:** keep your three `COCKPIT_*` variables and the mount, remove `--user root`, and let the
+  entrypoint fix the owner once with `-e COCKPIT_FIX_OWNER=1` (it changes the owner of that folder to uid 10001; start
+  again without it). Without that the container says why it cannot write.
+* **Move it into a volume** (the new default): stop Cockpit, then
 
 ```bash
-docker run -d --name cockpit --restart unless-stopped --user root \
-  -p 127.0.0.1:8787:8787 \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -v "$HOME/cockpit-config:$HOME/cockpit-config" \
-  -e COCKPIT_CONFIG="$HOME/cockpit-config/config.toml" \
-  -e COCKPIT_DB="$HOME/cockpit-config/cockpit.db" \
-  -e COCKPIT_ENV_FILE="$HOME/cockpit-config/.env" \
-  ghcr.io/<owner>/cockpit:latest
+docker rm -f cockpit                         # compose: docker compose down (never `-v`)
+docker run --rm -v "$HOME/cockpit-config:/from:ro" -v cockpit-config:/to --user root \
+  --entrypoint sh ghcr.io/<owner>/cockpit:latest -c 'cp -a /from/. /to/ && chown -R 10001:10001 /to'
 ```
 
-(Replace the socket path for your engine.) The agent image itself is **not** part of this release: "Build image" in
-the app builds it from the sources inside the image (`/app/apps/agent`) with the engine of your host. This opt-in
-setup has not been run against a real agent end to end; if it gives you trouble, use the native start
-(`start-cockpit.command`, see the [README](../README.md)), which is the tested way to use the agent.
+  then start as in "Only the image" or with compose. The host folder stays as a backup.
 
-### Move the data to a host folder
-
-If you have been running with the named volume, copy your files once into the host folder (stop first so the database
-is not written meanwhile).:
-
-```bash
-docker compose down                          # keeps the volume (never `-v`); or: scripts/cockpit-container.sh stop
-mkdir -p "$HOME/cockpit-config"
-docker run --rm -v cockpit-config:/from:ro -v "$HOME/cockpit-config:/to" --user root \
-  --entrypoint sh ghcr.io/<owner>/cockpit:latest -c 'cp -a /from/. /to/'
-docker compose -f compose.yaml -f compose.agent.yaml up -d
-```
-
-That copies `config.toml`, `cockpit.db` and `.env` (mode `600` is kept). The old volume stays as a backup.
+The agent image itself is **not** part of this release: "Build image" in the app builds it from the sources inside the
+image (`/app/apps/agent`) with the engine of your host (the build context is sent through the CLI, so no host path is
+needed). The native start (`start-cockpit.command`, see the [README](../README.md)) remains the best-tested way to use
+the agent.
 
 ### What the setup assistant says in a container
 
 Inside the image the "Container" step knows it runs in a container (`COCKPIT_IN_CONTAINER=1`, also detected via
 `/.dockerenv` or `/run/.containerenv`; `GET /api/health` reports `container.in_container` and `container.socket`:
-`missing`, `denied` or `reachable`). Without a socket it explains the two options above instead of "not installed";
-with a socket the user may not use (`denied`) it points to `--group-add`/`user: root`; with a working socket it
-proceeds as normal.
+`missing`, `denied` or `reachable`). Without a socket it explains how to mount it instead of "not installed"; with a
+socket the user cannot use (`denied`, only with an old image) it says to pull the current image; with a reachable socket
+it proceeds as normal: "reachable" is enough, there is nothing else to set up.
 
 Webhooks (a tunnel into Cockpit) need the native start as well: the webhook routes accept only a loopback peer.
 

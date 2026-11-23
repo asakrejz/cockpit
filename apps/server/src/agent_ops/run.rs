@@ -24,7 +24,12 @@ pub(super) async fn run_task(
     mut rx: mpsc::UnboundedReceiver<RunControl>,
     info: Arc<Mutex<Info>>,
 ) {
-    let end = run_run(&state, &key, mode, &mut rx, &info).await;
+    // Set once a container exists that the backend has to remove itself (strategy "copy": no `--rm`).
+    let mut created: Option<(PathBuf, String)> = None;
+    let end = run_run(&state, &key, mode, &mut rx, &info, &mut created).await;
+    if let Some((cli, name)) = created {
+        container_remove(&cli, &name).await;
+    }
     match end {
         End::Quiet => {}
         End::Error(reason) => {
@@ -92,6 +97,7 @@ pub(super) async fn run_run(
     mode: Mode,
     rx: &mut mpsc::UnboundedReceiver<RunControl>,
     info: &Arc<Mutex<Info>>,
+    created: &mut Option<(PathBuf, String)>,
 ) -> End {
     let ws: Workspace = state.inner.live.copy();
     let Some(run) = ws.run(key) else {
@@ -288,13 +294,10 @@ pub(super) async fn run_run(
         job: &job_dir,
         stdin_open: true,
         provider: access.provider,
+        io: access.io,
     });
     let mut cmd = Command::new(&access.cli);
-    cmd.args(&args)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
+    cmd.args(&args);
     kind_env(
         &mut cmd,
         access.provider,
@@ -302,6 +305,20 @@ pub(super) async fn run_run(
         access.key.expose(),
         &access.model,
     );
+    let copy = access.io == agent_run::AgentIo::Copy;
+    if copy {
+        // No mounts: create the container, copy clone and job in, then start it attached.
+        if let Err(m) = copy_io::prepare(&access.cli, cmd, &name, &clone, &job_dir).await {
+            return End::Error(m);
+        }
+        *created = Some((access.cli.clone(), name.clone()));
+        cmd = Command::new(&access.cli);
+        cmd.args(agent_run::start_args(&name, true));
+    }
+    cmd.stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
     let mut kind = match cmd.spawn() {
         Ok(k) => k,
         Err(e) => {
@@ -457,6 +474,10 @@ pub(super) async fn run_run(
     drop(stdin);
 
     if quiet || too_much.is_some() {
+        // A halted run resumes from the clone: take over what the agent did so far.
+        if copy && mode == Mode::Implement {
+            let _ = copy_io::fetch(&cli, &name, &clone).await;
+        }
         container_remove(&cli, &name).await;
         let _ = tokio::time::timeout(Duration::from_secs(10), kind.wait()).await;
         return match too_much {
@@ -524,6 +545,12 @@ pub(super) async fn run_run(
             got = result_branch,
             expected = &branch
         ));
+    }
+
+    // Strategy "copy": the result is in the container, not in the clone yet. The backend's own
+    // checks and the push below work on the copied-out clone, exactly as with a bind mount.
+    if copy && let Err(m) = copy_io::fetch(&cli, &name, &clone).await {
+        return End::Error(m);
     }
 
     // Check and push – the backend, not the container.

@@ -75,7 +75,7 @@ anything that builds or starts containers:
 
 1. **Command line only.** The backend calls `docker` or `podman` as a process, never the Docker socket or a Docker
    library. Only commands and switches both understand the same way are used (`build -f`, `run --rm`, `-e`, `-v`,
-   `--network`, `--add-host`, `--user`, `--label`, `ps`, `rm -f`, `image inspect`).
+   `--network`, `--add-host`, `--user`, `--label`, `create`, `start -a`, `cp`, `ps`, `rm -f`, `image inspect`).
 2. **Runtime selectable.** Configuration `[agent] container = "docker" | "podman"`, overridable by `COCKPIT_CONTAINER`.
    Without either, the backend looks for `podman` first, then `docker` in the `PATH` and checks with `<cli> info` whether
    the engine runs. `/api/health` reports which one was found.
@@ -85,9 +85,11 @@ anything that builds or starts containers:
 4. **Reach the host.** A proxy (such as LiteLLM) on your own machine is reached from the container with
    `--add-host cockpit-host:host-gateway` (Docker 20.10+, Podman 5.x) and the address `http://cockpit-host:<port>`; not
    via `host.docker.internal` or `host.containers.internal`, which exist reliably for one runtime each.
-5. **File permissions.** The repo is mounted (`-v <clone>:/work`) without SELinux suffixes (`:Z`). The process runs
-   as a non-root user (`USER` in the `Containerfile`). Podman (rootless) and Docker map users differently, so after the
-   run only read what lies in the clone.
+5. **File permissions.** Natively the repo is mounted (`-v <clone>:/work`) without SELinux suffixes (`:Z`). The process
+   runs as a non-root user (`USER` in the `Containerfile`). Podman (rootless) and Docker map users differently, so after
+   the run only read what lies in the clone. When Cockpit itself runs in a container (`COCKPIT_IN_CONTAINER`, or
+   `COCKPIT_AGENT_IO=copy`) there are no mounts at all: `create`, `cp` in, `start -a -i`, `cp` out into a fresh folder,
+   `rm -f` (`agent_ops/copy_io.rs`, [container.md](container.md#no-paths-must-match-copy-instead-of-bind-mounts)).
 6. **Secrets only as `-e NAME`** (value taken from the environment of the child process, not from the command line), so
    they do not appear in `ps` or logs.
 7. **Rancher Desktop** must run with the engine "dockerd (moby)"; in "containerd" mode only `nerdctl` exists, which is not

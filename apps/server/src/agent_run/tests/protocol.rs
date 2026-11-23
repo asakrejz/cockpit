@@ -76,6 +76,7 @@ fn command_line_without_secrets_and_with_the_shared_switches() {
         job: Path::new("/data/job"),
         stdin_open: true,
         provider: Provider::ClaudeAgentSdk,
+        io: AgentIo::Bind,
     };
     let a = run_args(&b);
     let text = a.join(" ");
@@ -123,6 +124,44 @@ fn command_line_without_secrets_and_with_the_shared_switches() {
     });
     assert!(ro.join(" ").contains("/data/clone:/work:ro"));
     assert!(!ro.contains(&"-i".to_string()));
+}
+
+#[test]
+fn copy_strategy_creates_without_mounts_and_starts_attached() {
+    let b = RunCommand {
+        name: "cockpit-run-BAU-142-1",
+        run: "BAU-142",
+        clone: Path::new("/data/clone"),
+        clone_only_read: false,
+        job: Path::new("/data/job"),
+        stdin_open: true,
+        provider: Provider::ClaudeAgentSdk,
+        io: AgentIo::Copy,
+    };
+    let text = run_args(&b).join(" ");
+    assert!(
+        text.starts_with("create -i --name cockpit-run-BAU-142-1"),
+        "{text}"
+    );
+    for muss in [
+        "--label cockpit.run=BAU-142",
+        "--cap-drop ALL",
+        "-e ANTHROPIC_AUTH_TOKEN",
+    ] {
+        assert!(text.contains(muss), "{muss}: {text}");
+    }
+    // No mount (nothing of the Cockpit container's paths reaches the engine), no --rm (copied out first).
+    assert!(!text.contains(" -v ") && !text.contains("--rm") && !text.contains("/data/"));
+    assert_eq!(start_args("n", true), ["start", "-a", "-i", "n"]);
+    assert_eq!(start_args("n", false), ["start", "-a", "n"]);
+    assert_eq!(
+        copy_in_args(Path::new("/data/clone"), "n", WORK_DIR),
+        ["cp", "/data/clone/.", "n:/work"]
+    );
+    assert_eq!(
+        copy_out_args("n", Path::new("/data/clone.out")),
+        ["cp", "n:/work/.", "/data/clone.out"]
+    );
 }
 
 #[test]
@@ -192,6 +231,7 @@ fn every_tool_gets_its_adapter_and_the_names_of_its_endpoint_family() {
         job: Path::new("/j"),
         stdin_open: false,
         provider: Provider::Codex,
+        io: AgentIo::Bind,
     })
     .join(" ");
     assert!(

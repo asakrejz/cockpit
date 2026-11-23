@@ -9,9 +9,9 @@
 #   logs    follow the logs
 #   status  show whether it runs and which image it uses
 #   --agent (with up) opt-in: lets Cockpit start agent containers on YOUR engine. SECURITY: the mounted engine
-#           socket is root-equivalent access to your host; only on a machine you trust. Runs as root and uses
-#           the host folder $COCKPIT_DATA (default $HOME/cockpit-config) mounted at the same path, instead of the
-#           volume (docs/container.md, "Agent containers"). Switching between modes replaces the container.
+#           socket is root-equivalent access to your host; only on a machine you trust. Same volume as without
+#           the flag; the image drops root itself and picks up the group of the socket (docs/container.md,
+#           "Agent containers"). Switching between modes replaces the container, the data stays.
 #
 # Works with docker and podman (detected; COCKPIT_CONTAINER=podman|docker overrides). Environment:
 #   COCKPIT_IMAGE   image            (default ghcr.io/asakrejz/cockpit:latest)
@@ -19,7 +19,6 @@
 #   COCKPIT_VOLUME  volume name      (default cockpit-config)
 #   COCKPIT_PORT    host port        (default 8787, published on 127.0.0.1 only)
 #   COCKPIT_PULL    0 = do not pull  (for locally built images)
-#   COCKPIT_DATA    host folder for --agent   (default $HOME/cockpit-config)
 #   DOCKER_SOCK     engine socket for --agent (default /var/run/docker.sock)
 # The volume is never removed by this script.
 set -euo pipefail
@@ -29,7 +28,6 @@ name="${COCKPIT_NAME:-cockpit}"
 volume="${COCKPIT_VOLUME:-cockpit-config}"
 port="${COCKPIT_PORT:-8787}"
 pull="${COCKPIT_PULL:-1}"
-data="${COCKPIT_DATA:-${HOME:-}/cockpit-config}"
 sock="${DOCKER_SOCK:-/var/run/docker.sock}"
 agent=0
 cmd=up
@@ -61,13 +59,10 @@ run_container() {
     -p "127.0.0.1:${port}:8787")
   if [ "$agent" = 1 ]; then
     [ -S "$sock" ] || die "no engine socket at ${sock}. Set DOCKER_SOCK (see docs/container.md for the path of your engine)."
-    mkdir -p "$data"
     say "WARNING: --agent mounts the engine socket. That is root-equivalent access to this machine."
-    args+=(--user root -v "${sock}:/var/run/docker.sock" -v "${data}:${data}"
-      -e "COCKPIT_CONFIG=${data}/config.toml" -e "COCKPIT_DB=${data}/cockpit.db" -e "COCKPIT_ENV_FILE=${data}/.env")
-  else
-    args+=(-v "${volume}:/app/config")
+    args+=(-v "${sock}:/var/run/docker.sock")
   fi
+  args+=(-v "${volume}:/app/config")
   # The server must accept the published port in the Host header.
   [ "$port" = 8787 ] || args+=(-e "COCKPIT_PUBLIC_PORT=${port}")
   "$engine" "${args[@]}" "$image" >/dev/null
@@ -127,5 +122,5 @@ case "$cmd" in
   stop) cmd_stop ;;
   logs) exists || die "no container '${name}'."; exec "$engine" logs -f "$name" ;;
   status) cmd_status ;;
-  *) sed -n '2,24p' "$0" ;;
+  *) sed -n '2,23p' "$0" ;;
 esac
