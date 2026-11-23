@@ -33,7 +33,7 @@ jobs:
       # Only `main` saves the cache; pull requests restore it and never add entries of their own.
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: check
+          shared-key: check-dev
           save-if: true # TEMP-MEASURE
 
       - name: Format
