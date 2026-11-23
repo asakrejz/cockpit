@@ -153,9 +153,8 @@ async fn a_corrupt_stored_state_is_kept_aside_unchanged() {
     let notice = &health_of(&app).await["unreadable_state"];
     assert_eq!(notice["count"], 1);
     assert_eq!(notice["kept_at"].as_str().unwrap().len(), 19);
-    let msg: cockpit_i18n::Msg = serde_json::from_value(notice["notice_msg"].clone()).unwrap();
+    let msg: cockpit_i18n::Msg = serde_json::from_value(notice["notice"].clone()).unwrap();
     assert_eq!(msg.code, cockpit_i18n::Key::ServerStateUnreadable.id());
-    assert_eq!(msg.render(cockpit_i18n::Lang::De), notice["notice"]);
     for lang in cockpit_i18n::Lang::ALL {
         assert!(
             msg.render(lang).contains("workspace_unreadable"),

@@ -72,10 +72,8 @@ pub struct UnreadableState {
     pub count: u32,
     /// When the newest was kept (`YYYY-MM-DD HH:MM:SS`, UTC).
     pub kept_at: String,
-    /// German text of the notice (for readers that only know plain text).
-    pub notice: String,
-    /// The same notice as code and parameters; the interface shows it in its language.
-    pub notice_msg: cockpit_i18n::Msg,
+    /// The notice as code and parameters; the interface shows it in its language.
+    pub notice: cockpit_i18n::Msg,
 }
 
 impl AppState {
@@ -86,7 +84,7 @@ impl AppState {
             .inspect_err(|e| tracing::warn!("Could not check for unreadable workspaces: {e}"))
             .ok()??;
         let path = db.path().unwrap_or_default().to_string();
-        let notice_msg = cockpit_i18n::msg!(
+        let notice = cockpit_i18n::msg!(
             ServerStateUnreadable,
             n = kept.count,
             at = &kept.last_kept_at,
@@ -95,8 +93,7 @@ impl AppState {
         Some(UnreadableState {
             count: kept.count,
             kept_at: kept.last_kept_at,
-            notice: notice_msg.de(),
-            notice_msg,
+            notice,
         })
     }
 }

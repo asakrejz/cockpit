@@ -268,22 +268,9 @@ pub struct Health {
 pub struct UnreadableState {
     #[serde(default)]
     pub count: u32,
-    /// The notice in German (for readers that only know plain text).
-    #[serde(default)]
-    pub notice: String,
     /// The notice as code and parameters (shown in the current language).
     #[serde(default)]
-    pub notice_msg: Option<cockpit_i18n::Msg>,
-}
-
-impl UnreadableState {
-    /// The notice in the current language.
-    pub fn shown(&self) -> String {
-        match &self.notice_msg {
-            Some(m) => m.render(feature_ui::lang_untracked()),
-            None => self.notice.clone(),
-        }
-    }
+    pub notice: cockpit_i18n::Msg,
 }
 
 /// Path of the folder `config/`, warnings (Git, permissions) and hints about old files.

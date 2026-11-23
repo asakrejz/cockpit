@@ -131,8 +131,8 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                     .and_then(|h| h.unreadable_state)
                     .map(|kept| {
                         view! {
-                            <p class="t-footnote" role="alert" style="padding-inline: 4px; color: var(--red, #c00)">
-                                {kept.shown()}
+                            <p class="t-footnote ck-problem" role="alert" style="padding-inline: 4px">
+                                {kept.notice.render(lang())}
                             </p>
                         }
                     })
