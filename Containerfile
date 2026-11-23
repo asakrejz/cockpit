@@ -5,16 +5,47 @@
 #
 # Multi-arch without emulation: the web and server stages always run on the build machine; the server is cross-compiled
 # for $TARGETARCH. The web app (WebAssembly) is built once for both architectures.
+#
+# Layer cache: the dependencies of the Rust code are compiled in their own layer (cargo-chef), which only changes when
+# Cargo.toml or Cargo.lock change. A change to the source then only recompiles the workspace crates. Everything lives in
+# image layers, not in BuildKit cache mounts, because only layers are exported to a CI cache (`type=gha`); the per-platform
+# target dirs are separate layers, so the amd64 and arm64 builds that run in parallel never share one.
 
-# ---- web: web app (Trunk) ----------------------------------------------------------------------
-# Does not depend on the target platform (WebAssembly), so BuildKit builds this stage once for both
-# platforms. Its cache mounts are `sharing=locked` as a second guard against concurrent builds.
-FROM --platform=$BUILDPLATFORM docker.io/library/rust:1-trixie AS web
-ARG TRUNK_VERSION=0.22.2
+# ---- chef: Rust toolchain + cargo-chef (prebuilt, no compile) --------------------------------------
+FROM --platform=$BUILDPLATFORM docker.io/library/rust:1-trixie AS chef
+ARG CHEF_VERSION=0.1.78
 WORKDIR /src
 # rust-toolchain.toml first: `rustup target add` below must apply to the toolchain that builds the code.
 COPY rust-toolchain.toml ./
+RUN set -eu; \
+    case "$(uname -m)" in \
+      x86_64) arch=x86_64 ;; \
+      aarch64) arch=aarch64 ;; \
+      *) echo "unsupported build machine" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/LukeMathWalker/cargo-chef/releases/download/v${CHEF_VERSION}/cargo-chef-${arch}-unknown-linux-musl.tar.xz" \
+      | tar -xJ -C /usr/local/bin --strip-components=1 --wildcards '*/cargo-chef'; \
+    cargo chef --version
 
+# ---- planner: what the dependencies are ------------------------------------------------------------
+# Runs on every source change but only reads the manifests: its two outputs (the recipe and the wasm-bindgen version)
+# are the same for the same dependencies, and the stages below copy exactly these two files, so they keep their cache.
+# apps/agent is not copied: it is Node code that no Rust build needs.
+FROM chef AS planner
+COPY Cargo.toml Cargo.lock ./
+COPY apps/cockpit ./apps/cockpit
+COPY apps/playground ./apps/playground
+COPY apps/server ./apps/server
+COPY crates ./crates
+RUN set -eu; \
+    cargo chef prepare --recipe-path /recipe.json; \
+    awk '/^name = "wasm-bindgen"$/ {getline; gsub(/[^0-9.]/, "", $0); print; exit}' Cargo.lock > /wasm-bindgen-version; \
+    test -s /wasm-bindgen-version
+
+# ---- web: web app (Trunk) ----------------------------------------------------------------------
+# Does not depend on the target platform (WebAssembly), so BuildKit builds this stage once for both platforms.
+FROM chef AS web
+ARG TRUNK_VERSION=0.22.2
 RUN set -eu; \
     case "$(uname -m)" in \
       x86_64) trunk_arch=x86_64 ;; \
@@ -25,32 +56,43 @@ RUN set -eu; \
       | tar -xz -C /usr/local/bin trunk; \
     rustup target add wasm32-unknown-unknown
 
-# wasm-bindgen in exactly the version of Cargo.lock. Trunk would download one, but its binaries may need a newer glibc than the image has.
-COPY Cargo.lock ./
-RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,target=/src/target-tools,sharing=locked \
-    set -eu; \
-    v="$(awk '/^name = "wasm-bindgen"$/ {getline; gsub(/[^0-9.]/, "", $0); print; exit}' Cargo.lock)"; \
-    CARGO_TARGET_DIR=/src/target-tools cargo install wasm-bindgen-cli --version "$v" --locked --root /usr/local
+# wasm-bindgen in exactly the version of Cargo.lock (static musl binary from its release; Trunk would download one itself
+# at every build). Only the version file is copied, so this layer survives any other change to Cargo.lock. If the release
+# has no such binary, it is compiled instead.
+COPY --from=planner /wasm-bindgen-version /wasm-bindgen-version
+RUN set -eu; \
+    v="$(cat /wasm-bindgen-version)"; \
+    case "$(uname -m)" in x86_64) arch=x86_64 ;; aarch64) arch=aarch64 ;; esac; \
+    if curl -fsSL "https://github.com/wasm-bindgen/wasm-bindgen/releases/download/${v}/wasm-bindgen-${v}-${arch}-unknown-linux-musl.tar.gz" \
+        | tar -xz -C /usr/local/bin --strip-components=1 --wildcards '*/wasm-bindgen'; then \
+      :; \
+    else \
+      CARGO_TARGET_DIR=/tmp/target-tools cargo install wasm-bindgen-cli --version "$v" --locked --root /usr/local; \
+      rm -rf /tmp/target-tools /usr/local/cargo/registry; \
+    fi; \
+    wasm-bindgen --version | grep -F "$v"
 
-COPY Cargo.toml ./
-COPY apps ./apps
+ENV CARGO_TARGET_DIR=/src/target-wasm
+# The dependencies, compiled once. Cached until a Cargo.toml or the Cargo.lock changes.
+COPY --from=planner /recipe.json recipe.json
+RUN cargo chef cook --release --locked --target wasm32-unknown-unknown --package cockpit \
+      --recipe-path recipe.json --target-dir "$CARGO_TARGET_DIR"
+
+COPY Cargo.toml Cargo.lock ./
+COPY apps/cockpit ./apps/cockpit
+COPY apps/playground ./apps/playground
+COPY apps/server ./apps/server
 COPY crates ./crates
 
-# Web app -> apps/cockpit/dist
-RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,target=/src/target-wasm,sharing=locked \
-    cd apps/cockpit && CARGO_TARGET_DIR=/src/target-wasm trunk build --release
+# Web app -> apps/cockpit/dist. `touch`: the sources must count as newer than the placeholder build of the cook step above.
+RUN find apps crates -name '*.rs' -exec touch {} + \
+    && cd apps/cockpit && trunk build --release
 
 # ---- server: cross-compiled for $TARGETARCH on the build machine (no emulation) ------------------
-FROM --platform=$BUILDPLATFORM docker.io/library/rust:1-trixie AS server
+FROM chef AS server
 ARG TARGETARCH
-# Per-platform cache id: the amd64 and arm64 builds run in parallel and must not share a target dir.
-ARG TARGETPLATFORM
-WORKDIR /src
-COPY rust-toolchain.toml ./
 
-# Cross compiler only if the target differs from the build machine.
+# Cross compiler only if the target differs from the build machine. /cross-env.sh holds the linker settings for it.
 RUN set -eu; \
     build="$(dpkg --print-architecture)"; \
     case "$TARGETARCH" in \
@@ -59,29 +101,41 @@ RUN set -eu; \
       *) echo "unsupported architecture $TARGETARCH" >&2; exit 1 ;; \
     esac; \
     echo "$triple" > /triple; \
+    : > /cross-env.sh; \
     if [ "$build" != "$TARGETARCH" ]; then \
       apt-get update; \
       apt-get install -y --no-install-recommends "gcc-$gnu" "libc6-dev-$pkg-cross"; \
       rm -rf /var/lib/apt/lists/*; \
+      case "$triple" in \
+        aarch64-*) echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc' > /cross-env.sh ;; \
+        x86_64-*) echo 'export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-linux-gnu-gcc CC_x86_64_unknown_linux_gnu=x86_64-linux-gnu-gcc' > /cross-env.sh ;; \
+      esac; \
     fi; \
     rustup target add "$triple"
 
+# Release (opt-level z + LTO from Cargo.toml), symbols stripped. The same settings for the dependencies and the final build.
+ENV CARGO_TARGET_DIR=/src/target-native \
+    CARGO_PROFILE_RELEASE_STRIP=symbols
+# The dependencies, compiled once per platform. Cached until a Cargo.toml or the Cargo.lock changes.
+COPY --from=planner /recipe.json recipe.json
+RUN set -eu; \
+    . /cross-env.sh; \
+    cargo chef cook --release --locked --target "$(cat /triple)" --package cockpit-server \
+      --recipe-path recipe.json --target-dir "$CARGO_TARGET_DIR"
+
 COPY Cargo.lock Cargo.toml ./
-COPY apps ./apps
+COPY apps/cockpit ./apps/cockpit
+COPY apps/playground ./apps/playground
+COPY apps/server ./apps/server
 COPY crates ./crates
 
-# Release (opt-level z + LTO from Cargo.toml), symbols stripped.
-RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
-    --mount=type=cache,id=target-native-$TARGETPLATFORM,target=/src/target-native,sharing=locked \
-    set -eu; \
+# `touch`: the sources must count as newer than the placeholder build of the cook step above.
+RUN set -eu; \
+    . /cross-env.sh; \
     triple="$(cat /triple)"; \
-    export CARGO_TARGET_DIR=/src/target-native CARGO_PROFILE_RELEASE_STRIP=symbols; \
-    case "$triple" in \
-      aarch64-*) export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc ;; \
-      x86_64-*) [ "$(uname -m)" = x86_64 ] || export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-linux-gnu-gcc CC_x86_64_unknown_linux_gnu=x86_64-linux-gnu-gcc ;; \
-    esac; \
+    find apps crates -name '*.rs' -exec touch {} +; \
     cargo build --release --locked -p cockpit-server --target "$triple"; \
-    cp "/src/target-native/$triple/release/cockpit-server" /cockpit-server
+    cp "$CARGO_TARGET_DIR/$triple/release/cockpit-server" /cockpit-server
 
 # ---- docker CLI (static binary, only used if the host socket is mounted) ------------------
 FROM docker.io/library/docker:29-cli AS dockercli

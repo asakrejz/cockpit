@@ -1,12 +1,16 @@
 name: Container image
 
-# On a pull request that touches the image: builds the image and checks its size, nothing else (no login, push or prune).
+# On a pull request that touches the image itself (Containerfile, container/, this workflow, ...; not every source change):
+# builds the image and checks its size, nothing else (no login, push, prune or cache write).
 # On every push to main: builds the Cockpit image (linux/amd64 and linux/arm64), checks its compressed size,
 # publishes it as ghcr.io/<owner>/cockpit:latest and deletes every other package version, so that the
 # storage of the private repo never grows. Only `latest` exists. How to use it: docs/container.md.
 #
 # Multi-arch without a slow Rust build under emulation: the Containerfile cross-compiles the server on the
 # runner; QEMU is only needed for the small `apt-get install` of the final stage on arm64.
+#
+# Layer cache (GitHub Actions cache): only `main` writes it (`mode=max`: every stage, so the compiled dependencies are in
+# it); pull requests and manual runs on other branches only read it. A PR therefore reuses what `main` built last.
 on:
   push:
     branches: [main]
@@ -14,20 +18,18 @@ on:
     paths:
       - Containerfile
       - .dockerignore
-      - rust-toolchain.toml
-      - Cargo.toml
-      - Cargo.lock
-      - apps/**
-      - crates/**
+      - container/**
       - scripts/image-size.sh
       - .github/workflows/image.yml
+      - rust-toolchain.toml
   workflow_dispatch:
 
 # Two pushes after each other must not prune each other's versions.
 concurrency:
-  # Pull requests get their own group per ref; only publishing runs queue behind each other.
-  group: container-image-${{ github.event_name == 'pull_request' && github.ref || 'publish' }}
-  cancel-in-progress: false
+  # Publishing runs (main) queue behind each other and are never cancelled. Every other ref (a pull request, a manual run
+  # on a branch) has its own group, and a newer commit cancels the run still in progress there.
+  group: container-image-${{ github.ref == 'refs/heads/main' && 'publish' || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -64,7 +66,8 @@ jobs:
           sbom: false
           outputs: type=oci,dest=${{ runner.temp }}/image.tar
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Only main writes the cache (empty = not at all).
+          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max' || '' }}
       - name: Check size (limit ${{ env.SIZE_LIMIT_MB }} MB compressed)
         run: LIMIT_MB="$SIZE_LIMIT_MB" scripts/image-size.sh "$RUNNER_TEMP/image.tar"
 
@@ -75,7 +78,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 2. Push: the layers come from the cache of step 1. No provenance/SBOM, so there are no extra
+      # 2. Push: every layer comes from step 1 (the same builder still holds them, `cache-from` is the fallback), so this
+      #    step only uploads. It does not write the cache again. No provenance/SBOM, so there are no extra
       #    attestation manifests that would show up as additional package versions.
       - name: Push latest
         id: push
@@ -93,7 +97,6 @@ jobs:
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       # 3. Delete everything except the version just pushed (see scripts/prune-image-versions.sh).
       - name: Prune old versions

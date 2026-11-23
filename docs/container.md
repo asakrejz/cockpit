@@ -209,3 +209,7 @@ Webhooks (a tunnel into Cockpit) need the native start as well: the webhook rout
 docker build -f Containerfile -t cockpit:local .
 docker run --rm -p 127.0.0.1:8787:8787 -v cockpit-config:/app/config cockpit:local
 ```
+
+The first build compiles all Rust dependencies (several minutes). They are a layer of their own that only changes with
+`Cargo.toml` or `Cargo.lock`, so after a change to the source a rebuild compiles just the workspace crates. The same
+layers are what the image workflow caches.

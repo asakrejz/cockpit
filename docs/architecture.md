@@ -560,6 +560,23 @@ cargo test --workspace
 The agent runner tests need Node ≥ 26.13.1 (the current LTS). Tests that start real containers are `#[ignore]`d:
 `COCKPIT_CONTAINER=docker cargo test -- --ignored` (or `podman`).
 
+**CI** ([`ci.yml`](../.github/workflows/ci.yml), [`image.yml`](../.github/workflows/image.yml)). Actions minutes are
+limited, so every run is meant to be needed:
+
+- `ci.yml` runs once per commit: on `pull_request` for a PR, on `push` only for `main` (and by hand). A newer commit on
+  the same PR cancels the run still in progress; `main` is never cancelled.
+- The `check` job builds Trunk as a dev build, not a release build: the same code is compiled, so it fails on the same
+  errors. The release build (opt-level `z`, LTO, wasm-opt) is made once, by the image workflow on `main`.
+- The Rust cache (`Swatinem/rust-cache`) is saved only by `main`; a PR restores it and never adds entries. The same
+  goes for the image's layer cache. `[profile.dev]` keeps only line tables (`debug = "line-tables-only"`, none for
+  dependencies): panics and backtraces still show `file:line`, `target/` and the cache stay small.
+- `image.yml` builds the image on every push to `main` (and publishes it), but on a PR only when the image itself changes:
+  `Containerfile`, `.dockerignore`, `container/`, `scripts/image-size.sh`, `rust-toolchain.toml` or the workflow. A
+  change to Rust sources or dependencies does not start it. If a PR adds a native dependency or touches the cross-compile
+  setup, run it by hand on the branch (Actions › Container image › Run workflow; it builds and checks the size, and
+  publishes nothing off `main`). In the `Containerfile`, the compiled dependencies are their own layer (cargo-chef), so
+  on `main` a source change rebuilds only the workspace crates.
+
 **UI work.** The playground: `(cd apps/playground && trunk serve --open)` (port 8080). The app against a server:
 `apps/cockpit/Trunk.toml` forwards `/api` to `http://127.0.0.1:8787`. Server and dev server together:
 
