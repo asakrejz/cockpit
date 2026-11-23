@@ -1,6 +1,7 @@
-// Texts that the runner writes for people (step titles, errors, the commit message). The backend
-// passes the language of the interface in the job (`language`) and the language of the pull request
-// text (`pr_language`); the runner works for one job per process, so the language is set once.
+// Texts that the runner writes for people (step titles, errors, deny messages, the result line of a
+// review, the commit message). The backend passes the language of the interface in the job (`language`)
+// and the language of the pull request text (`pr_language`); the runner works for one job per process,
+// so the language is set once. The prompts for the model are not here: they are English (job.ts).
 
 export type Lang = "de" | "en";
 
@@ -69,11 +70,47 @@ const TEXTS = {
     en: "{tool} broke the rules, nothing is kept: {list}",
   },
   result_done: { de: "{key} umgesetzt.", en: "{key} done." },
-  answer_language: { de: "Antworte auf Deutsch.", en: "Answer in English." },
+  review_nothing: { de: "Nichts zu beanstanden.", en: "Nothing to flag." },
+  review_drafted_one: { de: "1 Kommentar als Entwurf vorbereitet.", en: "1 comment prepared as a draft." },
+  review_drafted_many: { de: "{n} Kommentare als Entwurf vorbereitet.", en: "{n} comments prepared as drafts." },
+  // The prompts are English; only these two sentences name the language the model writes in
+  // (so both entries are English text, whatever the job language is).
+  answer_language: { de: "Write your answer in German.", en: "Write your answer in English." },
   review_language: {
-    de: "Schreibe die Zusammenfassung und alle Review-Kommentare auf Deutsch, der Sprache des Pull Requests.",
+    de: "Write the summary and all review comments in German, the language of the pull request.",
     en: "Write the summary and all review comments in English, the language of the pull request.",
   },
+  deny_outside: { de: "„{path}“ liegt außerhalb von {root}.", en: "“{path}” is outside {root}." },
+  deny_no_repo: {
+    de: "„{path}“ liegt in keinem der Repos dieses Auftrags.",
+    en: "“{path}” is in none of the repos of this job.",
+  },
+  deny_git_dir: {
+    de: "„{path}“: Das .git-Verzeichnis darf nicht verändert werden.",
+    en: "“{path}”: The .git directory must not be changed.",
+  },
+  deny_forbidden: { de: "„{path}“ ist laut Regel „{rule}“ verboten.", en: "“{path}” is forbidden by the rule “{rule}”." },
+  deny_not_allowed: {
+    de: "„{path}“ liegt außerhalb der erlaubten Pfade ({allowed}).",
+    en: "“{path}” is outside the allowed paths ({allowed}).",
+  },
+  deny_tool: {
+    de: "Das Werkzeug „{tool}“ ist im Cockpit nicht freigegeben.",
+    en: "The tool “{tool}” is not enabled in Cockpit.",
+  },
+  deny_command_git: {
+    de: "Git-Befehle, die ins Netz gehen oder den Verlauf umschreiben, sind nicht erlaubt.",
+    en: "Git commands that use the network or rewrite history are not allowed.",
+  },
+  deny_command_main: { de: "Auf den Hauptbranch wechselt der Agent nie.", en: "The agent never switches to the main branch." },
+  deny_command_network: { de: "Netzwerkzugriffe sind nicht erlaubt.", en: "Network access is not allowed." },
+  deny_command_rights: { de: "Rechte ändert der Agent nicht.", en: "The agent does not change permissions." },
+  deny_command_rm: {
+    de: "Aufräumen außerhalb von /work ist nicht erlaubt.",
+    en: "Cleaning up outside /work is not allowed.",
+  },
+  deny_command_git_dir: { de: "Das .git-Verzeichnis fasst der Agent nicht an.", en: "The agent does not touch the .git directory." },
+  deny_command_secrets: { de: "Zugangsdaten liest der Agent nicht aus.", en: "The agent does not read credentials." },
   commit_followup_comments: { de: "Review-Kommentare umsetzen (#{pr})", en: "Address review comments (#{pr})" },
   commit_followup_checks: { de: "Rote Checks beheben (#{pr})", en: "Fix failing checks (#{pr})" },
   commit_footer: { de: "Umgesetzt vom Cockpit-Agenten.", en: "Implemented by the Cockpit agent." },
@@ -81,7 +118,7 @@ const TEXTS = {
 
 export type TextId = keyof typeof TEXTS;
 
-let current: Lang = "de";
+let current: Lang = "en";
 
 /** Sets the language of the user-facing texts for this process. */
 export function setLanguage(lang: Lang): void {

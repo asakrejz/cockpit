@@ -36,7 +36,7 @@ test("implement: steps with usage, files, commit and result", async () => {
   assert.equal(code, 0);
   const t = s.e.map((e) => e.t);
   assert.deepEqual(t, ["step", "step", "files", "files", "result"]);
-  assert.deepEqual(s.e[0], { t: "step", title: "Datei lesen", text: "/work/src/ring.rs", tokens_in: 100, tokens_out: 20, ms: 1000 });
+  assert.deepEqual(s.e[0], { t: "step", title: "Read file", text: "/work/src/ring.rs", tokens_in: 100, tokens_out: 20, ms: 1000 });
   assert.deepEqual((s.e[2] as any).files, ["src/ring.rs"]);
   const erg = s.e[4] as any;
   assert.equal(erg.branch, "claude/BAU-142-fokus-ring");
@@ -112,14 +112,14 @@ test("an exception of the SDK becomes an error in plain text", async () => {
   sdk.query = () => (async function* () { throw new Error("Verbindung abgewiesen"); })() as never;
   const s = collector();
   assert.equal(await run(job(), deps(sdk, s)), 1);
-  assert.match((s.e.at(-1) as any).text, /Das SDK meldet: Verbindung abgewiesen/);
+  assert.match((s.e.at(-1) as any).text, /The SDK reports: Verbindung abgewiesen/);
 });
 
 test("without a change no result", async () => {
   const sdk = sdkFake([resultOk("nichts zu tun")]);
   const s = collector();
   assert.equal(await run(job(), deps(sdk, s, gitFake({ status: "" }))), 1);
-  assert.match((s.e.at(-1) as any).text, /nichts geändert/);
+  assert.match((s.e.at(-1) as any).text, /changed nothing/);
 });
 
 test("wrong branch in the clone: error instead of commit", async () => {
@@ -127,7 +127,7 @@ test("wrong branch in the clone: error instead of commit", async () => {
   const s = collector();
   const g = gitFake({ branch: "main", status: " M a\0" });
   assert.equal(await run(job(), deps(sdk, s, g)), 1);
-  assert.match((s.e.at(-1) as any).text, /steht auf „main“/);
+  assert.match((s.e.at(-1) as any).text, /is on “main”/);
   assert.ok(!g.calls.some((a) => a.includes("commit")));
 });
 
@@ -160,14 +160,14 @@ test("time limit in the container aborts and says so", async () => {
   const s = collector();
   const code = await run(job({ max_seconds: 1 }), deps(sdk, s));
   assert.equal(code, 1);
-  assert.match((s.e.at(-1) as any).text, /Zeitlimit/);
+  assert.match((s.e.at(-1) as any).text, /time limit/);
 });
 
 test("without a model nothing starts", async () => {
   const s = collector();
   const d = deps(sdkFake([]), s);
   assert.equal(await run(job(), { ...d, env: {} }), 1);
-  assert.match((s.e[0] as any).text, /kein Modell/);
+  assert.match((s.e[0] as any).text, /No model is set/);
 });
 
 test("follow-up: same branch, the input is in the prompt, the commit names the task, no push, no GitHub token anywhere", async () => {

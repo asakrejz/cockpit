@@ -14,7 +14,7 @@ test("without a value the Claude Agent SDK applies", () => {
 test("all three tools have an adapter, unknown names give a plain error", () => {
   assert.equal(chooseAdapter("claude-code").name, "claude-code");
   assert.equal(chooseAdapter("codex").name, "codex");
-  assert.throws(() => chooseAdapter("gpt"), (e: Error) => e.message.includes("unbekannt") && e.message.includes("codex"));
+  assert.throws(() => chooseAdapter("gpt"), (e: Error) => e.message.includes("unknown") && e.message.includes("codex"));
 });
 
 test("an SDK that cannot be loaded gives an error event and exit code 2", async () => {

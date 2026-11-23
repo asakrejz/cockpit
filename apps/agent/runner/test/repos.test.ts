@@ -53,23 +53,23 @@ test("the job reads all repos and checks their folders and branches", () => {
   assert.equal(j.repos[1].pr_language, "de");
   // A single entry is no job in several repos.
   assert.deepEqual(job({ repos: [repos[0]] }).repos, []);
-  assert.throws(() => job({ repos: [repos[0], { ...repos[1], dir: "../etc" }] }), /passt nicht/);
-  assert.throws(() => job({ repos: [repos[0], { ...repos[1], branch: "main" }] }), /kein erlaubter Branch/);
-  assert.throws(() => job({ repos: [repos[0], { ...repos[0] }] }), /doppelt/);
-  assert.throws(() => job({ repos: [repos[0], { ...repos[1], repo: "evil" }] }), /ungültig/);
-  assert.throws(() => checkJob({ mode: "implement", ticket: { key: "B-1", title: "t" }, branch: "claude/B-1", repos: Array(11).fill(repos[0]) }), /höchstens/);
+  assert.throws(() => job({ repos: [repos[0], { ...repos[1], dir: "../etc" }] }), /does not match/);
+  assert.throws(() => job({ repos: [repos[0], { ...repos[1], branch: "main" }] }), /not an allowed branch/);
+  assert.throws(() => job({ repos: [repos[0], { ...repos[0] }] }), /appears twice/);
+  assert.throws(() => job({ repos: [repos[0], { ...repos[1], repo: "evil" }] }), /is invalid/);
+  assert.throws(() => checkJob({ mode: "implement", ticket: { key: "B-1", title: "t" }, branch: "claude/B-1", repos: Array(11).fill(repos[0]) }), /at most/);
 });
 
 test("the instructions name every repo with its folder, branch and rules", () => {
   const text = systemText(two());
-  for (const part of ["/work/acme__app", "/work/acme__web", "feature/BAU-142", "Basis-Branch develop", "pro Repository"]) {
+  for (const part of ["/work/acme__app", "/work/acme__web", "feature/BAU-142", "base branch develop", "for each repository"]) {
     assert.ok(text.includes(part), part);
   }
-  assert.match(text, /Im Repository acme\/app \(\/work\/acme__app\): Diese Pfade darfst du nie ändern: secrets\//);
-  assert.match(text, /Im Repository acme\/web .*Du darfst nur diese Pfade ändern: src\//);
+  assert.match(text, /In the repository acme\/app \(\/work\/acme__app\): You must never change these paths: secrets\//);
+  assert.match(text, /In the repository acme\/web .*You may only change these paths: src\//);
   assert.match(text, /Keine neuen Abhängigkeiten/);
   assert.match(text, /\/work\/acme__app\/CONTRIBUTING.md/);
-  assert.ok(!text.includes("im Verzeichnis /work an einem geklonten"));
+  assert.ok(!text.includes("in the directory /work on a cloned"));
 });
 
 test("the policy applies the rules of the repo a path lies in", () => {
@@ -84,9 +84,9 @@ test("the policy applies the rules of the repo a path lies in", () => {
   assert.equal(decide(p, "Write", { file_path: "/work/other/x" }).behavior, "deny");
   assert.equal(decide(p, "Write", { file_path: "/work/acme__app" }).behavior, "deny");
   assert.equal(decide(p, "Write", { file_path: "/work/acme__app/.git/config" }).behavior, "deny");
-  assert.match(pathViolation(p, "acme__web/docs/a.md") ?? "", /außerhalb der erlaubten Pfade/);
+  assert.match(pathViolation(p, "acme__web/docs/a.md") ?? "", /outside the allowed paths/);
   assert.equal(pathViolation(p, "acme__web/src/a.md"), null);
-  assert.match(pathViolation(p, "nope/a.md") ?? "", /keinem der Repos/);
+  assert.match(pathViolation(p, "nope/a.md") ?? "", /none of the repos/);
 });
 
 test("a repo without changes gets no commit; the result names the changed one", async () => {

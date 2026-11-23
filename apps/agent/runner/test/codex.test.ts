@@ -27,10 +27,10 @@ test("success: messages, commands, file changes and usage become events", async 
   const { s, d } = adapterEnv(bin.dir, root, ENV);
   assert.equal(await codex().run(job(), d), 0);
   assert.deepEqual(s.e.map((e) => e.t), ["step", "step", "files", "step", "files", "result"]);
-  assert.equal((s.e[0] as any).title, "Befehl ausführen");
+  assert.equal((s.e[0] as any).title, "Run command");
   assert.equal((s.e[0] as any).text, "ls src");
   assert.deepEqual((s.e[2] as any).files, ["src/b.txt"]);
-  assert.deepEqual([(s.e[3] as any).title, (s.e[3] as any).tokens_in, (s.e[3] as any).tokens_out], ["Überlegt", 500, 40]);
+  assert.deepEqual([(s.e[3] as any).title, (s.e[3] as any).tokens_in, (s.e[3] as any).tokens_out], ["Thinking", 500, 40]);
   assert.match((s.e[5] as any).commit, /^[0-9a-f]{40}$/);
   assert.equal(commits(root), 2);
   assert.ok(!JSON.stringify(s.e).includes(TOKEN));
@@ -55,7 +55,7 @@ test("the call: sandbox without network, never asks, key only in the environment
   assert.equal(seen.args[seen.args.indexOf("-m") + 1], "gpt-test");
   assert.equal(seen.args.at(-1), "-");
   assert.match(seen.stdin, /BAU-142/);
-  assert.match(seen.stdin, /pushst nicht/);
+  assert.match(seen.stdin, /do not push/);
   assert.match(seen.stdin, /firma\/web/);
   assert.equal(seen.env.OPENAI_API_KEY, TOKEN);
   assert.match(seen.env.CODEX_HOME, /cockpit-codex-/);
@@ -102,7 +102,7 @@ test("broken line and cut-off output", async () => {
   bin.install("codex", { write: { "src/b.txt": "b" }, lines: ["nicht json", item({ type: "agent_message", text: "halb" }), '{"type":"turn.comp'] });
   const { s, d } = adapterEnv(bin.dir, root, ENV);
   assert.equal(await codex().run(job(), d), 1);
-  assert.match((s.e.at(-1) as any).text, /ohne Ergebnis.*2 unlesbare Zeilen/);
+  assert.match((s.e.at(-1) as any).text, /without a result.*2 unreadable lines/);
 });
 
 test("abort by the time limit", async () => {
@@ -110,7 +110,7 @@ test("abort by the time limit", async () => {
   bin.install("codex", { sleep: 10_000, lines: [done] });
   const { s, d } = adapterEnv(bin.dir, repo(), ENV);
   assert.equal(await codex().run(job({ max_seconds: 1 }), d), 1);
-  assert.match((s.e.at(-1) as any).text, /Zeitlimit/);
+  assert.match((s.e.at(-1) as any).text, /time limit/);
 });
 
 test("files against the rules are rejected after the run (Codex cannot enforce them itself)", async () => {
@@ -123,7 +123,7 @@ test("files against the rules are rejected after the run (Codex cannot enforce t
   const { s, d } = adapterEnv(bin.dir, root, ENV);
   assert.equal(await codex().run(job({ rules: { forbidden_paths: [".github/"] } }), d), 1);
   const e = s.e.at(-1) as any;
-  assert.match(e.text, /verstoßen/);
+  assert.match(e.text, /broke the rules/);
   assert.match(e.text, /\.github\/workflows\/x\.yml/);
   assert.equal(commits(root), 1);
   assert.ok(!s.e.some((x) => x.t === "result"));
@@ -140,11 +140,11 @@ test("base address and environment helpers", () => {
 test("missing program, model and key", async () => {
   const a = adapterEnv("/nicht/da", repo(), ENV);
   assert.equal(await codex().run(job(), a.d), 2);
-  assert.match((a.s.e[0] as any).text, /Codex ist im Image nicht vorhanden/);
+  assert.match((a.s.e[0] as any).text, /Codex is not in the image/);
   const b = adapterEnv("/nicht/da", repo(), { OPENAI_API_KEY: TOKEN });
   await codex().run(job(), b.d);
-  assert.match((b.s.e[0] as any).text, /COCKPIT_MODEL fehlt/);
+  assert.match((b.s.e[0] as any).text, /COCKPIT_MODEL is missing/);
   const c = adapterEnv("/nicht/da", repo(), { COCKPIT_MODEL: "m" });
   await codex().run(job(), c.d);
-  assert.match((c.s.e[0] as any).text, /OPENAI_API_KEY fehlt/);
+  assert.match((c.s.e[0] as any).text, /OPENAI_API_KEY is missing/);
 });
