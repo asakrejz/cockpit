@@ -258,7 +258,9 @@ routes.
 
 **What goes outward.** In server mode these actions go to the service first; **only when it confirms is the action
 applied locally**. If the call fails, a message (status 502) comes back and nothing changes. The rules of the
-workspace (also "only you may merge", "review only after deciding on every suggestion") apply before every call.
+workspace (also "review only after deciding on every suggestion") apply before every call. Every action that can become
+a call needs `Actor::User`, merging included: `Action::required_actor` names the one actor an action needs, and
+`Workspace::apply` refuses the agent and the system before anything else happens.
 
 | Action | Call |
 |--------|------|

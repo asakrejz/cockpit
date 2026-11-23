@@ -7,7 +7,9 @@
 //!   Multi-step things (Jira transition, branch, re-run check) live in the clients; the
 //!   pure parts of them (selection, bodies) live here.
 //!
-//! The rule „only you may merge“ is checked by `Workspace::apply` and runs **before** the call.
+//! Only an action that requires `Actor::User` (`Action::required_actor`) can become a call here.
+//! `Workspace::apply` checks that and the other rules (e.g. „only you may merge“) **before** the call;
+//! the test `only_actions_that_require_the_user_become_calls` walks through every action.
 
 use cockpit_core::{
     Action, Decision, DiffSide, LineKind, MergeMethod, PrKey, Review, TicketStatus, Verdict,
