@@ -145,7 +145,7 @@ migrating. Stop a still running server of the old version before the first start
 
 **Safety net for `config/`:** at start and in `/api/health` (`config_files`, shown in the last assistant step) the
 server warns when Git tracks a file in `config/` other than the example, when one is not ignored, or when permissions
-are looser than `700`/`600` (at start they are tightened). CI (`scripts/check-tracked-files.sh`, job `no-env-files`)
+are looser than `700`/`600` (at start they are tightened). CI (`scripts/check-tracked-files.sh`, first step of the `check` job)
 fails when anything but `config/config.example.toml` is tracked there. The folder never enters the agent image: the
 build context is `apps/agent`, and its `.dockerignore` excludes `config` as well. The release archive contains only
 `config/config.example.toml`.

@@ -2,7 +2,7 @@
 # Fails if Git tracks a file that holds credentials or local configuration:
 #   * any `.env` file
 #   * anything under `config/` except `config/config.example.toml`
-# Used by the CI job `no-env-files`; run it in a repo (or pass the repo folder) to check locally.
+# Used by the CI job `check` (its first step); run it in a repo (or pass the repo folder) to check locally.
 set -euo pipefail
 
 cd "${1:-.}"

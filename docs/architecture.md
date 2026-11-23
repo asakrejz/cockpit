@@ -565,6 +565,8 @@ limited, so every run is meant to be needed:
 
 - `ci.yml` runs once per commit: on `pull_request` for a PR, on `push` only for `main` (and by hand). A newer commit on
   the same PR cancels the run still in progress; `main` is never cancelled.
+- Everything is one job, `check` (the tracked-files check first, the agent runner tests last), because Actions bills
+  each job rounded up to a full minute: a 10-second job costs as much as a 60-second one.
 - The `check` job builds Trunk as a dev build, not a release build: the same code is compiled, so it fails on the same
   errors. The release build (opt-level `z`, LTO, wasm-opt) is made once, by the image workflow on `main`. It also runs
   the static BuildKit checks of the `Containerfile` (`docker buildx build --check -f Containerfile .`, builds nothing and
