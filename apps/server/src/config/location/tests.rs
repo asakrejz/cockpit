@@ -13,37 +13,6 @@ fn s(p: &Path) -> String {
     p.display().to_string()
 }
 
-/// Rebuilds the old structure below a temporary `HOME` (macOS layout).
-fn old_macos(home: &Path) -> PathBuf {
-    let d = home.join("Library/Application Support/cockpit");
-    std::fs::create_dir_all(&d).unwrap();
-    std::fs::write(d.join("config.toml"), "port = 9001\n").unwrap();
-    d
-}
-
-fn make_db(path: &Path, wal: bool) -> rusqlite::Connection {
-    let conn = rusqlite::Connection::open(path).unwrap();
-    if wal {
-        let _: String = conn
-            .query_row("PRAGMA journal_mode=WAL", [], |r| r.get(0))
-            .unwrap();
-        conn.execute("PRAGMA wal_autocheckpoint=0", []).ok();
-    }
-    conn.execute("CREATE TABLE t (v TEXT)", []).unwrap();
-    conn.execute("INSERT INTO t VALUES ('old row')", [])
-        .unwrap();
-    conn
-}
-
-fn rows(path: &Path) -> Vec<String> {
-    let conn = rusqlite::Connection::open(path).unwrap();
-    let mut st = conn.prepare("SELECT v FROM t").unwrap();
-    st.query_map([], |r| r.get(0))
-        .unwrap()
-        .map(Result::unwrap)
-        .collect()
-}
-
 #[cfg(unix)]
 fn mode(p: &Path) -> u32 {
     use std::os::unix::fs::PermissionsExt;
@@ -72,59 +41,12 @@ fn project_dir_is_the_working_directory_like_the_env_file() {
     assert_eq!(env_default.path().parent(), Some(p.as_path()));
 }
 
-#[test]
-fn legacy_places_follow_home_and_xdg() {
-    let env = env_of(&[("HOME", "/h".into())]);
-    let mac = legacy_locations(&env, true).unwrap();
-    assert_eq!(
-        mac.config,
-        Path::new("/h/Library/Application Support/cockpit/config.toml")
-    );
-    assert_eq!(
-        mac.db,
-        Path::new("/h/Library/Application Support/cockpit/cockpit.db")
-    );
-    let lin = legacy_locations(&env, false).unwrap();
-    assert_eq!(lin.config, Path::new("/h/.config/cockpit/config.toml"));
-    assert_eq!(lin.db, Path::new("/h/.local/share/cockpit/cockpit.db"));
-    let env = env_of(&[
-        ("HOME", "/h".into()),
-        ("XDG_CONFIG_HOME", "/x/c".into()),
-        ("XDG_DATA_HOME", "/x/d".into()),
-    ]);
-    let lin = legacy_locations(&env, false).unwrap();
-    assert_eq!(lin.config, Path::new("/x/c/cockpit/config.toml"));
-    assert_eq!(lin.db, Path::new("/x/d/cockpit/cockpit.db"));
-    // A relative XDG value is ignored (as the specification says).
-    let env = env_of(&[("HOME", "/h".into()), ("XDG_CONFIG_HOME", "rel".into())]);
-    assert_eq!(
-        legacy_locations(&env, false).unwrap().config,
-        Path::new("/h/.config/cockpit/config.toml")
-    );
-}
-
-#[test]
-fn legacy_candidates_are_empty_with_an_override() {
-    let home = tempfile::tempdir().unwrap();
-    let h = s(home.path());
-    assert_eq!(
-        legacy_candidates(&env_of(&[("HOME", h.clone())]), true).len(),
-        2
-    );
-    let with = env_of(&[("HOME", h.clone()), ("COCKPIT_DB", "/x.db".into())]);
-    assert!(legacy_candidates(&with, true).is_empty());
-    let with = env_of(&[("HOME", h), ("COCKPIT_CONFIG", "/x.toml".into())]);
-    assert!(legacy_candidates(&with, true).is_empty());
-}
-
 #[cfg(unix)]
 #[test]
 fn first_start_creates_the_folder_and_an_empty_config_with_tight_modes() {
-    let home = tempfile::tempdir().unwrap();
     let project = tempfile::tempdir().unwrap();
-    let env = env_of(&[("HOME", s(home.path()))]);
-    let notes = prepare(project.path(), &env, true).unwrap();
-    assert!(notes.is_empty());
+    let env = env_of(&[]);
+    prepare(project.path(), &env).unwrap();
     let dir = project.path().join("config");
     assert_eq!(mode(&dir), 0o700);
     let file = dir.join("config.toml");
@@ -132,7 +54,7 @@ fn first_start_creates_the_folder_and_an_empty_config_with_tight_modes() {
     assert_eq!(mode(&file), 0o600);
     // A second start leaves everything as it is.
     std::fs::write(&file, "port = 1234\n").unwrap();
-    assert!(prepare(project.path(), &env, true).unwrap().is_empty());
+    prepare(project.path(), &env).unwrap();
     assert_eq!(std::fs::read_to_string(&file).unwrap(), "port = 1234\n");
 }
 
@@ -143,35 +65,24 @@ fn both_overrides_create_nothing() {
         ("COCKPIT_CONFIG", "/somewhere/c.toml".into()),
         ("COCKPIT_DB", "/somewhere/c.db".into()),
     ]);
-    assert!(prepare(project.path(), &env, true).unwrap().is_empty());
+    prepare(project.path(), &env).unwrap();
     assert!(!project.path().join("config").exists());
 }
 
 #[test]
-fn an_explicit_config_path_is_never_created_or_migrated() {
-    let home = tempfile::tempdir().unwrap();
-    old_macos(home.path());
+fn an_explicit_config_path_is_never_created() {
     let project = tempfile::tempdir().unwrap();
-    let env = env_of(&[
-        ("HOME", s(home.path())),
-        ("COCKPIT_CONFIG", s(&project.path().join("mine.toml"))),
-    ]);
-    assert!(prepare(project.path(), &env, true).unwrap().is_empty());
+    let env = env_of(&[("COCKPIT_CONFIG", s(&project.path().join("mine.toml")))]);
+    prepare(project.path(), &env).unwrap();
     assert!(!project.path().join("mine.toml").exists());
     assert!(!project.path().join("config/config.toml").exists());
 }
 
 #[test]
-fn an_explicit_db_path_stops_the_migration_of_both_files() {
-    let home = tempfile::tempdir().unwrap();
-    let old = old_macos(home.path());
-    make_db(&old.join("cockpit.db"), false);
+fn an_explicit_db_path_still_gets_the_folder_and_an_empty_config() {
     let project = tempfile::tempdir().unwrap();
-    let env = env_of(&[
-        ("HOME", s(home.path())),
-        ("COCKPIT_DB", s(&project.path().join("x.db"))),
-    ]);
-    prepare(project.path(), &env, true).unwrap();
+    let env = env_of(&[("COCKPIT_DB", s(&project.path().join("x.db")))]);
+    prepare(project.path(), &env).unwrap();
     assert_eq!(
         std::fs::read_to_string(project.path().join("config/config.toml")).unwrap(),
         ""
@@ -179,113 +90,11 @@ fn an_explicit_db_path_stops_the_migration_of_both_files() {
     assert!(!project.path().join("config/cockpit.db").exists());
 }
 
-#[cfg(unix)]
 #[test]
-fn migration_copies_config_and_database_and_deletes_nothing() {
-    let home = tempfile::tempdir().unwrap();
-    let old = old_macos(home.path());
-    drop(make_db(&old.join("cockpit.db"), false));
+fn only_the_empty_config_is_created_never_a_database() {
     let project = tempfile::tempdir().unwrap();
-    let env = env_of(&[("HOME", s(home.path()))]);
-
-    let notes = prepare(project.path(), &env, true).unwrap();
-    assert_eq!(notes.len(), 2);
-    assert!(notes[0].starts_with("Copied config from "));
-    assert!(notes[0].contains("left in place and can be deleted"));
-    assert!(notes[1].starts_with("Copied database from "));
-
-    let new = project.path().join("config");
-    assert_eq!(
-        std::fs::read_to_string(new.join("config.toml")).unwrap(),
-        "port = 9001\n"
-    );
-    assert_eq!(rows(&new.join("cockpit.db")), ["old row"]);
-    assert_eq!(mode(&new.join("config.toml")), 0o600);
-    assert_eq!(mode(&new.join("cockpit.db")), 0o600);
-    assert!(!new.join("cockpit.db.migrating").exists());
-    // The old files stay.
-    assert!(old.join("config.toml").is_file());
-    assert!(old.join("cockpit.db").is_file());
-
-    // Next start: nothing more is copied, even if the old file changes.
-    std::fs::write(old.join("config.toml"), "port = 1\n").unwrap();
-    assert!(prepare(project.path(), &env, true).unwrap().is_empty());
-    assert_eq!(
-        std::fs::read_to_string(new.join("config.toml")).unwrap(),
-        "port = 9001\n"
-    );
-}
-
-#[test]
-fn migration_never_overwrites_an_existing_target() {
-    let home = tempfile::tempdir().unwrap();
-    let old = old_macos(home.path());
-    drop(make_db(&old.join("cockpit.db"), false));
-    let project = tempfile::tempdir().unwrap();
-    let new = project.path().join("config");
-    std::fs::create_dir_all(&new).unwrap();
-    std::fs::write(new.join("config.toml"), "port = 7\n").unwrap();
-    drop(make_db(&new.join("cockpit.db"), false));
-    rusqlite::Connection::open(new.join("cockpit.db"))
-        .unwrap()
-        .execute("INSERT INTO t VALUES ('new row')", [])
-        .unwrap();
-    let env = env_of(&[("HOME", s(home.path()))]);
-    assert!(prepare(project.path(), &env, true).unwrap().is_empty());
-    assert_eq!(
-        std::fs::read_to_string(new.join("config.toml")).unwrap(),
-        "port = 7\n"
-    );
-    assert_eq!(rows(&new.join("cockpit.db")), ["old row", "new row"]);
-}
-
-#[test]
-fn migration_takes_committed_data_from_a_wal_file_and_leaves_old_files_alone() {
-    let home = tempfile::tempdir().unwrap();
-    let old = old_macos(home.path());
-    // The connection stays open: the row only lives in `cockpit.db-wal`.
-    let _open = make_db(&old.join("cockpit.db"), true);
-    let wal = old.join("cockpit.db-wal");
-    assert!(wal.is_file(), "test setup: no -wal file");
-    let wal_before = std::fs::metadata(&wal).unwrap().len();
-    let project = tempfile::tempdir().unwrap();
-    let env = env_of(&[("HOME", s(home.path()))]);
-    let notes = prepare(project.path(), &env, true).unwrap();
-    assert_eq!(notes.len(), 2);
-    assert_eq!(rows(&project.path().join("config/cockpit.db")), ["old row"]);
-    assert!(wal.is_file());
-    assert_eq!(std::fs::metadata(&wal).unwrap().len(), wal_before);
-}
-
-#[test]
-fn migration_works_with_the_linux_layout() {
-    let home = tempfile::tempdir().unwrap();
-    let cfg = home.path().join("xdg-config/cockpit");
-    let data = home.path().join("xdg-data/cockpit");
-    std::fs::create_dir_all(&cfg).unwrap();
-    std::fs::create_dir_all(&data).unwrap();
-    std::fs::write(cfg.join("config.toml"), "port = 9002\n").unwrap();
-    drop(make_db(&data.join("cockpit.db"), false));
-    let project = tempfile::tempdir().unwrap();
-    let env = env_of(&[
-        ("HOME", s(home.path())),
-        ("XDG_CONFIG_HOME", s(&home.path().join("xdg-config"))),
-        ("XDG_DATA_HOME", s(&home.path().join("xdg-data"))),
-    ]);
-    assert_eq!(prepare(project.path(), &env, false).unwrap().len(), 2);
-    assert_eq!(
-        std::fs::read_to_string(project.path().join("config/config.toml")).unwrap(),
-        "port = 9002\n"
-    );
-    assert_eq!(rows(&project.path().join("config/cockpit.db")), ["old row"]);
-}
-
-#[test]
-fn without_old_files_only_the_empty_config_is_created() {
-    let home = tempfile::tempdir().unwrap();
-    let project = tempfile::tempdir().unwrap();
-    let env = env_of(&[("HOME", s(home.path()))]);
-    prepare(project.path(), &env, true).unwrap();
+    prepare(project.path(), &env_of(&[])).unwrap();
+    assert!(project.path().join("config/config.toml").is_file());
     assert!(!project.path().join("config/cockpit.db").exists());
 }
 
@@ -422,72 +231,4 @@ fn ci_script_fails_for_tracked_config_files_only() {
     std::fs::write(dir.path().join(".env"), "A=1\n").unwrap();
     assert!(git(dir.path(), &["add", "-f", ".env"]));
     assert!(!run(dir.path()).status.success());
-}
-
-#[cfg(unix)]
-fn mode_of(p: &Path) -> u32 {
-    use std::os::unix::fs::PermissionsExt;
-    std::fs::metadata(p).unwrap().permissions().mode() & 0o777
-}
-
-#[test]
-fn old_env_file_moves_into_config_and_keeps_mode_600() {
-    let project = tempfile::tempdir().unwrap();
-    let old = project.path().join(".env");
-    std::fs::write(&old, "JIRA_TOKEN=dummy-token\n").unwrap();
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&old, std::fs::Permissions::from_mode(0o600)).unwrap();
-    }
-    let note = migrate_env(project.path(), &env_of(&[])).unwrap();
-    assert!(note.unwrap().starts_with("Moved the secrets file"));
-    let new = project.path().join("config/.env");
-    assert!(!old.exists());
-    assert_eq!(
-        std::fs::read_to_string(&new).unwrap(),
-        "JIRA_TOKEN=dummy-token\n"
-    );
-    #[cfg(unix)]
-    assert_eq!(mode_of(&new), 0o600);
-    // Nothing left to do the second time.
-    assert!(migrate_env(project.path(), &env_of(&[])).unwrap().is_none());
-    assert!(legacy_env_candidate(project.path(), &env_of(&[])).is_none());
-}
-
-#[test]
-fn both_env_files_are_left_alone_and_the_old_one_is_reported() {
-    let project = tempfile::tempdir().unwrap();
-    std::fs::create_dir(project.path().join("config")).unwrap();
-    let (old, new) = (
-        project.path().join(".env"),
-        project.path().join("config/.env"),
-    );
-    std::fs::write(&old, "JIRA_TOKEN=dummy-old\n").unwrap();
-    std::fs::write(&new, "JIRA_TOKEN=dummy-new\n").unwrap();
-    assert!(migrate_env(project.path(), &env_of(&[])).unwrap().is_none());
-    assert_eq!(
-        std::fs::read_to_string(&old).unwrap(),
-        "JIRA_TOKEN=dummy-old\n"
-    );
-    assert_eq!(
-        std::fs::read_to_string(&new).unwrap(),
-        "JIRA_TOKEN=dummy-new\n"
-    );
-    assert_eq!(
-        legacy_env_candidate(project.path(), &env_of(&[])),
-        Some(old)
-    );
-}
-
-#[test]
-fn env_file_override_switches_off_the_move_and_the_notice() {
-    let project = tempfile::tempdir().unwrap();
-    let old = project.path().join(".env");
-    std::fs::write(&old, "JIRA_TOKEN=dummy-token\n").unwrap();
-    let env = env_of(&[("COCKPIT_ENV_FILE", "/somewhere/else.env".to_string())]);
-    assert!(migrate_env(project.path(), &env).unwrap().is_none());
-    assert!(old.exists());
-    assert!(!project.path().join("config").exists());
-    assert!(legacy_env_candidate(project.path(), &env).is_none());
 }

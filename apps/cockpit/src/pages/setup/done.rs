@@ -182,16 +182,6 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                                     }
                                 })
                                 .collect_view()}
-                            {server::shown_list(&ordner.notices, &ordner.notice_msgs)
-                                .into_iter()
-                                .map(|n| {
-                                    view! {
-                                        <p class="t-footnote t-secondary" style="padding-inline: 4px">
-                                            {n}
-                                        </p>
-                                    }
-                                })
-                                .collect_view()}
                         }
                     })
             }}

@@ -16,7 +16,7 @@ use super::location::EXAMPLE_FILE;
 /// How long `/api/health` reuses a result (the check starts `git` a few times).
 const CACHE_TTL: Duration = Duration::from_secs(15);
 
-/// What `/api/health` tells about the folder: where it is, what is wrong, and old files.
+/// What `/api/health` tells about the folder: where it is and what is wrong.
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct ConfigFilesStatus {
     pub path: String,
@@ -24,10 +24,6 @@ pub struct ConfigFilesStatus {
     pub warnings: Vec<String>,
     /// The same warnings as code and parameters; the interface shows them in its language.
     pub warning_msgs: Vec<Msg>,
-    /// Hints about old files that can be deleted (German text).
-    pub notices: Vec<String>,
-    /// The same hints as code and parameters.
-    pub notice_msgs: Vec<Msg>,
 }
 
 /// One finding of the check; it is a message for the interface or an English line for the terminal.
@@ -77,10 +73,8 @@ pub enum Language {
     English,
 }
 
-/// Checks the folder without changing anything (cached for a few seconds); `legacy` are the
-/// places of the old files and `legacy_env` the old `.env` next to `config/.env`, reported while
-/// they still exist.
-pub fn status(dir: &Path, legacy: &[PathBuf], legacy_env: Option<&Path>) -> ConfigFilesStatus {
+/// Checks the folder without changing anything (cached for a few seconds).
+pub fn status(dir: &Path) -> ConfigFilesStatus {
     static CACHE: Mutex<Option<(PathBuf, Instant, Vec<Msg>)>> = Mutex::new(None);
     let warning_msgs = {
         let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
@@ -93,40 +87,11 @@ pub fn status(dir: &Path, legacy: &[PathBuf], legacy_env: Option<&Path>) -> Conf
             }
         }
     };
-    let mut notice_msgs = legacy_msgs(legacy);
-    notice_msgs.extend(
-        legacy_env
-            .filter(|f| f.is_file())
-            .map(|f| msg!(ServerConfigLegacyEnv, path = f.display().to_string())),
-    );
     ConfigFilesStatus {
         path: dir.display().to_string(),
         warnings: warning_msgs.iter().map(Msg::de).collect(),
         warning_msgs,
-        notices: notice_msgs.iter().map(Msg::de).collect(),
-        notice_msgs,
     }
-}
-
-/// "Old configuration is still at …": one line per old folder that still has files.
-#[cfg(test)]
-pub fn legacy_notices(legacy: &[PathBuf]) -> Vec<String> {
-    legacy_msgs(legacy).iter().map(Msg::de).collect()
-}
-
-fn legacy_msgs(legacy: &[PathBuf]) -> Vec<Msg> {
-    let mut folders: Vec<&Path> = Vec::new();
-    for f in legacy.iter().filter(|f| f.is_file()) {
-        if let Some(d) = f.parent()
-            && !folders.contains(&d)
-        {
-            folders.push(d);
-        }
-    }
-    folders
-        .into_iter()
-        .map(|d| msg!(ServerConfigLegacyFolder, path = d.display().to_string()))
-        .collect()
 }
 
 /// Files of the folder that must stay private: every regular file except the example.

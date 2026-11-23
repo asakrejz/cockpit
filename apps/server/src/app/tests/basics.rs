@@ -106,50 +106,26 @@ async fn health_names_the_env_file_never_its_content() {
 }
 
 #[tokio::test]
-async fn health_reports_the_config_folder_and_old_files_until_they_are_gone() {
+async fn health_reports_the_config_folder() {
     let project = tempfile::tempdir().unwrap();
-    let old = tempfile::tempdir().unwrap();
-    let old_file = old.path().join("config.toml");
-    std::fs::write(&old_file, "port = 1\n").unwrap();
     let config = project.path().join("config");
     std::fs::create_dir(&config).unwrap();
     let settings = Settings {
         config_dir: Some(config.clone()),
-        legacy_files: vec![old_file.clone()],
         ..Default::default()
     };
     let json = |body: String| serde_json::from_str::<serde_json::Value>(&body).unwrap();
-    let get = || {
-        let s = state_with(
-            db::open_in_memory().unwrap(),
-            settings.clone(),
-            Arc::new(MemoryStore::new()),
-        );
-        hole(router(s, PathBuf::from("/gibt/es/nicht")), "/api/health")
-    };
-    let (status, body) = get().await;
+    let s = state_with(
+        db::open_in_memory().unwrap(),
+        settings,
+        Arc::new(MemoryStore::new()),
+    );
+    let (status, body) = hole(router(s, PathBuf::from("/gibt/es/nicht")), "/api/health").await;
     assert_eq!(status, StatusCode::OK);
     let j = json(body);
     assert_eq!(j["config_files"]["path"], config.display().to_string());
     assert!(j["config_files"]["warnings"].is_array());
-    let notices = j["config_files"]["notices"].as_array().unwrap();
-    assert_eq!(notices.len(), 1);
-    assert!(
-        notices[0]
-            .as_str()
-            .unwrap()
-            .contains("Alte Konfiguration liegt noch unter")
-    );
-    // Reported only; the old file is untouched.
-    assert!(old_file.is_file());
-    std::fs::remove_file(&old_file).unwrap();
-    let (_, body) = get().await;
-    assert!(
-        json(body)["config_files"]["notices"]
-            .as_array()
-            .unwrap()
-            .is_empty()
-    );
+    assert!(j["config_files"]["warning_msgs"].is_array());
     // Without a folder (both overrides set) the field is null.
     let s = state(Arc::new(MemoryStore::new()));
     let (_, body) = hole(router(s, PathBuf::from("/x")), "/api/health").await;

@@ -153,43 +153,9 @@ fn loose_modes_are_reported_and_fixed_at_startup() {
 }
 
 #[test]
-fn legacy_notice_lasts_while_old_files_exist_and_touches_nothing() {
-    let old = tempfile::tempdir().unwrap();
-    let files = vec![
-        old.path().join("config.toml"),
-        old.path().join("cockpit.db"),
-    ];
-    assert!(legacy_notices(&files).is_empty());
-    std::fs::write(&files[0], "port = 1\n").unwrap();
-    std::fs::write(&files[1], "db").unwrap();
-    let n = legacy_notices(&files);
-    assert_eq!(n.len(), 1);
-    assert!(n[0].contains("Alte Konfiguration liegt noch unter"));
-    assert!(n[0].contains(&old.path().display().to_string()));
-    assert!(n[0].contains("du kannst sie löschen"));
-    assert_eq!(std::fs::read_to_string(&files[0]).unwrap(), "port = 1\n");
-    std::fs::remove_file(&files[0]).unwrap();
-    std::fs::remove_file(&files[1]).unwrap();
-    assert!(legacy_notices(&files).is_empty());
-}
-
-#[test]
-fn status_names_the_folder_and_carries_notices() {
+fn status_names_the_folder_and_gives_the_warnings_in_both_forms() {
     let dir = tempfile::tempdir().unwrap();
-    let st = status(dir.path(), &[], None);
+    let st = status(dir.path());
     assert_eq!(st.path, dir.path().display().to_string());
-    assert!(st.notices.is_empty());
-}
-
-#[test]
-fn old_env_file_notice_lasts_while_the_file_exists() {
-    let dir = tempfile::tempdir().unwrap();
-    let old = dir.path().join(".env");
-    assert!(status(dir.path(), &[], Some(&old)).notice_msgs.is_empty());
-    std::fs::write(&old, "JIRA_TOKEN=dummy-token\n").unwrap();
-    let st = status(dir.path(), &[], Some(&old));
-    assert_eq!(st.notices.len(), 1);
-    assert!(st.notices[0].contains("config/.env"), "{:?}", st.notices);
-    assert!(st.notices[0].contains(&old.display().to_string()));
-    assert!(old.exists());
+    assert_eq!(st.warnings.len(), st.warning_msgs.len());
 }

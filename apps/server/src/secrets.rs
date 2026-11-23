@@ -6,7 +6,7 @@ mod env_check;
 mod env_file;
 
 pub use env_check::{EnvFileStatus, status as env_file_status};
-pub use env_file::{DEFAULT_FILE_NAME as ENV_FILE_NAME, ENV_FILE_VAR, EnvFileStore};
+pub use env_file::{DEFAULT_FILE_NAME as ENV_FILE_NAME, EnvFileStore};
 
 #[cfg(test)]
 use std::collections::HashMap;
