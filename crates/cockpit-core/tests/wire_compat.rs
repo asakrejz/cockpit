@@ -361,7 +361,15 @@ fn stored_pull_request_keys_with_usual_github_names_still_load() {
             serde_json::from_str(&format!("\"{key}\"")).unwrap_or_else(|e| panic!("{key}: {e}"));
         assert_eq!(loaded.to_string(), key);
     }
-    for key in ["acme/..#1", "../x#1", "acme/a/b#1", "a.b/c#1", "a b/c#1"] {
+    for key in [
+        "acme/..#1",
+        "../x#1",
+        "acme/a/b#1",
+        "a.b/c#1",
+        "a b/c#1",
+        "-a/b#1",
+        "acme/-b#1",
+    ] {
         assert!(
             serde_json::from_str::<cockpit_core::PrKey>(&format!("\"{key}\"")).is_err(),
             "{key}"

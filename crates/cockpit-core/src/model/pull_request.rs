@@ -115,9 +115,10 @@ impl Serialize for PrKey {
 /// A repo name `owner/name`, spelled the way GitHub spells it, with exactly one slash:
 ///
 /// * the owner has 1 to 39 ASCII letters, digits, `-` and `_` (an Enterprise Managed User has an
-///   underscore, some old accounts end in a hyphen or have two in a row; where a hyphen stands
-///   does not matter for paths and prompts);
-/// * the name has 1 to 100 letters, digits, `.`, `_` and `-`, and is never `.` or `..`.
+///   underscore, some old accounts end in a hyphen or have two in a row);
+/// * the name has 1 to 100 letters, digits, `.`, `_` and `-`, and is never `.` or `..`;
+/// * neither part starts with `-`: such a part could be read as an option when it, or a folder
+///   made from it, reaches `git` or another command.
 ///
 /// This is the one rule for every repo name Cockpit reads, stores or hands to `git` and the
 /// container. The agent runner repeats it in `apps/agent/runner/src/job.ts` as a second line of
@@ -129,6 +130,7 @@ impl Serialize for PrKey {
 /// assert!(repo_name_valid("acme/app.js"));
 /// assert!(repo_name_valid("octocat_acme/app"));
 /// assert!(!repo_name_valid("acme/.."));
+/// assert!(!repo_name_valid("acme/-app"));
 /// assert!(!repo_name_valid("acme/app/extra"));
 /// ```
 pub fn repo_name_valid(repo: &str) -> bool {
@@ -136,10 +138,12 @@ pub fn repo_name_valid(repo: &str) -> bool {
         return false;
     };
     let owner_ok = (1..=39).contains(&owner.len())
+        && !owner.starts_with('-')
         && owner
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'));
     let name_ok = (1..=100).contains(&name.len())
+        && !name.starts_with('-')
         && name != "."
         && name != ".."
         && name

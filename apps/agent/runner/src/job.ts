@@ -92,11 +92,11 @@ export interface Job {
 // Second line of defence: the backend has already checked every repo name with `repo_name_valid`
 // (crates/cockpit-core/src/model/pull_request.rs); the runner checks it again because it builds a folder
 // name and prompts from it. Same rule as there: `owner/name` with exactly one slash; the owner has 1 to 39
-// ASCII letters, digits, `-` and `_` (no rule about where a hyphen stands), the name 1 to 100 letters, digits,
-// `.`, `_` and `-`, never `.` or `..`. Both sides are tested against
-// crates/cockpit-core/tests/fixtures/repo_name_cases.json.
-const REPO_OWNER = /^[A-Za-z0-9_-]+$/;
-const REPO_NAME_PART = /^[A-Za-z0-9._-]+$/;
+// ASCII letters, digits, `-` and `_`, the name 1 to 100 letters, digits, `.`, `_` and `-`, never `.` or `..`;
+// neither part starts with `-` (it could be read as an option by `git` or another command). Both sides are
+// tested against crates/cockpit-core/tests/fixtures/repo_name_cases.json.
+const REPO_OWNER = /^[A-Za-z0-9_][A-Za-z0-9_-]*$/;
+const REPO_NAME_PART = /^[A-Za-z0-9._][A-Za-z0-9._-]*$/;
 
 export function repoNameValid(repo: string): boolean {
   const parts = repo.split("/");
