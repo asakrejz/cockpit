@@ -255,7 +255,7 @@ pub struct Health {
     /// Where the `.env` file with the keys lives and what to warn about (never a value).
     #[serde(default)]
     pub env_file: Option<EnvFileStatus>,
-    /// The folder `config/` with configuration and database: path, warnings, old files.
+    /// The folder `config/` with configuration and database: path and warnings.
     #[serde(default)]
     pub config_files: Option<ConfigFilesStatus>,
     /// Saved workspaces that could not be read and are kept aside in the database.
@@ -273,7 +273,7 @@ pub struct UnreadableState {
     pub notice: cockpit_i18n::Msg,
 }
 
-/// Path of the folder `config/`, warnings (Git, permissions) and hints about old files.
+/// Path of the folder `config/` and its warnings (Git, permissions).
 #[derive(Clone, Debug, Default, PartialEq, Eq, serde::Deserialize)]
 pub struct ConfigFilesStatus {
     #[serde(default)]
@@ -283,10 +283,6 @@ pub struct ConfigFilesStatus {
     /// The warnings as code and parameters (shown in the current language).
     #[serde(default)]
     pub warning_msgs: Vec<cockpit_i18n::Msg>,
-    #[serde(default)]
-    pub notices: Vec<String>,
-    #[serde(default)]
-    pub notice_msgs: Vec<cockpit_i18n::Msg>,
 }
 
 /// Path of the `.env` file and warnings of the server (tracked by Git, not ignored, permissions).

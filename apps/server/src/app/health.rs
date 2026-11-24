@@ -57,8 +57,7 @@ pub struct Health {
     pub agent: AgentStatus,
     /// Where the `.env` file with the keys lives and what to warn about – never a value.
     pub env_file: Option<secrets::EnvFileStatus>,
-    /// Where the folder `config/` with configuration and database lives, what to warn about,
-    /// and a hint while old files still exist at the old place.
+    /// Where the folder `config/` with configuration and database lives and what to warn about.
     pub config_files: Option<crate::config::files_check::ConfigFilesStatus>,
     /// Set while saved workspaces that could not be read are kept aside in the database.
     pub unreadable_state: Option<UnreadableState>,
@@ -184,13 +183,12 @@ impl AppState {
             container,
             agent,
             env_file: self.inner.secrets.env_file().map(secrets::env_file_status),
-            config_files: self.inner.settings.config_dir.as_deref().map(|dir| {
-                crate::config::files_check::status(
-                    dir,
-                    &self.inner.settings.legacy_files,
-                    self.inner.settings.legacy_env.as_deref(),
-                )
-            }),
+            config_files: self
+                .inner
+                .settings
+                .config_dir
+                .as_deref()
+                .map(crate::config::files_check::status),
             unreadable_state: self.unreadable_state(),
         }
     }

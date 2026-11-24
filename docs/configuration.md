@@ -131,17 +131,11 @@ everywhere: sync, agent follow-ups, the repo list of the setup, and the connecti
 The setup assistant writes the key: saving a token sets `token`, completing an OAuth sign-in sets `oauth`, and
 switching the picker to a way that is already set up stores that way. Any other value is a start error.
 
-## Where the files live, and moving from older versions
+## Where the files live
 
-Older versions kept `config.toml` in `~/Library/Application Support/cockpit/` (macOS) or `~/.config/cockpit/`
-(`$XDG_CONFIG_HOME`, Linux) and the database next to it (Linux: `~/.local/share/cockpit/`, `$XDG_DATA_HOME`). On the
-first start without `COCKPIT_CONFIG` and `COCKPIT_DB`, the server **copies** these files to `config/` if the new ones do
-not exist yet (the database through SQLite's `VACUUM INTO`, which also takes committed data from a `-wal` file), sets
-the modes and logs `Copied config from … to …; the old files were left in place and can be deleted`. It never
-overwrites a file in `config/` and deletes nothing at the old place. While old files still exist, `/api/health`
-(`config_files.notices`) and the last assistant step say so ("Alte Konfiguration liegt noch unter …, du kannst sie
-löschen"); delete them yourself when you are happy. Setting `COCKPIT_CONFIG` or `COCKPIT_DB` switches off creating and
-migrating. Stop a still running server of the old version before the first start of the new one.
+`config.toml`, `cockpit.db` and the secrets file `.env` live in `config/` in the project folder. The server creates the
+folder and an empty `config.toml` at the first start. `COCKPIT_CONFIG` stops it from creating `config.toml`, and with
+`COCKPIT_CONFIG` and `COCKPIT_DB` both set it creates nothing.
 
 **Safety net for `config/`:** at start and in `/api/health` (`config_files`, shown in the last assistant step) the
 server warns when Git tracks a file in `config/` other than the example, when one is not ignored, or when permissions
@@ -237,10 +231,6 @@ file inside the repository folder was a deliberate choice. **It is never committ
 - **Location:** `config/.env` in the server's working directory (the repo folder; `scripts/start.sh` and
   `start-cockpit.command` change into it). `COCKPIT_ENV_FILE=/path/to/file` redirects it (operation, tests). The
   assistant shows the path in the last step.
-- **Move from the old place:** older versions kept the file at `<project>/.env`. If `config/.env` is missing and
-  the old file exists, the server moves it (rename, mode `600` stays) at the start and logs it. If both exist, it
-  touches neither, uses `config/.env` and shows a notice (`config_files.notices`, last assistant step) that the old
-  file can be deleted.
 - **Format:** `NAME=value`, comments with `#`, other lines are preserved on write. Values with special
   characters go in single quotes. The sign-in token blobs are compact one-line JSON (`'{"access":"…"}'`). Writing is
   atomic (temporary file, then rename).
