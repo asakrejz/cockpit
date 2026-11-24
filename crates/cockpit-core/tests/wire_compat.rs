@@ -343,8 +343,8 @@ fn a_stored_problem_loads_as_text_or_as_message() {
 }
 
 /// A stored pull request key is read through the repo name rule: the names GitHub allows (dots,
-/// underscores, upper case, a leading dot in the name) keep loading; a name no repo can have
-/// does not.
+/// underscores, upper case, a leading dot in the name, an Enterprise Managed User's underscore, a
+/// hyphen at the end of an owner) keep loading; a name no repo can have does not.
 #[test]
 fn stored_pull_request_keys_with_usual_github_names_still_load() {
     for key in [
@@ -353,12 +353,15 @@ fn stored_pull_request_keys_with_usual_github_names_still_load() {
         "my-org/my_repo.name#5",
         "acme/.github#6",
         "a/b#7",
+        "octocat_acme/app#8",
+        "old-name-/app#9",
+        "a--b/c#10",
     ] {
         let loaded: cockpit_core::PrKey =
             serde_json::from_str(&format!("\"{key}\"")).unwrap_or_else(|e| panic!("{key}: {e}"));
         assert_eq!(loaded.to_string(), key);
     }
-    for key in ["acme/..#1", "../x#1", "a--b/c#1", "acme/a/b#1", "a_b/c#1"] {
+    for key in ["acme/..#1", "../x#1", "acme/a/b#1", "a.b/c#1", "a b/c#1"] {
         assert!(
             serde_json::from_str::<cockpit_core::PrKey>(&format!("\"{key}\"")).is_err(),
             "{key}"

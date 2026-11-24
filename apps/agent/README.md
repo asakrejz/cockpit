@@ -179,7 +179,7 @@ Path patterns (`*`, `?`, `**`, a leading `./` or `/`, a trailing `/` for a whole
 (`globFits` in `runner/src/policy.ts`) and in the backend (`glob_match` in `crates/cockpit-core/src/rules.rs`). Both are
 tested against `crates/cockpit-core/tests/fixtures/glob_cases.json`; change the rules and the file together.
 
-A repo name (`owner/name`: an owner of 1 to 39 letters, digits and single hyphens, a name of 1 to 100 letters, digits,
+A repo name (`owner/name`: an owner of 1 to 39 letters, digits, `-` and `_`, a name of 1 to 100 letters, digits,
 `.`, `_` and `-`, never `.` or `..`) is checked by `repo_name_valid` in `crates/cockpit-core/src/model/pull_request.rs`
 wherever the backend reads one. The runner checks it again (`repoNameValid` in `runner/src/job.ts`); both are tested
 against `crates/cockpit-core/tests/fixtures/repo_name_cases.json`, so change the rule and the file together.

@@ -114,7 +114,9 @@ impl Serialize for PrKey {
 
 /// A repo name `owner/name`, spelled the way GitHub spells it, with exactly one slash:
 ///
-/// * the owner has 1 to 39 letters, digits and single hyphens, none at either end;
+/// * the owner has 1 to 39 ASCII letters, digits, `-` and `_` (an Enterprise Managed User has an
+///   underscore, some old accounts end in a hyphen or have two in a row; where a hyphen stands
+///   does not matter for paths and prompts);
 /// * the name has 1 to 100 letters, digits, `.`, `_` and `-`, and is never `.` or `..`.
 ///
 /// This is the one rule for every repo name Cockpit reads, stores or hands to `git` and the
@@ -125,6 +127,7 @@ impl Serialize for PrKey {
 /// ```
 /// use cockpit_core::repo_name_valid;
 /// assert!(repo_name_valid("acme/app.js"));
+/// assert!(repo_name_valid("octocat_acme/app"));
 /// assert!(!repo_name_valid("acme/.."));
 /// assert!(!repo_name_valid("acme/app/extra"));
 /// ```
@@ -133,12 +136,9 @@ pub fn repo_name_valid(repo: &str) -> bool {
         return false;
     };
     let owner_ok = (1..=39).contains(&owner.len())
-        && !owner.starts_with('-')
-        && !owner.ends_with('-')
-        && !owner.contains("--")
         && owner
             .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || b == b'-');
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_'));
     let name_ok = (1..=100).contains(&name.len())
         && name != "."
         && name != ".."
