@@ -13,15 +13,10 @@
 //!   and `notify::events` sees them in the before/after like any other change.
 //! * If a source fails (token expired, network gone, quota), its data stays
 //!   unchanged; the state per source ([`SourceState`]) records what the cause is.
-//!
-//! On the first successful sync the sample data disappear (only the
-//! unchanged parts of the demo), so that real data is not mixed with them.
 
 use serde::{Deserialize, Serialize};
 
 use crate::action::Target;
-use crate::agent::AgentRun;
-use crate::demo;
 use crate::model::{Checks, Item, PrKey, Source, TicketStatus};
 use crate::review::{FileDiff, LineComment, Review};
 use crate::workspace::Workspace;
@@ -65,10 +60,6 @@ pub fn merge(local: &Workspace, remote: &Remote, now_ms: u64) -> (Workspace, Vec
                 }
             }
             Outcome::Loaded(loaded) => {
-                if !ws.sync.demo_dropped {
-                    drop_demo(&mut ws);
-                    ws.sync.demo_dropped = true;
-                }
                 merge_source(&mut ws, source, loaded, &mut changes);
                 ws.sync.set_state_with(
                     source,
@@ -87,18 +78,6 @@ pub fn merge(local: &Workspace, remote: &Remote, now_ms: u64) -> (Workspace, Vec
     let items = &ws.items;
     ws.snoozed.retain(|s| items.iter().any(|i| i.id == s.item));
     (ws, changes)
-}
-
-/// Removes what still comes exactly like this from the sample data.
-fn drop_demo(ws: &mut Workspace) {
-    let demo = demo::seed();
-    ws.items
-        .retain(|i| !demo.items.iter().any(|d| d.id == i.id) || ws.sync.is_synced(&i.id));
-    ws.reviews.retain(|r| {
-        ws.sync.pr(r.key()).is_some() || !demo.reviews.iter().any(|d| d.key() == r.key())
-    });
-    ws.runs
-        .retain(|r| !demo.runs.iter().any(|d: &AgentRun| d == r));
 }
 
 fn merge_source(ws: &mut Workspace, source: Source, loaded: &Loaded, changes: &mut Vec<Change>) {
@@ -271,7 +250,7 @@ fn merge_reviews(ws: &mut Workspace, loaded: &Loaded, changes: &mut Vec<Change>)
         let review = match previous {
             Some(i) => merge_review(by_number.remove(i), r, changes),
             None => {
-                // Number already taken locally (example or simulation): the service wins.
+                // Number already taken locally (for example by sample data): the service wins.
                 kept.retain(|k| !k.key().same(&r.key()));
                 r.clone()
             }

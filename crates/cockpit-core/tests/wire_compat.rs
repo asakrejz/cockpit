@@ -7,11 +7,14 @@
 //! resaving byte-identically (empty repos are not written).
 //! `legacy_sync_state_problem.json` is a sync state in which one problem is stored as a plain text
 //! and one as a message; both must load.
+//! `legacy_simulated_agent_workspace.json` is a state saved while the simulated agent still
+//! existed: runs with the removed fields and kinds, a diagnosis, sample suggestions, checks that
+//! count ticks. It must load, and saving it again must leave those parts out.
 //! Regenerate `wire_*` with `BLESS=1 cargo test -p cockpit-core --test wire_compat` only on purpose.
 
 use cockpit_core::{
-    Action, Actor, AgentOptions, Problem, Rule, Source, SyncState, TicketStatus, Workspace, demo,
-    persist,
+    Action, Actor, AgentOptions, AgentReport, FollowupTask, Problem, Rule, RunKind, RunState,
+    Source, SyncState, TicketStatus, Workspace, demo, persist,
 };
 use cockpit_i18n::{Lang, Msg};
 
@@ -48,9 +51,36 @@ fn busy_workspace() -> Workspace {
             },
             USER,
         ),
-        (Action::AdvanceAgents, Actor::System),
-        (Action::AdvanceAgents, Actor::System),
-        (Action::AdvanceAgents, Actor::System),
+        (
+            Action::ReportAgent {
+                run: "BAU-142".into(),
+                report: AgentReport::Plan {
+                    summary: "Fokus-Ring ergänzen".into(),
+                    files: vec!["components.css".into()],
+                    steps: vec!["Ändern".into()],
+                },
+            },
+            Actor::Agent,
+        ),
+        (
+            Action::ApprovePlan {
+                ticket: "BAU-142".into(),
+            },
+            USER,
+        ),
+        (
+            Action::ReportAgent {
+                run: "BAU-142".into(),
+                report: AgentReport::Step {
+                    title: "Datei gelesen".into(),
+                    text: "components.css".into(),
+                    input_tokens: 8_200,
+                    output_tokens: 900,
+                    millis: 18_000,
+                },
+            },
+            Actor::Agent,
+        ),
     ];
     for (n, (action, actor)) in steps.into_iter().enumerate() {
         let _ = ws.apply(action, actor, 1_700_000_000_000 + n as u64);
@@ -118,10 +148,8 @@ fn legacy_snapshots_still_load_and_resave_in_the_new_names() {
     ] {
         let text = read(legacy);
         let (ws, revision) = persist::load_with_revision(&text).expect("old snapshot loads");
-        assert!(
-            resave(&ws, revision, &text) == read(current),
-            "{legacy}: resaving must give the current snapshot"
-        );
+        // Resaving must give the stored `wire_pre_repo_*` snapshot.
+        check(current, resave(&ws, revision, &text));
     }
 }
 
@@ -132,21 +160,135 @@ fn pre_repo_snapshots_get_their_repos_from_the_migration() {
     let text = read("wire_pre_repo_demo_workspace.json");
     let mut ws = persist::load(&text).expect("loads");
     assert!(ws.reviews.iter().all(|r| r.repo.is_empty()));
-    assert!(ws.fill_repos(Some(cockpit_core::DEMO_REPO)));
+    assert!(ws.fill_repos(Some(cockpit_core::demo::DEMO_REPO)));
     assert!(ws.reviews.iter().all(|r| !r.repo.is_empty()));
     // Idempotent.
-    assert!(!ws.fill_repos(Some(cockpit_core::DEMO_REPO)));
+    assert!(!ws.fill_repos(Some(cockpit_core::demo::DEMO_REPO)));
     // The tokens repo's pull request keeps the repo of its entry instead of the default,
     // and a ticket's copy of #91 takes the default.
     let tokens = ws.item("pr12").unwrap().pr.as_ref().unwrap();
     assert_eq!(tokens.repo, "acme/design-tokens");
-    assert_eq!(ws.review(91).unwrap().repo, cockpit_core::DEMO_REPO);
+    assert_eq!(ws.review(91).unwrap().repo, cockpit_core::demo::DEMO_REPO);
     assert_eq!(
         ws.item("bau138").unwrap().pr.as_ref().unwrap().repo,
-        cockpit_core::DEMO_REPO
+        cockpit_core::demo::DEMO_REPO
     );
     // Saving and loading the migrated state keeps it.
     assert_eq!(persist::load(&persist::save(&ws)).unwrap(), ws);
+}
+
+/// A state from the time of the simulated agent loads: the removed fields are ignored, the two
+/// removed kinds of run become the follow-up jobs of the same purpose, and a run that waited for
+/// the decision about a fix is ready again. Saving leaves all of that out.
+#[test]
+fn a_state_with_the_simulated_agent_still_loads() {
+    let text = read("legacy_simulated_agent_workspace.json");
+    // The fixture really holds what was removed.
+    for old in [
+        "\"real\":",
+        "\"AwaitingFix\"",
+        "\"diagnosis\":{",
+        "\"AddressReview\":{",
+        "\"Diagnose\":{",
+        "\"demo_dropped\"",
+        "\"remaining\":",
+        "\"rerun\":",
+        "\"origin\":\"Agent\"",
+    ] {
+        assert!(text.contains(old), "the fixture lost {old}");
+    }
+
+    let (ws, revision) = persist::load_with_revision(&text).expect("the old state loads");
+    assert_eq!(revision, 5);
+    assert_eq!(ws.runs.len(), 5);
+
+    // The finished sample run and the questions of the simulation are plain runs now.
+    assert!(ws.run("BAU-138").unwrap().is_done());
+    assert_eq!(ws.run("BAU-142").unwrap().state, RunState::AwaitingAnswer);
+    assert!(ws.run("BAU-150").unwrap().is_running());
+
+    // The simulated follow-up jobs read as the follow-up jobs of the real agent.
+    let review = cockpit_core::PrKey::new(demo::DEMO_REPO, 85);
+    let diagnose = ws
+        .runs
+        .iter()
+        .find(|r| r.ticket_key == "acme/app#85")
+        .unwrap();
+    assert_eq!(
+        diagnose.kind,
+        RunKind::Followup {
+            review: review.clone(),
+            task: FollowupTask::FailedChecks {
+                checks: vec!["Lint".into()]
+            }
+        }
+    );
+    assert_eq!(diagnose.key(), "fixes-acme~app-85");
+    assert_eq!(diagnose.state, RunState::Idle, "the fix decision is gone");
+    let address = ws.run("threads-acme~app-91").unwrap();
+    assert_eq!(
+        address.kind,
+        RunKind::Followup {
+            review: cockpit_core::PrKey::new(demo::DEMO_REPO, 91),
+            task: FollowupTask::ReviewThreads
+        }
+    );
+
+    // Suggestions keep their text, with or without a position.
+    let r85 = ws.review(85).unwrap();
+    assert_eq!(r85.suggestions.len(), 1);
+    assert!(r85.suggestions[0].path.is_empty());
+    let r91 = ws.review(91).unwrap();
+    assert_eq!(r91.suggestions.len(), 1);
+    assert_eq!(r91.suggestions[0].path, "controls.rs");
+    // Checks that counted ticks are plain checks now.
+    assert!(
+        r85.check_runs
+            .iter()
+            .any(|c| c.status == cockpit_core::Checks::Running)
+    );
+
+    // Log entries of the simulation carry codes that are gone: they show the text saved with them.
+    let stale: Vec<_> = ws
+        .log
+        .iter()
+        .filter(|e| e.msg.as_ref().is_some_and(|m| !m.is_known()))
+        .collect();
+    assert!(
+        !stale.is_empty(),
+        "the fixture holds log entries with removed codes"
+    );
+    for entry in stale {
+        for lang in cockpit_i18n::Lang::ALL {
+            assert_eq!(entry.text_in(lang), entry.text);
+        }
+    }
+    assert!(
+        ws.runs
+            .iter()
+            .flat_map(|r| &r.messages)
+            .filter(|m| m.msg.as_ref().is_some_and(|m| !m.is_known()))
+            .all(|m| m.text_in(cockpit_i18n::Lang::En) == m.text)
+    );
+
+    // Saving leaves the removed parts out, and the saved state is stable.
+    let saved = persist::save_with_revision(&ws, revision);
+    for gone in [
+        "\"real\":",
+        "AwaitingFix",
+        "\"diagnosis\"",
+        "\"AddressReview\"",
+        "\"Diagnose\"",
+        "demo_dropped",
+        "\"remaining\"",
+        "\"rerun\"",
+        "\"origin\"",
+    ] {
+        assert!(!saved.contains(gone), "{gone} is still written");
+    }
+    let (again, _) = persist::load_with_revision(&saved).expect("the saved state loads");
+    assert_eq!(again, ws);
+    assert_eq!(persist::save_with_revision(&again, revision), saved);
 }
 
 #[test]

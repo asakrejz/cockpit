@@ -4,7 +4,6 @@
 //! * [`attention`]: rules why an entry needs attention, and snoozing
 //! * [`review`]: diff, suggestions of the agent, approval and verdict
 //! * [`agent`]: the run of an agent as a state machine
-//! * [`diagnosis`]: cause and fix proposal for a red check
 //! * [`connections`]: connections, permissions and input validation
 //! * [`setup`]: steps, inputs and summary of the setup assistant
 //! * [`link`]: link ticket and pull request via the ticket key
@@ -35,7 +34,6 @@ pub mod branch;
 pub mod connections;
 pub mod demo;
 pub mod details;
-pub mod diagnosis;
 pub mod filters;
 pub mod language;
 pub mod link;
@@ -56,6 +54,8 @@ pub mod setup;
 pub mod sync;
 pub mod team;
 pub mod team_filter;
+#[cfg(test)]
+mod test_support;
 pub mod text;
 pub mod usage;
 pub mod workspace;
@@ -65,12 +65,11 @@ pub use agent::{
     AgentOptions, AgentPlan, AgentReport, AgentRun, Closure, FollowupTask, Judgement,
     MAX_REPOS_PER_RUN, MessageKind, Plan, PullRequestRef, Question, RepoResult, RepoTarget,
     ReportEffect, RunKind, RunMessage, RunRepo, RunRepoState, RunState, Speaker, Step, StepState,
-    Tick, judge, repo_dir,
+    judge, repo_dir,
 };
 pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::{AuthChoice, AuthKind, Connections, OAuthTokens, ServiceStatus};
 pub use details::{Attachment, DetailField, DetailValue, Details};
-pub use diagnosis::{Diagnosis, Fix};
 pub use filters::{
     ASSIGNED_TO_ME, ActiveFilter, Applies, Choices, FILTERS, FilterDef, JIRA_PROJECT_FILTER,
     NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED, UNASSIGNED_NAME, filter_def,
@@ -88,13 +87,12 @@ pub use project::{
 };
 pub use repos::{AgentRepo, AgentRepos, RepoChoice};
 pub use review::{
-    AgentComment, CHECK_STEPS, CheckRun, Decision, DiffLine, DiffSide, FileDiff, Level,
-    LineComment, LineKind, MAX_AGENT_COMMENTS, MergeBlocker, MergeMethod, Origin, Review,
-    SHOWN_LINES, SendError, Suggestion, SuggestionDiff, TreeRow, Verdict, Viewed, commit_date,
-    file_tree, merge_blockers, short_sha,
+    AgentComment, CheckRun, Decision, DiffLine, DiffSide, FileDiff, Level, LineComment, LineKind,
+    MAX_AGENT_COMMENTS, MergeBlocker, MergeMethod, Review, SHOWN_LINES, SendError, Suggestion,
+    SuggestionDiff, TreeRow, Verdict, Viewed, commit_date, file_tree, merge_blockers, short_sha,
 };
 pub use review_filter::{ProjectChoice, RepoGroup, ReviewFilter};
-pub use rules::{DEMO_REPO, PathViolation, RepoRules, ViolationKind, glob_match};
+pub use rules::{PathViolation, RepoRules, ViolationKind, glob_match};
 pub use search::InboxFilter;
 pub use sync::{
     Change, Loaded, Outcome, PrLink, Problem, Remote, SourceData, SourceState, SyncState,

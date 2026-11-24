@@ -132,23 +132,19 @@ fn the_backend_and_the_agent_keep_their_own_actions() {
 }
 
 #[test]
-fn the_ticks_run_as_the_system_or_the_agent() {
+fn the_ticks_run_as_the_system() {
     for action in [
-        Action::AdvanceChecks,
         Action::WakeSnoozed,
         Action::AutoLinkPrs,
         Action::SyncTicketStatus,
-        Action::AdvanceAgents,
     ] {
         assert_eq!(action.required_actor(), None, "{action:?}");
     }
     let mut w = ws();
     for (action, actor) in [
-        (Action::AdvanceChecks, Actor::System),
         (Action::WakeSnoozed, Actor::System),
         (Action::AutoLinkPrs, Actor::System),
         (Action::SyncTicketStatus, Actor::System),
-        (Action::AdvanceAgents, Actor::Agent),
     ] {
         let result = w.apply(action.clone(), actor, T);
         assert!(

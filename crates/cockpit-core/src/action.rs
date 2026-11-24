@@ -1,8 +1,7 @@
 //! Actions and log.
 //!
-//! Every change the UI can trigger is an [`Action`]. Whoever
-//! applies it – the browser in demo mode, later the backend – calls
-//! [`Workspace::apply`](crate::Workspace::apply) and gets either an
+//! Every change the UI can trigger is an [`Action`]. The backend
+//! applies it with [`Workspace::apply`](crate::Workspace::apply) and gets either an
 //! [`Applied`] or an [`ActionError`]. Every successful action leaves
 //! a [`LogEntry`] in the workspace's log; failures leave nothing.
 //!
@@ -10,10 +9,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::agent::{AgentOptions, AgentReport, AgentRun, Closure, PullRequestRef, RunKind, STEPS};
+use crate::agent::{AgentOptions, AgentReport, AgentRun, Closure, PullRequestRef};
 use crate::attention::Rule;
-use crate::demo;
-use crate::model::{Checks, Person, PrKey, Priority, TicketStatus};
+use crate::model::{Person, PrKey, Priority, TicketStatus};
 use crate::notify::{Channel, NotifyReason, QuietHours};
 use crate::review::{Decision, MergeBlocker, MergeMethod, SendError, Verdict};
 use crate::rules::{PathViolation, RepoRules, ViolationKind};
@@ -204,9 +202,6 @@ pub enum Action {
         review: PrKey,
         verdict: Verdict,
     },
-    RequestAgentReview {
-        review: PrKey,
-    },
     SendReview {
         review: PrKey,
         comment: String,
@@ -216,8 +211,6 @@ pub enum Action {
         review: PrKey,
         check: String,
     },
-    /// The tick of the checks: every running one advances one step.
-    AdvanceChecks,
     /// Merges the pull request. Only `Actor::User` may do that.
     MergePr {
         review: PrKey,
@@ -257,8 +250,6 @@ pub enum Action {
     ResumeAgent {
         run: String,
     },
-    /// The tick: every running agent completes a step.
-    AdvanceAgents,
     /// Report of the real agent from the container (`run` is the key of the run). Only the
     /// backend triggers it, as `Actor::Agent`; others are rejected.
     ReportAgent {
@@ -278,32 +269,7 @@ pub enum Action {
     },
     /// Removes every run in a final state from the local list (see `RemoveAgentRun`).
     RemoveFinishedRuns,
-    /// Follow-up job: the agent implements comments of a review (IDs of the line comments)
-    /// and pushes to the pull request's branch. The run is then called `review-<number>`.
-    AddressReview {
-        review: PrKey,
-        comments: Vec<String>,
-        options: AgentOptions,
-    },
-    /// Follow-up job: the agent investigates a red check and presents a diagnosis.
-    /// The run is then called `check-<number>-<check>`.
-    InvestigateCheck {
-        review: PrKey,
-        check: String,
-    },
-    /// Adopts the fix of the diagnosis (`run` is the key of the run): the agent pushes it
-    /// to the branch and restarts the check.
-    ApplyFix {
-        run: String,
-    },
-    /// Discards the diagnosis. The run ends, the branch stays untouched.
-    DiscardFix {
-        run: String,
-    },
-    /// Follow-up job of the **real** agent: implement the review comments (threads) of the
-    /// pull request. The backend reads them from GitHub; the agent continues on the same `claude/…`
-    /// branch. The run is then called `threads-<number>`.
-    /// The real agent reads the pull request and prepares review comments as drafts. Nothing goes
+    /// The agent reads the pull request and prepares review comments as drafts. Nothing goes
     /// to GitHub; the drafts wait for your decision.
     StartPrReview {
         review: PrKey,
@@ -315,11 +281,14 @@ pub enum Action {
         #[serde(default)]
         repo_language: Option<cockpit_i18n::Lang>,
     },
+    /// Follow-up job: implement the review comments (threads) of the pull request. The backend
+    /// reads them from GitHub; the agent continues on the same `claude/…` branch. The run is then
+    /// called `threads-<number>`.
     AddressReviewThreads {
         review: PrKey,
         options: AgentOptions,
     },
-    /// Follow-up job of the **real** agent: fix the red checks of the pull request (names and a
+    /// Follow-up job: fix the red checks of the pull request (names and a
     /// shortened log excerpt go to the agent). The run is then called `fixes-<number>`.
     FixFailedChecks {
         review: PrKey,
@@ -371,8 +340,6 @@ pub enum Action {
         quiet: QuietHours,
     },
     // Miscellaneous
-    /// Back to the sample data. The log starts anew.
-    ResetDemo,
     /// The sync: merges the state of Jira and GitHub with the workspace
     /// (see [`crate::sync`]). Only the system triggers it – the backend after every fetch.
     SyncRemote {
@@ -439,8 +406,6 @@ impl Action {
             | Action::EditLineComment { .. }
             | Action::DeleteLineComment { .. }
             | Action::SetVerdict { .. }
-            | Action::RequestAgentReview { .. }
-            | Action::AdvanceChecks
             | Action::StartAgent { .. }
             | Action::CancelAgent { .. }
             | Action::ApprovePlan { .. }
@@ -450,18 +415,12 @@ impl Action {
             | Action::SteerAgent { .. }
             | Action::PauseAgent { .. }
             | Action::ResumeAgent { .. }
-            | Action::AdvanceAgents
-            | Action::AddressReview { .. }
-            | Action::InvestigateCheck { .. }
-            | Action::ApplyFix { .. }
-            | Action::DiscardFix { .. }
             | Action::ResumeStopped { .. }
             | Action::SetLanguage { .. }
             | Action::SetAgentLimits { .. }
             | Action::SetRepoRules { .. }
             | Action::SetNotifyChannel { .. }
-            | Action::SetQuietHours { .. }
-            | Action::ResetDemo => None,
+            | Action::SetQuietHours { .. } => None,
         }
     }
 }
@@ -617,10 +576,8 @@ impl Workspace {
             | Action::EditLineComment { .. }
             | Action::DeleteLineComment { .. }
             | Action::SetVerdict { .. }
-            | Action::RequestAgentReview { .. }
             | Action::SendReview { .. }
             | Action::RestartCheck { .. }
-            | Action::AdvanceChecks
             | Action::MergePr { .. } => self.perform_review(action),
             Action::StartAgent { .. }
             | Action::CancelAgent { .. }
@@ -631,15 +588,10 @@ impl Workspace {
             | Action::SteerAgent { .. }
             | Action::PauseAgent { .. }
             | Action::ResumeAgent { .. }
-            | Action::AdvanceAgents
             | Action::ReportAgent { .. }
             | Action::CloseAgentRun { .. }
             | Action::RemoveAgentRun { .. }
             | Action::RemoveFinishedRuns
-            | Action::AddressReview { .. }
-            | Action::InvestigateCheck { .. }
-            | Action::ApplyFix { .. }
-            | Action::DiscardFix { .. }
             | Action::AddressReviewThreads { .. }
             | Action::FixFailedChecks { .. }
             | Action::StartPrReview { .. }
@@ -650,8 +602,7 @@ impl Workspace {
             | Action::SetLanguage { .. }
             | Action::SetAgentLimits { .. }
             | Action::SetRepoRules { .. }
-            | Action::SyncRemote { .. }
-            | Action::ResetDemo => self.perform_settings(action, at_ms),
+            | Action::SyncRemote { .. } => self.perform_settings(action, at_ms),
         }
     }
 }

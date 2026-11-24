@@ -2,7 +2,7 @@ use super::*;
 use cockpit_i18n::{Msg, msg};
 
 impl AgentRun {
-    pub fn start(&mut self, mut options: AgentOptions, pr_number: u32) {
+    pub fn start(&mut self, mut options: AgentOptions) {
         // The rules of the repo come first: required tests cannot be switched off, and whoever
         // violates the path rules or whose repo demands it always presents a plan.
         if !self.rules.required_tests.is_empty() {
@@ -11,10 +11,7 @@ impl AgentRun {
         if self.rules.plan_required || !self.violations().is_empty() {
             options.plan_first = true;
         }
-        // An investigation only changes something after your approval of the fix, a plan would be
-        // redundant. Follow-up jobs do not create a new pull request.
-        let investigate = matches!(self.kind, RunKind::Diagnose { .. });
-        self.planned = options.plan_first && !investigate;
+        self.planned = options.plan_first;
         self.state = if self.planned {
             RunState::AwaitingApproval
         } else {
@@ -22,9 +19,8 @@ impl AgentRun {
         };
         self.options = options;
         self.completed = 0;
-        self.pr_number = Some(self.kind.review().map_or(pr_number, |k| k.number));
+        self.pr_number = self.kind.review().map(|k| k.number);
         self.plan_notes.clear();
-        self.diagnosis = None;
         self.agent_plan = None;
         self.ended = None;
         self.closure = None;
@@ -92,23 +88,10 @@ impl AgentRun {
         self.pr_number = self.kind.review().map(|k| k.number);
         self.plan_notes.clear();
         self.planned = false;
-        self.diagnosis = None;
         self.agent_plan = None;
         self.summary.clear();
-        self.real = false;
         self.clear_usage();
         self.clear_conversation();
-    }
-
-    /// Adopts the fix of the diagnosis: the agent applies it, pushes and restarts the check.
-    /// `false` if no diagnosis is waiting.
-    pub fn accept_fix(&mut self) -> bool {
-        if !self.is_diagnosed() {
-            return false;
-        }
-        self.state = RunState::Running;
-        self.say_msg(Speaker::User, MessageKind::Info, msg!(CoreAgentMFixAdopted));
-        true
     }
 
     /// Approves the plan: from now on the agent works. `false` if there is nothing to approve.
@@ -147,16 +130,14 @@ impl AgentRun {
             MessageKind::Hint,
             msg!(CoreAgentMPlanNote, note = note),
         );
-        // The real agent works out a new plan; until it is ready, no approval is possible.
-        if self.real {
-            self.agent_plan = None;
-        }
+        // The agent works out a new plan; until it is ready, no approval is possible.
+        self.agent_plan = None;
         true
     }
 
-    /// The real agent is still working out the plan: there is nothing to approve.
+    /// The agent is still working out the plan: there is nothing to approve.
     pub fn is_drafting(&self) -> bool {
-        self.is_awaiting() && self.real && self.agent_plan.is_none()
+        self.is_awaiting() && self.agent_plan.is_none()
     }
 
     /// Answers the open question; afterwards the agent keeps working. Empty answers
@@ -230,89 +211,5 @@ impl AgentRun {
         };
         self.say_msg(Speaker::User, MessageKind::Info, text);
         true
-    }
-
-    /// Completes the current step. Returns `true` if the run is
-    /// finished with it.
-    pub fn advance(&mut self) -> bool {
-        self.tick() == Tick::Finished
-    }
-
-    /// A tick: the agent takes waiting hints into account, perhaps asks a
-    /// question and otherwise completes the current step.
-    pub fn tick(&mut self) -> Tick {
-        self.tick_with(&AgentLimits::unlimited(), 0)
-    }
-
-    /// Like [`AgentRun::tick`], with limits. If a limit is reached before the step, the run
-    /// stops (`Stopped`) and does nothing. `month_spent_cents` is what was spent in the month across all runs.
-    /// The step's consumption is calculated by the tick according to the prices of the limits.
-    pub fn tick_with(&mut self, limits: &AgentLimits, month_spent_cents: u64) -> Tick {
-        if !self.is_running() || self.real {
-            return Tick::Idle;
-        }
-        if let Some(reason) = limits.reached(self, month_spent_cents) {
-            self.state = RunState::Stopped(reason);
-            let detail = limits.describe_msg(reason, self, month_spent_cents);
-            self.say_msg(
-                Speaker::Agent,
-                MessageKind::Info,
-                msg!(
-                    CoreAgentMHalted,
-                    reason = reason.label_msg(),
-                    detail = detail,
-                    what = reason.raises_msg()
-                ),
-            );
-            return Tick::Stopped;
-        }
-        for hint in std::mem::take(&mut self.pending_hints) {
-            self.say_msg(
-                Speaker::Agent,
-                MessageKind::Ack,
-                msg!(CoreAgentMHintReceived, hint = hint),
-            );
-        }
-        // The follow-up question is hard-wired in the demo (see `demo::agent_question`);
-        // a backend would get it from the real agent.
-        if !self.asked
-            && let Some((step, question)) = crate::demo::agent_question(&self.key())
-            && step == self.completed
-        {
-            self.asked = true;
-            self.state = RunState::AwaitingAnswer;
-            self.say(Speaker::Agent, MessageKind::Question, question.text.clone());
-            self.question = Some(question);
-            return Tick::Asked;
-        }
-        let done = self.steps()[self.completed.min(STEPS - 1)].clone();
-        self.say_msg(
-            Speaker::Agent,
-            MessageKind::Info,
-            msg!(
-                CoreAgentMStepLine,
-                title = done.title_msg,
-                text = done.text_msg
-            ),
-        );
-        // Consumption of the step: made-up but fixed values in the demo.
-        let (input, output, millis) = crate::demo::step_tokens(&self.ticket_key, self.completed);
-        self.record_usage(Usage::priced(input, output, millis, &limits.pricing));
-        self.completed += 1;
-        if self.completed == STEPS {
-            self.state = RunState::Done;
-            Tick::Finished
-        } else if self.completed == DIAGNOSED_AT && matches!(self.kind, RunKind::Diagnose { .. }) {
-            // The diagnosis is ready. Until your decision the branch stays untouched.
-            self.state = RunState::AwaitingFix;
-            self.say_msg(
-                Speaker::Agent,
-                MessageKind::Info,
-                msg!(CoreAgentMDiagnosisReady),
-            );
-            Tick::Diagnosed
-        } else {
-            Tick::Stepped
-        }
     }
 }

@@ -8,16 +8,14 @@ use crate::action::ActionError;
 use crate::action::LogEntry;
 use crate::agent::{
     AgentOptions, AgentReport, AgentRun, Closure, FollowupTask, PullRequestRef, ReportEffect,
-    RunKind, Tick,
+    RunKind,
 };
 use crate::attention::{self, Hit, Rule, Rules, Snooze};
-use crate::demo;
-use crate::diagnosis::diagnose;
 use crate::filters::{Choices, NO_TICKET, Ownership, SprintView};
 use crate::model::*;
 use crate::notify::NotifySettings;
-use crate::review::{CHECK_STEPS, Decision, MergeBlocker, MergeMethod, Review, SendError, Verdict};
-use crate::rules::{DEMO_REPO, RepoRules};
+use crate::review::{Decision, MergeBlocker, MergeMethod, Review, SendError, Verdict};
+use crate::rules::RepoRules;
 use crate::search::InboxFilter;
 use crate::sync::SyncState;
 use crate::text::slug;
@@ -34,9 +32,7 @@ pub enum AgentError {
     UnknownReview,
     /// The pull request is merged and stays as it is.
     Merged,
-    /// No open comments are selected (or one is unknown or done).
-    NoComments,
-    /// Only a red check can be investigated.
+    /// The pull request has no red check.
     CheckNotFailed,
     /// The agent only continues on branches that the pattern of the repo names (`claude/…` by default).
     NotAgentBranch,
@@ -44,16 +40,6 @@ pub enum AgentError {
     NothingToReview,
     /// As many runs are already working as the limit allows (the number).
     ParallelLimit(u32),
-}
-
-/// Short ID for a commit of the demo: stable, but not real.
-fn short_sha(seed: &str) -> String {
-    let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
-    for byte in seed.bytes() {
-        hash ^= u64::from(byte);
-        hash = hash.wrapping_mul(0x0100_0000_01b3);
-    }
-    format!("{:07x}", hash & 0x0fff_ffff)
 }
 
 /// A pull request linked to a ticket, as the ticket detail lists it.
@@ -529,14 +515,11 @@ impl Workspace {
     }
 
     pub fn running_agents(&self) -> usize {
-        self.runs
-            .iter()
-            .filter(|r| r.is_running() && !r.real)
-            .count()
+        self.runs.iter().filter(|r| r.is_running()).count()
     }
 
-    /// Agents waiting for the user: for the approval of a plan, an answer, the
-    /// decision about a fix or because a limit has stopped them.
+    /// Agents waiting for the user: for the approval of a plan, an answer or because a limit has
+    /// stopped them.
     pub fn waiting_agents(&self) -> usize {
         self.runs
             .iter()

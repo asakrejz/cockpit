@@ -24,7 +24,7 @@ pub struct Question {
     pub suggestions: Vec<String>,
 }
 
-/// The plan the real agent presented from the container (instead of the derived one).
+/// The plan the agent presented from the container (instead of the derived one).
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct AgentPlan {
     #[serde(default)]
@@ -35,7 +35,7 @@ pub struct AgentPlan {
     pub steps: Vec<String>,
 }
 
-/// What the real agent reports from the container. The backend checks the container's lines and
+/// What the agent reports from the container. The backend checks the container's lines and
 /// passes them on as `Action::ReportAgent` (author Agent); `cockpit-core` decides what they
 /// effect – the agent can change the state only through these paths.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -148,25 +148,8 @@ impl RunMessage {
     pub fn text_in(&self, lang: Lang) -> String {
         self.msg
             .as_ref()
-            .map_or_else(|| self.text.clone(), |m| m.render(lang))
+            .map_or_else(|| self.text.clone(), |m| m.render_or(lang, &self.text))
     }
-}
-
-/// What a tick has effected.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Tick {
-    /// The run is not running, nothing happened.
-    Idle,
-    /// The agent has stopped and asked a question.
-    Asked,
-    /// The investigation has presented the diagnosis and waits for the decision.
-    Diagnosed,
-    /// A step was completed.
-    Stepped,
-    /// The last step was completed.
-    Finished,
-    /// A limit is reached: the run has stopped without making a step.
-    Stopped,
 }
 
 /// What the agent intends to do. Derived from ticket, hints and files.

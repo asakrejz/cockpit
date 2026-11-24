@@ -1,4 +1,4 @@
-use super::texts::{comments_msg, files_msg, raw};
+use super::texts::{files_msg, raw};
 use super::*;
 use cockpit_i18n::{Msg, msg};
 
@@ -16,9 +16,6 @@ impl AgentRun {
                 self.rules.lines_msg(),
                 self.violations(),
             ));
-        }
-        if let RunKind::AddressReview { review, comments } = &self.kind {
-            return Some(self.address_plan(review, comments.len()));
         }
         let o = &self.options;
         let tests = tests_part(o.run_tests);
@@ -88,37 +85,6 @@ impl AgentRun {
         } else {
             msg!(CoreAgentPlanTestsSkip)
         });
-    }
-
-    /// Plan for "implement review comments": no new branch, no new pull request.
-    pub(super) fn address_plan(&self, review: &PrKey, comments: usize) -> Plan {
-        let branch = self.branch();
-        let summary = self.with_hint_and_revisions(msg!(
-            CoreAgentPlanAddressSummary,
-            comments = comments_msg(comments),
-            review = review.to_string(),
-            files = files_msg(self.files.len()),
-            tests = tests_part(self.options.run_tests),
-            branch = &branch
-        ));
-        let mut steps = vec![
-            msg!(
-                CoreAgentPlanAddressRead,
-                comments = comments_msg(comments),
-                review = review.to_string()
-            ),
-            msg!(CoreAgentPlanAddressCheckout, branch = &branch),
-            msg!(CoreAgentPlanEdit, files = self.files.join(", ")),
-        ];
-        self.push_note_and_test_steps(&mut steps);
-        steps.push(msg!(CoreAgentPlanAddressPush, branch = &branch));
-        Plan::new(
-            summary,
-            self.files.clone(),
-            steps,
-            self.rules.lines_msg(),
-            self.violations(),
-        )
     }
 }
 

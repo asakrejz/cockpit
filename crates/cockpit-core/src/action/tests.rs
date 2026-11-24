@@ -1,8 +1,10 @@
 use super::*;
-use crate::model::{Filter, ReasonKind, Scope, Tone};
+use crate::agent::{RunKind, STEPS};
+use crate::demo;
+use crate::model::{Checks, Filter, Scope, Tone};
 use crate::notify::NotifySettings;
 use crate::persist;
-use crate::review::{CHECK_STEPS, Decision};
+use crate::review::Decision;
 
 const T: u64 = 1_700_000_000_000;
 
@@ -10,9 +12,19 @@ fn ws() -> Workspace {
     demo::workspace()
 }
 
+/// Options without plan approval, as the server settles them: the repo is always chosen.
 fn direct() -> AgentOptions {
     AgentOptions {
         plan_first: false,
+        repo: Some(demo::DEMO_REPO.into()),
+        ..Default::default()
+    }
+}
+
+/// Options with plan approval (the start of a run that first presents a plan).
+fn with_plan() -> AgentOptions {
+    AgentOptions {
+        repo: Some(demo::DEMO_REPO.into()),
         ..Default::default()
     }
 }
@@ -43,60 +55,40 @@ fn asking_ws() -> Workspace {
         },
         1,
     );
-    ok(&mut w, Action::AdvanceAgents, 1);
-    ok(&mut w, Action::AdvanceAgents, 1);
-    ok(&mut w, Action::AdvanceAgents, 1);
+    advance(&mut w, 2);
+    report(
+        &mut w,
+        "BAU-142",
+        AgentReport::Question {
+            text: "Remove the old style or mark it as deprecated?".into(),
+            suggestions: vec!["Remove it".into(), "Mark it as deprecated".into()],
+        },
+    )
+    .unwrap();
     assert!(w.run("BAU-142").unwrap().is_asking());
     w
 }
 
 // ---------- Follow-up jobs ----------
 
+/// Lets every running run report its steps until all are done (what the container does).
 fn run_to_end(w: &mut Workspace) {
     for _ in 0..STEPS * 2 {
-        // The test answers follow-up questions with the first suggestion.
-        let asking = w
-            .runs
-            .iter()
-            .find(|r| r.is_asking())
-            .map(|r| (r.key(), r.question.as_ref().unwrap().suggestions[0].clone()));
-        if let Some((run, text)) = asking {
-            w.apply(Action::AnswerAgent { run, text }, Actor::User, T)
-                .unwrap();
-        }
         if w.running_agents() == 0 {
             break;
         }
-        w.apply(Action::AdvanceAgents, Actor::Agent, T).unwrap();
+        advance(w, 1);
     }
-}
-
-fn address(review: u32, ids: &[&str], options: AgentOptions) -> Action {
-    Action::AddressReview {
-        review: review.into(),
-        comments: ids.iter().map(|s| s.to_string()).collect(),
-        options,
-    }
-}
-
-fn investigate_85(w: &mut Workspace, check: &str) {
-    ok(
-        w,
-        Action::InvestigateCheck {
-            review: 85.into(),
-            check: check.into(),
-        },
-        1,
-    );
 }
 
 use crate::agent::RunState;
 
 // ---------- Costs, limits, rules ----------
 
+/// One step of every running run, as the container reports it, `n` times.
 fn advance(w: &mut Workspace, n: u64) {
     for i in 0..n {
-        let _ = w.apply(Action::AdvanceAgents, Actor::Agent, T + i);
+        crate::test_support::advance_at(w, T + i);
     }
 }
 
@@ -121,7 +113,7 @@ fn rules(f: impl FnOnce(&mut RepoRules)) -> Action {
     let mut r = RepoRules::default();
     f(&mut r);
     Action::SetRepoRules {
-        repo: crate::rules::DEMO_REPO.into(),
+        repo: crate::demo::DEMO_REPO.into(),
         rules: r,
     }
 }
@@ -160,6 +152,20 @@ fn report(w: &mut Workspace, run: &str, report: AgentReport) -> Result<Applied, 
         Actor::Agent,
         T,
     )
+}
+
+/// The container has worked out its plan for a run that waits for approval.
+fn plan_ready(w: &mut Workspace, run: &str) {
+    report(
+        w,
+        run,
+        AgentReport::Plan {
+            summary: "Plan".into(),
+            files: vec!["src/lib.rs".into()],
+            steps: vec!["Change it".into()],
+        },
+    )
+    .unwrap();
 }
 
 // ---------- Merging, checks, change suggestions ----------
@@ -219,10 +225,10 @@ mod actors;
 mod agent_review;
 mod basics;
 mod closed_runs;
-mod follow_ups;
 mod inbox_filter;
 mod limits;
 mod multi_repo;
+mod old_stored_data;
 mod pull_requests;
 mod real_agent;
 mod real_followups;

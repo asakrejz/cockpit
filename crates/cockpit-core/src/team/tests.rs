@@ -22,6 +22,16 @@ fn a_plan_waiting_for_approval_is_stuck_with_me() {
     // The waiting agent occupies the ticket.
     assert_eq!(member(&members(&w), "Agent").in_progress, 1);
     // After approval it runs – then nothing is stuck any more.
+    w.report_agent(
+        "BAU-150",
+        crate::agent::AgentReport::Plan {
+            summary: "Plan".into(),
+            files: vec!["a.rs".into()],
+            steps: vec!["Change it".into()],
+        },
+        0,
+    )
+    .unwrap();
     assert!(w.approve_plan("BAU-150"));
     assert!(stuck(&w).iter().all(|s| s.key != "BAU-150"));
 }
@@ -163,18 +173,17 @@ fn sending_the_review_unblocks_the_pull_request() {
 }
 
 #[test]
-fn finished_agent_run_waits_for_review_until_sent() {
+fn a_finished_agent_run_is_not_stuck_before_its_pull_request_exists() {
     let mut w = demo::workspace();
     w.start_agent("BAU-150", direct()).unwrap();
     // While it is still running, nothing is stuck – even if the branch only comes into being at the end.
     assert!(stuck(&w).iter().all(|s| s.key != "BAU-150"));
     for _ in 0..crate::agent::STEPS {
-        w.advance_agents();
+        crate::test_support::advance(&mut w);
     }
-    let s = stuck(&w);
-    let entry = s.iter().find(|s| s.key == "BAU-150").unwrap();
-    assert_eq!(entry.kind, StuckKind::AgentWaiting);
-    assert_eq!(entry.who, Person::me());
+    // The pushed branch waits for your approval of the pull request; that is not a block.
+    assert!(w.run("BAU-150").unwrap().is_done());
+    assert!(stuck(&w).iter().all(|s| s.key != "BAU-150"));
 }
 
 #[test]
@@ -244,9 +253,9 @@ fn own_entries_read_naturally() {
 fn a_waiting_question_is_stuck_with_me() {
     let mut w = demo::workspace();
     w.start_agent("BAU-142", direct()).unwrap();
-    for _ in 0..3 {
-        w.advance_agents();
-    }
+    crate::test_support::advance(&mut w);
+    crate::test_support::advance(&mut w);
+    crate::test_support::question(&mut w, "BAU-142", "Remove it or mark it as deprecated?");
     let s = stuck(&w);
     let entry = s.iter().find(|s| s.key == "BAU-142").unwrap();
     assert_eq!(entry.kind, StuckKind::QuestionWaiting);

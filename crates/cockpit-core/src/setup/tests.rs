@@ -303,13 +303,10 @@ fn test_result_tells_where_it_failed() {
 }
 
 #[test]
-fn summary_asks_for_the_image_when_the_real_agent_needs_it() {
+fn summary_asks_for_the_image_when_the_agent_needs_it() {
     let mut s = Snapshot::default();
     s.container.runtime = Some("docker".into());
     s.container.engine_running = true;
-    // Simulated or unknown: green as before.
-    assert_eq!(summary(&s)[0].tone, Tone::Good);
-    s.agent.mode = "real".into();
     let z = &summary(&s)[0];
     assert_eq!(z.tone, Tone::Open);
     assert!(z.text.de().contains("Image bauen"));

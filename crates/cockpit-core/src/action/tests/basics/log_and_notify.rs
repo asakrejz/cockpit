@@ -79,25 +79,6 @@ fn notification_settings_are_changed_by_actions() {
 }
 
 #[test]
-fn reset_keeps_notification_settings() {
-    let mut w = ws();
-    ok(
-        &mut w,
-        Action::SetNotifyChannel {
-            reason: NotifyReason::Assigned,
-            channel: Channel::Browser,
-            on: false,
-        },
-        1,
-    );
-    w.apply(Action::ResetDemo, Actor::User, T).unwrap();
-    assert!(
-        !w.notifications
-            .enabled(NotifyReason::Assigned, Channel::Browser)
-    );
-}
-
-#[test]
 fn notification_settings_survive_save_and_load() {
     let mut w = ws();
     w.notifications

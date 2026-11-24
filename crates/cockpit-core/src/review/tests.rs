@@ -1,5 +1,4 @@
 use super::LineKind::{Add, Context, Del};
-use super::suggest::{has_fixed_px, has_hex_color};
 use super::*;
 
 fn review() -> Review {
@@ -96,35 +95,6 @@ fn any_change_reopens_a_sent_review() {
     r.send().unwrap();
     r.set_verdict(Verdict::Approve);
     assert!(!r.sent);
-}
-
-#[test]
-fn agent_review_finds_hard_coded_values() {
-    let mut r = review();
-    assert_eq!(r.run_agent_review(), 2);
-    assert_eq!(r.suggestions[0].location, "a.css · Zeile 2");
-    assert_eq!(r.suggestions[0].level, Level::Note);
-    assert_eq!(r.suggestions[1].level, Level::Important);
-    assert!(r.suggestions.iter().all(|s| s.decision.is_none()));
-}
-
-#[test]
-fn hex_colors() {
-    assert!(has_hex_color("background: #fff;"));
-    assert!(has_hex_color("x #12abCD y"));
-    assert!(!has_hex_color("PR #9 ist offen"));
-    assert!(!has_hex_color("kein Wert"));
-}
-
-#[test]
-fn fixed_pixel_values() {
-    assert!(has_fixed_px("  left: 46px;"));
-    assert!(
-        !has_fixed_px("  --comp-slider-thumb-w: 38px;"),
-        "tokens may set values"
-    );
-    assert!(!has_fixed_px("  left: var(--sep-inset);"));
-    assert!(!has_fixed_px("  display: flex; /* px */"));
 }
 
 #[test]
@@ -313,7 +283,7 @@ fn old_line_comments_without_the_field_still_load() {
 fn with_checks(r: &mut Review) {
     r.check_runs = vec![
         CheckRun::new("Build", Checks::Passed, 95, "ok"),
-        CheckRun::new("Lint", Checks::Failed, 12, "error").rerun_as(Checks::Failed),
+        CheckRun::new("Lint", Checks::Failed, 12, "error"),
         CheckRun::new("Tests", Checks::Failed, 40, "flaky"),
     ];
     r.sync_checks();
@@ -343,42 +313,23 @@ fn only_a_failed_check_can_be_restarted() {
 }
 
 #[test]
-fn a_restarted_check_finishes_after_a_few_ticks_deterministically() {
+fn restarting_a_check_clears_its_output_until_the_next_sync() {
     let mut r = review();
     with_checks(&mut r);
-    r.restart_check("Tests");
-    r.restart_check("Lint");
-    for _ in 0..CHECK_STEPS - 1 {
-        assert!(r.advance_checks().is_empty());
-        assert_eq!(
-            r.checks,
-            Checks::Running,
-            "only a finished check counts as red"
-        );
-    }
-    assert_eq!(r.advance_checks(), vec!["Lint", "Tests"]);
-    assert_eq!(r.check_runs[2].status, Checks::Passed);
-    assert!(r.check_runs[2].log.contains("erfolgreich"));
-    assert_eq!(r.check_runs[1].status, Checks::Failed);
-    assert_eq!(r.checks, Checks::Failed);
-    assert_eq!(r.running_checks(), 0);
-    assert!(r.advance_checks().is_empty());
-    // The real error can be retried, but stays red.
-    assert!(r.restart_check("Lint"));
+    assert!(r.restart_check("Tests"));
+    assert!(r.check_runs[2].log.is_empty());
+    assert_eq!(r.check_runs[2].status, Checks::Running);
 }
 
 #[test]
-fn all_green_after_restarts_makes_the_review_green() {
+fn all_restarted_makes_the_review_running() {
     let mut r = review();
     r.check_runs = vec![
         CheckRun::new("Build", Checks::Passed, 5, ""),
         CheckRun::new("Tests", Checks::Failed, 5, ""),
     ];
     r.restart_check("Tests");
-    (0..CHECK_STEPS).for_each(|_| {
-        r.advance_checks();
-    });
-    assert_eq!(r.checks, Checks::Passed);
+    assert_eq!(r.checks, Checks::Running);
 }
 
 // ---------- Merging ----------

@@ -46,22 +46,18 @@ fn running_agent_continues_at_its_step() {
         ..AgentOptions::default()
     };
     ws.start_agent(&key, direct).unwrap();
-    ws.advance_agents();
-    ws.advance_agents();
+    crate::test_support::advance(&mut ws);
+    crate::test_support::advance(&mut ws);
     let mut back = load(&save(&ws)).unwrap();
     assert_eq!(back.running_agents(), 1);
     let run = back.runs.iter().find(|r| r.is_running()).unwrap();
     assert_eq!((run.completed, run.state), (2, RunState::Running));
-    // … and runs to the end after loading, with a new pull request.
+    // … and runs to the end after loading.
     for _ in 0..STEPS {
-        back.advance_agents();
+        crate::test_support::advance(&mut back);
     }
     assert_eq!(back.running_agents(), 0);
-    assert!(
-        back.runs
-            .iter()
-            .any(|r| r.is_done() && r.pr_number.is_some())
-    );
+    assert!(back.runs.iter().any(|r| r.key() == key && r.is_done()));
 }
 
 #[test]
@@ -214,9 +210,9 @@ fn question_and_pause_survive_and_old_runs_still_load() {
         },
     )
     .unwrap();
-    for _ in 0..3 {
-        ws.advance_agents();
-    }
+    crate::test_support::advance(&mut ws);
+    crate::test_support::advance(&mut ws);
+    crate::test_support::question(&mut ws, "BAU-142", "Remove it or mark it as deprecated?");
     let back = load(&save(&ws)).unwrap();
     assert_eq!(back, ws);
     let run = back.run("BAU-142").unwrap();

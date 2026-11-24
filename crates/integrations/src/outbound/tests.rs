@@ -100,6 +100,9 @@ fn review() -> Review {
             "abgelehnt",
         ),
     ];
+    // The first draft has a position, the second has none: it goes into the text of the review.
+    r.suggestions[0].path = "a.rs".into();
+    r.suggestions[0].line = 2;
     r.suggestions[0].decision = Some(Decision::Approved);
     r.suggestions[1].decision = Some(Decision::Approved);
     r.suggestions[2].decision = Some(Decision::Declined);
@@ -263,7 +266,7 @@ fn local_stays_local() {
         ),
         Ok(None)
     );
-    assert_eq!(plan(&w, Action::AdvanceAgents, &all()), Ok(None));
+    assert_eq!(plan(&w, Action::WakeSnoozed, &all()), Ok(None));
     assert_eq!(
         plan(
             &w,

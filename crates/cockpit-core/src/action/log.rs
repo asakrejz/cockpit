@@ -70,7 +70,7 @@ impl LogEntry {
     pub fn text_in(&self, lang: cockpit_i18n::Lang) -> String {
         self.msg
             .as_ref()
-            .map_or_else(|| self.text.clone(), |m| m.render(lang))
+            .map_or_else(|| self.text.clone(), |m| m.render_or(lang, &self.text))
     }
 }
 

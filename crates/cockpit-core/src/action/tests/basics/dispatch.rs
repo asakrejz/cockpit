@@ -87,7 +87,6 @@ fn every_action_variant_is_applied_and_logged() {
         },
         1,
     );
-    ok(&mut w, Action::RequestAgentReview { review: 85.into() }, 2);
     for s in ["b", "c"] {
         w.decide(87, s, Some(Decision::Declined));
     }
@@ -107,6 +106,7 @@ fn every_action_variant_is_applied_and_logged() {
         },
         2,
     );
+    plan_ready(&mut w, &key);
     ok(
         &mut w,
         Action::RevisePlan {
@@ -115,6 +115,7 @@ fn every_action_variant_is_applied_and_logged() {
         },
         1,
     );
+    plan_ready(&mut w, &key);
     ok(
         &mut w,
         Action::ApprovePlan {
@@ -122,7 +123,7 @@ fn every_action_variant_is_applied_and_logged() {
         },
         1,
     );
-    ok(&mut w, Action::AdvanceAgents, 1);
+    advance(&mut w, 1);
     ok(
         &mut w,
         Action::SteerAgent {
@@ -133,8 +134,15 @@ fn every_action_variant_is_applied_and_logged() {
     );
     ok(&mut w, Action::PauseAgent { run: key.clone() }, 1);
     ok(&mut w, Action::ResumeAgent { run: key.clone() }, 1);
-    ok(&mut w, Action::AdvanceAgents, 2);
-    ok(&mut w, Action::AdvanceAgents, 1);
+    report(
+        &mut w,
+        &key,
+        AgentReport::Question {
+            text: "Remove it or mark it as deprecated?".into(),
+            suggestions: Vec::new(),
+        },
+    )
+    .unwrap();
     ok(
         &mut w,
         Action::AnswerAgent {
@@ -158,12 +166,8 @@ fn every_action_variant_is_applied_and_logged() {
         },
         2,
     );
+    plan_ready(&mut w, &key);
     ok(&mut w, Action::RejectPlan { ticket: key }, 1);
-    let reset = w.apply(Action::ResetDemo, Actor::User, T).unwrap();
-    assert_eq!(reset.logged, 1);
-    assert_eq!(w.log.len(), 1, "the log starts over after the reset");
-    assert_eq!(w.log[0].actor, Actor::System);
-    assert_eq!(w.log[0].text, "Demo-Daten zurückgesetzt");
 }
 
 #[test]
@@ -329,7 +333,6 @@ fn failures_are_returned_and_leave_no_entry() {
         },
         ActionError::NothingToDo,
     );
-    fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
     assert!(w.log.is_empty());
     assert!(!ActionError::NothingToDo.message().is_empty());
 }
@@ -356,7 +359,7 @@ fn starting_twice_fails() {
 }
 
 #[test]
-fn agent_steps_from_the_tick_are_logged_as_agent() {
+fn what_the_container_reports_is_logged_as_agent() {
     let mut w = ws();
     w.apply(
         Action::StartAgent {
@@ -367,56 +370,60 @@ fn agent_steps_from_the_tick_are_logged_as_agent() {
         T,
     )
     .unwrap();
-    for i in 0..=STEPS {
-        if w.run("BAU-142").unwrap().is_asking() {
-            w.apply(
-                Action::AnswerAgent {
-                    run: "BAU-142".into(),
-                    text: "Entfernen".into(),
-                },
-                Actor::User,
-                T + 1 + i as u64,
-            )
-            .unwrap();
-        }
-        w.apply(Action::AdvanceAgents, Actor::Agent, T + 1 + i as u64)
-            .unwrap();
-    }
-    let steps: Vec<_> = w
-        .log_entries(Some(Actor::Agent))
-        .into_iter()
-        .rev()
-        .map(|e| e.text.as_str())
-        .collect();
-    assert_eq!(
-        steps,
-        [
-            "BAU-142: Ticket gelesen",
-            "BAU-142: Branch erstellt",
-            "BAU-142: Der Agent hat eine Frage und wartet auf deine Antwort",
-            "BAU-142: Änderungen umgesetzt",
-            "BAU-142: Tests ausgeführt",
-            "BAU-142: Pull Request acme/app#92 als Entwurf erstellt",
-        ]
-    );
-    let last = w.log.last().unwrap();
-    assert_eq!(
-        last.target,
-        Some(Target::Review(PrKey::new(crate::DEMO_REPO, 92)))
-    );
-    assert_eq!(w.log[1].target, Some(Target::Run("BAU-142".into())));
+    report(
+        &mut w,
+        "BAU-142",
+        AgentReport::Started {
+            detail: "docker".into(),
+        },
+    )
+    .unwrap();
+    advance(&mut w, 2);
+    report(
+        &mut w,
+        "BAU-142",
+        AgentReport::Question {
+            text: "Remove it or mark it as deprecated?".into(),
+            suggestions: Vec::new(),
+        },
+    )
+    .unwrap();
+    w.apply(
+        Action::AnswerAgent {
+            run: "BAU-142".into(),
+            text: "Remove it".into(),
+        },
+        Actor::User,
+        T + 1,
+    )
+    .unwrap();
+    advance(&mut w, STEPS as u64);
+    assert!(w.run("BAU-142").unwrap().is_done());
+    // The start and the answer are the user's, everything else the agent's.
     assert_eq!(
         w.log_entries(Some(Actor::User)).len(),
         2,
         "start and answer"
     );
-    assert_eq!(w.log_entries(None).len(), 8);
     assert_eq!(w.log_entries(Some(Actor::System)).len(), 0);
-    assert_eq!(w.log_entries(None)[0].id, 8, "neueste zuerst");
-    // After that nothing runs any more.
-    assert_eq!(
-        w.apply(Action::AdvanceAgents, Actor::Agent, T),
-        Err(ActionError::NothingToDo)
+    let all = w.log_entries(None).len();
+    assert_eq!(w.log_entries(Some(Actor::Agent)).len(), all - 2);
+    assert!(
+        w.log
+            .iter()
+            .all(|e| e.target == Some(Target::Run("BAU-142".into())))
+    );
+    assert_eq!(w.log_entries(None)[0].id as usize, all, "newest first");
+    // After that the run takes no more reports.
+    assert!(
+        report(
+            &mut w,
+            "BAU-142",
+            AgentReport::Done {
+                summary: "again".into()
+            }
+        )
+        .is_err()
     );
 }
 
@@ -447,8 +454,8 @@ fn the_two_rules_still_hold() {
         T,
     )
     .unwrap();
-    for _ in 0..STEPS {
-        let _ = w.apply(Action::AdvanceAgents, Actor::Agent, T);
-    }
-    assert!(!w.review(92).unwrap().sent);
+    advance(&mut w, STEPS as u64);
+    // A finished run opens no pull request on its own, so nothing was sent or merged.
+    assert!(w.review(92).is_none());
+    assert!(w.reviews.iter().all(|r| r.merged.is_none()));
 }

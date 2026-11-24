@@ -1,6 +1,8 @@
 use super::*;
 use crate::agent::STEPS;
 use crate::attention::Rule;
+use crate::demo;
+use crate::test_support::{advance, advance_at};
 
 fn ws() -> Workspace {
     demo::workspace()
@@ -14,9 +16,15 @@ fn direct() -> AgentOptions {
     }
 }
 
-/// Lets all agents run to the end and answers every follow-up question.
+/// Lets all agents run to the end (the container reports every step) and answers every follow-up
+/// question. Returns the keys of the runs that finished in the process.
 fn finish_agents(w: &mut Workspace) -> Vec<String> {
-    let mut finished = Vec::new();
+    let done_before: Vec<String> = w
+        .runs
+        .iter()
+        .filter(|r| r.is_done())
+        .map(|r| r.key())
+        .collect();
     for _ in 0..=STEPS {
         let asking: Vec<String> = w
             .runs
@@ -27,9 +35,13 @@ fn finish_agents(w: &mut Workspace) -> Vec<String> {
         for key in asking {
             assert!(w.answer_agent(&key, "Entfernen"));
         }
-        finished.extend(w.advance_agents());
+        advance_at(w, 0);
     }
-    finished
+    w.runs
+        .iter()
+        .filter(|r| r.is_done() && !done_before.contains(&r.key()))
+        .map(|r| r.key())
+        .collect()
 }
 
 #[test]
@@ -281,27 +293,8 @@ fn own_line_comments_go_out_with_the_review() {
 }
 
 #[test]
-fn agent_review_prepares_suggestions() {
+fn a_finished_agent_leaves_its_branch_and_waits_for_the_pull_request() {
     let mut w = ws();
-    assert!(!w.review(85).unwrap().agent_reviewed);
-    let count = w.request_agent_review(85);
-    assert!(count >= 1);
-    assert!(w.review(85).unwrap().agent_reviewed);
-    assert!(
-        w.item("pr85")
-            .unwrap()
-            .agent_note
-            .as_ref()
-            .unwrap()
-            .contains("vom Agenten")
-    );
-    assert_eq!(w.send_review(85, ""), Err(SendError::Undecided(count)));
-}
-
-#[test]
-fn an_agent_turns_a_ticket_into_a_pull_request() {
-    let mut w = ws();
-    assert_eq!(w.next_pr_number(), 92);
     w.start_agent("BAU-142", direct()).unwrap();
     assert_eq!(w.running_agents(), 1);
     assert_eq!(w.item("bau142").unwrap().status, TicketStatus::InProgress);
@@ -318,20 +311,17 @@ fn an_agent_turns_a_ticket_into_a_pull_request() {
         item.branch.as_deref(),
         Some("claude/BAU-142-toggle-fokus-ring-fehlt")
     );
-    assert_eq!(item.pr.as_ref().unwrap().label(), "#92 · Entwurf");
-    assert_eq!(item.status, TicketStatus::Review);
     assert_eq!(item.reason, ReasonKind::AgentFinished);
     assert!(!item.read, "a finished run needs attention");
-
-    let review = w.review(92).unwrap();
-    assert!(review.author.is_agent());
-    assert_eq!(review.files.len(), 2);
-    assert_eq!(review.ticket_key.as_deref(), Some("BAU-142"));
-    assert_eq!(w.next_pr_number(), 93);
+    // The pull request is created only after your approval, so there is none yet.
+    assert!(item.pr.is_none());
+    let run = w.run("BAU-142").unwrap();
+    assert!(run.is_done() && run.pr_number.is_none() && run.pull_request.is_none());
+    assert!(w.check_pull_request("BAU-142", "").is_ok());
 }
 
 #[test]
-fn two_agents_get_different_pull_requests() {
+fn two_agents_run_side_by_side() {
     let mut w = ws();
     w.start_agent("BAU-142", direct()).unwrap();
     w.start_agent("BAU-150", direct()).unwrap();
@@ -339,48 +329,13 @@ fn two_agents_get_different_pull_requests() {
     let mut finished = finish_agents(&mut w);
     finished.sort();
     assert_eq!(finished, ["BAU-142", "BAU-150"]);
-    assert_eq!(w.item("bau142").unwrap().pr.as_ref().unwrap().number, 92);
-    assert_eq!(w.item("bau150").unwrap().pr.as_ref().unwrap().number, 93);
-}
-
-#[test]
-fn options_decide_draft_and_checks() {
-    let mut w = ws();
-    let options = AgentOptions {
-        run_tests: false,
-        draft_pr: false,
-        ..direct()
-    };
-    w.start_agent("BAU-150", options).unwrap();
-    finish_agents(&mut w);
-    let item = w.item("bau150").unwrap();
-    assert_eq!(
-        item.pr,
-        Some(PrRef {
-            repo: DEMO_REPO.into(),
-            number: 92,
-            draft: false,
-            checks: Checks::Running,
-            changes_requested: false,
-            merged: false,
-            review_requested: true,
-            author: String::new(),
-            mine: false,
-            requested_me: false,
-            assigned_me: false,
-        })
-    );
-    assert_eq!(
-        item.agent_note.as_deref(),
-        Some("Vom Agenten umgesetzt · Tests übersprungen")
-    );
 }
 
 #[test]
 fn a_cancelled_agent_leaves_no_traces() {
     let mut w = ws();
     w.start_agent("BAU-142", direct()).unwrap();
-    w.advance_agents();
+    advance(&mut w);
     w.cancel_agent("BAU-142");
     assert_eq!(w.running_agents(), 0);
     assert!(finish_agents(&mut w).is_empty());
@@ -425,15 +380,26 @@ fn a_plan_is_shown_before_anything_happens() {
 }
 
 #[test]
-fn approving_continues_to_the_pull_request() {
+fn approving_needs_the_plan_of_the_agent_and_then_continues() {
     let mut w = ws();
     w.start_agent("BAU-142", AgentOptions::default()).unwrap();
+    // The agent has not presented its plan yet: nothing to approve.
+    assert!(!w.approve_plan("BAU-142"));
+    w.report_agent(
+        "BAU-142",
+        AgentReport::Plan {
+            summary: "Fokus-Ring ergänzen".into(),
+            files: vec!["src/toggle.rs".into()],
+            steps: vec!["Ändern".into()],
+        },
+        0,
+    )
+    .unwrap();
     assert!(w.approve_plan("BAU-142"));
     assert!(!w.approve_plan("BAU-142"), "approve only once");
     assert_eq!((w.running_agents(), w.waiting_agents()), (1, 0));
     assert_eq!(finish_agents(&mut w), vec!["BAU-142".to_string()]);
-    assert_eq!(w.item("bau142").unwrap().pr.as_ref().unwrap().number, 92);
-    assert!(w.review(92).is_some());
+    assert!(w.item("bau142").unwrap().branch.is_some());
 }
 
 #[test]
@@ -479,27 +445,8 @@ fn agents_only_work_on_tickets() {
     assert!(w.run("#87").is_none());
     let fresh = w.run("BAU-150").unwrap();
     assert!(fresh.is_idle());
-    assert_eq!(fresh.files.len(), 2);
-}
-
-#[test]
-fn an_agent_pull_request_without_tests_gets_green_when_its_check_finishes() {
-    let mut w = ws();
-    let options = AgentOptions {
-        run_tests: false,
-        ..direct()
-    };
-    w.start_agent("BAU-150", options).unwrap();
-    finish_agents(&mut w);
-    assert_eq!(w.review(92).unwrap().checks, Checks::Running);
-    assert_eq!(w.running_checks(), 1);
-    assert_eq!(w.merge_blockers(92)[0], MergeBlocker::Draft);
-    for _ in 0..CHECK_STEPS {
-        w.advance_checks();
-    }
-    assert_eq!(w.review(92).unwrap().checks, Checks::Passed);
-    assert_eq!(
-        w.item("bau150").unwrap().pr.as_ref().unwrap().checks,
-        Checks::Passed
+    assert!(
+        fresh.files.is_empty(),
+        "the run has not changed anything yet"
     );
 }

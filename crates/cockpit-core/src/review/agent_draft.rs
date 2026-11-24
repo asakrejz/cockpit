@@ -1,4 +1,4 @@
-//! Drafts of the real agent: checked against the diff, kept as suggestions that wait for your
+//! Drafts of the agent: checked against the diff, kept as suggestions that wait for your
 //! decision. Nothing here talks to GitHub.
 
 use super::*;
@@ -31,12 +31,9 @@ impl Review {
                 .any(|f| f.name == path && f.lines.iter().any(|l| l.no == line && side.has(l.kind)))
     }
 
-    /// Number of drafts of the real agent.
+    /// Number of drafts of the agent.
     pub fn agent_drafts(&self) -> usize {
-        self.suggestions
-            .iter()
-            .filter(|s| s.origin == Origin::Agent)
-            .count()
+        self.suggestions.len()
     }
 
     /// A new review run starts: the old suggestions and the old summary are replaced.
@@ -66,13 +63,11 @@ impl Review {
         let start = c.start_line.filter(|&s| {
             s < c.line && c.line - s <= MAX_RANGE && self.has_line(&c.path, c.side, s)
         });
-        if self.suggestions.iter().any(|s| {
-            s.origin == Origin::Agent
-                && s.path == c.path
-                && s.line == c.line
-                && s.side == c.side
-                && s.text == text
-        }) {
+        if self
+            .suggestions
+            .iter()
+            .any(|s| s.path == c.path && s.line == c.line && s.side == c.side && s.text == text)
+        {
             return false;
         }
         let mut n = self.suggestions.len() + 1;
@@ -90,7 +85,6 @@ impl Review {
         s.start_line = start;
         s.side = c.side;
         s.code = code;
-        s.origin = Origin::Agent;
         self.suggestions.push(s);
         self.sent = false;
         true

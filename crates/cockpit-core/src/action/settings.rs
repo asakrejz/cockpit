@@ -118,37 +118,6 @@ impl Workspace {
                 notes.truncate(MAX_LOG);
                 Ok(notes)
             }
-            Action::ResetDemo => {
-                // The settings do not belong to the sample data and stay.
-                let notifications = std::mem::take(&mut self.notifications);
-                let sources = std::mem::take(&mut self.sync.sources);
-                let pr_status_off = self.pr_status_off;
-                let limits = self.limits.clone();
-                let repo_rules = std::mem::take(&mut self.repo_rules);
-                let jira_project = self.jira_project.take();
-                let inbox_filter = std::mem::take(&mut self.inbox_filter);
-                let review_filter = std::mem::take(&mut self.review_filter);
-                let language = self.language;
-                let team_choice = std::mem::take(&mut self.team_choice);
-                *self = demo::workspace();
-                self.jira_project = jira_project;
-                self.inbox_filter = inbox_filter;
-                self.review_filter = review_filter;
-                self.language = language;
-                self.team_choice = team_choice;
-                self.notifications = notifications;
-                self.pr_status_off = pr_status_off;
-                self.limits = limits;
-                self.repo_rules = repo_rules;
-                self.sync.sources = sources;
-                Ok(vec![
-                    Note::coded(
-                        Target::Item(self.items.first().map(|i| i.id.clone()).unwrap_or_default()),
-                        msg!(CoreActionLogDemoReset),
-                    )
-                    .by(Actor::System),
-                ])
-            }
             _ => unreachable!("settings: dispatched by perform"),
         }
     }
