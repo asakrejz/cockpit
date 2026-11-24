@@ -40,6 +40,36 @@ pub enum Error {
     },
 }
 
+/// What kind of failure an [`Error`] is. Callers that react to the kind (a status, a hint, whether
+/// to disconnect) ask [`Error::cause`] instead of listing error variants themselves, so a new
+/// variant gets its kind in exactly one place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cause {
+    /// The key is missing, expired or revoked.
+    Token,
+    /// The key is valid, but may not do this.
+    Permission,
+    /// Like [`Cause::Permission`], and the error says exactly which right is missing.
+    MissingRight,
+    /// The quota is used up.
+    RateLimit,
+    /// The thing does not exist (or the key may not see it).
+    NotFound,
+    /// A download is larger than the limit.
+    TooLarge,
+    /// The service refuses the request itself (see [`Error::rejection`] for its reason).
+    Rejected,
+    /// The answer is not readable or not what the service sends, such as a foreign page where the
+    /// API should be.
+    BadResponse,
+    /// An invalid setting, such as an address.
+    BadConfig,
+    /// No connection, timeout or similar.
+    Network,
+    /// Everything else: other status codes, options the service lacks, messages of this program.
+    Other,
+}
+
 impl Error {
     /// Replaces the key in all texts with `***`, in case a service echoes it back.
     pub fn without_key(self, key: &str) -> Self {
@@ -58,11 +88,35 @@ impl Error {
         }
     }
 
+    /// The kind of failure; the one place that sorts the variants.
+    pub fn cause(&self) -> Cause {
+        match self {
+            Error::NotSignedIn => Cause::Token,
+            Error::NoPermission => Cause::Permission,
+            Error::MissingRight { .. } => Cause::MissingRight,
+            Error::RateLimit { .. } => Cause::RateLimit,
+            Error::NotFound => Cause::NotFound,
+            Error::TooLarge => Cause::TooLarge,
+            Error::Rejected(_) => Cause::Rejected,
+            Error::Response(_) => Cause::BadResponse,
+            Error::Config(_) => Cause::BadConfig,
+            Error::Network(_) => Cause::Network,
+            Error::Status(_) | Error::NotPossible(_) | Error::Coded(_) => Cause::Other,
+        }
+    }
+
+    /// What the service said when it refused the request, if it said anything.
+    pub fn rejection(&self) -> Option<&str> {
+        match self {
+            Error::Rejected(m) if !m.is_empty() => Some(m),
+            _ => None,
+        }
+    }
+
     /// The state for the display per source. `now_ms`: time of day of the caller (milliseconds).
     pub fn problem(&self, now_ms: u64) -> Problem {
         match self {
-            Error::NotSignedIn => Problem::Unauthorized,
-            Error::NoPermission => Problem::NoPermission,
+            // The two kinds that carry data of their own.
             Error::MissingRight { right, kind } => Problem::MissingRight {
                 right: *right,
                 kind: *kind,
@@ -70,8 +124,12 @@ impl Error {
             Error::RateLimit { wait_s } => Problem::RateLimited {
                 until_ms: wait_s.map(|s| now_ms + s * 1000),
             },
-            Error::Network(_) => Problem::Offline,
-            other => Problem::Other(other.msg()),
+            _ => match self.cause() {
+                Cause::Token => Problem::Unauthorized,
+                Cause::Permission => Problem::NoPermission,
+                Cause::Network => Problem::Offline,
+                _ => Problem::Other(self.msg()),
+            },
         }
     }
 }

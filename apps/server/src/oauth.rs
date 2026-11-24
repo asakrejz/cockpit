@@ -18,7 +18,7 @@ use cockpit_integrations::jira::JiraClient;
 use cockpit_integrations::oauth::{
     self, App, Service, SignIns, Site, Tokens, jira_base, site_choose,
 };
-use cockpit_integrations::{Error, Secret};
+use cockpit_integrations::{Cause, Error, Secret};
 
 use crate::app::{AppState, now_ms};
 use crate::db;
@@ -76,19 +76,19 @@ fn now_s() -> u64 {
 
 /// A message for the interface; never contains a key.
 fn service_error(d: Service, f: &Error) -> Msg {
-    match f {
-        Error::NotSignedIn => {
+    match f.cause() {
+        Cause::Token => {
             msg!(
                 ServerOauthClientRejected,
                 service = d.name(),
                 step = step_name(d)
             )
         }
-        Error::Network(_) => msg!(ServerOauthUnreachable, service = d.name()),
-        other => msg!(
+        Cause::Network => msg!(ServerOauthUnreachable, service = d.name()),
+        _ => msg!(
             ServerOauthServiceError,
             service = d.name(),
-            reason = other.msg()
+            reason = f.msg()
         ),
     }
 }

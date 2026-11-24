@@ -1,5 +1,7 @@
 //! Refreshing tokens that expire soon.
 
+use cockpit_integrations::Cause;
+
 use super::*;
 
 impl AppState {
@@ -62,7 +64,7 @@ impl AppState {
 /// Only then they are deleted; an outage or a network error leaves them as they are.
 pub(super) fn tokens_unusable(f: &Error) -> bool {
     matches!(
-        f,
-        Error::NotSignedIn | Error::Rejected(_) | Error::NoPermission | Error::Response(_)
+        f.cause(),
+        Cause::Token | Cause::Rejected | Cause::Permission | Cause::BadResponse
     )
 }

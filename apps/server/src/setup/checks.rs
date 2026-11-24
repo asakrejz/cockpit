@@ -1,5 +1,7 @@
 //! Connection and repo checks of the setup page.
 
+use cockpit_integrations::Cause;
+
 use super::*;
 
 pub(super) fn check(cause: JiraCause, name: Option<String>) -> JiraCheck {
@@ -15,12 +17,12 @@ pub(super) fn check(cause: JiraCause, name: Option<String>) -> JiraCheck {
 
 /// Which cause belongs to an error of Jira.
 pub(super) fn jira_cause(f: &Error) -> JiraCause {
-    match f {
-        Error::NotSignedIn => JiraCause::Token,
-        Error::NoPermission => JiraCause::Permission,
+    match f.cause() {
+        Cause::Token => JiraCause::Token,
+        Cause::Permission => JiraCause::Permission,
         // 404, a foreign page instead of Jira (no JSON) or an unusable address.
-        Error::NotFound | Error::Response(_) | Error::Config(_) => JiraCause::Address,
-        Error::Network(_) => JiraCause::Reachable,
+        Cause::NotFound | Cause::BadResponse | Cause::BadConfig => JiraCause::Address,
+        Cause::Network => JiraCause::Reachable,
         _ => JiraCause::Other,
     }
 }
@@ -143,22 +145,24 @@ pub(super) async fn repo_lookup(
             Some(a.default_branch),
             msg!(ServerSetupRepoOk),
         ),
-        Err(Error::NotFound) => repo_check(
-            repo,
-            RepoState::NotFound,
-            None,
-            msg!(ServerSetupRepoNotFound),
-        ),
-        Err(Error::NotSignedIn | Error::NoPermission) => repo_check(
-            repo,
-            RepoState::NoAccess,
-            None,
-            msg!(ServerSetupRepoNoPermission),
-        ),
-        Err(e) => {
-            tracing::warn!("Repo check {repo}: {e}");
-            repo_check(repo, RepoState::Failed, None, msg!(ServerSetupCheckFailed))
-        }
+        Err(e) => match e.cause() {
+            Cause::NotFound => repo_check(
+                repo,
+                RepoState::NotFound,
+                None,
+                msg!(ServerSetupRepoNotFound),
+            ),
+            Cause::Token | Cause::Permission => repo_check(
+                repo,
+                RepoState::NoAccess,
+                None,
+                msg!(ServerSetupRepoNoPermission),
+            ),
+            _ => {
+                tracing::warn!("Repo check {repo}: {e}");
+                repo_check(repo, RepoState::Failed, None, msg!(ServerSetupCheckFailed))
+            }
+        },
     }
 }
 

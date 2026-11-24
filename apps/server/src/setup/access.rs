@@ -6,15 +6,15 @@
 //! state says "no pull requests" only if everything was reachable.
 
 use cockpit_core::api::{GitHubAccess, RepoSight, RepoVisibility};
-use cockpit_integrations::Error;
+use cockpit_integrations::{Cause, Error};
 
 use super::*;
 
 /// What a failed look at a repo means.
 pub(super) fn visibility_of(e: &Error) -> RepoVisibility {
-    match e {
-        Error::NotFound => RepoVisibility::NotVisible,
-        Error::NotSignedIn | Error::NoPermission => RepoVisibility::NoPermission,
+    match e.cause() {
+        Cause::NotFound => RepoVisibility::NotVisible,
+        Cause::Token | Cause::Permission => RepoVisibility::NoPermission,
         _ => RepoVisibility::Unreachable,
     }
 }

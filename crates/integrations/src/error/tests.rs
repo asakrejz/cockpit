@@ -25,6 +25,51 @@ fn problem_per_error() {
     assert!(matches!(Error::Status(500).problem(0), Problem::Other(_)));
 }
 
+/// Which kind every error is. `Error::cause` has no catch-all arm, so a new variant does not compile
+/// until it is sorted; this table says where each existing one goes.
+#[test]
+fn cause_of_every_error() {
+    use cockpit_core::{Right, TokenKind};
+    let table = [
+        (Error::Network("down".into()), Cause::Network),
+        (Error::NotSignedIn, Cause::Token),
+        (Error::NoPermission, Cause::Permission),
+        (Error::RateLimit { wait_s: Some(2) }, Cause::RateLimit),
+        (Error::RateLimit { wait_s: None }, Cause::RateLimit),
+        (Error::NotFound, Cause::NotFound),
+        (Error::TooLarge, Cause::TooLarge),
+        (Error::Rejected(String::new()), Cause::Rejected),
+        (Error::Rejected("no".into()), Cause::Rejected),
+        (Error::Status(401), Cause::Other),
+        (Error::Status(500), Cause::Other),
+        (Error::Response("x".into()), Cause::BadResponse),
+        (Error::Config("x".into()), Cause::BadConfig),
+        (Error::NotPossible("x".into()), Cause::Other),
+        (Error::Coded(msg!(IntegrationsNotFound)), Cause::Other),
+        (
+            Error::MissingRight {
+                right: Right::IssuesWrite,
+                kind: TokenKind::App,
+            },
+            Cause::MissingRight,
+        ),
+    ];
+    for (e, cause) in table {
+        assert_eq!(e.cause(), cause, "{e:?}");
+    }
+}
+
+#[test]
+fn a_rejection_gives_the_reason_of_the_service_if_there_is_one() {
+    assert_eq!(
+        Error::Rejected("No commits".into()).rejection(),
+        Some("No commits")
+    );
+    assert_eq!(Error::Rejected(String::new()).rejection(), None);
+    assert_eq!(Error::NotFound.rejection(), None);
+    assert_eq!(Error::Response("x".into()).rejection(), None);
+}
+
 /// The state per source for every kind of error: the same kinds as before get the same state.
 #[test]
 fn problem_of_every_error() {
