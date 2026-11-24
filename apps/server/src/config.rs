@@ -9,15 +9,15 @@
 //! dist = "/path/to/apps/cockpit/dist"
 //! db = "/path/to/cockpit.db"
 //!
-//! interval_s = 120                     # sync every 2 minutes (at least 30); older: `intervall_s`
+//! interval_s = 120                     # sync every 2 minutes (at least 30)
 //!
 //! [github]
 //! api_url = "https://api.github.com"   # optional
-//! repos = ["firma/app", "firma/web"]   # repos for the sync (owner/name)
+//! repos = ["acme/app", "acme/web"]     # repos for the sync (owner/name)
 //!
 //! [jira]
-//! site = "https://firma.atlassian.net"
-//! email = "ich@firma.example"
+//! site = "https://acme.atlassian.net"
+//! email = "me@acme.example"
 //! projects = ["BAU", "WEB"]            # optional: only these projects
 //! jql = "project = BAU AND ..."        # optional: own query instead of the projects
 //! hidden_fields = ["Rank", "customfield_10099"]   # optional: fields (name or ID) the ticket detail leaves out
@@ -34,7 +34,7 @@
 //!
 //! [atlassian]
 //! client_id = "7dNimh…"                # OAuth-2.0-3LO-App
-//! site = "firma"                       # optional: name, address or id, if several are approved
+//! site = "acme"                        # optional: name, address or id, if several are approved
 //! ```
 //!
 //! With `[atlassian]` `[jira]` needs neither `site` nor `email` (only `projects`/`jql`).
@@ -48,20 +48,20 @@
 //! [agent]
 //! provider = "claude-agent-sdk"        # or "claude-code" or "codex"
 //! container = "podman"                 # or "docker"; without a value the backend detects the runtime
-//! repo = "firma/app"                   # default repo of the agent (otherwise the only one from [github] repos)
+//! repo = "acme/app"                    # default repo of the agent (otherwise the only one from [github] repos)
 //! dir = "/path/to/agent"               # folder with Containerfile and runner (otherwise ./apps/agent or next to apps/cockpit/dist)
 //!
 //! # Several repos: a Jira project can be routed to a repo. A ticket whose project is not named
 //! # here goes to the default repo (`repo` above); the interface lets you change it before the start.
 //! [[agent.repos]]
-//! repo = "firma/web"
+//! repo = "acme/web"
 //! base_branch = "develop"              # optional, default "main"
 //! projects = ["WEB", "SHOP"]           # Jira projects whose tickets go to this repo
 //! branch_pattern = "feature/{ticket}-{slug}"   # optional, default "claude/{ticket}-{slug}"
 //! pr_language = "de"                           # optional language of PR title and text, default "en"
 //!
 //! [[agent.repos]]
-//! repo = "firma/app"                   # a repo without projects is only a choice
+//! repo = "acme/app"                    # a repo without projects is only a choice
 //!
 //! [agent.endpoint]
 //! url = "https://litellm.example"      # proxy or compatible endpoint; empty or omitted = directly at Anthropic
@@ -73,7 +73,7 @@
 //! ```toml
 //! [github_projects]
 //! tickets_from = "github_projects"     # "jira", "github_projects" or "both" (default "both" when the section exists)
-//! projects = ["acme/3", "mkeller/1"]   # owner/number as in the project's address
+//! projects = ["acme/3", "acme/1"]      # owner/number as in the project's address
 //! status_field = "Status"              # optional: the single-select field that counts as the ticket status
 //! team_field = "Team"                  # optional: the field that holds the team
 //! ```
@@ -91,18 +91,16 @@
 //! max_prs_total = 500                      # … and over all repos together (default 500)
 //! ```
 //!
-//! Older files are still read: `[litellm]` (`url`, `modell`; equivalent to `[agent.endpoint]`),
-//! `[agent] anbieter`, `[agent.endpunkt]` with `modell`, and `intervall_s`; if both are present
-//! the new one applies.
-//! The assistant writes the new format.
+//! A key that does not exist in this list is an error at start (the message names the key, the
+//! section and the file), never silently ignored.
 //!
 //! A source only syncs if it is set up here **and** its key is in the
 //! .env file (`cockpit-server token set <github|jira>`). Without a source the
 //! workspace stays empty (or shows the sample data if the seed `demo` is chosen).
 //!
-//! Umgebungsvariablen: `COCKPIT_PORT`, `COCKPIT_DIST`, `COCKPIT_DB`, `COCKPIT_CONFIG`
-//! (path of the configuration file), `COCKPIT_SEED` (`empty` or `demo`; `leer` still applies), `COCKPIT_CONTAINER`
-//! (`docker` or `podman`), `COCKPIT_AGENT_DIR` (folder `agent`), `COCKPIT_GIT_BASE` (older `COCKPIT_GIT_BASIS`; base address for cloning, tests only),
+//! Environment variables: `COCKPIT_PORT`, `COCKPIT_DIST`, `COCKPIT_DB`, `COCKPIT_CONFIG`
+//! (path of the configuration file), `COCKPIT_SEED` (`empty` or `demo`), `COCKPIT_CONTAINER`
+//! (`docker` or `podman`), `COCKPIT_AGENT_DIR` (folder `agent`), `COCKPIT_GIT_BASE` (base address for cloning, tests only),
 //! `COCKPIT_BIND` (listen address; default `127.0.0.1`, `0.0.0.0` only inside the container image) and `COCKPIT_PUBLIC_PORT` (published host port if it differs),
 //! `COCKPIT_DEV_PORT` (port of `trunk serve`, for development only), `COCKPIT_ENV_FILE` (path of the `.env` file with the keys, default `config/.env`).
 
@@ -161,7 +159,7 @@ pub struct Config {
     pub seed: Seed,
     /// `[agent] provider`: the tool of the agent.
     pub provider: Provider,
-    /// `[agent.endpoint]` (or the older `[litellm]`).
+    /// `[agent.endpoint]`.
     pub endpoint: Option<EndpointConfig>,
     /// Chosen container runtime (`docker` or `podman`) from the file; `COCKPIT_CONTAINER`
     /// is in [`Config::container_env`].
@@ -215,7 +213,7 @@ pub enum Seed {
 impl Seed {
     fn from_text(text: &str) -> Result<Self, ConfigError> {
         match text.trim().to_lowercase().as_str() {
-            "" | "empty" | "leer" => Ok(Seed::Empty),
+            "" | "empty" => Ok(Seed::Empty),
             "demo" => Ok(Seed::Demo),
             other => Err(ConfigError::Wert(msg!(
                 ServerConfigSeedUnknown,
@@ -289,9 +287,7 @@ impl Config {
         env: impl Fn(&str) -> Option<String>,
     ) -> Result<Self, ConfigError> {
         let d: File = match file {
-            Some(text) => {
-                toml::from_str(text).map_err(|e| ConfigError::Toml(e.message().to_string()))?
-            }
+            Some(text) => file_read(text)?,
             None => File::default(),
         };
         let mut c = Self::defaults();
@@ -423,17 +419,14 @@ impl Config {
         if let Some(text) = d.seed {
             c.seed = Seed::from_text(&text)?;
         }
-        // The older `[litellm]` applies as long as `[agent.endpoint]` is missing.
-        let mut endpoint = d.litellm.map(|l| ("[litellm]", l));
+        let mut endpoint = None;
         if let Some(a) = d.agent {
             if let Some(text) = a.provider {
                 c.provider = Provider::from_id(&text).ok_or_else(|| {
                     ConfigError::Wert(msg!(ServerConfigProviderUnknown, provider = text.trim()))
                 })?;
             }
-            if let Some(e) = a.endpoint {
-                endpoint = Some(("[agent.endpoint]", e));
-            }
+            endpoint = a.endpoint;
             c.container = a.container.map(|t| runtime(&t)).transpose()?;
             c.agent_repo = a
                 .repo
@@ -459,7 +452,7 @@ impl Config {
                 }
             }
         }
-        if let Some((wo, e)) = endpoint {
+        if let Some(e) = endpoint {
             let url = e.url.map(|u| u.trim().trim_end_matches('/').to_string());
             let url = match url.filter(|u| !u.is_empty()) {
                 None => None,
@@ -471,10 +464,7 @@ impl Config {
                             !rest.is_empty() && !rest.contains(char::is_whitespace)
                         });
                     if !valid {
-                        return Err(ConfigError::Wert(msg!(
-                            ServerConfigEndpointUrlScheme,
-                            place = wo
-                        )));
+                        return Err(ConfigError::Wert(msg!(ServerConfigEndpointUrlScheme)));
                     }
                     Some(u)
                 }
@@ -532,10 +522,7 @@ impl Config {
         if let Some(p) = env("COCKPIT_AGENT_DIR").filter(|s| !s.trim().is_empty()) {
             c.agent_dir = Some(PathBuf::from(p.trim()));
         }
-        if let Some(p) = env("COCKPIT_GIT_BASE")
-            .or_else(|| env("COCKPIT_GIT_BASIS"))
-            .filter(|s| !s.trim().is_empty())
-        {
+        if let Some(p) = env("COCKPIT_GIT_BASE").filter(|s| !s.trim().is_empty()) {
             c.git_base = Some(p.trim().trim_end_matches('/').to_string());
         }
 
@@ -566,17 +553,14 @@ impl Config {
             c.dev_port = Some(nr);
         }
         if let Some(b) = env("COCKPIT_BIND").filter(|s| !s.trim().is_empty()) {
-            c.bind = b.trim().parse().map_err(|_| {
-                ConfigError::Wert(Msg::raw(format!(
-                    "COCKPIT_BIND must be an IP address such as 0.0.0.0, got \"{b}\""
-                )))
-            })?;
+            c.bind = b
+                .trim()
+                .parse()
+                .map_err(|_| ConfigError::Wert(msg!(ServerConfigBindInvalid, value = &b)))?;
         }
         if let Some(p) = env("COCKPIT_PUBLIC_PORT").filter(|s| !s.trim().is_empty()) {
             let nr: u16 = p.trim().parse().ok().filter(|n| *n != 0).ok_or_else(|| {
-                ConfigError::Wert(Msg::raw(format!(
-                    "COCKPIT_PUBLIC_PORT must be a port number, got \"{p}\""
-                )))
+                ConfigError::Wert(msg!(ServerConfigPublicPortInvalid, value = &p))
             })?;
             c.public_port = Some(nr);
         }
@@ -618,7 +602,10 @@ impl Config {
             let p = path.unwrap_or_default();
             return Err(ConfigError::Read(p, std::io::ErrorKind::NotFound.into()));
         }
-        let mut c = Self::parse(text.as_deref(), env)?;
+        let mut c = Self::parse(text.as_deref(), env).map_err(|e| match &path {
+            Some(p) => e.in_file(p),
+            None => e,
+        })?;
         c.config_path = path;
         let overrides = env("COCKPIT_CONFIG").is_some_and(|v| !v.is_empty())
             && env("COCKPIT_DB").is_some_and(|v| !v.is_empty());

@@ -92,7 +92,7 @@ fn errors_are_understandable() {
     // Typos in the file stand out instead of being silently ignored.
     assert!(matches!(
         Config::parse(Some("prot = 1"), no_env),
-        Err(ConfigError::Toml(_))
+        Err(ConfigError::UnknownKey { .. })
     ));
     assert!(matches!(
         Config::parse(Some("port = 0"), no_env),
@@ -147,7 +147,7 @@ fn oauth_sections() {
             Some("[atlassian]\nclient_id = \"a\"\nclient_secret = \"x\""),
             no_env
         ),
-        Err(ConfigError::Toml(_))
+        Err(ConfigError::UnknownKey { .. })
     ));
 }
 
@@ -158,11 +158,11 @@ fn seed_is_by_default_empty() {
         Config::parse(Some("seed = \"demo\""), no_env).unwrap().seed,
         Seed::Demo
     );
-    let env = |k: &str| (k == "COCKPIT_SEED").then(|| "leer".to_string());
+    let env = |k: &str| (k == "COCKPIT_SEED").then(|| "empty".to_string());
     assert_eq!(
         Config::parse(Some("seed = \"demo\""), env).unwrap().seed,
         Seed::Empty,
-        "die Umgebung geht der Datei vor"
+        "the environment goes before the file"
     );
     let env = |k: &str| (k == "COCKPIT_SEED").then(|| " Demo ".to_string());
     assert_eq!(Config::parse(None, env).unwrap().seed, Seed::Demo);
@@ -182,7 +182,7 @@ fn repo_and_dir_the_agents() {
     assert_eq!(c.agent_dir, Some(PathBuf::from("/opt/cockpit/agent")));
     let env = |k: &str| match k {
         "COCKPIT_AGENT_DIR" => Some("/andere/agent".to_string()),
-        "COCKPIT_GIT_BASIS" => Some("file:///tmp/git/".to_string()),
+        "COCKPIT_GIT_BASE" => Some("file:///tmp/git/".to_string()),
         _ => None,
     };
     let c = Config::parse(Some(toml), env).unwrap();
@@ -244,7 +244,6 @@ fn endpoint_and_container() {
         "[agent.endpoint]\nurl = \"http://a b\"",
         "[agent]\ncontainer = \"nerdctl\"",
         "[agent]\nprovider = \"gpt\"",
-        "[litellm]\nurl = \"localhost:4000\"",
     ] {
         assert!(
             matches!(
@@ -255,15 +254,13 @@ fn endpoint_and_container() {
         );
     }
     // The key does not belong in the file.
-    for with_key in [
-        "[agent.endpoint]\nurl = \"http://x\"\nkey = \"abc\"",
-        "[litellm]\nurl = \"http://x\"\nkey = \"abc\"",
-    ] {
-        assert!(matches!(
-            Config::parse(Some(with_key), no_env),
-            Err(ConfigError::Toml(_))
-        ));
-    }
+    assert!(matches!(
+        Config::parse(
+            Some("[agent.endpoint]\nurl = \"http://x\"\nkey = \"abc\""),
+            no_env
+        ),
+        Err(ConfigError::UnknownKey { .. })
+    ));
 }
 
 #[test]
@@ -302,29 +299,6 @@ fn known_tools_let_itself_add() {
 }
 
 #[test]
-fn old_litellm_file_is_further_read_and_the_new_goes_before() {
-    let alt = "[litellm]\nurl = \"http://localhost:4000/\"\nmodell = \"altes-modell\"\n[agent]\ncontainer = \"docker\"";
-    let c = Config::parse(Some(alt), no_env).unwrap();
-    let e = c.endpoint.unwrap();
-    assert_eq!(e.url.as_deref(), Some("http://localhost:4000"));
-    assert_eq!(e.model.as_deref(), Some("altes-modell"));
-    assert_eq!(c.provider, Provider::ClaudeAgentSdk);
-    assert_eq!(c.container.as_deref(), Some("docker"));
-
-    let updated = "[agent.endpoint]\nurl = \"https://litellm.example\"\nmodel = \"neues-modell\"";
-    let c = Config::parse(Some(updated), no_env).unwrap();
-    assert_eq!(
-        c.endpoint,
-        Config::parse(Some(&format!("{alt}\n{updated}")), no_env)
-            .unwrap()
-            .endpoint
-    );
-    let e = c.endpoint.unwrap();
-    assert_eq!(e.url.as_deref(), Some("https://litellm.example"));
-    assert_eq!(e.model.as_deref(), Some("neues-modell"));
-}
-
-#[test]
 fn dev_port_only_out_the_env() {
     assert_eq!(Config::parse(None, no_env).unwrap().dev_port, None);
     let env = |k: &str| (k == "COCKPIT_DEV_PORT").then(|| "8081".to_string());
@@ -334,43 +308,185 @@ fn dev_port_only_out_the_env() {
     assert!(Config::parse(Some("dev_port = 8081"), no_env).is_err());
 }
 
+/// The place of an unknown key: `(section, key)`.
+fn unknown_key(text: &str) -> (String, String) {
+    match Config::parse(Some(text), no_env) {
+        Err(ConfigError::UnknownKey { section, key, .. }) => (section, key),
+        other => panic!("{text}: {other:?}"),
+    }
+}
+
 #[test]
-fn older_german_spellings_are_still_read() {
-    let old = r#"
-        intervall_s = 90
+fn names_that_do_not_exist_any_more_are_refused_with_key_and_section() {
+    for (text, section, key) in [
+        (
+            "[litellm]\nurl = \"http://localhost:4000\"\nmodell = \"m\"",
+            "",
+            "litellm",
+        ),
+        ("[agent]\nanbieter = \"codex\"", "agent", "anbieter"),
+        (
+            "[agent.endpunkt]\nurl = \"http://a:1\"",
+            "agent",
+            "endpunkt",
+        ),
+        (
+            "[agent.endpoint]\nurl = \"http://a:1\"\nmodell = \"m\"",
+            "agent.endpoint",
+            "modell",
+        ),
+        ("intervall_s = 90", "", "intervall_s"),
+        (
+            "[agent]\nendpoint = { modell = \"m\" }",
+            "agent.endpoint",
+            "modell",
+        ),
+        (
+            "[[agent.repos]]\nrepo = \"acme/app\"\nzweig = \"x\"",
+            "agent.repos",
+            "zweig",
+        ),
+        (
+            "[jira]\nsite = \"https://x\"\nemail = \"a@b\"\nnope = 1",
+            "jira",
+            "nope",
+        ),
+    ] {
+        assert_eq!(unknown_key(text), (section.into(), key.into()), "{text}");
+    }
+}
+
+#[test]
+fn an_unknown_key_message_names_key_section_and_file_in_both_languages() {
+    use cockpit_i18n::Lang;
+    let file = Path::new("/srv/cockpit/config.toml");
+    let error = |text: &str| Config::parse(Some(text), no_env).unwrap_err().in_file(file);
+
+    let e = error("[agent]\nanbieter = \"codex\"");
+    for lang in [Lang::De, Lang::En] {
+        let text = e.msg().render(lang);
+        for part in [
+            "anbieter",
+            "[agent]",
+            "/srv/cockpit/config.toml",
+            "docs/configuration.md",
+        ] {
+            assert!(text.contains(part), "{lang:?}: {part} missing in {text}");
+        }
+    }
+    assert!(e.msg().render(Lang::De).contains("Benenne"));
+    assert!(e.msg().render(Lang::En).contains("Rename"));
+    // The log line at start is the English text.
+    assert_eq!(e.to_string(), e.msg().render(Lang::En));
+
+    // A whole section at the top (`[litellm]`) has no section to name.
+    let e = error("[litellm]\nurl = \"http://localhost:4000\"");
+    for lang in [Lang::De, Lang::En] {
+        let text = e.msg().render(lang);
+        assert!(
+            text.contains("litellm") && text.contains("/srv/cockpit/config.toml"),
+            "{text}"
+        );
+        assert!(!text.contains("[]"), "{text}");
+    }
+
+    // Without the path of the file the message names the default file.
+    let e = Config::parse(Some("prot = 1"), no_env).unwrap_err();
+    assert!(e.to_string().contains("config.toml"), "{e}");
+    // Only an unknown key becomes this error; a broken line stays a parse error.
+    assert!(matches!(
+        Config::parse(Some("port = "), no_env),
+        Err(ConfigError::Toml(_))
+    ));
+}
+
+#[test]
+fn removed_environment_spellings_are_not_read() {
+    let env = |k: &str| (k == "COCKPIT_GIT_BASIS").then(|| "http://git.example/".to_string());
+    assert_eq!(Config::parse(None, env).unwrap().git_base, None);
+    let env = |k: &str| (k == "COCKPIT_SEED").then(|| "leer".to_string());
+    assert!(matches!(
+        Config::parse(None, env),
+        Err(ConfigError::Wert(_))
+    ));
+    let env = |k: &str| (k == "COCKPIT_GIT_BASE").then(|| "http://git.example/".to_string());
+    assert_eq!(
+        Config::parse(None, env).unwrap().git_base.as_deref(),
+        Some("http://git.example")
+    );
+}
+
+#[test]
+fn a_file_with_the_current_names_loads() {
+    let current = r#"
+        port = 9000
+        interval_s = 90
+        seed = "empty"
+        [github]
+        repos = ["acme/app"]
+        [jira]
+        site = "https://acme.atlassian.net"
+        email = "me@acme.example"
+        projects = ["BAU"]
         [agent]
-        anbieter = "codex"
-        [agent.endpunkt]
+        provider = "codex"
+        container = "docker"
+        repo = "acme/app"
+        [agent.endpoint]
         url = "http://localhost:4000/"
-        modell = "altes-modell"
+        model = "some-model"
+        [[agent.repos]]
+        repo = "acme/app"
+        base_branch = "develop"
+        [server]
+        webhooks = true
+        [sync]
+        max_prs_total = 100
     "#;
-    let c = Config::parse(Some(old), no_env).unwrap();
-    assert_eq!(c.interval_s, 90);
-    assert_eq!(c.provider, Provider::Codex);
+    let c = Config::parse(Some(current), no_env).unwrap();
+    assert_eq!(
+        (c.port, c.interval_s, c.provider),
+        (9000, 90, Provider::Codex)
+    );
+    assert_eq!(c.container.as_deref(), Some("docker"));
     let e = c.endpoint.unwrap();
     assert_eq!(e.url.as_deref(), Some("http://localhost:4000"));
-    assert_eq!(e.model.as_deref(), Some("altes-modell"));
-    // The old and the new key of the same value together are a duplicate, not a silent choice.
-    assert!(Config::parse(Some("interval_s = 60\nintervall_s = 90"), no_env).is_err());
-    // Older environment spellings: `COCKPIT_GIT_BASIS` and the seed `leer`.
+    assert_eq!(e.model.as_deref(), Some("some-model"));
+    assert_eq!(c.agent_repos[0].base_branch, "develop");
+    assert!(c.webhooks);
+}
+
+#[test]
+fn environment_addresses_are_checked_with_catalog_messages() {
+    use cockpit_i18n::Lang;
+    for (name, value, part) in [
+        ("COCKPIT_BIND", "not-an-ip", "COCKPIT_BIND=not-an-ip"),
+        ("COCKPIT_PUBLIC_PORT", "x", "COCKPIT_PUBLIC_PORT=x"),
+        ("COCKPIT_PUBLIC_PORT", "0", "COCKPIT_PUBLIC_PORT=0"),
+    ] {
+        let env = |k: &str| (k == name).then(|| value.to_string());
+        let Err(ConfigError::Wert(m)) = Config::parse(None, env) else {
+            panic!("{name}={value} must be refused");
+        };
+        assert_ne!(m.code, "common.raw", "{name} has a catalog key");
+        for lang in [Lang::De, Lang::En] {
+            assert!(
+                m.render(lang).contains(part),
+                "{lang:?}: {}",
+                m.render(lang)
+            );
+        }
+    }
     let env = |k: &str| match k {
-        "COCKPIT_GIT_BASIS" => Some("http://git.example/".to_string()),
-        "COCKPIT_SEED" => Some("leer".to_string()),
+        "COCKPIT_BIND" => Some(" 0.0.0.0 ".to_string()),
+        "COCKPIT_PUBLIC_PORT" => Some("18787".to_string()),
         _ => None,
     };
     let c = Config::parse(None, env).unwrap();
-    assert_eq!(c.git_base.as_deref(), Some("http://git.example"));
-    assert_eq!(c.seed, Seed::Empty);
-    // The new names win over the old ones.
-    let env = |k: &str| match k {
-        "COCKPIT_GIT_BASE" => Some("http://new.example".to_string()),
-        "COCKPIT_GIT_BASIS" => Some("http://old.example".to_string()),
-        "COCKPIT_SEED" => Some("empty".to_string()),
-        _ => None,
-    };
-    let c = Config::parse(None, env).unwrap();
-    assert_eq!(c.git_base.as_deref(), Some("http://new.example"));
-    assert_eq!(c.seed, Seed::Empty);
+    assert_eq!(
+        (c.bind.to_string(), c.public_port),
+        ("0.0.0.0".into(), Some(18787))
+    );
 }
 
 #[test]
@@ -476,7 +592,7 @@ fn broken_agent_repos_are_rejected_with_a_reason() {
         assert!(
             matches!(
                 Config::parse(Some(broken), no_env),
-                Err(ConfigError::Wert(_) | ConfigError::Toml(_))
+                Err(ConfigError::Wert(_) | ConfigError::UnknownKey { .. })
             ),
             "{broken}"
         );
@@ -484,15 +600,15 @@ fn broken_agent_repos_are_rejected_with_a_reason() {
 }
 
 #[test]
-fn webhooks_are_off_by_default_and_old_files_still_read() {
+fn webhooks_are_off_by_default() {
     let c = Config::parse(None, no_env).unwrap();
     assert!(!c.webhooks);
     assert_eq!(c.public_url, None);
     assert_eq!(c.webhook_fallback_interval_s, None);
     // 5x the interval, at most 10 minutes.
     assert_eq!(c.webhook_fallback_s(), 600);
-    // A file from before webhooks (with the old key names) reads unchanged.
-    let old = "intervall_s = 60\n[github]\nrepos = [\"a/b\"]\n";
+    // A file without the webhook settings reads unchanged.
+    let old = "interval_s = 60\n[github]\nrepos = [\"a/b\"]\n";
     let c = Config::parse(Some(old), no_env).unwrap();
     assert!(!c.webhooks);
     assert_eq!(c.interval_s, 60);

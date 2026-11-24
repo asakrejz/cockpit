@@ -7,7 +7,7 @@ server_config.jira_needs_site = [jira] needs site and email, or [atlassian] for 
 server_config.jira_project_invalid = Jira project "{project}" is not a valid key
 server_config.provider_unknown = [agent] provider "{provider}" is unknown, allowed are claude-agent-sdk, claude-code and codex
 server_config.agent_repo_form = [agent] repo "{repo}" must have the form owner/name
-server_config.endpoint_url_scheme = {place} url must start with http:// or https://, for example http://localhost:4000
+server_config.endpoint_url_scheme = [agent.endpoint] url must start with http:// or https://, for example http://localhost:4000
 server_config.sync_limit = [sync] {name} = {value} must be between 1 and {max}
 server_config.webhook_fallback_range = [sync] webhook_fallback_interval_s = {value} must be between interval_s ({interval}) and {max}
 server_config.dev_port_invalid = COCKPIT_DEV_PORT={value} is not a port number
@@ -30,3 +30,7 @@ server_config.repos_pr_language = Repo {repo}: the pull request language "{value
 
 server_config.tickets_from_unknown = [github_projects] tickets_from "{value}" is unknown (use jira, github_projects or both)
 server_config.project_form = GitHub project "{project}" is not of the form owner/number (e.g. acme/3)
+server_config.bind_invalid = COCKPIT_BIND={value} is not an IP address, for example 0.0.0.0
+server_config.public_port_invalid = COCKPIT_PUBLIC_PORT={value} is not a port number
+server_config.key_unknown = The file {file} has the key "{key}" in the section [{section}], which does not exist. Rename it or delete the line. The valid names are in docs/configuration.md.
+server_config.key_unknown_top = The file {file} has the top-level key or section "{key}", which does not exist. Rename it or delete it. The valid names are in docs/configuration.md.

@@ -64,6 +64,10 @@ max_prs_per_repo = 200            # open pull requests loaded per repo (default 
 max_prs_total = 500               # … over all repos together (default 500, 1 to 2000)
 ```
 
+Only the keys shown here exist. A key the server does not know (for example a typo) stops the start: the message
+names the key, its section and the file. Fix the name or delete the line; the setup assistant refuses to save while the
+file has such a key.
+
 **Pull requests.** As soon as GitHub is connected the sync runs – **no repo list is needed**. It searches
 (`GET /search/issues`) with `is:pr is:open author:@me`, `is:pr is:open review-requested:@me` and
 `is:pr is:open involves:@me` across every repo the credential can see and merges the hits without duplicates (three
@@ -202,7 +206,7 @@ The pattern is enforced by the backend, see [security.md](security.md#the-agent)
 ```toml
 [github_projects]
 tickets_from = "github_projects"     # "jira", "github_projects" or "both" (default "both" when the section exists)
-projects = ["acme/3", "mkeller/1"]   # owner/number, as in the project's address
+projects = ["acme/3", "acme/1"]      # owner/number, as in the project's address
 status_field = "Status"              # optional: the single-select field that is the ticket status (default "Status")
 team_field = "Team"                  # optional: the field that holds the team (default "Team")
 ```
