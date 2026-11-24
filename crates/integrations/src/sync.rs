@@ -58,17 +58,14 @@ impl Services {
         self.github.is_none() && self.jira.is_none() && self.projects.is_none()
     }
 
-    pub fn targets(&self) -> Targets {
+    /// What the plan of an action may use. `default_repo` is the default repo of the agent
+    /// (see [`Targets::default_repo`]).
+    pub fn targets(&self, default_repo: Option<String>) -> Targets {
         Targets {
             github: self.github.is_some(),
             jira: self.jira.is_some(),
             projects: self.projects.is_some(),
-            repos: self
-                .github
-                .as_ref()
-                .map(|g| g.repos.clone())
-                .unwrap_or_default(),
-            routing: cockpit_core::AgentRepos::default(),
+            default_repo,
         }
     }
 

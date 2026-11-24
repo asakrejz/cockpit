@@ -8,7 +8,7 @@
 //!    the database, no configuration),
 //! 2. repos of pull requests or branches already linked to the ticket,
 //! 3. repos the ticket text mentions (`owner/name` or a GitHub address),
-//! 4. the configured `[[agent.repos]]` rules for the project (and the default repo).
+//! 4. the default repo of the configuration (`[agent] repo`).
 //!
 //! Every suggestion is one repo with one reason. The start dialog selects one repo today; the
 //! same ranking serves a later choice of several repos.
@@ -30,8 +30,6 @@ pub enum SuggestReason {
     LinkedPr,
     /// The ticket text names it.
     Mentioned,
-    /// A `[[agent.repos]]` rule routes this Jira project to it.
-    Rule { project: String },
     /// It is the default repo of the configuration.
     Default,
 }
@@ -56,8 +54,8 @@ pub struct SuggestInput<'a> {
     pub linked: &'a [String],
     /// Title, description and comments of the ticket.
     pub text: &'a str,
-    /// The configured repos with their project rules and the default.
-    pub rules: Option<&'a AgentRepos>,
+    /// The configured repos; their default is suggested last.
+    pub repos: Option<&'a AgentRepos>,
     /// The repos the credential can see, if known. A bare `owner/name` in the text only counts
     /// when it is in this list (otherwise `docs/readme` would be a "repo"); a GitHub address
     /// always counts.
@@ -72,7 +70,7 @@ pub struct SuggestInput<'a> {
 /// let s = suggest_repos(&SuggestInput {
 ///     project: Some("web"),
 ///     used: &used,
-///     rules: None,
+///     repos: None,
 ///     ..Default::default()
 /// });
 /// assert_eq!(s[0].repo, "acme/web");
@@ -139,21 +137,8 @@ pub fn suggest_repos(input: &SuggestInput) -> Vec<RepoSuggestion> {
         }
     }
 
-    // 4. The configured rules, then the default.
-    let rules = input.rules.cloned().unwrap_or_default();
-    if let Some(project) = input.project {
-        for r in &rules.repos {
-            if r.projects.iter().any(|q| q.eq_ignore_ascii_case(project)) {
-                add(
-                    &r.repo,
-                    SuggestReason::Rule {
-                        project: project.to_uppercase(),
-                    },
-                );
-            }
-        }
-    }
-    if let Some(d) = &rules.default {
+    // 4. The default repo.
+    if let Some(d) = input.repos.and_then(|r| r.default.as_deref()) {
         add(d, SuggestReason::Default);
     }
     out

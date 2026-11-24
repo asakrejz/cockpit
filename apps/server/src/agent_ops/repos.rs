@@ -10,7 +10,7 @@ use cockpit_core::model::PrKey;
 use cockpit_i18n::{Msg, msg};
 
 impl AppState {
-    /// The repos the agent may work in, with the routing rules and the default.
+    /// The repos the agent may work in, with the default.
     pub(crate) fn agent_repos(&self) -> AgentRepos {
         let cfg = match self.inner.agent_repo_config.read() {
             Ok(c) => c.clone(),
@@ -202,10 +202,9 @@ impl AppState {
         }
     }
 
-    /// Settles the repo of a start before it is applied: the user's choice if it is one of
-    /// the configured repos, otherwise the one the routing rules name for the ticket's Jira
-    /// project, otherwise the default. A start without any repo is rejected with the reason.
-    /// Everything else passes unchanged.
+    /// Settles the repo of a start before it is applied: the user's choice, otherwise the
+    /// default repo. A start without either (no default, or several repos and none marked) is
+    /// rejected with the reason: the user has to choose. Everything else passes unchanged.
     pub(crate) fn agent_route(&self, action: Action) -> Result<Action, Msg> {
         let repos = self.agent_repos();
         let (ticket, mut options) = match action {
@@ -262,22 +261,11 @@ impl AppState {
             }
             self.settle_targets(&repos, &chosen, &mut options);
         } else {
-            let ws = self.inner.live.copy();
-            let project = ws
-                .item_by_key(&ticket)
-                .and_then(cockpit_core::Item::project)
-                .map(str::to_string);
-            match repos.choose(project.as_deref()) {
-                RepoChoice::Rule(r) | RepoChoice::Default(r) => {
-                    self.settle_targets(&repos, std::slice::from_ref(&r), &mut options);
-                }
-                RepoChoice::None => {
-                    return Err(match project {
-                        Some(p) => msg!(ServerAgentRepoNoRule, project = p),
-                        None => msg!(ServerAgentRepoNoDefault),
-                    });
-                }
-            }
+            // No choice: the default repo (`[agent] repo`, or the only configured one).
+            let Some(default) = repos.default.clone() else {
+                return Err(msg!(ServerAgentRepoNoDefault));
+            };
+            self.settle_targets(&repos, std::slice::from_ref(&default), &mut options);
         }
         if let Some(item) = self.inner.live.copy().item_by_key(&ticket) {
             options.branch_type = BranchType::of(item.issue_type.as_deref(), &item.labels)

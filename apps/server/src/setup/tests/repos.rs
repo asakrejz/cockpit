@@ -8,13 +8,15 @@ async fn the_assistant_reads_the_agent_repos_back() {
     assert_eq!(status, StatusCode::OK, "{answer}");
     let setup = get(&b.app, "/api/setup").await;
     assert_eq!(setup["agent_repos"]["default"], "firma/app");
-    assert_eq!(setup["agent_repos"]["repos"][1]["projects"][0], "WEB");
-    // It takes effect without restart: the health report knows the routing.
+    assert_eq!(setup["agent_repos"]["repos"][1]["base_branch"], "develop");
+    assert!(setup["agent_repos"]["repos"][1].get("projects").is_none());
+    // It takes effect without restart: the health report knows the repos and the default.
     let health = get(&b.app, "/api/health").await;
     assert_eq!(
         health["agent"]["repos"]["repos"].as_array().unwrap().len(),
         2
     );
+    assert_eq!(health["agent"]["repos"]["default"], "firma/app");
 }
 
 async fn repo_check(app: &Router, repos: &[&str]) -> serde_json::Value {

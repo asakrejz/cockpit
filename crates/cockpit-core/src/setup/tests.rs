@@ -525,8 +525,6 @@ fn agent_repos_come_from_rows() {
     assert_eq!(a.repos.len(), 2);
     assert_eq!(a.repos[0].base_branch, "main");
     assert_eq!(a.repos[1].repo, "firma/web");
-    // Jira projects are not part of the assistant any more.
-    assert!(a.repos.iter().all(|r| r.projects.is_empty()));
     assert_eq!(a.default.as_deref(), Some("firma/app"));
     // No default is fine; an empty form clears everything.
     assert_eq!(

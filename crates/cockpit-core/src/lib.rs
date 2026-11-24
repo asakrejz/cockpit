@@ -85,7 +85,7 @@ pub use project::{
     CreatedIssue, FieldDef, FieldInput, FieldKind, FieldValue, IssueLink, IssueRef, ProjectItem,
     ProjectMeta, ProjectOrigin, ProjectRef, ProjectSummary, SelectOption, TicketsFrom,
 };
-pub use repos::{AgentRepo, AgentRepos, RepoChoice};
+pub use repos::{AgentRepo, AgentRepos};
 pub use review::{
     AgentComment, CheckRun, Decision, DiffLine, DiffSide, FileDiff, Level, LineComment, LineKind,
     MAX_AGENT_COMMENTS, MergeBlocker, MergeMethod, Review, SHOWN_LINES, SendError, Suggestion,

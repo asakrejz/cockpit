@@ -162,7 +162,6 @@ fn agent_repos_change() -> ConfigChange {
                 AgentRepo::new("firma/app"),
                 AgentRepo {
                     base_branch: "develop".into(),
-                    projects: vec!["WEB".into()],
                     ..AgentRepo::new("firma/web")
                 },
             ],

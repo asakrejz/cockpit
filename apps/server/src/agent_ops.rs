@@ -17,8 +17,7 @@ use cockpit_core::api::{
     AgentStatus, ContainerCheck, ContainerStatus, ImageBuild, ImageState, Provider,
 };
 use cockpit_core::{
-    Action, ActionError, Actor, AgentReport, AgentRepos, FollowupTask, RepoChoice, RunKind,
-    RunState, Workspace,
+    Action, ActionError, Actor, AgentReport, AgentRepos, FollowupTask, RunKind, RunState, Workspace,
 };
 use cockpit_i18n::{ArgValue, Msg, msg};
 use cockpit_integrations::Secret;

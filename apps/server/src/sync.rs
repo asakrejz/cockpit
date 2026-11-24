@@ -366,7 +366,7 @@ impl AppState {
     /// it fails, nothing changes.
     pub async fn action_run(&self, action: Action) -> Result<ActionResponse, ActionFailure> {
         let inner = &self.inner;
-        // The repo of a start is settled first (user's choice or routing rules).
+        // The repo of a start is settled first (the user's choice, otherwise the default repo).
         self.repo_settings_prepare(&action)
             .await
             .map_err(ActionFailure::Plan)?;
@@ -405,7 +405,8 @@ impl AppState {
         let mut outside = false;
         let services = self.services().await;
         if !services.is_empty() {
-            match plane(&before, &afterwards, &action, &services.targets()) {
+            let targets = services.targets(self.agent_repos().default);
+            match plane(&before, &afterwards, &action, &targets) {
                 Err(e) => return Err(ActionFailure::Plan(e.1)),
                 Ok(None) => {}
                 Ok(Some(call)) => {

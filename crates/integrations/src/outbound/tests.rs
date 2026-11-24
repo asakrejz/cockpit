@@ -152,8 +152,7 @@ fn all() -> Targets {
         github: true,
         jira: true,
         projects: false,
-        repos: vec!["a/x".into()],
-        routing: Default::default(),
+        default_repo: Some("a/x".into()),
     }
 }
 
@@ -308,20 +307,6 @@ fn status_branch_merge_and_check() {
     };
     assert_eq!(repo, "a/x");
     assert_eq!(name, "feature/ABC-1-avatar-groesse");
-    let without_repo = Targets {
-        repos: vec![],
-        ..all()
-    };
-    assert!(
-        plan(
-            &w,
-            Action::CreateBranch {
-                item: "abc-1".into()
-            },
-            &without_repo
-        )
-        .is_err()
-    );
 
     let m = plan(
         &w,
@@ -499,8 +484,7 @@ fn ws_two() -> Workspace {
 #[test]
 fn a_merge_goes_to_the_repo_of_the_pull_request() {
     let w = ws_two();
-    let mut targets = all();
-    targets.repos = vec!["a/x".into(), "b/y".into()];
+    let targets = all();
     for (repo, sha) in [("a/x", "abc123"), ("b/y", "def456")] {
         let call = plan(
             &w,
@@ -524,25 +508,13 @@ fn a_merge_goes_to_the_repo_of_the_pull_request() {
 }
 
 #[test]
-fn a_branch_for_a_ticket_goes_to_the_repo_its_project_is_routed_to() {
+fn a_branch_goes_to_the_default_repo_whatever_the_project_of_the_ticket() {
     let mut w = ws();
-    // ABC-1 belongs to project ABC.
-    let routing = cockpit_core::AgentRepos {
-        repos: vec![
-            cockpit_core::AgentRepo::new("a/x"),
-            cockpit_core::AgentRepo {
-                projects: vec!["ABC".into()],
-                ..cockpit_core::AgentRepo::new("b/y")
-            },
-        ],
-        default: Some("a/x".into()),
-    };
+    w.items.iter_mut().find(|i| i.id == "abc-1").unwrap().branch = None;
     let targets = Targets {
-        repos: vec!["a/x".into(), "b/y".into()],
-        routing,
+        default_repo: Some("b/y".into()),
         ..all()
     };
-    w.items.iter_mut().find(|i| i.id == "abc-1").unwrap().branch = None;
     let Ok(Some(Outbound::GitHubBranch { repo, .. })) = plan(
         &w,
         Action::CreateBranch {
@@ -553,6 +525,38 @@ fn a_branch_for_a_ticket_goes_to_the_repo_its_project_is_routed_to() {
         panic!("a branch is planned");
     };
     assert_eq!(repo, "b/y");
+}
+
+#[test]
+fn a_branch_without_a_default_repo_asks_the_user_to_set_one() {
+    let mut w = ws();
+    w.items.iter_mut().find(|i| i.id == "abc-1").unwrap().branch = None;
+    let targets = Targets {
+        default_repo: None,
+        ..all()
+    };
+    let err = plan(
+        &w,
+        Action::CreateBranch {
+            item: "abc-1".into(),
+        },
+        &targets,
+    )
+    .unwrap_err();
+    assert!(
+        err.1
+            .render(cockpit_i18n::Lang::En)
+            .contains("default repo"),
+        "{}",
+        err.0
+    );
+    assert!(
+        err.1
+            .render(cockpit_i18n::Lang::De)
+            .contains("Standard-Repo"),
+        "{}",
+        err.0
+    );
 }
 
 mod actor_rule;

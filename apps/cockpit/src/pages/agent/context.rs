@@ -61,7 +61,6 @@ pub(super) struct AgentCtx {
     pub item: Memo<Option<Item>>,
     pub form: OptionSignals,
     pub repo_touched: RwSignal<bool>,
-    pub project: Memo<Option<String>>,
     /// Every repo the credential can see (kept for a few minutes by the server).
     pub repo_list: RwSignal<Option<GitHubRepoList>>,
     pub repo_list_error: RwSignal<Option<String>>,
@@ -95,15 +94,6 @@ pub(super) struct AgentCtx {
     pub answer_empty: Signal<bool>,
     pub steer_empty: Signal<bool>,
     pub note_empty: Signal<bool>,
-}
-
-/// The Jira project of a ticket (`BAU` for `BAU-142`).
-fn item_project(store: Store, key: &str) -> Option<String> {
-    store.ws.with(|w| {
-        w.item_by_key(key)
-            .and_then(Item::project)
-            .map(str::to_string)
-    })
 }
 
 impl AgentCtx {
@@ -150,8 +140,8 @@ impl AgentCtx {
         let draft_pr = RwSignal::new(options.draft_pr);
         let hint = RwSignal::new(options.hint);
         let plan_first = RwSignal::new(options.plan_first);
-        // The repo the agent works in. Preselected by the routing rules of the configuration
-        // (Jira project → repo, otherwise the default); the user can change it before the start.
+        // The repo the agent works in. Preselected with the default repo of the configuration
+        // (none when there are several and no default); the user can change it before the start.
         let agent_repos = Memo::new(move |_| {
             store.health.with(|h| {
                 h.as_ref()
@@ -161,12 +151,10 @@ impl AgentCtx {
         });
         let repo = RwSignal::new(options.repo.clone().unwrap_or_default());
         let repo_touched = RwSignal::new(options.repo.is_some());
-        let project = Memo::new(move |_| item_project(store, &key.get_value()));
-        let routed = Memo::new(move |_| agent_repos.get().choose(project.get().as_deref()));
         Effect::new(move |_| {
-            // Until the user chooses, the rule (or the default) decides.
+            // Until the user chooses, the default decides.
             if !repo_touched.get_untracked() {
-                repo.set(routed.get().repo().unwrap_or_default().to_string());
+                repo.set(agent_repos.get().default.unwrap_or_default());
             }
         });
         let repo_list: RwSignal<Option<GitHubRepoList>> = RwSignal::new(None);
@@ -287,7 +275,6 @@ impl AgentCtx {
             item,
             form,
             repo_touched,
-            project,
             repo_list,
             repo_list_error,
             repo_loading,

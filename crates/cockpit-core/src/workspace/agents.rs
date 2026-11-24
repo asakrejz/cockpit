@@ -34,7 +34,7 @@ impl Workspace {
         options: AgentOptions,
     ) -> Result<(), AgentError> {
         let mut run = self.run(ticket_key).ok_or(AgentError::UnknownTicket)?;
-        // The repo the user (or the backend, by the routing rules) chose wins over the default.
+        // The repo the user (or the backend, from the default) chose.
         let chosen = options.chosen_repos();
         if let Some(first) = chosen.first() {
             run.rules = self.rules_for(first);

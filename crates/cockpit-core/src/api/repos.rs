@@ -2,7 +2,7 @@
 
 use super::*;
 
-/// The repos the agent works in, and the rules that route tickets to them. Replaces the whole
+/// The repos the agent works in and the default one. Replaces the whole
 /// list (`[[agent.repos]]`) and the default (`[agent] repo`); an empty list removes both.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct AgentReposInput {

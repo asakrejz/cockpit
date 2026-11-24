@@ -89,7 +89,7 @@ impl AppState {
         visible: Option<&[String]>,
     ) -> RepoSuggestions {
         let ws = self.inner.live.copy();
-        let rules = self.agent_repos_config();
+        let repos = self.agent_repos_config();
         let project = ws
             .item_by_key(ticket)
             .and_then(cockpit_core::Item::project)
@@ -105,7 +105,7 @@ impl AppState {
                 used: &used,
                 linked: &linked,
                 text: &text,
-                rules: Some(&rules),
+                repos: Some(&repos),
                 visible,
             }),
         }

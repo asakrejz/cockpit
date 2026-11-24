@@ -153,7 +153,7 @@ build context is `apps/agent`, and its `.dockerignore` excludes `config` as well
 the credential can see (`GET /user/repos`, or the installation repos with the GitHub App; kept for 5 minutes). Any
 `owner/name` is allowed. The dialog suggests repos first, each with a short reason: (1) repos earlier runs used for
 tickets of the same Jira project (remembered from the runs in the database), (2) repos of pull requests or branches
-linked to the ticket, (3) `owner/name` or GitHub addresses in the ticket text, (4) the default repo `[agent] repo` and, in older files, `projects` lists (see below). A run can work in several repos (see [using-cockpit.md](using-cockpit.md#working-in-several-repos-at-once)).
+linked to the ticket, (3) `owner/name` or GitHub addresses in the ticket text, (4) the default repo `[agent] repo`. A run can work in several repos (see [using-cockpit.md](using-cockpit.md#working-in-several-repos-at-once)).
 
 `[[agent.repos]]` holds the **settings per repo** (owner/name, base branch, branch pattern, PR language). It is
 optional. A repo without an entry uses its default branch from GitHub as the base branch and the
@@ -161,10 +161,14 @@ usual branch pattern (or the proposal from its `CONTRIBUTING.md`). The first tim
 Cockpit stores an entry with these values (`watch = false`) so you can edit it later. The branch pattern and path
 checks before the push stay as they are. `watch` (default `true`) says whether the sync also loads *all* open pull
 requests of that repo, as if it were in `[github] repos`; entries written by hand watch, entries stored on the first
-use do not. Older configs keep working unchanged: `[github] repos` and `[[agent.repos]]` entries are watched repos as
-before, and `[agent] repo` still preselects the repo. Jira projects are **no longer tied to repos**: the setup does not ask for them,
-and an old `projects = [...]` list in `[[agent.repos]]` is read without error (an invalid key is skipped, a key may appear
-in several repos) and only serves as a quiet suggestion in the start dialog; the assistant keeps it when it saves the list.
+use do not.
+
+**Which repo a start uses.** The start dialog of a ticket lets you choose the repo. Without a choice the agent uses the
+default repo: `[agent] repo`, or the only repo when exactly one is configured. With several repos and no default the
+start asks you to choose. The button that creates a branch for a Jira ticket always uses the default repo (it has no
+choice of its own) and asks you to set one if there is none. The Jira project of a ticket does not decide the repo. A
+`projects` key in an `[[agent.repos]]` entry has no effect; the setup assistant leaves it out when it saves the file.
+
 Which pull requests the Reviews tab shows is a filter in the app (see [using-cockpit.md](using-cockpit.md#reviews-filter)), not configuration. In the assistant the connection test looks at each watched repo
 read-only (`GET /repos/{owner}/{name}`: exists, visible, push allowed) – it changes nothing. Pull requests are
 identified by `owner/name#number`: equal numbers from two repos stay separate in the inbox, review, agent view,

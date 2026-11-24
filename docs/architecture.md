@@ -133,8 +133,8 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `GET /api/github/assignable?repo=&query=` | people GitHub lets you assign issues of the repo to (`GET /repos/{repo}/assignees`, read only; you come as `Du`): `{active, people}` |
 | `GET /api/setup` | what the assistant prefills: Jira site/email/projects, client IDs, repos, provider, endpoint address and model, both callback addresses, and per key only `{name, set}` |
 | `POST /api/github/repos/check` | read-only look at repos (`{repos:[…]}` → per repo `Ok`/`ReadOnly`/`NotFound`/`NoAccess`/`Failed` plus the default branch); only `GET /repos/{owner}/{name}`, never changes anything |
-| `GET /api/agent/repo-suggestions?ticket=KEY` | repos to offer first for the ticket, best first, each with a reason (`previous_run`, `linked_pr`, `mentioned`, `rule`, `default`); only reads |
-| `PUT /api/config` | writes client IDs, Jira, repos, `[github_projects]` (`github_projects`: `tickets_from`, `projects`, `status_field`, `team_field`), the agent's repos (`agent_repos`: list with base branch, branch pattern and language, plus default; `projects` of older files are kept as they are), agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with plain text |
+| `GET /api/agent/repo-suggestions?ticket=KEY` | repos to offer first for the ticket, best first, each with a reason (`issue`, `previous_run`, `linked_pr`, `mentioned`, `default`); only reads |
+| `PUT /api/config` | writes client IDs, Jira, repos, `[github_projects]` (`github_projects`: `tickets_from`, `projects`, `status_field`, `team_field`), the agent's repos (`agent_repos`: list with base branch, branch pattern and language, plus default; a `projects` key of an entry is left out), agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with plain text |
 | `PUT /api/secrets/{name}` | stores a key in `config/.env`; body `{"value": "…"}`; names in [configuration.md](configuration.md#credentials-the-env-file) (plus `github-webhook`, `jira-webhook`); answer `{name, set}`, never the value |
 | `DELETE /api/secrets/{name}` | "Trennen" for tokens: deletes `jira` or `github` from `config/.env` (other names: `404`); answer `{name, set: false}` |
 | `POST /api/webhooks/github`, `POST /api/webhooks/jira` | optional (`[server] webhooks`), the only routes reachable with a foreign `Host`: HMAC-signed triggers for the sync; `202`/`200`/`204`/`401`/`404`/`413`/`415`/`429`, no body, payload never used as data |
@@ -247,14 +247,15 @@ routes.
 - **Ticket → repo.** The repo is chosen in the start dialog (`AgentOptions.repo`, any `owner/name`; the list comes from
   `GET /api/github/repos`, cached 5 minutes). `GET /api/agent/repo-suggestions?ticket=` ranks suggestions with
   `cockpit_core::repos::suggest` (earlier runs of the same Jira project, linked pull requests, mentions in the ticket
-  text, configured rules). The first run in a repo without settings stores them in `[[agent.repos]]` (`watch = false`,
+  text, the default repo). The first run in a repo without settings stores them in `[[agent.repos]]` (`watch = false`,
   default branch from GitHub, `CONTRIBUTING.md` proposal; `AppState::repo_settings_prepare`).
-  `cockpit_core::AgentRepos` (`[[agent.repos]]`: repo, base branch, branch pattern, plus the default; `projects` is only a quiet suggestion)
-  still routes a ticket without a choice (`choose(project)`: rule, else default, else none). The backend applies it in
-  `AppState::agent_route` before `StartAgent` (user's `AgentOptions.repo` wins if it is a configured repo) and
-  `GET /api/health` reports the same rules under `agent.repos`, so the interface preselects identically. A run
-  stores its repo (`AgentRun.repo`), clones and pushes only there, and checks the repo against the configuration
-  again at start. `CreateBranch` for a Jira ticket uses the same routing.
+  `cockpit_core::AgentRepos` (`[[agent.repos]]`: repo, base branch, branch pattern, plus the default `[agent] repo`, or
+  the only repo of the list) decides a start without a choice: the default repo, otherwise the user has to choose (the
+  Jira project of a ticket plays no part). The backend applies it in `AppState::agent_route` before `StartAgent` (the
+  user's `AgentOptions.repo` wins) and `GET /api/health` reports the same repos and default under `agent.repos`, so the
+  interface preselects identically. A run stores its repo (`AgentRun.repo`), clones and pushes only there, and checks the
+  repo name again at start. `CreateBranch` for a Jira ticket uses the default repo too; without one the plan fails with
+  a message that asks for a default repo (the button offers no choice).
 
 **What goes outward.** In server mode these actions go to the service first; **only when it confirms is the action
 applied locally**. If the call fails, a message (status 502) comes back and nothing changes. The rules of the
@@ -266,7 +267,7 @@ a call needs `Actor::User`, merging included: `Action::required_actor` names the
 |--------|------|
 | `Reply` | Jira: comment (`POST /rest/api/3/issue/{key}/comment`, ADF) · GitHub: `POST /repos/{repo}/issues/{n}/comments` |
 | `SetStatus` | Jira: look for the transition that leads to the target status (`GET …/transitions`), then `POST …/transitions` |
-| `CreateBranch` | GitHub: ref from the default branch of the repo the ticket's project is routed to, otherwise the **first** configured repo (`POST /repos/{repo}/git/refs`) |
+| `CreateBranch` | GitHub: ref from the default branch of the default repo (`[agent] repo`, or the only configured repo; without one a message asks for it) (`POST /repos/{repo}/git/refs`) |
 | `SendReview` | `POST /repos/{repo}/pulls/{n}/reviews` with verdict, text, approved suggestions and your own line comments as position comments (including `suggestion` blocks), bound to the commit seen |
 | `MergePr` | `PUT /repos/{repo}/pulls/{n}/merge` with method and the commit seen (a new push makes GitHub refuse) |
 | `RestartCheck` | `POST /repos/{repo}/check-runs/{id}/rerequest` |

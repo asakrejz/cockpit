@@ -465,7 +465,7 @@ async fn services_route_to_the_right_client() {
         }),
         ..Default::default()
     };
-    assert!(services.targets().github && services.targets().jira);
+    assert!(services.targets(None).github && services.targets(None).jira);
     services
         .execute(&Outbound::GitHubComment {
             repo: "a/x".into(),
