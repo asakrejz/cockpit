@@ -12,8 +12,6 @@
 # (scripts/start.sh), see docs/container.md ("Agent containers").
 #
 #   DOCKER_SOCK   engine socket on the host (default: /var/run/docker.sock; Rancher Desktop on macOS: ~/.rd/docker.sock)
-#
-# Coming from the old agent file (host folder, `user: root`)? See docs/container.md, "Migrating from the host folder".
 services:
   cockpit:
     volumes:

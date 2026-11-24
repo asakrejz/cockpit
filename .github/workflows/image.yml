@@ -1,8 +1,8 @@
 name: Container image
 
 # On every push to main: builds the Cockpit image (linux/amd64 and linux/arm64), checks its compressed size,
-# publishes it as ghcr.io/<owner>/cockpit:latest and deletes every other package version, so that the
-# storage of the private repo never grows. Only `latest` exists. How to use it: docs/container.md.
+# publishes it as ghcr.io/<owner>/cockpit:latest and deletes every other package version, so that no old image
+# lingers. Only `latest` exists. How to use it: docs/container.md.
 #
 # Pull requests do not build the image (they only run the static Containerfile check in ci.yml). That is safe because
 # this workflow builds first and pushes second: a broken Containerfile (or a failed size check) fails the run before
