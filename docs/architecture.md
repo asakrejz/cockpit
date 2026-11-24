@@ -184,8 +184,9 @@ routes.
   / "Resource not accessible" the right the failed call needed (below `content` it is *Issues*, otherwise *Projects*);
   classic scopes are read from `X-OAuth-Scopes`. The key of a ticket is `owner/repo#123` (`cockpit_core::project`), the item
   keeps `ProjectItem` (node IDs for writing, field values, linked pull requests, parent, sub-issues); the project fields are
-  in `SyncState::projects`. Auto-link (`Workspace::auto_links`, `Review::belongs_to`) and the team filter understand
-  `#123`, `owner/repo#123`, `Fixes #123` and the timeline.
+  in `SyncState::projects`. Auto-link, the "Entwicklung" section and the team filter share one rule for what a
+  pull request names (`cockpit_core::link::PrTexts::ticket_keys`, described under *Status follows the pull request*):
+  `#123`, `owner/repo#123` and `Fixes #123`; the timeline connects pull requests that never name the issue.
 - **Writing to GitHub Projects** (`outbound::plan_project`, `github::projects::write`): each action on a ticket of the source
   becomes one call, and only after the rules of the workspace accepted it (as on a copy): `SetStatus` → the option of the
   matching column (`option_for`) through `updateProjectV2ItemFieldValue`; `SetPriority` → the option of the field `Priority`;
@@ -386,7 +387,14 @@ comments and reviews only after your approval; the agent never merges.
 
 **Status follows the pull request.** A ticket's status follows its linked pull request (draft/open → In Arbeit, review
 requested → Review, merged → Fertig); switchable in the inbox's filter dialog, author in the log: System. Ticket and pull request are
-linked automatically by the key in branch name or title (`BAU-142`); there is no manual linking.
+linked automatically; there is no manual linking. One rule says which tickets a pull request names
+(`cockpit_core::link::PrTexts::ticket_keys`): a Jira key (`BAU-142`, any case, as a whole word) or a GitHub issue (`#123`
+in the pull request's own repo, `owner/repo#123`, `Fixes #123`, the address of the issue at github.com) in its branch, title
+or description. In a web address only a whole path segment or query value counts (`…/browse/BAU-142`), not a piece of a slug
+(`/blog/bau-142-story`). The auto-link (`Workspace::auto_links`), the "Entwicklung" section (`Workspace::linked_reviews`,
+`Review::belongs_to`) and the team filter (`Workspace::team_visible`) all ask it and add only their own explicit links:
+the ticket the agent opened the pull request for, the pull request a ticket carries, and the pull requests on the timeline
+of an issue. The auto-link also takes only a ticket that has no pull request yet.
 
 **Review mechanics.** For a line comment, "Änderung vorschlagen" lets you enter replacement code for the line
 (before/after diff, sent as a `suggestion` block). The checks of the pull request appear on the right with their log;

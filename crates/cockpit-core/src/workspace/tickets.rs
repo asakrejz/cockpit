@@ -1,4 +1,5 @@
 use super::*;
+use crate::link::PrTexts;
 
 impl Workspace {
     // ---------- Tickets and pull requests ----------
@@ -241,8 +242,9 @@ impl Workspace {
     }
 
     /// Which pull requests the automation would link now: `(ticket ID, pull request)`.
-    /// A pull request qualifies as long as no existing ticket belongs to it and
-    /// branch, title or body name the key of a ticket without a pull request.
+    /// A pull request qualifies as long as no existing ticket belongs to it and it names a
+    /// ticket without a pull request ([`PrTexts::ticket_keys`]) or that ticket's timeline lists
+    /// it. A pull request takes one ticket, a ticket takes one pull request.
     pub fn auto_links(&self) -> Vec<(String, PrKey)> {
         let mut taken: Vec<&str> = Vec::new();
         let mut links = Vec::new();
@@ -255,23 +257,20 @@ impl Workspace {
                 .items
                 .iter()
                 .filter(|i| i.is_ticket() && i.pr.is_none() && !taken.contains(&i.key.as_str()));
-            let known = free.clone().map(|i| i.key.as_str());
-            let by_jira_key = crate::link::find_ticket(
-                &[&review.branch, &review.title, &review.description],
-                known,
-            )
-            .and_then(|key| free.clone().find(|i| i.key == key));
-            // GitHub issues: named in the text (`#12`, `acme/app#12`, `Fixes #12`) or connected
-            // on the issue's timeline.
-            let by_issue = || {
+            // The first ticket the pull request names (Jira keys before GitHub issues) ...
+            let by_name = PrTexts::of_review(review)
+                .ticket_keys()
+                .iter()
+                .find_map(|k| free.clone().find(|i| i.key.eq_ignore_ascii_case(k)));
+            // ... else one whose timeline lists the pull request without it naming the issue.
+            let by_timeline = || {
                 free.clone().find(|i| {
-                    review.names_issue(&i.key)
-                        || i.project
-                            .as_ref()
-                            .is_some_and(|p| p.linked_prs.iter().any(|k| k.same(&review.key())))
+                    i.project
+                        .as_ref()
+                        .is_some_and(|p| p.linked_prs.iter().any(|k| k.same(&review.key())))
                 })
             };
-            if let Some(ticket) = by_jira_key.or_else(by_issue) {
+            if let Some(ticket) = by_name.or_else(by_timeline) {
                 taken.push(&ticket.key);
                 links.push((ticket.id.clone(), review.key()));
             }

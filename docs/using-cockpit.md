@@ -18,7 +18,7 @@ in English they read Tasks, Pull requests, Agents, Log, Limits & rules, Notifica
 | Page | Address | What it does |
 |------|---------|--------------|
 | Einrichten | `#/setup`, `#/setup/<step>` | state and next step per service: sign in to / disconnect Jira and GitHub, check the agent endpoint, detect the container runtime |
-| Aufgaben | `#/tasks` (the filter chosen last), `#/`, `#/mine`, `#/team`, `#/snoozed` (the older addresses keep their filter) | inbox of tickets and pull requests, filtered by switchable rules (mention, review request, blocked PR, overdue ticket, agent done, assigned); snooze; change status, create a branch, reply, assign the agent; edit a ticket; pull requests link to their ticket automatically (the ticket key in the branch name or title; there is no manual linking), the section "Entwicklung" lists every linked PR with branch, state and checks; search; the button "Filter" (with the number of active filters) opens the filter dialog with all filters, chips under it remove single filters; keys `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
+| Aufgaben | `#/tasks` (the filter chosen last), `#/`, `#/mine`, `#/team`, `#/snoozed` (the older addresses keep their filter) | inbox of tickets and pull requests, filtered by switchable rules (mention, review request, blocked PR, overdue ticket, agent done, assigned); snooze; change status, create a branch, reply, assign the agent; edit a ticket; pull requests link to their ticket automatically (the ticket key in the branch name, title or description; there is no manual linking), the section "Entwicklung" lists every linked PR with branch, state and checks; search; the button "Filter" (with the number of active filters) opens the filter dialog with all filters, chips under it remove single filters; keys `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
 | Review | `#/review/acme/app/87` | the list on the left has a "Filter" button (see [Reviews filter](#reviews-filter)); the description and all comments are shown as Markdown (headings, lists, code, links; no raw HTML); tabs „Dateien“ (file tree with +/− counts, one collapsible diff per file, „Angesehen“ per file, long diffs cut at 300 lines with „Mehr anzeigen“) and „Commits“ (list; a click shows only that commit's diff, read only); select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you); before "PR reviewen" a switch Automatisch / DE / EN picks the language of the agent's comments |
 | Übersicht | `#/overview` | open entries and load per person; "Hängt" shows failed checks, waiting reviews, tickets without a branch and agents waiting for you |
 | Benachrichtigungen | `#/notifications` | per occasion choose browser, email and Slack; quiet hours; permission request by button; test notification |
@@ -64,8 +64,9 @@ synced tickets (the "Team" field, see [configuration](configuration.md)). Choose
 without a team. With no team chosen everything shows, and a hint says you can choose your team. With a choice, the
 Übersicht (people, load, "Hängt", lists) and the inbox filters "Alle" and "Team" show only tickets of those teams; people
 appear only if they have such entries, "Du" and "Agent" always stay. What is yours (filter "Ich", entries assigned to you)
-is never hidden. A pull request is not filtered unless it is linked to a ticket (ticket key in branch or title) and none of its
-tickets is shown. The rules live in `cockpit_core::team_filter`. Display only: nothing is written to Jira.
+is never hidden. A pull request is not filtered unless it is linked to a ticket (its branch, title or description names the
+ticket key, or the ticket carries it) and none of its tickets is shown. The rules live in `cockpit_core::team_filter`.
+Display only: nothing is written to Jira.
 
 "Zugewiesen an" (`person`) is a drop-down with a search field: "Alle", "Mir", "Nicht zugewiesen" and the people of the
 tickets present. It is a display filter only; nothing is written to Jira.

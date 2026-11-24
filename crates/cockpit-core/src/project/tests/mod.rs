@@ -70,6 +70,27 @@ fn short_qualified_and_closing_references_are_found() {
 }
 
 #[test]
+fn an_issue_address_counts_only_at_github() {
+    for text in [
+        "github.com/acme/web/issues/9",
+        "http://github.com/acme/web/issues/9",
+        "see https://www.github.com/acme/web/issues/9.",
+    ] {
+        assert_eq!(keys(text), [("acme/web#9".into(), false)], "{text:?}");
+    }
+    for text in [
+        "https://example.com/acme/web/issues/9",
+        "https://github.com.example.org/acme/web/issues/9",
+        "https://evilgithub.com/acme/web/issues/9",
+        "https://github.com/acme/web/pull/2/issues/9",
+        "https://github.com/acme/issues/9",
+        "https://github.com/acme/web/issues/x",
+    ] {
+        assert!(keys(text).is_empty(), "{text:?}");
+    }
+}
+
+#[test]
 fn the_same_issue_counts_once_and_closing_wins() {
     assert_eq!(keys("#7 and Fixes #7"), [("acme/app#7".into(), true)]);
 }
