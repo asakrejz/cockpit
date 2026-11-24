@@ -103,7 +103,7 @@ impl GitHubClient {
 
     /// Changes an issue (REST).
     pub async fn issue_write(&self, repo: &str, number: u32, w: &IssueWrite) -> Result<(), Error> {
-        if !cockpit_core::project::repo_valid(repo) {
+        if !cockpit_core::repo_name_valid(repo) {
             return Err(Error::Config(format!("not a repo: {repo}")));
         }
         let base = format!("/repos/{repo}/issues/{number}");
@@ -217,7 +217,7 @@ impl GitHubClient {
     async fn repo_id(&self, repo: &str) -> Result<String, Error> {
         let (owner, name) = repo
             .split_once('/')
-            .filter(|_| cockpit_core::project::repo_valid(repo))
+            .filter(|_| cockpit_core::repo_name_valid(repo))
             .ok_or_else(|| Error::Config(format!("not a repo: {repo}")))?;
         let data = self
             .graphql(
@@ -271,7 +271,7 @@ impl GitHubClient {
         body: &str,
         status: Option<(&str, &str)>,
     ) -> Result<CreatedIssue, Error> {
-        if !cockpit_core::project::repo_valid(repo) {
+        if !cockpit_core::repo_name_valid(repo) {
             return Err(Error::Config(format!("not a repo: {repo}")));
         }
         let text = self

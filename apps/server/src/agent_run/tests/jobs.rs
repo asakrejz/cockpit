@@ -12,7 +12,13 @@ fn the_job_carries_ticket_rules_and_branch_but_no_secrets() {
     assert_eq!(j["base_branch"], "main");
     let text = j.to_string();
     assert!(!text.contains("TOKEN") && !text.contains("sk-"));
-    assert_eq!(check_job()["mode"], "check");
+    assert_eq!(check_job(cockpit_i18n::Lang::En)["mode"], "check");
+}
+
+#[test]
+fn the_check_job_carries_the_language_of_the_interface() {
+    assert_eq!(check_job(cockpit_i18n::Lang::De)["language"], "de");
+    assert_eq!(check_job(cockpit_i18n::Lang::En)["language"], "en");
 }
 
 #[test]

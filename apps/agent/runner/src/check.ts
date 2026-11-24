@@ -6,8 +6,11 @@
 //
 // * With ANTHROPIC_BASE_URL (proxy such as LiteLLM, another compatible endpoint): `Authorization: Bearer`.
 // * Without an address, with ANTHROPIC_API_KEY (directly at Anthropic): `x-api-key` and `anthropic-version`.
+//
+// The `hint` of the event is read by a person: it goes through `texts.ts`, in the language of the job.
 
 import type { Sink } from "./event.ts";
+import { tx } from "./texts.ts";
 
 export type Fetch = (url: string, init: { headers: Record<string, string>; signal: AbortSignal }) => Promise<{ status: number }>;
 
@@ -26,14 +29,14 @@ export async function checkEndpoint(
   const address = (env.ANTHROPIC_BASE_URL ?? "").replace(/\/+$/, "");
   const direct = !address && !!env.ANTHROPIC_API_KEY;
   if (!address && !direct) {
-    sink({ t: "check", reachable: false, key_ok: false, hint: "Im Container ist weder eine Endpunkt-Adresse noch ein Anthropic-Key eingestellt." });
+    sink({ t: "check", reachable: false, key_ok: false, hint: tx("check_no_endpoint") });
     return 1;
   }
   const base = direct ? ANTHROPIC_API : address;
-  const wer = direct ? "Anthropic" : "Der Endpunkt";
   const headers: Record<string, string> = direct
     ? { "x-api-key": env.ANTHROPIC_API_KEY ?? "", "anthropic-version": ANTHROPIC_VERSION }
     : { authorization: `Bearer ${env.ANTHROPIC_AUTH_TOKEN ?? ""}` };
+  const who = direct ? "Anthropic" : tx("check_endpoint_subject");
   const ac = new AbortController();
   const deadline = setTimeout(() => ac.abort(), 10_000);
   try {
@@ -43,12 +46,12 @@ export async function checkEndpoint(
       t: "check",
       reachable: true,
       key_ok: keyOk,
-      hint: keyOk ? `${wer} antwortet aus dem Container.` : `${wer} antwortet aus dem Container, lehnt den Key aber ab (Status ${r.status}).`,
+      hint: keyOk ? tx("check_answers", { who }) : tx("check_key_refused", { who, status: r.status }),
     });
     return keyOk ? 0 : 1;
   } catch (e) {
-    const reason = ac.signal.aborted ? "keine Antwort innerhalb von 10 Sekunden" : (e as Error & { cause?: { code?: string } }).cause?.code ?? (e as Error).message;
-    sink({ t: "check", reachable: false, key_ok: false, hint: `Der Container erreicht ${direct ? "Anthropic" : "den Endpunkt"} nicht (${reason}).` });
+    const reason = ac.signal.aborted ? tx("check_no_answer") : (e as Error & { cause?: { code?: string } }).cause?.code ?? (e as Error).message;
+    sink({ t: "check", reachable: false, key_ok: false, hint: tx("check_unreachable", { who: direct ? "Anthropic" : tx("check_endpoint_object"), reason }) });
     return 1;
   } finally {
     clearTimeout(deadline);
@@ -59,11 +62,11 @@ export async function checkEndpoint(
 async function checkOpenai(env: Record<string, string | undefined>, sink: Sink, fetch: Fetch): Promise<number> {
   const address = (env.OPENAI_BASE_URL ?? "").replace(/\/+$/, "").replace(/\/v1$/, "");
   if (!env.OPENAI_API_KEY) {
-    sink({ t: "check", reachable: false, key_ok: false, hint: "Im Container ist kein Key (OPENAI_API_KEY) eingestellt." });
+    sink({ t: "check", reachable: false, key_ok: false, hint: tx("check_no_openai_key") });
     return 1;
   }
   const direct = !address;
-  const wer = direct ? "OpenAI" : "Der Endpunkt";
+  const who = direct ? "OpenAI" : tx("check_endpoint_subject");
   const ac = new AbortController();
   const deadline = setTimeout(() => ac.abort(), 10_000);
   try {
@@ -73,12 +76,12 @@ async function checkOpenai(env: Record<string, string | undefined>, sink: Sink, 
       t: "check",
       reachable: true,
       key_ok: keyOk,
-      hint: keyOk ? `${wer} antwortet aus dem Container.` : `${wer} antwortet aus dem Container, lehnt den Key aber ab (Status ${r.status}).`,
+      hint: keyOk ? tx("check_answers", { who }) : tx("check_key_refused", { who, status: r.status }),
     });
     return keyOk ? 0 : 1;
   } catch (e) {
-    const reason = ac.signal.aborted ? "keine Antwort innerhalb von 10 Sekunden" : (e as Error & { cause?: { code?: string } }).cause?.code ?? (e as Error).message;
-    sink({ t: "check", reachable: false, key_ok: false, hint: `Der Container erreicht ${direct ? "OpenAI" : "den Endpunkt"} nicht (${reason}).` });
+    const reason = ac.signal.aborted ? tx("check_no_answer") : (e as Error & { cause?: { code?: string } }).cause?.code ?? (e as Error).message;
+    sink({ t: "check", reachable: false, key_ok: false, hint: tx("check_unreachable", { who: direct ? "OpenAI" : tx("check_endpoint_object"), reason }) });
     return 1;
   } finally {
     clearTimeout(deadline);

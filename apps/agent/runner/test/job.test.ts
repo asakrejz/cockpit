@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { tasksText, checkJob, systemText, reviewText, commitMessage, LIMITS } from "../src/job.ts";
+import { tasksText, checkJob, systemText, reviewText, commitMessage, repoNameValid, LIMITS } from "../src/job.ts";
 import { job } from "./helpers.ts";
 
 test("a job gets default values", () => {
@@ -59,6 +60,19 @@ test("the repo of the job is named in the system text; odd values are dropped", 
     assert.equal(checkJob({ mode: "plan", ticket: { key: "X-1" }, repo: bad }).repo, "");
   }
   assert.doesNotMatch(systemText(checkJob({ mode: "plan", ticket: { key: "X-1" } })), /The repository in/);
+});
+
+// The same cases are checked against `repo_name_valid` in crates/cockpit-core/tests/repo_name_cases.rs.
+const REPO_NAME_CASES: Array<{ repo: string; expected: boolean }> = JSON.parse(
+  readFileSync(new URL("../../../../crates/cockpit-core/tests/fixtures/repo_name_cases.json", import.meta.url), "utf8"),
+);
+
+test("repoNameValid follows the cases shared with cockpit-core", () => {
+  assert.ok(REPO_NAME_CASES.length > 80, "the shared repo name cases went missing");
+  const wrong = REPO_NAME_CASES.filter((c) => repoNameValid(c.repo) !== c.expected).map(
+    (c) => `${JSON.stringify(c.repo)}: expected ${c.expected}`,
+  );
+  assert.deepEqual(wrong, []);
 });
 
 // ---------- Follow-up jobs ----------

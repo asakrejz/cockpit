@@ -29,7 +29,7 @@ impl AppState {
     /// chosen when the run starts (the clone fails if GitHub does not show it). A repo of the
     /// configuration needs no check either.
     pub(crate) fn repo_usable(&self, repo: &str) -> bool {
-        agent_git::repo_name_ok(repo)
+        cockpit_core::repo_name_valid(repo)
     }
 
     /// Does the configuration hold the settings of this repo (`[[agent.repos]]` or the default

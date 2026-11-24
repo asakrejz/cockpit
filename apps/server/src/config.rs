@@ -312,7 +312,7 @@ impl Config {
         if let Some(g) = d.github {
             c.github_auth = g.auth;
             for r in &g.repos {
-                if !repo_valid(r) {
+                if !cockpit_core::repo_name_valid(r) {
                     return Err(ConfigError::Wert(msg!(
                         ServerConfigGithubRepoForm,
                         repo = r
@@ -432,7 +432,7 @@ impl Config {
                 .map(|r| r.trim().to_string())
                 .filter(|r| !r.is_empty());
             if let Some(r) = &c.agent_repo
-                && !crate::agent_git::repo_name_ok(r)
+                && !cockpit_core::repo_name_valid(r)
             {
                 return Err(ConfigError::Wert(msg!(ServerConfigAgentRepoForm, repo = r)));
             }

@@ -77,7 +77,7 @@ impl AppState {
         .flatten();
         let mut out = Vec::new();
         for repo in repos.into_iter().take(20) {
-            out.push(match (&access, crate::agent_git::repo_name_ok(&repo)) {
+            out.push(match (&access, cockpit_core::repo_name_valid(&repo)) {
                 (_, false) => repo_check(
                     repo,
                     RepoState::NotFound,

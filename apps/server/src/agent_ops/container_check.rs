@@ -130,9 +130,12 @@ pub(super) async fn container_remove(cli: &Path, name: &str) {
     cli_still(cli, &["rm", "-f", name]).await;
 }
 
-pub(super) fn check_job_write(dir: &Path) -> std::io::Result<()> {
+pub(super) fn check_job_write(dir: &Path, language: cockpit_i18n::Lang) -> std::io::Result<()> {
     std::fs::create_dir_all(dir)?;
-    std::fs::write(dir.join("job.json"), agent_run::check_job().to_string())?;
+    std::fs::write(
+        dir.join("job.json"),
+        agent_run::check_job(language).to_string(),
+    )?;
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -168,7 +171,10 @@ pub(super) async fn check_container(
     io: agent_run::AgentIo,
 ) -> Result<Event, Msg> {
     let dir = state.agent_dir().join("check").join(now_ms().to_string());
-    check_job_write(&dir).map_err(|e| msg!(ServerRunCheckJobNotWritable, error = e.to_string()))?;
+    // The runner writes its hint in the language of the interface.
+    let language = state.inner.live.copy().language.unwrap_or_default();
+    check_job_write(&dir, language)
+        .map_err(|e| msg!(ServerRunCheckJobNotWritable, error = e.to_string()))?;
     let name = agent_run::container_name("check", now_ms());
     let args = agent_run::run_args(&RunCommand {
         name: &name,

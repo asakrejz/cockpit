@@ -158,7 +158,7 @@ impl Workspace {
                 created,
             } => {
                 let title = title.trim();
-                if title.is_empty() || !crate::project::repo_valid(&repo) {
+                if title.is_empty() || !crate::repo_name_valid(&repo) {
                     return Err(ActionError::InvalidInput);
                 }
                 let meta = self
@@ -239,7 +239,7 @@ impl Workspace {
                 if !current.project.as_ref().is_some_and(|p| p.draft) {
                     return Err(ActionError::NotADraft);
                 }
-                if !crate::project::repo_valid(&repo) {
+                if !crate::repo_name_valid(&repo) {
                     return Err(ActionError::InvalidInput);
                 }
                 let created = created.ok_or(ActionError::NeedsBackend)?;

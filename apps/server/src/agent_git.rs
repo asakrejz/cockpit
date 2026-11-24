@@ -25,19 +25,6 @@ use cockpit_integrations::Secret;
 /// This many changed files the backend lets through.
 const MAX_FILES: usize = 500;
 
-/// `owner/name`, as GitHub knows it.
-pub fn repo_name_ok(repo: &str) -> bool {
-    let teil = |t: &str| {
-        !t.is_empty()
-            && t != "."
-            && t != ".."
-            && t.chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
-    };
-    repo.split_once('/')
-        .is_some_and(|(o, n)| teil(o) && teil(n))
-}
-
 /// A base branch to branch off: inconspicuous characters, no leading `-` (no option for `git`).
 pub fn base_branch_ok(branch: &str) -> bool {
     !branch.is_empty()

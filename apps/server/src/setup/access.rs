@@ -54,7 +54,7 @@ impl AppState {
             ..GitHubAccess::default()
         };
         for repo in repos.into_iter().take(20) {
-            let visibility = if crate::agent_git::repo_name_ok(&repo) {
+            let visibility = if cockpit_core::repo_name_valid(&repo) {
                 match access.client.repo_access(&repo).await {
                     Ok(_) => RepoVisibility::Visible,
                     Err(e) => {

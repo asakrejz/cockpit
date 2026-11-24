@@ -449,7 +449,7 @@ The interface is available in German and English and switches at once, without a
 - **Agent texts.** `job.json` carries `language` (interface language: plan, summary, questions, review comments) and
   `pr_language` (team language of the repo: commit message, pull request title and text). The default of `pr_language` is English;
   it is set per repo (`pr_language` in `[[agent.repos]]`, a switch in the setup assistant) and stored in the run options when the run
-  starts. The runner (`apps/agent/runner/src/texts.ts`) writes its own step titles and errors in `language`.
+  starts. The runner (`apps/agent/runner/src/texts.ts`) writes its own step titles, errors and the hint of the check in `language`.
 
 ## Layout and navigation
 

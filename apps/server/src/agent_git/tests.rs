@@ -1,15 +1,6 @@
 use super::*;
 
 #[test]
-fn repo_names_are_strictly_checked() {
-    assert!(repo_name_ok("firma/app"));
-    assert!(repo_name_ok("a.b/c_d-e"));
-    for bad in ["app", "a/b/c", "../x", "a/..", "a /b", "a/b;rm", "/b", "a/"] {
-        assert!(!repo_name_ok(bad), "{bad}");
-    }
-}
-
-#[test]
 fn addresses() {
     assert_eq!(
         base_from_api("https://api.github.com/"),

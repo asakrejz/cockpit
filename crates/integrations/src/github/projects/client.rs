@@ -232,7 +232,7 @@ impl GitHubClient {
     /// People who can be assigned to issues of `repo` (`GET /repos/{repo}/assignees`) whose login
     /// contains `query` (case-insensitive), at most 30. Read only.
     pub async fn assignees(&self, repo: &str, query: &str) -> Result<Vec<String>, Error> {
-        if !cockpit_core::project::repo_valid(repo) {
+        if !cockpit_core::repo_name_valid(repo) {
             return Err(Error::Config(format!("not a repo: {repo}")));
         }
         #[derive(serde::Deserialize)]
@@ -318,7 +318,7 @@ impl GitHubClient {
         }
         let valid: Vec<(&str, &str)> = repos
             .iter()
-            .filter(|r| cockpit_core::project::repo_valid(r))
+            .filter(|r| cockpit_core::repo_name_valid(r))
             .filter_map(|r| r.split_once('/'))
             .collect();
         for chunk in valid.chunks(REPO_CHUNK) {

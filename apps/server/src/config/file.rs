@@ -207,23 +207,12 @@ pub(super) fn runtime(text: &str) -> Result<String, ConfigError> {
     }
 }
 
-/// `owner/name` made of letters, digits, `.`, `-` and `_`.
-pub(super) fn repo_valid(r: &str) -> bool {
-    let teil = |t: &str| {
-        !t.is_empty()
-            && t.chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
-    };
-    r.split_once('/')
-        .is_some_and(|(o, n)| teil(o) && teil(n) && !n.contains('/'))
-}
-
 /// `[[agent.repos]]`: every repo valid and once.
 pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>, ConfigError> {
     let mut out: Vec<AgentRepo> = Vec::new();
     for r in list {
         let repo = r.repo.trim().to_string();
-        if !crate::agent_git::repo_name_ok(&repo) {
+        if !cockpit_core::repo_name_valid(&repo) {
             return Err(ConfigError::Wert(msg!(
                 ServerConfigReposRepoForm,
                 repo = &repo

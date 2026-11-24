@@ -156,9 +156,10 @@ pub fn review_input(ws: &Workspace, run: &AgentRun) -> Option<Value> {
     }))
 }
 
-/// The job for the reachability check.
-pub fn check_job() -> Value {
-    json!({ "mode": "check", "ticket": { "key": "-", "title": "-" } })
+/// The job for the reachability check. It carries the language of the interface, the runner
+/// writes its hint in it.
+pub fn check_job(language: cockpit_i18n::Lang) -> Value {
+    json!({ "mode": "check", "language": language.code(), "ticket": { "key": "-", "title": "-" } })
 }
 
 /// The repos of a run in several repos for the runner (`repos` in the job file). Each repo is

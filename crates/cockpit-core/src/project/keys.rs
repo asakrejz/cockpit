@@ -1,5 +1,7 @@
 //! Ticket keys of GitHub issues (`acme/app#123`) and how they appear in texts.
 
+use crate::repo_name_valid;
+
 /// The key of an issue: `owner/name#123`.
 ///
 /// ```
@@ -36,7 +38,7 @@ pub fn draft_key(project: &str, item_id: &str) -> String {
 /// ```
 pub fn parse_issue_key(key: &str) -> Option<(String, u32)> {
     let (repo, number) = key.trim().rsplit_once('#')?;
-    if !repo_valid(repo) {
+    if !repo_name_valid(repo) {
         return None;
     }
     Some((repo.to_string(), number.parse().ok()?))
@@ -48,11 +50,6 @@ pub fn short_key(key: &str) -> String {
         Some((_, n)) if n.chars().all(|c| c.is_ascii_digit()) && !n.is_empty() => format!("#{n}"),
         _ => key.to_string(),
     }
-}
-
-/// A repo name `owner/name` (exactly one slash).
-pub fn repo_valid(repo: &str) -> bool {
-    crate::model::repo_name_valid(repo) && repo.matches('/').count() == 1
 }
 
 /// A reference to an issue found in a text.
@@ -124,7 +121,7 @@ pub fn issue_refs(text: &str, default_repo: &str) -> Vec<IssueRef> {
                 // `from` sits on a char boundary because every repo char is ASCII.
                 let repo = if before.is_empty() {
                     Some(default_repo.to_string()).filter(|r| !r.is_empty())
-                } else if repo_valid(before) {
+                } else if repo_name_valid(before) {
                     Some(before.to_string())
                 } else {
                     None
@@ -156,7 +153,7 @@ pub fn issue_refs(text: &str, default_repo: &str) -> Vec<IssueRef> {
                     || host.eq_ignore_ascii_case("www.github.com"))
             {
                 let candidate = format!("{owner}/{name}");
-                if repo_valid(&candidate)
+                if repo_name_valid(&candidate)
                     && let Ok(n) = text[start..end].parse::<u32>()
                 {
                     add(candidate, n, false);

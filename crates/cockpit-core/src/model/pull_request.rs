@@ -112,15 +112,40 @@ impl Serialize for PrKey {
     }
 }
 
-/// `owner/name` of letters, digits, `.`, `-` and `_`.
+/// A repo name `owner/name`, spelled the way GitHub spells it, with exactly one slash:
+///
+/// * the owner has 1 to 39 letters, digits and single hyphens, none at either end;
+/// * the name has 1 to 100 letters, digits, `.`, `_` and `-`, and is never `.` or `..`.
+///
+/// This is the one rule for every repo name Cockpit reads, stores or hands to `git` and the
+/// container. The agent runner repeats it in `apps/agent/runner/src/job.ts` as a second line of
+/// defence; both are tested against `tests/fixtures/repo_name_cases.json`, so a change to the
+/// rule has to change that file and then both sides have to agree again.
+///
+/// ```
+/// use cockpit_core::repo_name_valid;
+/// assert!(repo_name_valid("acme/app.js"));
+/// assert!(!repo_name_valid("acme/.."));
+/// assert!(!repo_name_valid("acme/app/extra"));
+/// ```
 pub fn repo_name_valid(repo: &str) -> bool {
-    let part = |t: &str| {
-        !t.is_empty()
-            && t.chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+    let Some((owner, name)) = repo.split_once('/') else {
+        return false;
     };
-    repo.split_once('/')
-        .is_some_and(|(o, n)| part(o) && part(n))
+    let owner_ok = (1..=39).contains(&owner.len())
+        && !owner.starts_with('-')
+        && !owner.ends_with('-')
+        && !owner.contains("--")
+        && owner
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'-');
+    let name_ok = (1..=100).contains(&name.len())
+        && name != "."
+        && name != ".."
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'));
+    owner_ok && name_ok
 }
 
 /// Reference to a pull request, as it hangs on an entry.
