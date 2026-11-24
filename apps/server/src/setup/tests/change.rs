@@ -40,11 +40,7 @@ fn change_puts_sections_in_a_empty_file_at() {
     let l = c.endpoint.unwrap();
     assert_eq!(l.url.as_deref(), Some("http://localhost:4000"));
     assert_eq!(l.model.as_deref(), Some("claude-sonnet-5-5"));
-    // The new format, no `[litellm]`.
-    assert!(
-        updated.contains("[agent.endpoint]") && !updated.contains("litellm"),
-        "{updated}"
-    );
+    assert!(updated.contains("[agent.endpoint]"), "{updated}");
     assert!(
         updated.contains("provider = \"claude-agent-sdk\""),
         "{updated}"
@@ -54,56 +50,51 @@ fn change_puts_sections_in_a_empty_file_at() {
 }
 
 #[test]
-fn change_adopts_a_older_litellm_and_keeps_agent_values() {
-    let alt = "[litellm]\nurl = \"http://a:1\"\nmodell = \"altes-modell\"\n[agent]\ncontainer = \"podman\" # meins\nrepo = \"firma/app\"\n";
-    // Only change the model: the old address stays, `[litellm]` moves.
+fn change_keeps_agent_values_and_comments_when_only_the_model_changes() {
+    let start = "[agent]\ncontainer = \"podman\" # meins\nrepo = \"firma/app\"\n[agent.endpoint]\nurl = \"http://a:1\"\nmodel = \"old-model\"\n";
     let a = ConfigChange {
         endpoint: Some(EndpointInput {
-            model: Some("neues-modell".into()),
+            model: Some("new-model".into()),
             ..Default::default()
         }),
         ..Default::default()
     };
-    let (updated, c) = change(alt, &a).unwrap();
-    assert!(!updated.contains("[litellm]"), "{updated}");
+    let (updated, c) = change(start, &a).unwrap();
     assert!(
         updated.contains("container = \"podman\" # meins"),
         "{updated}"
     );
     let e = c.endpoint.unwrap();
     assert_eq!(e.url.as_deref(), Some("http://a:1"));
-    assert_eq!(e.model.as_deref(), Some("neues-modell"));
+    assert_eq!(e.model.as_deref(), Some("new-model"));
     assert_eq!(c.container.as_deref(), Some("podman"));
     assert_eq!(c.agent_repo.as_deref(), Some("firma/app"));
-}
-
-#[test]
-fn change_migrates_all_older_spellings_to_the_current_ones() {
-    // `[agent] anbieter`, `[agent.endpunkt]` with `modell`, plus a `[litellm]` that loses.
-    let old = "[litellm]\nurl = \"http://x:9\"\nmodell = \"litellm-model\"\n[agent]\nanbieter = \"codex\"\n[agent.endpunkt]\nurl = \"http://a:1\"\nmodell = \"m\"\n";
-    let a = ConfigChange {
-        endpoint: Some(EndpointInput::default()),
-        ..Default::default()
-    };
-    let (updated, c) = change(old, &a).unwrap();
-    for gone in ["litellm", "anbieter", "endpunkt", "modell"] {
-        assert!(!updated.contains(gone), "{gone} in {updated}");
-    }
-    assert!(updated.contains("provider = \"codex\""), "{updated}");
-    assert!(updated.contains("[agent.endpoint]"), "{updated}");
-    let e = c.endpoint.unwrap();
-    assert_eq!(c.provider, Provider::Codex);
-    assert_eq!(
-        (e.url.as_deref(), e.model.as_deref()),
-        (Some("http://a:1"), Some("m"))
-    );
     // The result is stable: a second change does not move anything.
     assert_eq!(change(&updated, &a).unwrap().0, updated);
 }
 
 #[test]
+fn change_refuses_a_file_with_names_that_do_not_exist_and_names_the_key() {
+    for (old, key) in [
+        ("[litellm]\nurl = \"http://x:9\"\n", "litellm"),
+        ("[agent]\nanbieter = \"codex\"\n", "anbieter"),
+        ("[agent.endpunkt]\nurl = \"http://a:1\"\n", "endpunkt"),
+        ("[agent.endpoint]\nmodell = \"m\"\n", "modell"),
+    ] {
+        let a = ConfigChange {
+            endpoint: Some(EndpointInput::default()),
+            ..Default::default()
+        };
+        let m = change(old, &a).unwrap_err();
+        for lang in [cockpit_i18n::Lang::De, cockpit_i18n::Lang::En] {
+            assert!(m.render(lang).contains(key), "{old}: {}", m.render(lang));
+        }
+    }
+}
+
+#[test]
 fn change_switches_on_direct_without_address() {
-    let start = "[agent.endpunkt]\nurl = \"http://a:1\"\nmodell = \"m\"\n";
+    let start = "[agent.endpoint]\nurl = \"http://a:1\"\nmodel = \"m\"\n";
     let a = ConfigChange {
         endpoint: Some(EndpointInput {
             provider: Some(Provider::ClaudeAgentSdk),
@@ -129,7 +120,7 @@ fn change_switches_on_direct_without_address() {
 
 #[test]
 fn change_removes_with_empty_evaluate() {
-    let start = "[atlassian]\nclient_id = \"x\"\n[agent.endpunkt]\nurl = \"http://a:1\"\nmodell = \"m\"\n[github]\nrepos = [\"a/b\"]\n";
+    let start = "[atlassian]\nclient_id = \"x\"\n[agent.endpoint]\nurl = \"http://a:1\"\nmodel = \"m\"\n[github]\nrepos = [\"a/b\"]\n";
     let a = ConfigChange {
         atlassian: Some(ClientInput::default()),
         endpoint: Some(EndpointInput {

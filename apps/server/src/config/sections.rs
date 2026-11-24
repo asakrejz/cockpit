@@ -78,8 +78,48 @@ pub struct JiraConfig {
 pub enum ConfigError {
     Read(PathBuf, std::io::Error),
     Toml(String),
+    /// A key the file must not have: a typo or a name this version does not know. `section` is
+    /// empty at the top of the file, `file` is the file it stands in.
+    UnknownKey {
+        section: String,
+        key: String,
+        file: PathBuf,
+    },
     /// A value that is not allowed; the message is shown to people (setup) or logged in English.
     Wert(cockpit_i18n::Msg),
+}
+
+impl ConfigError {
+    /// Names the file the error was found in (the text alone does not know its path).
+    pub fn in_file(self, path: &Path) -> Self {
+        match self {
+            ConfigError::UnknownKey { section, key, .. } => ConfigError::UnknownKey {
+                section,
+                key,
+                file: path.to_path_buf(),
+            },
+            other => other,
+        }
+    }
+
+    /// The error as a message for people, in the language of whoever reads it.
+    pub fn msg(&self) -> Msg {
+        match self {
+            ConfigError::Wert(m) => m.clone(),
+            ConfigError::UnknownKey { section, key, file } if section.is_empty() => msg!(
+                ServerConfigKeyUnknownTop,
+                key = key,
+                file = file.display().to_string()
+            ),
+            ConfigError::UnknownKey { section, key, file } => msg!(
+                ServerConfigKeyUnknown,
+                key = key,
+                section = section,
+                file = file.display().to_string()
+            ),
+            other => Msg::raw(other.to_string()),
+        }
+    }
 }
 
 impl std::fmt::Display for ConfigError {
@@ -89,6 +129,9 @@ impl std::fmt::Display for ConfigError {
                 write!(f, "Configuration file {} not readable: {e}", p.display())
             }
             ConfigError::Toml(m) => write!(f, "Configuration file invalid: {m}"),
+            ConfigError::UnknownKey { .. } => {
+                write!(f, "{}", self.msg().render(cockpit_i18n::Lang::En))
+            }
             ConfigError::Wert(m) => {
                 write!(f, "Invalid value: {}", m.render(cockpit_i18n::Lang::En))
             }

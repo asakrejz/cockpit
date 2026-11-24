@@ -44,20 +44,7 @@ pub(super) fn list(entries: &[String]) -> Item {
     value(entries.iter().map(String::as_str).collect::<Array>())
 }
 
-/// `(url, model)` of an endpoint table; the model may stand under the older name `modell`.
-pub(super) fn endpoint_values(item: Option<&Item>) -> Option<(Option<String>, Option<String>)> {
-    let t = item?.as_table_like()?;
-    let text = |keys: &[&str]| {
-        keys.iter()
-            .find_map(|k| t.get(k).and_then(Item::as_str))
-            .map(str::to_string)
-    };
-    Some((text(&["url"]), text(&["model", "modell"])))
-}
-
-/// Writes provider and endpoint in the current format (`[agent] provider`, `[agent.endpoint]`).
-/// The older spellings are adopted and removed so that only one place applies: `[litellm]`,
-/// `[agent] anbieter` and `[agent.endpunkt]` (with `modell`).
+/// Writes provider and endpoint (`[agent] provider`, `[agent.endpoint]`).
 pub(super) fn endpoint_write(
     doc: &mut DocumentMut,
     e: &cockpit_core::api::EndpointInput,
@@ -69,23 +56,11 @@ pub(super) fn endpoint_write(
         }
         other => other,
     };
-    // Rescue values from an older `[litellm]` before it disappears.
-    let legacy_litellm = endpoint_values(doc.get("litellm"));
-    if legacy_litellm.is_some() {
-        doc.remove("litellm");
-    }
     {
         let agent = table(doc, "agent")?;
-        if let Some(old) = agent.remove("anbieter")
-            && !agent.contains_key("provider")
-        {
-            agent.insert("provider", old);
-        }
         if let Some(provider) = e.provider {
             set(agent, "provider", value(provider.id()));
         }
-        let legacy_endpoint = agent.remove("endpunkt");
-        let legacy = endpoint_values(legacy_endpoint.as_ref());
         if !agent.contains_key("endpoint") {
             agent.insert("endpoint", Item::Table(Table::new()));
         }
@@ -93,20 +68,6 @@ pub(super) fn endpoint_write(
             .get_mut("endpoint")
             .and_then(Item::as_table_like_mut)
             .ok_or_else(|| msg!(ServerSetupTableInvalid, name = "agent.endpoint"))?;
-        // Several spellings at once: the current one wins, then `[agent.endpunkt]`, then `[litellm]`.
-        for (old_url, old_model) in [legacy, legacy_litellm].into_iter().flatten() {
-            if !ep.contains_key("url")
-                && let Some(u) = old_url
-            {
-                ep.insert("url", value(u));
-            }
-            if !ep.contains_key("model")
-                && let Some(m) = old_model
-            {
-                ep.insert("model", value(m));
-            }
-        }
-        ep.remove("modell");
         match url.as_deref() {
             Some("") => {
                 ep.remove("url");
@@ -288,10 +249,7 @@ pub fn change(text: &str, a: &ConfigChange) -> Result<(String, Config), Msg> {
     }
 
     let updated = doc.to_string();
-    let config = Config::parse(Some(&updated), |_| None).map_err(|e| match e {
-        ConfigError::Wert(m) => m,
-        other => Msg::raw(other.to_string()),
-    })?;
+    let config = Config::parse(Some(&updated), |_| None).map_err(|e| e.msg())?;
     Ok((updated, config))
 }
 

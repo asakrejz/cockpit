@@ -62,7 +62,7 @@ impl Provider {
 /// only whether one is in the .env file.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct EndpointStatus {
-    /// `[agent.endpoint]` (or the older `[litellm]`) is in `config.toml`.
+    /// `[agent.endpoint]` is in `config.toml`.
     #[serde(default)]
     pub configured: bool,
     #[serde(default)]

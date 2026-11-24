@@ -8,7 +8,6 @@ pub(super) struct File {
     pub(super) port: Option<u16>,
     pub(super) dist: Option<PathBuf>,
     pub(super) db: Option<PathBuf>,
-    #[serde(alias = "intervall_s")]
     pub(super) interval_s: Option<u64>,
     pub(super) github: Option<FileGitHub>,
     pub(super) jira: Option<FileJira>,
@@ -16,7 +15,6 @@ pub(super) struct File {
     pub(super) github_oauth: Option<FileOAuth>,
     pub(super) atlassian: Option<FileAtlassian>,
     pub(super) seed: Option<String>,
-    pub(super) litellm: Option<FileEndpoint>,
     pub(super) agent: Option<FileAgent>,
     pub(super) server: Option<FileServer>,
     pub(super) sync: Option<FileSync>,
@@ -55,12 +53,11 @@ pub(super) struct FileSync {
     pub(super) max_prs_total: Option<usize>,
 }
 
-/// `[litellm]` (older) and `[agent.endpoint]` have the same fields.
+/// `[agent.endpoint]`.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct FileEndpoint {
     pub(super) url: Option<String>,
-    #[serde(alias = "modell")]
     pub(super) model: Option<String>,
 }
 
@@ -91,9 +88,7 @@ pub(super) struct FileAgent {
     #[serde(default)]
     pub(super) repos: Vec<FileAgentRepo>,
     pub(super) dir: Option<PathBuf>,
-    #[serde(alias = "anbieter")]
     pub(super) provider: Option<String>,
-    #[serde(alias = "endpunkt")]
     pub(super) endpoint: Option<FileEndpoint>,
 }
 
@@ -138,6 +133,65 @@ pub(super) struct FileJira {
     pub(super) team_field: Option<String>,
     #[serde(default)]
     pub(super) auth: Option<cockpit_core::AuthChoice>,
+}
+
+/// Reads the text of the file. A key that does not exist (a typo, or a name this version does not
+/// have) is an error that names the key and its section; it is never skipped silently.
+pub(super) fn file_read(text: &str) -> Result<File, ConfigError> {
+    toml::from_str(text).map_err(|e| {
+        unknown_key(text, &e).unwrap_or_else(|| ConfigError::Toml(e.message().to_string()))
+    })
+}
+
+/// `Some` if the parser refused the text because of a key the file types do not have.
+fn unknown_key(text: &str, e: &toml::de::Error) -> Option<ConfigError> {
+    let key = e
+        .message()
+        .strip_prefix("unknown field `")?
+        .split('`')
+        .next()?;
+    let section = e
+        .span()
+        .and_then(|span| section_of_key(text, span.start))
+        .unwrap_or_default();
+    Some(ConfigError::UnknownKey {
+        section,
+        key: key.to_string(),
+        file: PathBuf::from(location::CONFIG_FILE),
+    })
+}
+
+/// The table (`agent.endpoint`) in which the key that starts at byte `at` stands; empty at the top.
+fn section_of_key(text: &str, at: usize) -> Option<String> {
+    let doc = toml_edit::Document::parse(text).ok()?;
+    let mut path = Vec::new();
+    find_section(doc.as_table(), &mut path, at).then(|| path.join("."))
+}
+
+/// Walks `table` and its sub-tables; `path` ends as the path of the table that has the key at `at`.
+fn find_section(table: &dyn toml_edit::TableLike, path: &mut Vec<String>, at: usize) -> bool {
+    use toml_edit::{Item, Value};
+    for (name, item) in table.iter() {
+        let is_here = table
+            .get_key_value(name)
+            .and_then(|(key, _)| key.span())
+            .is_some_and(|span| span.contains(&at));
+        if is_here {
+            return true;
+        }
+        path.push(name.to_string());
+        let found = match item {
+            Item::Table(t) => find_section(t, path, at),
+            Item::Value(Value::InlineTable(t)) => find_section(t, path, at),
+            Item::ArrayOfTables(all) => all.iter().any(|t| find_section(t, path, at)),
+            _ => false,
+        };
+        if found {
+            return true;
+        }
+        path.pop();
+    }
+    false
 }
 
 /// `docker` or `podman`, otherwise an error.

@@ -39,7 +39,7 @@ use cockpit_integrations::{Error, Secret};
 use toml_edit::{Array, DocumentMut, Item, Table, value};
 
 use crate::app::{AppState, error_msg};
-use crate::config::{Config, ConfigError};
+use crate::config::Config;
 use crate::db;
 use crate::oauth::redirect_uri;
 use crate::secrets;
