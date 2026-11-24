@@ -15,8 +15,6 @@ use cockpit_core::api::Provider;
 
 fn state(secrets: Arc<MemoryStore>) -> AppState {
     let conn = db::open_in_memory().unwrap();
-    db::connection_set(&conn, "github", "https://api.github.com", None).unwrap();
-    db::connection_set(&conn, "jira", "https://x.atlassian.net", Some("a@b.de")).unwrap();
     AppState::new(conn, secrets)
 }
 

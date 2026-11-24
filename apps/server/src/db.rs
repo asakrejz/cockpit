@@ -34,6 +34,9 @@ const MIGRATIONS: &[&str] = &[
          stored_at TEXT NOT NULL,      -- `workspace.updated_at` of the kept row
          kept_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
      );",
+    // 4: the addresses of Jira and GitHub are read from the configuration only; nothing reads
+    //    the copy that migration 1 created.
+    "DROP TABLE connections;",
 ];
 
 /// The version to which [`migrate`] brings the database.
@@ -117,21 +120,6 @@ pub fn migrate(conn: &mut Connection) -> Result<u32, DbError> {
     version(conn)
 }
 
-/// Creates a connection or updates it (without a key).
-pub fn connection_set(
-    conn: &Connection,
-    name: &str,
-    base_url: &str,
-    account: Option<&str>,
-) -> Result<(), DbError> {
-    conn.execute(
-        "INSERT INTO connections (name, base_url, account) VALUES (?1, ?2, ?3)
-         ON CONFLICT(name) DO UPDATE SET base_url = ?2, account = ?3, updated_at = CURRENT_TIMESTAMP",
-        params![name, base_url, account],
-    )?;
-    Ok(())
-}
-
 /// The stored workspace of the server mode (JSON with revision), if there is one.
 pub fn load_workspace(conn: &Connection) -> Result<Option<String>, DbError> {
     match conn.query_row("SELECT json FROM workspace WHERE id = 1", [], |r| r.get(0)) {
@@ -185,16 +173,6 @@ pub fn workspaces_kept(conn: &Connection) -> Result<Option<KeptWorkspaces>, DbEr
         count,
         last_kept_at,
     }))
-}
-
-/// Names of all stored connections (the status no longer reads them: the key store decides).
-#[cfg(test)]
-pub fn connections(conn: &Connection) -> Result<Vec<String>, DbError> {
-    let mut stmt = conn.prepare("SELECT name FROM connections ORDER BY name")?;
-    let names = stmt
-        .query_map([], |r| r.get(0))?
-        .collect::<Result<Vec<String>, _>>()?;
-    Ok(names)
 }
 
 pub fn setting_set(conn: &Connection, key: &str, value: &str) -> Result<(), DbError> {

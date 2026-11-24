@@ -40,7 +40,6 @@ use toml_edit::{Array, DocumentMut, Item, Table, value};
 
 use crate::app::{AppState, error_msg};
 use crate::config::Config;
-use crate::db;
 use crate::oauth::redirect_uri;
 use crate::secrets;
 
@@ -60,26 +59,6 @@ mod messages;
 use messages::{github_cause_msg, jira_cause_msg};
 
 impl AppState {
-    /// Takes over the addresses and accounts from the configuration into the database (without keys).
-    /// Blockierend.
-    pub(crate) fn connections_adopt(&self, config: &Config) -> Result<(), Msg> {
-        let conn = self
-            .inner
-            .db
-            .lock()
-            .map_err(|_| msg!(ServerSetupDbLocked))?;
-        if let Some(g) = &config.github {
-            db::connection_set(&conn, secrets::GITHUB, &g.api_url, None)
-                .map_err(|e| Msg::raw(e.to_string()))?;
-        }
-        // With OAuth Jira has no address of its own; the sign-in chooses the site.
-        if let Some(j) = config.jira.as_ref().filter(|j| !j.site.is_empty()) {
-            db::connection_set(&conn, secrets::JIRA, &j.site, Some(&j.email))
-                .map_err(|e| Msg::raw(e.to_string()))?;
-        }
-        Ok(())
-    }
-
     /// Changes `config.toml` and applies the result. Blocking.
     pub(crate) fn config_change(
         &self,
@@ -127,8 +106,6 @@ impl AppState {
                 )
             })?;
         }
-        self.connections_adopt(&config)
-            .map_err(|m| (StatusCode::INTERNAL_SERVER_ERROR, m))?;
         self.config_apply(&config);
         tracing::info!("config.toml updated and applied");
 

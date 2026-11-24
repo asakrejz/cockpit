@@ -72,8 +72,8 @@ fn fresh_database_is_migrated() {
     let conn = open_in_memory().unwrap();
     assert_eq!(version(&conn).unwrap(), CURRENT_VERSION);
     // Tabellen existieren.
-    assert_eq!(connections(&conn).unwrap(), Vec::<String>::new());
     assert_eq!(setting(&conn, "x").unwrap(), None);
+    assert_eq!(load_workspace(&conn).unwrap(), None);
 }
 
 #[test]
@@ -103,23 +103,48 @@ fn newer_database_is_not_touched() {
 }
 
 #[test]
-fn connections_and_settings() {
+fn settings_are_replaced_by_key() {
     let conn = open_in_memory().unwrap();
-    connection_set(&conn, "jira", "https://a.atlassian.net", Some("a@b.de")).unwrap();
-    connection_set(&conn, "github", "https://api.github.com", None).unwrap();
-    connection_set(&conn, "jira", "https://b.atlassian.net", Some("c@d.de")).unwrap();
-    assert_eq!(connections(&conn).unwrap(), vec!["github", "jira"]);
-    let url: String = conn
+    setting_set(&conn, "k", "1").unwrap();
+    setting_set(&conn, "k", "2").unwrap();
+    assert_eq!(setting(&conn, "k").unwrap().as_deref(), Some("2"));
+}
+
+#[test]
+fn the_unused_connections_table_is_dropped_and_everything_else_stays() {
+    // A database with the first three migrations: the `connections` table holds rows.
+    let mut conn = Connection::open_in_memory().unwrap();
+    version(&conn).unwrap();
+    for (i, sql) in MIGRATIONS.iter().take(3).enumerate() {
+        conn.execute_batch(sql).unwrap();
+        conn.execute(
+            "INSERT INTO schema_version (version) VALUES (?1)",
+            params![i as u32 + 1],
+        )
+        .unwrap();
+    }
+    conn.execute(
+        "INSERT INTO connections (name, base_url, account) VALUES ('jira', 'https://acme.atlassian.net', 'a@b.de')",
+        [],
+    )
+    .unwrap();
+    setting_set(&conn, "k", "1").unwrap();
+    workspace_save(&conn, 4, "{\"version\":1}").unwrap();
+
+    assert_eq!(migrate(&mut conn).unwrap(), CURRENT_VERSION);
+    let tables: u32 = conn
         .query_row(
-            "SELECT base_url FROM connections WHERE name = 'jira'",
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'connections'",
             [],
             |r| r.get(0),
         )
         .unwrap();
-    assert_eq!(url, "https://b.atlassian.net");
-    setting_set(&conn, "k", "1").unwrap();
-    setting_set(&conn, "k", "2").unwrap();
-    assert_eq!(setting(&conn, "k").unwrap().as_deref(), Some("2"));
+    assert_eq!(tables, 0);
+    assert_eq!(setting(&conn, "k").unwrap().as_deref(), Some("1"));
+    assert_eq!(
+        load_workspace(&conn).unwrap().as_deref(),
+        Some("{\"version\":1}")
+    );
 }
 
 #[test]
