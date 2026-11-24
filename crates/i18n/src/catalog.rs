@@ -62,6 +62,12 @@ pub fn plural_forms() -> [&'static str; 3] {
     ["zero", "one", "other"]
 }
 
+/// Is `id` in the catalog (also as a plural key)?
+pub(crate) fn has_id(id: &str) -> bool {
+    let en = table(Lang::En);
+    en.contains_key(id) || en.contains_key(&format!("{id}.other"))
+}
+
 /// The text for an id (as stored in a [`crate::Msg`]). Unknown ids come back as the id.
 pub(crate) fn text_by_id(lang: Lang, id: &str, args: &[(String, String)]) -> String {
     let entry = |lang: Lang, id: &str| table(lang).get(id).cloned();

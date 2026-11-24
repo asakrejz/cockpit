@@ -189,3 +189,20 @@ fn a_message_survives_the_wire_and_an_unknown_code_renders_as_the_code() {
     };
     assert_eq!(unknown.render(Lang::De), "future.code");
 }
+
+#[test]
+fn a_stored_message_whose_code_is_gone_shows_its_stored_text() {
+    let stored = "Gespeicherter Satz";
+    let gone = Msg {
+        code: "core_action.log_step".into(),
+        args: vec![],
+    };
+    assert!(!gone.is_known());
+    for lang in Lang::ALL {
+        assert_eq!(gone.render_or(lang, stored), stored);
+    }
+    // Known codes, also plural ones, render from the catalog.
+    let known = msg!(TimeAgoMinutes, n = 2);
+    assert!(known.is_known());
+    assert_eq!(known.render_or(Lang::En, stored), known.render(Lang::En));
+}

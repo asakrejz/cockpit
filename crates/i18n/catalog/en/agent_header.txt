@@ -1,5 +1,4 @@
 agent_header.done = Done
-agent_header.decision = Waiting for decision
 agent_header.approval = Waiting for approval
 agent_header.answer = Waiting for answer
 agent_header.paused = Paused
