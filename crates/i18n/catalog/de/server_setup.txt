@@ -3,7 +3,6 @@ server_setup.internal_error = Interner Fehler
 server_setup.no_config_path = Dieser Rechner hat keinen Ort für die Konfigurationsdatei. Setze COCKPIT_CONFIG auf einen Dateipfad.
 server_setup.config_unreadable = Die Datei {path} lässt sich nicht lesen.
 server_setup.config_unwritable = Die Datei {path} lässt sich nicht schreiben ({kind}).
-server_setup.db_locked = Datenbank gesperrt
 server_setup.client_id_changed = Du hast die Client-ID einer App geändert. Melde dich danach neu an, damit die Anmeldung zur neuen App gehört.
 server_setup.inputs_unreadable = Die Eingaben sind nicht lesbar
 server_setup.input_unreadable = Die Eingabe ist nicht lesbar

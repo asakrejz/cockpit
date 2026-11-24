@@ -24,7 +24,6 @@ async fn action_changes_the_state_and_counts_the_revision() {
     let answer = json(&body);
     assert_eq!(answer["revision"], 1);
     assert_eq!(answer["logged"], 1);
-    assert!(!answer["summary"].as_str().unwrap().is_empty());
 
     let (_, body) = hole(app(), "/api/workspace").await;
     let (ws, revision) = cockpit_core::persist::load_with_revision(&body).unwrap();

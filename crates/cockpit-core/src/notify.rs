@@ -130,8 +130,8 @@ impl Channel {
     }
 }
 
-/// Which channels are on for a reason. Stored states may still name channels that do not exist
-/// any more; they are ignored.
+/// Which channels are on for a reason. Other channels in a stored state (email, Slack) are ignored
+/// when it is read.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Channels {
     #[serde(default)]
