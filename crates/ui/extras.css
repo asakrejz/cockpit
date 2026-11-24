@@ -178,21 +178,6 @@
   font: var(--sys-type-footnote);
 }
 
-/* Setup assistant: collapsed area "Erweitert". */
-.ui-advanced {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ref-space-12);
-  min-width: 0;
-}
-.ui-advanced > summary {
-  cursor: pointer;
-  padding: var(--ref-space-8) var(--ref-space-4);
-  color: var(--sys-color-secondary-label);
-  font: var(--sys-type-subheadline);
-}
-.ui-advanced[open] > summary { color: var(--sys-color-label); margin-bottom: var(--ref-space-8); }
-
 /* Label of a sidebar entry: one line, ends with "…". */
 .ui-sidebar__label-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -494,8 +479,7 @@ body.ui-scroll-locked { overflow: hidden; }
 @media (max-width: 1100px), (pointer: coarse) {
   .ui-segmented button,
   .ui-select[data-size="small"],
-  .ui-sidebar__item,
-  .ui-advanced > summary { min-height: var(--sys-size-hit); }
+  .ui-sidebar__item { min-height: var(--sys-size-hit); }
   .ui-button:not([data-control-size="mini"]) { min-height: var(--sys-size-hit); min-width: var(--sys-size-hit); }
   .ui-button[data-control-size="small"] { height: var(--sys-size-hit); }
   .ui-stepper { height: var(--sys-size-hit); }
@@ -888,7 +872,7 @@ body.ui-scroll-locked { overflow: hidden; }
 .ui-root a, .ui-root kbd, .ui-root summary { overflow-wrap: anywhere; }
 .ui-field__input, .ui-select, .ui-root textarea, .ui-root input { max-width: 100%; min-width: 0; }
 .ui-field__label, .ui-field__hint { overflow-wrap: anywhere; }
-.ui-empty, .ck-empty, .ck-gate { overflow-wrap: anywhere; }
+.ck-empty, .ck-gate { overflow-wrap: anywhere; }
 
 /* ---------------------------------------------------------------------
    Cards: a column, the body grows, the footer (name, meta, actions) sits at the bottom.

@@ -53,7 +53,6 @@ body { margin: 0; }
 
 /* Edit and assign a ticket */
 .ck-edit { padding-bottom: var(--ref-space-8); }
-.ck-assignees { flex-wrap: wrap; }
 
 /* Implement review comments: selectable comments */
 .ck-pick { padding: var(--ref-space-8) var(--ref-space-12); border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-grouped-background); cursor: pointer; }

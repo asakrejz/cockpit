@@ -111,12 +111,6 @@ pub fn SplitView(
     }
 }
 
-/// Sidebar. Children: [`SidebarBrand`], [`SidebarSection`] with [`SidebarItem`]s, `Spacer`.
-#[component]
-pub fn Sidebar(#[prop(into)] label: String, children: Children) -> impl IntoView {
-    view! { <nav class="ui-sidebar" aria-label=label>{children()}</nav> }
-}
-
 /// Logo and name at the top of the sidebar.
 #[component]
 pub fn SidebarBrand(#[prop(into)] href: String, children: Children) -> impl IntoView {
@@ -127,45 +121,6 @@ pub fn SidebarBrand(#[prop(into)] href: String, children: Children) -> impl Into
             </span>
             {children()}
         </a>
-    }
-}
-
-/// What a sidebar group is for. Matters on narrow screens (up to 1100 px), where the sidebar
-/// dissolves: the primary navigation moves into the [`BottomNav`], pickers become a strip above
-/// the content and everything else follows below the content.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum SectionRole {
-    /// Settings-like content (rules, connections). Below the content on narrow screens.
-    #[default]
-    Default,
-    /// Page navigation. Hidden on narrow screens because the [`BottomNav`] shows the same entries.
-    Primary,
-    /// Selects the item the page shows (e.g. a pull request). A scrollable strip above the content.
-    Picker,
-}
-
-impl SectionRole {
-    fn attr(self) -> Option<&'static str> {
-        match self {
-            SectionRole::Default => None,
-            SectionRole::Primary => Some("primary"),
-            SectionRole::Picker => Some("picker"),
-        }
-    }
-}
-
-/// Group of entries, optionally with a small heading.
-#[component]
-pub fn SidebarSection(
-    #[prop(optional, into)] label: Option<String>,
-    #[prop(optional)] role: SectionRole,
-    children: Children,
-) -> impl IntoView {
-    view! {
-        <div data-role=role.attr()>
-            {label.map(|l| view! { <p class="ui-sidebar__label">{l}</p> })}
-            <ul class="ui-sidebar__nav">{children()}</ul>
-        </div>
     }
 }
 
