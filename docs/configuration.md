@@ -223,7 +223,8 @@ is a hint under "Einrichten" › Übersicht › Abgleich, and its old tickets st
 The server starts with an empty workspace. `COCKPIT_SEED=demo` (or `seed = "demo"`) loads sample data, **only if no state
 has been stored yet**; for a fresh seed use a new database (`COCKPIT_DB=/path/to/new.db`). Sample data otherwise serves as
 test data and for the Playground stories. The demo seed contains a sample GitHub project (`acme/3`) with an issue
-(`acme/app#31`) and a draft issue.
+(`acme/app#31`) and a draft issue. It is static: no agent runs on it, the agent shows its normal „not set up“ state until
+you set it up. A sync adds the entries of Jira and GitHub next to the sample data.
 
 ## Credentials: the `.env` file
 
