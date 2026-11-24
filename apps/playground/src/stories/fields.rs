@@ -24,7 +24,7 @@ fn render() -> AnyView {
     });
 
     view! {
-        <Section title="TextField · Search" api="<TextField label value placeholder hint error> · <SearchField value>">
+        <Section title="TextField · Search" api="<TextField label value placeholder hint error> · <SearchField value placeholder>">
             <div class="pg-narrow">
                 <Card>
                     <CardBody css="gap: 20px">

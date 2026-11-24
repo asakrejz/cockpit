@@ -12,6 +12,7 @@ use leptos::task::spawn_local;
 
 use super::fields::{Context, Feedback, Intro, KeyField, Message, Section, config_save};
 use crate::server::{self, CallError};
+use crate::view::setup_tone;
 
 /// The text of an endpoint kind in the drop-down (the direct way names the vendor of the tool).
 fn kind_label(kind: EndpointKind, tool: Provider) -> String {
@@ -386,11 +387,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         .map(|p| {
                             let (ton, text) = check_plain_text(&p);
                             let text = text.render(lang());
-                            let tone = match ton {
-                                Tone::Good => StatusTone::Green,
-                                Tone::Open => StatusTone::Gray,
-                                Tone::Problem => StatusTone::Red,
-                            };
+                            let tone = setup_tone(ton);
                             view! {
                                 <HStack spacing="8px">
                                     <Status tone=tone>{if ton == Tone::Good { t!(SetupModelSucceeded) } else { t!(SetupModelFailed) }}</Status>

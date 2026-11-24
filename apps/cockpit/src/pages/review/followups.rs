@@ -41,7 +41,7 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
             return None;
         }
         let busy = active.is_some();
-        let blocked = Signal::derive(move || store.conn.get().agent_blocked().is_some());
+        let blocked = Signal::derive(move || store.agent_blocked().is_some());
         let state = active.map(|run| {
             let (label, tone) = if run.is_awaiting() {
                 (t!(ReviewStateAwaiting), StatusTone::Orange)

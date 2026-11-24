@@ -7,9 +7,8 @@ use std::{
     time::Duration,
 };
 
-use cockpit_core::{
-    Action, ActionError, Actor, Applied, Channel, Connections, NotifyEvent, Workspace, notify,
-};
+use cockpit_core::{Action, ActionError, Actor, Applied, Channel, NotifyEvent, Workspace, notify};
+use cockpit_i18n::{Msg, msg};
 use feature_ui::t;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -61,9 +60,8 @@ pub struct Store {
     reload: StoredValue<bool>,
     events: StoredValue<Option<Events>, LocalStorage>,
     pub ws: RwSignal<Workspace>,
-    /// What the backend reports about the sign-in at Jira and GitHub (`GET /api/health`).
-    pub conn: RwSignal<Connections>,
-    /// Agent endpoint and container runtime as the backend reports them; `None` until the first answer.
+    /// What the backend reports about sign-in, agent endpoint and container runtime
+    /// (`GET /api/health`); `None` until the first answer.
     pub health: RwSignal<Option<server::Health>>,
     /// ID of the entry that is chosen in the inbox.
     pub selected: RwSignal<String>,
@@ -94,8 +92,6 @@ impl Store {
             events: StoredValue::new_local(None),
             selected: RwSignal::new(first_id(&ws)),
             ws: RwSignal::new(ws),
-            // Whether the agent is ready and Jira and GitHub are connected is reported by the backend.
-            conn: RwSignal::new(Connections::default()),
             health: RwSignal::new(None),
             route: RwSignal::new(Route::resolve(&current_hash(), crate::last_filter::get())),
             toasts: RwSignal::new(Vec::new()),
@@ -215,13 +211,33 @@ impl Store {
         let store = *self;
         spawn_local(async move {
             if let Ok(health) = server::fetch_health().await {
-                store.conn.update(|c| {
-                    c.apply_services(&health.sign_in.github, &health.sign_in.jira);
-                    c.agent = health.agent.ready;
-                });
                 store.health.set(Some(health));
             }
         });
+    }
+
+    /// Is GitHub connected? Follows the health report; `false` until the first answer.
+    pub fn github_connected(&self) -> bool {
+        self.reported(|h| h.sign_in.github.connected)
+    }
+
+    /// Is Jira connected? Follows the health report; `false` until the first answer.
+    pub fn jira_connected(&self) -> bool {
+        self.reported(|h| h.sign_in.jira.connected)
+    }
+
+    /// Can the agent start? Follows the health report; `false` until the first answer.
+    pub fn agent_ready(&self) -> bool {
+        self.reported(|h| h.agent.ready)
+    }
+
+    /// Why the agent may not implement a ticket – or `None` if it may.
+    pub fn agent_blocked(&self) -> Option<Msg> {
+        (!self.agent_ready()).then(|| msg!(CoreMiscAgentNotConnected))
+    }
+
+    fn reported(&self, read: impl Fn(&server::Health) -> bool) -> bool {
+        self.health.with(|h| h.as_ref().is_some_and(read))
     }
 
     /// Loads the state from the server. If a load is already running, it loads once more afterwards.

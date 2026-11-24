@@ -316,7 +316,7 @@ fn SearchSelect(
             </button>
             <Show when=move || open.get()>
                 <div class="ck-combo__panel">
-                    <SearchBox value=query placeholder=t!(InboxFiltersSearchPerson) />
+                    <SearchField value=query placeholder=t!(InboxFiltersSearchPerson) />
                     <ul class="ck-combo__list" role="listbox" aria-label=label.clone()>
                         {move || {
                             let list = matching();

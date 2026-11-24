@@ -164,7 +164,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                     </div>
                     {filter_chips(store)}
                     <div class="ck-search">
-                        <SearchBox value=query placeholder=t!(InboxSearch) />
+                        <SearchField value=query placeholder=t!(InboxSearch) />
                     </div>
                     <p class="ui-sr-only" role="status">
                         {move || t!(InboxEntries, n = items.with(Vec::len))}
@@ -202,7 +202,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                                 .into_any()
                         } else if list.is_empty() && store.ws.with(|w| w.items.is_empty()) {
                             // A fresh workspace: nothing connected or synced yet.
-                            let connected = store.conn.with(|c| c.jira || c.github);
+                            let connected = store.jira_connected() || store.github_connected();
                             if let Some(a) = problem_of(&access) {
                                 view! {
                                     <li class="ck-empty">
@@ -423,5 +423,5 @@ use controls::is_narrowed;
 use detail::detail;
 use filters::{filter_button, filter_chips, filter_dialog};
 use keyboard::{on_key, query_html};
-use picker::{Picker, SearchBox};
+use picker::Picker;
 use row::{row, row_icon};

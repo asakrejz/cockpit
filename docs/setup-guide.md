@@ -111,7 +111,7 @@ in a new tab: create a token, pick a name and expiry, copy and paste it into the
 (`POST /api/jira/check`, read only: `GET /rest/api/3/myself`) then tests whether "Jira antwortet und dich kennt"
 and otherwise names the cause in plain language (wrong address, token rejected, no permission, unreachable). Afterwards the
 assistant suggests the Jira projects to choose from (or "Alle Projekte"), like the drop-down "Jira-Projekt" in the inbox's filter dialog. The
-summary shows whether the sign-in is "mit API-Token" or "mit OAuth"; "Token erneuern" returns to the step and
+summary shows whether the sign-in is "mit API-Token" or through Atlassian (OAuth, with the site); "Token erneuern" returns to the step and
 "Trennen" deletes the token from `config/.env` (`DELETE /api/secrets/jira`).
 
 **Security.** The token has the rights of your Atlassian account. As long as Cockpit should only read, use an
@@ -250,7 +250,8 @@ The same works through the API: `PUT /api/config` with an empty `client_id` (`{"
 `oauth_possible` (app set up and secret present), `expired` (the sign-in ran out and cannot be renewed) and, for
 Atlassian, the `site`. **This is the one place that decides whether a service is connected** (`ServiceStatus::resolve`
 in `cockpit-core`): a working sign-in goes before the token, an expired one falls back to the token, a token counts
-when its key is in `config/.env`. The summary, the sidebar, inbox, review, the assistant steps and the sync state all read it.
+when its key is in `config/.env`. The summary, the sidebar, inbox, review, the assistant steps and the sync state all read it,
+and the sentence and color of a state come from one function too (`ServiceStatus::summary`): the summary and the sign-in cards use it.
 
 ### GitHub App and organization
 

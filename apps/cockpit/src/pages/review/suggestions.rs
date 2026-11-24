@@ -50,7 +50,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                 .cloned()
         })
     };
-    let blocked = Signal::derive(move || store.conn.get().agent_blocked().is_some());
+    let blocked = Signal::derive(move || store.agent_blocked().is_some());
     let send = move |_| {
         let own = panel.own_comment.get_untracked();
         let sent = store.dispatch(Action::SendReview {

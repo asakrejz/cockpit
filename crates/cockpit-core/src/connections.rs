@@ -1,9 +1,12 @@
-//! Connections to Jira, GitHub and the agent, as the backend reports them.
+//! Connections to Jira and GitHub, as the backend reports them.
 //!
-//! [`Connections`] holds only checkmarks – **never keys**. Whether a key really works, only
+//! [`ServiceStatus`] holds only checkmarks – **never keys**. Whether a key really works, only
 //! the service can say; the backend checks it, the browser stores nothing of it.
 
+use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};
+
+use crate::setup::Tone;
 
 /// How the backend signs in at a service.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -16,17 +19,6 @@ pub enum AuthKind {
     Token,
     /// Sign-in in the browser via OAuth.
     OAuth,
-}
-
-impl AuthKind {
-    /// Short text for the UI.
-    pub fn label(self) -> cockpit_i18n::Msg {
-        match self {
-            AuthKind::None => cockpit_i18n::msg!(CoreMiscAuthNone),
-            AuthKind::Token => cockpit_i18n::msg!(CoreMiscAuthToken),
-            AuthKind::OAuth => cockpit_i18n::msg!(CoreMiscAuthOauth),
-        }
-    }
 }
 
 /// The sign-in method the user picked for a service (`auth = "token" | "oauth"` in the
@@ -135,48 +127,31 @@ impl ServiceStatus {
             oauth_stored: oauth != OAuthTokens::Missing,
         }
     }
-}
 
-/// Which connections stand and whether the agent is connected.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Connections {
-    pub jira: bool,
-    pub github: bool,
-    /// Kind of sign-in (only reported by the server, not stored).
-    pub jira_auth: AuthKind,
-    pub github_auth: AuthKind,
-    pub agent: bool,
-}
-
-impl Default for Connections {
-    fn default() -> Self {
-        Self {
-            jira: false,
-            github: false,
-            jira_auth: AuthKind::None,
-            github_auth: AuthKind::None,
-            agent: false,
+    /// **The one place** that turns the state of a connection into a tone and a sentence: the
+    /// summary of the assistant and the sign-in cards both read this. `provider` names the
+    /// service the sign-in goes through ("GitHub", "Atlassian"). A service that is not
+    /// connected and whose sign-in did not run out is [`Tone::Open`]; what is missing to
+    /// connect it depends on the setup, so the summary adds that on top.
+    pub fn summary(&self, provider: &str) -> (Tone, Msg) {
+        match (self.connected, self.kind) {
+            // The sign-in ran out and no token takes over: say why, not "not connected".
+            (false, _) if self.expired => (Tone::Problem, msg!(CoreSetupExpired)),
+            (true, AuthKind::OAuth) => match &self.site {
+                Some(site) => (
+                    Tone::Good,
+                    msg!(CoreSetupConnectedOauthSite, name = provider, site = site),
+                ),
+                None => (Tone::Good, msg!(CoreSetupConnectedOauth, name = provider)),
+            },
+            (true, _) => (Tone::Good, msg!(CoreSetupConnectedToken)),
+            (false, _) => (Tone::Open, msg!(CoreSetupDisconnected)),
         }
     }
-}
 
-impl Connections {
-    /// Takes over the state the backend reports (checkmarks and kind of sign-in).
-    pub fn apply_services(&mut self, github: &ServiceStatus, jira: &ServiceStatus) {
-        self.github = github.connected;
-        self.github_auth = github.kind;
-        self.jira = jira.connected;
-        self.jira_auth = jira.kind;
-    }
-
-    /// Why the agent may not implement a ticket – or `None` if it may.
-    pub fn agent_blocked(&self) -> Option<cockpit_i18n::Msg> {
-        use cockpit_i18n::msg;
-        if !self.agent {
-            Some(msg!(CoreMiscAgentNotConnected))
-        } else {
-            None
-        }
+    /// Nothing more to say about the setup: connected, or the sign-in ran out.
+    pub(crate) fn is_settled(&self) -> bool {
+        self.connected || self.expired
     }
 }
 

@@ -1,9 +1,5 @@
 oauth.signed_in = Signed in
 oauth.sign_in_failed = Sign-in failed
-oauth.connected_site = Connected with OAuth (site {site})
-oauth.connected = Connected with OAuth
-oauth.connected_kind = Connected ({kind})
-oauth.disconnected = Disconnected
 oauth.disconnected_forgot = Disconnected from {service}. Client ID and client secret are forgotten.
 oauth.disconnected_note = Disconnected from {service}
 oauth.server_unreachable = The server cannot be reached

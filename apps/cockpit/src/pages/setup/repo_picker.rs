@@ -4,8 +4,8 @@
 //! chosen for each ticket when the agent starts, not here. The list to choose from comes from
 //! GitHub (read-only).
 
-use cockpit_core::api::{ConfigChange, GitHubRepoInfo, GitHubRepoList};
-use cockpit_core::setup::{agent_repos_read, repo_matches, repo_summary, repos_read};
+use cockpit_core::api::{ConfigChange, GitHubRepoList};
+use cockpit_core::setup::{agent_repos_read, repo_summary, repos_read};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -14,25 +14,8 @@ use cockpit_core::branch::DEFAULT_PATTERN;
 
 use super::branch_pattern::BranchPatternField;
 use super::fields::{Context, Feedback, Message, config_save, error_text};
+use crate::repo_list::{RepoEntry, RepoList, RepoSearch};
 use crate::server;
-
-/// At most this many entries are drawn; the search narrows the rest down.
-const SHOWN: usize = 100;
-
-/// `SearchField` takes a `&'static str` placeholder. A translated text is leaked once per
-/// distinct value (one per language), so the memory stays bounded.
-pub(crate) fn static_text(text: String) -> &'static str {
-    use std::cell::RefCell;
-    use std::collections::HashMap;
-    thread_local! {
-        static CACHE: RefCell<HashMap<String, &'static str>> = RefCell::new(HashMap::new());
-    }
-    CACHE.with(|c| {
-        *c.borrow_mut()
-            .entry(text)
-            .or_insert_with_key(|k| Box::leak(k.clone().into_boxed_str()))
-    })
-}
 
 /// One chosen repo. The signals live as long as the page.
 #[derive(Clone, Copy)]
@@ -108,7 +91,6 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
     let list: RwSignal<Option<GitHubRepoList>> = RwSignal::new(None);
     let loading = RwSignal::new(false);
     let list_error: Feedback = RwSignal::new(None);
-    let query = RwSignal::new(String::new());
     let load = move || {
         loading.set(true);
         list_error.set(None);
@@ -141,42 +123,37 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
             .map(|r| r.repo.get().trim().to_string())
             .collect::<Vec<_>>()
     });
-    let toggle = move |info: GitHubRepoInfo| {
-        let name = info.repo.clone();
+    let toggle = move |name: String| {
         if chosen.get_untracked().contains(&name) {
             rows.update(|l| l.retain(|r| r.repo.get_untracked().trim() != name));
             if default.get_untracked() == name {
                 default.set(String::new());
             }
         } else {
-            let base = if info.default_branch.is_empty() {
-                "main"
-            } else {
-                &info.default_branch
-            };
-            let r = new_row(&name, base, "", false);
+            let base = list
+                .with_untracked(|l| {
+                    l.as_ref()
+                        .and_then(|l| l.repos.iter().find(|r| r.repo == name))
+                        .map(|r| r.default_branch.clone())
+                })
+                .filter(|b| !b.is_empty())
+                .unwrap_or_else(|| "main".into());
+            let r = new_row(&name, &base, "", false);
             rows.update(|l| l.push(r));
         }
     };
-    let filtered = Memo::new(move |_| {
-        let q = query.get();
+    let search = RepoSearch::new(Memo::new(move |_| {
         list.with(|l| {
             l.as_ref()
                 .map(|l| {
                     l.repos
                         .iter()
-                        .filter(|r| repo_matches(&r.repo, &q))
-                        .cloned()
+                        .map(|r| RepoEntry::from_github(r, true))
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default()
         })
-    });
-
-    let visible =
-        Memo::new(move |_| filtered.with(|f| f.iter().take(SHOWN).cloned().collect::<Vec<_>>()));
-
-    let too_many = Memo::new(move |_| filtered.with(Vec::len) > SHOWN);
+    }));
 
     // A repo typed by hand (not in the list, e.g. when the list could not be loaded).
     let manual = RwSignal::new(String::new());
@@ -252,72 +229,41 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
             <p class="t-subheadline t-secondary">
                 {t!(SetupReposIntro)}
             </p>
-            <SearchField value=query placeholder=static_text(t!(SetupReposSearch)) />
-            <HStack spacing="12px">
-                <Button
-                    on_click=move |_| load()
-                    disabled=Signal::derive(move || loading.get())
-                >
-                    {move || {
-                        if loading.get() {
-                            t!(SetupReposLoading)
-                        } else if list.with(Option::is_some) {
-                            t!(SetupReposReload)
-                        } else {
-                            t!(SetupReposLoad)
-                        }
-                    }}
-                </Button>
-            </HStack>
-            <Message feedback=list_error />
-            {move || {
-                list.with(|l| l.as_ref().map(|l| (l.repos.len(), l.truncated, l.via.clone())))
-                    .map(|(found, truncated, via)| {
-                        view! {
-                            <p class="t-footnote t-secondary" role="status">
-                                {repo_summary(found, filtered.with(Vec::len), chosen.with(Vec::len), truncated).render(lang())}
-                                {(via == "app").then(|| format!(" {}", t!(SetupReposViaApp)))}
-                            </p>
-                        }
-                    })
-            }}
-            <ul class="ck-repo-list" aria-label=move || t!(SetupReposListLabel)>
-                <For
-                    each=move || visible.get()
-                    key=|r| r.repo.clone()
-                    let:info
-                >
-                    {
-                        let name = info.repo.clone();
-                        let pick = info.clone();
-                        view! {
-                            <li>
-                                <label class="ck-repo-item">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked={
-                                            let name = name.clone();
-                                            move || chosen.with(|c| c.contains(&name))
-                                        }
-                                        on:change=move |_| toggle(pick.clone())
-                                    />
-                                    <span class="ck-repo-name">{name.clone()}</span>
-                                    <span class="t-footnote t-secondary">
-                                        {if info.private { t!(SetupReposPrivate) } else { t!(SetupReposPublic) }}
-                                        {info.archived.then(|| format!(" · {}", t!(SetupReposArchived)))}
-                                        {(info.can_push == Some(false)).then(|| format!(" · {}", t!(SetupReposReadOnly)))}
-                                    </span>
-                                </label>
-                            </li>
-                        }
-                    }
-                </For>
-            </ul>
-            <Show when=move || too_many.get()>
-                <p class="t-footnote t-secondary">
-                    {move || t!(SetupReposTooMany, max = SHOWN)}
-                </p>
-            </Show>
+            <RepoList
+                search=search
+                label=Signal::derive(move || t!(SetupReposListLabel))
+                selected=chosen
+                on_toggle=Callback::new(toggle)
+            >
+                <HStack spacing="12px">
+                    <Button
+                        on_click=move |_| load()
+                        disabled=Signal::derive(move || loading.get())
+                    >
+                        {move || {
+                            if loading.get() {
+                                t!(SetupReposLoading)
+                            } else if list.with(Option::is_some) {
+                                t!(SetupReposReload)
+                            } else {
+                                t!(SetupReposLoad)
+                            }
+                        }}
+                    </Button>
+                </HStack>
+                <Message feedback=list_error />
+                {move || {
+                    list.with(|l| l.as_ref().map(|l| (l.repos.len(), l.truncated, l.via.clone())))
+                        .map(|(found, truncated, via)| {
+                            view! {
+                                <p class="t-footnote t-secondary" role="status">
+                                    {repo_summary(found, search.matching(), chosen.with(Vec::len), truncated).render(lang())}
+                                    {(via == "app").then(|| format!(" {}", t!(SetupReposViaApp)))}
+                                </p>
+                            }
+                        })
+                }}
+            </RepoList>
             <div class="ck-agent-repo">
                 <TextField
                     label=t!(SetupReposManualLabel)

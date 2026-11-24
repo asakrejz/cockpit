@@ -1,22 +1,6 @@
 use super::*;
 
 #[test]
-fn server_reports_the_kind() {
-    let mut c = Connections::default();
-    let oauth = ServiceStatus {
-        connected: true,
-        kind: AuthKind::OAuth,
-        ..Default::default()
-    };
-    c.apply_services(&oauth, &ServiceStatus::default());
-    assert!(c.github && !c.jira);
-    assert_eq!(
-        (c.github_auth, c.jira_auth),
-        (AuthKind::OAuth, AuthKind::None)
-    );
-}
-
-#[test]
 fn service_status_reads_old_and_partial_json() {
     let s: ServiceStatus = serde_json::from_str("{}").unwrap();
     assert_eq!(s, ServiceStatus::default());
@@ -29,12 +13,64 @@ fn service_status_reads_old_and_partial_json() {
     );
 }
 
+fn status(connected: bool, kind: AuthKind, expired: bool, site: Option<&str>) -> ServiceStatus {
+    ServiceStatus {
+        connected,
+        kind,
+        expired,
+        site: site.map(Into::into),
+        ..Default::default()
+    }
+}
+
 #[test]
-fn agent_needs_a_connection() {
-    let mut c = Connections::default();
-    assert!(c.agent_blocked().is_some());
-    c.agent = true;
-    assert_eq!(c.agent_blocked(), None);
+fn the_summary_has_one_tone_and_sentence_per_state() {
+    use AuthKind::{None as Nothing, OAuth, Token};
+    let summary = |s: ServiceStatus| {
+        let (tone, text) = s.summary("Atlassian");
+        (tone, text.render(cockpit_i18n::Lang::En))
+    };
+    assert_eq!(
+        summary(status(true, OAuth, false, None)),
+        (
+            Tone::Good,
+            "Connected. You are signed in through Atlassian.".to_string()
+        )
+    );
+    // The site belongs to the sign-in and is named in the text.
+    assert_eq!(
+        summary(status(true, OAuth, false, Some("acme"))),
+        (
+            Tone::Good,
+            "Connected. You are signed in through Atlassian (site acme).".to_string()
+        )
+    );
+    assert_eq!(
+        summary(status(true, Token, false, None)),
+        (Tone::Good, "Connected, with an API token.".to_string())
+    );
+    // A token that takes over from an expired sign-in still counts as connected.
+    assert_eq!(summary(status(true, Token, true, None)).0, Tone::Good);
+    assert_eq!(
+        summary(status(false, Nothing, false, None)),
+        (Tone::Open, "Disconnected".to_string())
+    );
+    // An expired sign-in without a token is a problem and says what to do, not "disconnected".
+    assert_eq!(
+        summary(status(false, Nothing, true, None)),
+        (
+            Tone::Problem,
+            "The sign-in has run out. Sign in again.".to_string()
+        )
+    );
+}
+
+#[test]
+fn only_a_settled_state_needs_no_hint_about_the_setup() {
+    use AuthKind::{None as Nothing, Token};
+    assert!(status(true, Token, false, None).is_settled());
+    assert!(status(false, Nothing, true, None).is_settled());
+    assert!(!status(false, Nothing, false, None).is_settled());
 }
 
 fn resolved(token: bool, oauth: OAuthTokens) -> (bool, AuthKind, bool) {

@@ -10,6 +10,7 @@ use super::fields::{Context, Intro};
 use crate::access_hint::{AccessHint, problem_of, use_github_access};
 use crate::server;
 use crate::sync_status::SyncStatus;
+use crate::view::setup_tone;
 
 /// {t!(SetupDoneRenewToken)} and {t!(SetupDoneDisconnect)} for Jira. Disconnecting deletes the token in the .env file (with
 /// OAuth: revokes the sign-in); the settings stay, the way back is the step "Jira".
@@ -84,11 +85,12 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                         lines()
                             .into_iter()
                             .map(|z| {
-                                let (tone, label, symbol) = match z.tone {
-                                    Tone::Good => (StatusTone::Green, t!(SetupDoneToneGood), "✓ "),
-                                    Tone::Open => (StatusTone::Gray, t!(SetupDoneToneOpen), ""),
-                                    Tone::Problem => (StatusTone::Red, t!(SetupDoneToneProblem), "! "),
+                                let (label, symbol) = match z.tone {
+                                    Tone::Good => (t!(SetupDoneToneGood), "✓ "),
+                                    Tone::Open => (t!(SetupDoneToneOpen), ""),
+                                    Tone::Problem => (t!(SetupDoneToneProblem), "! "),
                                 };
+                                let tone = setup_tone(z.tone);
                                 let step = z.step;
                                 let jira_connected = z.step == Step::Jira && z.tone == Tone::Good;
                                 view! {

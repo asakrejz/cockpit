@@ -13,6 +13,7 @@ mod notify;
 mod oauth_card;
 mod oauth_result;
 mod pages;
+mod repo_list;
 mod route;
 mod server;
 mod sidebar;
