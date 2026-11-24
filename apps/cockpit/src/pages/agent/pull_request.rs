@@ -1,4 +1,4 @@
-//! „Pull Request anlegen“ for a finished real run: first a preview with editable title and text,
+//! „Pull Request anlegen“ for a finished run: first a preview with editable title and text,
 //! then – only on your click – the backend creates the pull request on GitHub (or links the one that
 //! already exists for the branch). Nothing happens without the click.
 
@@ -12,9 +12,9 @@ use leptos::task::spawn_local;
 
 use crate::{route::Route, server, store::use_store};
 
-/// Is this a finished real run whose branch is pushed?
+/// Is this a finished run whose branch is pushed?
 fn eligible(r: &AgentRun) -> bool {
-    r.kind == RunKind::Implement && r.real && r.is_done()
+    r.kind == RunKind::Implement && r.is_done()
 }
 
 /// One pull request panel per repo of the run whose branch was pushed. A run in one repo has one.

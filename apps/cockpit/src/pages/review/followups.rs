@@ -1,6 +1,7 @@
 use super::*;
+use cockpit_core::AgentOptions;
 
-/// Follow-up jobs of the **real** agent on the pull request: implement the review comments and
+/// Follow-up jobs of the agent on the pull request: implement the review comments and
 /// fix red checks. The backend reads the comments and the check output from GitHub; the agent
 /// continues on the same `claude/…` branch and the backend pushes the new commits – no new pull
 /// request, no merge. Only for pull requests on a branch of the agent.

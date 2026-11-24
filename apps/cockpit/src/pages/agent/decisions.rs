@@ -1,46 +1,10 @@
-//! The cards that wait for a decision of the user: diagnosis, limit, question, hint and plan.
+//! The cards that wait for a decision of the user: limit, question, hint and plan.
 
 use crate::route::Route;
 use feature_ui::*;
 use leptos::prelude::*;
 
 use super::context::AgentCtx;
-
-/// The diagnosis of a failed check, waiting for a decision.
-pub(super) fn diagnosis(ctx: AgentCtx) -> Option<impl IntoView> {
-    let AgentCtx { run, .. } = ctx;
-    let d = run.get().filter(|r| r.is_diagnosed())?.diagnosis?;
-    let check_badge = t!(AgentDecisionsCheckBadge, name = d.check);
-    Some(view! {
-        <div class="ui-list__section" role="region" aria-label=t!(AgentDecisionsDiagnosisLabel)>
-            <p class="ui-list__header">{t!(AgentDecisionsDiagnosisHeader)}</p>
-            <SuggestionCard state=SuggestionState::Pending>
-                <div class="ui-hstack" style="--spacing: 8px">
-                    <Badge variant=BadgeVariant::Tint>{check_badge}</Badge>
-                    {d
-                        .location()
-                        .map(|l| view! { <span class="t-footnote t-mono t-secondary">{l.render(lang())}</span> })}
-                </div>
-                <p class="t-headline">{d.cause_message().render(lang())}</p>
-                <p class="t-footnote t-secondary">{t!(AgentDecisionsSuggestion, text = d.remedy_message().render(lang()))}</p>
-                {d
-                    .patch
-                    .clone()
-                    .map(|p| {
-                        view! {
-                            <Diff
-                                rows=crate::view::diff_rows(&p)
-                                label=t!(AgentDecisionsFixFor, name = p.name)
-                            />
-                        }
-                    })}
-                <p class="t-footnote t-secondary">
-                    {t!(AgentDecisionsBranchUnchanged)}
-                </p>
-            </SuggestionCard>
-        </div>
-    })
-}
 
 /// A limit has halted the run: raise it and resume, or cancel.
 pub(super) fn stopped_card(ctx: AgentCtx) -> Option<impl IntoView> {

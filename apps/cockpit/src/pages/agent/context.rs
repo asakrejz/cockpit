@@ -3,7 +3,6 @@
 use cockpit_core::api::GitHubRepoList;
 use cockpit_core::repos::suggest::RepoSuggestion;
 use cockpit_core::{AgentOptions, AgentRepos, AgentRun, Item, PathViolation};
-use feature_ui::*;
 use leptos::prelude::*;
 
 use crate::store::{Store, use_store};
@@ -63,11 +62,6 @@ pub(super) struct AgentCtx {
     pub form: OptionSignals,
     pub repo_touched: RwSignal<bool>,
     pub project: Memo<Option<String>>,
-    pub routed: Memo<cockpit_core::RepoChoice>,
-    pub repo_options: Signal<Vec<(String, String)>>,
-    /// The real agent chooses the repo from everything GitHub shows (and suggestions); the
-    /// simulation keeps the plain list of configured repos.
-    pub real: Signal<bool>,
     /// Every repo the credential can see (kept for a few minutes by the server).
     pub repo_list: RwSignal<Option<GitHubRepoList>>,
     pub repo_list_error: RwSignal<Option<String>>,
@@ -86,7 +80,6 @@ pub(super) struct AgentCtx {
     pub plan: Memo<Option<cockpit_core::Plan>>,
     pub asking: Signal<bool>,
     pub paused: Signal<bool>,
-    pub diagnosed: Signal<bool>,
     pub followup: Signal<bool>,
     pub stopped: Signal<bool>,
     pub working: Signal<bool>,
@@ -176,22 +169,6 @@ impl AgentCtx {
                 repo.set(routed.get().repo().unwrap_or_default().to_string());
             }
         });
-        let repo_options = Signal::derive(move || {
-            let mut list = vec![(String::new(), t!(AgentContextChooseRepo))];
-            list.extend(
-                agent_repos
-                    .get()
-                    .repos
-                    .iter()
-                    .map(|r| (r.repo.clone(), r.repo.clone())),
-            );
-            list
-        });
-        let real = Signal::derive(move || {
-            store
-                .health
-                .with(|h| h.as_ref().is_some_and(|h| h.agent.mode == "real"))
-        });
         let repo_list: RwSignal<Option<GitHubRepoList>> = RwSignal::new(None);
         let repo_list_error = RwSignal::new(None::<String>);
         let repo_loading = RwSignal::new(false);
@@ -245,14 +222,12 @@ impl AgentCtx {
         let plan = Memo::new(move |_| run.get().and_then(|r| r.plan()));
         let asking = Signal::derive(move || run.get().is_some_and(|r| r.is_asking()));
         let paused = Signal::derive(move || run.get().is_some_and(|r| r.is_paused()));
-        let diagnosed = Signal::derive(move || run.get().is_some_and(|r| r.is_diagnosed()));
         // Follow-up jobs (review comments, red check) start on the review page.
         let followup = Signal::derive(move || run.get().is_some_and(|r| r.is_followup()));
         // The agent works on the steps – then it accepts hints.
         let stopped = Signal::derive(move || run.get().is_some_and(|r| r.is_stopped()));
-        let working = Signal::derive(move || {
-            running.get() || asking.get() || paused.get() || diagnosed.get() || stopped.get()
-        });
+        let working =
+            Signal::derive(move || running.get() || asking.get() || paused.get() || stopped.get());
         // Message of the last action that did not work (e.g. limit of parallel runs, rule violation).
         let problem = RwSignal::new(None::<String>);
         // The rules of the repo bind the job: required tests and plan requirement cannot be switched off.
@@ -265,11 +240,11 @@ impl AgentCtx {
         let locked = Signal::derive(move || !idle.get());
         let blocked = Signal::derive(move || store.conn.get().agent_blocked());
 
-        // Before a real start: ask once for the repos GitHub shows and the suggestions for this
+        // Before the start: ask once for the repos GitHub shows and the suggestions for this
         // ticket (the server keeps the list for a few minutes).
         let loaded = RwSignal::new(false);
         Effect::new(move |_| {
-            if !real.get() || !idle.get() || followup.get() || loaded.get_untracked() {
+            if !idle.get() || followup.get() || loaded.get_untracked() {
                 return;
             }
             loaded.set(true);
@@ -313,9 +288,6 @@ impl AgentCtx {
             form,
             repo_touched,
             project,
-            routed,
-            repo_options,
-            real,
             repo_list,
             repo_list_error,
             repo_loading,
@@ -330,7 +302,6 @@ impl AgentCtx {
             plan,
             asking,
             paused,
-            diagnosed,
             followup,
             stopped,
             working,
