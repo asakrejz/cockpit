@@ -446,6 +446,12 @@ The interface is available in German and English and switches at once, without a
   `to_string()` wrapped in `Msg::raw`), and a failed fetch is stored as `Problem::Other(Msg)` in the sync state; the `Display` of
   the error is English and only for logs. A scan test (`tests/scan_core.rs`) fails when core, server or integrations contain German
   literals (demo data and tests excepted).
+- **Times, people and labels in the data.** The reason line of an entry is a message (`Item::reason_msg`; the kind is
+  `Item::reason`). Times are timestamps (`Item::updated_ms`, `Comment::created_ms`), which the UI shows with `ago`, so they age.
+  You and nobody are roles of `Person` (`Person::me()`, `Person::nobody()`): the data holds the flag, `name_in(lang)` and
+  `initials_in(lang)` give the words. Where a plain name field marks you (reporter, mentions in comment texts) it holds
+  `ME_MARK`. Core keeps ids and tones for statuses, priorities and filters; the UI maps them to catalog texts. A stored state
+  with `reason_text` and `time` (plain text) shows them until the next sync replaces the entry.
 - **Agent texts.** `job.json` carries `language` (interface language: plan, summary, questions, review comments) and
   `pr_language` (team language of the repo: commit message, pull request title and text). The default of `pr_language` is English;
   it is set per repo (`pr_language` in `[[agent.repos]]`, a switch in the setup assistant) and stored in the run options when the run

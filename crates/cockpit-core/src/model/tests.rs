@@ -159,3 +159,68 @@ fn pr_status_tones() {
     let merged = PrRef { merged: true, ..pr };
     assert_eq!(merged.status_tone(), Tone::Indigo);
 }
+
+#[test]
+fn me_and_nobody_are_roles_the_catalog_words() {
+    use cockpit_i18n::Lang;
+    let (me, nobody) = (Person::me(), Person::nobody());
+    assert!(me.me && !me.nobody && me.name.is_empty() && me.initials.is_empty());
+    assert!(nobody.nobody && !nobody.me && nobody.name.is_empty());
+    assert_eq!(me.name_in(Lang::De), "Du");
+    assert_eq!(me.name_in(Lang::En), "You");
+    assert_eq!(me.initials_in(Lang::De), "D");
+    assert_eq!(me.initials_in(Lang::En), "Y");
+    assert_eq!(nobody.name_in(Lang::De), "Nicht zugewiesen");
+    assert_eq!(nobody.name_in(Lang::En), "Unassigned");
+    // A person the service names keeps what the service says, in every language.
+    let lena = Person::new("Lena", "LK");
+    assert_eq!(lena.name_in(Lang::En), "Lena");
+    assert_eq!(lena.initials_in(Lang::En), "LK");
+    assert_ne!(me, lena);
+}
+
+#[test]
+fn roles_are_stored_as_flags_and_the_old_form_reads_as_roles() {
+    let me = serde_json::to_string(&Person::me()).unwrap();
+    assert_eq!(me, r#"{"name":"","initials":"","me":true}"#);
+    let nobody = serde_json::to_string(&Person::nobody()).unwrap();
+    assert_eq!(nobody, r#"{"name":"","initials":"–","nobody":true}"#);
+    let read = |json: &str| serde_json::from_str::<Person>(json).unwrap();
+    assert_eq!(read(&me), Person::me());
+    assert_eq!(read(&nobody), Person::nobody());
+    // The form with the German name, whatever initials were stored with it.
+    assert_eq!(read(r#"{"name":"Du","initials":"XY"}"#), Person::me());
+    assert_eq!(
+        read(r#"{"name":"Nicht zugewiesen","initials":"–"}"#),
+        Person::nobody()
+    );
+    assert_eq!(
+        read(r#"{"name":"Lena","initials":"LK"}"#),
+        Person::new("Lena", "LK")
+    );
+    assert_eq!(read(r#"{}"#), Person::new("", ""));
+}
+
+#[test]
+fn the_mention_handles_of_a_person() {
+    assert_eq!(Person::me().handles(), [ME_MARK.to_lowercase()]);
+    assert_eq!(Person::new("Lena", "LK").handles(), ["lena", "lk"]);
+    assert!(Person::nobody().handles().is_empty());
+}
+
+#[test]
+fn the_reason_line_is_the_message_or_the_stored_text() {
+    use cockpit_i18n::{Lang, msg};
+    let mut item = crate::demo::workspace()
+        .item_by_key("BAU-142")
+        .unwrap()
+        .clone();
+    // Stored text of a state without a message.
+    assert_eq!(item.reason_msg, None);
+    assert_eq!(item.reason_line().render(Lang::En), item.reason_text);
+    item.set_reason(ReasonKind::Assigned, msg!(ReasonAssigned));
+    assert!(item.reason_text.is_empty());
+    assert_eq!(item.reason_line().render(Lang::En), "Assigned to you");
+    assert_eq!(item.reason_line().render(Lang::De), "Dir zugewiesen");
+    assert_eq!(item.reason, ReasonKind::Assigned);
+}

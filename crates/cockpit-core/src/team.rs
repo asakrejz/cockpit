@@ -117,7 +117,9 @@ impl Member {
     /// The source of a member that is not linked yet (a plain Jira person or GitHub user), who
     /// can be linked to a person of the other source. `None` for you, the agent and linked ones.
     pub fn unlinked_side(&self) -> Option<Side> {
-        if self.key.starts_with(JIRA_KEY) {
+        if self.person.nobody {
+            None
+        } else if self.key.starts_with(JIRA_KEY) {
             Some(Side::Jira)
         } else if self.key.starts_with(GITHUB_KEY) {
             Some(Side::GitHub)
@@ -177,14 +179,20 @@ fn review_pending(ws: &Workspace, key: impl Into<PrKey>) -> bool {
 /// The key and the linked GitHub login of the member an owner belongs to. Never guessed: the same
 /// name in both sources stays two members unless the user linked them.
 fn identity(ws: &Workspace, owner: &Person, side: Side) -> (String, Option<String>) {
+    // Nobody has no name; the entries nobody owns still form one member per source.
+    let name = if owner.nobody {
+        crate::filters::UNASSIGNED
+    } else {
+        owner.name.as_str()
+    };
     match side {
-        Side::Jira => match ws.link_of_jira(&owner.name) {
+        Side::Jira => match ws.link_of_jira(name) {
             Some(l) => (linked_key(&l.jira), Some(l.github.clone())),
-            None => (format!("{JIRA_KEY}{}", owner.name), None),
+            None => (format!("{JIRA_KEY}{name}"), None),
         },
-        Side::GitHub => match ws.link_of_github(&owner.name) {
+        Side::GitHub => match ws.link_of_github(name) {
             Some(l) => (linked_key(&l.jira), Some(l.github.clone())),
-            None => (format!("{GITHUB_KEY}{}", owner.name), None),
+            None => (format!("{GITHUB_KEY}{name}"), None),
         },
     }
 }
