@@ -267,6 +267,9 @@ fn container_and_model_lines() {
     let z = summary(&s);
     assert_eq!(z[0].tone, Tone::Problem);
     s.container.engine_running = true;
+    // The engine runs, but the image of the agent is still missing.
+    assert_eq!(summary(&s)[0].tone, Tone::Open);
+    s.agent.image = true;
     assert_eq!(summary(&s)[0].tone, Tone::Good);
 
     s.endpoint.configured = true;
