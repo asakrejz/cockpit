@@ -117,13 +117,10 @@ pub enum SocketState {
     Reachable,
 }
 
-/// Whether the real agent can start, as `GET /api/health` reports it.
+/// Whether the agent can start, as `GET /api/health` reports it.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct AgentStatus {
-    /// `echt` (container) or `simuliert` (seed `demo`, only for trying out).
-    #[serde(default)]
-    pub mode: String,
-    /// Runs can start: everything necessary is set up (always true in mode `simuliert`).
+    /// Runs can start: everything necessary is set up.
     #[serde(default)]
     pub ready: bool,
     /// The agent image exists, current or not (`image inspect`).

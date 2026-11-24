@@ -33,7 +33,6 @@ use crate::agent_run::{
     RunCommand,
 };
 use crate::app::{AppState, now_ms};
-use crate::config::Seed;
 use crate::container;
 use crate::live::Error;
 
@@ -141,7 +140,7 @@ impl AppState {
             key: self.agent_key().is_some(),
             github_access: self.github_access().is_some(),
         };
-        let mut status = agent_run::status(self.agent_real(), &v);
+        let mut status = agent_run::status(&v);
         // The interface preselects the repo with the same rules the backend applies. Without a
         // configured repo the user chooses one when starting; that is no missing prerequisite.
         status.repo = repos.default.clone();
@@ -217,21 +216,9 @@ impl AppState {
             .unwrap_or_else(|| PathBuf::from("apps/agent"))
     }
 
-    /// Rejections before applying an action in real mode: runs only start when everything
-    /// is set up, and the simulated follow-up jobs do not exist with the real agent. `None` if nothing
-    /// speaks against it. Blocking.
+    /// Rejections before applying an action: runs only start when everything is set up. `None`
+    /// if nothing speaks against it. Blocking.
     pub(crate) fn agent_lock(&self, action: &Action) -> Option<Msg> {
-        if !self.agent_real() {
-            // The follow-up jobs and the pull request belong to the real agent.
-            return matches!(
-                action,
-                Action::AddressReviewThreads { .. }
-                    | Action::FixFailedChecks { .. }
-                    | Action::StartPrReview { .. }
-                    | Action::CreatePullRequest { .. }
-            )
-            .then(|| msg!(ServerAgentOnlyRealAgent));
-        }
         match action {
             Action::StartAgent { .. }
             | Action::ResumeStopped { .. }
@@ -266,9 +253,6 @@ impl AppState {
                     .any(|r| r.key() == *ticket && r.is_awaiting() && r.agent_plan.is_none());
                 waits.then(|| msg!(ServerAgentPlanPending))
             }
-            Action::AddressReview { .. }
-            | Action::InvestigateCheck { .. }
-            | Action::ApplyFix { .. } => Some(msg!(ServerAgentFollowupUnknown)),
             _ => None,
         }
     }

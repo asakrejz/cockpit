@@ -14,7 +14,7 @@ develop (last section).
 | Keys | Only in the backend, in the file `config/.env` (decision of 2026-11-13, risk accepted knowingly; never committed). **Never in the repo, the log, the database or browser storage.** Details: [security.md](security.md). |
 | Agent | Claude Agent SDK, Claude Code or Codex in a container per run, **with Docker (Rancher Desktop) or Podman**. The container gets only the cloned repo, never a GitHub token. |
 | Freshness | Polling every 2 minutes by default (`interval_s`). Webhooks are an optional accelerator, see [setup-guide.md](setup-guide.md#live-updates-and-webhooks). |
-| Sample data | The mode that showed sample data in the browser without a backend is gone: the app needs the server. `demo::workspace()` stays as test data, for the Playground stories and as the seed `COCKPIT_SEED=demo` (only on explicit request and only when no state is stored yet). The server starts empty. |
+| Sample data | `demo::workspace()` is static data: test data, the data of the Playground stories and the seed `COCKPIT_SEED=demo` (only on explicit request and only when no state is stored yet). It brings no agent of its own: with it the agent shows its normal „not set up“ state until the agent is set up. The server starts empty. |
 | Agent provider and endpoint | Selectable (decision of 2026-11-12): tool `[agent] provider` (Claude Agent SDK, Claude Code CLI or Codex CLI, selected in the runner by `COCKPIT_PROVIDER`), endpoint `[agent.endpoint] url/model` (a proxy such as LiteLLM, another compatible endpoint, or without an address directly at Anthropic). LiteLLM is only one possible endpoint. With an address the container gets `ANTHROPIC_BASE_URL` + `ANTHROPIC_AUTH_TOKEN`, without one `ANTHROPIC_API_KEY` (Codex: `OPENAI_BASE_URL` + `OPENAI_API_KEY`, model in `COCKPIT_MODEL`); the model name is a setting chosen in the assistant from the endpoint's list. The key lives only in `config/.env` (`token set agent-key`). |
 | Sign-in | Token or OAuth, chosen per service (`[github] auth`, `[jira] auth`, see [configuration.md](configuration.md#choosing-the-sign-in-method-auth)). API token is the default; OAuth is the alternative. |
 | Setup | The setup assistant targets people without programming knowledge: everything that can be done locally by click is done by click (`PUT /api/config`, `PUT /api/secrets/{name}`, double-click start), the manual steps (creating your own OAuth apps, tokens) are guided and documented. Every person creates their **own** OAuth apps because client secrets cannot be shared. |
@@ -302,60 +302,43 @@ online, offline, plus `navigator.onLine`), whether the first workspace has arriv
 
 ## Agent behaviour
 
-**Real agent versus simulation.** The agent in the server is a **real run in a container** (see the [setup guide](setup-guide.md#agent-container-image-model)). Only with the seed `COCKPIT_SEED=demo` (and in tests) the simulated agent still runs: a timer that walks
-through the five steps. The real run is `apps/server/src/agent_run.rs` (pure), `agent_ops.rs` and `agent_ops/` (`run`,
+**The agent.** Every run is a **run in a container** (see the [setup guide](setup-guide.md#agent-container-image-model)); there is no
+other agent. The run is `apps/server/src/agent_run.rs` (pure), `agent_ops.rs` and `agent_ops/` (`run`,
 `watcher`, `image_build`, `container_check`, `lines`) for processes, `agent_git.rs` for clone/check/push; the core side
-is `AgentReport` / `Action::ReportAgent`. The runner protocol is described in [../apps/agent/README.md](../apps/agent/README.md).
-The simulated follow-up jobs (below) do not exist in real mode; there the two real follow-up jobs apply.
+is `AgentReport` / `Action::ReportAgent`: the container reports and `AgentRun::report` changes the run, nothing else does.
+The runner protocol is described in [../apps/agent/README.md](../apps/agent/README.md). Until the agent is set up (container, model, key,
+GitHub access) `/api/health` lists what is missing and no run starts.
 
 **Questions and steering.** The agent can stop at a step and ask a question (status "Wartet auf Antwort", with
 suggested answers to click or free text). The question counts as attention: it appears in the overview under "Hängt"
 (button "Frage beantworten") and in the navigation under "Agenten". While the agent runs you can send a hint under
-"Nachsteuern"; it confirms at the next step. "Pausieren" stops the run, "Fortsetzen" goes on. Everything said appears
+"Nachsteuern"; the container confirms when it has it. "Pausieren" stops the run, "Fortsetzen" goes on. Everything said appears
 in the history next to the timeline. The actions are `AnswerAgent`, `SteerAgent`, `PauseAgent`, `ResumeAgent`.
 
 **Plan before start.** The agent presents a plan before the start and does nothing until you approve it (you may reject
 it or ask again with a remark). A review is only sent once every suggestion has been decided on (your own line
 comments need no approval). The agent never merges; its result is a pull request waiting for your review.
 
-**Follow-up jobs on a pull request** (review page, right column):
-
-- *Implement review comments.* Under "Review-Kommentare umsetzen" the open line comments are listed (yours and the
-  reviewers', also with a suggested change), all selected by default. "Agent: n Kommentare umsetzen" starts the run
-  `review-<nr>` (`RunKind::AddressReview`) with its own steps (read comments, check out branch, changes, tests, push). It
-  pushes to the **same branch**, no new pull request. Plan approval, questions, steering and pausing work as for the
-  ticket run. At the end the comments are "Erledigt" (with a reference to the run), suggested changes appear in the diff,
-  the entry reports the new commit and returns to "Review angefragt". Comments of others never go out with your review
-  and cannot be edited.
-- *Investigate a red check.* Under every red check with a log: "Agent untersuchen lassen" (run `check-<nr>-<check>`,
-  `RunKind::Diagnose`). The agent reads the log and presents a **diagnosis**: cause in one sentence, file and line, a
-  fix as a diff. Until you decide, the branch stays untouched. "Fix übernehmen" pushes the proposal to the branch and
-  restarts the check, "Verwerfen" ends the run.
-
-The actions are `AddressReview`, `InvestigateCheck`, `ApplyFix`, `DiscardFix`. A waiting diagnosis counts as attention
-and triggers "Agent wartet" / "Agent fertig". The agent never merges here either.
-
-**Follow-up jobs of the real agent** (`RunKind::Followup`, actions `AddressReviewThreads` and `FixFailedChecks`, only
-you may trigger them). At click time and again at run start the backend reads the inputs from GitHub with the user's
+**Follow-up jobs on a pull request** (review page, right column; `RunKind::Followup`, actions `AddressReviewThreads` and
+`FixFailedChecks`, only you may trigger them). At click time and again at run start the backend reads the inputs from GitHub with the user's
 token (`GitHubClient::review_input` / `failed_checks`, read only; shortened by `github::followup`) and writes them into
 `job.json` under `followup` (secrets of the agent key and GitHub token are redacted from it). The watcher starts a
-container like for a normal run (`RunKind::runs_in_container`); the clone is the existing branch of the pull request (it has to fit the repo's `branch_pattern` or the default one)
+container like for a normal run; the clone is the existing branch of the pull request (it has to fit the repo's `branch_pattern` or the default one)
 (`agent_git::clone_branch`), the check and push are the same as always (fast-forward only, path rules, never a
 force-push). The container never gets the GitHub token. The image has the fixed name `localhost/cockpit-agent:local`; whether it is current is detected by the label `cockpit.fingerprint` (SHA-256 over Containerfile, runner sources, the lockfiles of runner and CLIs, and the `CONTRACT` constant; details in `apps/agent/README.md`), and a run only starts with a current image. The image contains the Claude Code and Codex CLIs, pinned in `apps/agent/clis/package-lock.json`; the job contract gained
 `followup`, and `repo` – the `owner/name` the backend cloned; follow-up jobs and the pull request always use the repo of the
 pull request / run, never "the" configured repo).
 
-**Agent review of a pull request** (`RunKind::ReviewPr`, action `StartPrReview`, only you; without the real agent the
-button falls back to the demo rules `review::suggest`, action `RequestAgentReview`). The run key is `prreview-…`. The job
+**Agent review of a pull request** (`RunKind::ReviewPr`, action `StartPrReview`, only you). The run key is `prreview-…`. The job
 (`mode: "review"`) carries title, description and the diff from the workspace (`agent_run::review_input`, limited,
 secrets redacted); the clone is the PR's branch (`agent_git::clone_for_review`, any safe branch name, token only during
 the clone) and is mounted `:ro` like in plan mode (`RunCommand::clone_only_read`). The runner emits `review_comment` /
 `review_summary` events (`agent_run::Event`, limited again), which become `AgentReport::ReviewComment` /
 `ReviewSummary`. `Workspace::report_agent` books them on the review: `Review::add_agent_comment` accepts a draft only if
-file, line and side exist in the diff, and replaces nothing but adds a `Suggestion` with `origin: Agent`, structured
+file, line and side exist in the diff, and replaces nothing but adds a `Suggestion` with a structured
 `path`/`line`/`start_line`/`side`/`code` (all with serde defaults, old data loads) and an id `a1`, `a2` …; the summary goes
-to `Review::agent_summary`. A new run replaces the old suggestions (`begin_agent_review`). The drafts use the same
-`Decide` / `EditSuggestion` actions as the demo suggestions; `outbound::review_data` turns the approved ones into line
+to `Review::agent_summary`. A new run replaces the old suggestions (`begin_agent_review`). The drafts are decided with
+`Decide` / `EditSuggestion`; `outbound::review_data` turns the approved ones into line
 comments (range via `start_line`, `suggestion` block from `code`) of **one** `POST /repos/{repo}/pulls/{n}/reviews`, event
 `COMMENT` unless you choose otherwise. Nothing is sent before `SendReview`, and not while a draft is undecided. The run
 never pushes (no publish step; `finish_review_run` only marks the review as looked through). `CONTRACT` is 7.
@@ -447,7 +430,7 @@ The interface is available in German and English and switches at once, without a
   no key is unused; a scan test (`tests/scan.rs`) fails when `apps/cockpit/src` or `crates/ui/src` contain a visible string literal
   (names like "Cockpit" or "GitHub" are on an allowlist there).
 - **German texts** are in simple German: short sentences, no word-for-word translated jargon.
-- **Messages from core and server** (log entries, errors, hints, diagnoses, notifications, setup checks) are `cockpit_i18n::Msg`
+- **Messages from core and server** (log entries, errors, hints, notifications, setup checks) are `cockpit_i18n::Msg`
   (`msg!(CoreActionStatusSet, key = ticket)`): a code (the catalog id) plus parameters, which may be nested messages. The UI renders
   them with `msg.render(lang())`. Server errors travel as `ErrorBody { error, msg }` (`error` is the German sentence for plain
   readers). Log entries keep `text` (German rendering) next to `msg`; old entries without `msg` are shown as text. Stored texts

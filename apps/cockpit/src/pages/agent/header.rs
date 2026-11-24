@@ -13,7 +13,6 @@ pub(super) fn status_of(ctx: AgentCtx) -> (String, StatusTone) {
         awaiting,
         asking,
         paused,
-        diagnosed,
         stopped,
         done,
         run,
@@ -23,8 +22,6 @@ pub(super) fn status_of(ctx: AgentCtx) -> (String, StatusTone) {
         (closure.label_msg().render(lang()), StatusTone::Gray)
     } else if done.get() {
         (t!(AgentHeaderDone), StatusTone::Green)
-    } else if diagnosed.get() {
-        (t!(AgentHeaderDecision), StatusTone::Orange)
     } else if awaiting.get() {
         (t!(AgentHeaderApproval), StatusTone::Orange)
     } else if asking.get() {

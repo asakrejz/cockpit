@@ -1,6 +1,6 @@
 use super::*;
 
-use cockpit_core::{DiffSide, Origin};
+use cockpit_core::DiffSide;
 
 /// Where a suggestion sits, in words: `datei · Zeile 4`, `datei · Zeilen 2–4` or, on the removed
 /// side, `datei · Zeile 4 (alte Zeile)`. Without a structured position the stored text.
@@ -56,7 +56,6 @@ pub(super) fn draft_notes(store: Store, r: &Review, file: &str, index: usize) ->
     let number = StoredValue::new(r.key());
     r.suggestions_at(file, index)
         .into_iter()
-        .filter(|s| s.origin == Origin::Agent)
         .map(|s| {
             let id = StoredValue::new(s.id.clone());
             let decide = move |decision: Option<Decision>| {

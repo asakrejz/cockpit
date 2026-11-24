@@ -58,7 +58,10 @@ fn a_paused_agent_makes_no_progress_until_resumed() {
         w.item("bau150").unwrap().agent_note.as_deref(),
         Some("Der Agent ist pausiert")
     );
-    fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
+    // While paused the run takes no step.
+    let before = w.run("BAU-150").unwrap().completed;
+    advance(&mut w, 2);
+    assert_eq!(w.run("BAU-150").unwrap().completed, before);
     fails(
         &mut w,
         Action::PauseAgent {
@@ -74,7 +77,8 @@ fn a_paused_agent_makes_no_progress_until_resumed() {
         },
         1,
     );
-    ok(&mut w, Action::AdvanceAgents, 1);
+    advance(&mut w, 1);
+    assert_eq!(w.run("BAU-150").unwrap().completed, before + 1);
     ok(
         &mut w,
         Action::PauseAgent {
@@ -103,12 +107,10 @@ fn the_agent_still_never_merges_after_questions() {
         },
         1,
     );
-    for _ in 0..STEPS {
-        let _ = w.apply(Action::AdvanceAgents, Actor::Agent, T);
-    }
-    // In the end a pull request waits for the review, nothing is merged.
-    let review = w.review(92).unwrap();
-    assert!(!review.sent);
+    advance(&mut w, STEPS as u64);
+    assert!(w.run("BAU-142").unwrap().is_done());
+    // In the end nothing is merged: the pull request is created only on your approval.
+    assert!(w.reviews.iter().all(|r| r.merged.is_none()));
     assert!(
         w.log
             .iter()
@@ -245,7 +247,7 @@ fn merging_a_pull_request_without_ticket_marks_its_entry() {
 }
 
 #[test]
-fn a_failed_check_can_be_restarted_and_turns_green_after_a_few_ticks() {
+fn a_failed_check_can_be_restarted_and_runs_until_the_next_sync() {
     let mut w = ws();
     assert_eq!(w.review(85).unwrap().checks, Checks::Failed);
     fails(
@@ -264,7 +266,6 @@ fn a_failed_check_can_be_restarted_and_turns_green_after_a_few_ticks() {
         },
         ActionError::UnknownCheck("Gibt es nicht".into()),
     );
-    fails(&mut w, Action::AdvanceChecks, ActionError::NothingToDo);
     ok(
         &mut w,
         Action::RestartCheck {
@@ -273,21 +274,27 @@ fn a_failed_check_can_be_restarted_and_turns_green_after_a_few_ticks() {
         },
         1,
     );
-    assert_eq!(w.running_checks(), 1);
-    for _ in 0..CHECK_STEPS - 1 {
-        ok(&mut w, Action::AdvanceChecks, 0);
-    }
-    let applied = ok(&mut w, Action::AdvanceChecks, 1);
-    assert_eq!(
-        applied.summary,
-        "Check „Tests (Browser)“ in acme/app#85 bestanden"
+    let status = |w: &Workspace, name: &str| {
+        w.review(85)
+            .unwrap()
+            .check_runs
+            .iter()
+            .find(|c| c.name == name)
+            .unwrap()
+            .status
+    };
+    assert_eq!(status(&w, "Tests (Browser)"), Checks::Running);
+    // A running check can not be restarted again.
+    fails(
+        &mut w,
+        Action::RestartCheck {
+            review: 85.into(),
+            check: "Tests (Browser)".into(),
+        },
+        ActionError::NothingToDo,
     );
-    assert_eq!(w.log.last().unwrap().actor, Actor::System);
-    assert_eq!(w.running_checks(), 0);
-    // The lint error is real: the overall state stays red.
+    // The lint error is still red: the overall state stays red.
     assert_eq!(w.review(85).unwrap().checks, Checks::Failed);
-
-    // After the restart lint stays red …
     ok(
         &mut w,
         Action::RestartCheck {
@@ -296,46 +303,13 @@ fn a_failed_check_can_be_restarted_and_turns_green_after_a_few_ticks() {
         },
         1,
     );
-    for _ in 0..CHECK_STEPS {
-        let _ = w.apply(Action::AdvanceChecks, Actor::System, T);
-    }
-    assert_eq!(w.review(85).unwrap().checks, Checks::Failed);
-    assert!(w.log.last().unwrap().text.contains("wieder fehlgeschlagen"));
-}
-
-#[test]
-fn green_checks_flow_into_the_inbox_entry() {
-    let mut w = ws();
-    // Lint „repaired“: the restart ends green.
-    w.reviews
-        .iter_mut()
-        .find(|r| r.number == 85)
-        .unwrap()
-        .check_runs[1]
-        .rerun = Checks::Passed;
-    for check in ["Lint", "Tests (Browser)"] {
-        ok(
-            &mut w,
-            Action::RestartCheck {
-                review: 85.into(),
-                check: check.into(),
-            },
-            1,
-        );
-    }
+    // Both restarted: the pull request and its entry show „running“ until the sync reports.
+    assert_eq!(w.review(85).unwrap().checks, Checks::Running);
     assert_eq!(
         w.item("pr85").unwrap().pr.as_ref().unwrap().checks,
         Checks::Running
     );
-    for _ in 0..CHECK_STEPS {
-        let _ = w.apply(Action::AdvanceChecks, Actor::System, T);
-    }
-    assert_eq!(w.review(85).unwrap().checks, Checks::Passed);
-    let item = w.item("pr85").unwrap();
-    assert_eq!(item.pr.as_ref().unwrap().checks, Checks::Passed);
-    assert_eq!(item.reason, ReasonKind::ReviewRequested);
-    // Now only the sent review is missing.
-    assert_eq!(w.merge_blockers(85), vec![MergeBlocker::ReviewNotSent]);
+    assert!(w.review(85).unwrap().check_runs[1].log.is_empty());
 }
 
 #[test]
@@ -394,7 +368,6 @@ fn new_actions_survive_json_and_old_ones_still_parse() {
             review: 85.into(),
             check: "Lint".into(),
         },
-        Action::AdvanceChecks,
     ] {
         let json = serde_json::to_string(&a).unwrap();
         assert_eq!(serde_json::from_str::<Action>(&json).unwrap(), a);

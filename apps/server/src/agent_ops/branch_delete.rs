@@ -39,7 +39,7 @@ fn own_branch_run(run: &AgentRun, repo: &str) -> Result<u32, Msg> {
         .and_then(|e| e.pull_request)
         .or_else(|| run.pull_request.clone().filter(|_| repo == run.repo));
     match (&run.kind, pull) {
-        (RunKind::Implement, Some(p)) if run.real => Ok(p.number),
+        (RunKind::Implement, Some(p)) => Ok(p.number),
         _ => Err(msg!(ServerAgentBranchNoOwn)),
     }
 }

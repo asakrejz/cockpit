@@ -10,7 +10,6 @@ fn busy_world() -> World {
     let w = welt(true);
     let mut run = AgentRun::new("BAU-142", "Toggle");
     run.state = RunState::Running;
-    run.real = true;
     let mut ws = demo::workspace();
     ws.runs = vec![run];
     w.state.inner.live.set_state_for_test(ws);
@@ -169,7 +168,6 @@ async fn removing_runs_cleans_up_only_their_leftovers() {
     done.state = RunState::Done;
     let mut busy = AgentRun::new("BAU-142", "Busy");
     busy.state = RunState::Running;
-    busy.real = true;
     ws.runs = vec![done, busy];
     w.state.inner.live.set_state_for_test(ws);
     w.write(

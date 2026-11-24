@@ -12,9 +12,6 @@
 use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};
 
-/// The name of the only repo there is today (demo). More will follow later.
-pub const DEMO_REPO: &str = "acme/app";
-
 /// Does `path` match `pattern`? See the rules in the module.
 pub fn glob_match(pattern: &str, path: &str) -> bool {
     let pattern = normalize_pattern(pattern);

@@ -3,10 +3,10 @@ use super::*;
 #[test]
 fn request_has_the_documented_form() {
     let json = serde_json::to_string(&ActionRequest {
-        action: Action::AdvanceAgents,
+        action: Action::WakeSnoozed,
     })
     .unwrap();
-    assert_eq!(json, r#"{"action":"AdvanceAgents"}"#);
+    assert_eq!(json, r#"{"action":"WakeSnoozed"}"#);
     let back: ActionRequest =
         serde_json::from_str(r#"{"action":{"MarkDone":{"item":"bau142"}}}"#).unwrap();
     assert_eq!(

@@ -4,7 +4,6 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::diagnosis::Fix;
 use crate::model::{Checks, Person, PrKey};
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -138,22 +137,6 @@ impl DiffSide {
     }
 }
 
-/// Who made a suggestion.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum Origin {
-    /// The built-in rules of the demo (no real agent).
-    #[default]
-    Demo,
-    /// The real agent from the container (a draft, checked against the diff).
-    Agent,
-}
-
-impl Origin {
-    fn is_demo(&self) -> bool {
-        *self == Origin::Demo
-    }
-}
-
 /// Comment the agent has prepared. A draft stays on this machine until you approve it and send the
 /// review.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -169,8 +152,8 @@ pub struct Suggestion {
     /// `None` = not decided yet.
     #[serde(default)]
     pub decision: Option<Decision>,
-    /// Name of the file in the diff. Empty = no structured position (old data, demo rules): then
-    /// only `location` tells where it belongs.
+    /// Name of the file in the diff. Empty = no structured position (old data): then only
+    /// `location` tells where it belongs.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub path: String,
     /// Line number on `side` (the last line of a range). 0 = unknown.
@@ -184,8 +167,6 @@ pub struct Suggestion {
     /// Replacement code (like GitHub's „suggestion“ block). Only on the right side.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub code: Option<String>,
-    #[serde(default, skip_serializing_if = "Origin::is_demo")]
-    pub origin: Origin,
 }
 
 impl Suggestion {
@@ -201,7 +182,6 @@ impl Suggestion {
             start_line: None,
             side: DiffSide::Right,
             code: None,
-            origin: Origin::Demo,
         }
     }
 
@@ -355,7 +335,7 @@ pub struct Review {
     pub agent_reviewed: bool,
     #[serde(default)]
     pub suggestions: Vec<Suggestion>,
-    /// What the real agent said about the pull request in its own words. Stays local; it goes out
+    /// What the agent said about the pull request in its own words. Stays local; it goes out
     /// only if you copy it into your own comment.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub agent_summary: String,
@@ -476,15 +456,6 @@ impl Review {
     pub fn merge_blockers(&self) -> Vec<MergeBlocker> {
         merge_blockers(self.checks, self.sent, self.verdict, self.merged.is_some())
     }
-
-    /// The agent looks through the diff and prepares suggestions.
-    /// Returns how many there turned out to be.
-    pub fn run_agent_review(&mut self) -> usize {
-        self.suggestions = suggest(&self.files);
-        self.agent_reviewed = true;
-        self.sent = false;
-        self.suggestions.len()
-    }
 }
 
 mod agent_draft;
@@ -493,16 +464,14 @@ mod commit_info;
 mod line_comments;
 mod merge;
 mod sending;
-mod suggest;
 #[cfg(test)]
 mod tests;
 mod tree;
 mod viewed;
 
 pub use agent_draft::{AgentComment, MAX_AGENT_COMMENTS};
-pub use checks::{CHECK_STEPS, CheckRun};
+pub use checks::CheckRun;
 pub use commit_info::{commit_date, short_sha};
 pub use merge::{MergeBlocker, MergeMethod, merge_blockers};
-pub use suggest::suggest;
 pub use tree::{SHOWN_LINES, TreeRow, file_tree};
 pub use viewed::Viewed;

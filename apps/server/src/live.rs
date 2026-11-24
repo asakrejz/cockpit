@@ -200,29 +200,19 @@ impl Live {
         })
     }
 
-    /// The tick: every simulated agent (only with `simulate_agents`; real runs report themselves)
-    /// and every newly started check takes a step,
-    /// and expired snoozes come back to the inbox, pull requests with a ticket key
-    /// in branch or title are linked, and the status of linked tickets follows the pull request. If there is nothing to do, nothing happens
-    /// (and there is no revision).
-    pub fn tick(&self, db: &Mutex<Connection>, at_ms: u64, agents_simulate: bool) {
-        let (agents, checks, wake, link, status) = {
+    /// The tick: expired snoozes come back to the inbox, pull requests with a ticket key
+    /// in branch or title are linked, and the status of linked tickets follows the pull request.
+    /// If there is nothing to do, nothing happens (and there is no revision).
+    pub fn tick(&self, db: &Mutex<Connection>, at_ms: u64) {
+        let (wake, link, status) = {
             let snapshot = lock(&self.snapshot);
             (
-                snapshot.ws.running_agents() > 0,
-                snapshot.ws.running_checks() > 0,
                 !snapshot.ws.expired_snoozes(at_ms).is_empty(),
                 !snapshot.ws.auto_links().is_empty(),
                 snapshot.ws.status_pending(),
             )
         };
         let mut steps = Vec::new();
-        if agents && agents_simulate {
-            steps.push((Action::AdvanceAgents, Actor::Agent));
-        }
-        if checks {
-            steps.push((Action::AdvanceChecks, Actor::System));
-        }
         if wake {
             steps.push((Action::WakeSnoozed, Actor::System));
         }

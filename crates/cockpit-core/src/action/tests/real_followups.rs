@@ -45,6 +45,19 @@ fn done_ws() -> Workspace {
     report(
         &mut w,
         "BAU-142",
+        AgentReport::Repos {
+            repos: vec![crate::agent::RepoResult {
+                repo: crate::demo::DEMO_REPO.into(),
+                state: crate::agent::RunRepoState::Pushed,
+                files: vec!["src/ring.rs".into()],
+                reason: String::new(),
+            }],
+        },
+    )
+    .unwrap();
+    report(
+        &mut w,
+        "BAU-142",
         AgentReport::Done {
             summary: "Fokus-Ring ergänzt.".into(),
         },
@@ -98,11 +111,10 @@ fn review_threads_start_a_followup_on_the_branch_of_the_pull_request() {
     assert_eq!(
         run.kind,
         RunKind::Followup {
-            review: crate::model::PrKey::new(crate::DEMO_REPO, 85),
+            review: crate::model::PrKey::new(crate::demo::DEMO_REPO, 85),
             task: FollowupTask::ReviewThreads
         }
     );
-    assert!(run.kind.runs_in_container());
     // A second job on the same pull request has to wait.
     fails(
         &mut w,
@@ -269,7 +281,7 @@ fn a_real_followup_finishes_with_a_note_and_no_new_branch_on_a_ticket() {
 fn a_finished_real_run_has_no_invented_pull_request_number() {
     let w = done_ws();
     let run = w.run("BAU-142").unwrap();
-    assert!(run.is_done() && run.real);
+    assert!(run.is_done());
     assert_eq!(run.pr_number, None);
     assert_eq!(run.pull_request, None);
 }

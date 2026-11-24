@@ -1,9 +1,3 @@
-agent_decisions.diagnosis_label = Diagnose des Agenten
-agent_decisions.diagnosis_header = Diagnose – wartet auf deine Entscheidung
-agent_decisions.check_badge = Check {name}
-agent_decisions.suggestion = Vorschlag: {text}
-agent_decisions.fix_for = Fix für {name}
-agent_decisions.branch_unchanged = Bis du entscheidest, bleibt der Branch unverändert.
 agent_decisions.stopped_label = Lauf angehalten
 agent_decisions.stopped_header = Lauf angehalten – wartet auf dich
 agent_decisions.raise_resume = Um {amount} erhöhen und fortsetzen

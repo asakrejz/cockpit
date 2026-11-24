@@ -10,7 +10,7 @@ use cockpit_core::{
 };
 
 /// How many variants `Action` has. See [`slot`].
-const VARIANTS: usize = 68;
+const VARIANTS: usize = 60;
 
 /// Gives every variant its own number. The `match` has no wildcard arm on purpose: a new variant
 /// does not compile until it is added here, and then [`every_action`] has to contain it (the test
@@ -50,41 +50,33 @@ fn slot(action: &Action) -> usize {
         Action::EditLineComment { .. } => 30,
         Action::DeleteLineComment { .. } => 31,
         Action::SetVerdict { .. } => 32,
-        Action::RequestAgentReview { .. } => 33,
-        Action::SendReview { .. } => 34,
-        Action::RestartCheck { .. } => 35,
-        Action::AdvanceChecks => 36,
-        Action::MergePr { .. } => 37,
-        Action::StartAgent { .. } => 38,
-        Action::CancelAgent { .. } => 39,
-        Action::ApprovePlan { .. } => 40,
-        Action::RejectPlan { .. } => 41,
-        Action::RevisePlan { .. } => 42,
-        Action::AnswerAgent { .. } => 43,
-        Action::SteerAgent { .. } => 44,
-        Action::PauseAgent { .. } => 45,
-        Action::ResumeAgent { .. } => 46,
-        Action::AdvanceAgents => 47,
-        Action::ReportAgent { .. } => 48,
-        Action::CloseAgentRun { .. } => 49,
-        Action::RemoveAgentRun { .. } => 50,
-        Action::RemoveFinishedRuns => 51,
-        Action::AddressReview { .. } => 52,
-        Action::InvestigateCheck { .. } => 53,
-        Action::ApplyFix { .. } => 54,
-        Action::DiscardFix { .. } => 55,
-        Action::StartPrReview { .. } => 56,
-        Action::AddressReviewThreads { .. } => 57,
-        Action::FixFailedChecks { .. } => 58,
-        Action::CreatePullRequest { .. } => 59,
-        Action::ResumeStopped { .. } => 60,
-        Action::SetLanguage { .. } => 61,
-        Action::SetAgentLimits { .. } => 62,
-        Action::SetRepoRules { .. } => 63,
-        Action::SetNotifyChannel { .. } => 64,
-        Action::SetQuietHours { .. } => 65,
-        Action::ResetDemo => 66,
-        Action::SyncRemote { .. } => 67,
+        Action::SendReview { .. } => 33,
+        Action::RestartCheck { .. } => 34,
+        Action::MergePr { .. } => 35,
+        Action::StartAgent { .. } => 36,
+        Action::CancelAgent { .. } => 37,
+        Action::ApprovePlan { .. } => 38,
+        Action::RejectPlan { .. } => 39,
+        Action::RevisePlan { .. } => 40,
+        Action::AnswerAgent { .. } => 41,
+        Action::SteerAgent { .. } => 42,
+        Action::PauseAgent { .. } => 43,
+        Action::ResumeAgent { .. } => 44,
+        Action::ReportAgent { .. } => 45,
+        Action::CloseAgentRun { .. } => 46,
+        Action::RemoveAgentRun { .. } => 47,
+        Action::RemoveFinishedRuns => 48,
+        Action::StartPrReview { .. } => 49,
+        Action::AddressReviewThreads { .. } => 50,
+        Action::FixFailedChecks { .. } => 51,
+        Action::CreatePullRequest { .. } => 52,
+        Action::ResumeStopped { .. } => 53,
+        Action::SetLanguage { .. } => 54,
+        Action::SetAgentLimits { .. } => 55,
+        Action::SetRepoRules { .. } => 56,
+        Action::SetNotifyChannel { .. } => 57,
+        Action::SetQuietHours { .. } => 58,
+        Action::SyncRemote { .. } => 59,
     }
 }
 
@@ -350,7 +342,6 @@ fn every_action() -> Vec<Action> {
             review: pr(),
             verdict: Verdict::Approve,
         },
-        Action::RequestAgentReview { review: pr() },
         Action::SendReview {
             review: pr(),
             comment: "Looks good".into(),
@@ -359,7 +350,6 @@ fn every_action() -> Vec<Action> {
             review: pr(),
             check: "build".into(),
         },
-        Action::AdvanceChecks,
         Action::MergePr {
             review: pr(),
             method: MergeMethod::Merge,
@@ -396,7 +386,6 @@ fn every_action() -> Vec<Action> {
         Action::ResumeAgent {
             run: "ABC-1".into(),
         },
-        Action::AdvanceAgents,
         Action::ReportAgent {
             run: "ABC-1".into(),
             report: AgentReport::Started {
@@ -411,21 +400,6 @@ fn every_action() -> Vec<Action> {
             run: "ABC-1".into(),
         },
         Action::RemoveFinishedRuns,
-        Action::AddressReview {
-            review: pr(),
-            comments: Vec::new(),
-            options: options(),
-        },
-        Action::InvestigateCheck {
-            review: pr(),
-            check: "build".into(),
-        },
-        Action::ApplyFix {
-            run: "ABC-1".into(),
-        },
-        Action::DiscardFix {
-            run: "ABC-1".into(),
-        },
         Action::StartPrReview {
             review: pr(),
             language: None,
@@ -469,7 +443,6 @@ fn every_action() -> Vec<Action> {
         Action::SetQuietHours {
             quiet: QuietHours::default(),
         },
-        Action::ResetDemo,
         Action::SyncRemote {
             remote: Remote::default(),
         },

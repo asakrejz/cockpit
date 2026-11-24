@@ -116,9 +116,6 @@ pub struct SyncState {
     /// Pull requests that come from GitHub.
     #[serde(default)]
     pub prs: Vec<PrLink>,
-    /// The sample data are already removed.
-    #[serde(default)]
-    pub demo_dropped: bool,
     /// The GitHub projects of the last successful sync (fields and their choices): what is
     /// needed to write a status or another field.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

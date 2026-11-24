@@ -59,7 +59,7 @@ fn the_run_budget_stops_the_run_and_you_can_raise_it() {
     );
     // A stopped run makes no progress.
     let done = run.completed;
-    fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
+    advance(&mut w, 3);
     assert_eq!(w.run("BAU-150").unwrap().completed, done);
     // Without a raise the limit stays reached, and nothing changes.
     fails(
@@ -171,12 +171,12 @@ fn a_stopped_run_needs_attention_and_notifies() {
     ok(&mut w, limits(|l| l.run_budget_cents = Some(20)), 1);
     start(&mut w, "BAU-150");
     let mut before = w.clone();
-    for i in 0..10 {
+    for _ in 0..10 {
         if w.run("BAU-150").unwrap().is_stopped() {
             break;
         }
         before = w.clone();
-        let _ = w.apply(Action::AdvanceAgents, Actor::Agent, T + i);
+        advance(&mut w, 1);
     }
     let events = crate::notify::events(&before, &w);
     assert_eq!(events.len(), 1);
@@ -213,10 +213,11 @@ fn too_many_parallel_runs_do_not_start() {
         &mut w,
         Action::StartAgent {
             ticket: "BAU-142".into(),
-            options: AgentOptions::default(),
+            options: with_plan(),
         },
         2,
     );
+    plan_ready(&mut w, "BAU-142");
     fails(
         &mut w,
         Action::ApprovePlan {
@@ -275,15 +276,25 @@ fn a_plan_touching_forbidden_paths_cannot_be_approved() {
         rules(|r| r.forbidden_paths = vec!["tokens.css".into()]),
         1,
     );
-    // Even without a requested plan the run waits for approval.
     ok(
         &mut w,
         Action::StartAgent {
             ticket: "BAU-142".into(),
-            options: direct(),
+            options: with_plan(),
         },
         2,
     );
+    // The agent plans to touch a forbidden file.
+    report(
+        &mut w,
+        "BAU-142",
+        AgentReport::Plan {
+            summary: "Fokus-Ring".into(),
+            files: vec!["components.css".into(), "tokens.css".into()],
+            steps: vec!["Ändern".into()],
+        },
+    )
+    .unwrap();
     let run = w.run("BAU-142").unwrap();
     assert!(run.is_awaiting());
     let plan = run.plan().unwrap();
@@ -324,10 +335,20 @@ fn allowed_paths_limit_what_the_plan_may_touch() {
         &mut w,
         Action::StartAgent {
             ticket: "BAU-142".into(),
-            options: AgentOptions::default(),
+            options: with_plan(),
         },
         2,
     );
+    report(
+        &mut w,
+        "BAU-142",
+        AgentReport::Plan {
+            summary: "Fokus-Ring".into(),
+            files: vec!["components.css".into(), "tokens.css".into()],
+            steps: vec!["Ändern".into()],
+        },
+    )
+    .unwrap();
     let plan = w.run("BAU-142").unwrap().plan().unwrap();
     assert_eq!(plan.violations.len(), 2);
     assert!(
@@ -352,7 +373,7 @@ fn required_tests_and_plan_approval_are_enforced_at_the_start() {
     let off = AgentOptions {
         run_tests: false,
         plan_first: false,
-        ..AgentOptions::default()
+        ..with_plan()
     };
     ok(
         &mut w,
@@ -374,6 +395,7 @@ fn required_tests_and_plan_approval_are_enforced_at_the_start() {
             .iter()
             .any(|s| s == "Pflicht-Tests ausführen: cargo test, cargo clippy")
     );
+    plan_ready(&mut w, "BAU-150");
     ok(
         &mut w,
         Action::ApprovePlan {
@@ -381,11 +403,9 @@ fn required_tests_and_plan_approval_are_enforced_at_the_start() {
         },
         1,
     );
-    advance(&mut w, 10);
     let run = w.run("BAU-150").unwrap();
     let steps = run.steps();
     assert_eq!(steps[3].title, "Pflicht-Tests ausgeführt");
-    assert!(run.log().contains("$ cargo clippy … bestanden"));
 }
 
 #[test]
@@ -405,7 +425,7 @@ fn rules_are_per_repo_cleaned_and_validated() {
         1,
     );
     assert_eq!(
-        w.rules_for(crate::rules::DEMO_REPO).forbidden_paths,
+        w.rules_for(crate::demo::DEMO_REPO).forbidden_paths,
         ["a/**"]
     );
     fails(
@@ -415,19 +435,6 @@ fn rules_are_per_repo_cleaned_and_validated() {
     );
     let applied = ok(&mut w, rules(|_| {}), 1);
     assert!(applied.summary.ends_with("entfernt"));
-}
-
-#[test]
-fn settings_survive_the_demo_reset_but_the_ledger_does_not() {
-    let mut w = ws();
-    ok(&mut w, limits(|l| l.max_parallel = 2), 1);
-    start(&mut w, "BAU-150");
-    advance(&mut w, 2);
-    assert!(!w.spend.is_empty());
-    w.apply(Action::ResetDemo, Actor::User, T).unwrap();
-    assert_eq!(w.limits.max_parallel, 2);
-    assert!(w.spend.is_empty());
-    assert!(!w.repo_rules.is_empty());
 }
 
 #[test]

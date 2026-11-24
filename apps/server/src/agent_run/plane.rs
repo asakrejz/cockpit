@@ -32,7 +32,7 @@ pub fn plane(
     blocked: &[String],
 ) -> Vec<Instruction> {
     let mut a = Vec::new();
-    for run in ws.runs.iter().filter(|r| r.kind.runs_in_container()) {
+    for run in &ws.runs {
         let key = run.key();
         match (running.get(&key), run.state) {
             (None, RunState::Running) if !blocked.contains(&key) => {
@@ -97,11 +97,7 @@ pub fn plane(
     }
     // Container without a run (deleted, reset): end it.
     for key in running.keys() {
-        if !ws
-            .runs
-            .iter()
-            .any(|r| r.kind.runs_in_container() && &r.key() == key)
-        {
+        if !ws.runs.iter().any(|r| &r.key() == key) {
             a.push(Instruction::Stop(key.clone()));
         }
     }

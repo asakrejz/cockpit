@@ -267,6 +267,9 @@ fn container_and_model_lines() {
     let z = summary(&s);
     assert_eq!(z[0].tone, Tone::Problem);
     s.container.engine_running = true;
+    // The engine runs, but the image of the agent is still missing.
+    assert_eq!(summary(&s)[0].tone, Tone::Open);
+    s.agent.image = true;
     assert_eq!(summary(&s)[0].tone, Tone::Good);
 
     s.endpoint.configured = true;
@@ -303,13 +306,10 @@ fn test_result_tells_where_it_failed() {
 }
 
 #[test]
-fn summary_asks_for_the_image_when_the_real_agent_needs_it() {
+fn summary_asks_for_the_image_when_the_agent_needs_it() {
     let mut s = Snapshot::default();
     s.container.runtime = Some("docker".into());
     s.container.engine_running = true;
-    // Simulated or unknown: green as before.
-    assert_eq!(summary(&s)[0].tone, Tone::Good);
-    s.agent.mode = "real".into();
     let z = &summary(&s)[0];
     assert_eq!(z.tone, Tone::Open);
     assert!(z.text.de().contains("Image bauen"));

@@ -1,5 +1,4 @@
 agent_header.done = Fertig
-agent_header.decision = Wartet auf Entscheidung
 agent_header.approval = Wartet auf Freigabe
 agent_header.answer = Wartet auf Antwort
 agent_header.paused = Pausiert

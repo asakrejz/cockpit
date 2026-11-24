@@ -6,7 +6,7 @@
 use cockpit_i18n::{ArgValue, Msg, msg};
 
 use super::*;
-use crate::agent::FollowupTask;
+use crate::agent::{FollowupTask, RunKind};
 
 pub(crate) fn on_off(on: bool) -> Msg {
     if on {
@@ -208,16 +208,6 @@ pub(crate) fn blocker(b: MergeBlocker) -> Msg {
 pub(crate) fn run_label(run: &AgentRun) -> Msg {
     match &run.kind {
         RunKind::Implement => Msg::raw(run.ticket_key.clone()),
-        RunKind::AddressReview { review, .. } => {
-            msg!(CoreActionRunAddressReview, review = review.to_string())
-        }
-        RunKind::Diagnose { review, check } => {
-            msg!(
-                CoreActionRunDiagnose,
-                check = check,
-                review = review.to_string()
-            )
-        }
         RunKind::Followup { review, task } => match task {
             FollowupTask::ReviewThreads => {
                 msg!(CoreActionRunThreads, review = review.to_string())

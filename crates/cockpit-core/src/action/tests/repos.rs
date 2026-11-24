@@ -1,7 +1,8 @@
 //! Equal pull request numbers from two repos stay two pull requests.
 
 use super::*;
-use crate::DEMO_REPO;
+use crate::agent::FollowupTask;
+use crate::demo::DEMO_REPO;
 use crate::demo::DEMO_REPO_TOKENS;
 use crate::model::PrKey;
 
@@ -135,19 +136,19 @@ fn follow_up_runs_are_named_with_the_repo() {
     // A red check in the second repo only.
     let key = w.review(second()).unwrap().key();
     let run = AgentRun::followup(
-        RunKind::AddressReview {
+        RunKind::Followup {
             review: key,
-            comments: vec![],
+            task: FollowupTask::ReviewThreads,
         },
         "x",
         "t",
         "b",
     );
-    assert_eq!(run.key(), "review-acme~design-tokens-87");
+    assert_eq!(run.key(), "threads-acme~design-tokens-87");
     let other = AgentRun::followup(
-        RunKind::AddressReview {
+        RunKind::Followup {
             review: first(),
-            comments: vec![],
+            task: FollowupTask::ReviewThreads,
         },
         "x",
         "t",
@@ -176,27 +177,15 @@ fn a_started_run_works_in_the_chosen_repo() {
         1,
     );
     assert_eq!(w.run("BAU-142").unwrap().repo, DEMO_REPO_TOKENS);
-    // Finishing creates the pull request in that repo, not in the other.
-    for _ in 0..STEPS * 2 {
-        let _ = w.apply(Action::AdvanceAgents, Actor::System, T);
-        let _ = w.apply(
-            Action::AnswerAgent {
-                run: "BAU-142".into(),
-                text: "Entfernen".into(),
-            },
-            Actor::User,
-            T,
-        );
-    }
+    // Finishing leaves the branch in that repo; the pull request follows on your approval.
+    let reviews = w.reviews.len();
+    run_to_end(&mut w);
     let run = w.run("BAU-142").unwrap();
     assert!(run.is_done());
-    let key = run.pr_key().unwrap();
-    assert_eq!(key.repo, DEMO_REPO_TOKENS);
-    assert_eq!(w.review(&key).unwrap().repo, DEMO_REPO_TOKENS);
-    assert_eq!(
-        w.item("bau142").unwrap().pr.as_ref().unwrap().repo,
-        DEMO_REPO_TOKENS
-    );
+    assert_eq!(run.repo, DEMO_REPO_TOKENS);
+    assert_eq!(w.reviews.len(), reviews);
+    let draft = w.pull_request_draft("BAU-142", "").unwrap();
+    assert!(draft.head.starts_with("claude/BAU-142"));
 }
 
 #[test]

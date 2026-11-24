@@ -5,11 +5,6 @@ use cockpit_i18n::{Msg, msg};
 use super::*;
 
 impl AppState {
-    /// Does the real agent (container) run or the simulation (seed `demo`, tests)?
-    pub(crate) fn agent_real(&self) -> bool {
-        self.inner.settings.seed != Seed::Demo
-    }
-
     pub(super) fn search_path(&self) -> OsString {
         self.inner
             .settings

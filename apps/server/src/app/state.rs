@@ -287,12 +287,9 @@ impl AppState {
         self.repo_list_forget();
     }
 
-    /// A tick of the tasks in the background. The simulated agent only joins in if the server
-    /// runs with the seed `demo`; otherwise the real agent works in containers. Blocking.
+    /// A tick of the tasks in the background (snoozes, linking, status). Blocking.
     pub fn tick(&self) {
-        self.inner
-            .live
-            .tick(&self.inner.db, now_ms(), !self.agent_real());
+        self.inner.live.tick(&self.inner.db, now_ms());
     }
 }
 
@@ -300,22 +297,4 @@ pub(crate) fn now_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_millis() as u64)
-}
-
-/// Starts the background work of the agent in the server: in mode "real" the watcher for the
-/// containers, with the seed `demo` the tick of the simulated agent (instead of in the browser).
-pub fn agent_tick_start(state: AppState) {
-    if state.agent_real() {
-        crate::agent_ops::watcher_start(state);
-        return;
-    }
-    tokio::spawn(async move {
-        let mut ticker = tokio::time::interval(AGENT_TICK);
-        ticker.tick().await; // the first tick comes immediately
-        loop {
-            ticker.tick().await;
-            let state = state.clone();
-            let _ = tokio::task::spawn_blocking(move || state.tick()).await;
-        }
-    });
 }

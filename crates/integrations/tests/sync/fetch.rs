@@ -5,10 +5,9 @@ async fn fetches_pull_requests_tickets_comments_checks_and_diffs() {
     let g = github_server().await;
     let j = jira_server().await;
     let d = services(Some(&g), Some(&j));
-    let (ws, _) = sync(&d, &cockpit_core::demo::workspace(), NOW_MS).await;
+    let (ws, _) = sync(&d, &cockpit_core::Workspace::default(), NOW_MS).await;
 
-    // Sample data is gone, real entries are there.
-    assert!(ws.item("bau142").is_none() && ws.item("pr87").is_none());
+    // The entries of the services are there.
     let pr87 = ws.item("gh-acme-baukasten-87").expect("PR 87");
     assert_eq!(pr87.pr.as_ref().unwrap().number, 87);
     assert_eq!(pr87.comments.len(), 4, "conversation and line comments");
@@ -154,7 +153,7 @@ async fn sync_keeps_the_formatted_jira_text() {
 
     let j = jira_server().await;
     let d = services(None, Some(&j));
-    let (ws, _) = sync(&d, &cockpit_core::demo::workspace(), NOW_MS).await;
+    let (ws, _) = sync(&d, &cockpit_core::Workspace::default(), NOW_MS).await;
     let jira = ws.item("bau-142").expect("BAU-142");
 
     // The description keeps its list instead of a flat text; the plain text stays for search.

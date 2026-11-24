@@ -1,8 +1,5 @@
 use super::*;
 
-/// This many ticks a restarted check runs in the demo.
-pub const CHECK_STEPS: u8 = 3;
-
 /// A single check of a pull request (build, lint, tests …).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct CheckRun {
@@ -14,17 +11,6 @@ pub struct CheckRun {
     /// Output of the last run.
     #[serde(default)]
     pub log: String,
-    /// How a restart ends in the demo. Fixed so that it stays traceable:
-    /// a real error stays red, a flaky test turns green.
-    #[serde(default = "passed")]
-    pub rerun: Checks,
-    /// Ticks a running check still needs.
-    #[serde(default)]
-    pub remaining: u8,
-}
-
-fn passed() -> Checks {
-    Checks::Passed
 }
 
 impl CheckRun {
@@ -34,15 +20,7 @@ impl CheckRun {
             status,
             duration_s,
             log: log.into(),
-            rerun: Checks::Passed,
-            remaining: 0,
         }
-    }
-
-    /// Determines how a restart ends.
-    pub fn rerun_as(mut self, rerun: Checks) -> Self {
-        self.rerun = rerun;
-        self
     }
 
     /// `2:05 Min.` or `42 Sek.`; while running `läuft`.
@@ -66,34 +44,14 @@ impl CheckRun {
         self.duration_msg().de()
     }
 
-    /// Only a red check can be restarted.
+    /// Only a red check can be restarted. It then runs again; the next sync brings its result
+    /// and its output.
     pub(super) fn restart(&mut self) -> bool {
         if self.status != Checks::Failed {
             return false;
         }
         self.status = Checks::Running;
-        self.remaining = CHECK_STEPS;
-        self.log = format!("$ {} (Neustart)\nwird ausgeführt …\n", self.name);
-        true
-    }
-
-    /// One tick. `true` if the check finished in the process.
-    pub(super) fn advance(&mut self) -> bool {
-        if self.status != Checks::Running {
-            return false;
-        }
-        self.remaining = self.remaining.saturating_sub(1);
-        if self.remaining > 0 {
-            return false;
-        }
-        self.status = self.rerun;
-        self.log = match self.rerun {
-            Checks::Failed => format!(
-                "$ {} (Neustart)\nerror: derselbe Fehler wie zuvor – der Check bleibt rot.\n",
-                self.name
-            ),
-            _ => format!("$ {} (Neustart)\nalle Schritte erfolgreich\n", self.name),
-        };
+        self.log.clear();
         true
     }
 }
@@ -127,26 +85,5 @@ impl Review {
             self.sync_checks();
         }
         restarted
-    }
-
-    /// Lets every running check advance one step. Returns the names of the checks
-    /// that finished in the process.
-    pub fn advance_checks(&mut self) -> Vec<String> {
-        let done: Vec<String> = self
-            .check_runs
-            .iter_mut()
-            .filter_map(|c| c.advance().then(|| c.name.clone()))
-            .collect();
-        if !done.is_empty() {
-            self.sync_checks();
-        }
-        done
-    }
-
-    pub fn running_checks(&self) -> usize {
-        self.check_runs
-            .iter()
-            .filter(|c| c.status == Checks::Running)
-            .count()
     }
 }

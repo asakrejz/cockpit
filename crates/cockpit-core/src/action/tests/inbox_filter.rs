@@ -64,14 +64,6 @@ fn the_filter_survives_saving_and_old_data_without_it_loads() {
 }
 
 #[test]
-fn a_demo_reset_keeps_the_chosen_filter() {
-    let mut w = ws();
-    ok(&mut w, Action::SetInboxFilter { filter: narrowed() }, 1);
-    w.apply(Action::ResetDemo, Actor::User, T).unwrap();
-    assert_eq!(w.inbox_filter, narrowed());
-}
-
-#[test]
 fn active_filters_name_what_is_not_at_its_start_value() {
     let mut w = ws();
     assert!(w.active_filters().is_empty());

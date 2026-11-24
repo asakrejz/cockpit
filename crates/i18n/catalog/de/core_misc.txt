@@ -7,7 +7,6 @@ core_misc.hit_overdue.one = Seit gestern überfällig
 core_misc.hit_overdue.other = Seit {n} Tagen überfällig
 core_misc.hit_agent = Agent fertig · Pull Request #{number} erstellt
 core_misc.hit_assigned = Dir zugewiesen
-core_misc.stuck_diagnosis = Die Diagnose des Agenten wartet auf deine Entscheidung: {cause}
 core_misc.stuck_checks_me = Die Checks von {pr} sind fehlgeschlagen. Du kommst nicht weiter.
 core_misc.stuck_checks_other = Die Checks von {pr} sind fehlgeschlagen. {name} kommt nicht weiter.
 core_misc.stuck_stopped = Der Agent ist angehalten: {reason}. Erhöhe das Limit und setze ihn fort, oder brich ab.

@@ -371,16 +371,14 @@ impl AppState {
             .await
             .map_err(ActionFailure::Plan)?;
         let action = self.agent_route(action).map_err(ActionFailure::Plan)?;
-        // The real agent only starts if everything is set up; otherwise the message says what is missing.
-        if self.agent_real() {
-            let s = self.clone();
-            let a = action.clone();
-            let lock = tokio::task::spawn_blocking(move || s.agent_lock(&a))
-                .await
-                .map_err(|_| ActionFailure::Intern)?;
-            if let Some(m) = lock {
-                return Err(ActionFailure::Plan(m));
-            }
+        // The agent only starts if everything is set up; otherwise the message says what is missing.
+        let s = self.clone();
+        let a = action.clone();
+        let lock = tokio::task::spawn_blocking(move || s.agent_lock(&a))
+            .await
+            .map_err(|_| ActionFailure::Intern)?;
+        if let Some(m) = lock {
+            return Err(ActionFailure::Plan(m));
         }
         // The pull request has its own course (look for an existing one, create, then book).
         if matches!(action, Action::CreatePullRequest { .. }) {
@@ -394,9 +392,7 @@ impl AppState {
             return self.project_issue_flow(action).await;
         }
         // A follow-up job only starts if GitHub has something for it to do.
-        if self.agent_real() {
-            self.followup_precheck(&action).await?;
-        }
+        self.followup_precheck(&action).await?;
         let _lock = inner.lock.lock().await;
 
         // Probe on a copy: the rules (also "only Du may merge") apply before every call.

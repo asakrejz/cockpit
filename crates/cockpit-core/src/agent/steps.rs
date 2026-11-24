@@ -15,11 +15,7 @@ impl AgentRun {
     pub fn steps(&self) -> Vec<Step> {
         let texts = match &self.kind {
             RunKind::Implement => self.implement_texts(),
-            RunKind::AddressReview { review, comments } => {
-                self.address_texts(review, comments.len())
-            }
-            RunKind::Diagnose { review, check } => self.diagnose_texts(review, check),
-            // Real jobs report their own steps; this is only the fallback for the plan texts.
+            // Follow-up jobs report their own steps; this is only the fallback for the plan texts.
             RunKind::Followup { review, .. } | RunKind::ReviewPr { review } => {
                 self.address_texts(review, 0)
             }
@@ -64,51 +60,6 @@ impl AgentRun {
                 msg!(CoreAgentStepTitlePushed),
                 msg!(CoreAgentStepTextPushedReview, branch = self.branch()),
             ),
-        ]
-    }
-
-    pub(super) fn diagnose_texts(&self, review: &PrKey, check: &str) -> StepTexts {
-        let code = self.diagnosis.as_ref().is_none_or(Diagnosis::changes_code);
-        [
-            (
-                msg!(CoreAgentStepTitleLogRead),
-                msg!(
-                    CoreAgentStepTextLogRead,
-                    check = check,
-                    review = review.to_string()
-                ),
-            ),
-            (
-                msg!(CoreAgentStepTitleCauseFound),
-                msg!(CoreAgentStepTextCause),
-            ),
-            (
-                msg!(CoreAgentStepTitleDiagnosisMade),
-                msg!(CoreAgentStepTextDiagnosis),
-            ),
-            if code {
-                (
-                    msg!(CoreAgentStepTitleFixApplied),
-                    msg!(CoreAgentStepTextFix),
-                )
-            } else {
-                (msg!(CoreAgentStepTitleNoFix), msg!(CoreAgentStepTextNoFix))
-            },
-            if code {
-                (
-                    msg!(CoreAgentStepTitlePushedRestarted),
-                    msg!(
-                        CoreAgentStepTextPushedRestarted,
-                        branch = self.branch(),
-                        check = check
-                    ),
-                )
-            } else {
-                (
-                    msg!(CoreAgentStepTitleCheckRestarted),
-                    msg!(CoreAgentStepTextCheckRestarted, check = check),
-                )
-            },
         ]
     }
 
@@ -169,14 +120,6 @@ impl AgentRun {
                         } else {
                             msg!(CoreAgentStepTextPlanViolation)
                         },
-                        StepState::Active,
-                        None,
-                    );
-                }
-                if i == self.completed && self.is_diagnosed() {
-                    return Step::new(
-                        msg!(CoreAgentStepTitleDiagnosisReady),
-                        msg!(CoreAgentStepTextDiagnosisWait),
                         StepState::Active,
                         None,
                     );

@@ -78,12 +78,10 @@ impl Workspace {
             }
         }
 
-        // 3. Runs: follow-up jobs work in the repo of their pull request; real runs that were
-        //    started before were tied to the placeholder repo and now take the only repo.
+        // 3. Runs: follow-up jobs work in the repo of their pull request.
         for i in 0..self.runs.len() {
             let run = &self.runs[i];
-            let stale = run.repo.is_empty() || (run.real && run.repo == DEMO_REPO);
-            if !stale {
+            if !run.repo.is_empty() {
                 continue;
             }
             let from_review = run

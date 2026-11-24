@@ -58,16 +58,6 @@ impl Workspace {
         }
     }
 
-    /// Lets the agent look through a pull request. Returns the number of suggestions.
-    pub fn request_agent_review(&mut self, number: impl Into<PrKey>) -> usize {
-        let key = number.into();
-        let count = self.review_mut(&key).map_or(0, Review::run_agent_review);
-        if let Some(item) = self.pr_item_mut(&key) {
-            item.set_note(super::followups::drafts_note(count));
-        }
-        count
-    }
-
     /// The entry that stands for this pull request in the inbox.
     pub(super) fn pr_item_mut(&mut self, key: impl Into<PrKey>) -> Option<&mut Item> {
         let key = key.into();
@@ -115,16 +105,6 @@ impl Workspace {
 
     // ---------- Checks ----------
 
-    /// Checks that are still running (across all pull requests). Pull requests from GitHub do not
-    /// count: their checks run there, the sync fetches the result.
-    pub fn running_checks(&self) -> usize {
-        self.reviews
-            .iter()
-            .filter(|r| self.sync.pr(r.key()).is_none())
-            .map(Review::running_checks)
-            .sum()
-    }
-
     /// Writes the overall state of the checks into the inbox entries.
     pub(super) fn sync_pr_checks(&mut self, number: impl Into<PrKey>) {
         let key = number.into();
@@ -156,32 +136,6 @@ impl Workspace {
             self.sync_pr_checks(&key);
         }
         restarted
-    }
-
-    /// The tick of the checks: every running one advances one step. Returns
-    /// `(pull request, check, result)` for each one that finished in the process.
-    pub fn advance_checks(&mut self) -> Vec<(PrKey, String, Checks)> {
-        let mut finished = Vec::new();
-        let linked: Vec<PrKey> = self.sync.prs.iter().map(crate::sync::PrLink::key).collect();
-        for review in self
-            .reviews
-            .iter_mut()
-            .filter(|r| !linked.iter().any(|l| l.same(&r.key())))
-        {
-            for name in review.advance_checks() {
-                let status = review
-                    .check_runs
-                    .iter()
-                    .find(|c| c.name == name)
-                    .map_or(Checks::Failed, |c| c.status);
-                finished.push((review.key(), name, status));
-            }
-        }
-        let keys: Vec<PrKey> = finished.iter().map(|(k, ..)| k.clone()).collect();
-        for k in keys {
-            self.sync_pr_checks(k);
-        }
-        finished
     }
 
     // ---------- Merging ----------

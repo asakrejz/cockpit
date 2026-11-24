@@ -1,6 +1,5 @@
 review_suggestions.pane = Agent review
 review_suggestions.intro_real = The agent reads the pull request and prepares comments. It changes nothing and sends nothing.
-review_suggestions.intro_none = The agent has not looked at this pull request yet.
 review_suggestions.intro_clean = The agent has nothing to point out.
 review_suggestions.intro_drafts = The agent has prepared comments. Nothing is sent until you approve it.
 review_suggestions.reading = Agent is reading …
@@ -9,7 +8,6 @@ review_suggestions.last_run_ended = The last run ended without a result: {reason
 review_suggestions.summary_region = Summary by the agent
 review_suggestions.summary_note = Summary by the agent (stays with you)
 review_suggestions.take_over = Use in my comment
-review_suggestions.request = Request agent review
 review_suggestions.own_note = Your own comment (optional)
 review_suggestions.own_label = Your own comment
 review_suggestions.own_placeholder = Summary for the review …

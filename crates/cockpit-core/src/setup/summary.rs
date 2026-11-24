@@ -163,8 +163,8 @@ pub(super) fn jira_line(s: &Snapshot) -> Line {
 pub fn summary(s: &Snapshot) -> Vec<Line> {
     let e = &s.setup;
     let container = match (&s.container.runtime, s.container.engine_running) {
-        // If the real agent runs, one step is still missing without an image.
-        (Some(l), true) if s.agent.mode == "real" && !s.agent.image => {
+        // One step is still missing without an image of the agent.
+        (Some(l), true) if !s.agent.image => {
             (Tone::Open, msg!(CoreSetupContainerNoImage, runtime = l))
         }
         (Some(l), true) => (Tone::Good, msg!(CoreSetupContainerOk, runtime = l)),

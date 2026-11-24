@@ -12,8 +12,7 @@
 //! the test `only_actions_that_require_the_user_become_calls` walks through every action.
 
 use cockpit_core::{
-    Action, Decision, DiffSide, LineKind, MergeMethod, PrKey, Review, TicketStatus, Verdict,
-    Workspace,
+    Action, Decision, LineKind, MergeMethod, PrKey, Review, TicketStatus, Verdict, Workspace,
 };
 use serde_json::{Value, json};
 
@@ -399,12 +398,6 @@ fn verdict(v: Verdict) -> &'static str {
     }
 }
 
-/// `datei · Zeile 12` → `("datei", 12)`.
-fn location_read(location: &str) -> Option<(&str, u32)> {
-    let (file, line) = location.rsplit_once(" · Zeile ")?;
-    Some((file.trim(), line.trim().parse().ok()?))
-}
-
 /// Builds the review from the state: verdict, own text, approved suggestions of the agent
 /// and all own line comments (with `suggestion` blocks). Whatever cannot be assigned to a line
 /// ends up in the text of the review, so that nothing gets lost.
@@ -418,13 +411,10 @@ pub fn review_data(review: &Review, comment: &str, sha: &str) -> ReviewData {
         .iter()
         .filter(|s| s.decision == Some(Decision::Approved))
     {
-        // Structured position (real agent) first, the old „datei · Zeile N“ for the demo rules.
-        let place = if s.path.is_empty() {
-            location_read(&s.location).map(|(file, nr)| (file, nr, None, DiffSide::Right))
-        } else {
-            Some((s.path.as_str(), s.line, s.start_line, s.side))
-        }
-        .filter(|(file, nr, _, side)| review.has_line(file, *side, *nr));
+        // A draft without a position (path empty) cannot be placed on a line.
+        let place = Some((s.path.as_str(), s.line, s.start_line, s.side))
+            .filter(|(file, ..)| !file.is_empty())
+            .filter(|(file, nr, _, side)| review.has_line(file, *side, *nr));
         match place {
             Some((file, nr, start, side)) => lines.push(LineComment {
                 path: file.into(),

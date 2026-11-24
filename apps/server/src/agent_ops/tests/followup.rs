@@ -4,7 +4,7 @@
 use super::*;
 use crate::config::GitHubConfig;
 use cockpit_core::api::PullRequestPreview;
-use cockpit_core::{FollowupTask, PrLink, PullRequestRef};
+use cockpit_core::{PrLink, PullRequestRef};
 use serde_json::json;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};

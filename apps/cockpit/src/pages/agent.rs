@@ -94,8 +94,6 @@ pub fn AgentPage(ticket: Option<String>) -> impl IntoView {
 
                         {move || controls::problem_alert(ctx)}
 
-                        {move || decisions::diagnosis(ctx)}
-
                         {move || decisions::stopped_card(ctx)}
 
                         {move || decisions::question(ctx)}

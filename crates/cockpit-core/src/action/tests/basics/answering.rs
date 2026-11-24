@@ -79,7 +79,7 @@ fn invalid_answers_change_nothing() {
 }
 
 #[test]
-fn steering_is_acknowledged_by_the_agent_in_the_next_step() {
+fn steering_is_acknowledged_when_the_container_delivers_the_hint() {
     let mut w = ws();
     ok(
         &mut w,
@@ -105,11 +105,10 @@ fn steering_is_acknowledged_by_the_agent_in_the_next_step() {
         },
         1,
     );
-    // The tick logs the acknowledged hint and the step.
-    let tick = w.apply(Action::AdvanceAgents, Actor::Agent, T).unwrap();
-    assert_eq!(tick.logged, 2);
-    assert_eq!(tick.summary, "BAU-150: 1 Hinweis berücksichtigt");
+    assert_eq!(w.run("BAU-150").unwrap().pending_hints.len(), 1);
+    report(&mut w, "BAU-150", AgentReport::HintsDelivered { count: 1 }).unwrap();
     let run = w.run("BAU-150").unwrap();
+    assert!(run.pending_hints.is_empty());
     assert!(
         run.messages
             .iter()

@@ -14,7 +14,6 @@ pub(super) fn controls(ctx: AgentCtx) -> impl IntoView {
         running,
         awaiting,
         paused,
-        diagnosed,
         followup,
         working,
         violations,
@@ -22,7 +21,6 @@ pub(super) fn controls(ctx: AgentCtx) -> impl IntoView {
         ..
     } = ctx;
     let OptionSignals { repo, .. } = ctx.form;
-    let real = ctx.real;
     let start = move |_| ctx.start();
     let cancel = move |_| ctx.cancel();
     let approve = move |_| ctx.approve();
@@ -30,18 +28,13 @@ pub(super) fn controls(ctx: AgentCtx) -> impl IntoView {
     let pause = move |_| ctx.pause();
     let resume = move |_| ctx.resume();
     let to_ticket = move |_| ctx.to_ticket();
-    let apply_fix = move |_| ctx.apply_fix();
-    let discard_fix = move |_| ctx.discard_fix();
     view! {
         <div class="ui-hstack" style="--spacing: 10px">
             <Show when=move || idle.get() && !followup.get()>
                 <Button
                     variant=ButtonStyle::GlassProminent
                     size=ControlSize::Large
-                    disabled=Signal::derive(move || {
-                        blocked.get().is_some()
-                            || (real.get() && repo.get().is_empty())
-                    })
+                    disabled=Signal::derive(move || blocked.get().is_some() || repo.get().is_empty())
                     on_click=start
                 >
                     <Icon path=icons::SPARKLES />
@@ -71,21 +64,7 @@ pub(super) fn controls(ctx: AgentCtx) -> impl IntoView {
                     {t!(AgentControlsResume)}
                 </Button>
             </Show>
-            <Show when=move || diagnosed.get()>
-                <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large on_click=apply_fix>
-                    {move || {
-                        if run.get().and_then(|r| r.diagnosis).is_some_and(|d| !d.changes_code()) {
-                            t!(AgentControlsRerunCheck)
-                        } else {
-                            t!(AgentControlsApplyFix)
-                        }
-                    }}
-                </Button>
-                <Button size=ControlSize::Large destructive=true on_click=discard_fix>
-                    {t!(AgentControlsDiscard)}
-                </Button>
-            </Show>
-            <Show when=move || working.get() && !diagnosed.get()>
+            <Show when=move || working.get()>
                 <Button size=ControlSize::Large destructive=true on_click=cancel>
                     {t!(AgentControlsCancel)}
                 </Button>

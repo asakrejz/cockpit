@@ -193,7 +193,8 @@ impl Default for AgentLimits {
 }
 
 impl AgentLimits {
-    /// Without any limit (for runs that are clocked without a workspace).
+    /// Without any limit (for tests of a run without a workspace).
+    #[cfg(test)]
     pub fn unlimited() -> Self {
         Self {
             pricing: Pricing::default(),

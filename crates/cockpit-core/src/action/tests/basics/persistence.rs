@@ -15,10 +15,6 @@ fn actions_roundtrip_as_json() {
     };
     let text = serde_json::to_string(&start).unwrap();
     assert_eq!(serde_json::from_str::<Action>(&text).unwrap(), start);
-    assert_eq!(
-        serde_json::from_str::<Action>("\"AdvanceAgents\"").unwrap(),
-        Action::AdvanceAgents
-    );
 }
 
 #[test]
@@ -33,7 +29,10 @@ fn the_log_survives_save_and_load() {
     )
     .unwrap();
     w.apply(
-        Action::RequestAgentReview { review: 85.into() },
+        Action::SetVerdict {
+            review: 85.into(),
+            verdict: Verdict::Approve,
+        },
         Actor::User,
         T + 1,
     )

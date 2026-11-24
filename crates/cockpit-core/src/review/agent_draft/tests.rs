@@ -47,7 +47,6 @@ fn a_draft_needs_a_line_on_the_right_side_of_the_diff() {
         (s.id.as_str(), s.location.as_str()),
         ("a1", "a.rs · Zeile 3")
     );
-    assert_eq!(s.origin, Origin::Agent);
     assert_eq!(s.decision, None);
 }
 
