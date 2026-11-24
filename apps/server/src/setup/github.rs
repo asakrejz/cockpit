@@ -48,7 +48,7 @@ pub(super) fn github_failure(e: &Error) -> (StatusCode, Msg) {
     }
 }
 
-fn cause(e: &Error) -> GitHubCause {
+pub(super) fn cause(e: &Error) -> GitHubCause {
     match e {
         Error::NotSignedIn => GitHubCause::Token,
         Error::NoPermission => GitHubCause::Permission,

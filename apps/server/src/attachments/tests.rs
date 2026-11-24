@@ -300,3 +300,47 @@ async fn the_sample_picture_comes_without_jira_and_nothing_else_does() {
     let (status, _, _) = get(&state, "/api/jira/attachment/900002").await;
     assert_eq!(status, StatusCode::BAD_GATEWAY);
 }
+
+/// What the browser is told for a failed download: a file that is too large or unknown says so, and
+/// every other failure of Jira is a bad gateway – also a refused key, since the request of the
+/// browser itself was fine.
+#[tokio::test]
+async fn a_failed_download_is_answered_with_the_matching_status() {
+    use cockpit_core::{Right, TokenKind};
+    let others = [
+        (Error::NotSignedIn, StatusCode::BAD_GATEWAY),
+        (Error::NoPermission, StatusCode::BAD_GATEWAY),
+        (Error::RateLimit { wait_s: None }, StatusCode::BAD_GATEWAY),
+        (Error::Network("down".into()), StatusCode::BAD_GATEWAY),
+        (Error::Rejected(String::new()), StatusCode::BAD_GATEWAY),
+        (Error::Status(500), StatusCode::BAD_GATEWAY),
+        (Error::Response("x".into()), StatusCode::BAD_GATEWAY),
+        (Error::Config("x".into()), StatusCode::BAD_GATEWAY),
+        (Error::NotPossible("x".into()), StatusCode::BAD_GATEWAY),
+        (
+            Error::Coded(msg!(IntegrationsNotFound)),
+            StatusCode::BAD_GATEWAY,
+        ),
+        (
+            Error::MissingRight {
+                right: Right::IssuesRead,
+                kind: TokenKind::App,
+            },
+            StatusCode::BAD_GATEWAY,
+        ),
+    ];
+    let table = [
+        (Error::TooLarge, StatusCode::PAYLOAD_TOO_LARGE),
+        (Error::NotFound, StatusCode::NOT_FOUND),
+    ]
+    .into_iter()
+    .chain(others);
+    for (e, status) in table {
+        let text = e.msg();
+        let answer = failure(e.clone());
+        assert_eq!(answer.status(), status, "{e:?}");
+        let body = answer.into_body().collect().await.unwrap().to_bytes();
+        let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(body["msg"], serde_json::to_value(&text).unwrap(), "{e:?}");
+    }
+}

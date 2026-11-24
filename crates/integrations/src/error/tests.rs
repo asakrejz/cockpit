@@ -25,6 +25,65 @@ fn problem_per_error() {
     assert!(matches!(Error::Status(500).problem(0), Problem::Other(_)));
 }
 
+/// The state per source for every kind of error: the same kinds as before get the same state.
+#[test]
+fn problem_of_every_error() {
+    use cockpit_core::{Right, TokenKind};
+    let other = |e: Error| Problem::Other(e.msg());
+    let table = [
+        (Error::Network("down".into()), Problem::Offline),
+        (Error::NotSignedIn, Problem::Unauthorized),
+        (Error::NoPermission, Problem::NoPermission),
+        (
+            Error::RateLimit { wait_s: Some(2) },
+            Problem::RateLimited {
+                until_ms: Some(3_000),
+            },
+        ),
+        (
+            Error::RateLimit { wait_s: None },
+            Problem::RateLimited { until_ms: None },
+        ),
+        (Error::NotFound, other(Error::NotFound)),
+        (Error::TooLarge, other(Error::TooLarge)),
+        (
+            Error::Rejected(String::new()),
+            other(Error::Rejected(String::new())),
+        ),
+        (
+            Error::Rejected("no".into()),
+            other(Error::Rejected("no".into())),
+        ),
+        (Error::Status(500), other(Error::Status(500))),
+        (
+            Error::Response("x".into()),
+            other(Error::Response("x".into())),
+        ),
+        (Error::Config("x".into()), other(Error::Config("x".into()))),
+        (
+            Error::NotPossible("x".into()),
+            other(Error::NotPossible("x".into())),
+        ),
+        (
+            Error::Coded(msg!(IntegrationsNotFound)),
+            other(Error::Coded(msg!(IntegrationsNotFound))),
+        ),
+        (
+            Error::MissingRight {
+                right: Right::IssuesWrite,
+                kind: TokenKind::App,
+            },
+            Problem::MissingRight {
+                right: Right::IssuesWrite,
+                kind: TokenKind::App,
+            },
+        ),
+    ];
+    for (e, problem) in table {
+        assert_eq!(e.problem(1_000), problem, "{e:?}");
+    }
+}
+
 /// The text for logs is English, whatever language the reader has.
 #[test]
 fn display_is_english() {

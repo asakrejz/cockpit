@@ -340,3 +340,6 @@ fn link(p: &PullSummary, existed: bool) -> PullRequestRef {
         existed,
     }
 }
+
+#[cfg(test)]
+mod tests;
