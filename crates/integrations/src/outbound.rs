@@ -314,13 +314,7 @@ fn plan_project(
                 return fail(msg!(IntegrationsPlanNoStatusField));
             };
             let Some(option) = option_for(&def.options, *status) else {
-                return fail(msg!(
-                    IntegrationsPlanNoColumn,
-                    status = cockpit_core::TicketStatus::OPTIONS
-                        .iter()
-                        .find(|(id, _)| *id == status.id())
-                        .map_or("", |(_, label)| *label)
-                ));
+                return fail(msg!(IntegrationsPlanNoColumn, status = status.name_msg()));
             };
             Some(field_call(
                 &def.id,
@@ -347,7 +341,7 @@ fn plan_project(
             }
             let who = if *person == Person::me() {
                 Assignee::Me
-            } else if person.name == cockpit_core::UNASSIGNED_NAME {
+            } else if person.nobody {
                 Assignee::Nobody
             } else {
                 Assignee::Login(person.name.clone())

@@ -25,8 +25,7 @@ fn fixed_choices_contain_the_default_or_the_all_choice() {
     for def in FILTERS {
         if let Choices::Fixed(list) = def.choices {
             assert!(
-                def.default.is_empty() && def.all_label.is_some()
-                    || list.iter().any(|(v, _)| *v == def.default),
+                def.default.is_empty() && def.has_all || list.contains(&def.default),
                 "{}",
                 def.id
             );
@@ -36,10 +35,10 @@ fn fixed_choices_contain_the_default_or_the_all_choice() {
 
 #[test]
 fn ids_round_trip() {
-    for (id, _) in Ownership::OPTIONS {
+    for id in Ownership::IDS {
         assert_eq!(Ownership::from_id(id).unwrap().id(), *id);
     }
-    for (id, _) in SprintView::OPTIONS {
+    for id in SprintView::IDS {
         assert_eq!(SprintView::from_id(id).unwrap().id(), *id);
     }
     assert_eq!(Ownership::from_id("x"), None);
@@ -189,7 +188,7 @@ fn the_project_comes_from_the_key_of_ticket_branch_or_title() {
         [
             ("BAU".to_string(), "BAU".to_string()),
             ("WEB".to_string(), "WEB".to_string()),
-            (NO_TICKET.to_string(), "Ohne Ticket".to_string()),
+            (NO_TICKET.to_string(), NO_TICKET.to_string()),
         ]
     );
 }
@@ -304,7 +303,7 @@ fn choices_come_from_the_definitions_or_the_data() {
         ticket("BAU-1", None, TicketStatus::Open, 1),
         pull(1, "x", "y", true),
     ]);
-    assert_eq!(ws.filter_choices("sprint").len(), SprintView::OPTIONS.len());
+    assert_eq!(ws.filter_choices("sprint").len(), SprintView::IDS.len());
     assert_eq!(
         ws.filter_choices("repo"),
         [("acme/app".to_string(), "acme/app".to_string())]
@@ -340,7 +339,7 @@ fn people_workspace() -> Workspace {
     let mk = |key: &str, owner: &str, reporter: &str, kind: &str, p: crate::Priority| {
         let mut t = ticket(key, Some(SprintState::Active), TicketStatus::Open, 1);
         t.owner = if owner.is_empty() {
-            crate::Person::new(UNASSIGNED_NAME, "–")
+            crate::Person::nobody()
         } else {
             crate::Person::new(owner, "XX")
         };

@@ -2,10 +2,12 @@
 //!
 //! Matching ignores case and accents („Böhm“ = „bohm“). A name that starts with the query
 //! comes before one with a word that starts with it, and that before one that only contains it.
-//! You come first, nobody appears twice. „Nicht zugewiesen“ and the agent are never results
+//! You come first, nobody appears twice. "Nobody" (unassigned) and the agent are never results
 //! (the field offers the first as a quick choice; the agent gets tickets through its run).
 
-use crate::{Person, UNASSIGNED_NAME};
+use cockpit_i18n::Lang;
+
+use crate::Person;
 
 /// At most this many suggestions are shown.
 pub const MAX_SUGGESTIONS: usize = 8;
@@ -75,16 +77,18 @@ pub fn search(local: &[Person], remote: &[Person], query: &str) -> Vec<Person> {
     let mut seen: Vec<String> = Vec::new();
     let mut hits: Vec<(u8, usize, Person)> = Vec::new();
     for (order, person) in local.iter().chain(remote).enumerate() {
-        let key = fold(&person.name);
-        if person.is_agent()
-            || person.name.is_empty()
-            || person.name == UNASSIGNED_NAME
-            || seen.contains(&key)
-        {
+        // You are found by the word for "you" in either language.
+        let names = if person.me {
+            vec![person.name_in(Lang::De), person.name_in(Lang::En)]
+        } else {
+            vec![person.name.clone()]
+        };
+        let key = fold(&names[0]);
+        if person.is_agent() || person.nobody || names[0].is_empty() || seen.contains(&key) {
             continue;
         }
         seen.push(key);
-        if let Some(rank) = grade(&person.name, &needle) {
+        if let Some(rank) = names.iter().filter_map(|n| grade(n, &needle)).min() {
             // You first, whatever the match.
             let rank = if *person == me { 0 } else { rank + 1 };
             hits.push((rank, order, person.clone()));

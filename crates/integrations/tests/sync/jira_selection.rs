@@ -148,9 +148,9 @@ async fn all_open_tickets_arrive_including_those_of_other_people() {
         (other.scope, other.owner.name.as_str()),
         (Scope::Team, "Tobias Lang")
     );
-    assert_eq!(other.reason_text, "Im Projekt");
+    assert_eq!(other.reason_line().de(), "Im Projekt");
     let nobody = ws.item_by_key("BAU-3").unwrap();
-    assert_eq!(nobody.owner.name, cockpit_core::UNASSIGNED_NAME);
+    assert!(nobody.owner.nobody);
     assert_eq!(nobody.scope, Scope::Team);
     // They are in the inbox once „Alle“ and „Alle offenen“ are chosen.
     let by = cockpit_core::InboxFilter {
@@ -184,5 +184,8 @@ async fn without_a_selection_the_sprint_query_stays_as_before() {
     )
     .await;
     let (ws, _) = sync(&services(&s, q), &Workspace::default(), NOW_MS).await;
-    assert_eq!(ws.item_by_key("WEB-1").unwrap().reason_text, "Im Sprint");
+    assert_eq!(
+        ws.item_by_key("WEB-1").unwrap().reason_line().de(),
+        "Im Sprint"
+    );
 }

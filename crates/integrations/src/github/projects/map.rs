@@ -6,7 +6,7 @@ use cockpit_core::{
     Person, PrKey, Priority, ProjectItem, ReasonKind, Scope, Source, Sprint, SprintState, TeamRef,
     TicketStatus,
 };
-use cockpit_i18n::Lang;
+use cockpit_i18n::msg;
 
 use super::dto::{Content, DetailNode, FieldValueNode, ItemNode};
 use crate::{text, time};
@@ -40,8 +40,14 @@ fn person_of(login: &str, me: &str) -> Person {
     }
 }
 
+/// The name for a plain name field (reporter, co-assignees): [`cockpit_core::ME_MARK`] for me.
 fn name_of(login: &str, me: &str) -> String {
-    person_of(login, me).name
+    let person = person_of(login, me);
+    if person.me {
+        cockpit_core::ME_MARK.to_string()
+    } else {
+        person.name
+    }
 }
 
 /// A number the way people write it: `3`, `2.5`.
@@ -230,17 +236,18 @@ pub fn map_item(
     let owner = match logins.first() {
         Some(_) if mine => Person::me(),
         Some(l) => text::person(l),
-        None => Person::new(cockpit_core::UNASSIGNED_NAME, "–"),
+        None => Person::nobody(),
     };
+    let owner_name = logins.first().map(|l| name_of(l, ctx.me));
     let co_assignees: Vec<String> = logins
         .iter()
         .map(|l| name_of(l, ctx.me))
-        .filter(|n| *n != owner.name)
+        .filter(|n| Some(n) != owner_name.as_ref())
         .collect();
-    let (reason, reason_text, scope) = if mine {
-        (ReasonKind::Assigned, "Dir zugewiesen", Scope::Mine)
+    let (reason, reason_msg, scope) = if mine {
+        (ReasonKind::Assigned, msg!(ReasonAssigned), Scope::Mine)
     } else {
-        (ReasonKind::Comment, "Im Projekt", Scope::Team)
+        (ReasonKind::Comment, msg!(ReasonInProject), Scope::Team)
     };
 
     let labels: Vec<String> = c
@@ -328,8 +335,9 @@ pub fn map_item(
         description: c.body.clone(),
         description_rich: None,
         reason,
-        reason_text: reason_text.into(),
-        time: time::relative(&updated, ctx.now_s, Lang::De),
+        reason_msg: Some(reason_msg),
+        reason_text: String::new(),
+        time: String::new(),
         scope,
         owner,
         status,
@@ -427,7 +435,8 @@ pub fn heavy_of(d: &DetailNode, ctx: &MapCtx<'_>) -> Heavy {
             let own = !ctx.me.is_empty() && login.eq_ignore_ascii_case(ctx.me);
             Comment {
                 author: person_of(login, ctx.me),
-                time: time::relative(&c.created_at, ctx.now_s, Lang::De),
+                time: String::new(),
+                created_ms: time::parse_iso(&c.created_at).map(|s| s.max(0) as u64 * 1000),
                 text: c.body.clone(),
                 text_msg: None,
                 rich: None,

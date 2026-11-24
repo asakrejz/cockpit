@@ -20,7 +20,7 @@ fn report(store: Store, result: Result<cockpit_core::Applied, cockpit_core::Acti
 }
 
 /// The name of a filter of the central list, in the current language.
-fn filter_label(id: &str, fallback: &str) -> String {
+fn filter_label(id: &str) -> String {
     match id {
         JIRA_PROJECT_FILTER => t!(InboxFiltersJiraProject),
         "source" => t!(InboxFiltersLabelSource),
@@ -36,12 +36,12 @@ fn filter_label(id: &str, fallback: &str) -> String {
         "type" => t!(InboxFiltersLabelType),
         "priority" => t!(InboxFiltersLabelPriority),
         "done" => t!(InboxFiltersLabelDone),
-        _ => fallback.to_string(),
+        other => other.to_string(),
     }
 }
 
 /// The „no restriction“ choice of a filter.
-fn all_label(id: &str, fallback: &str) -> String {
+fn all_label(id: &str) -> String {
     match id {
         "project" => t!(InboxFiltersAllProject),
         "repo" => t!(InboxFiltersAllRepo),
@@ -51,7 +51,7 @@ fn all_label(id: &str, fallback: &str) -> String {
         "reporter" => t!(InboxFiltersAllReporter),
         "type" => t!(InboxFiltersAllType),
         "priority" => t!(InboxFiltersAllPriority),
-        _ => fallback.to_string(),
+        _ => t!(InboxFiltersOptAll),
     }
 }
 
@@ -60,6 +60,9 @@ fn all_label(id: &str, fallback: &str) -> String {
 fn choice_label(id: &str, value: &str, fallback: &str) -> String {
     match (id, value) {
         ("source" | "ownership", "all") => t!(InboxFiltersOptAll),
+        ("source", "jira") => cockpit_core::Source::Jira.label().to_string(),
+        ("source", "github") => cockpit_core::Source::GitHub.label().to_string(),
+        ("source", "project") => cockpit_core::Source::GitHubProject.label().to_string(),
         ("ownership", "mine") => t!(InboxFiltersOptOwnershipMine),
         ("sprint", "current") => t!(InboxFiltersOptSprintCurrent),
         ("sprint", "open") => t!(InboxFiltersOptSprintOpen),
@@ -121,7 +124,7 @@ pub(super) fn filter_chips(store: Store) -> impl IntoView {
                     };
                     let name = t!(
                         InboxFiltersChipPair,
-                        label = filter_label(id, active.label),
+                        label = filter_label(id),
                         value = value
                     );
                     let label = t!(InboxFiltersChipRemove, name = name);
@@ -218,7 +221,7 @@ fn options_of(
         let mut list: Vec<(String, String)> = match def.choices {
             Choices::Fixed(fixed) => fixed
                 .iter()
-                .map(|(v, l)| (v.to_string(), choice_label(def.id, v, l)))
+                .map(|v| (v.to_string(), choice_label(def.id, v, v)))
                 .collect(),
             Choices::FromData => store
                 .ws
@@ -234,11 +237,12 @@ fn options_of(
         if !current.is_empty() && !list.iter().any(|(v, _)| *v == current) {
             list.push((current.clone(), current));
         }
-        match def.all_label {
-            Some(all) => std::iter::once((String::new(), all_label(def.id, all)))
+        if def.has_all {
+            std::iter::once((String::new(), all_label(def.id)))
                 .chain(list)
-                .collect(),
-            None => list,
+                .collect()
+        } else {
+            list
         }
     })
 }
@@ -264,10 +268,10 @@ fn filter_field(
         <Show when=shown>
             <div class="ck-dialog__field">
                 {if matches!(def.id, "person" | "reporter") {
-                    view! { <SearchSelect label=filter_label(def.id, def.label) options=options value=value on_change=set /> }
+                    view! { <SearchSelect label=filter_label(def.id) options=options value=value on_change=set /> }
                         .into_any()
                 } else {
-                    view! { <Select label=filter_label(def.id, def.label) options=options value=value on_change=set /> }
+                    view! { <Select label=filter_label(def.id) options=options value=value on_change=set /> }
                         .into_any()
                 }}
             </div>

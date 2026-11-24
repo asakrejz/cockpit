@@ -4,8 +4,10 @@ fn p(name: &str) -> Person {
     Person::new(name, "XX")
 }
 
-fn names(list: &[Person]) -> Vec<&str> {
-    list.iter().map(|p| p.name.as_str()).collect()
+fn names(list: &[Person]) -> Vec<String> {
+    list.iter()
+        .map(|p| p.name_in(cockpit_i18n::Lang::De))
+        .collect()
 }
 
 #[test]
@@ -67,20 +69,12 @@ fn local_wins_over_remote_and_order_inside_a_rank_is_stable() {
 
 #[test]
 fn leaves_out_the_agent_and_unassigned_and_cuts_to_eight() {
-    let mut all = vec![
-        Person::agent(),
-        Person::new(UNASSIGNED_NAME, "–"),
-        p("Nicht Jemand"),
-    ];
+    let mut all = vec![Person::agent(), Person::nobody(), p("Nicht Jemand")];
     for i in 0..12 {
         all.push(p(&format!("Nora {i}")));
     }
     let found = search(&all, &[], "no");
     assert_eq!(found.len(), MAX_SUGGESTIONS);
-    assert!(
-        found
-            .iter()
-            .all(|f| !f.is_agent() && f.name != UNASSIGNED_NAME)
-    );
+    assert!(found.iter().all(|f| !f.is_agent() && !f.nobody));
     assert!(search(&all, &[], "agent").is_empty());
 }

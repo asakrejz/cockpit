@@ -73,25 +73,31 @@ impl Workspace {
         &mut self,
         number: impl Into<PrKey>,
         own_comment: &str,
+        now_ms: u64,
     ) -> Result<usize, SendError> {
         let key = number.into();
         let review = self.review_mut(&key).ok_or(SendError::UnknownReview)?;
         let verdict = review.verdict;
         let sent = review.send()?.len();
 
-        let mut text = format!(
-            "Review gesendet: {} · {sent} {}",
-            verdict.label(),
-            if sent == 1 { "Kommentar" } else { "Kommentare" }
+        // The comment on the entry says what was sent; the own text follows in a line of its own.
+        let own_comment = own_comment.trim();
+        let note = if own_comment.is_empty() {
+            String::new()
+        } else {
+            format!("\n{own_comment}")
+        };
+        let sent_msg = cockpit_i18n::msg!(
+            CoreWorkspaceReviewSent,
+            verdict = verdict.label_msg(),
+            comments = crate::action::labels::comments(sent),
+            note = note
         );
-        if !own_comment.trim().is_empty() {
-            text.push('\n');
-            text.push_str(own_comment.trim());
-        }
         if let Some(item) = self.pr_item_mut(&key) {
             item.comments.push(Comment {
                 own: true,
-                ..Comment::new(Person::me(), "gerade eben", &text)
+                text_msg: Some(sent_msg),
+                ..Comment::at(Person::me(), now_ms, "")
             });
             item.clear_note();
             item.read = true;
@@ -120,8 +126,10 @@ impl Workspace {
             }
             // Green again: the entry no longer hangs on the checks.
             if checks == Checks::Passed && item.reason == ReasonKind::ChecksFailed {
-                item.reason = ReasonKind::ReviewRequested;
-                item.reason_text = "Checks wieder bestanden".into();
+                item.set_reason(
+                    ReasonKind::ReviewRequested,
+                    cockpit_i18n::msg!(ReasonChecksPassedAgain),
+                );
             }
         }
     }
@@ -189,7 +197,11 @@ impl Workspace {
             item.read = true;
             item.clear_note();
             if item.kind == Kind::PullRequest {
-                item.reason_text = format!("Gemergt ({})", method.label());
+                item.reason_msg = Some(cockpit_i18n::msg!(
+                    ReviewMerged,
+                    method = crate::action::labels::method(method)
+                ));
+                item.reason_text.clear();
             }
         }
         // A linked ticket without its own copy of the pull request gets it now.

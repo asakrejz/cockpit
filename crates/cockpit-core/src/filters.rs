@@ -21,8 +21,8 @@ pub enum Ownership {
 }
 
 impl Ownership {
-    pub const OPTIONS: &'static [(&'static str, &'static str)] =
-        &[("mine", "Meine"), ("all", "Alle")];
+    /// The IDs, in display order; the interface words them.
+    pub const IDS: &'static [&'static str] = &["mine", "all"];
 
     pub fn id(self) -> &'static str {
         match self {
@@ -55,12 +55,8 @@ pub enum SprintView {
 }
 
 impl SprintView {
-    pub const OPTIONS: &'static [(&'static str, &'static str)] = &[
-        ("current", "Aktueller Sprint"),
-        ("open", "Alle offenen"),
-        ("recent", "Zuletzt aktualisiert (14 Tage)"),
-        ("backlog", "Backlog (kein Sprint)"),
-    ];
+    /// The IDs, in display order; the interface words them.
+    pub const IDS: &'static [&'static str] = &["current", "open", "recent", "backlog"];
 
     pub fn id(self) -> &'static str {
         match self {
@@ -95,9 +91,6 @@ pub const ASSIGNED_TO_ME: &str = "@me";
 /// The value of the person filter for tickets nobody is assigned to.
 pub const UNASSIGNED: &str = "@none";
 
-/// The name Jira tickets without an assignee carry as owner.
-pub const UNASSIGNED_NAME: &str = "Nicht zugewiesen";
-
 /// The ID the chip of the chosen Jira project carries (it is no inbox filter, but a setting of
 /// the workspace).
 pub const JIRA_PROJECT_FILTER: &str = "jira_project";
@@ -105,10 +98,8 @@ pub const JIRA_PROJECT_FILTER: &str = "jira_project";
 /// A filter that is not at its start value, as shown in the chip under the filter button.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActiveFilter {
-    /// Filter ID, or [`JIRA_PROJECT_FILTER`].
+    /// Filter ID, or [`JIRA_PROJECT_FILTER`]; the interface words it.
     pub id: &'static str,
-    /// Name of the filter (German).
-    pub label: &'static str,
     /// The chosen value as the person reads it.
     pub value: String,
 }
@@ -124,8 +115,8 @@ pub enum Applies {
 /// Where the choices of a filter come from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Choices {
-    /// ID and label, in display order.
-    Fixed(&'static [(&'static str, &'static str)]),
+    /// The IDs, in display order; the interface words them.
+    Fixed(&'static [&'static str]),
     /// From the entries in the workspace (see `Workspace::filter_choices`).
     FromData,
 }
@@ -135,125 +126,108 @@ pub enum Choices {
 pub struct FilterDef {
     /// Stable ID: key for `InboxFilter::get`/`set`.
     pub id: &'static str,
-    /// Name for the label of the control and the dialog (German).
-    pub label: &'static str,
-    /// Label of the choice „no restriction“ (value is the empty text). `None`: the filter
-    /// has no such choice.
-    pub all_label: Option<&'static str>,
+    /// The filter has the choice „no restriction“ (its value is the empty text).
+    pub has_all: bool,
     pub choices: Choices,
     /// Value at the start (the empty text = „all“).
     pub default: &'static str,
     pub applies: Applies,
 }
 
-const DONE_OPTIONS: &[(&str, &str)] =
-    &[("on", "Erledigte ausblenden"), ("off", "Erledigte zeigen")];
+const DONE_IDS: &[&str] = &["on", "off"];
 
-const WATCHED_OPTIONS: &[(&str, &str)] = &[("off", "Egal"), ("on", "Nur beobachtete")];
+const WATCHED_IDS: &[&str] = &["off", "on"];
 
 /// All inbox filters, in display order.
 pub const FILTERS: &[FilterDef] = &[
     FilterDef {
         id: "source",
-        label: "Quelle",
-        all_label: None,
-        choices: Choices::Fixed(crate::SourceFilter::OPTIONS),
+        has_all: false,
+        choices: Choices::Fixed(crate::SourceFilter::IDS),
         default: "all",
         applies: Applies::Both,
     },
     FilterDef {
         id: "ownership",
-        label: "Besitz",
-        all_label: None,
-        choices: Choices::Fixed(Ownership::OPTIONS),
+        has_all: false,
+        choices: Choices::Fixed(Ownership::IDS),
         default: "all",
         applies: Applies::Both,
     },
     FilterDef {
         id: "sprint",
-        label: "Sprint",
-        all_label: None,
-        choices: Choices::Fixed(SprintView::OPTIONS),
+        has_all: false,
+        choices: Choices::Fixed(SprintView::IDS),
         default: "current",
         applies: Applies::Tickets,
     },
     FilterDef {
         id: "project",
-        label: "Ticket-Projekt",
-        all_label: Some("Alle Ticket-Projekte"),
+        has_all: true,
         choices: Choices::FromData,
         default: "",
         applies: Applies::Both,
     },
     FilterDef {
         id: "repo",
-        label: "Repo",
-        all_label: Some("Alle Repos"),
+        has_all: true,
         choices: Choices::FromData,
         default: "",
         applies: Applies::PullRequests,
     },
     FilterDef {
         id: "person",
-        label: "Bearbeiter",
-        all_label: Some("Alle"),
+        has_all: true,
         choices: Choices::FromData,
         default: "",
         applies: Applies::Both,
     },
     FilterDef {
         id: "reporter",
-        label: "Ersteller",
-        all_label: Some("Alle"),
+        has_all: true,
         choices: Choices::FromData,
         default: "",
         applies: Applies::Tickets,
     },
     FilterDef {
         id: "watched",
-        label: "Beobachtet von mir",
-        all_label: None,
-        choices: Choices::Fixed(WATCHED_OPTIONS),
+        has_all: false,
+        choices: Choices::Fixed(WATCHED_IDS),
         default: "off",
         applies: Applies::Tickets,
     },
     FilterDef {
         id: "status",
-        label: "Status",
-        all_label: Some("Alle Status"),
-        choices: Choices::Fixed(crate::TicketStatus::OPTIONS),
+        has_all: true,
+        choices: Choices::Fixed(crate::TicketStatus::IDS),
         default: "",
         applies: Applies::Both,
     },
     FilterDef {
         id: "type",
-        label: "Typ",
-        all_label: Some("Alle Typen"),
+        has_all: true,
         choices: Choices::FromData,
         default: "",
         applies: Applies::Tickets,
     },
     FilterDef {
         id: "priority",
-        label: "Priorität",
-        all_label: Some("Alle Prioritäten"),
-        choices: Choices::Fixed(crate::Priority::OPTIONS),
+        has_all: true,
+        choices: Choices::Fixed(crate::Priority::IDS),
         default: "",
         applies: Applies::Tickets,
     },
     FilterDef {
         id: "label",
-        label: "Label",
-        all_label: Some("Alle Labels"),
+        has_all: true,
         choices: Choices::FromData,
         default: "",
         applies: Applies::Both,
     },
     FilterDef {
         id: "done",
-        label: "Erledigte",
-        all_label: None,
-        choices: Choices::Fixed(DONE_OPTIONS),
+        has_all: false,
+        choices: Choices::Fixed(DONE_IDS),
         default: "on",
         applies: Applies::Tickets,
     },

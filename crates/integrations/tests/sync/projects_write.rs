@@ -156,10 +156,7 @@ async fn assigning_maps_me_nobody_and_a_login() {
         who(Person::new("tobias-lang", "TL")),
         Assignee::Login("tobias-lang".into())
     );
-    assert_eq!(
-        who(Person::new(cockpit_core::UNASSIGNED_NAME, "–")),
-        Assignee::Nobody
-    );
+    assert_eq!(who(Person::nobody()), Assignee::Nobody);
     // The issue is already mine; taking it again changes nothing, so the rules stop it first.
     let mut other = ws.clone();
     other

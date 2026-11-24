@@ -473,7 +473,7 @@ impl GitHubClient {
 
     /// Inbox entries: first review requests, then own pull requests (without duplicates).
     /// For each pull request itself and the check status are loaded afterwards.
-    pub async fn load_inbox(&self, now: i64) -> Result<Vec<Item>, Error> {
+    pub async fn load_inbox(&self) -> Result<Vec<Item>, Error> {
         let mut items: Vec<Item> = Vec::new();
         let mut seen: Vec<(String, u32)> = Vec::new();
         for relation in [Relation::ReviewRequested, Relation::Own] {
@@ -483,7 +483,7 @@ impl GitHubClient {
                 }
                 let pull = self.pull(&repo, nr).await?;
                 let checks = self.checks(&repo, &pull.head.sha).await?;
-                items.push(map::pull_to_item(&repo, &pull, checks, relation, now));
+                items.push(map::pull_to_item(&repo, &pull, checks, relation));
                 seen.push((repo, nr));
             }
         }

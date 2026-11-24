@@ -1,0 +1,4 @@
+# People that are not named by a service: you and nobody.
+person.me = Du
+person.me_initials = D
+person.nobody = Nicht zugewiesen

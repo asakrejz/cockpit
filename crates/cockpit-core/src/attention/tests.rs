@@ -51,10 +51,9 @@ fn days_are_parsed_strictly() {
 
 #[test]
 fn mention_needs_a_whole_name() {
-    assert!(mentions_me("@AS schau mal"));
     assert!(mentions_me("Hallo @du, bitte prüfen"));
     assert!(mentions_me("danke @Du!"));
-    assert!(mentions_me("@as"));
+    assert!(mentions_me("@du"));
     assert!(!mentions_me("@Dutzend Fehler"));
     assert!(!mentions_me("Du hast Post"), "no mention without @");
 }
@@ -66,7 +65,7 @@ fn a_mention_counts_until_i_answer() {
     item.comments.push(Comment::new(
         Person::new("Lena", "LK"),
         "gerade",
-        "@AS kannst du?",
+        "@Du kannst du?",
     ));
     let found = hits(&item, &Rules::default(), now());
     assert_eq!(found.len(), 1);
@@ -75,7 +74,7 @@ fn a_mention_counts_until_i_answer() {
         (Rule::Mention, ReasonKind::Mention, "Lena hat dich erwähnt")
     );
     // Own mentions and others' without me do not count.
-    let mut own = Comment::new(Person::me(), "gerade", "@AS Notiz an mich");
+    let mut own = Comment::new(Person::me(), "gerade", "@Du Notiz an mich");
     own.own = true;
     let mut item2 = quiet(ticket());
     item2.comments.push(own);

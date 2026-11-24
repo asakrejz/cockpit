@@ -2,13 +2,13 @@ use super::*;
 
 #[test]
 fn ids_and_options_agree() {
-    for (id, _) in Filter::OPTIONS {
+    for id in Filter::IDS {
         assert_eq!(Filter::from_id(id).map(Filter::id), Some(*id));
     }
-    for (id, _) in TicketStatus::OPTIONS {
+    for id in TicketStatus::IDS {
         assert_eq!(TicketStatus::from_id(id).map(TicketStatus::id), Some(*id));
     }
-    for (id, _) in SourceFilter::OPTIONS {
+    for id in SourceFilter::IDS {
         assert_eq!(SourceFilter::from_id(id).map(SourceFilter::id), Some(*id));
     }
     assert_eq!(Filter::from_id("???"), None);
@@ -35,13 +35,12 @@ fn source_filter_matches_source() {
 
 #[test]
 fn priorities_roundtrip_and_default_is_medium() {
-    for (id, label) in Priority::OPTIONS {
-        let p = Priority::from_id(id).unwrap();
-        assert_eq!((p.id(), p.label()), (*id, *label));
+    for id in Priority::IDS {
+        assert_eq!(Priority::from_id(id).map(Priority::id), Some(*id));
     }
     assert_eq!(Priority::from_id("???"), None);
     assert_eq!(Priority::default(), Priority::Medium);
-    assert_eq!(Priority::OPTIONS.len(), Priority::ALL.len());
+    assert_eq!(Priority::IDS.len(), Priority::ALL.len());
 }
 
 #[test]
@@ -128,7 +127,7 @@ fn a_run_belongs_to_the_pull_request_entry_it_names() {
 }
 
 #[test]
-fn pr_labels() {
+fn pr_status_tones() {
     let pr = PrRef {
         repo: String::new(),
         number: 87,
@@ -142,8 +141,7 @@ fn pr_labels() {
         requested_me: false,
         assigned_me: false,
     };
-    assert_eq!(pr.label(), "#87 · offen");
-    assert_eq!(pr.status().1, Tone::Orange);
+    assert_eq!(pr.status_tone(), Tone::Orange);
     let failed = PrRef {
         repo: String::new(),
         number: 85,
@@ -157,12 +155,72 @@ fn pr_labels() {
         requested_me: false,
         assigned_me: false,
     };
-    assert_eq!(failed.label(), "#85 · Entwurf");
-    assert_eq!(
-        failed.status(),
-        ("Checks fehlgeschlagen".to_string(), Tone::Red)
-    );
+    assert_eq!(failed.status_tone(), Tone::Red);
     let merged = PrRef { merged: true, ..pr };
-    assert_eq!(merged.label(), "#87 · gemergt");
-    assert_eq!(merged.status(), ("Gemergt".to_string(), Tone::Indigo));
+    assert_eq!(merged.status_tone(), Tone::Indigo);
+}
+
+#[test]
+fn me_and_nobody_are_roles_the_catalog_words() {
+    use cockpit_i18n::Lang;
+    let (me, nobody) = (Person::me(), Person::nobody());
+    assert!(me.me && !me.nobody && me.name.is_empty() && me.initials.is_empty());
+    assert!(nobody.nobody && !nobody.me && nobody.name.is_empty());
+    assert_eq!(me.name_in(Lang::De), "Du");
+    assert_eq!(me.name_in(Lang::En), "You");
+    assert_eq!(me.initials_in(Lang::De), "D");
+    assert_eq!(me.initials_in(Lang::En), "Y");
+    assert_eq!(nobody.name_in(Lang::De), "Nicht zugewiesen");
+    assert_eq!(nobody.name_in(Lang::En), "Unassigned");
+    // A person the service names keeps what the service says, in every language.
+    let lena = Person::new("Lena", "LK");
+    assert_eq!(lena.name_in(Lang::En), "Lena");
+    assert_eq!(lena.initials_in(Lang::En), "LK");
+    assert_ne!(me, lena);
+}
+
+#[test]
+fn roles_are_stored_as_flags_and_the_old_form_reads_as_roles() {
+    let me = serde_json::to_string(&Person::me()).unwrap();
+    assert_eq!(me, r#"{"name":"","initials":"","me":true}"#);
+    let nobody = serde_json::to_string(&Person::nobody()).unwrap();
+    assert_eq!(nobody, r#"{"name":"","initials":"–","nobody":true}"#);
+    let read = |json: &str| serde_json::from_str::<Person>(json).unwrap();
+    assert_eq!(read(&me), Person::me());
+    assert_eq!(read(&nobody), Person::nobody());
+    // The form with the German name, whatever initials were stored with it.
+    assert_eq!(read(r#"{"name":"Du","initials":"XY"}"#), Person::me());
+    assert_eq!(
+        read(r#"{"name":"Nicht zugewiesen","initials":"–"}"#),
+        Person::nobody()
+    );
+    assert_eq!(
+        read(r#"{"name":"Lena","initials":"LK"}"#),
+        Person::new("Lena", "LK")
+    );
+    assert_eq!(read(r#"{}"#), Person::new("", ""));
+}
+
+#[test]
+fn the_mention_handles_of_a_person() {
+    assert_eq!(Person::me().handles(), [ME_MARK.to_lowercase()]);
+    assert_eq!(Person::new("Lena", "LK").handles(), ["lena", "lk"]);
+    assert!(Person::nobody().handles().is_empty());
+}
+
+#[test]
+fn the_reason_line_is_the_message_or_the_stored_text() {
+    use cockpit_i18n::{Lang, msg};
+    let mut item = crate::demo::workspace()
+        .item_by_key("BAU-142")
+        .unwrap()
+        .clone();
+    // Stored text of a state without a message.
+    assert_eq!(item.reason_msg, None);
+    assert_eq!(item.reason_line().render(Lang::En), item.reason_text);
+    item.set_reason(ReasonKind::Assigned, msg!(ReasonAssigned));
+    assert!(item.reason_text.is_empty());
+    assert_eq!(item.reason_line().render(Lang::En), "Assigned to you");
+    assert_eq!(item.reason_line().render(Lang::De), "Dir zugewiesen");
+    assert_eq!(item.reason, ReasonKind::Assigned);
 }

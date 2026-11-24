@@ -559,7 +559,7 @@ impl Workspace {
             | Action::SetIssueClosed { .. }
             | Action::SetProjectField { .. }
             | Action::CreateIssue { .. }
-            | Action::ConvertDraft { .. } => self.perform_projects(action),
+            | Action::ConvertDraft { .. } => self.perform_projects(action, at_ms),
             Action::Decide { .. }
             | Action::EditSuggestion { .. }
             | Action::AddLineComment { .. }
@@ -568,7 +568,7 @@ impl Workspace {
             | Action::SetVerdict { .. }
             | Action::SendReview { .. }
             | Action::RestartCheck { .. }
-            | Action::MergePr { .. } => self.perform_review(action),
+            | Action::MergePr { .. } => self.perform_review(action, at_ms),
             Action::StartAgent { .. }
             | Action::CancelAgent { .. }
             | Action::ApprovePlan { .. }

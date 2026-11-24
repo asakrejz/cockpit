@@ -29,12 +29,7 @@ pub(crate) fn who(actor: Actor) -> Msg {
 }
 
 pub(crate) fn status(status: TicketStatus) -> Msg {
-    match status {
-        TicketStatus::Open => msg!(CoreActionStatusOpen),
-        TicketStatus::InProgress => msg!(CoreActionStatusProgress),
-        TicketStatus::Review => msg!(CoreActionStatusReview),
-        TicketStatus::Done => msg!(CoreActionStatusDone),
-    }
+    status.name_msg()
 }
 
 pub(crate) fn priority(priority: Priority) -> Msg {

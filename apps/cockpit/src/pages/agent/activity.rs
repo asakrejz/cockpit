@@ -23,7 +23,7 @@ fn bubble(m: RunMessage) -> impl IntoView {
     view! {
         <CommentBubble
             who=who
-            initials=if own { "AS" } else { "AG" }
+            initials=if own { cockpit_core::Person::me().initials_in(lang()) } else { "AG".to_string() }
             time=time
             text=m.text_in(lang())
             own=own

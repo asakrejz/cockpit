@@ -20,6 +20,7 @@ fn item(id: &str, key: &str, source: Source) -> Item {
         description: String::new(),
         description_rich: None,
         reason: ReasonKind::Assigned,
+        reason_msg: None,
         reason_text: String::new(),
         time: String::new(),
         scope: Scope::Mine,

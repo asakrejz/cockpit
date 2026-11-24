@@ -177,6 +177,7 @@ fn merge_item(old: Item, remote: &Item, changes: &mut Vec<Change>) -> Item {
     // The agent's result is a local reason; it stays until the service says something new.
     if old.reason == crate::model::ReasonKind::AgentFinished && old.is_ticket() {
         item.reason = old.reason;
+        item.reason_msg = old.reason_msg.clone();
         item.reason_text = old.reason_text.clone();
     }
 

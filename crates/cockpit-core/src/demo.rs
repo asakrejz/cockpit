@@ -52,6 +52,7 @@ fn item(
         description: description.into(),
         description_rich: None,
         reason,
+        reason_msg: None,
         reason_text: reason_text.into(),
         time: time.into(),
         scope: if mine { Scope::Mine } else { Scope::Team },
@@ -398,7 +399,7 @@ fn add_sprints(ws: &mut Workspace) {
         "Idee: Dark-Mode-Schalter im Footer",
         None,
         40,
-        Person::new(crate::UNASSIGNED_NAME, "–"),
+        Person::nobody(),
     ));
     ws.items.push(ticket(
         "WEB-18",

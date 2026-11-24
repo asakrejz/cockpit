@@ -2,9 +2,10 @@
 
 use crate::filters::{
     ASSIGNED_TO_ME, FILTERS, NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED,
-    UNASSIGNED_NAME,
 };
-use crate::model::{Filter, Item, Kind, Person, Priority, SourceFilter, SprintState, TicketStatus};
+use crate::model::{
+    Filter, Item, Kind, ME_MARK, Person, Priority, SourceFilter, SprintState, TicketStatus,
+};
 use serde::{Deserialize, Serialize};
 
 /// Does the entry match the search text?
@@ -25,11 +26,16 @@ pub fn matches_query(item: &Item, query: &str) -> bool {
     if query.is_empty() {
         return true;
     }
+    // The reason line and the owner (you, nobody) are searched in both languages: the row shows
+    // them in the one of the interface.
+    let reason = item.reason_line();
     let haystack = [
         item.title.as_str(),
         item.key.as_str(),
-        item.reason_text.as_str(),
-        item.owner.name.as_str(),
+        reason.render(cockpit_i18n::Lang::De).as_str(),
+        reason.render(cockpit_i18n::Lang::En).as_str(),
+        item.owner.name_in(cockpit_i18n::Lang::De).as_str(),
+        item.owner.name_in(cockpit_i18n::Lang::En).as_str(),
     ]
     .join("\n")
     .to_lowercase();
@@ -214,7 +220,7 @@ impl InboxFilter {
         match self.person.as_deref() {
             None => true,
             Some(ASSIGNED_TO_ME) => item.owner == Person::me(),
-            Some(UNASSIGNED) => item.is_ticket() && item.owner.name == UNASSIGNED_NAME,
+            Some(UNASSIGNED) => item.is_ticket() && item.owner.nobody,
             Some(name) => item.owner.name == name,
         }
     }
@@ -232,9 +238,7 @@ impl InboxFilter {
         item.is_ticket()
             && match self.reporter.as_deref() {
                 None => true,
-                Some(ASSIGNED_TO_ME) => {
-                    item.reporter.as_deref() == Some(Person::me().name.as_str())
-                }
+                Some(ASSIGNED_TO_ME) => item.reporter.as_deref() == Some(ME_MARK),
                 Some(name) => item.reporter.as_deref() == Some(name),
             }
             && (!self.watched || item.watching)

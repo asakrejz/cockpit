@@ -133,9 +133,9 @@ fn source_picker(store: Store) -> impl IntoView {
 fn person_avatar(person: &Person) -> impl IntoView + use<> {
     view! {
         <Avatar
-            initials=person.initials.clone()
+            initials=person.initials_in(lang())
             agent=person.is_agent()
-            title=person.name.clone()
+            title=person.name_in(lang())
         />
     }
 }
@@ -245,7 +245,7 @@ fn member_row(m: Member, selected: bool) -> impl IntoView {
     let level = m.load_level();
     let summary = t!(
         OverviewCapacity,
-        name = m.person.name,
+        name = m.person.name_in(lang()),
         used = total.min(team::CAPACITY),
         total = team::CAPACITY
     );
@@ -256,7 +256,7 @@ fn member_row(m: Member, selected: bool) -> impl IntoView {
             {person_avatar(&m.person)}
             <span class="ui-vstack" style="--spacing: 6px; flex: 1 1 auto; min-width: 0">
                 <span class="ui-hstack" style="--spacing: 8px; flex-wrap: nowrap">
-                    <span class="t-headline ck-ellipsis" style="flex: 1 1 auto">{m.person.name.clone()}</span>
+                    <span class="t-headline ck-ellipsis" style="flex: 1 1 auto">{m.person.name_in(lang())}</span>
                     <Badge variant=BadgeVariant::Neutral>{total.to_string()}</Badge>
                 </span>
                 {m
@@ -364,7 +364,7 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
                     <span class="ui-spacer"></span>
                     <span class="ui-hstack t-footnote t-secondary" style="--spacing: 6px">
                         {t!(OverviewWaitingOn)} {person_avatar(&s.who)}
-                        <span>{s.who.name.clone()}</span>
+                        <span>{s.who.name_in(lang())}</span>
                     </span>
                 </div>
             </div>
@@ -382,8 +382,8 @@ fn person_items(store: Store, member: Option<Member>, all: Vec<Member>) -> impl 
     });
     let (heading, nothing) = match &member {
         Some(m) => (
-            t!(OverviewEntriesOf, name = m.person.name.clone()),
-            t!(OverviewNothingOpenFor, name = m.person.name.clone()),
+            t!(OverviewEntriesOf, name = m.person.name_in(lang())),
+            t!(OverviewNothingOpenFor, name = m.person.name_in(lang())),
         ),
         None => (t!(OverviewEntriesAll), t!(OverviewNothingOpen)),
     };
@@ -397,7 +397,7 @@ fn person_items(store: Store, member: Option<Member>, all: Vec<Member>) -> impl 
                     .into_iter()
                     .map(|item| {
                         let id = item.id.clone();
-                        let (_, tone) = team::state_label(&item);
+                        let tone = team::state_tone(&item);
                         let state = state_text(&item);
                         view! {
                             <li class="ck-stuck">

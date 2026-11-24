@@ -240,7 +240,7 @@ async fn chosen_project_determines_the_query() {
     let item = ws
         .item_by_key("WEB-7")
         .expect("ticket from the selected project");
-    assert_eq!(item.reason_text, "Im Projekt");
+    assert_eq!(item.reason_line().de(), "Im Projekt");
     assert_eq!(ws.jira_project.as_deref(), Some("WEB"));
 }
 

@@ -65,7 +65,7 @@ pub fn jql_for_project(project: &str) -> Result<String, Error> {
 pub struct JiraQuery {
     pub jql: String,
     /// The query was chosen in the app (project or sprint view): tickets that are neither
-    /// assigned to me nor watched by me then show up with the reason „Im Projekt“.
+    /// assigned to me nor watched by me then show up with the reason `reason.in_project`.
     pub in_selection: bool,
 }
 
@@ -587,13 +587,10 @@ impl JiraClient {
     }
 
     /// Inbox entries: open issues assigned to me or watched.
-    pub async fn load_inbox(&self, now: i64) -> Result<Vec<Item>, Error> {
+    pub async fn load_inbox(&self) -> Result<Vec<Item>, Error> {
         let me = self.me().await?;
         let issues = self.search(ASSIGNED_OR_WATCHED_JQL).await?;
-        Ok(issues
-            .iter()
-            .map(|i| map::issue_to_item(i, &me, now))
-            .collect())
+        Ok(issues.iter().map(|i| map::issue_to_item(i, &me)).collect())
     }
 }
 
@@ -617,11 +614,11 @@ impl JiraClient {
             .lies_json(self.get(&format!("/rest/api/3/issue/{key}/transitions")))
             .await?;
         let transition = choose_transition(&list.transitions, target).ok_or_else(|| {
-            let name = TicketStatus::OPTIONS
-                .iter()
-                .find(|(id, _)| *id == target.id())
-                .map_or("", |(_, l)| l);
-            Error::Coded(msg!(IntegrationsJiraNoTransition, key = key, name = name))
+            Error::Coded(msg!(
+                IntegrationsJiraNoTransition,
+                key = key,
+                name = target.name_msg()
+            ))
         })?;
         self.send(&transition_request(key, &transition.id))
             .await

@@ -3,7 +3,7 @@
 use cockpit_core::{
     Comment, Item, Kind, Person, ReasonKind, Scope, Source, Sprint, SprintState, TicketStatus,
 };
-use cockpit_i18n::Lang;
+use cockpit_i18n::msg;
 
 use super::adf::{adf_to_text, adf_to_text_for};
 use super::dto::{Issue, JiraComment};
@@ -29,15 +29,15 @@ pub fn status_from(s: &super::dto::Status) -> TicketStatus {
 ///
 /// Assigned to me → `Scope::Mine`, reason `Assigned`. Only watched → `Scope::Team`, reason
 /// `Comment` (provisional, the attention rules follow later). Without an assignee the owner is
-/// „Nicht zugewiesen“ (the filter „Nicht zugewiesen“ relies on it). Comments are empty – they come through [`comments_to_core`].
-pub fn issue_to_item(issue: &Issue, me: &str, now: i64) -> Item {
-    issue_to_item_with(issue, me, now, None)
+/// nobody ([`Person::nobody`]; the person filter relies on it). Comments are empty – they come through [`comments_to_core`].
+pub fn issue_to_item(issue: &Issue, me: &str) -> Item {
+    issue_to_item_with(issue, me, None)
 }
 
 /// Like [`issue_to_item`]; `sprint_field` is the ID of the site's sprint field (see
 /// `JiraClient::sprint_field`), from which the sprint of the ticket is read.
-pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Option<&str>) -> Item {
-    issue_to_item_full(issue, me, now, sprint_field, None)
+pub fn issue_to_item_with(issue: &Issue, me: &str, sprint_field: Option<&str>) -> Item {
+    issue_to_item_full(issue, me, sprint_field, None)
 }
 
 /// Like [`issue_to_item_with`]; `team_field` is the ID of the site's team field (see
@@ -45,7 +45,6 @@ pub fn issue_to_item_with(issue: &Issue, me: &str, now: i64, sprint_field: Optio
 pub fn issue_to_item_full(
     issue: &Issue,
     me: &str,
-    now: i64,
     sprint_field: Option<&str>,
     team_field: Option<&str>,
 ) -> Item {
@@ -54,12 +53,12 @@ pub fn issue_to_item_full(
     let owner = match f.assignee.as_ref() {
         Some(u) if u.account_id == me => Person::me(),
         Some(u) => text::person(&u.display_name),
-        None => Person::new(cockpit_core::UNASSIGNED_NAME, "–"),
+        None => Person::nobody(),
     };
-    let (reason, reason_text, scope) = if me_assigned {
-        (ReasonKind::Assigned, "Dir zugewiesen", Scope::Mine)
+    let (reason, reason_msg, scope) = if me_assigned {
+        (ReasonKind::Assigned, msg!(ReasonAssigned), Scope::Mine)
     } else {
-        (ReasonKind::Comment, "Beobachtet", Scope::Team)
+        (ReasonKind::Comment, msg!(ReasonWatched), Scope::Team)
     };
     Item {
         id: text::id_from(&[&issue.key]),
@@ -70,8 +69,9 @@ pub fn issue_to_item_full(
         description: adf_to_text(&f.description),
         description_rich: cockpit_core::adf::parse(&f.description, me),
         reason,
-        reason_text: reason_text.into(),
-        time: time::relative(&f.updated, now, Lang::De),
+        reason_msg: Some(reason_msg),
+        reason_text: String::new(),
+        time: String::new(),
         scope,
         owner,
         status: status(issue),
@@ -97,7 +97,7 @@ pub fn issue_to_item_full(
             .filter(|n| !n.is_empty()),
         reporter: f.reporter.as_ref().map(|u| {
             if u.account_id == me {
-                Person::me().name
+                cockpit_core::ME_MARK.to_string()
             } else {
                 u.display_name.clone()
             }
@@ -198,7 +198,7 @@ fn sprint_from_text(t: &str) -> Option<Sprint> {
 }
 
 /// Comments of an issue, in Jira's order (oldest first).
-pub fn comments_to_core(comments: &[JiraComment], me: &str, now: i64) -> Vec<Comment> {
+pub fn comments_to_core(comments: &[JiraComment], me: &str) -> Vec<Comment> {
     comments
         .iter()
         .map(|c| {
@@ -209,7 +209,8 @@ pub fn comments_to_core(comments: &[JiraComment], me: &str, now: i64) -> Vec<Com
                 } else {
                     text::person(&c.author.display_name)
                 },
-                time: time::relative(&c.created, now, Lang::De),
+                time: String::new(),
+                created_ms: time::parse_iso(&c.created).map(|s| s.max(0) as u64 * 1000),
                 text: adf_to_text_for(&c.body, me),
                 text_msg: None,
                 rich: cockpit_core::adf::parse(&c.body, me),

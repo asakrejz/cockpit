@@ -94,7 +94,7 @@ fn render() -> AnyView {
         <Section title="Kommentar" api="<CommentBubble rich>">
             <VStack spacing="12px">
                 <CommentBubble who="Lena" initials="LK" time="vor 12 Min." text="Danke, sieht gut aus." rich=comment />
-                <CommentBubble who="Du" initials="AS" time="gerade eben" text="Reiner Text bleibt lesbar." own=true />
+                <CommentBubble who="Du" initials="DU" time="gerade eben" text="Reiner Text bleibt lesbar." own=true />
             </VStack>
         </Section>
     }

@@ -165,7 +165,7 @@ pub fn check(rule: Rule, item: &Item, now_ms: u64) -> Option<Hit> {
             .then(|| {
                 hit(
                     ReasonKind::ReviewRequested,
-                    msg!(CoreMiscHitReview, name = &item.owner.name),
+                    msg!(CoreMiscHitReview, name = item.owner.name_msg()),
                 )
             }),
         Rule::Blocked => {
@@ -216,13 +216,12 @@ fn mentioned_by(item: &Item) -> Option<&str> {
         .map(|c| c.author.name.as_str())
 }
 
-/// Is `@Name` (or `@Initials`) of me in the text? Case does not matter; after the
-/// name no letter or digit may follow (`@Dutzend` does not count).
+/// Is `@Du` ([`crate::model::ME_MARK`]), how the sync writes a mention of me, in the text? Case
+/// does not matter; after the name no letter or digit may follow (`@Dutzend` does not count).
 pub fn mentions_me(text: &str) -> bool {
-    let me = crate::model::Person::me();
     let lower = text.to_lowercase();
-    [me.name, me.initials].iter().any(|handle| {
-        let needle = format!("@{}", handle.to_lowercase());
+    crate::model::Person::me().handles().iter().any(|handle| {
+        let needle = format!("@{handle}");
         lower.match_indices(&needle).any(|(at, _)| {
             lower[at + needle.len()..]
                 .chars()

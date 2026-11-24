@@ -10,6 +10,10 @@
 //! `legacy_removed_fields_workspace.json` is a state that still holds what was removed from the
 //! data: the email and Slack channels of the notification settings and the `resolved` mark of line
 //! comments. It must load, and saving it again must leave those parts out.
+//! `legacy_german_strings_workspace.json` is a state in which German text is stored in the data: the
+//! reason line and the time of entries and comments as plain text, me as the name `Du`, nobody as
+//! a German name. It must load and show what it stored; saving it again writes me and nobody as
+//! roles.
 //! Regenerate `wire_*` with `BLESS=1 cargo test -p cockpit-core --test wire_compat` only on purpose.
 
 use cockpit_core::{
@@ -307,6 +311,103 @@ fn a_state_with_the_simulated_agent_still_loads() {
     let (again, _) = persist::load_with_revision(&saved).expect("the saved state loads");
     assert_eq!(again, ws);
     assert_eq!(persist::save_with_revision(&again, revision), saved);
+}
+
+/// Entries and comments that carry German text instead of a message and a timestamp still load
+/// and show their text; me and nobody read as the roles; saving writes the roles, and the new
+/// fields (`reason_msg`, `updated_ms`, `created_ms`) stay out until a sync fills them.
+#[test]
+fn a_state_with_german_strings_in_the_data_still_loads() {
+    let text = read("legacy_german_strings_workspace.json");
+    for old in [
+        "\"reason_text\":\"Dir zugewiesen\"",
+        "\"time\":\"vor 5 Minuten\"",
+        "\"name\":\"Du\"",
+        "\"name\":\"Nicht zugewiesen\"",
+    ] {
+        assert!(text.contains(old), "the fixture lost {old}");
+    }
+
+    let (ws, revision) = persist::load_with_revision(&text).expect("the old state loads");
+    let ticket = ws.item("bau7").unwrap();
+    // The stored text is what the row shows, in either language, until a sync replaces it.
+    assert_eq!(ticket.reason_msg, None);
+    for lang in Lang::ALL {
+        assert_eq!(ticket.reason_line().render(lang), "Dir zugewiesen");
+    }
+    assert_eq!(ticket.time, "vor 5 Minuten");
+    // Me is the role, in the language of the reader; the stored initials are not kept.
+    assert!(ticket.owner.me && ticket.owner.name.is_empty() && ticket.owner.initials.is_empty());
+    assert_eq!(ticket.owner.name_in(Lang::De), "Du");
+    assert_eq!(ticket.owner.name_in(Lang::En), "You");
+    assert_eq!(ticket.owner.initials_in(Lang::En), "Y");
+    assert!(ticket.comments[1].author.me && ticket.comments[1].own);
+    assert_eq!(ticket.comments[1].time, "gerade eben");
+    assert_eq!(ticket.comments[1].created_ms, None);
+    // The mention marker and the plain name fields keep their stored word.
+    assert!(cockpit_core::attention::mentions_me(
+        &ticket.comments[0].text
+    ));
+    assert_eq!(ticket.reporter.as_deref(), Some(cockpit_core::ME_MARK));
+    assert_eq!(ticket.co_assignees, [cockpit_core::ME_MARK, "Lena"]);
+    assert_eq!(ticket.updated_ms, Some(1_700_000_000_000));
+
+    let unassigned = ws.item("bau8").unwrap();
+    assert!(unassigned.owner.nobody && unassigned.owner.name.is_empty());
+    assert_eq!(unassigned.owner.name_in(Lang::En), "Unassigned");
+    assert_eq!(unassigned.owner.name_in(Lang::De), "Nicht zugewiesen");
+    assert_eq!(unassigned.reason_line().de(), "Beobachtet");
+    // Search still finds the stored reason line.
+    assert!(cockpit_core::search::matches_query(
+        unassigned,
+        "beobachtet"
+    ));
+
+    // The owner filters work on the roles.
+    assert_eq!(ws.owners().first(), Some(&cockpit_core::Person::me()));
+    assert!(ws.owners().contains(&cockpit_core::Person::nobody()));
+
+    let saved = persist::save_with_revision(&ws, revision);
+    for gone in [
+        "\"name\":\"Du\"",
+        "Nicht zugewiesen\",\"initials",
+        "\"initials\":\"XY\"",
+    ] {
+        assert!(!saved.contains(gone), "{gone} is still written");
+    }
+    assert!(saved.contains("\"me\":true") && saved.contains("\"nobody\":true"));
+    // The stored texts stay until a sync replaces the entries.
+    assert!(saved.contains("\"reason_text\":\"Dir zugewiesen\""));
+    assert!(!saved.contains("reason_msg") && !saved.contains("created_ms"));
+    let (again, _) = persist::load_with_revision(&saved).expect("the saved state loads");
+    assert_eq!(again, ws);
+    assert_eq!(persist::save_with_revision(&again, revision), saved);
+}
+
+/// New data carries the message and the timestamps and no German plain text of its own.
+#[test]
+fn new_entries_store_a_message_and_timestamps_not_text() {
+    let mut ws = Workspace::default();
+    let (mut ticket, mut comment) = (
+        demo::workspace().item("bau150").unwrap().clone(),
+        cockpit_core::Comment::at(cockpit_core::Person::me(), 1_700_000_000_000, "Hallo"),
+    );
+    ticket.reason_text.clear();
+    ticket.time.clear();
+    ticket.set_reason(
+        cockpit_core::ReasonKind::Assigned,
+        cockpit_i18n::msg!(ReasonAssigned),
+    );
+    ticket.updated_ms = Some(1_700_000_000_000);
+    comment.own = true;
+    ticket.comments = vec![comment];
+    ws.items.push(ticket);
+    let saved = persist::save_with_revision(&ws, 1);
+    assert!(saved.contains("\"reason_msg\":{\"code\":\"reason.assigned\"}"));
+    assert!(saved.contains("\"created_ms\":1700000000000"));
+    assert!(!saved.contains("\"reason_text\"") && !saved.contains("\"time\""));
+    let (again, _) = persist::load_with_revision(&saved).expect("the saved state loads");
+    assert_eq!(again, ws);
 }
 
 #[test]

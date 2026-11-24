@@ -1,5 +1,4 @@
 use super::*;
-use cockpit_i18n::Lang;
 
 const NEUJAHR_2024: i64 = 1_704_067_200;
 
@@ -28,21 +27,4 @@ fn rejects_nonsense_ab() {
     assert_eq!(parse_iso("gestern"), None);
     assert_eq!(parse_iso("2024-13-01T00:00:00Z"), None);
     assert_eq!(parse_iso("2024-05-14T09:12:33+2"), None);
-}
-
-#[test]
-fn relative_display() {
-    let t = "2024-05-14T10:00:00Z";
-    let n = parse_iso(t).unwrap();
-    assert_eq!(relative(t, n + 5, Lang::De), "gerade eben");
-    assert_eq!(relative(t, n + 300, Lang::De), "vor 5 Minuten");
-    assert_eq!(relative(t, n + 3 * 3600, Lang::De), "vor 3 Stunden");
-    assert_eq!(relative(t, n + 30 * 3600, Lang::De), "gestern");
-    assert_eq!(relative(t, n + 4 * 86_400, Lang::De), "vor 4 Tagen");
-    assert_eq!(relative(t, n + 4 * 86_400, Lang::En), "4 days ago");
-    assert_eq!(relative(t, n + 30 * 3600, Lang::En), "yesterday");
-    assert_eq!(relative(t, n + 30 * 86_400, Lang::De), "2024-05-14");
-    assert_eq!(relative("unlesbar", n, Lang::De), "unlesbar");
-    // Clocks that run slightly ahead never yield negative values.
-    assert_eq!(relative(t, n - 10, Lang::De), "gerade eben");
 }

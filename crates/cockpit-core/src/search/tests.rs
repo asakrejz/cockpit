@@ -30,11 +30,24 @@ fn finds_by_title_reason_and_owner() {
     let mut ws = demo::workspace();
     ws.items[0].title = "Fokus-Ring fehlt".into();
     ws.items[0].reason_text = "Neuer Kommentar von Lena".into();
-    ws.items[0].owner.name = "Jonas Ärmel".into();
+    ws.items[0].owner = crate::Person::new("Jonas Ärmel", "JÄ");
     let first = ws.items[0].key.clone();
     for q in ["FOKUS", "kommentar von lena", "jonas", "ÄRMEL"] {
         let hits = search(&ws.items, Filter::All, SourceFilter::All, q);
         assert!(keys(&hits).contains(&first), "{q}");
+    }
+}
+
+#[test]
+fn a_reason_message_and_the_role_of_the_owner_are_found_in_both_languages() {
+    let mut ws = demo::workspace();
+    let mine = ws.items[0].key.clone();
+    assert!(ws.items[0].owner.me);
+    ws.items[0].reason_text.clear();
+    ws.items[0].reason_msg = Some(cockpit_i18n::msg!(ReasonInProject));
+    for q in ["im projekt", "in the project", "du", "you"] {
+        let hits = search(&ws.items, Filter::All, SourceFilter::All, q);
+        assert!(keys(&hits).contains(&mine), "{q}");
     }
 }
 
@@ -178,7 +191,11 @@ fn the_choices_come_from_the_workspace() {
         ws.labels(),
         ["a11y", "agent", "bug", "design", "docs", "feature"]
     );
-    let names: Vec<_> = ws.owners().into_iter().map(|p| p.name).collect();
+    let names: Vec<_> = ws
+        .owners()
+        .into_iter()
+        .map(|p| p.name_in(cockpit_i18n::Lang::De))
+        .collect();
     assert_eq!(names, ["Du", "Jonas", "Mira"]);
 }
 

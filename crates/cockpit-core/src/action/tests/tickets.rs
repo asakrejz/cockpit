@@ -154,7 +154,11 @@ fn assignment_checks_person_and_kind() {
         assign("nix", Person::me()),
         ActionError::UnknownItem("nix".into()),
     );
-    let names: Vec<String> = w.people().into_iter().map(|p| p.name).collect();
+    let names: Vec<String> = w
+        .people()
+        .into_iter()
+        .map(|p| p.name_in(cockpit_i18n::Lang::De))
+        .collect();
     assert_eq!(names, ["Du", "Jonas", "Mira", "Lena"]);
 }
 

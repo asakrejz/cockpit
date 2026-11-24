@@ -1,7 +1,7 @@
 //! The filter dialog: applying, persisting, active filters and the person filter.
 
 use super::*;
-use crate::filters::{ASSIGNED_TO_ME, JIRA_PROJECT_FILTER, UNASSIGNED, UNASSIGNED_NAME};
+use crate::filters::{ASSIGNED_TO_ME, JIRA_PROJECT_FILTER, UNASSIGNED};
 use crate::{InboxFilter, Item, Ownership, SourceFilter, SprintView};
 
 fn narrowed() -> InboxFilter {
@@ -88,8 +88,8 @@ fn active_filters_name_what_is_not_at_its_start_value() {
         ]
     );
     let value = |id: &str| active.iter().find(|a| a.id == id).unwrap().value.clone();
-    assert_eq!(value("person"), "Mir");
-    assert_eq!(value("sprint"), "Alle offenen");
+    assert_eq!(value("person"), ASSIGNED_TO_ME);
+    assert_eq!(value("sprint"), "open");
     assert_eq!(value(JIRA_PROJECT_FILTER), "BAU");
 }
 
@@ -113,16 +113,17 @@ fn removing_one_chip_resets_only_that_filter() {
 fn the_person_choices_are_me_nobody_and_the_people_of_the_tickets() {
     let w = ws();
     let choices = w.filter_choices("person");
-    assert_eq!(choices[0], (ASSIGNED_TO_ME.to_string(), "Mir".to_string()));
+    // The first two carry their value as label; the interface words them.
     assert_eq!(
-        choices[1],
-        (UNASSIGNED.to_string(), "Nicht zugewiesen".to_string())
+        choices[0],
+        (ASSIGNED_TO_ME.to_string(), ASSIGNED_TO_ME.to_string())
     );
+    assert_eq!(choices[1], (UNASSIGNED.to_string(), UNASSIGNED.to_string()));
     assert!(choices.len() > 2, "the colleagues of the tickets follow");
     assert!(
         !choices
             .iter()
-            .any(|(v, _)| v == "Du" || v == UNASSIGNED_NAME),
+            .any(|(v, _)| v == crate::ME_MARK || v.is_empty()),
         "me and nobody are not listed twice"
     );
 }
@@ -133,7 +134,7 @@ fn the_person_filter_selects_by_assignee_without_writing_anything() {
     let mut nobody = w.item_by_key("BAU-150").unwrap().clone();
     nobody.id = "nobody".into();
     nobody.key = "BAU-999".into();
-    nobody.owner = Person::new(UNASSIGNED_NAME, "–");
+    nobody.owner = Person::nobody();
     w.items.push(nobody);
     let by = |person: &str| InboxFilter {
         ownership: Ownership::All,

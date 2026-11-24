@@ -30,14 +30,14 @@ impl Workspace {
     }
 
     /// Replies in the ticket or pull request. Empty text is ignored.
-    pub fn reply(&mut self, id: &str, text: &str) -> bool {
+    pub fn reply(&mut self, id: &str, text: &str, now_ms: u64) -> bool {
         let text = text.trim();
         let Some(item) = self.item_mut(id).filter(|_| !text.is_empty()) else {
             return false;
         };
         item.comments.push(Comment {
             own: true,
-            ..Comment::new(Person::me(), "gerade eben", text)
+            ..Comment::at(Person::me(), now_ms, text)
         });
         true
     }
@@ -84,7 +84,7 @@ impl Workspace {
     /// Assigns a ticket to someone. Who owns it also decides whether it appears under „Ich“ or „Team“. A ticket
     /// that newly lands with you counts as unread again and triggers the rule
     /// „Zugewiesen“; if it goes to someone else, it ends.
-    pub fn assign(&mut self, id: &str, person: &Person) -> bool {
+    pub fn assign(&mut self, id: &str, person: &Person, now_ms: u64) -> bool {
         let me = Person::me();
         let Some(item) = self.item_mut(id).filter(|i| i.is_ticket()) else {
             return false;
@@ -97,9 +97,8 @@ impl Workspace {
         };
         if *person == me {
             item.read = false;
-            item.reason = ReasonKind::Assigned;
-            item.reason_text = "Dir zugewiesen".into();
-            item.time = "gerade eben".into();
+            item.set_reason(ReasonKind::Assigned, cockpit_i18n::msg!(ReasonAssigned));
+            item.updated_ms = Some(now_ms);
         }
         true
     }

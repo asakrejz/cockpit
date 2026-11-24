@@ -231,12 +231,12 @@ impl Workspace {
     }
 
     /// The review run is done: the drafts wait for your decision.
-    pub(super) fn finish_review_run(&mut self, run: &AgentRun) {
+    pub(super) fn finish_review_run(&mut self, run: &AgentRun, now_ms: u64) {
         let Some(key) = run.kind.review() else { return };
         let count = self.review_mut(&key).map_or(0, Review::finish_agent_review);
         if let Some(item) = self.pr_item_mut(&key) {
             item.set_note(drafts_note(count));
-            item.time = "gerade eben".into();
+            item.updated_ms = Some(now_ms);
             item.read = false;
         }
     }

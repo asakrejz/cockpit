@@ -48,7 +48,7 @@ impl Workspace {
             }
             Action::Reply { item, text } => {
                 let key = self.key_of(&item)?;
-                if !self.reply(&item, &text) {
+                if !self.reply(&item, &text, at_ms) {
                     return Err(ActionError::InvalidInput);
                 }
                 Ok(vec![Note::coded(
@@ -136,17 +136,19 @@ impl Workspace {
                 }
                 // Anyone with a name can be picked – people found by the search in Jira are not in
                 // the synced tickets yet. The agent gets tickets through its run.
-                if person.is_agent() || person.name.trim().is_empty() {
+                if person.is_agent()
+                    || !(person.me || person.nobody || !person.name.trim().is_empty())
+                {
                     return Err(ActionError::UnknownPerson(person.name));
                 }
                 if current.owner == person {
                     return Err(ActionError::Unchanged);
                 }
-                self.assign(&item, &person);
+                self.assign(&item, &person, at_ms);
                 let text = if person == Person::me() {
                     msg!(CoreActionLogAssignedMe, key = key)
                 } else {
-                    msg!(CoreActionLogAssigned, key = key, name = &person.name)
+                    msg!(CoreActionLogAssigned, key = key, name = person.name_msg())
                 };
                 Ok(vec![Note::coded(Target::Item(item), text)])
             }

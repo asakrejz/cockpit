@@ -12,12 +12,18 @@ pub enum TicketStatus {
 }
 
 impl TicketStatus {
-    pub const OPTIONS: &'static [(&'static str, &'static str)] = &[
-        ("offen", "Offen"),
-        ("arbeit", "In Arbeit"),
-        ("review", "Review"),
-        ("fertig", "Fertig"),
-    ];
+    /// The IDs, in display order; the interface words them.
+    pub const IDS: &'static [&'static str] = &["offen", "arbeit", "review", "fertig"];
+
+    /// The status as a message, for log lines and errors.
+    pub fn name_msg(self) -> cockpit_i18n::Msg {
+        match self {
+            TicketStatus::Open => cockpit_i18n::msg!(CoreActionStatusOpen),
+            TicketStatus::InProgress => cockpit_i18n::msg!(CoreActionStatusProgress),
+            TicketStatus::Review => cockpit_i18n::msg!(CoreActionStatusReview),
+            TicketStatus::Done => cockpit_i18n::msg!(CoreActionStatusDone),
+        }
+    }
 
     pub fn id(self) -> &'static str {
         match self {
@@ -40,7 +46,7 @@ impl TicketStatus {
     }
 }
 
-/// How important a ticket is. Old states without a value count as „Mittel“.
+/// How important a ticket is. Old states without a value count as medium.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Priority {
     Highest,
@@ -60,14 +66,9 @@ impl Priority {
         Priority::Lowest,
     ];
 
-    /// ID and label, in display order (most important first).
-    pub const OPTIONS: &'static [(&'static str, &'static str)] = &[
-        ("hoechste", "Höchste"),
-        ("hoch", "Hoch"),
-        ("mittel", "Mittel"),
-        ("niedrig", "Niedrig"),
-        ("niedrigste", "Niedrigste"),
-    ];
+    /// The IDs, in display order (most important first); the interface words them.
+    pub const IDS: &'static [&'static str] =
+        &["hoechste", "hoch", "mittel", "niedrig", "niedrigste"];
 
     pub fn id(self) -> &'static str {
         match self {
@@ -81,13 +82,6 @@ impl Priority {
 
     pub fn from_id(id: &str) -> Option<Priority> {
         Priority::ALL.into_iter().find(|p| p.id() == id)
-    }
-
-    pub fn label(self) -> &'static str {
-        Priority::OPTIONS
-            .iter()
-            .find(|(id, _)| *id == self.id())
-            .map_or("", |(_, label)| label)
     }
 }
 
@@ -144,15 +138,6 @@ pub enum Checks {
 }
 
 impl Checks {
-    pub fn label(self) -> &'static str {
-        match self {
-            Checks::Passed => "Checks bestanden",
-            Checks::Failed => "Checks fehlgeschlagen",
-            Checks::Running => "Checks laufen",
-            Checks::Unknown => "Checks nicht sichtbar",
-        }
-    }
-
     pub fn tone(self) -> Tone {
         match self {
             Checks::Passed => Tone::Green,

@@ -4,7 +4,7 @@
 use cockpit_i18n::msg;
 
 use super::*;
-use crate::model::{Item, Kind, Person, Priority, ReasonKind, Scope, Source};
+use crate::model::{Item, Kind, ME_MARK, Person, Priority, ReasonKind, Scope, Source};
 use crate::project::{FieldInput, FieldKind, FieldValue, issue_id, issue_key};
 
 impl Workspace {
@@ -28,7 +28,11 @@ impl Workspace {
         Ok(item)
     }
 
-    pub(super) fn perform_projects(&mut self, action: Action) -> Result<Vec<Note>, ActionError> {
+    pub(super) fn perform_projects(
+        &mut self,
+        action: Action,
+        at_ms: u64,
+    ) -> Result<Vec<Note>, ActionError> {
         match action {
             Action::SetLabel { item, label, on } => {
                 let label = label.trim().to_string();
@@ -187,10 +191,11 @@ impl Workspace {
                     description: body.trim().to_string(),
                     description_rich: None,
                     reason: ReasonKind::Comment,
-                    reason_text: "Im Projekt".into(),
-                    time: "gerade eben".into(),
+                    reason_msg: Some(cockpit_i18n::msg!(ReasonInProject)),
+                    reason_text: String::new(),
+                    time: String::new(),
                     scope: Scope::Team,
-                    owner: Person::new(crate::UNASSIGNED_NAME, "–"),
+                    owner: Person::nobody(),
                     status: status.unwrap_or_default(),
                     priority: Priority::default(),
                     branch: None,
@@ -204,10 +209,10 @@ impl Workspace {
                     labels: Vec::new(),
                     sprint: None,
                     issue_type: None,
-                    reporter: Some(Person::me().name),
+                    reporter: Some(ME_MARK.to_string()),
                     watching: false,
                     team: None,
-                    updated_ms: None,
+                    updated_ms: Some(at_ms),
                     url: Some(created.url.clone()).filter(|u| !u.is_empty()),
                     details: None,
                     project: Some(crate::ProjectItem {

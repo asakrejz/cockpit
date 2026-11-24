@@ -110,7 +110,7 @@ async fn pull_requests_without_a_relation_to_me_are_listed_but_stay_quiet() {
     assert_eq!(one.scope, Scope::Team);
     assert!(!one.pr.as_ref().unwrap().mine);
     assert_eq!(one.pr.as_ref().unwrap().author, "tobias-lang");
-    assert_eq!(one.reason_text, "Pull Request von tobias-lang");
+    assert_eq!(one.reason_line().de(), "Pull Request von tobias-lang");
     assert!(two.is_mine() && two.pr.as_ref().unwrap().mine);
     assert!(three.pr.as_ref().unwrap().requested_me && three.pr.as_ref().unwrap().review_requested);
     assert!(four.pr.as_ref().unwrap().assigned_me && four.is_mine());

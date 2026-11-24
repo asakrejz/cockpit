@@ -23,7 +23,7 @@ pub(super) fn detail(
     let state = if is_ticket {
         view! {
             <Picker
-                options=labels::options(TicketStatus::OPTIONS, TicketStatus::from_id, labels::ticket_status)
+                options=labels::options(TicketStatus::IDS, TicketStatus::from_id, labels::ticket_status)
                 value=item.status.id()
                 on_change=move |status: &'static str| {
                     if let Some(status) = TicketStatus::from_id(status) {
@@ -41,7 +41,7 @@ pub(super) fn detail(
         item.pr
             .as_ref()
             .map(|pr| {
-                let (_, tone) = pr.status();
+                let tone = pr.status_tone();
                 let text = labels::pr_status(pr);
                 view! { <Status tone=view::tone(tone)>{text}</Status> }
             })
@@ -146,7 +146,7 @@ pub(super) fn detail(
                     <div class="ui-list__row" style="flex-wrap: wrap">
                         <span class="ui-list__title">{t!(InboxDetailPriority)}</span>
                         <Picker
-                            options=labels::options(Priority::OPTIONS, Priority::from_id, labels::priority)
+                            options=labels::options(Priority::IDS, Priority::from_id, labels::priority)
                             value=item.priority.id()
                             on_change=move |p: &'static str| {
                                 if let Some(priority) = Priority::from_id(p) {
@@ -238,7 +238,7 @@ pub(super) fn detail(
     let dev_rows = dev_prs
         .into_iter()
         .map(|linked| {
-            let (_, tone) = linked.pr.status();
+            let tone = linked.pr.status_tone();
             let status = labels::pr_status(&linked.pr);
             let link = pr_link(&linked.pr);
             let key = linked.pr.key().to_string();
@@ -261,9 +261,9 @@ pub(super) fn detail(
         .map(|c| {
             view! {
                 <CommentBubble
-                    who=c.author.name.clone()
-                    initials=c.author.initials.clone()
-                    time=c.time.clone()
+                    who=c.author.name_in(lang())
+                    initials=c.author.initials_in(lang())
+                    time=labels::comment_time(c, store.now.get_untracked())
                     text=c.text_msg.as_ref().map_or_else(|| c.text.clone(), |m| m.render_or(lang(), &c.text))
                     rich=c.rich.clone().unwrap_or_default()
                     own=c.own
@@ -333,8 +333,8 @@ pub(super) fn detail(
                 {key_link}
                 <span class="ui-spacer"></span>
                 <span class="ui-hstack" style="--spacing: 8px; flex-wrap: nowrap">
-                    <Avatar initials=item.owner.initials.clone() />
-                    <span class="t-subheadline">{item.owner.name.clone()}</span>
+                    <Avatar initials=item.owner.initials_in(lang()) />
+                    <span class="t-subheadline">{item.owner.name_in(lang())}</span>
                 </span>
             </div>
             <div class="ui-hstack" style="justify-content: space-between; align-items: flex-start">
