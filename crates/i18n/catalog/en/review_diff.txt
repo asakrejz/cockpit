@@ -6,7 +6,6 @@ review_diff.your_comment = Your comment
 review_diff.comment_by = Comment by {name}
 review_diff.with_suggestion = {author} · suggested change
 review_diff.own_comment = Own comment
-review_diff.run = Run {run}
 review_diff.delete = Delete
 review_diff.line_comment = Comment on this line
 review_diff.line_placeholder = Comment on this line …

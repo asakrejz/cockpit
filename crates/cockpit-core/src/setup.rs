@@ -149,14 +149,10 @@ impl Step {
         }
     }
 
-    /// The step of an address part. The older German ids (`modell`, `fertig`) still work.
+    /// The step of an address part.
     pub fn from_id(id: &str) -> Option<Step> {
         let id = id.to_ascii_lowercase();
-        match id.as_str() {
-            "modell" => Some(Step::Model),
-            "fertig" => Some(Step::Done),
-            _ => Self::ALL.into_iter().find(|s| s.id() == id),
-        }
+        Self::ALL.into_iter().find(|s| s.id() == id)
     }
 
     /// The address of the step: `#/setup/jira`.

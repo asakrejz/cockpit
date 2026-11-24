@@ -77,34 +77,6 @@ pub fn Container(
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum SectionTone {
-    #[default]
-    Plain,
-    Grouped,
-    Secondary,
-}
-
-/// Section of a web page with large vertical spacing.
-#[component]
-pub fn PageSection(
-    #[prop(optional)] tone: SectionTone,
-    #[prop(optional, into)] id: Option<String>,
-    #[prop(optional, into)] css: Option<String>,
-    children: Children,
-) -> impl IntoView {
-    let tone = match tone {
-        SectionTone::Plain => None,
-        SectionTone::Grouped => Some("grouped"),
-        SectionTone::Secondary => Some("secondary"),
-    };
-    view! {
-        <section class="ui-page-section" data-tone=tone id=id style=css>
-            {children()}
-        </section>
-    }
-}
-
 /// Glass surface (Liquid Glass). Needs content behind it to take effect.
 #[component]
 pub fn Glass(#[prop(optional, into)] css: Option<String>, children: Children) -> impl IntoView {

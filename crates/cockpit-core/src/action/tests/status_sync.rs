@@ -2,6 +2,18 @@ use super::*;
 
 // ---------- Status follows the pull request ----------
 
+/// The pull request is asked for a review, as the next sync of the real one reports it.
+fn review_requested(w: &mut Workspace, number: u32) {
+    for pr in w
+        .items
+        .iter_mut()
+        .filter_map(|i| i.pr.as_mut())
+        .filter(|p| p.number == number)
+    {
+        pr.review_requested = true;
+    }
+}
+
 #[test]
 fn the_status_follows_the_pull_request() {
     let mut w = ws();
@@ -9,7 +21,7 @@ fn the_status_follows_the_pull_request() {
     assert_eq!(status(&w, "bau150"), TicketStatus::Open);
     let applied = link(&mut w, "bau150", 85, 2);
     assert_eq!(
-        applied.summary,
+        first_text(&w, &applied),
         "BAU-150 automatisch mit acme/app#85 verknüpft"
     );
     assert_eq!(status(&w, "bau150"), TicketStatus::InProgress);
@@ -21,8 +33,8 @@ fn the_status_follows_the_pull_request() {
     );
 
     // Review requested → Review.
-    let applied = ok(&mut w, Action::RequestReview { review: 85.into() }, 2);
-    assert_eq!(applied.summary, "Review für #85 angefragt");
+    review_requested(&mut w, 85);
+    ok(&mut w, Action::SyncTicketStatus, 1);
     assert_eq!(status(&w, "bau150"), TicketStatus::Review);
     let entry = w.log.last().unwrap();
     assert_eq!(
@@ -31,16 +43,6 @@ fn the_status_follows_the_pull_request() {
             Actor::System,
             "Status von BAU-150 automatisch auf „Review“ gesetzt – für acme/app#85 ist ein Review angefragt"
         )
-    );
-    fails(
-        &mut w,
-        Action::RequestReview { review: 85.into() },
-        ActionError::Unchanged,
-    );
-    fails(
-        &mut w,
-        Action::RequestReview { review: 999.into() },
-        ActionError::UnknownReview(999.into()),
     );
 
     // Nothing new: the tick does nothing.
@@ -93,7 +95,8 @@ fn a_status_set_by_hand_stays_until_the_pull_request_moves() {
     fails(&mut w, Action::SyncTicketStatus, ActionError::NothingToDo);
     assert_eq!(status(&w, "bau150"), TicketStatus::Open);
     // When the pull request moves, the ticket follows again.
-    ok(&mut w, Action::RequestReview { review: 85.into() }, 2);
+    review_requested(&mut w, 85);
+    ok(&mut w, Action::SyncTicketStatus, 1);
     assert_eq!(status(&w, "bau150"), TicketStatus::Review);
 }
 
@@ -115,7 +118,7 @@ fn a_jira_project_narrows_the_inbox() {
         },
         1,
     );
-    assert_eq!(applied.summary, "Jira-Projekt gewählt: WEB");
+    assert_eq!(first_text(&w, &applied), "Jira-Projekt gewählt: WEB");
     assert_eq!(w.jira_project.as_deref(), Some("WEB"));
     let hits = w.search(Filter::All, SourceFilter::All, "", 0);
     assert!(hits.iter().any(|i| i.key == "WEB-7"));
@@ -141,7 +144,7 @@ fn a_jira_project_narrows_the_inbox() {
     assert_eq!(w.projects(), ["BAU", "DOC", "WEB"]);
 
     let applied = ok(&mut w, Action::SelectJiraProject { project: None }, 1);
-    assert_eq!(applied.summary, "Jira-Projekt: alle");
+    assert_eq!(first_text(&w, &applied), "Jira-Projekt: alle");
     assert_eq!(w.search(Filter::All, SourceFilter::All, "", 0).len(), all);
 }
 
@@ -152,14 +155,14 @@ fn the_automation_can_be_switched_off() {
     let on = Action::SetStatusFollowsPr { enabled: true };
     let applied = ok(&mut w, off.clone(), 1);
     assert_eq!(
-        applied.summary,
+        first_text(&w, &applied),
         "Status folgt dem Pull Request: ausgeschaltet"
     );
     fails(&mut w, off, ActionError::Unchanged);
 
     // Off: linking, requesting a review and merging leave the status alone.
     link(&mut w, "bau150", 85, 1);
-    ok(&mut w, Action::RequestReview { review: 85.into() }, 1);
+    review_requested(&mut w, 85);
     assert_eq!(status(&w, "bau150"), TicketStatus::Open);
     fails(&mut w, Action::SyncTicketStatus, ActionError::NothingToDo);
     w.items
@@ -187,14 +190,14 @@ fn the_automation_can_be_switched_off() {
     assert!(w.item("bau138").unwrap().pr.as_ref().unwrap().merged);
 
     // The setting survives saving.
-    let (back, _) = persist::restore(Some(&persist::save(&w)));
+    let back = loaded(&saved(&w)).unwrap();
     assert!(back.pr_status_off);
 
     // On again: whatever has moved is brought in line, with the system as author.
     let mut w = back;
     let applied = ok(&mut w, on, 3);
     assert_eq!(
-        applied.summary,
+        first_text(&w, &applied),
         "Status folgt dem Pull Request: eingeschaltet"
     );
     assert_eq!(status(&w, "bau150"), TicketStatus::Review);
@@ -229,7 +232,6 @@ fn the_new_ticket_actions_survive_json() {
             priority: Priority::Lowest,
         },
         Action::AutoLinkPrs,
-        Action::RequestReview { review: 85.into() },
         Action::SyncTicketStatus,
         Action::SetStatusFollowsPr { enabled: false },
     ] {

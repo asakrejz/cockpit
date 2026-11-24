@@ -538,7 +538,6 @@ pub use agents::PullRequestDraft;
 mod followups;
 mod inbox_filter;
 mod limits;
-mod repos;
 mod review;
 #[cfg(test)]
 mod tests;

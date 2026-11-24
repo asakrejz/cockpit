@@ -25,13 +25,11 @@ fn foreign_comments_stay_out_of_my_review_and_cannot_be_edited() {
         },
         ActionError::UnknownComment("c1".into()),
     );
-    // Own comments that are marked as done (by a run) do not go out again.
+    // Own comments go out with the review, the comments of others do not.
     let mut r = w.review(87).unwrap().clone();
     r.add_line_comment("tokens.css", 1, "Eigener", None)
         .unwrap();
     assert_eq!(r.comment_count(), 1);
-    r.line_comments.last_mut().unwrap().resolved = Some("review-87".into());
-    assert_eq!(r.comment_count(), 0);
 }
 
 #[test]
@@ -58,10 +56,16 @@ fn old_runs_and_comments_still_load() {
         serde_json::from_str(r#"{"ticket_key":"BAU-1","state":"Done"}"#).unwrap();
     assert_eq!(old.kind, crate::agent::RunKind::Implement);
     assert_eq!(old.key(), "BAU-1");
-    // Old comments without an author belong to me and are open.
+    // Old comments without an author belong to me.
     let c: crate::review::LineComment =
         serde_json::from_str(r#"{"id":"c1","file":"a","line":0,"text":"x"}"#).unwrap();
-    assert!(c.is_own() && c.is_open());
+    assert!(c.is_own());
+    // The mark of a run that implemented a comment is not read any more.
+    let c: crate::review::LineComment = serde_json::from_str(
+        r#"{"id":"c1","file":"a","line":0,"text":"x","resolved":"review-87"}"#,
+    )
+    .unwrap();
+    assert!(c.is_own());
 }
 
 #[test]

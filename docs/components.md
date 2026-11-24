@@ -15,13 +15,13 @@ view! {
 | Group | Components |
 |-------|------------|
 | Basics | `Root`, `Text`, `Icon`, `Glass` |
-| Layout | `VStack`, `HStack`, `ZStack`, `Spacer`, `Grid`, `Split`, `Container`, `PageSection` |
+| Layout | `VStack`, `HStack`, `ZStack`, `Spacer`, `Grid`, `Split`, `Container` |
 | Controls | `Button`, `Link`, `Badge`, `Toggle`, `Segmented`, `Slider`, `Stepper` |
 | Input | `TextField`, `SearchField`, `Combobox` (text field with suggestions, see below) |
 | Content | `List`, `ListSection`, `ListRow`, `ListButtonRow`, `Card`, `CardBody`, `CardFooter`, `CardGrid`, `Media` |
 | Navigation | `Navbar`, `IosNav`, `TabBar`, `Pager`, `Footer` |
 | Overlay | `Sheet` |
-| App | `SplitView` (with `StackLevel`: list and detail as two levels below 768 px, see [architecture.md](architecture.md#layout-and-navigation)), `Sidebar`, `BottomNav` (floating glass pill), `PickerPane`, `Pane`, `Status`, `Avatar`, `Chip`, `InboxRow`, `CommentBubble`, `RichText` (Jira text from ADF), `Markdown` (GitHub text: PR descriptions and comments, same look as `RichText`), `Textarea`, `Diff`, `SuggestionCard`, `Timeline`, `Progress`, `Log`, `Steps` |
+| App | `SplitView` (with `StackLevel`: list and detail as two levels below 768 px, see [architecture.md](architecture.md#layout-and-navigation)), `BottomNav` (floating glass pill), `PickerPane`, `Pane`, `Status`, `Avatar`, `Chip`, `InboxRow`, `CommentBubble`, `RichText` (Jira text from ADF), `Markdown` (GitHub text: PR descriptions and comments, same look as `RichText`), `Textarea`, `Diff`, `SuggestionCard`, `Timeline`, `Progress`, `Log`, `Steps` |
 
 **Combobox.** For choosing from a long list (people). The caller reads `query` and passes the ranked `options`
 (`ComboOption`, quick choices first); the component brings `role="combobox"`, `aria-expanded`,

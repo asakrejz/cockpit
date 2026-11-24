@@ -137,7 +137,7 @@ impl ServiceStatus {
     }
 }
 
-/// Which connections stand and what the agent may do on its own.
+/// Which connections stand and whether the agent is connected.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Connections {
     pub jira: bool,
@@ -146,9 +146,6 @@ pub struct Connections {
     pub jira_auth: AuthKind,
     pub github_auth: AuthKind,
     pub agent: bool,
-    pub may_branch: bool,
-    pub may_open_pr: bool,
-    pub may_run_tests: bool,
 }
 
 impl Default for Connections {
@@ -159,9 +156,6 @@ impl Default for Connections {
             jira_auth: AuthKind::None,
             github_auth: AuthKind::None,
             agent: false,
-            may_branch: true,
-            may_open_pr: true,
-            may_run_tests: true,
         }
     }
 }
@@ -180,10 +174,6 @@ impl Connections {
         use cockpit_i18n::msg;
         if !self.agent {
             Some(msg!(CoreMiscAgentNotConnected))
-        } else if !self.may_branch {
-            Some(msg!(CoreMiscAgentNoBranches))
-        } else if !self.may_open_pr {
-            Some(msg!(CoreMiscAgentNoPullRequests))
         } else {
             None
         }

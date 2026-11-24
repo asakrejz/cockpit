@@ -175,18 +175,17 @@ fn a_restarted_check_of_a_github_pull_request_runs_until_the_sync_reports() {
 
 #[test]
 fn an_old_state_without_sync_still_loads() {
-    let text = persist::save(&demo::workspace());
+    let text = saved(&demo::workspace());
     let mut json: serde_json::Value = serde_json::from_str(&text).unwrap();
     json["workspace"].as_object_mut().unwrap().remove("sync");
-    let (ws, restored) = persist::restore(Some(&json.to_string()));
-    assert!(restored);
+    let ws = loaded(&json.to_string()).expect("the stored state loads");
     assert_eq!(ws.sync, SyncState::default());
 }
 
 #[test]
 fn the_saved_form_has_no_secrets() {
     let ws = synced(&jira(vec![ticket("ABC-1", "Eins")]));
-    let text = persist::save(&ws).to_lowercase();
+    let text = saved(&ws).to_lowercase();
     for word in ["token", "secret", "password", "authorization"] {
         assert!(!text.contains(word), "{word}");
     }

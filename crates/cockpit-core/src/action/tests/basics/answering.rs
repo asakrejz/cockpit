@@ -16,7 +16,7 @@ fn answering_continues_the_agent_and_is_logged() {
         1,
     );
     assert_eq!(
-        applied.summary,
+        first_text(&w, &applied),
         "Frage des Agenten für BAU-142 beantwortet: „Als deprecated markieren“"
     );
     let last = w.log.last().unwrap();

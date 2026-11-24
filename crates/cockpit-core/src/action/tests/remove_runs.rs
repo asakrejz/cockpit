@@ -107,7 +107,11 @@ fn remove_finished_keeps_everything_that_still_works() {
     ]);
     let applied = w.apply(Action::RemoveFinishedRuns, Actor::User, T).unwrap();
     assert_eq!(applied.logged, 1);
-    assert!(applied.summary.contains('3'), "{}", applied.summary);
+    assert!(
+        first_text(&w, &applied).contains('3'),
+        "{}",
+        first_text(&w, &applied)
+    );
     let left: Vec<String> = w.runs.iter().map(|r| r.key()).collect();
     assert_eq!(left, ["A-2", "A-4", "A-6"]);
 }
@@ -150,8 +154,8 @@ fn removed_runs_stay_gone_after_a_sync_and_a_reload() {
         Actor::System,
         T + 1,
     );
-    let json = persist::save(&w);
-    let back = persist::load(&json).unwrap();
+    let json = saved(&w);
+    let back = loaded(&json).unwrap();
     let left: Vec<String> = back.runs.iter().map(|r| r.key()).collect();
     assert_eq!(left, ["A-2"]);
 }

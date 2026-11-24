@@ -28,22 +28,22 @@ fn notification_settings_are_changed_by_actions() {
     let mut w = ws();
     let mention = |on| Action::SetNotifyChannel {
         reason: NotifyReason::Mention,
-        channel: Channel::Slack,
+        channel: Channel::Browser,
         on,
     };
-    let applied = ok(&mut w, mention(true), 1);
+    let applied = ok(&mut w, mention(false), 1);
     assert_eq!(
-        applied.summary,
-        "Benachrichtigung „Erwähnung“ über Slack eingeschaltet"
+        first_text(&w, &applied),
+        "Benachrichtigung „Erwähnung“ über Browser ausgeschaltet"
     );
     assert!(
-        w.notifications
-            .enabled(NotifyReason::Mention, Channel::Slack)
+        !w.notifications
+            .enabled(NotifyReason::Mention, Channel::Browser)
     );
     assert_eq!(w.log.last().unwrap().target, Some(Target::Settings));
-    fails(&mut w, mention(true), ActionError::Unchanged);
-    let applied = ok(&mut w, mention(false), 1);
-    assert!(applied.summary.ends_with("ausgeschaltet"));
+    fails(&mut w, mention(false), ActionError::Unchanged);
+    let applied = ok(&mut w, mention(true), 1);
+    assert!(first_text(&w, &applied).ends_with("eingeschaltet"));
 
     let quiet = QuietHours {
         enabled: true,
@@ -52,7 +52,7 @@ fn notification_settings_are_changed_by_actions() {
     };
     let applied = ok(&mut w, Action::SetQuietHours { quiet }, 1);
     assert_eq!(
-        applied.summary,
+        first_text(&w, &applied),
         "Ruhezeiten von 22:00 bis 07:00 Uhr eingeschaltet"
     );
     fails(
@@ -75,25 +75,26 @@ fn notification_settings_are_changed_by_actions() {
         ..quiet
     };
     let applied = ok(&mut w, Action::SetQuietHours { quiet: off }, 1);
-    assert_eq!(applied.summary, "Ruhezeiten ausgeschaltet");
+    assert_eq!(first_text(&w, &applied), "Ruhezeiten ausgeschaltet");
 }
 
 #[test]
 fn notification_settings_survive_save_and_load() {
     let mut w = ws();
     w.notifications
-        .set(NotifyReason::AgentFinished, Channel::Email, true);
-    let back = persist::load(&persist::save(&w)).unwrap();
+        .set(NotifyReason::AgentFinished, Channel::Browser, false);
+    let back = loaded(&saved(&w)).unwrap();
     assert!(
-        back.notifications
-            .enabled(NotifyReason::AgentFinished, Channel::Email)
+        !back
+            .notifications
+            .enabled(NotifyReason::AgentFinished, Channel::Browser)
     );
     // Older states without the field still load, with the default values.
-    let mut json: serde_json::Value = serde_json::from_str(&persist::save(&w)).unwrap();
+    let mut json: serde_json::Value = serde_json::from_str(&saved(&w)).unwrap();
     json["workspace"]
         .as_object_mut()
         .unwrap()
         .remove("notifications");
-    let old = persist::load(&json.to_string()).unwrap();
+    let old = loaded(&json.to_string()).unwrap();
     assert_eq!(old.notifications, NotifySettings::default());
 }

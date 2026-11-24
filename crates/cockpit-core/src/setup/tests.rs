@@ -17,11 +17,11 @@ fn steps_walk_forward_and_back() {
 }
 
 #[test]
-fn step_addresses_use_english_ids_and_accept_the_older_german_ones() {
+fn step_addresses_use_english_ids() {
     assert_eq!(Step::Model.hash(), "#/setup/model");
     assert_eq!(Step::Done.hash(), "#/setup/done");
-    assert_eq!(Step::from_id("modell"), Some(Step::Model));
-    assert_eq!(Step::from_id("fertig"), Some(Step::Done));
+    assert_eq!(Step::from_id("modell"), None);
+    assert_eq!(Step::from_id("fertig"), None);
     assert_eq!(Step::from_id("JIRA"), Some(Step::Jira));
 }
 

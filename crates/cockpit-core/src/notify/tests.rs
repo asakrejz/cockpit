@@ -253,8 +253,6 @@ fn defaults_are_browser_only() {
     let s = NotifySettings::default();
     for reason in NotifyReason::ALL {
         assert!(s.enabled(reason, Channel::Browser));
-        assert!(!s.enabled(reason, Channel::Email));
-        assert!(!s.enabled(reason, Channel::Slack));
     }
     assert!(!s.quiet.enabled);
 }
@@ -262,13 +260,11 @@ fn defaults_are_browser_only() {
 #[test]
 fn channels_are_set_per_reason() {
     let mut s = NotifySettings::default();
-    assert!(s.set(NotifyReason::Mention, Channel::Email, true));
+    assert!(s.set(NotifyReason::Mention, Channel::Browser, false));
     assert!(
-        !s.set(NotifyReason::Mention, Channel::Email, true),
+        !s.set(NotifyReason::Mention, Channel::Browser, false),
         "nothing changes"
     );
-    assert!(s.set(NotifyReason::Mention, Channel::Browser, false));
-    assert!(s.enabled(NotifyReason::Mention, Channel::Email));
     assert!(!s.enabled(NotifyReason::Mention, Channel::Browser));
     assert!(
         s.enabled(NotifyReason::Assigned, Channel::Browser),
@@ -333,26 +329,19 @@ fn deliveries_follow_settings_and_quiet_hours() {
     };
     let evs = [event(NotifyReason::Mention), event(NotifyReason::Assigned)];
     let mut s = NotifySettings::default();
-    s.set(NotifyReason::Mention, Channel::Slack, true);
     s.set(NotifyReason::Assigned, Channel::Browser, false);
     let got: Vec<_> = deliveries(&evs, &s, 12 * 60)
         .into_iter()
         .map(|d| (d.event.reason, d.channel))
         .collect();
-    assert_eq!(
-        got,
-        [
-            (NotifyReason::Mention, Channel::Browser),
-            (NotifyReason::Mention, Channel::Slack)
-        ]
-    );
+    assert_eq!(got, [(NotifyReason::Mention, Channel::Browser)]);
     s.quiet = QuietHours {
         enabled: true,
         from: 22 * 60,
         to: 7 * 60,
     };
     assert!(deliveries(&evs, &s, 23 * 60).is_empty());
-    assert_eq!(deliveries(&evs, &s, 8 * 60).len(), 2);
+    assert_eq!(deliveries(&evs, &s, 8 * 60).len(), 1);
 }
 
 #[test]
@@ -364,13 +353,12 @@ fn ids_roundtrip() {
         assert_eq!(Channel::from_id(c.id()), Some(c));
     }
     assert_eq!(NotifyReason::from_id("?"), None);
-    assert!(Channel::Email.via_backend() && !Channel::Browser.via_backend());
 }
 
 #[test]
 fn settings_json_is_stable_and_old_data_loads() {
     let mut s = NotifySettings::default();
-    s.set(NotifyReason::Mention, Channel::Email, true);
+    s.set(NotifyReason::Mention, Channel::Browser, false);
     let text = serde_json::to_string(&s).unwrap();
     assert_eq!(serde_json::from_str::<NotifySettings>(&text).unwrap(), s);
     assert_eq!(

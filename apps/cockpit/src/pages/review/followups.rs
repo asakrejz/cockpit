@@ -77,7 +77,6 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
             })
             .collect_view();
         let options = move || AgentOptions {
-            run_tests: store.conn.get_untracked().may_run_tests,
             // Your click is the approval; the agent only pushes to its own branch.
             plan_first: false,
             ..Default::default()

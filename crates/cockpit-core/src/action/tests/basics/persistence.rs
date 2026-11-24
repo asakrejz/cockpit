@@ -37,16 +37,16 @@ fn the_log_survives_save_and_load() {
         T + 1,
     )
     .unwrap();
-    let back = persist::load(&persist::save(&w)).unwrap();
+    let back = loaded(&saved(&w)).unwrap();
     assert_eq!(back.log, w.log);
     assert_eq!(back, w);
 }
 
 #[test]
 fn old_saves_without_a_log_still_load() {
-    let mut value: serde_json::Value = serde_json::from_str(&persist::save(&ws())).unwrap();
+    let mut value: serde_json::Value = serde_json::from_str(&saved(&ws())).unwrap();
     value["workspace"].as_object_mut().unwrap().remove("log");
-    let back = persist::load(&value.to_string()).unwrap();
+    let back = loaded(&value.to_string()).unwrap();
     assert!(back.log.is_empty());
     assert_eq!(back.items.len(), 7);
     // And it continues.
@@ -64,7 +64,7 @@ fn old_saves_without_a_log_still_load() {
 
 #[test]
 fn old_saves_without_rules_snoozes_or_due_dates_still_load() {
-    let mut value: serde_json::Value = serde_json::from_str(&persist::save(&ws())).unwrap();
+    let mut value: serde_json::Value = serde_json::from_str(&saved(&ws())).unwrap();
     let workspace = value["workspace"].as_object_mut().unwrap();
     workspace.remove("rules");
     workspace.remove("snoozed");
@@ -74,7 +74,7 @@ fn old_saves_without_rules_snoozes_or_due_dates_still_load() {
             pr.remove("changes_requested");
         }
     }
-    let back = persist::load(&value.to_string()).unwrap();
+    let back = loaded(&value.to_string()).unwrap();
     assert!(Rule::ALL.iter().all(|r| back.rules.enabled(*r)));
     assert!(back.snoozed.is_empty());
     assert_eq!(back.item("bau150").unwrap().due, None);

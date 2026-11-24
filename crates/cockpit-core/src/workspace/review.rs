@@ -205,20 +205,4 @@ impl Workspace {
         }
         Ok(self.follow_status())
     }
-
-    /// Requests a review: the pull request counts as „Review angefragt“. `false` if it already is.
-    pub fn request_review(&mut self, number: impl Into<PrKey>) -> bool {
-        let key = number.into();
-        let mut changed = false;
-        for pr in self
-            .items
-            .iter_mut()
-            .filter_map(|i| i.pr.as_mut())
-            .filter(|p| key.matches(&p.repo, p.number) && !p.review_requested)
-        {
-            pr.review_requested = true;
-            changed = true;
-        }
-        changed
-    }
 }

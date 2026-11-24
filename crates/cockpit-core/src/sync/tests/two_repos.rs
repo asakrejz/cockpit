@@ -89,9 +89,8 @@ fn checks_changes_are_reported_for_the_right_repo() {
 }
 
 #[test]
-fn an_old_state_with_one_repo_and_no_repo_fields_is_migrated() {
-    // The format before several repos: reviews and references without `repo`, the link
-    // `prs` carries the repo.
+fn a_state_without_repo_fields_still_works() {
+    // Reviews and references without `repo`; the link `prs` carries the repo.
     let old = r##"{
         "items": [{"id":"gh-a-x-5","kind":"PullRequest","source":"GitHub","key":"#5","reason":"ReviewRequested",
                    "scope":"Mine","owner":{"name":"Lena","initials":"LK"},"repo":"acme/app",
@@ -99,25 +98,15 @@ fn an_old_state_with_one_repo_and_no_repo_fields_is_migrated() {
         "reviews": [{"number":5,"title":"Old","author":{"name":"Lena","initials":"LK"},"checks":"Passed"}],
         "sync": {"prs":[{"number":5,"repo":"acme/app","head_sha":"abc"}],"items":["gh-a-x-5"]}
     }"##;
-    let mut ws: Workspace = serde_json::from_str(old).unwrap();
+    let ws: Workspace = serde_json::from_str(old).unwrap();
     assert_eq!(ws.reviews[0].repo, "");
-    // It works even before the migration (a plain number finds the only review) …
+    // A plain number finds the only review, and so does a key with the repo of its link.
     assert!(ws.review(5).is_some());
-    // … and the migration fills the repo from the link and the entry.
-    assert!(ws.fill_repos(None));
-    assert_eq!(ws.reviews[0].repo, "acme/app");
-    assert_eq!(ws.items[0].pr.as_ref().unwrap().repo, "acme/app");
     assert!(ws.review(PrKey::new("acme/app", 5)).is_some());
-    assert!(ws.review(PrKey::new("acme/web", 5)).is_none());
-}
-
-#[test]
-fn the_only_configured_repo_fills_reviews_without_any_other_hint() {
-    let mut ws = Workspace {
-        reviews: vec![review(7, Vec::new())],
-        ..Workspace::default()
-    };
-    assert!(!ws.clone().fill_repos(None), "nothing to go by");
-    assert!(ws.fill_repos(Some("acme/only")));
-    assert_eq!(ws.reviews[0].repo, "acme/only");
+    // An unknown repo is not written.
+    assert!(
+        !serde_json::to_string(&ws.reviews[0])
+            .unwrap()
+            .contains("\"repo\"")
+    );
 }

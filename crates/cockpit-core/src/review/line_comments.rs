@@ -44,7 +44,6 @@ impl Review {
             text: text.into(),
             suggestion,
             author: None,
-            resolved: None,
         });
         self.sent = false;
         Some(id)

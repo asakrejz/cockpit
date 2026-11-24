@@ -20,5 +20,3 @@ core_misc.auth_none = Disconnected
 core_misc.auth_token = Token
 core_misc.auth_oauth = OAuth
 core_misc.agent_not_connected = The agent is not connected.
-core_misc.agent_no_branches = The agent is not allowed to create branches.
-core_misc.agent_no_pull_requests = The agent is not allowed to create pull requests.

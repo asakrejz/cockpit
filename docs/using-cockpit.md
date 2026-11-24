@@ -21,7 +21,7 @@ in English they read Tasks, Pull requests, Agents, Log, Limits & rules, Notifica
 | Aufgaben | `#/tasks` (the filter chosen last), `#/`, `#/mine`, `#/team`, `#/snoozed` (the older addresses keep their filter) | inbox of tickets and pull requests, filtered by switchable rules (mention, review request, blocked PR, overdue ticket, agent done, assigned); snooze; change status, create a branch, reply, assign the agent; edit a ticket; pull requests link to their ticket automatically (the ticket key in the branch name, title or description; there is no manual linking), the section "Entwicklung" lists every linked PR with branch, state and checks; search; the button "Filter" (with the number of active filters) opens the filter dialog with all filters, chips under it remove single filters; keys `↑↓`/`j k`, `e`, `r`, `s`, `u`, `/` |
 | Review | `#/review/acme/app/87` | the list on the left has a "Filter" button (see [Reviews filter](#reviews-filter)); the description and all comments are shown as Markdown (headings, lists, code, links; no raw HTML); tabs „Dateien“ (file tree with +/− counts, one collapsible diff per file, „Angesehen“ per file, long diffs cut at 300 lines with „Mehr anzeigen“) and „Commits“ (list; a click shows only that commit's diff, read only); select lines and write your own comments; approve, reject or edit comments of the agent; send the review; checks with log; merge (only you); before "PR reviewen" a switch Automatisch / DE / EN picks the language of the agent's comments |
 | Übersicht | `#/overview` | open entries and load per person; "Hängt" shows failed checks, waiting reviews, tickets without a branch and agents waiting for you |
-| Benachrichtigungen | `#/notifications` | per occasion choose browser, email and Slack; quiet hours; permission request by button; test notification |
+| Benachrichtigungen | `#/notifications` | per occasion switch the browser notification on or off; quiet hours; permission request by button; test notification |
 | Agent | `#/agent/BAU-142` | assignment with options; plan for approval; five-step flow; answer questions, send hints, pause; history as a conversation; for a finished real run "Pull Request anlegen" (preview, editable); finished runs whose pull request is merged or closed (see below); "Aufräumen" |
 | Grenzen & Regeln | `#/limits` | prices per million tokens, budget per run and month, time limit, parallel runs; per repo allowed/forbidden paths, required tests, instructions and plan requirement; usage today and this month |
 
@@ -95,7 +95,7 @@ open pull requests of the watched repos (`[github] repos`; the others show the o
 
 Notifications are derived purely from comparing the workspace before and after an action
 (`crates/cockpit-core/src/notify.rs`). In the **browser** Cockpit never asks for permission by itself, only via the
-button. Email and Slack are only prepared: the choice is stored, sending will go through the backend later.
+button.
 
 ## Jira project and sprint view
 

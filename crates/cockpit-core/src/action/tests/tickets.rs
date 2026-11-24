@@ -9,7 +9,7 @@ fn editing_a_ticket_changes_title_and_description() {
         1,
     );
     assert_eq!(
-        applied.summary,
+        first_text(&w, &applied),
         "Titel und Beschreibung von BAU-150 geändert"
     );
     let item = w.item("bau150").unwrap();
@@ -25,9 +25,12 @@ fn editing_a_ticket_changes_title_and_description() {
     );
 
     let applied = ok(&mut w, edit("bau150", "Sheet: Detents", "Anderer Text"), 1);
-    assert_eq!(applied.summary, "Beschreibung von BAU-150 geändert");
+    assert_eq!(
+        first_text(&w, &applied),
+        "Beschreibung von BAU-150 geändert"
+    );
     let applied = ok(&mut w, edit("bau150", "Sheet", "Anderer Text"), 1);
-    assert_eq!(applied.summary, "Titel von BAU-150 geändert");
+    assert_eq!(first_text(&w, &applied), "Titel von BAU-150 geändert");
     // An empty description is allowed.
     ok(&mut w, edit("bau150", "Sheet", ""), 1);
     assert_eq!(w.item("bau150").unwrap().description, "");
@@ -73,7 +76,7 @@ fn assigning_to_someone_else_ends_the_assigned_rule() {
     assert!(w.visible(Filter::Mine).iter().any(|i| i.id == "bau150"));
 
     let applied = ok(&mut w, assign("bau150", lena()), 1);
-    assert_eq!(applied.summary, "BAU-150 an Lena zugewiesen");
+    assert_eq!(first_text(&w, &applied), "BAU-150 an Lena zugewiesen");
     let item = w.item("bau150").unwrap();
     assert_eq!((item.owner.clone(), item.scope), (lena(), Scope::Team));
     assert!(!assigned(&w), "the rule ends");
@@ -100,7 +103,7 @@ fn assigning_to_me_triggers_the_assigned_rule() {
     assert!(!w.needs_attention(w.item("bau150").unwrap(), T));
 
     let applied = ok(&mut w, assign("bau150", Person::me()), 1);
-    assert_eq!(applied.summary, "BAU-150 dir zugewiesen");
+    assert_eq!(first_text(&w, &applied), "BAU-150 dir zugewiesen");
     let item = w.item("bau150").unwrap();
     assert_eq!(
         (item.owner.clone(), item.scope),
@@ -168,7 +171,7 @@ fn priority_is_set_logged_and_defaults_to_medium() {
         1,
     );
     assert_eq!(
-        applied.summary,
+        first_text(&w, &applied),
         "Priorität von BAU-150 auf „Höchste“ gesetzt"
     );
     assert_eq!(w.item("bau150").unwrap().priority, Priority::Highest);
@@ -196,7 +199,7 @@ fn old_saves_without_the_new_fields_still_load() {
         T,
     )
     .unwrap();
-    let mut value: serde_json::Value = serde_json::from_str(&persist::save(&w)).unwrap();
+    let mut value: serde_json::Value = serde_json::from_str(&saved(&w)).unwrap();
     let ws_json = value.get_mut("workspace").unwrap().as_object_mut().unwrap();
     for key in ["pr_status_off", "status_seen"] {
         assert!(ws_json.remove(key).is_some(), "{key} is stored");
@@ -208,8 +211,7 @@ fn old_saves_without_the_new_fields_still_load() {
             pr.remove("review_requested");
         }
     }
-    let (back, restored) = persist::restore(Some(&value.to_string()));
-    assert!(restored, "old state loads");
+    let back = loaded(&value.to_string()).expect("the stored state loads");
     assert_eq!(back.item("bau150").unwrap().priority, Priority::Medium);
     assert!(!back.pr_status_off);
     assert!(

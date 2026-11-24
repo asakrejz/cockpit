@@ -186,22 +186,6 @@ impl AppState {
         settings: Settings,
     ) -> Self {
         let live = Live::load(&db, settings.seed);
-        // An old state gets its repos: from the sync links and entries, otherwise from the only
-        // configured repo.
-        let only_repo = {
-            let github = sources
-                .github
-                .as_ref()
-                .map(|g| g.repos.clone())
-                .unwrap_or_default();
-            let repos = crate::agent_run::repos_effective(
-                &settings.agent_repos,
-                settings.agent_repo.as_deref(),
-                &github,
-            );
-            (repos.repos.len() == 1).then(|| repos.repos[0].repo.clone())
-        };
-        live.fill_repos(&db, only_repo.as_deref());
         Self {
             inner: Arc::new(Inner {
                 db: Mutex::new(db),

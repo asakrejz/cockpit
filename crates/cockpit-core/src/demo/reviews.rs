@@ -100,7 +100,6 @@ pub(super) fn reviews(pr87: &Item, bau138: &Item, pr85: &Item) -> [Review; 3] {
                 text: text.into(),
                 suggestion: code.map(str::to_string),
                 author: Some(who),
-                resolved: None,
             }
         };
     let review91 = Review {

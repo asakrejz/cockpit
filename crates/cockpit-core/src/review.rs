@@ -219,20 +219,12 @@ pub struct LineComment {
     /// GitHub, they do not go out with the own review and cannot be changed.
     #[serde(default)]
     pub author: Option<Person>,
-    /// Key of the agent run that implemented the comment. `None` = still open.
-    #[serde(default)]
-    pub resolved: Option<String>,
 }
 
 impl LineComment {
     /// Written by me.
     pub fn is_own(&self) -> bool {
         self.author.is_none()
-    }
-
-    /// Not implemented yet.
-    pub fn is_open(&self) -> bool {
-        self.resolved.is_none()
     }
 
     /// The comment as it goes to GitHub: text, then the suggestion as a

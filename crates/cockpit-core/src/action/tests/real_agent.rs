@@ -164,7 +164,7 @@ fn a_real_run_survives_save_and_load() {
         },
     )
     .unwrap();
-    let (back, _) = persist::restore(Some(&persist::save(&w)));
+    let back = loaded(&saved(&w)).unwrap();
     assert_eq!(back, w);
     assert!(back.run("BAU-142").unwrap().agent_plan.is_some());
     let json = serde_json::to_string(&Action::ReportAgent {

@@ -1,9 +1,6 @@
 //! Settings: notifications per reason and channel, quiet hours and the permission of the
 //! browser. Saved in the workspace through actions (`SetNotifyChannel`,
 //! `SetQuietHours`). What is reported when is in `cockpit_core::notify`.
-//!
-//! Email and Slack are only prepared: the selection is saved, sending will be done
-//! later through the backend. Addresses and webhook URLs do not exist in the browser.
 
 use cockpit_core::{Action, Channel, NotifyEvent, NotifyReason, QuietHours};
 use feature_ui::*;
@@ -205,9 +202,6 @@ pub fn NotificationsPage() -> impl IntoView {
                             </ListSection>
                         </List>
 
-                        <p class="t-footnote t-secondary" style="padding-inline: 4px">
-                            {t!(NotificationsBackendNote)}
-                        </p>
                         {NotifyReason::ALL
                             .into_iter()
                             .map(|reason| {
@@ -217,24 +211,10 @@ pub fn NotificationsPage() -> impl IntoView {
                                             {Channel::ALL
                                                 .into_iter()
                                                 .map(|channel| {
-                                                    if channel.via_backend() {
-                                                        view! {
-                                                            <ListRow
-                                                                title=channel_label(channel)
-                                                                subtitle=t!(NotificationsBackendLater)
-                                                                toggle_row=true
-                                                            >
-                                                                <ChannelToggle reason=reason channel=channel />
-                                                            </ListRow>
-                                                        }
-                                                            .into_any()
-                                                    } else {
-                                                        view! {
-                                                            <ListRow title=channel_label(channel) toggle_row=true>
-                                                                <ChannelToggle reason=reason channel=channel />
-                                                            </ListRow>
-                                                        }
-                                                            .into_any()
+                                                    view! {
+                                                        <ListRow title=channel_label(channel) toggle_row=true>
+                                                            <ChannelToggle reason=reason channel=channel />
+                                                        </ListRow>
                                                     }
                                                 })
                                                 .collect_view()}

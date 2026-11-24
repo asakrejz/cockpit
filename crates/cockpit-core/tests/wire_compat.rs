@@ -2,19 +2,19 @@
 //! of Rust identifiers. `wire_*.json` are the current snapshots (they write `"User"` where
 //! the older versions wrote `"Du"`); `legacy_*.json` are the snapshots written before the English
 //! renaming and must keep loading (the old names are read through `serde(alias)`).
-//! `wire_pre_repo_*.json` are the current snapshots as they were before several repos were
-//! supported (no `repo` on reviews and pull request references); they must keep loading and
-//! resaving byte-identically (empty repos are not written).
 //! `legacy_sync_state_problem.json` is a sync state in which one problem is stored as a plain text
 //! and one as a message; both must load.
 //! `legacy_simulated_agent_workspace.json` is a state saved while the simulated agent still
 //! existed: runs with the removed fields and kinds, a diagnosis, sample suggestions, checks that
 //! count ticks. It must load, and saving it again must leave those parts out.
+//! `legacy_removed_fields_workspace.json` is a state that still holds what was removed from the
+//! data: the email and Slack channels of the notification settings and the `resolved` mark of line
+//! comments. It must load, and saving it again must leave those parts out.
 //! Regenerate `wire_*` with `BLESS=1 cargo test -p cockpit-core --test wire_compat` only on purpose.
 
 use cockpit_core::{
-    Action, Actor, AgentOptions, AgentReport, FollowupTask, Problem, Rule, RunKind, RunState,
-    Source, SyncState, TicketStatus, Workspace, demo, persist,
+    Action, Actor, AgentOptions, AgentReport, Channel, FollowupTask, NotifyReason, Problem, Rule,
+    RunKind, RunState, Source, SyncState, TicketStatus, Workspace, demo, persist,
 };
 use cockpit_i18n::{Lang, Msg};
 
@@ -105,7 +105,7 @@ fn check(name: &str, actual: String) {
 fn demo_workspace_serializes_byte_identically() {
     check(
         "wire_demo_workspace.json",
-        persist::save(&demo::workspace()),
+        persist::save_with_revision(&demo::workspace(), 3),
     );
 }
 
@@ -119,16 +119,11 @@ fn workspace_with_actions_and_log_serializes_byte_identically() {
 
 #[test]
 fn current_snapshots_load_and_resave_identically() {
-    for name in [
-        "wire_demo_workspace.json",
-        "wire_busy_workspace.json",
-        "wire_pre_repo_demo_workspace.json",
-        "wire_pre_repo_busy_workspace.json",
-    ] {
+    for name in ["wire_demo_workspace.json", "wire_busy_workspace.json"] {
         let text = read(name);
         let (ws, revision) = persist::load_with_revision(&text).expect("snapshot loads");
         assert!(
-            resave(&ws, revision, &text) == text,
+            persist::save_with_revision(&ws, revision) == text,
             "{name}: load + save changed the bytes"
         );
     }
@@ -136,45 +131,68 @@ fn current_snapshots_load_and_resave_identically() {
 
 #[test]
 fn legacy_snapshots_still_load_and_resave_in_the_new_names() {
-    for (legacy, current) in [
-        (
-            "legacy_demo_workspace.json",
-            "wire_pre_repo_demo_workspace.json",
-        ),
-        (
-            "legacy_busy_workspace.json",
-            "wire_pre_repo_busy_workspace.json",
-        ),
-    ] {
+    for legacy in ["legacy_demo_workspace.json", "legacy_busy_workspace.json"] {
         let text = read(legacy);
         let (ws, revision) = persist::load_with_revision(&text).expect("old snapshot loads");
-        // Resaving must give the stored `wire_pre_repo_*` snapshot.
-        check(current, resave(&ws, revision, &text));
+        let saved = persist::save_with_revision(&ws, revision);
+        assert!(
+            !saved.contains("\"actor\":\"Du\""),
+            "{legacy}: an old name is still written"
+        );
+        let (again, _) = persist::load_with_revision(&saved).expect("the saved state loads");
+        assert_eq!(again, ws, "{legacy}");
+        assert_eq!(persist::save_with_revision(&again, revision), saved);
     }
 }
 
-/// A state from before several repos were supported gets its repos from the migration and
-/// then behaves like the current one.
+/// A state saved without a revision reads as revision 0.
 #[test]
-fn pre_repo_snapshots_get_their_repos_from_the_migration() {
-    let text = read("wire_pre_repo_demo_workspace.json");
-    let mut ws = persist::load(&text).expect("loads");
-    assert!(ws.reviews.iter().all(|r| r.repo.is_empty()));
-    assert!(ws.fill_repos(Some(cockpit_core::demo::DEMO_REPO)));
-    assert!(ws.reviews.iter().all(|r| !r.repo.is_empty()));
-    // Idempotent.
-    assert!(!ws.fill_repos(Some(cockpit_core::demo::DEMO_REPO)));
-    // The tokens repo's pull request keeps the repo of its entry instead of the default,
-    // and a ticket's copy of #91 takes the default.
-    let tokens = ws.item("pr12").unwrap().pr.as_ref().unwrap();
-    assert_eq!(tokens.repo, "acme/design-tokens");
-    assert_eq!(ws.review(91).unwrap().repo, cockpit_core::demo::DEMO_REPO);
-    assert_eq!(
-        ws.item("bau138").unwrap().pr.as_ref().unwrap().repo,
-        cockpit_core::demo::DEMO_REPO
+fn a_snapshot_without_revision_loads_as_revision_zero() {
+    let text = read("legacy_demo_workspace.json");
+    assert!(!text.contains("\"revision\""));
+    let (_, revision) = persist::load_with_revision(&text).expect("old snapshot loads");
+    assert_eq!(revision, 0);
+}
+
+/// A state with the removed notification channels (email, Slack) and the removed `resolved` mark
+/// on line comments loads: the browser choices stay, the rest is ignored and not written again.
+#[test]
+fn a_state_with_removed_channels_and_marks_still_loads() {
+    let text = read("legacy_removed_fields_workspace.json");
+    // The fixture really holds what was removed.
+    for old in [
+        "\"email\":true",
+        "\"slack\":true",
+        "\"resolved\":\"review-87\"",
+    ] {
+        assert!(text.contains(old), "the fixture lost {old}");
+    }
+
+    let (ws, revision) = persist::load_with_revision(&text).expect("the old state loads");
+    assert!(
+        ws.notifications
+            .enabled(NotifyReason::Mention, Channel::Browser)
     );
-    // Saving and loading the migrated state keeps it.
-    assert_eq!(persist::load(&persist::save(&ws)).unwrap(), ws);
+    assert!(
+        !ws.notifications
+            .enabled(NotifyReason::AgentFinished, Channel::Browser)
+    );
+    assert!(
+        ws.notifications
+            .enabled(NotifyReason::Assigned, Channel::Browser)
+    );
+    // Every comment is there; the own one goes out with the review again.
+    let review = ws.review(91).unwrap();
+    assert_eq!(review.line_comments.len(), 3);
+    assert_eq!(review.comment_count(), review.approved() + 1);
+
+    let saved = persist::save_with_revision(&ws, revision);
+    for gone in ["\"email\"", "\"slack\"", "\"resolved\""] {
+        assert!(!saved.contains(gone), "{gone} is still written");
+    }
+    let (again, _) = persist::load_with_revision(&saved).expect("the saved state loads");
+    assert_eq!(again, ws);
+    assert_eq!(persist::save_with_revision(&again, revision), saved);
 }
 
 /// A state from the time of the simulated agent loads: the removed fields are ignored, the two
@@ -327,12 +345,4 @@ fn a_stored_problem_loads_as_text_or_as_message() {
 fn read(name: &str) -> String {
     let path = format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"));
     std::fs::read_to_string(path).unwrap()
-}
-
-fn resave(ws: &Workspace, revision: u64, text: &str) -> String {
-    if text.contains("\"revision\"") {
-        persist::save_with_revision(ws, revision)
-    } else {
-        persist::save(ws)
-    }
 }

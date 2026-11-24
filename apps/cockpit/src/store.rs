@@ -312,10 +312,7 @@ impl Store {
         if actor == Actor::User {
             self.send(action);
         }
-        Ok(Applied {
-            summary: String::new(),
-            logged: 0,
-        })
+        Ok(Applied { logged: 0 })
     }
 
     /// Derives the events from the before/after and reports those for the browser.
@@ -325,9 +322,8 @@ impl Store {
         let deliveries =
             notify::deliveries(&events, &after.notifications, browser::minute_of_day());
         for delivery in deliveries {
-            // Email and Slack are sent by the backend later.
-            if delivery.channel == Channel::Browser {
-                self.announce(delivery.event, false);
+            match delivery.channel {
+                Channel::Browser => self.announce(delivery.event, false),
             }
         }
     }

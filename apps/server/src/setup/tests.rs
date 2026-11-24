@@ -10,6 +10,8 @@ use cockpit_core::api::{ClientInput, EndpointInput, GitHubInput, JiraInput, Prov
 use http_body_util::BodyExt;
 use tower::ServiceExt;
 
+use crate::db;
+
 use super::*;
 use crate::app::{Settings, router};
 use crate::secrets::{MemoryStore, SecretStore};

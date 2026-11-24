@@ -41,25 +41,25 @@ fn applying_the_filter_is_stored_and_logged() {
 fn the_filter_survives_saving_and_old_data_without_it_loads() {
     let mut w = ws();
     ok(&mut w, Action::SetInboxFilter { filter: narrowed() }, 1);
-    let back = persist::load(&persist::save(&w)).unwrap();
+    let back = loaded(&saved(&w)).unwrap();
     assert_eq!(back.inbox_filter, narrowed());
 
-    let mut json: serde_json::Value = serde_json::from_str(&persist::save(&w)).unwrap();
+    let mut json: serde_json::Value = serde_json::from_str(&saved(&w)).unwrap();
     json["workspace"]
         .as_object_mut()
         .unwrap()
         .remove("inbox_filter");
-    let old = persist::load(&json.to_string()).unwrap();
+    let old = loaded(&json.to_string()).unwrap();
     assert!(old.inbox_filter.is_default());
     // A stored filter that lacks newer fields keeps the start values for them.
     json["workspace"]["inbox_filter"] = serde_json::json!({ "whose": "Mine" });
-    let partial = persist::load(&json.to_string()).unwrap();
+    let partial = loaded(&json.to_string()).unwrap();
     assert_eq!(partial.inbox_filter.ownership, Ownership::Mine);
     assert!(partial.inbox_filter.hide_done);
     // The old start value „Meine“ (stored as `ownership`) is not carried over: the start
     // value is „Alle“ now, so colleagues' tickets show up.
     json["workspace"]["inbox_filter"] = serde_json::json!({ "ownership": "Mine" });
-    let older = persist::load(&json.to_string()).unwrap();
+    let older = loaded(&json.to_string()).unwrap();
     assert_eq!(older.inbox_filter.ownership, Ownership::All);
 }
 

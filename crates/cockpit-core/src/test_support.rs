@@ -1,7 +1,8 @@
 //! Helpers of the tests: what the container of an agent would report, applied to a workspace.
 
-use crate::action::{Action, Actor};
+use crate::action::{Action, Actor, Applied};
 use crate::agent::{AgentReport, STEPS};
+use crate::persist::{self, LoadError};
 use crate::workspace::Workspace;
 
 /// The consumption of each step (input tokens, output tokens, milliseconds). The same for every
@@ -73,4 +74,21 @@ pub(crate) fn question(w: &mut Workspace, key: &str, text: &str) {
         0,
     )
     .unwrap();
+}
+
+/// The workspace as the server stores it (revision 0).
+pub(crate) fn saved(w: &Workspace) -> String {
+    persist::save_with_revision(w, 0)
+}
+
+/// A stored text read back, without its revision.
+pub(crate) fn loaded(text: &str) -> Result<Workspace, LoadError> {
+    persist::load_with_revision(text).map(|(w, _)| w)
+}
+
+/// The text of the first log entry that an applied action added (empty if it added none).
+pub(crate) fn first_text<'a>(w: &'a Workspace, applied: &Applied) -> &'a str {
+    w.log
+        .get(w.log.len() - applied.logged)
+        .map_or("", |entry| entry.text.as_str())
 }

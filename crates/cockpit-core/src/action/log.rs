@@ -77,8 +77,6 @@ impl LogEntry {
 /// Result of a successful action.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Applied {
-    /// The sentence that stands in the log (with several entries: the first).
-    pub summary: String,
     /// Number of new log entries.
     pub logged: usize,
 }

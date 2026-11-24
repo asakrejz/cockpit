@@ -3,8 +3,8 @@ use crate::agent::{RunKind, STEPS};
 use crate::demo;
 use crate::model::{Checks, Filter, Scope, Tone};
 use crate::notify::NotifySettings;
-use crate::persist;
 use crate::review::Decision;
+use crate::test_support::{first_text, loaded, saved};
 
 const T: u64 = 1_700_000_000_000;
 

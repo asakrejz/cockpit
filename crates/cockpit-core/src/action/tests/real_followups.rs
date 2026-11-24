@@ -395,7 +395,7 @@ fn the_new_fields_are_backward_compatible() {
     // And the persisted workspace with a finished pull request survives a round trip.
     let mut w = done_ws();
     create(&mut w, pull(130, false)).unwrap();
-    let back = persist::load(&persist::save(&w)).unwrap();
+    let back = loaded(&saved(&w)).unwrap();
     assert_eq!(
         back.run("BAU-142").unwrap().pull_request,
         w.run("BAU-142").unwrap().pull_request

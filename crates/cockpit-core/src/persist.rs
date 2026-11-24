@@ -8,13 +8,13 @@
 //! * **New fields** in the types are uncritical: old data without the field gets
 //!   the default value (`#[serde(default)]`), unknown fields are ignored. New
 //!   fields therefore get this attribute, as long as their type implements `Default`.
-//! * **Unreadable data** never leads to a crash: [`restore`] falls back to the sample data.
+//! * **Unreadable data** never leads to a crash: [`load_with_revision`] reports why it cannot be used.
 //!
 //! Keys and tokens are not part of the workspace and never end up here.
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Workspace, demo};
+use crate::Workspace;
 
 /// Version of the storage shape. Raise on incompatible changes to the data model.
 pub const VERSION: u32 = 1;
@@ -29,9 +29,8 @@ struct Header {
 struct Out<'a> {
     version: u32,
     workspace: &'a Workspace,
-    /// Server mode only: number of the state (counts with every applied action).
-    #[serde(skip_serializing_if = "Option::is_none")]
-    revision: Option<u64>,
+    /// Number of the state (counts with every applied action).
+    revision: u64,
 }
 
 #[derive(Deserialize)]
@@ -50,18 +49,8 @@ pub enum LoadError {
     Version(u32),
 }
 
-/// Turns the workspace into text.
-pub fn save(workspace: &Workspace) -> String {
-    to_text(workspace, None)
-}
-
-/// Like [`save`], with the server's revision number. The same shape, just one more field;
-/// [`load`] still reads the text.
+/// Turns the workspace into text, with the number of the state.
 pub fn save_with_revision(workspace: &Workspace, revision: u64) -> String {
-    to_text(workspace, Some(revision))
-}
-
-fn to_text(workspace: &Workspace, revision: Option<u64>) -> String {
     serde_json::to_string(&Out {
         version: VERSION,
         workspace,
@@ -71,12 +60,8 @@ fn to_text(workspace: &Workspace, revision: Option<u64>) -> String {
     .unwrap_or_default()
 }
 
-/// Reads stored text. Checks the version first, then the content.
-pub fn load(text: &str) -> Result<Workspace, LoadError> {
-    load_with_revision(text).map(|(workspace, _)| workspace)
-}
-
-/// Like [`load`], plus the revision number (0 if the text contains none).
+/// Reads stored text: the workspace and its revision number (0 if the text contains none).
+/// Checks the version first, then the content.
 pub fn load_with_revision(text: &str) -> Result<(Workspace, u64), LoadError> {
     let header: Header = serde_json::from_str(text).map_err(|_| LoadError::Unreadable)?;
     if header.version != VERSION {
@@ -85,15 +70,6 @@ pub fn load_with_revision(text: &str) -> Result<(Workspace, u64), LoadError> {
     serde_json::from_str::<In>(text)
         .map(|saved| (saved.workspace, saved.revision))
         .map_err(|_| LoadError::Unreadable)
-}
-
-/// The workspace for the start: the stored state, otherwise the sample data.
-/// The second value says whether the stored state was used.
-pub fn restore(saved: Option<&str>) -> (Workspace, bool) {
-    match saved.map(load) {
-        Some(Ok(workspace)) => (workspace, true),
-        _ => (demo::workspace(), false),
-    }
 }
 
 #[cfg(test)]
