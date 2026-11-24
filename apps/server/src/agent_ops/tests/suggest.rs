@@ -23,13 +23,13 @@ fn earlier_runs_of_the_project_are_remembered_without_any_configuration() {
 }
 
 #[test]
-fn pull_requests_of_the_ticket_and_the_configured_rules_are_suggested_too() {
+fn pull_requests_of_the_ticket_and_the_default_repo_are_suggested_too() {
     let w = welt(true);
-    let rules = vec![cockpit_core::AgentRepo {
-        projects: vec!["BAU".into()],
-        ..cockpit_core::AgentRepo::new("firma/rule")
-    }];
-    let state = with_repos(&w, rules, None);
+    let state = with_repos(
+        &w,
+        vec![cockpit_core::AgentRepo::new("firma/standard")],
+        Some("firma/standard"),
+    );
     let mut ws = state.inner.live.copy();
     ws.runs.clear();
     // A review that is linked to the ticket lives in firma/linked.
@@ -42,12 +42,7 @@ fn pull_requests_of_the_ticket_and_the_configured_rules_are_suggested_too() {
     let s = state.repo_suggestions("BAU-142", None).suggestions;
     let list: Vec<_> = s.iter().map(|s| (s.repo.as_str(), &s.reason)).collect();
     assert_eq!(list[0], ("firma/linked", &SuggestReason::LinkedPr));
-    assert!(list.contains(&(
-        "firma/rule",
-        &SuggestReason::Rule {
-            project: "BAU".into()
-        }
-    )));
+    assert_eq!(list[1], ("firma/standard", &SuggestReason::Default));
 }
 
 #[test]

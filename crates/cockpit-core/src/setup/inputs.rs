@@ -109,8 +109,7 @@ pub fn projects_read(text: &str) -> Vec<String> {
 /// The agent's repos from the rows of the assistant: `(repo, base branch, branch pattern)` per
 /// row plus the default. Empty rows are skipped. Rejects (with a plain-text reason) a repo that
 /// is not `owner/name`, one that is listed twice, a base branch with odd characters, a bad
-/// branch pattern and a default outside the list. Jira projects are not part of it: a repo is
-/// chosen when the agent starts, not per board.
+/// branch pattern and a default outside the list.
 pub fn agent_repos_read(
     rows: &[(String, String, String)],
     default: &str,
@@ -152,8 +151,6 @@ pub fn agent_repos_read(
         repos.push(crate::AgentRepo {
             repo: name,
             base_branch: base.to_string(),
-            // Kept as stored by the caller (the assistant no longer edits it).
-            projects: Vec::new(),
             branch_pattern: pattern.to_string(),
             pr_language: cockpit_i18n::Lang::En,
             watch: true,

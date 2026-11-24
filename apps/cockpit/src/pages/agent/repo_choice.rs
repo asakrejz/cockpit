@@ -21,7 +21,6 @@ fn reason_text(reason: &SuggestReason) -> String {
         SuggestReason::Issue => t!(AgentJobReasonIssue),
         SuggestReason::LinkedPr => t!(AgentJobReasonLinkedPr),
         SuggestReason::Mentioned => t!(AgentJobReasonMentioned),
-        SuggestReason::Rule { project } => t!(AgentJobReasonRule, project = project.clone()),
         SuggestReason::Default => t!(AgentJobReasonDefault),
     }
 }
@@ -29,7 +28,6 @@ fn reason_text(reason: &SuggestReason) -> String {
 pub(super) fn repo_choice(ctx: AgentCtx) -> impl IntoView {
     let AgentCtx {
         repo_touched,
-        project,
         repo_list,
         repo_list_error,
         repo_loading,
@@ -201,12 +199,7 @@ pub(super) fn repo_choice(ctx: AgentCtx) -> impl IntoView {
                         })
                 }}
                 <Show when=move || repo.get().is_empty()>
-                    <p class="t-footnote t-secondary" role="status">
-                        {move || match project.get() {
-                            Some(p) => t!(AgentJobNoRepoProject, project = p),
-                            None => t!(AgentJobNoRepo),
-                        }}
-                    </p>
+                    <p class="t-footnote t-secondary" role="status">{t!(AgentJobNoRepo)}</p>
                 </Show>
             </Show>
         </div>

@@ -51,17 +51,16 @@
 //! repo = "acme/app"                    # default repo of the agent (otherwise the only one from [github] repos)
 //! dir = "/path/to/agent"               # folder with Containerfile and runner (otherwise ./apps/agent or next to apps/cockpit/dist)
 //!
-//! # Several repos: a Jira project can be routed to a repo. A ticket whose project is not named
-//! # here goes to the default repo (`repo` above); the interface lets you change it before the start.
+//! # Settings per repo. The agent starts in the default repo (`repo` above, or the only repo
+//! # listed); the interface lets you choose another one before the start.
 //! [[agent.repos]]
 //! repo = "acme/web"
 //! base_branch = "develop"              # optional, default "main"
-//! projects = ["WEB", "SHOP"]           # Jira projects whose tickets go to this repo
 //! branch_pattern = "feature/{ticket}-{slug}"   # optional, default "claude/{ticket}-{slug}"
 //! pr_language = "de"                           # optional language of PR title and text, default "en"
 //!
 //! [[agent.repos]]
-//! repo = "acme/app"                    # a repo without projects is only a choice
+//! repo = "acme/app"
 //!
 //! [agent.endpoint]
 //! url = "https://litellm.example"      # proxy or compatible endpoint; empty or omitted = directly at Anthropic
@@ -107,8 +106,8 @@
 use std::net::{IpAddr, Ipv4Addr};
 use std::path::{Path, PathBuf};
 
+use cockpit_core::AgentRepo;
 use cockpit_core::api::Provider;
-use cockpit_core::{AgentRepo, is_project_key};
 use cockpit_i18n::{Msg, msg};
 use serde::Deserialize;
 

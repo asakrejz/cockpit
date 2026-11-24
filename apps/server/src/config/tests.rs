@@ -490,7 +490,7 @@ fn environment_addresses_are_checked_with_catalog_messages() {
 }
 
 #[test]
-fn agent_repos_with_base_branch_and_projects() {
+fn agent_repos_with_base_branch_and_pattern() {
     let toml = r#"
         [agent]
         repo = "firma/app"
@@ -498,7 +498,6 @@ fn agent_repos_with_base_branch_and_projects() {
         [[agent.repos]]
         repo = "firma/web"
         base_branch = "develop"
-        projects = ["web", "SHOP"]
 
         [[agent.repos]]
         repo = "firma/app"
@@ -509,20 +508,24 @@ fn agent_repos_with_base_branch_and_projects() {
     let web = &c.agent_repos[0];
     assert_eq!(web.repo, "firma/web");
     assert_eq!(web.base_branch, "develop");
-    assert_eq!(web.projects, ["WEB", "SHOP"], "keys are upper-cased");
     assert_eq!(c.agent_repos[1].base_branch, "main");
-    assert!(c.agent_repos[1].projects.is_empty());
 }
 
 #[test]
-fn old_project_lists_are_read_leniently_as_suggestions_only() {
-    // Jira projects are no longer tied to a repo: a bad key or one that two repos list is
-    // skipped or shared, never an error.
-    let toml = "[[agent.repos]]\nrepo = \"a/b\"\nprojects = [\"1X\", \"web\", \"WEB\"]\n\
-                [[agent.repos]]\nrepo = \"a/c\"\nprojects = [\"WEB\"]";
-    let c = Config::parse(Some(toml), no_env).unwrap();
-    assert_eq!(c.agent_repos[0].projects, ["WEB"]);
-    assert_eq!(c.agent_repos[1].projects, ["WEB"]);
+fn a_projects_key_of_an_agent_repo_is_accepted_and_has_no_effect() {
+    // Whatever the value is (a list, a bad key, a text): the file still starts and reads
+    // exactly like the file without the key.
+    let plain = "[[agent.repos]]\nrepo = \"a/b\"\nbase_branch = \"dev\"\n\
+                 [[agent.repos]]\nrepo = \"a/c\"";
+    let expected = Config::parse(Some(plain), no_env).unwrap().agent_repos;
+    for value in ["[\"1X\", \"web\", \"WEB\"]", "[]", "\"WEB\"", "3"] {
+        let toml = format!(
+            "[[agent.repos]]\nrepo = \"a/b\"\nbase_branch = \"dev\"\nprojects = {value}\n\
+             [[agent.repos]]\nrepo = \"a/c\"\nprojects = [\"WEB\"]"
+        );
+        let c = Config::parse(Some(&toml), no_env).unwrap();
+        assert_eq!(c.agent_repos, expected, "{value}");
+    }
 }
 
 #[test]

@@ -141,8 +141,8 @@ pub struct AgentStatus {
     /// The default repo of the agent (`owner/name`), if there is one.
     #[serde(default)]
     pub repo: Option<String>,
-    /// The repos the agent may work in, with base branch and the Jira projects routed to each,
-    /// and the default. The interface preselects the repo with the same rules the backend applies.
+    /// The repos the agent may work in, with base branch, and the default. The interface
+    /// preselects the default repo, which the backend uses for a start without a choice.
     #[serde(default)]
     pub repos: AgentRepos,
     /// What is still missing, one sentence per entry in plain text with the place in the assistant.

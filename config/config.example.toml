@@ -39,8 +39,9 @@ container = "podman"            # or "docker"; omit to detect the runtime
 repo = "acme/app"               # optional default repo; remove it to choose the repo at every start
 
 # Optional settings per repo. Without an entry a repo uses its default branch and the usual branch pattern;
-# the first start in a repo stores one (with watch = false). The repo itself is chosen when you start the agent
-# on a ticket; older files may still carry `projects = ["WEB"]` here, which only acts as a quiet suggestion.
+# the first start in a repo stores one (with watch = false). The agent starts in the default repo `repo` above
+# (or the only repo of the list); the start dialog of a ticket lets you choose another one. A `projects` key in an
+# entry has no effect.
 [[agent.repos]]
 repo = "acme/web"
 base_branch = "develop"         # optional, default "main"

@@ -218,7 +218,7 @@ line under the button says how many repos or projects are shown and has "Alle ze
 
 The start dialog of a ticket has a searchable list of every repo your GitHub access can see. The suggestions come first,
 each with a short reason: used before for tickets of the same Jira project, has a pull request or branch for this
-ticket, named in the ticket, or the default repo. (Older configs may still list Jira projects per repo; they only act as a quiet suggestion, the setup no longer asks for them.) Type to search; a valid `owner/name` that is not listed can be
+ticket, named in the ticket, or the default repo. Without a choice the agent starts in the default repo (`[agent] repo`, or the only configured repo); with several repos and no default the start asks you to choose. Type to search; a valid `owner/name` that is not listed can be
 used as typed. The first time the agent works in a repo, Cockpit reads its default branch (and a branch pattern proposal
 from `CONTRIBUTING.md`) from GitHub and remembers it in `[[agent.repos]]`.
 

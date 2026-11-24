@@ -25,7 +25,7 @@ fn previous_runs_of_the_same_project_come_first_most_used_first() {
     let s = suggest_repos(&SuggestInput {
         project: Some("web"),
         used: &used,
-        rules: Some(&rules),
+        repos: Some(&rules),
         ..Default::default()
     });
     assert_eq!(names(&s), ["acme/api", "acme/web"]);
@@ -45,7 +45,7 @@ fn equal_use_counts_prefer_the_latest_run() {
     let s = suggest_repos(&SuggestInput {
         project: Some("WEB"),
         used: &used,
-        rules: Some(&rules),
+        repos: Some(&rules),
         ..Default::default()
     });
     assert_eq!(names(&s), ["acme/b", "acme/a"]);
@@ -55,13 +55,7 @@ fn equal_use_counts_prefer_the_latest_run() {
 fn the_reasons_keep_their_order_and_every_repo_appears_once() {
     let used = used(&[("WEB", "acme/web")]);
     let rules = AgentRepos {
-        repos: vec![
-            AgentRepo {
-                projects: vec!["WEB".into()],
-                ..AgentRepo::new("acme/rule")
-            },
-            AgentRepo::new("acme/app"),
-        ],
+        repos: vec![AgentRepo::new("acme/app")],
         default: Some("acme/app".into()),
     };
     let linked = vec!["acme/linked".to_string(), "acme/web".to_string()];
@@ -72,7 +66,7 @@ fn the_reasons_keep_their_order_and_every_repo_appears_once() {
         used: &used,
         linked: &linked,
         text: "Fix it in acme/text and https://github.com/acme/addr/issues/1",
-        rules: Some(&rules),
+        repos: Some(&rules),
         visible: Some(&visible),
     });
     assert_eq!(
@@ -82,7 +76,6 @@ fn the_reasons_keep_their_order_and_every_repo_appears_once() {
             "acme/linked",
             "acme/text",
             "acme/addr",
-            "acme/rule",
             "acme/app"
         ]
     );
@@ -95,13 +88,7 @@ fn the_reasons_keep_their_order_and_every_repo_appears_once() {
     );
     assert_eq!(s[1].reason, SuggestReason::LinkedPr);
     assert_eq!(s[2].reason, SuggestReason::Mentioned);
-    assert_eq!(
-        s[4].reason,
-        SuggestReason::Rule {
-            project: "WEB".into()
-        }
-    );
-    assert_eq!(s[5].reason, SuggestReason::Default);
+    assert_eq!(s[4].reason, SuggestReason::Default);
 }
 
 #[test]
@@ -110,14 +97,14 @@ fn a_bare_name_in_the_text_needs_a_visible_repo() {
     let text = "Look at docs/readme and acme/app";
     let none = suggest_repos(&SuggestInput {
         text,
-        rules: Some(&rules),
+        repos: Some(&rules),
         ..Default::default()
     });
     assert!(none.is_empty());
     let visible = vec!["Acme/App".to_string()];
     let s = suggest_repos(&SuggestInput {
         text,
-        rules: Some(&rules),
+        repos: Some(&rules),
         visible: Some(&visible),
         ..Default::default()
     });
@@ -134,7 +121,7 @@ fn without_a_project_only_link_text_and_default_count() {
     let s = suggest_repos(&SuggestInput {
         project: None,
         used: &used,
-        rules: Some(&rules),
+        repos: Some(&rules),
         ..Default::default()
     });
     assert_eq!(names(&s), ["acme/app"]);
@@ -146,7 +133,7 @@ fn invalid_names_are_dropped() {
     let linked = vec!["nonsense".to_string(), "a b/c".to_string()];
     let s = suggest_repos(&SuggestInput {
         linked: &linked,
-        rules: Some(&rules),
+        repos: Some(&rules),
         ..Default::default()
     });
     assert!(s.is_empty());
@@ -235,9 +222,9 @@ fn the_repo_of_an_issue_comes_first_before_any_other_reason() {
 }
 
 #[test]
-fn the_start_dialog_suggests_without_any_project_rule() {
-    // Jira projects are not tied to repos in the setup any more: earlier runs, linked pull
-    // requests and mentions are enough, and the default repo comes last.
+fn the_start_dialog_suggests_from_history_links_and_text_with_the_default_last() {
+    // Jira projects are not tied to repos: earlier runs, linked pull requests and mentions
+    // come first, and the default repo comes last.
     let used = vec![("WEB".to_string(), "acme/web".to_string())];
     let linked = vec!["acme/api".to_string()];
     let rules = AgentRepos {
@@ -249,45 +236,23 @@ fn the_start_dialog_suggests_without_any_project_rule() {
         used: &used,
         linked: &linked,
         text: "see https://github.com/acme/docs/pull/3",
-        rules: Some(&rules),
+        repos: Some(&rules),
         ..Default::default()
     });
-    let names: Vec<_> = s.iter().map(|x| x.repo.as_str()).collect();
-    assert_eq!(names, ["acme/web", "acme/api", "acme/docs", "acme/app"]);
-    assert!(
-        s.iter()
-            .all(|x| !matches!(x.reason, SuggestReason::Rule { .. }))
-    );
+    assert_eq!(names(&s), ["acme/web", "acme/api", "acme/docs", "acme/app"]);
+    assert_eq!(s[3].reason, SuggestReason::Default);
 }
 
 #[test]
-fn an_old_project_list_still_suggests_quietly() {
+fn repos_without_a_default_suggest_nothing_by_themselves() {
     let rules = AgentRepos {
-        repos: vec![AgentRepo {
-            projects: vec!["WEB".into()],
-            ..AgentRepo::new("acme/web")
-        }],
+        repos: vec![AgentRepo::new("acme/web"), AgentRepo::new("acme/app")],
         default: None,
     };
     let s = suggest_repos(&SuggestInput {
         project: Some("web"),
-        rules: Some(&rules),
+        repos: Some(&rules),
         ..Default::default()
     });
-    assert_eq!(s.len(), 1);
-    assert_eq!(
-        s[0].reason,
-        SuggestReason::Rule {
-            project: "WEB".into()
-        }
-    );
-    // Another board gets nothing from it.
-    assert!(
-        suggest_repos(&SuggestInput {
-            project: Some("SHOP"),
-            rules: Some(&rules),
-            ..Default::default()
-        })
-        .is_empty()
-    );
+    assert!(s.is_empty());
 }

@@ -1,9 +1,9 @@
-//! Repos the agent may work in, and the rules that route a ticket to one of them.
+//! Repos the agent may work in, and the default among them.
 //!
 //! Configured in `config.toml` (`[agent] repo` as the default, `[[agent.repos]]` with a base
-//! branch and the Jira projects that go there). The backend reports the result in
-//! `GET /api/health`, so the interface can preselect the repo; the backend applies the same
-//! rules when a run starts. Everything here is pure.
+//! branch, branch pattern and language per repo). The backend reports the result in
+//! `GET /api/health`, so the interface can preselect the default repo; a start without a
+//! chosen repo uses the same default. Without one the user chooses. Everything here is pure.
 
 use serde::{Deserialize, Serialize};
 
@@ -28,9 +28,6 @@ pub struct AgentRepo {
     /// Branch the agent branches off and the pull request targets.
     #[serde(default = "default_base")]
     pub base_branch: String,
-    /// Jira projects (`WEB`) whose tickets go to this repo.
-    #[serde(default)]
-    pub projects: Vec<String>,
     /// How the agent names its branches (`{ticket}`, `{slug}`, `{type}`); see [`crate::branch`].
     #[serde(default = "default_pattern")]
     pub branch_pattern: String,
@@ -62,7 +59,6 @@ impl AgentRepo {
         Self {
             repo: repo.into(),
             base_branch: default_base(),
-            projects: Vec::new(),
             branch_pattern: default_pattern(),
             pr_language: cockpit_i18n::Lang::En,
             watch: true,
@@ -70,32 +66,12 @@ impl AgentRepo {
     }
 }
 
-/// Why a repo was chosen.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum RepoChoice {
-    /// A rule matched the project of the ticket.
-    Rule(String),
-    /// No rule matched; the default repo applies.
-    Default(String),
-    /// No rule matched and there is no default: the user has to choose.
-    None,
-}
-
-impl RepoChoice {
-    pub fn repo(&self) -> Option<&str> {
-        match self {
-            RepoChoice::Rule(r) | RepoChoice::Default(r) => Some(r),
-            RepoChoice::None => None,
-        }
-    }
-}
-
-/// The repos of the agent and the routing between tickets and repos.
+/// The repos of the agent and the default one.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct AgentRepos {
     #[serde(default)]
     pub repos: Vec<AgentRepo>,
-    /// The repo for tickets that no rule matches.
+    /// The repo a start uses when the user chooses none.
     #[serde(default)]
     pub default: Option<String>,
 }
@@ -128,64 +104,9 @@ impl AgentRepos {
             .map_or_else(default_pattern, str::to_string)
     }
 
-    /// The repo for a ticket of the Jira project `project`: the first rule that names the
-    /// project (case does not matter), otherwise the default.
-    ///
-    /// ```
-    /// use cockpit_core::{AgentRepo, AgentRepos, RepoChoice};
-    /// let repos = AgentRepos {
-    ///     repos: vec![
-    ///         AgentRepo::new("acme/app"),
-    ///         AgentRepo { projects: vec!["WEB".into()], ..AgentRepo::new("acme/web") },
-    ///     ],
-    ///     default: Some("acme/app".into()),
-    /// };
-    /// assert_eq!(repos.choose(Some("WEB")), RepoChoice::Rule("acme/web".into()));
-    /// assert_eq!(repos.choose(Some("BAU")), RepoChoice::Default("acme/app".into()));
-    /// ```
-    pub fn choose(&self, project: Option<&str>) -> RepoChoice {
-        if let Some(p) = project
-            && let Some(r) = self
-                .repos
-                .iter()
-                .find(|r| r.projects.iter().any(|q| q.eq_ignore_ascii_case(p)))
-        {
-            return RepoChoice::Rule(r.repo.clone());
-        }
-        match &self.default {
-            Some(d) => RepoChoice::Default(d.clone()),
-            None => RepoChoice::None,
-        }
-    }
-
-    /// The one list of the assistant: the configured repos plus those that only the older
-    /// `[github] repos` names (they stay, so nothing is lost when the list is saved again).
-    ///
-    /// ```
-    /// use cockpit_core::{AgentRepo, AgentRepos};
-    /// let configured = AgentRepos { repos: vec![AgentRepo::new("acme/web")], default: None };
-    /// let all = configured.unified(&["acme/app".into(), "acme/web".into()]);
-    /// let names: Vec<_> = all.repos.iter().map(|r| r.repo.as_str()).collect();
-    /// assert_eq!(names, ["acme/web", "acme/app"]);
-    /// ```
-    pub fn unified(&self, github: &[String]) -> AgentRepos {
-        let mut all = self.clone();
-        for r in github {
-            if all.find(r).is_none() {
-                all.repos.push(AgentRepo::new(r));
-            }
-        }
-        all
-    }
-
     /// Names of the repos, in list order: the repos the sync compares.
     pub fn names(&self) -> Vec<String> {
         self.repos.iter().map(|r| r.repo.clone()).collect()
-    }
-
-    /// Checks a repo chosen by hand: it has to be one of the configured ones.
-    pub fn allows(&self, repo: &str) -> bool {
-        self.find(repo).is_some()
     }
 }
 

@@ -221,7 +221,6 @@ fn change_writes_agent_repos_and_keeps_the_rest_of_agent() {
     assert!(updated.contains("[[agent.repos]]"), "{updated}");
     assert_eq!(c.agent_repo.as_deref(), Some("firma/app"));
     assert_eq!(c.agent_repos.len(), 2);
-    assert_eq!(c.agent_repos[1].projects, ["WEB"]);
     assert_eq!(c.agent_repos[1].base_branch, "develop");
     // Writing again gives the same file, and an empty list removes everything.
     let (again, _) = change(&updated, &agent_repos_change()).unwrap();
@@ -240,7 +239,7 @@ fn change_writes_agent_repos_and_keeps_the_rest_of_agent() {
 }
 
 #[test]
-fn change_rejects_a_default_outside_the_list_and_accepts_shared_projects() {
+fn change_rejects_a_default_outside_the_list() {
     use cockpit_core::AgentRepo;
     use cockpit_core::api::AgentReposInput;
     let outside = ConfigChange {
@@ -256,20 +255,6 @@ fn change_rejects_a_default_outside_the_list_and_accepts_shared_projects() {
             .de()
             .contains("Standard-Repo")
     );
-    let double = ConfigChange {
-        agent_repos: Some(AgentReposInput {
-            repos: ["a/b", "a/c"]
-                .map(|r| AgentRepo {
-                    projects: vec!["WEB".into()],
-                    ..AgentRepo::new(r)
-                })
-                .to_vec(),
-            default: None,
-        }),
-        ..Default::default()
-    };
-    // Jira projects are only suggestions now: two repos may list the same one.
-    assert!(change("", &double).is_ok());
 }
 
 #[test]
@@ -349,7 +334,6 @@ fn saving_the_list_keeps_the_watched_repos_of_the_github_section() {
                 AgentRepo::new("firma/app"),
                 AgentRepo {
                     base_branch: "develop".into(),
-                    projects: vec!["WEB".into()],
                     ..AgentRepo::new("firma/neu")
                 },
             ],
@@ -473,22 +457,6 @@ fn saving_an_empty_list_removes_both_places() {
     );
     assert!(c.agent_repos.is_empty());
     assert_eq!(c.github.unwrap().repos, ["firma/app"]);
-}
-
-#[test]
-fn a_hand_made_old_list_and_the_wizard_see_one_list() {
-    use cockpit_core::{AgentRepo, AgentRepos};
-    let c = Config::parse(Some(OLD_GITHUB), |_| None).unwrap();
-    let configured = AgentRepos {
-        repos: c.agent_repos.clone(),
-        default: c.agent_repo.clone(),
-    };
-    let all = configured.unified(&c.github.unwrap().repos);
-    assert_eq!(
-        all.repos,
-        [AgentRepo::new("firma/app"), AgentRepo::new("firma/alt")]
-    );
-    assert_eq!(all.default.as_deref(), Some("firma/app"));
 }
 
 #[test]
@@ -647,16 +615,36 @@ fn github_projects_are_written_in_place_and_checked() {
 }
 
 #[test]
-fn saving_repos_without_projects_keeps_the_old_suggestions() {
-    // The assistant no longer edits `projects`; an older file keeps them for the agent start.
-    let old = "[[agent.repos]]\nrepo = \"firma/web\"\nprojects = [\"WEB\"]\n";
-    let input = ConfigChange {
+fn every_save_leaves_out_the_projects_key_of_an_agent_repo() {
+    let old = "[[agent.repos]]\nrepo = \"firma/web\"\nprojects = [\"WEB\"]\nbase_branch = \"develop\"\n\
+               [[agent.repos]]\nrepo = \"firma/app\"\nprojects = [\"BAU\", \"X\"]\n";
+    // Saving the repo list.
+    let repos = ConfigChange {
         agent_repos: Some(cockpit_core::api::AgentReposInput {
-            repos: vec![cockpit_core::AgentRepo::new("firma/web")],
+            repos: vec![
+                cockpit_core::AgentRepo {
+                    base_branch: "develop".into(),
+                    ..cockpit_core::AgentRepo::new("firma/web")
+                },
+                cockpit_core::AgentRepo::new("firma/app"),
+            ],
             default: None,
         }),
         ..Default::default()
     };
-    let (updated, c) = change(old, &input).unwrap();
-    assert_eq!(c.agent_repos[0].projects, ["WEB"], "{updated}");
+    let (updated, c) = change(old, &repos).unwrap();
+    assert!(!updated.contains("projects"), "{updated}");
+    assert_eq!(c.agent_repos[0].base_branch, "develop");
+    // Saving something else leaves the entries as they are, apart from that key.
+    let webhooks = ConfigChange {
+        webhooks: Some(cockpit_core::api::WebhooksInput {
+            enabled: Some(false),
+            public_url: None,
+        }),
+        ..Default::default()
+    };
+    let (updated, c) = change(old, &webhooks).unwrap();
+    assert!(!updated.contains("projects"), "{updated}");
+    assert!(updated.contains("base_branch = \"develop\""), "{updated}");
+    assert_eq!(c.agent_repos.len(), 2);
 }

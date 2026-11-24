@@ -26,11 +26,10 @@ pub struct Targets {
     pub jira: bool,
     /// GitHub Projects are set up as a source of tickets.
     pub projects: bool,
-    /// Configured GitHub repos (`owner/name`). A branch for a Jira ticket goes to the repo the
-    /// routing rules name for its project, otherwise to the first one.
-    pub repos: Vec<String>,
-    /// Which repo a ticket belongs to (see [`cockpit_core::AgentRepos`]).
-    pub routing: cockpit_core::AgentRepos,
+    /// The repo a branch for a Jira ticket goes to: the default repo of the agent
+    /// (`[agent] repo`, or the only configured one). `None` when there is none or there are
+    /// several without a default; the plan then asks the user to set one.
+    pub default_repo: Option<String>,
 }
 
 /// What has to be done at the service.
@@ -196,14 +195,11 @@ pub fn plane(
             if !(i.source == cockpit_core::Source::Jira && targets.github) {
                 return Ok(None);
             }
-            // The repo of the ticket's project if the rules name one that is synced.
-            let routed = targets
-                .routing
-                .choose(i.project())
-                .repo()
-                .and_then(|r| targets.repos.iter().find(|c| c.as_str() == r));
-            let Some(repo) = routed.or_else(|| targets.repos.first()) else {
-                return Err(PlanError::new(cockpit_i18n::msg!(IntegrationsPlanNoRepo)));
+            // The default repo; without one the user has to set it (the button offers no choice).
+            let Some(repo) = targets.default_repo.as_ref() else {
+                return Err(PlanError::new(cockpit_i18n::msg!(
+                    IntegrationsPlanChooseRepo
+                )));
             };
             let name = after
                 .item(item)

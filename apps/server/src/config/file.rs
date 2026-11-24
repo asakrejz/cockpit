@@ -66,8 +66,10 @@ pub(super) struct FileEndpoint {
 pub(super) struct FileAgentRepo {
     pub(super) repo: String,
     pub(super) base_branch: Option<String>,
-    #[serde(default)]
-    pub(super) projects: Vec<String>,
+    /// Accepted so that a file with `projects = [...]` still starts; the value is ignored and the
+    /// setup assistant leaves the key out when it saves the file.
+    #[serde(default, rename = "projects")]
+    pub(super) _projects: serde::de::IgnoredAny,
     /// `claude/{ticket}-{slug}` if missing.
     #[serde(default)]
     pub(super) branch_pattern: Option<String>,
@@ -216,8 +218,7 @@ pub(super) fn repo_valid(r: &str) -> bool {
         .is_some_and(|(o, n)| teil(o) && teil(n) && !n.contains('/'))
 }
 
-/// `[[agent.repos]]`: every repo valid and once. `projects` (older files) is only read as a
-/// suggestion for the agent start and never an error.
+/// `[[agent.repos]]`: every repo valid and once.
 pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>, ConfigError> {
     let mut out: Vec<AgentRepo> = Vec::new();
     for r in list {
@@ -247,15 +248,6 @@ pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>,
                 repo = &repo
             )));
         }
-        // Only a silent suggestion for the agent start (see `cockpit_core::repos::suggest`), no
-        // longer a rule: a key that is invalid or listed twice is skipped instead of an error.
-        let mut projects: Vec<String> = Vec::new();
-        for p in &r.projects {
-            let p = p.trim().to_ascii_uppercase();
-            if is_project_key(&p) && !projects.contains(&p) {
-                projects.push(p);
-            }
-        }
         let pattern = r
             .branch_pattern
             .as_deref()
@@ -282,7 +274,6 @@ pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>,
         out.push(AgentRepo {
             repo,
             base_branch: base.to_string(),
-            projects,
             branch_pattern: pattern.to_string(),
             pr_language,
             watch: r.watch.unwrap_or(true),

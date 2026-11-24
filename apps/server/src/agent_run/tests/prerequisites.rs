@@ -97,13 +97,7 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
 fn the_repos_the_agents() {
     let one = vec!["a/b".to_string()];
     let two = vec!["a/b".to_string(), "c/d".to_string()];
-    let listed = vec![
-        AgentRepo::new("a/b"),
-        AgentRepo {
-            projects: vec!["WEB".into()],
-            ..AgentRepo::new("c/d")
-        },
-    ];
+    let listed = vec![AgentRepo::new("a/b"), AgentRepo::new("c/d")];
     // Only the default: it is the only repo, whatever the sync repos are.
     let r = repos_effective(&[], Some("x/y"), &two);
     assert_eq!((r.repos.len(), r.default.as_deref()), (1, Some("x/y")));
