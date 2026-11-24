@@ -20,7 +20,7 @@ pub fn adf_to_text(value: &Value) -> String {
 pub fn adf_to_text_for(value: &Value, me: &str) -> String {
     fn replace(n: &mut Value, me: &str) {
         if n["type"] == "mention" && n["attrs"]["id"] == me {
-            n["attrs"]["text"] = Value::String("@Du".into());
+            n["attrs"]["text"] = Value::String(format!("@{}", cockpit_core::ME_MARK));
         }
         if let Some(children) = n["content"].as_array_mut() {
             for k in children {

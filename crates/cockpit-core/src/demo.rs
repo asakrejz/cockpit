@@ -399,7 +399,7 @@ fn add_sprints(ws: &mut Workspace) {
         "Idee: Dark-Mode-Schalter im Footer",
         None,
         40,
-        Person::new(crate::UNASSIGNED_NAME, "–"),
+        Person::nobody(),
     ));
     ws.items.push(ticket(
         "WEB-18",

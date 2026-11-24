@@ -239,7 +239,7 @@ pub fn mention_for(text: &str, me: &str) -> String {
             continue;
         }
         out.push_str(&text[ab..pos]);
-        out.push_str("@Du");
+        out.push_str(&format!("@{}", cockpit_core::ME_MARK));
         ab = end;
     }
     out.push_str(&text[ab..]);

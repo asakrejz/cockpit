@@ -40,8 +40,14 @@ fn person_of(login: &str, me: &str) -> Person {
     }
 }
 
+/// The name for a plain name field (reporter, co-assignees): [`cockpit_core::ME_MARK`] for me.
 fn name_of(login: &str, me: &str) -> String {
-    person_of(login, me).name
+    let person = person_of(login, me);
+    if person.me {
+        cockpit_core::ME_MARK.to_string()
+    } else {
+        person.name
+    }
 }
 
 /// A number the way people write it: `3`, `2.5`.
@@ -230,12 +236,13 @@ pub fn map_item(
     let owner = match logins.first() {
         Some(_) if mine => Person::me(),
         Some(l) => text::person(l),
-        None => Person::new(cockpit_core::UNASSIGNED_NAME, "–"),
+        None => Person::nobody(),
     };
+    let owner_name = logins.first().map(|l| name_of(l, ctx.me));
     let co_assignees: Vec<String> = logins
         .iter()
         .map(|l| name_of(l, ctx.me))
-        .filter(|n| *n != owner.name)
+        .filter(|n| Some(n) != owner_name.as_ref())
         .collect();
     let (reason, reason_msg, scope) = if mine {
         (ReasonKind::Assigned, msg!(ReasonAssigned), Scope::Mine)

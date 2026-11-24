@@ -72,7 +72,7 @@ pub use connections::{AuthChoice, AuthKind, Connections, OAuthTokens, ServiceSta
 pub use details::{Attachment, DetailField, DetailValue, Details};
 pub use filters::{
     ASSIGNED_TO_ME, ActiveFilter, Applies, Choices, FILTERS, FilterDef, JIRA_PROJECT_FILTER,
-    NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED, UNASSIGNED_NAME, filter_def,
+    NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED, filter_def,
 };
 pub use model::*;
 pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};
@@ -97,7 +97,7 @@ pub use search::InboxFilter;
 pub use sync::{
     Change, Loaded, Outcome, PrLink, Problem, Remote, SourceData, SourceState, SyncState,
 };
-pub use team::{CAPACITY, LoadLevel, Member, Stuck, StuckKind, state_label};
+pub use team::{CAPACITY, LoadLevel, Member, Stuck, StuckKind, state_tone};
 pub use team_filter::TeamChoice;
 pub use usage::{AgentLimits, Charge, Pricing, StopReason, Usage};
 pub use workspace::{AgentError, LinkedPr, PullRequestDraft, ResumeError, StatusChange, Workspace};

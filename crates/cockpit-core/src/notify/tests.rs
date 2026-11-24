@@ -105,7 +105,8 @@ fn mention_needs_a_new_foreign_comment_with_my_name() {
 fn mention_matching() {
     let me = Person::me();
     assert!(mentions("Hi @Du!", &me));
-    assert!(mentions("@as bitte prüfen", &me));
+    assert!(mentions("@du bitte prüfen", &me));
+    assert!(!mentions("@as bitte prüfen", &me));
     assert!(mentions("a@b.de und @DU", &me));
     assert!(!mentions("Mail an a@b.de", &me));
     assert!(!mentions("@Dunkel", &me));

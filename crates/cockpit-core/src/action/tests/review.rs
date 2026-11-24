@@ -208,8 +208,8 @@ fn merging_marks_the_pull_request_and_finishes_the_ticket() {
     assert!(ticket.read);
     let pr = ticket.pr.as_ref().unwrap();
     assert!(pr.merged);
-    assert_eq!(crate::team::state_label(ticket).0, "Fertig");
-    assert_eq!(pr.status().0, "Gemergt");
+    assert_eq!(crate::team::state_tone(ticket), Tone::Green);
+    assert_eq!(pr.status_tone(), Tone::Indigo);
     // Merging twice is not possible, changing neither.
     fails(
         &mut w,
@@ -232,11 +232,7 @@ fn merging_a_pull_request_without_ticket_marks_its_entry() {
     ready_87(&mut w);
     ok(&mut w, merge(87, MergeMethod::Squash), 1);
     let item = w.item("pr87").unwrap();
-    assert_eq!(item.pr.as_ref().unwrap().label(), "#87 · gemergt");
-    assert_eq!(
-        crate::team::state_label(item),
-        ("Gemergt".into(), Tone::Indigo)
-    );
+    assert_eq!(crate::team::state_tone(item), Tone::Indigo);
     assert!(item.read);
     assert_eq!(item.reason_line().de(), "Gemergt (Squash)");
     let entry = w.log.last().unwrap();

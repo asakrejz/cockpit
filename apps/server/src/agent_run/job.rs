@@ -47,7 +47,10 @@ pub fn job_json(
                 .rev()
                 .take(10)
                 .rev()
-                .map(|c| truncate(&format!("{}: {}", c.author.name, c.text), 800))
+                .map(|c| {
+                    let name = c.author.name_in(ws.language.unwrap_or_default());
+                    truncate(&format!("{name}: {}", c.text), 800)
+                })
                 .collect()
         })
         .unwrap_or_default();

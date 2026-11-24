@@ -48,7 +48,7 @@ fn render() -> AnyView {
                             .collect_view()}
                     </HStack>
                     <HStack spacing="12px">
-                        <Avatar initials="AS" />
+                        <Avatar initials="DU" />
                         <Avatar initials="LK" large=true />
                         <Avatar agent=true />
                         <Avatar agent=true large=true />
@@ -91,7 +91,7 @@ fn render() -> AnyView {
                 </Pane>
                 <VStack spacing="12px">
                     <CommentBubble who="Lena" initials="LK" time="vor 12 Min." text="Betrifft auch den Slider-Thumb." />
-                    <CommentBubble who="Du" initials="AS" time="gerade eben" text="Schaue ich mir an." own=true />
+                    <CommentBubble who="Du" initials="DU" time="gerade eben" text="Schaue ich mir an." own=true />
                     <Textarea value=note label="Antwort" placeholder="Antworten …" min_height="72px" />
                 </VStack>
             </Grid>

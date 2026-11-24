@@ -75,8 +75,15 @@ pub struct Member {
 
 impl Member {
     fn new(person: Person) -> Self {
+        // The key is the address of the member's page; you keep one that does not follow the
+        // language.
+        let key = if person.me {
+            crate::model::ME_MARK.to_string()
+        } else {
+            person.name.clone()
+        };
         Self {
-            key: person.name.clone(),
+            key,
             person,
             github: None,
             sides: Vec::new(),
@@ -317,25 +324,18 @@ pub fn entry_ids(ws: &Workspace, list: &[Member], member: Option<&Member>) -> Ve
     }
 }
 
-/// Short state of an entry for lists: for tickets the status, for pull requests
+/// The tone of the short state of an entry in lists: for tickets the status, for pull requests
 /// the state of checks and review.
-pub fn state_label(item: &Item) -> (String, Tone) {
+pub fn state_tone(item: &Item) -> Tone {
     match (item.kind, &item.pr) {
-        (Kind::PullRequest, Some(pr)) => pr.status(),
-        (Kind::PullRequest, None) => ("Pull Request".into(), Tone::Gray),
-        (Kind::Ticket, _) => {
-            let label = TicketStatus::OPTIONS
-                .iter()
-                .find(|(id, _)| *id == item.status.id())
-                .map_or("", |(_, label)| *label);
-            let tone = match item.status {
-                TicketStatus::Open => Tone::Gray,
-                TicketStatus::InProgress => Tone::Blue,
-                TicketStatus::Review => Tone::Orange,
-                TicketStatus::Done => Tone::Green,
-            };
-            (label.into(), tone)
-        }
+        (Kind::PullRequest, Some(pr)) => pr.status_tone(),
+        (Kind::PullRequest, None) => Tone::Gray,
+        (Kind::Ticket, _) => match item.status {
+            TicketStatus::Open => Tone::Gray,
+            TicketStatus::InProgress => Tone::Blue,
+            TicketStatus::Review => Tone::Orange,
+            TicketStatus::Done => Tone::Green,
+        },
     }
 }
 
@@ -387,7 +387,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, Msg)> {
                 msg!(
                     CoreMiscStuckChecksOther,
                     pr = pr.key().to_string(),
-                    name = &item.owner.name
+                    name = item.owner.name_msg()
                 )
             },
         ));
@@ -452,7 +452,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, Msg)> {
             me,
             msg!(
                 CoreMiscStuckReview,
-                name = &item.owner.name,
+                name = item.owner.name_msg(),
                 pr = pr.key().to_string()
             ),
         ));
@@ -474,7 +474,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, Msg)> {
             if item.owner == Person::me() {
                 msg!(CoreMiscStuckNoBranchMe)
             } else {
-                msg!(CoreMiscStuckNoBranchOther, name = &item.owner.name)
+                msg!(CoreMiscStuckNoBranchOther, name = item.owner.name_msg())
             },
         ));
     }

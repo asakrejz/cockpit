@@ -2,13 +2,13 @@ use super::*;
 
 #[test]
 fn ids_and_options_agree() {
-    for (id, _) in Filter::OPTIONS {
+    for id in Filter::IDS {
         assert_eq!(Filter::from_id(id).map(Filter::id), Some(*id));
     }
-    for (id, _) in TicketStatus::OPTIONS {
+    for id in TicketStatus::IDS {
         assert_eq!(TicketStatus::from_id(id).map(TicketStatus::id), Some(*id));
     }
-    for (id, _) in SourceFilter::OPTIONS {
+    for id in SourceFilter::IDS {
         assert_eq!(SourceFilter::from_id(id).map(SourceFilter::id), Some(*id));
     }
     assert_eq!(Filter::from_id("???"), None);
@@ -35,13 +35,12 @@ fn source_filter_matches_source() {
 
 #[test]
 fn priorities_roundtrip_and_default_is_medium() {
-    for (id, label) in Priority::OPTIONS {
-        let p = Priority::from_id(id).unwrap();
-        assert_eq!((p.id(), p.label()), (*id, *label));
+    for id in Priority::IDS {
+        assert_eq!(Priority::from_id(id).map(Priority::id), Some(*id));
     }
     assert_eq!(Priority::from_id("???"), None);
     assert_eq!(Priority::default(), Priority::Medium);
-    assert_eq!(Priority::OPTIONS.len(), Priority::ALL.len());
+    assert_eq!(Priority::IDS.len(), Priority::ALL.len());
 }
 
 #[test]
@@ -128,7 +127,7 @@ fn a_run_belongs_to_the_pull_request_entry_it_names() {
 }
 
 #[test]
-fn pr_labels() {
+fn pr_status_tones() {
     let pr = PrRef {
         repo: String::new(),
         number: 87,
@@ -142,8 +141,7 @@ fn pr_labels() {
         requested_me: false,
         assigned_me: false,
     };
-    assert_eq!(pr.label(), "#87 · offen");
-    assert_eq!(pr.status().1, Tone::Orange);
+    assert_eq!(pr.status_tone(), Tone::Orange);
     let failed = PrRef {
         repo: String::new(),
         number: 85,
@@ -157,12 +155,7 @@ fn pr_labels() {
         requested_me: false,
         assigned_me: false,
     };
-    assert_eq!(failed.label(), "#85 · Entwurf");
-    assert_eq!(
-        failed.status(),
-        ("Checks fehlgeschlagen".to_string(), Tone::Red)
-    );
+    assert_eq!(failed.status_tone(), Tone::Red);
     let merged = PrRef { merged: true, ..pr };
-    assert_eq!(merged.label(), "#87 · gemergt");
-    assert_eq!(merged.status(), ("Gemergt".to_string(), Tone::Indigo));
+    assert_eq!(merged.status_tone(), Tone::Indigo);
 }

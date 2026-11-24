@@ -68,7 +68,7 @@ async fn a_project_loads_the_tickets_of_everybody_with_reporter_priority_and_wat
     assert_eq!(l.items.len(), 2);
     assert!(l.items.iter().all(|i| i.scope == Scope::Team));
     assert_eq!(l.items[0].owner.name, "Jonas");
-    assert_eq!(l.items[1].owner.name, cockpit_core::UNASSIGNED_NAME);
+    assert!(l.items[1].owner.nobody);
     assert_eq!(l.items[0].reporter.as_deref(), Some("Lena"));
     assert_eq!(l.items[0].priority, cockpit_core::Priority::High);
     assert_eq!(l.items[0].issue_type.as_deref(), Some("Bug"));

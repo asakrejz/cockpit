@@ -150,7 +150,7 @@ async fn all_open_tickets_arrive_including_those_of_other_people() {
     );
     assert_eq!(other.reason_line().de(), "Im Projekt");
     let nobody = ws.item_by_key("BAU-3").unwrap();
-    assert_eq!(nobody.owner.name, cockpit_core::UNASSIGNED_NAME);
+    assert!(nobody.owner.nobody);
     assert_eq!(nobody.scope, Scope::Team);
     // They are in the inbox once „Alle“ and „Alle offenen“ are chosen.
     let by = cockpit_core::InboxFilter {

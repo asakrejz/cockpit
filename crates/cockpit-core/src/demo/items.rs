@@ -1,7 +1,6 @@
 //! The tickets and pull requests of the sample data.
 
 use super::*;
-use crate::filters::UNASSIGNED_NAME;
 use crate::project::{FieldKind, FieldValue, ProjectItem};
 
 /// BAU-142, #87, BAU-138, #85, BAU-150, DOC-7 and #12, in this order.
@@ -22,7 +21,7 @@ pub(super) fn items() -> [Item; 7] {
             ..Comment::new(
                 lena(),
                 "vor 12 Min.",
-                "@AS Betrifft auch den Slider-Thumb. Kannst du das gleich mit prüfen?",
+                "@Du Betrifft auch den Slider-Thumb. Kannst du das gleich mit prüfen?",
             )
         }],
         ..item(
@@ -326,7 +325,7 @@ pub fn project_tickets() -> (Item, Item) {
             "",
             (ReasonKind::Comment, "Im Projekt"),
             "gestern",
-            Person::new(UNASSIGNED_NAME, "–"),
+            Person::nobody(),
         )
     };
     (issue, draft)

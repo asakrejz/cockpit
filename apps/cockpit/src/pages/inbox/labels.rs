@@ -91,12 +91,12 @@ pub fn pr_status(pr: &PrRef) -> String {
 
 /// The options of a picker with the ids of `ids` and translated labels.
 pub fn options<T: Copy>(
-    ids: &'static [(&'static str, &'static str)],
+    ids: &'static [&'static str],
     from_id: impl Fn(&str) -> Option<T>,
     label: impl Fn(T) -> String,
 ) -> Vec<(&'static str, String)> {
     ids.iter()
-        .filter_map(|(id, _)| from_id(id).map(|v| (*id, label(v))))
+        .filter_map(|id| from_id(id).map(|v| (*id, label(v))))
         .collect()
 }
 

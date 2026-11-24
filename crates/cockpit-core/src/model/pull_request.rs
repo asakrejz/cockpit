@@ -181,25 +181,16 @@ impl PrRef {
         PrKey::new(&self.repo, self.number)
     }
 
-    /// `#87 · offen`
-    pub fn label(&self) -> String {
-        let state = match (self.merged, self.draft) {
-            (true, _) => "gemergt",
-            (false, true) => "Entwurf",
-            (false, false) => "offen",
-        };
-        format!("#{} · {state}", self.number)
-    }
-
-    /// Status line for pull requests with a review pending.
-    pub fn status(&self) -> (String, Tone) {
+    /// The tone of the status line of a pull request: merged, review open, draft or the
+    /// state of the checks. The interface words the line.
+    pub fn status_tone(&self) -> Tone {
         if self.merged {
-            return ("Gemergt".into(), Tone::Indigo);
+            return Tone::Indigo;
         }
         match (self.checks, self.draft) {
-            (Checks::Passed, false) => ("Review offen · Checks bestanden".into(), Tone::Orange),
-            (Checks::Passed, true) => ("Entwurf · Checks bestanden".into(), Tone::Gray),
-            (checks, _) => (checks.label().into(), checks.tone()),
+            (Checks::Passed, false) => Tone::Orange,
+            (Checks::Passed, true) => Tone::Gray,
+            (checks, _) => checks.tone(),
         }
     }
 }

@@ -8,7 +8,7 @@
 use std::time::Duration;
 
 use super::*;
-use cockpit_core::{UNASSIGNED_NAME, is_project_key, people_search};
+use cockpit_core::{is_project_key, people_search};
 use leptos::task::spawn_local;
 
 /// Pause in typing before Jira is asked.
@@ -91,7 +91,7 @@ pub(super) fn AssigneeField(store: Store, item: String, key: String) -> impl Int
             w.item(&id.get_value())
                 .map(|i| match &i.owner {
                     p if *p == Person::me() => t!(InboxDetailAssigneeMe),
-                    p if p.name == UNASSIGNED_NAME => t!(InboxDetailAssigneeUnassigned),
+                    p if p.nobody => t!(InboxDetailAssigneeUnassigned),
                     p => p.name.clone(),
                 })
                 .unwrap_or_default()
@@ -106,7 +106,8 @@ pub(super) fn AssigneeField(store: Store, item: String, key: String) -> impl Int
     });
     let options = Signal::derive(move || {
         let mut list = vec![
-            ComboOption::new(ME, t!(InboxDetailAssigneeMe)).initials(Person::me().initials),
+            ComboOption::new(ME, t!(InboxDetailAssigneeMe))
+                .initials(Person::me().initials_in(lang())),
             ComboOption::new(NOBODY, t!(InboxDetailAssigneeUnassigned)).initials("–"),
         ];
         let people = found.get();
@@ -128,7 +129,7 @@ pub(super) fn AssigneeField(store: Store, item: String, key: String) -> impl Int
     let on_select = move |option: String| {
         let person = match option.as_str() {
             ME => Person::me(),
-            NOBODY => Person::new(UNASSIGNED_NAME, "–"),
+            NOBODY => Person::nobody(),
             other => {
                 let name = other.strip_prefix("p:").unwrap_or(other);
                 match found.with_untracked(|f| f.iter().find(|p| p.name == name).cloned()) {

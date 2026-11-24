@@ -28,7 +28,7 @@ pub struct JiraService {
     pub client: JiraClient,
     pub jql: String,
     /// The query fetches all tickets of a project ([`jira::jql_for_project`]): whatever is neither
-    /// assigned nor watched then shows up with the reason „Im Projekt“.
+    /// assigned nor watched then shows up with the reason `reason.in_project`.
     pub in_project: bool,
     /// Which fields the detail view hides or puts first.
     pub fields: jira::FieldPrefs,

@@ -15,3 +15,4 @@ core_workspace.agent_pushed_checks = The agent has worked on the red checks – 
 core_workspace.agent_pushed_comments = The agent has worked on the review comments – new commits are pushed to {branch}, please check
 core_workspace.agent_branch_pushed = Implemented by the agent – branch {branch} is pushed, you create the pull request with one click
 core_workspace.pr_created = Pull request #{number} is created – please check
+core_workspace.review_sent = Review sent: {verdict} · {comments}{note}

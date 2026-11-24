@@ -29,7 +29,7 @@ pub fn status_from(s: &super::dto::Status) -> TicketStatus {
 ///
 /// Assigned to me → `Scope::Mine`, reason `Assigned`. Only watched → `Scope::Team`, reason
 /// `Comment` (provisional, the attention rules follow later). Without an assignee the owner is
-/// „Nicht zugewiesen“ (the filter „Nicht zugewiesen“ relies on it). Comments are empty – they come through [`comments_to_core`].
+/// nobody ([`Person::nobody`]; the person filter relies on it). Comments are empty – they come through [`comments_to_core`].
 pub fn issue_to_item(issue: &Issue, me: &str) -> Item {
     issue_to_item_with(issue, me, None)
 }
@@ -53,7 +53,7 @@ pub fn issue_to_item_full(
     let owner = match f.assignee.as_ref() {
         Some(u) if u.account_id == me => Person::me(),
         Some(u) => text::person(&u.display_name),
-        None => Person::new(cockpit_core::UNASSIGNED_NAME, "–"),
+        None => Person::nobody(),
     };
     let (reason, reason_msg, scope) = if me_assigned {
         (ReasonKind::Assigned, msg!(ReasonAssigned), Scope::Mine)
@@ -97,7 +97,7 @@ pub fn issue_to_item_full(
             .filter(|n| !n.is_empty()),
         reporter: f.reporter.as_ref().map(|u| {
             if u.account_id == me {
-                Person::me().name
+                cockpit_core::ME_MARK.to_string()
             } else {
                 u.display_name.clone()
             }

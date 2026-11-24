@@ -234,7 +234,7 @@ async fn items_arrive_as_tickets_across_two_pages() {
     let done = ws.item_by_key("acme/web#15").unwrap();
     assert_eq!(done.status, TicketStatus::Done);
     assert_eq!(done.scope, Scope::Team);
-    assert_eq!(done.owner.name, cockpit_core::UNASSIGNED_NAME);
+    assert!(done.owner.nobody);
     assert_eq!(done.repo.as_deref(), Some("acme/web"));
 }
 

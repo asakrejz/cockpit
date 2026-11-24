@@ -2,9 +2,10 @@
 
 use crate::filters::{
     ASSIGNED_TO_ME, FILTERS, NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED,
-    UNASSIGNED_NAME,
 };
-use crate::model::{Filter, Item, Kind, Person, Priority, SourceFilter, SprintState, TicketStatus};
+use crate::model::{
+    Filter, Item, Kind, ME_MARK, Person, Priority, SourceFilter, SprintState, TicketStatus,
+};
 use serde::{Deserialize, Serialize};
 
 /// Does the entry match the search text?
@@ -217,7 +218,7 @@ impl InboxFilter {
         match self.person.as_deref() {
             None => true,
             Some(ASSIGNED_TO_ME) => item.owner == Person::me(),
-            Some(UNASSIGNED) => item.is_ticket() && item.owner.name == UNASSIGNED_NAME,
+            Some(UNASSIGNED) => item.is_ticket() && item.owner.nobody,
             Some(name) => item.owner.name == name,
         }
     }
@@ -235,9 +236,7 @@ impl InboxFilter {
         item.is_ticket()
             && match self.reporter.as_deref() {
                 None => true,
-                Some(ASSIGNED_TO_ME) => {
-                    item.reporter.as_deref() == Some(Person::me().name.as_str())
-                }
+                Some(ASSIGNED_TO_ME) => item.reporter.as_deref() == Some(ME_MARK),
                 Some(name) => item.reporter.as_deref() == Some(name),
             }
             && (!self.watched || item.watching)

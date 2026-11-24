@@ -138,5 +138,5 @@ impl Workspace {
 }
 
 fn linkable(name: &str) -> bool {
-    !name.is_empty() && name != Person::me().name && name != Person::agent().name
+    !name.is_empty() && name != crate::model::ME_MARK && name != Person::agent().name
 }

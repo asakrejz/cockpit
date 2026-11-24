@@ -31,7 +31,7 @@ pub(super) fn row(store: Store, item: Item, selected: bool, filter: Filter) -> i
                         <Icon path=view::reason_icon(item.reason) size=13 stroke=2.4 />
                     </span>
                     <span class="t-subheadline ck-ellipsis" style="flex: 1 1 auto">{move || reason.render(lang())}</span>
-                    <Avatar initials=item.owner.initials title=item.owner.name />
+                    <Avatar initials=item.owner.initials_in(lang()) title=item.owner.name_in(lang()) />
                 </span>
             </span>
         </InboxRow>

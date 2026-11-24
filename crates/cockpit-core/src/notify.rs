@@ -302,13 +302,13 @@ pub fn deliveries(events: &[Event], settings: &NotifySettings, minute: u16) -> V
 
 /// Is `@Name` or `@Initials` of the person in the text? Case does not matter.
 pub fn mentions(text: &str, who: &Person) -> bool {
+    let handles = who.handles();
     text.split('@').skip(1).any(|rest| {
         let word: String = rest
             .chars()
             .take_while(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
             .collect();
-        !word.is_empty()
-            && (word.eq_ignore_ascii_case(&who.name) || word.eq_ignore_ascii_case(&who.initials))
+        !word.is_empty() && handles.contains(&word.to_lowercase())
     })
 }
 

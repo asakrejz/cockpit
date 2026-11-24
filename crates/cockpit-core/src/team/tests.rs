@@ -37,13 +37,18 @@ fn a_plan_waiting_for_approval_is_stuck_with_me() {
 }
 
 fn member<'a>(list: &'a [Member], name: &str) -> &'a Member {
-    list.iter().find(|m| m.person.name == name).unwrap()
+    list.iter()
+        .find(|m| m.person.name_in(cockpit_i18n::Lang::De) == name)
+        .unwrap()
 }
 
 #[test]
 fn demo_members_are_grouped_by_person() {
     let list = members(&demo::workspace());
-    let names: Vec<_> = list.iter().map(|m| m.person.name.as_str()).collect();
+    let names: Vec<_> = list
+        .iter()
+        .map(|m| m.person.name_in(cockpit_i18n::Lang::De))
+        .collect();
     assert_eq!(names, ["Du", "Agent", "Jonas", "Mira"]);
 
     let me = member(&list, "Du");
@@ -225,14 +230,14 @@ fn drafts_and_running_checks_do_not_hang() {
 }
 
 #[test]
-fn state_label_for_tickets_and_pull_requests() {
+fn state_tone_for_tickets_and_pull_requests() {
     let w = demo::workspace();
-    let label = |id: &str| state_label(w.item(id).unwrap());
-    assert_eq!(label("bau150"), ("Offen".to_string(), Tone::Gray));
-    assert_eq!(label("bau142"), ("In Arbeit".to_string(), Tone::Blue));
-    assert_eq!(label("bau138"), ("Review".to_string(), Tone::Orange));
-    assert_eq!(label("pr85").1, Tone::Red);
-    assert_eq!(label("pr87").1, Tone::Orange);
+    let tone = |id: &str| state_tone(w.item(id).unwrap());
+    assert_eq!(tone("bau150"), Tone::Gray);
+    assert_eq!(tone("bau142"), Tone::Blue);
+    assert_eq!(tone("bau138"), Tone::Orange);
+    assert_eq!(tone("pr85"), Tone::Red);
+    assert_eq!(tone("pr87"), Tone::Orange);
 }
 
 #[test]
@@ -339,9 +344,12 @@ fn the_team_choice_limits_members_and_stuck_but_keeps_me_and_the_agent() {
     let all = members(&w);
     w.team_choice.teams = vec![TeamRef::new("team-design", "Design System")];
     let list = members(&w);
-    let names: Vec<_> = list.iter().map(|m| m.person.name.as_str()).collect();
+    let names: Vec<_> = list
+        .iter()
+        .map(|m| m.person.name_in(cockpit_i18n::Lang::De))
+        .collect();
     // Jonas only owns a ticket of the Plattform team (his pull request has no ticket, so it stays).
-    assert!(names.contains(&"Jonas"));
+    assert!(names.contains(&"Jonas".to_string()));
     assert_eq!(&names[..2], ["Du", "Agent"]);
     // Tickets of other teams are not counted anywhere.
     let ids: Vec<&String> = list.iter().flat_map(|m| &m.item_ids).collect();

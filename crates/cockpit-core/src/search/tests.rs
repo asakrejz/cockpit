@@ -178,7 +178,11 @@ fn the_choices_come_from_the_workspace() {
         ws.labels(),
         ["a11y", "agent", "bug", "design", "docs", "feature"]
     );
-    let names: Vec<_> = ws.owners().into_iter().map(|p| p.name).collect();
+    let names: Vec<_> = ws
+        .owners()
+        .into_iter()
+        .map(|p| p.name_in(cockpit_i18n::Lang::De))
+        .collect();
     assert_eq!(names, ["Du", "Jonas", "Mira"]);
 }
 

@@ -1,0 +1,4 @@
+# People that are not named by a service: you and nobody.
+person.me = You
+person.me_initials = Y
+person.nobody = Unassigned

@@ -149,7 +149,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
                         </Badge>
                     </div>
                     <Picker
-                        options=labels::options(Filter::OPTIONS, Filter::from_id, labels::filter_tab)
+                        options=labels::options(Filter::IDS, Filter::from_id, labels::filter_tab)
                         value=filter.id()
                         on_change=move |id: &'static str| {
                             if let Some(filter) = Filter::from_id(id) {

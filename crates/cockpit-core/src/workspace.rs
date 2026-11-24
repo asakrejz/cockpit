@@ -230,7 +230,8 @@ impl Workspace {
     pub fn owners(&self) -> Vec<Person> {
         let mut out: Vec<Person> = Vec::new();
         for owner in self.items.iter().map(|i| &i.owner) {
-            if !owner.is_agent() && !owner.name.is_empty() && !out.contains(owner) {
+            let named = owner.me || owner.nobody || !owner.name.is_empty();
+            if !owner.is_agent() && named && !out.contains(owner) {
                 out.push(owner.clone());
             }
         }
@@ -360,14 +361,14 @@ impl Workspace {
                     .iter()
                     .any(|i| i.kind == Kind::PullRequest && i.ticket_project().is_none())
                 {
-                    out.push((NO_TICKET.into(), "Ohne Ticket".into()));
+                    out.push((NO_TICKET.into(), NO_TICKET.into()));
                 }
                 out
             }
             other => match crate::filters::filter_def(other).map(|d| d.choices) {
                 Some(Choices::Fixed(list)) => list
                     .iter()
-                    .map(|(v, l)| (v.to_string(), l.to_string()))
+                    .map(|v| (v.to_string(), v.to_string()))
                     .collect(),
                 _ => Vec::new(),
             },

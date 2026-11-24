@@ -4,7 +4,7 @@
 use cockpit_i18n::msg;
 
 use super::*;
-use crate::model::{Item, Kind, Person, Priority, ReasonKind, Scope, Source};
+use crate::model::{Item, Kind, ME_MARK, Person, Priority, ReasonKind, Scope, Source};
 use crate::project::{FieldInput, FieldKind, FieldValue, issue_id, issue_key};
 
 impl Workspace {
@@ -195,7 +195,7 @@ impl Workspace {
                     reason_text: String::new(),
                     time: String::new(),
                     scope: Scope::Team,
-                    owner: Person::new(crate::UNASSIGNED_NAME, "–"),
+                    owner: Person::nobody(),
                     status: status.unwrap_or_default(),
                     priority: Priority::default(),
                     branch: None,
@@ -209,7 +209,7 @@ impl Workspace {
                     labels: Vec::new(),
                     sprint: None,
                     issue_type: None,
-                    reporter: Some(Person::me().name),
+                    reporter: Some(ME_MARK.to_string()),
                     watching: false,
                     team: None,
                     updated_ms: Some(at_ms),

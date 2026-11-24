@@ -82,7 +82,7 @@ pub(super) fn line_notes(
             let author = c
                 .author
                 .as_ref()
-                .map_or_else(|| t!(ReviewDiffYourComment), |p| t!(ReviewDiffCommentBy, name = p.name));
+                .map_or_else(|| t!(ReviewDiffYourComment), |p| t!(ReviewDiffCommentBy, name = p.name_in(lang())));
             let label = if diff.is_some() { t!(ReviewDiffWithSuggestion, author = author) } else { author };
             let editing = move || ui.editing.get().is_some_and(|e| e == id.get_value());
             view! {
@@ -289,8 +289,8 @@ pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi, panel: PanelUi) -> 
                         })}
                     <span class="ui-spacer"></span>
                     <span class="ui-hstack" style="--spacing: 8px; flex-wrap: nowrap">
-                        <Avatar initials=r.author.initials.clone() agent=r.author.is_agent() />
-                        <span class="t-subheadline">{r.author.name.clone()}</span>
+                        <Avatar initials=r.author.initials_in(lang()) agent=r.author.is_agent() />
+                        <span class="t-subheadline">{r.author.name_in(lang())}</span>
                     </span>
                 </div>
                 <h1 class="t-title1 t-bold">{r.title.clone()}</h1>

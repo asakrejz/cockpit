@@ -136,7 +136,9 @@ impl Workspace {
                 }
                 // Anyone with a name can be picked – people found by the search in Jira are not in
                 // the synced tickets yet. The agent gets tickets through its run.
-                if person.is_agent() || person.name.trim().is_empty() {
+                if person.is_agent()
+                    || !(person.me || person.nobody || !person.name.trim().is_empty())
+                {
                     return Err(ActionError::UnknownPerson(person.name));
                 }
                 if current.owner == person {
@@ -146,7 +148,7 @@ impl Workspace {
                 let text = if person == Person::me() {
                     msg!(CoreActionLogAssignedMe, key = key)
                 } else {
-                    msg!(CoreActionLogAssigned, key = key, name = &person.name)
+                    msg!(CoreActionLogAssigned, key = key, name = person.name_msg())
                 };
                 Ok(vec![Note::coded(Target::Item(item), text)])
             }

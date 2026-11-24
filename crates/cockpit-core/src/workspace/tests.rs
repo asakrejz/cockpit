@@ -241,8 +241,8 @@ fn replies_are_trimmed_and_mine() {
     assert!(w.reply("bau142", "  Mache ich.  ", 0));
     let last = w.item("bau142").unwrap().comments.last().unwrap();
     assert_eq!(
-        (last.text.as_str(), last.own, last.author.name.as_str()),
-        ("Mache ich.", true, "Du")
+        (last.text.as_str(), last.own, last.author.me),
+        ("Mache ich.", true, true)
     );
 }
 
@@ -259,9 +259,18 @@ fn sending_a_review_closes_the_inbox_item() {
 
     let item = w.item("pr87").unwrap();
     let comment = item.comments.last().unwrap();
+    assert!(
+        comment.text.is_empty(),
+        "the comment is a message, not text"
+    );
+    let sent = comment.text_msg.as_ref().unwrap();
     assert_eq!(
-        comment.text,
+        sent.de(),
         "Review gesendet: Änderungen · 2 Kommentare\nBitte Fokus prüfen."
+    );
+    assert_eq!(
+        sent.render(cockpit_i18n::Lang::En),
+        "Review sent: Request changes · 2 comments\nBitte Fokus prüfen."
     );
     assert!(comment.own && item.read);
     assert_eq!(item.agent_note, None);
@@ -282,7 +291,15 @@ fn own_line_comments_go_out_with_the_review() {
     // Own comments alone count too, even if all suggestions are declined.
     assert_eq!(w.send_review(87, "", 0), Ok(1));
     assert_eq!(
-        w.item("pr87").unwrap().comments.last().unwrap().text,
+        w.item("pr87")
+            .unwrap()
+            .comments
+            .last()
+            .unwrap()
+            .text_msg
+            .as_ref()
+            .unwrap()
+            .de(),
         "Review gesendet: Kommentieren · 1 Kommentar"
     );
     assert!(w.review(87).unwrap().sent);
