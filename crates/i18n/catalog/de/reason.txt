@@ -1,0 +1,11 @@
+# The reason line of an inbox entry when no attention rule says anything more specific.
+reason.assigned = Dir zugewiesen
+reason.watched = Beobachtet
+reason.in_project = Im Projekt
+reason.in_sprint = Im Sprint
+reason.review_requested = Review angefragt
+reason.checks_failed = Checks fehlgeschlagen
+reason.own_pr = Eigener Pull Request
+reason.checks_passed_again = Checks wieder bestanden
+reason.agent_commits = Agent fertig · neue Commits auf {branch}
+reason.agent_branch = Agent fertig · Branch {branch} gepusht

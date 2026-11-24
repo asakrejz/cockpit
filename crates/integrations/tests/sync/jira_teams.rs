@@ -52,7 +52,7 @@ fn client(s: &MockServer) -> JiraClient {
 }
 
 async fn load(c: JiraClient) -> Result<cockpit_core::Loaded, cockpit_integrations::Error> {
-    cockpit_integrations::sync::jira_load(&c, JQL, false, &Default::default(), 1_715_688_000).await
+    cockpit_integrations::sync::jira_load(&c, JQL, false, &Default::default()).await
 }
 
 fn team_of(l: &cockpit_core::Loaded, key: &str) -> Option<TeamRef> {

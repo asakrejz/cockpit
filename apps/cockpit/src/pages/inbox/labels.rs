@@ -1,7 +1,9 @@
 //! Texts for the enums of `cockpit_core` (their `label()` is German only). Everything the
 //! inbox shows for them goes through here, so it follows the language.
 
-use cockpit_core::{Checks, Filter, PrRef, Priority, Rule, SnoozeChoice, TicketStatus};
+use cockpit_core::{
+    Checks, Comment, Filter, Item, PrRef, Priority, Rule, SnoozeChoice, TicketStatus,
+};
 use feature_ui::*;
 
 pub fn ticket_status(status: TicketStatus) -> String {
@@ -96,4 +98,21 @@ pub fn options<T: Copy>(
     ids.iter()
         .filter_map(|(id, _)| from_id(id).map(|v| (*id, label(v))))
         .collect()
+}
+
+/// How long ago the entry was touched ("5 minutes ago"). Older data without a timestamp shows
+/// the text it stored, until the next sync replaces the entry.
+pub fn item_time(item: &Item, now_ms: u64) -> String {
+    match item.updated_ms {
+        Some(ms) => ago(ms, now_ms),
+        None => item.time.clone(),
+    }
+}
+
+/// How long ago the comment was written; see [`item_time`].
+pub fn comment_time(comment: &Comment, now_ms: u64) -> String {
+    match comment.created_ms {
+        Some(ms) => ago(ms, now_ms),
+        None => comment.time.clone(),
+    }
 }

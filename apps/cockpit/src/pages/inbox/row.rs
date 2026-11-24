@@ -3,6 +3,8 @@ use super::*;
 /// A row of the inbox.
 pub(super) fn row(store: Store, item: Item, selected: bool, filter: Filter) -> impl IntoView {
     let id = item.id.clone();
+    let reason = item.reason_line();
+    let time_of = item.clone();
     view! {
         <InboxRow selected=selected on_select=move |_| {
             store.selected.set(id.clone());
@@ -15,7 +17,9 @@ pub(super) fn row(store: Store, item: Item, selected: bool, filter: Filter) -> i
                     <Badge variant=BadgeVariant::Neutral>{item.source.label()}</Badge>
                     <span class="t-footnote t-mono t-secondary">{item.display_key()}</span>
                     <span class="ui-spacer"></span>
-                    <span class="t-footnote t-secondary" style="white-space: nowrap">{item.time}</span>
+                    <span class="t-footnote t-secondary" style="white-space: nowrap">
+                        {move || labels::item_time(&time_of, store.now.get())}
+                    </span>
                 </span>
                 <span class="t-headline ck-ellipsis">{item.title}</span>
                 <span class="ui-hstack" style="--spacing: 8px; flex-wrap: nowrap">
@@ -26,7 +30,7 @@ pub(super) fn row(store: Store, item: Item, selected: bool, filter: Filter) -> i
                     >
                         <Icon path=view::reason_icon(item.reason) size=13 stroke=2.4 />
                     </span>
-                    <span class="t-subheadline ck-ellipsis" style="flex: 1 1 auto">{item.reason_text}</span>
+                    <span class="t-subheadline ck-ellipsis" style="flex: 1 1 auto">{move || reason.render(lang())}</span>
                     <Avatar initials=item.owner.initials title=item.owner.name />
                 </span>
             </span>

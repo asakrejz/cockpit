@@ -25,10 +25,13 @@ pub fn matches_query(item: &Item, query: &str) -> bool {
     if query.is_empty() {
         return true;
     }
+    // The reason line is searched in both languages: the row shows it in the one of the interface.
+    let reason = item.reason_line();
     let haystack = [
         item.title.as_str(),
         item.key.as_str(),
-        item.reason_text.as_str(),
+        reason.render(cockpit_i18n::Lang::De).as_str(),
+        reason.render(cockpit_i18n::Lang::En).as_str(),
         item.owner.name.as_str(),
     ]
     .join("\n")

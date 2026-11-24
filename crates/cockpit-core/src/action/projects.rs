@@ -28,7 +28,11 @@ impl Workspace {
         Ok(item)
     }
 
-    pub(super) fn perform_projects(&mut self, action: Action) -> Result<Vec<Note>, ActionError> {
+    pub(super) fn perform_projects(
+        &mut self,
+        action: Action,
+        at_ms: u64,
+    ) -> Result<Vec<Note>, ActionError> {
         match action {
             Action::SetLabel { item, label, on } => {
                 let label = label.trim().to_string();
@@ -187,8 +191,9 @@ impl Workspace {
                     description: body.trim().to_string(),
                     description_rich: None,
                     reason: ReasonKind::Comment,
-                    reason_text: "Im Projekt".into(),
-                    time: "gerade eben".into(),
+                    reason_msg: Some(cockpit_i18n::msg!(ReasonInProject)),
+                    reason_text: String::new(),
+                    time: String::new(),
                     scope: Scope::Team,
                     owner: Person::new(crate::UNASSIGNED_NAME, "–"),
                     status: status.unwrap_or_default(),
@@ -207,7 +212,7 @@ impl Workspace {
                     reporter: Some(Person::me().name),
                     watching: false,
                     team: None,
-                    updated_ms: None,
+                    updated_ms: Some(at_ms),
                     url: Some(created.url.clone()).filter(|u| !u.is_empty()),
                     details: None,
                     project: Some(crate::ProjectItem {

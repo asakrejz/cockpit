@@ -73,6 +73,7 @@ impl Workspace {
         &mut self,
         number: impl Into<PrKey>,
         own_comment: &str,
+        now_ms: u64,
     ) -> Result<usize, SendError> {
         let key = number.into();
         let review = self.review_mut(&key).ok_or(SendError::UnknownReview)?;
@@ -91,7 +92,7 @@ impl Workspace {
         if let Some(item) = self.pr_item_mut(&key) {
             item.comments.push(Comment {
                 own: true,
-                ..Comment::new(Person::me(), "gerade eben", &text)
+                ..Comment::at(Person::me(), now_ms, &text)
             });
             item.clear_note();
             item.read = true;
@@ -120,8 +121,10 @@ impl Workspace {
             }
             // Green again: the entry no longer hangs on the checks.
             if checks == Checks::Passed && item.reason == ReasonKind::ChecksFailed {
-                item.reason = ReasonKind::ReviewRequested;
-                item.reason_text = "Checks wieder bestanden".into();
+                item.set_reason(
+                    ReasonKind::ReviewRequested,
+                    cockpit_i18n::msg!(ReasonChecksPassedAgain),
+                );
             }
         }
     }
@@ -189,7 +192,11 @@ impl Workspace {
             item.read = true;
             item.clear_note();
             if item.kind == Kind::PullRequest {
-                item.reason_text = format!("Gemergt ({})", method.label());
+                item.reason_msg = Some(cockpit_i18n::msg!(
+                    ReviewMerged,
+                    method = crate::action::labels::method(method)
+                ));
+                item.reason_text.clear();
             }
         }
         // A linked ticket without its own copy of the pull request gets it now.

@@ -35,8 +35,14 @@ impl Person {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Comment {
     pub author: Person,
-    #[serde(default)]
+    /// The time of older data as plain German text ("vor 5 Minuten"); new comments carry
+    /// [`Comment::created_ms`] and leave this empty.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub time: String,
+    /// When the comment was written (milliseconds since 1970), `None` = unknown. The interface
+    /// shows it as "5 minutes ago".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_ms: Option<u64>,
     #[serde(default)]
     pub text: String,
     /// The text as code and parameters (comments the agent writes); `None` = only [`Comment::text`].
@@ -51,22 +57,24 @@ pub struct Comment {
 }
 
 impl Comment {
-    /// A comment as code and parameters; `text` keeps the German rendering next to it.
-    pub fn coded(author: Person, time: &str, msg: cockpit_i18n::Msg) -> Self {
-        Self {
-            text_msg: Some(msg.clone()),
-            ..Self::new(author, time, &msg.de())
-        }
-    }
-
+    /// A comment with the time as plain text (older data, fixtures).
     pub fn new(author: Person, time: &str, text: &str) -> Self {
         Self {
             author,
             time: time.into(),
+            created_ms: None,
             text: text.into(),
             text_msg: None,
             rich: None,
             own: false,
+        }
+    }
+
+    /// A comment written at `created_ms`.
+    pub fn at(author: Person, created_ms: u64, text: &str) -> Self {
+        Self {
+            created_ms: Some(created_ms),
+            ..Self::new(author, "", text)
         }
     }
 }

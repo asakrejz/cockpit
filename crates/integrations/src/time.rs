@@ -1,6 +1,4 @@
-//! Read timestamps (ISO 8601) and show them as "5 minutes ago" – without a time crate.
-
-use cockpit_i18n::{Key, Lang};
+//! Read timestamps (ISO 8601) – without a time crate.
 
 /// Days since 1970-01-01 for a date in the Gregorian calendar.
 fn days_since_1970(year: i64, month: i64, tag: i64) -> i64 {
@@ -45,20 +43,6 @@ pub fn parse_iso(s: &str) -> Option<i64> {
         _ => return None,
     };
     Some(days_since_1970(j, mo, t) * 86_400 + h * 3600 + mi * 60 + se - offset)
-}
-
-/// How long ago `iso` is, in `lang`: "just now", "5 minutes ago", "3 hours ago", "yesterday",
-/// "4 days ago", otherwise the date. If the timestamp is not readable, it comes back unchanged.
-pub fn relative(iso: &str, now: i64, lang: Lang) -> String {
-    let Some(t) = parse_iso(iso) else {
-        return iso.to_string();
-    };
-    let d = (now - t).max(0);
-    match d {
-        86_400..=172_799 => cockpit_i18n::text(lang, Key::TimeYesterday, &[]),
-        1_209_600.. => iso[..10].to_string(),
-        _ => cockpit_i18n::ago(lang, d as u64),
-    }
 }
 
 #[cfg(test)]

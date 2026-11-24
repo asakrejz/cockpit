@@ -587,13 +587,10 @@ impl JiraClient {
     }
 
     /// Inbox entries: open issues assigned to me or watched.
-    pub async fn load_inbox(&self, now: i64) -> Result<Vec<Item>, Error> {
+    pub async fn load_inbox(&self) -> Result<Vec<Item>, Error> {
         let me = self.me().await?;
         let issues = self.search(ASSIGNED_OR_WATCHED_JQL).await?;
-        Ok(issues
-            .iter()
-            .map(|i| map::issue_to_item(i, &me, now))
-            .collect())
+        Ok(issues.iter().map(|i| map::issue_to_item(i, &me)).collect())
     }
 }
 

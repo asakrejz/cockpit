@@ -121,7 +121,7 @@ fn the_inbox_follows_the_rules() {
         Rule::Mention
     );
     // Answering resolves the mention.
-    w.reply("bau142", "Mache ich.");
+    w.reply("bau142", "Mache ich.", 0);
     w.set_rule(Rule::Assigned, true);
     assert_eq!(
         w.hits(w.item("bau142").unwrap(), NOW)[0].rule,
@@ -184,7 +184,7 @@ fn wake_removes_only_what_expired() {
     assert_eq!(w.wake(NOW + 2 * HOUR), ["pr87"]);
     assert_eq!(w.snoozed.len(), 2);
     // „Until something changes“: a comment brings the entry back.
-    w.reply("bau138", "Hallo");
+    w.reply("bau138", "Hallo", 0);
     assert!(ids(w.attention(Filter::All, NOW)).contains(&"bau138"));
     assert_eq!(w.expired_snoozes(NOW), ["bau138"]);
     assert_eq!(w.wake(NOW), ["bau138"]);
@@ -210,7 +210,7 @@ fn answering_a_review_request_ends_the_attention() {
     ] {
         w.decide(87, s, Some(d));
     }
-    w.send_review(87, "").unwrap();
+    w.send_review(87, "", 0).unwrap();
     assert!(!ids(w.attention(Filter::All, NOW)).contains(&"pr87"));
 }
 
@@ -237,8 +237,8 @@ fn branch_is_named_after_key_and_title() {
 #[test]
 fn replies_are_trimmed_and_mine() {
     let mut w = ws();
-    assert!(!w.reply("bau142", "  \n "));
-    assert!(w.reply("bau142", "  Mache ich.  "));
+    assert!(!w.reply("bau142", "  \n ", 0));
+    assert!(w.reply("bau142", "  Mache ich.  ", 0));
     let last = w.item("bau142").unwrap().comments.last().unwrap();
     assert_eq!(
         (last.text.as_str(), last.own, last.author.name.as_str()),
@@ -249,13 +249,13 @@ fn replies_are_trimmed_and_mine() {
 #[test]
 fn sending_a_review_closes_the_inbox_item() {
     let mut w = ws();
-    assert_eq!(w.send_review(87, ""), Err(SendError::Undecided(3)));
-    assert_eq!(w.send_review(1, ""), Err(SendError::UnknownReview));
+    assert_eq!(w.send_review(87, "", 0), Err(SendError::Undecided(3)));
+    assert_eq!(w.send_review(1, "", 0), Err(SendError::UnknownReview));
     w.decide(87, "a", Some(Decision::Approved));
     w.decide(87, "b", Some(Decision::Declined));
     w.decide(87, "c", Some(Decision::Approved));
     w.set_verdict(87, Verdict::RequestChanges);
-    assert_eq!(w.send_review(87, " Bitte Fokus prüfen. "), Ok(2));
+    assert_eq!(w.send_review(87, " Bitte Fokus prüfen. ", 0), Ok(2));
 
     let item = w.item("pr87").unwrap();
     let comment = item.comments.last().unwrap();
@@ -280,7 +280,7 @@ fn own_line_comments_go_out_with_the_review() {
         w.decide(87, s, Some(Decision::Declined));
     }
     // Own comments alone count too, even if all suggestions are declined.
-    assert_eq!(w.send_review(87, ""), Ok(1));
+    assert_eq!(w.send_review(87, "", 0), Ok(1));
     assert_eq!(
         w.item("pr87").unwrap().comments.last().unwrap().text,
         "Review gesendet: Kommentieren · 1 Kommentar"

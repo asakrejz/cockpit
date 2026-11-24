@@ -14,9 +14,9 @@ macro_rules! fixture {
     };
 }
 
-/// 2024-05-14T12:00:00Z
-fn now() -> i64 {
-    time::parse_iso("2024-05-14T12:00:00Z").unwrap()
+/// A timestamp of a fixture in milliseconds.
+fn ms(iso: &str) -> Option<u64> {
+    time::parse_iso(iso).map(|s| s as u64 * 1000)
 }
 
 fn search() -> SearchResult {
@@ -26,7 +26,7 @@ fn search() -> SearchResult {
 #[test]
 fn assigned_issue() {
     let s = search();
-    let item = issue_to_item(&s.issues[0], "acc-mira", now());
+    let item = issue_to_item(&s.issues[0], "acc-mira");
     assert_eq!(item.id, "bau-142");
     assert_eq!(item.key, "BAU-142");
     assert_eq!((item.kind, item.source), (Kind::Ticket, Source::Jira));
@@ -41,23 +41,25 @@ fn assigned_issue() {
         (ReasonKind::Assigned, Scope::Mine)
     );
     assert_eq!(item.owner, cockpit_core::Person::me());
-    // 09:12 +02:00 = 07:12 UTC → 4 h 48 min before 12:00 UTC
-    assert_eq!(item.time, "vor 4 Stunden");
+    // The time is a timestamp the interface renders ("4 hours ago"), not a text.
+    assert_eq!(item.updated_ms, ms("2024-05-14T09:12:33.456+0200"));
+    assert!(item.time.is_empty() && item.reason_text.is_empty());
+    assert_eq!(item.reason_line().de(), "Dir zugewiesen");
+    assert_eq!(
+        item.reason_line().render(cockpit_i18n::Lang::En),
+        "Assigned to you"
+    );
     assert!(item.pr.is_none() && item.branch.is_none() && item.comments.is_empty());
     assert_eq!(item.labels, ["a11y", "tokens"]);
     assert_eq!(item.repo, None, "tickets have no repo");
     // Without the field `labels` (issue without labels) the list stays empty.
-    assert!(
-        issue_to_item(&s.issues[1], "acc-mira", now())
-            .labels
-            .is_empty()
-    );
+    assert!(issue_to_item(&s.issues[1], "acc-mira").labels.is_empty());
 }
 
 #[test]
 fn watched_issue_in_review() {
     let s = search();
-    let item = issue_to_item(&s.issues[1], "acc-mira", now());
+    let item = issue_to_item(&s.issues[1], "acc-mira");
     assert_eq!(item.status, TicketStatus::Review);
     assert_eq!(
         (item.reason, item.scope),
@@ -66,13 +68,14 @@ fn watched_issue_in_review() {
     assert_eq!(item.owner.name, "Tobias Lang");
     assert_eq!(item.owner.initials, "TL");
     assert_eq!(item.description, "");
-    assert_eq!(item.time, "vor 4 Tagen");
+    assert_eq!(item.updated_ms, ms("2024-05-10T08:00:00.000+0200"));
+    assert_eq!(item.reason_line().de(), "Beobachtet");
 }
 
 #[test]
 fn issue_without_assignee_and_open() {
     let s = search();
-    let item = issue_to_item(&s.issues[2], "acc-mira", now());
+    let item = issue_to_item(&s.issues[2], "acc-mira");
     assert_eq!(item.status, TicketStatus::Open);
     // Without an assignee nobody owns the ticket, even if a reporter is known.
     assert_eq!(item.owner.name, "Nicht zugewiesen");
@@ -83,22 +86,23 @@ fn issue_without_assignee_and_open() {
 fn done_is_detected() {
     let mut issue = search().issues.remove(0);
     issue.fields.status.status_category = Some(StatusCategory { key: "done".into() });
-    assert_eq!(issue_to_item(&issue, "x", now()).status, TicketStatus::Done);
+    assert_eq!(issue_to_item(&issue, "x").status, TicketStatus::Done);
     issue.fields.status.status_category = None;
-    assert_eq!(issue_to_item(&issue, "x", now()).status, TicketStatus::Open);
+    assert_eq!(issue_to_item(&issue, "x").status, TicketStatus::Open);
 }
 
 #[test]
 fn comments_with_adf_and_own() {
     let page: CommentPage = serde_json::from_str(fixture!("jira_comments_142.json")).unwrap();
-    let c = comments_to_core(&page.comments, "acc-mira", now());
+    let c = comments_to_core(&page.comments, "acc-mira");
     assert_eq!(c.len(), 2);
     assert_eq!(c[0].text, "@Du kannst du das übernehmen?");
     assert_eq!(c[0].author.name, "Tobias Lang");
     assert!(!c[0].own);
     assert_eq!(c[1].text, "Ja, bin dran.");
     assert!(c[1].own);
-    assert_eq!(c[1].time, "vor 4 Stunden");
+    assert_eq!(c[1].created_ms, ms("2024-05-14T09:30:00.000+0200"));
+    assert!(c[1].time.is_empty());
 }
 
 // ---------- Client against mock server ----------
@@ -132,7 +136,7 @@ async fn inbox_load_with_jql_and_sign_in() {
         Secret::new("jira-token"),
     )
     .unwrap();
-    let items = c.load_inbox(now()).await.unwrap();
+    let items = c.load_inbox().await.unwrap();
     assert_eq!(items.len(), 3);
     assert_eq!(items[0].scope, Scope::Mine);
     assert_eq!(items[1].scope, Scope::Team);
@@ -221,12 +225,9 @@ fn debug_does_not_show_the_key() {
 fn the_issue_type_is_read_for_the_branch_name() {
     let mut s = search();
     // Without the field (an older response) there is no type.
-    assert_eq!(
-        issue_to_item(&s.issues[0], "acc-mira", now()).issue_type,
-        None
-    );
+    assert_eq!(issue_to_item(&s.issues[0], "acc-mira").issue_type, None);
     s.issues[0].fields.issuetype = Some(IssueType { name: "Bug".into() });
-    let item = issue_to_item(&s.issues[0], "acc-mira", now());
+    let item = issue_to_item(&s.issues[0], "acc-mira");
     assert_eq!(item.issue_type.as_deref(), Some("Bug"));
     let kind = cockpit_core::branch::BranchType::of(item.issue_type.as_deref(), &item.labels);
     assert_eq!(kind, cockpit_core::branch::BranchType::Fix);

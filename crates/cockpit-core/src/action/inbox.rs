@@ -48,7 +48,7 @@ impl Workspace {
             }
             Action::Reply { item, text } => {
                 let key = self.key_of(&item)?;
-                if !self.reply(&item, &text) {
+                if !self.reply(&item, &text, at_ms) {
                     return Err(ActionError::InvalidInput);
                 }
                 Ok(vec![Note::coded(
@@ -142,7 +142,7 @@ impl Workspace {
                 if current.owner == person {
                     return Err(ActionError::Unchanged);
                 }
-                self.assign(&item, &person);
+                self.assign(&item, &person, at_ms);
                 let text = if person == Person::me() {
                     msg!(CoreActionLogAssignedMe, key = key)
                 } else {

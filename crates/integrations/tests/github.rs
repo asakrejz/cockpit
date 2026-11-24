@@ -20,9 +20,9 @@ macro_rules! fixture {
     };
 }
 
-/// 2024-05-14T12:00:00Z
-fn now() -> i64 {
-    time::parse_iso("2024-05-14T12:00:00Z").unwrap()
+/// A timestamp of a fixture in milliseconds.
+fn ms(iso: &str) -> Option<u64> {
+    time::parse_iso(iso).map(|s| s as u64 * 1000)
 }
 
 #[test]
@@ -58,7 +58,6 @@ fn pull_becomes_an_item_with_review_request() {
         &pull,
         Checks::Passed,
         Relation::ReviewRequested,
-        now(),
     );
     assert_eq!(item.id, "gh-acme-baukasten-87");
     assert_eq!(item.key, "#87");
@@ -68,7 +67,13 @@ fn pull_becomes_an_item_with_review_request() {
     assert_eq!(item.status, TicketStatus::Review);
     assert_eq!(item.owner.name, "tobias-lang");
     assert_eq!(item.owner.initials, "TL");
-    assert_eq!(item.time, "vor 2 Stunden");
+    assert_eq!(item.updated_ms, ms("2024-05-14T10:00:00Z"));
+    assert!(item.time.is_empty() && item.reason_text.is_empty());
+    assert_eq!(item.reason_line().de(), "Review angefragt");
+    assert_eq!(
+        item.reason_line().render(cockpit_i18n::Lang::En),
+        "Review requested"
+    );
     assert_eq!(
         item.branch.as_deref(),
         Some("feature/BAU-142-avatar-tokens")
@@ -86,24 +91,12 @@ fn pull_becomes_an_item_with_review_request() {
 #[test]
 fn own_draft_without_description() {
     let pull: Pull = json(fixture!("github_pull_91.json"));
-    let red = pull_to_item(
-        "acme/baukasten",
-        &pull,
-        Checks::Failed,
-        Relation::Own,
-        now(),
-    );
+    let red = pull_to_item("acme/baukasten", &pull, Checks::Failed, Relation::Own);
     assert_eq!(red.reason, ReasonKind::ChecksFailed);
     assert_eq!(red.description, "");
     assert!(red.labels.is_empty(), "pull request without labels");
     assert!(red.pr.as_ref().unwrap().draft);
-    let green = pull_to_item(
-        "acme/baukasten",
-        &pull,
-        Checks::Passed,
-        Relation::Own,
-        now(),
-    );
+    let green = pull_to_item("acme/baukasten", &pull, Checks::Passed, Relation::Own);
     assert_eq!(green.reason, ReasonKind::Comment);
 }
 
@@ -153,7 +146,7 @@ fn ticket_falls_back_to_the_title() {
 fn comments_sorted_with_own_and_line_reference() {
     let issue: Vec<IssueComment> = json(fixture!("github_issue_comments_87.json"));
     let review: Vec<ReviewComment> = json(fixture!("github_review_comments_87.json"));
-    let c = comments_to_core(&issue, &review, "mkeller", now());
+    let c = comments_to_core(&issue, &review, "mkeller");
 
     assert_eq!(c.len(), 4);
     // oldest first: the outdated line comment from 13 May.
@@ -167,7 +160,8 @@ fn comments_sorted_with_own_and_line_reference() {
     );
     assert_eq!(c[3].author.name, "tobias-lang");
     assert!(!c[3].own);
-    assert_eq!(c[3].time, "vor 5 Minuten");
+    assert_eq!(c[3].created_ms, ms("2024-05-14T11:55:00Z"));
+    assert!(c[3].time.is_empty());
 }
 
 // ---------- Client against mock server ----------
@@ -221,7 +215,7 @@ async fn inbox_load_without_duplicates() {
         .mount(&server)
         .await;
 
-    let items = client(&server).await.load_inbox(now()).await.unwrap();
+    let items = client(&server).await.load_inbox().await.unwrap();
     // #87 is in both searches, but appears only once – as a review request.
     assert_eq!(items.len(), 2);
     assert_eq!(items[0].key, "#87");

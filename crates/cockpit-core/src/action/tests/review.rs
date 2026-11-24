@@ -238,7 +238,7 @@ fn merging_a_pull_request_without_ticket_marks_its_entry() {
         ("Gemergt".into(), Tone::Indigo)
     );
     assert!(item.read);
-    assert_eq!(item.reason_text, "Gemergt (Squash)");
+    assert_eq!(item.reason_line().de(), "Gemergt (Squash)");
     let entry = w.log.last().unwrap();
     assert_eq!(
         (entry.actor, &entry.target),

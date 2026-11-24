@@ -291,7 +291,7 @@ impl Workspace {
             self.clear_agent_note(key);
             self.drop_idle_followups();
         } else if effect.finished {
-            self.finish_real(&run);
+            self.finish_real(&run, now_ms);
         } else if let Some(reason) = effect.stopped {
             self.set_agent_note(
                 key,
@@ -317,10 +317,10 @@ impl Workspace {
     /// The agent is done: the new commits are on the branch on GitHub. The pull request is only
     /// created after your approval (`Action::CreatePullRequest`); a follow-up job continues on
     /// the branch of an existing pull request.
-    pub(super) fn finish_real(&mut self, run: &AgentRun) {
+    pub(super) fn finish_real(&mut self, run: &AgentRun, now_ms: u64) {
         let branch = run.branch();
         if matches!(run.kind, RunKind::ReviewPr { .. }) {
-            self.finish_review_run(run);
+            self.finish_review_run(run, now_ms);
             return;
         }
         if let Some(number) = run.kind.review() {
@@ -333,9 +333,11 @@ impl Workspace {
             };
             if let Some(item) = self.pr_item_mut(number) {
                 item.set_note(note);
-                item.reason = ReasonKind::AgentFinished;
-                item.reason_text = format!("Agent fertig · neue Commits auf {branch}");
-                item.time = "gerade eben".into();
+                item.set_reason(
+                    ReasonKind::AgentFinished,
+                    msg!(ReasonAgentCommits, branch = &branch),
+                );
+                item.updated_ms = Some(now_ms);
                 item.read = false;
             }
             return;
@@ -343,9 +345,11 @@ impl Workspace {
         if let Some(item) = self.items.iter_mut().find(|i| i.key == run.ticket_key) {
             item.branch = Some(branch.clone());
             item.set_note(msg!(CoreWorkspaceAgentBranchPushed, branch = &branch));
-            item.reason = ReasonKind::AgentFinished;
-            item.reason_text = format!("Agent fertig · Branch {branch} gepusht");
-            item.time = "gerade eben".into();
+            item.set_reason(
+                ReasonKind::AgentFinished,
+                msg!(ReasonAgentBranch, branch = &branch),
+            );
+            item.updated_ms = Some(now_ms);
             item.read = false;
         }
     }

@@ -3,7 +3,11 @@ use cockpit_i18n::msg;
 use super::*;
 
 impl Workspace {
-    pub(super) fn perform_review(&mut self, action: Action) -> Result<Vec<Note>, ActionError> {
+    pub(super) fn perform_review(
+        &mut self,
+        action: Action,
+        at_ms: u64,
+    ) -> Result<Vec<Note>, ActionError> {
         match action {
             Action::Decide {
                 review,
@@ -143,10 +147,12 @@ impl Workspace {
                 )])
             }
             Action::SendReview { review, comment } => {
-                let count = self.send_review(&review, &comment).map_err(|e| match e {
-                    SendError::UnknownReview => ActionError::UnknownReview(review.clone()),
-                    e => ActionError::Send(e),
-                })?;
+                let count = self
+                    .send_review(&review, &comment, at_ms)
+                    .map_err(|e| match e {
+                        SendError::UnknownReview => ActionError::UnknownReview(review.clone()),
+                        e => ActionError::Send(e),
+                    })?;
                 Ok(vec![Note::coded(
                     Target::Review(review.clone()),
                     msg!(

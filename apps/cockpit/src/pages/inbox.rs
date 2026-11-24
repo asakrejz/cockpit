@@ -343,22 +343,28 @@ fn with_reason(w: &cockpit_core::Workspace, item: &Item, filter: Filter, now: u6
     let mut item = item.clone();
     if let Some(hit) = w.hits(&item, now).into_iter().next() {
         item.reason = hit.reason;
-        item.reason_text = hit.text.render(lang());
+        item.reason_msg = Some(hit.text);
+        item.reason_text.clear();
     }
     if filter == Filter::Snoozed
         && let Some(snooze) = w.snooze_of(&item.id)
     {
-        item.reason_text = snooze_text(snooze.until_ms);
+        item.reason_msg = Some(snooze_msg(snooze.until_ms));
+        item.reason_text.clear();
     }
     item
 }
 
 /// "Zurückgestellt bis Do., 12.11., 08:00" or "… bis sich etwas ändert".
-fn snooze_text(until_ms: Option<u64>) -> String {
+fn snooze_msg(until_ms: Option<u64>) -> cockpit_i18n::Msg {
     match until_ms {
-        Some(ms) => t!(InboxSnoozedUntil, time = format_time(ms)),
-        None => t!(InboxSnoozedUntilChange),
+        Some(ms) => cockpit_i18n::msg!(InboxSnoozedUntil, time = format_time(ms)),
+        None => cockpit_i18n::msg!(InboxSnoozedUntilChange),
     }
+}
+
+fn snooze_text(until_ms: Option<u64>) -> String {
+    snooze_msg(until_ms).render(lang())
 }
 
 /// Time in the browser's local time, short and in the language of the interface.

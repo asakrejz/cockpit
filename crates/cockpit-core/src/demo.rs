@@ -52,6 +52,7 @@ fn item(
         description: description.into(),
         description_rich: None,
         reason,
+        reason_msg: None,
         reason_text: reason_text.into(),
         time: time.into(),
         scope: if mine { Scope::Mine } else { Scope::Team },

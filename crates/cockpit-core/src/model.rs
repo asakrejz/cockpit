@@ -159,9 +159,17 @@ pub struct Item {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description_rich: Option<crate::adf::Doc>,
     pub reason: ReasonKind,
-    #[serde(default)]
+    /// The reason line as code and parameters; the interface renders it in its language.
+    /// `None` = only [`Item::reason_text`] (older data), until the next sync replaces the entry.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason_msg: Option<cockpit_i18n::Msg>,
+    /// The reason line of older data as plain German text; new entries carry
+    /// [`Item::reason_msg`] and leave this empty.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub reason_text: String,
-    #[serde(default)]
+    /// The time of older data as plain German text ("vor 5 Minuten"); new entries carry
+    /// [`Item::updated_ms`] and leave this empty.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub time: String,
     pub scope: Scope,
     pub owner: Person,
@@ -212,7 +220,9 @@ pub struct Item {
     /// loaded: old data, no such field on the site).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub team: Option<TeamRef>,
-    /// Last update at the service (milliseconds since 1970), `None` = unknown.
+    /// Last activity (milliseconds since 1970), `None` = unknown. The service's update time; an
+    /// action of Cockpit that touches the entry moves it to that moment. The interface shows it
+    /// as "5 minutes ago".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updated_ms: Option<u64>,
     /// Where the entry lives at its service (`https://acme.atlassian.net/browse/BAU-142`,
@@ -289,6 +299,20 @@ pub struct Sprint {
 }
 
 impl Item {
+    /// Sets why the entry needs attention: the kind and the sentence for the row.
+    pub fn set_reason(&mut self, reason: ReasonKind, msg: cockpit_i18n::Msg) {
+        self.reason = reason;
+        self.reason_msg = Some(msg);
+        self.reason_text.clear();
+    }
+
+    /// The reason line of the row: the message, for older data its stored text.
+    pub fn reason_line(&self) -> cockpit_i18n::Msg {
+        self.reason_msg
+            .clone()
+            .unwrap_or_else(|| cockpit_i18n::Msg::raw(self.reason_text.clone()))
+    }
+
     /// Sets the note of the agent: the code and, next to it, the German text.
     pub fn set_note(&mut self, msg: cockpit_i18n::Msg) {
         self.agent_note = Some(msg.de());

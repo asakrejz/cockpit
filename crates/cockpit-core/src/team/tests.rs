@@ -162,7 +162,7 @@ fn sending_the_review_unblocks_the_pull_request() {
     for s in ["a", "b", "c"] {
         w.decide(87, s, Some(crate::Decision::Approved));
     }
-    w.send_review(87, "").unwrap();
+    w.send_review(87, "", 0).unwrap();
     assert!(stuck(&w).iter().all(|s| s.key != "#87"));
     // For Jonas nothing is open any more; whoever has nothing does not appear any more.
     assert!(

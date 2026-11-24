@@ -25,6 +25,7 @@ fn ticket(key: &str, title: &str) -> Item {
         description: String::new(),
         description_rich: None,
         reason: ReasonKind::Assigned,
+        reason_msg: None,
         reason_text: "Dir zugewiesen".into(),
         time: "vor 5 Min.".into(),
         scope: Scope::Mine,
@@ -62,6 +63,7 @@ fn pr_item(number: u32) -> Item {
         key: format!("#{number}"),
         title: format!("PR {number}"),
         reason: ReasonKind::ReviewRequested,
+        reason_msg: None,
         reason_text: "Review angefragt".into(),
         pr: Some(PrRef {
             repo: String::new(),

@@ -109,7 +109,7 @@ impl Services {
             .as_ref()
             .filter(|_| !paused.contains(&Source::GitHub))
         {
-            let res = github_load(&g.client, &g.repos, known, now_s).await;
+            let res = github_load(&g.client, &g.repos, known).await;
             sources.push(as_source(Source::GitHub, res, now_ms));
         }
         if let Some(j) = self
@@ -117,7 +117,7 @@ impl Services {
             .as_ref()
             .filter(|_| !paused.contains(&Source::Jira))
         {
-            let res = jira_load(&j.client, &j.jql, j.in_project, &j.fields, now_s).await;
+            let res = jira_load(&j.client, &j.jql, j.in_project, &j.fields).await;
             sources.push(as_source(Source::Jira, res, now_ms));
         }
         if let Some(p) = self
@@ -190,7 +190,6 @@ pub async fn github_load(
     client: &GitHubClient,
     repos: &[String],
     known: &Workspace,
-    now_s: i64,
 ) -> Result<Loaded, Error> {
     let me = client.me().await?;
     let limits = client.limits();
@@ -288,7 +287,7 @@ pub async fn github_load(
             continue;
         }
         taken.push((repo.clone(), nr));
-        match pull_load(client, &repo, &pull, relation, &me, known, now_s).await {
+        match pull_load(client, &repo, &pull, relation, &me, known).await {
             Ok((item, review, link)) => {
                 out.items.push(item);
                 out.reviews.push(review);
@@ -373,7 +372,6 @@ async fn pull_load(
     relation: PrRelation,
     me: &str,
     known: &Workspace,
-    now_s: i64,
 ) -> Result<(cockpit_core::Item, Review, PrLink), Error> {
     let nr = pull.number;
     // Without the permission "Checks" (fine-grained token) only the commit status is read, or the
@@ -404,8 +402,8 @@ async fn pull_load(
         None => client.files(repo, nr).await?,
     };
 
-    let mut item = pull_to_item_for(repo, pull, checks, relation, now_s);
-    item.comments = comments_with_reviews(&comments, &lines, &verdicts, me, now_s);
+    let mut item = pull_to_item_for(repo, pull, checks, relation);
+    item.comments = comments_with_reviews(&comments, &lines, &verdicts, me);
     if relation.author
         && let Some(pr) = item.pr.as_mut()
     {
@@ -434,7 +432,6 @@ pub async fn jira_load(
     jql: &str,
     in_project: bool,
     prefs: &jira::FieldPrefs,
-    now_s: i64,
 ) -> Result<Loaded, Error> {
     let me = client.me().await?;
     let mut out = Loaded::default();
@@ -503,21 +500,21 @@ pub async fn jira_load(
     let issues = page.issues;
     // Whoever the ticket is not assigned to is shown because of the query, not because of a watch.
     let by_query = if in_project || used_fallback {
-        Some("Im Projekt")
+        Some(msg!(ReasonInProject))
     } else if jira::is_sprint_query(jql) {
-        Some("Im Sprint")
+        Some(msg!(ReasonInSprint))
     } else {
         None
     };
     for issue in issues {
-        let mut item = jira::issue_to_item_full(&issue, &me, now_s, field, team);
-        if let Some(text) = by_query
+        let mut item = jira::issue_to_item_full(&issue, &me, field, team);
+        if let Some(text) = &by_query
             && item.scope != cockpit_core::Scope::Mine
         {
-            item.reason_text = text.into();
+            item.reason_msg = Some(text.clone());
         }
         match client.comments(&issue.key).await {
-            Ok(k) => item.comments = jira::comments_to_core(&k, &me, now_s),
+            Ok(k) => item.comments = jira::comments_to_core(&k, &me),
             Err(Error::NotFound) => continue,
             Err(e) => return Err(e),
         }

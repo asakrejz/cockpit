@@ -283,6 +283,7 @@ pub fn project_tickets() -> (Item, Item) {
         comments: vec![Comment {
             author: lena(),
             time: "vor 2 Std.".into(),
+            created_ms: None,
             text: "Ich habe das mit **VoiceOver** geprüft: der Ring fehlt nur im Dark Mode.".into(),
             text_msg: None,
             rich: None,

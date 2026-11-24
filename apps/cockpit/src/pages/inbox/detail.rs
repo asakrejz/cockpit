@@ -263,7 +263,7 @@ pub(super) fn detail(
                 <CommentBubble
                     who=c.author.name.clone()
                     initials=c.author.initials.clone()
-                    time=c.time.clone()
+                    time=labels::comment_time(c, store.now.get_untracked())
                     text=c.text_msg.as_ref().map_or_else(|| c.text.clone(), |m| m.render_or(lang(), &c.text))
                     rich=c.rich.clone().unwrap_or_default()
                     own=c.own

@@ -101,7 +101,7 @@ async fn the_default_query_asks_for_active_sprints_and_reads_sprint_and_status()
     let st = ws.sync.state_of(Src::Jira).unwrap();
     assert!(st.is_ok() && st.warnings.is_empty(), "{st:?}");
     // Not assigned to me: shown because of the sprint, not because of a watch.
-    assert_eq!(one.reason_text, "Im Sprint");
+    assert_eq!(one.reason_line().de(), "Im Sprint");
 }
 
 #[tokio::test]

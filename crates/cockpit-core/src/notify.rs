@@ -345,7 +345,7 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
                 text: msg!(
                     CoreNotifyReviewText,
                     key = &item.key,
-                    reason = Msg::raw(item.reason_text.clone())
+                    reason = item.reason_line()
                 ),
                 route: route_of(item),
             });

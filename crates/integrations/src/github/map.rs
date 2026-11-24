@@ -4,7 +4,7 @@ use cockpit_core::{
     Checks, Comment, FileDiff, Item, Kind, Person, PrRef, ReasonKind, Review, Scope, Source,
     TicketStatus, Verdict,
 };
-use cockpit_i18n::{Lang, Msg};
+use cockpit_i18n::{Msg, msg};
 
 use super::Relation;
 use super::dto::{
@@ -91,8 +91,8 @@ impl From<Relation> for PrRelation {
 }
 
 /// A pull request as an inbox entry, for the relation of the search it came from.
-pub fn pull_to_item(repo: &str, pull: &Pull, checks: Checks, relation: Relation, now: i64) -> Item {
-    pull_to_item_for(repo, pull, checks, relation.into(), now)
+pub fn pull_to_item(repo: &str, pull: &Pull, checks: Checks, relation: Relation) -> Item {
+    pull_to_item_for(repo, pull, checks, relation.into())
 }
 
 /// A pull request as an inbox entry.
@@ -102,26 +102,20 @@ pub fn pull_to_item(repo: &str, pull: &Pull, checks: Checks, relation: Relation,
 /// `ReviewRequested`; an own pull request `ChecksFailed` or `Comment`; assigned to me only and
 /// pull requests of colleagues give `Comment` – the latter with the scope `Team`, so they never
 /// raise attention. Comments are empty – they come through [`comments_to_core`].
-pub fn pull_to_item_for(
-    repo: &str,
-    pull: &Pull,
-    checks: Checks,
-    relation: PrRelation,
-    now: i64,
-) -> Item {
-    let (reason, reason_text) = if relation.requested {
-        (ReasonKind::ReviewRequested, "Review angefragt".to_string())
+pub fn pull_to_item_for(repo: &str, pull: &Pull, checks: Checks, relation: PrRelation) -> Item {
+    let (reason, reason_msg) = if relation.requested {
+        (ReasonKind::ReviewRequested, msg!(ReasonReviewRequested))
     } else if relation.author {
         match checks {
-            Checks::Failed => (ReasonKind::ChecksFailed, "Checks fehlgeschlagen".into()),
-            _ => (ReasonKind::Comment, "Eigener Pull Request".into()),
+            Checks::Failed => (ReasonKind::ChecksFailed, msg!(ReasonChecksFailed)),
+            _ => (ReasonKind::Comment, msg!(ReasonOwnPr)),
         }
     } else if relation.assigned {
-        (ReasonKind::Comment, "Dir zugewiesen".into())
+        (ReasonKind::Comment, msg!(ReasonAssigned))
     } else {
         (
             ReasonKind::Comment,
-            cockpit_i18n::msg!(IntegrationsSyncPrBy, author = &pull.user.login).de(),
+            msg!(IntegrationsSyncPrBy, author = &pull.user.login),
         )
     };
     Item {
@@ -133,8 +127,9 @@ pub fn pull_to_item_for(
         description: pull.body.clone().unwrap_or_default(),
         description_rich: None,
         reason,
-        reason_text,
-        time: time::relative(&pull.updated_at, now, Lang::De),
+        reason_msg: Some(reason_msg),
+        reason_text: String::new(),
+        time: String::new(),
         scope: if relation.mine() {
             Scope::Mine
         } else {
@@ -220,9 +215,8 @@ pub fn comments_to_core(
     issue: &[IssueComment],
     review: &[ReviewComment],
     me: &str,
-    now: i64,
 ) -> Vec<Comment> {
-    comments_with_reviews(issue, review, &[], me, now)
+    comments_with_reviews(issue, review, &[], me)
 }
 
 /// `@login` of the user → `@Du`, so that the mention rules in the cockpit apply.
@@ -258,7 +252,6 @@ pub fn comments_with_reviews(
     review: &[ReviewComment],
     reviews: &[PullReview],
     me: &str,
-    now: i64,
 ) -> Vec<Comment> {
     let mut all: Vec<(i64, Comment)> = Vec::new();
     let mut add = |login: &str, time_iso: &str, body: String, coded: Option<(Msg, String)>| {
@@ -273,7 +266,8 @@ pub fn comments_with_reviews(
             sorting,
             Comment {
                 author,
-                time: time::relative(time_iso, now, Lang::De),
+                time: String::new(),
+                created_ms: time::parse_iso(time_iso).map(|s| s.max(0) as u64 * 1000),
                 text: if own { body } else { mention_for(&body, me) },
                 text_msg: coded.map(|(verdict, text)| {
                     let text = if own { text } else { mention_for(&text, me) };

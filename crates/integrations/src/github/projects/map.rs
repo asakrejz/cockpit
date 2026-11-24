@@ -6,7 +6,7 @@ use cockpit_core::{
     Person, PrKey, Priority, ProjectItem, ReasonKind, Scope, Source, Sprint, SprintState, TeamRef,
     TicketStatus,
 };
-use cockpit_i18n::Lang;
+use cockpit_i18n::msg;
 
 use super::dto::{Content, DetailNode, FieldValueNode, ItemNode};
 use crate::{text, time};
@@ -237,10 +237,10 @@ pub fn map_item(
         .map(|l| name_of(l, ctx.me))
         .filter(|n| *n != owner.name)
         .collect();
-    let (reason, reason_text, scope) = if mine {
-        (ReasonKind::Assigned, "Dir zugewiesen", Scope::Mine)
+    let (reason, reason_msg, scope) = if mine {
+        (ReasonKind::Assigned, msg!(ReasonAssigned), Scope::Mine)
     } else {
-        (ReasonKind::Comment, "Im Projekt", Scope::Team)
+        (ReasonKind::Comment, msg!(ReasonInProject), Scope::Team)
     };
 
     let labels: Vec<String> = c
@@ -328,8 +328,9 @@ pub fn map_item(
         description: c.body.clone(),
         description_rich: None,
         reason,
-        reason_text: reason_text.into(),
-        time: time::relative(&updated, ctx.now_s, Lang::De),
+        reason_msg: Some(reason_msg),
+        reason_text: String::new(),
+        time: String::new(),
         scope,
         owner,
         status,
@@ -427,7 +428,8 @@ pub fn heavy_of(d: &DetailNode, ctx: &MapCtx<'_>) -> Heavy {
             let own = !ctx.me.is_empty() && login.eq_ignore_ascii_case(ctx.me);
             Comment {
                 author: person_of(login, ctx.me),
-                time: time::relative(&c.created_at, ctx.now_s, Lang::De),
+                time: String::new(),
+                created_ms: time::parse_iso(&c.created_at).map(|s| s.max(0) as u64 * 1000),
                 text: c.body.clone(),
                 text_msg: None,
                 rich: None,

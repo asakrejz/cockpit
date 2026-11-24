@@ -97,7 +97,7 @@ fn mention_needs_a_new_foreign_comment_with_my_name() {
     assert!(e.title.de().contains("Lena"));
     // Own comments and old comments report nothing.
     let mut own = before.clone();
-    own.reply("bau142", "@Du bin das selbst");
+    own.reply("bau142", "@Du bin das selbst", 0);
     assert!(events(&before, &own).is_empty());
 }
 
