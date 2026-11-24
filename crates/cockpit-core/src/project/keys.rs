@@ -76,9 +76,10 @@ const CLOSING: &[&str] = &[
 ];
 
 /// All issue references in a text, in order of appearance, each once: `#123` (in the repo
-/// `default_repo`), `owner/repo#123` and `https://github.com/owner/repo/issues/123`. A reference
-/// preceded by a closing keyword (`Fixes #123`, `closes: acme/app#4`) is marked as closing.
-/// Jira-style keys (`BAU-142`) and things like `abc#12` are not references.
+/// `default_repo`), `owner/repo#123` and `https://github.com/owner/repo/issues/123` (only
+/// github.com addresses). A reference preceded by a closing keyword (`Fixes #123`,
+/// `closes: acme/app#4`) is marked as closing. Jira-style keys (`BAU-142`) and things like
+/// `abc#12` are not references.
 ///
 /// ```
 /// use cockpit_core::project::issue_refs;
@@ -146,14 +147,18 @@ pub fn issue_refs(text: &str, default_repo: &str) -> Vec<IssueRef> {
             while from > 0 && repo_char(bytes[from - 1]) {
                 from -= 1;
             }
-            let path = &text[from..i];
-            let repo = path.rsplit('/').take(2).collect::<Vec<_>>();
-            if end > start && end - start <= 9 && repo.len() == 2 {
-                let candidate = format!("{}/{}", repo[1], repo[0]);
+            // Only addresses at github.com: `github.com/owner/name`, with or without `https://`.
+            let segments: Vec<&str> = text[from..i].split('/').filter(|s| !s.is_empty()).collect();
+            if end > start
+                && end - start <= 9
+                && let [host, owner, name] = segments[..]
+                && (host.eq_ignore_ascii_case("github.com")
+                    || host.eq_ignore_ascii_case("www.github.com"))
+            {
+                let candidate = format!("{owner}/{name}");
                 if repo_valid(&candidate)
                     && let Ok(n) = text[start..end].parse::<u32>()
                 {
-                    // Only github-looking addresses: the host part is whatever sits before.
                     add(candidate, n, false);
                 }
             }

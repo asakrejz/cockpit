@@ -8,12 +8,13 @@
 //! * A ticket is shown if its team is chosen; a ticket without a team only if
 //!   [`TeamChoice::include_no_team`] is on.
 //! * What is mine ([`Scope::Mine`]) is always shown.
-//! * A pull request is not filtered, unless it is linked to tickets (ticket key in branch or
-//!   title, or the ticket carries the pull request) and none of them is shown: then it is hidden too.
+//! * A pull request is not filtered, unless it is linked to tickets (it names the ticket key in
+//!   its branch, title or description, or the ticket carries the pull request) and none of them
+//!   is shown: then it is hidden too.
 
 use serde::{Deserialize, Serialize};
 
-use crate::link::ticket_keys;
+use crate::link::PrTexts;
 use crate::model::{Item, Kind, TeamRef};
 use crate::workspace::Workspace;
 
@@ -118,25 +119,16 @@ impl Workspace {
         }
     }
 
-    /// The tickets a pull request belongs to.
+    /// The tickets a pull request belongs to: those it names ([`PrTexts::ticket_keys`]), and
+    /// those that carry it (their pull request, or their timeline).
     fn linked_tickets(&self, pr: &Item) -> Vec<&Item> {
         let own = pr.pr.as_ref().map(|p| p.key());
-        let mut keys: Vec<String> = Vec::new();
-        let repo = pr.pr.as_ref().map_or("", |p| p.repo.as_str());
-        for text in [pr.branch.as_deref().unwrap_or_default(), pr.title.as_str()] {
-            keys.extend(ticket_keys(text));
-            // GitHub issues: `#12`, `acme/app#12`, `Fixes #12`.
-            keys.extend(
-                crate::project::issue_refs(text, repo)
-                    .iter()
-                    .map(|r| r.key()),
-            );
-        }
+        let named = PrTexts::of_item(pr).ticket_keys();
         self.items
             .iter()
             .filter(|t| t.kind == Kind::Ticket)
             .filter(|t| {
-                keys.iter().any(|k| k.eq_ignore_ascii_case(&t.key))
+                named.iter().any(|k| k.eq_ignore_ascii_case(&t.key))
                     || own
                         .as_ref()
                         .zip(t.pr.as_ref())

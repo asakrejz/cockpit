@@ -29,6 +29,7 @@ fn pull_request(ws: &mut Workspace, number: u32, branch: &str) -> Item {
     p.scope = Scope::Team;
     p.branch = Some(branch.into());
     p.title = format!("PR {number}");
+    p.description.clear();
     if let Some(r) = p.pr.as_mut() {
         r.number = number;
     }
@@ -117,6 +118,33 @@ fn a_pull_request_is_shown_if_one_of_its_tickets_is() {
     let pr = pull_request(&mut w, 5, "feature/app-1-and-app-2");
     choose(&mut w, &["a"], false);
     assert!(w.team_visible(&pr));
+}
+
+#[test]
+fn a_pull_request_naming_the_ticket_only_in_its_description_is_linked() {
+    let mut w = ws();
+    ticket(&mut w, "APP-1", Some(team("b")), Scope::Team);
+    let mut pr = pull_request(&mut w, 5, "fix/typo");
+    pr.description = "Part of app-1.".into();
+    w.items[1] = pr.clone();
+    choose(&mut w, &["a"], false);
+    assert!(!w.team_visible(&pr));
+    choose(&mut w, &["a", "b"], false);
+    assert!(w.team_visible(&pr));
+}
+
+#[test]
+fn a_key_inside_a_web_address_does_not_link_a_pull_request() {
+    let mut w = ws();
+    ticket(&mut w, "APP-1", Some(team("b")), Scope::Team);
+    let mut pr = pull_request(&mut w, 5, "fix/typo");
+    pr.description = "See https://example.com/blog/app-1-story".into();
+    w.items[1] = pr.clone();
+    choose(&mut w, &["a"], false);
+    assert!(w.team_visible(&pr));
+    pr.description = "See https://acme.atlassian.net/browse/APP-1".into();
+    w.items[1] = pr.clone();
+    assert!(!w.team_visible(&pr));
 }
 
 #[test]
