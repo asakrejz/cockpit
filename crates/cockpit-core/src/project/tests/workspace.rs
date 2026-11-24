@@ -6,6 +6,7 @@ use crate::model::{Filter, PrKey, Scope, Source, SourceFilter, TeamRef};
 use crate::project::ProjectItem;
 use crate::search::InboxFilter;
 use crate::setup::Step;
+use crate::test_support::{first_text, loaded, saved};
 use crate::{Action, Actor, TicketStatus, TicketsFrom, Workspace};
 
 const T: u64 = 1_700_000_000_000;
@@ -297,10 +298,9 @@ fn tickets_from_reads_ids_and_says_what_it_uses() {
 fn old_saves_without_project_fields_still_load() {
     // An item as an older version wrote it: none of the new fields.
     let w = demo::workspace();
-    let json = crate::persist::save(&w);
+    let json = saved(&w);
     assert!(!json.contains("co_assignees") && !json.contains("\"project\":{"));
-    let (back, restored) = crate::persist::restore(Some(&json));
-    assert!(restored);
+    let back = loaded(&json).expect("the stored state loads");
     assert!(
         back.items
             .iter()
@@ -369,7 +369,8 @@ fn with_meta() -> Workspace {
 }
 
 fn apply(w: &mut Workspace, a: Action) -> Result<String, ActionError> {
-    w.apply(a, Actor::User, T).map(|r| r.summary)
+    let applied = w.apply(a, Actor::User, T)?;
+    Ok(first_text(w, &applied).to_string())
 }
 
 const ISSUE: &str = "gh-acme-app-31";

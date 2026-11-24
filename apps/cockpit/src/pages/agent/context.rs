@@ -32,10 +32,10 @@ impl OptionSignals {
             agent_repos,
             repo,
             others,
-            tests_allowed,
+            ..
         } = self;
         AgentOptions {
-            run_tests: run_tests.get() && tests_allowed.get(),
+            run_tests: run_tests.get(),
             draft_pr: draft_pr.get(),
             hint: hint.get(),
             plan_first: plan_first.get(),
@@ -195,7 +195,8 @@ impl AgentCtx {
         });
         // Note for a new plan.
         let note = RwSignal::new(String::new());
-        let tests_allowed = Signal::derive(move || store.conn.get().may_run_tests);
+        // Running the tests is always allowed; the job section still reads the signal.
+        let tests_allowed = Signal::stored(true);
         let form = OptionSignals {
             run_tests,
             draft_pr,

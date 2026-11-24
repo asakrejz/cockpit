@@ -312,10 +312,7 @@ impl Store {
         if actor == Actor::User {
             self.send(action);
         }
-        Ok(Applied {
-            summary: String::new(),
-            logged: 0,
-        })
+        Ok(Applied { logged: 0 })
     }
 
     /// Derives the events from the before/after and reports those for the browser.

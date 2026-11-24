@@ -7,7 +7,7 @@ fn linking_connects_both_sides() {
     w.pr_status_off = true;
     let applied = link(&mut w, "bau150", 85, 1);
     assert_eq!(
-        applied.summary,
+        first_text(&w, &applied),
         "BAU-150 automatisch mit acme/app#85 verknüpft"
     );
     let ticket = w.item("bau150").unwrap();
@@ -33,11 +33,10 @@ fn the_manual_link_actions_are_gone_from_the_wire() {
 #[test]
 fn old_states_with_hand_resolved_links_still_load() {
     let w = ws();
-    let mut value: serde_json::Value = serde_json::from_str(&persist::save(&w)).unwrap();
+    let mut value: serde_json::Value = serde_json::from_str(&saved(&w)).unwrap();
     value["workspace"]["unlinked"] =
         serde_json::json!([[{"repo": "acme/app", "number": 85}, "APP-1"]]);
-    let (back, restored) = persist::restore(Some(&value.to_string()));
-    assert!(restored);
+    let back = loaded(&value.to_string()).expect("the stored state loads");
     assert_eq!(back.items.len(), w.items.len());
 }
 
@@ -52,7 +51,7 @@ fn the_branch_or_title_links_automatically() {
     );
     let applied = ok(&mut w, Action::AutoLinkPrs, 1);
     assert_eq!(
-        applied.summary,
+        first_text(&w, &applied),
         "BAU-150 automatisch mit acme/app#85 verknüpft"
     );
     let entry = w.log.last().unwrap();

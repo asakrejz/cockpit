@@ -124,7 +124,6 @@ core_action.log_assigned_me = {key} dir zugewiesen
 core_action.log_assigned = {key} an {name} zugewiesen
 core_action.log_priority_set = Priorität von {key} auf „{priority}“ gesetzt
 core_action.log_auto_linked = {key} automatisch mit {pr} verknüpft
-core_action.log_review_requested = Review für {review} angefragt
 core_action.log_status_follows = Status folgt dem Pull Request: {state}
 core_action.log_jira_project = Jira-Projekt gewählt: {project}
 core_action.log_jira_project_all = Jira-Projekt: alle

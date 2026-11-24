@@ -193,7 +193,7 @@ fn merging_marks_the_pull_request_and_finishes_the_ticket() {
         1,
     );
     let applied = ok(&mut w, merge(91, MergeMethod::Rebase), 2);
-    assert_eq!(applied.summary, "#91 gemergt (Rebase)");
+    assert_eq!(first_text(&w, &applied), "#91 gemergt (Rebase)");
     // The automation updates the ticket, with the system as author.
     let entry = w.log.last().unwrap();
     assert_eq!(entry.actor, Actor::System);
@@ -387,6 +387,6 @@ fn a_merged_pull_request_survives_saving() {
     let mut w = ws();
     ready_87(&mut w);
     ok(&mut w, merge(87, MergeMethod::Squash), 1);
-    let (back, _) = persist::restore(Some(&persist::save(&w)));
+    let back = loaded(&saved(&w)).unwrap();
     assert_eq!(back, w);
 }

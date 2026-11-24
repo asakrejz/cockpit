@@ -1,4 +1,6 @@
 use super::*;
+use crate::demo;
+use crate::test_support::{loaded as load, saved as save};
 use crate::{AgentOptions, Decision, RunState, Verdict, agent::STEPS};
 
 fn json(text: &str) -> serde_json::Value {
@@ -10,10 +12,10 @@ fn revision_roundtrip_and_load_still_reads_it() {
     let ws = demo::workspace();
     let text = save_with_revision(&ws, 42);
     assert_eq!(load_with_revision(&text), Ok((ws.clone(), 42)));
-    // Whoever does not know the revision reads the same text.
-    assert_eq!(load(&text), Ok(ws.clone()));
     // Without a revision in the text: 0.
-    assert_eq!(load_with_revision(&save(&ws)), Ok((ws, 0)));
+    let mut value = json(&text);
+    value.as_object_mut().unwrap().remove("revision");
+    assert_eq!(load_with_revision(&value.to_string()), Ok((ws, 0)));
 }
 
 #[test]
@@ -149,20 +151,6 @@ fn missing_agent_options_get_defaults() {
     assert_eq!(options.hint, "nur ein Hinweis");
     assert_eq!(options.base_branch, "main");
     assert!(options.run_tests);
-}
-
-#[test]
-fn restore_falls_back_to_demo() {
-    let demo = demo::workspace();
-    assert_eq!(restore(None), (demo.clone(), false));
-    assert_eq!(restore(Some("kaputt")), (demo.clone(), false));
-    assert_eq!(restore(Some("{\"version\":99}")), (demo.clone(), false));
-    let mut changed = demo.clone();
-    let id = changed.items[0].id.clone();
-    changed.mark_done(&id);
-    let (back, restored) = restore(Some(&save(&changed)));
-    assert!(restored);
-    assert_eq!(back, changed);
 }
 
 /// Collects all field names of a JSON value.

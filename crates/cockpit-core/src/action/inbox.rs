@@ -185,18 +185,6 @@ impl Workspace {
                 notes.extend(status_notes(self.follow_status()));
                 Ok(notes)
             }
-            Action::RequestReview { review } => {
-                self.need_open_review(&review)?;
-                if !self.request_review(&review) {
-                    return Err(ActionError::Unchanged);
-                }
-                let mut notes = vec![Note::coded(
-                    Target::Review(review.clone()),
-                    msg!(CoreActionLogReviewRequested, review = review.to_string()),
-                )];
-                notes.extend(status_notes(self.follow_status()));
-                Ok(notes)
-            }
             Action::SyncTicketStatus => {
                 // An error changes nothing: first check whether a pull request has moved.
                 if !self.status_pending() {

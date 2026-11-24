@@ -293,7 +293,7 @@ async fn post_sync_fetches_pull_requests_and_shows_the_state() {
             .iter()
             .all(|r| r.headers.get("authorization").is_some())
     );
-    assert!(!persist::save(&ws).contains(TOKEN));
+    assert!(!persist::save_with_revision(&ws, 0).contains(TOKEN));
 }
 
 #[tokio::test]

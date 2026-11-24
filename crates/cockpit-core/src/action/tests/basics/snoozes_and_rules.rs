@@ -12,7 +12,7 @@ fn snoozing_is_an_action_and_comes_back_by_itself() {
         },
         1,
     );
-    assert_eq!(applied.summary, "#87 zurückgestellt");
+    assert_eq!(first_text(&w, &applied), "#87 zurückgestellt");
     assert!(w.is_snoozed("pr87", T));
     // Nothing to wake as long as the time is not up.
     fails(&mut w, Action::WakeSnoozed, ActionError::NothingToDo);
@@ -20,7 +20,7 @@ fn snoozing_is_an_action_and_comes_back_by_itself() {
     let woke = w
         .apply(Action::WakeSnoozed, Actor::System, T + hour)
         .unwrap();
-    assert_eq!(woke.summary, "#87 ist zurück in der Inbox");
+    assert_eq!(first_text(&w, &woke), "#87 ist zurück in der Inbox");
     assert!(w.snoozed.is_empty());
     assert_eq!(w.log.last().unwrap().actor, Actor::System);
 
@@ -90,7 +90,7 @@ fn a_change_wakes_a_snooze_and_the_tick_logs_it() {
         1,
     );
     let woke = w.apply(Action::WakeSnoozed, Actor::System, T).unwrap();
-    assert_eq!(woke.summary, "BAU-142 ist zurück in der Inbox");
+    assert_eq!(first_text(&w, &woke), "BAU-142 ist zurück in der Inbox");
 }
 
 #[test]
@@ -104,7 +104,10 @@ fn rules_are_switched_by_action() {
         },
         1,
     );
-    assert_eq!(off.summary, "Regel „Überfälliges Ticket“ ausgeschaltet");
+    assert_eq!(
+        first_text(&w, &off),
+        "Regel „Überfälliges Ticket“ ausgeschaltet"
+    );
     assert!(!w.rules.enabled(Rule::Overdue));
     assert_eq!(w.log.last().unwrap().target, None);
     fails(
@@ -123,7 +126,10 @@ fn rules_are_switched_by_action() {
         },
         1,
     );
-    assert_eq!(on.summary, "Regel „Überfälliges Ticket“ eingeschaltet");
+    assert_eq!(
+        first_text(&w, &on),
+        "Regel „Überfälliges Ticket“ eingeschaltet"
+    );
 }
 
 #[test]
@@ -147,7 +153,7 @@ fn rules_and_snoozes_survive_save_and_load() {
         T,
     )
     .unwrap();
-    let back = persist::load(&persist::save(&w)).unwrap();
+    let back = loaded(&saved(&w)).unwrap();
     assert_eq!(back, w);
     assert!(!back.rules.enabled(Rule::Assigned));
     let text = serde_json::to_string(&Action::Snooze {

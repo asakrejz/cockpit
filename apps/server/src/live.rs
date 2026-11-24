@@ -124,29 +124,6 @@ impl Live {
         }
     }
 
-    /// Fills the repo of pull requests and runs of a state stored before several repos were
-    /// supported (see [`Workspace::fill_repos`]); `only_repo` is the one configured repo, if
-    /// there is exactly one. Saves the result if anything changed.
-    pub fn fill_repos(&self, db: &Connection, only_repo: Option<&str>) {
-        if self.protected.is_some() {
-            return;
-        }
-        let mut snapshot = lock(&self.snapshot);
-        let mut updated = snapshot.ws.clone();
-        if !updated.fill_repos(only_repo) {
-            return;
-        }
-        let revision = snapshot.revision + 1;
-        let text = persist::save_with_revision(&updated, revision);
-        match db::workspace_save(db, revision, &text) {
-            Ok(()) => {
-                snapshot.ws = updated;
-                snapshot.revision = revision;
-            }
-            Err(e) => tracing::warn!("Repos of the old state not saved: {e}"),
-        }
-    }
-
     /// The current state as JSON (shape of `persist`, plus `revision`).
     pub fn snapshot(&self) -> String {
         let snapshot = lock(&self.snapshot);
@@ -195,7 +172,6 @@ impl Live {
         let _ = self.tx.send(ServerEvent { revision, entries });
         Ok(ActionResponse {
             revision,
-            summary: applied.summary,
             logged: applied.logged,
         })
     }

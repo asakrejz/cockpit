@@ -79,10 +79,6 @@ pub enum Action {
     // Ticket and pull request
     /// The tick: link pull requests whose branch, title or body names a ticket key.
     AutoLinkPrs,
-    /// Request a review for the pull request.
-    RequestReview {
-        review: PrKey,
-    },
     /// The tick: bring the status of linked tickets in line with the pull request.
     SyncTicketStatus,
     /// Switch „status follows the pull request“ on or off.
@@ -390,7 +386,6 @@ impl Action {
             | Action::WakeSnoozed
             | Action::SetRule { .. }
             | Action::AutoLinkPrs
-            | Action::RequestReview { .. }
             | Action::SyncTicketStatus
             | Action::SetStatusFollowsPr { .. }
             | Action::SelectJiraProject { .. }
@@ -470,12 +465,8 @@ impl Workspace {
             });
         }
         let notes = self.perform(action, at_ms)?;
-        let mut summary = String::new();
         let logged = notes.len();
         for note in notes {
-            if summary.is_empty() {
-                summary = note.text.clone();
-            }
             self.push_log(
                 at_ms,
                 note.actor.unwrap_or(actor),
@@ -484,7 +475,7 @@ impl Workspace {
                 note.msg,
             );
         }
-        Ok(Applied { summary, logged })
+        Ok(Applied { logged })
     }
 
     fn push_log(
@@ -555,7 +546,6 @@ impl Workspace {
             | Action::AssignTicket { .. }
             | Action::SetPriority { .. }
             | Action::AutoLinkPrs
-            | Action::RequestReview { .. }
             | Action::SyncTicketStatus
             | Action::SetStatusFollowsPr { .. }
             | Action::SelectJiraProject { .. }

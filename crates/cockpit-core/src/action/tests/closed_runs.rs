@@ -40,7 +40,11 @@ fn a_finished_run_becomes_done_merged() {
     );
     let applied = close(&mut w, "BAU-138", Closure::Merged).unwrap();
     assert_eq!(applied.logged, 1);
-    assert!(applied.summary.contains("gemergt"), "{}", applied.summary);
+    assert!(
+        first_text(&w, &applied).contains("gemergt"),
+        "{}",
+        first_text(&w, &applied)
+    );
     let run = w.run("BAU-138").unwrap();
     assert_eq!(run.closure, Some(Closure::Merged));
     assert!(run.is_closed() && run.is_done());

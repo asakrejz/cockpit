@@ -65,8 +65,6 @@ pub struct ActionRequest {
 pub struct ActionResponse {
     /// Revision of the state after the action.
     pub revision: u64,
-    /// The sentence from the log (see `Applied::summary`).
-    pub summary: String,
     /// Number of new log entries.
     pub logged: usize,
 }

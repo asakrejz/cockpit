@@ -30,19 +30,11 @@ fn service_status_reads_old_and_partial_json() {
 }
 
 #[test]
-fn agent_needs_connection_and_permissions() {
+fn agent_needs_a_connection() {
     let mut c = Connections::default();
     assert!(c.agent_blocked().is_some());
     c.agent = true;
     assert_eq!(c.agent_blocked(), None);
-    c.may_open_pr = false;
-    assert!(c.agent_blocked().unwrap().de().contains("Pull Requests"));
-    c.may_branch = false;
-    assert!(c.agent_blocked().unwrap().de().contains("Branches"));
-    c.may_branch = true;
-    c.may_open_pr = true;
-    c.may_run_tests = false;
-    assert_eq!(c.agent_blocked(), None, "tests are optional");
 }
 
 fn resolved(token: bool, oauth: OAuthTokens) -> (bool, AuthKind, bool) {

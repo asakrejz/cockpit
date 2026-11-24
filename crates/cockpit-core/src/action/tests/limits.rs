@@ -79,7 +79,7 @@ fn the_run_budget_stops_the_run_and_you_can_raise_it() {
         1,
     );
     assert_eq!(
-        applied.summary,
+        first_text(&w, &applied),
         "Agent für BAU-150 fortgesetzt – das Budget dieses Laufs um 5,00 € erhöht"
     );
     // Only this run gets more, the setting stays.
@@ -264,7 +264,7 @@ fn limits_are_validated_and_logged() {
     );
     fails(&mut w, limits(|_| {}), ActionError::Unchanged);
     let applied = ok(&mut w, limits(|l| l.max_parallel = 2), 1);
-    assert!(applied.summary.contains("höchstens 2 parallel"));
+    assert!(first_text(&w, &applied).contains("höchstens 2 parallel"));
     assert_eq!(w.log.last().unwrap().target, Some(Target::Settings));
 }
 
@@ -434,7 +434,7 @@ fn rules_are_per_repo_cleaned_and_validated() {
         ActionError::Unchanged,
     );
     let applied = ok(&mut w, rules(|_| {}), 1);
-    assert!(applied.summary.ends_with("entfernt"));
+    assert!(first_text(&w, &applied).ends_with("entfernt"));
 }
 
 #[test]
@@ -453,7 +453,7 @@ fn the_new_actions_roundtrip_and_old_saves_still_load() {
     // A state without the new fields loads with default values.
     let mut w = ws();
     start(&mut w, "BAU-150");
-    let mut v: serde_json::Value = serde_json::from_str(&persist::save(&w)).unwrap();
+    let mut v: serde_json::Value = serde_json::from_str(&saved(&w)).unwrap();
     let ws_obj = v["workspace"].as_object_mut().unwrap();
     for key in ["limits", "spend", "repo_rules"] {
         ws_obj.remove(key);
@@ -470,8 +470,7 @@ fn the_new_actions_roundtrip_and_old_saves_still_load() {
             run.remove(key);
         }
     }
-    let (back, restored) = persist::restore(Some(&v.to_string()));
-    assert!(restored);
+    let back = loaded(&v.to_string()).expect("the stored state loads");
     assert_eq!(back.limits, AgentLimits::default());
     assert!(back.spend.is_empty());
     assert!(back.run("BAU-150").unwrap().is_running());
@@ -480,7 +479,7 @@ fn the_new_actions_roundtrip_and_old_saves_still_load() {
     ok(&mut s, limits(|l| l.run_budget_cents = Some(20)), 1);
     start(&mut s, "BAU-150");
     advance(&mut s, 10);
-    let (back, _) = persist::restore(Some(&persist::save(&s)));
+    let back = loaded(&saved(&s)).unwrap();
     assert_eq!(back, s);
     assert!(back.run("BAU-150").unwrap().is_stopped());
 }
