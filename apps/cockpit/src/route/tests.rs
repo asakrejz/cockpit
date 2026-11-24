@@ -81,10 +81,7 @@ fn setup_addresses_with_and_without_a_step() {
     assert_eq!(Route::parse("#/setup"), Route::Setup);
     assert_eq!(Route::parse("#/setup/"), Route::Setup);
     assert_eq!(Route::parse("#/setup/jira"), Route::SetupStep(Step::Jira));
-    assert_eq!(
-        Route::parse("#/setup/model"),
-        Route::SetupStep(Step::Model)
-    );
+    assert_eq!(Route::parse("#/setup/model"), Route::SetupStep(Step::Model));
     assert_eq!(Route::parse("#/setup/done"), Route::SetupStep(Step::Done));
     // Unknown steps, among them the German ids.
     assert_eq!(Route::parse("#/setup/unsinn"), Route::Setup);

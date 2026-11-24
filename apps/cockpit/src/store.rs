@@ -322,9 +322,8 @@ impl Store {
         let deliveries =
             notify::deliveries(&events, &after.notifications, browser::minute_of_day());
         for delivery in deliveries {
-            // Email and Slack are sent by the backend later.
-            if delivery.channel == Channel::Browser {
-                self.announce(delivery.event, false);
+            match delivery.channel {
+                Channel::Browser => self.announce(delivery.event, false),
             }
         }
     }

@@ -239,11 +239,9 @@ routes.
 - A pull request is identified by `PrKey { repo: "owner/name", number }` (`cockpit_core::PrKey`, text form
   `owner/name#12`). `Review`, `PrRef`, `PrLink`, the actions (`review`, `pr`), `Target::Review`, follow-up runs
   (`review-acme~app-12`, `check-acme~app-12-lint`) and notification routes carry it, so equal numbers from two repos
-  never mix. On the wire a key without repo is the plain number (the format before several repos); both forms are
-  read, and an empty repo is not written, so old snapshots and clients stay byte-compatible (`wire_compat`).
-  A key without repo matches any repo with that number (old data, single-repo callers); a key with repo matches only
-  that repo or an entry whose repo is still unknown. `Workspace::fill_repos` migrates old states at load: the repo
-  comes from the sync link, from the inbox entry, or from the only configured repo (`Live::fill_repos`).
+  never mix. On the wire a key without repo is the plain number; both forms are read, and an empty repo is not
+  written, so stored snapshots and clients stay byte-compatible (`wire_compat`). A key without repo matches any repo
+  with that number; a key with repo matches only that repo or an entry whose repo is still unknown.
 - **Ticket → repo.** The repo is chosen in the start dialog (`AgentOptions.repo`, any `owner/name`; the list comes from
   `GET /api/github/repos`, cached 5 minutes). `GET /api/agent/repo-suggestions?ticket=` ranks suggestions with
   `cockpit_core::repos::suggest` (earlier runs of the same Jira project, linked pull requests, mentions in the ticket
@@ -409,8 +407,7 @@ compatibility of stored JSON across renames is guarded by `crates/cockpit-core/t
 
 Which events notify is derived purely from comparing the workspace before and after an action
 (`crates/cockpit-core/src/notify.rs`, with tests). The settings live in the workspace and change through actions
-(`SetNotifyChannel`, `SetQuietHours`). Email and Slack are prepared only; addresses and webhook URLs never live in the
-browser.
+(`SetNotifyChannel`, `SetQuietHours`). Notifications go to the browser only.
 
 ## Languages (i18n)
 

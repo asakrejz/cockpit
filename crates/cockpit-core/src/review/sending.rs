@@ -3,16 +3,13 @@
 use super::*;
 
 impl Review {
-    /// Own line comments that go out on sending: others' are already on GitHub,
-    /// implemented ones are done.
+    /// Own line comments that go out on sending: others' are already on GitHub.
     pub(super) fn outgoing(&self) -> impl Iterator<Item = &LineComment> {
-        self.line_comments
-            .iter()
-            .filter(|c| c.is_own() && c.is_open())
+        self.line_comments.iter().filter(|c| c.is_own())
     }
 
     /// This many comments go out on sending: approved suggestions of the agent
-    /// and the open own line comments.
+    /// and the own line comments.
     pub fn comment_count(&self) -> usize {
         self.approved() + self.outgoing().count()
     }

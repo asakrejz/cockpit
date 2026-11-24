@@ -89,8 +89,6 @@ pub(crate) fn reason(reason: NotifyReason) -> Msg {
 pub(crate) fn channel(channel: Channel) -> Msg {
     match channel {
         Channel::Browser => msg!(CoreActionChannelBrowser),
-        Channel::Email => msg!(CoreActionChannelEmail),
-        Channel::Slack => msg!(CoreActionChannelSlack),
     }
 }
 

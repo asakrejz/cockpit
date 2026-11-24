@@ -75,12 +75,10 @@ pub(super) fn line_notes(
         .map(|c| {
             let (id, text) = (StoredValue::new(c.id.clone()), StoredValue::new(c.text.clone()));
             let code = StoredValue::new(c.suggestion.clone());
-            // An implemented suggestion is already in the diff, the before/after is dropped.
-            let diff = r.suggestion_diff(c).filter(|_| c.is_open());
+            let diff = r.suggestion_diff(c);
             let original = original.clone();
-            // Comments by others cannot be changed, finished ones neither.
-            let (own, open) = (c.is_own(), c.is_open());
-            let resolved = c.resolved.clone();
+            // Comments by others cannot be changed.
+            let own = c.is_own();
             let author = c
                 .author
                 .as_ref()
@@ -90,7 +88,7 @@ pub(super) fn line_notes(
             view! {
                 <div class="ui-diff__note" role="group" aria-label=t!(ReviewDiffOwnComment)>
                     {move || {
-                        if editing() && !sent && own && open {
+                        if editing() && !sent && own {
                             view! {
                                 <Textarea value=ui.edit_text label=t!(ReviewEditComment) min_height="64px" />
                                 {suggestion_editor(ui.edit_suggest, ui.edit_code, original.clone())}
@@ -136,21 +134,11 @@ pub(super) fn line_notes(
                             view! {
                                 <span class="ui-hstack t-footnote t-secondary" style="--spacing: 8px">
                                     {label.clone()}
-                                    {resolved
-                                        .clone()
-                                        .map(|run| {
-                                            view! {
-                                                <Status tone=StatusTone::Green>{t!(ReviewDone)}</Status>
-                                                <a class="ui-link" href=Route::Agent(Some(run.clone())).hash()>
-                                                    {t!(ReviewDiffRun, run = run)}
-                                                </a>
-                                            }
-                                        })}
                                 </span>
                                 {(!text.with_value(String::is_empty))
                                     .then(|| view! { <Markdown text=text.get_value() class="t-subheadline" /> })}
                                 {diff.as_ref().map(suggestion_view)}
-                                {(!sent && own && open)
+                                {(!sent && own)
                                     .then(|| {
                                         view! {
                                             <div class="ui-hstack" style="--spacing: 8px">

@@ -7,11 +7,14 @@
 //! `legacy_simulated_agent_workspace.json` is a state saved while the simulated agent still
 //! existed: runs with the removed fields and kinds, a diagnosis, sample suggestions, checks that
 //! count ticks. It must load, and saving it again must leave those parts out.
+//! `legacy_removed_fields_workspace.json` is a state that still holds what was removed from the
+//! data: the email and Slack channels of the notification settings and the `resolved` mark of line
+//! comments. It must load, and saving it again must leave those parts out.
 //! Regenerate `wire_*` with `BLESS=1 cargo test -p cockpit-core --test wire_compat` only on purpose.
 
 use cockpit_core::{
-    Action, Actor, AgentOptions, AgentReport, FollowupTask, Problem, Rule, RunKind, RunState,
-    Source, SyncState, TicketStatus, Workspace, demo, persist,
+    Action, Actor, AgentOptions, AgentReport, Channel, FollowupTask, NotifyReason, Problem, Rule,
+    RunKind, RunState, Source, SyncState, TicketStatus, Workspace, demo, persist,
 };
 use cockpit_i18n::{Lang, Msg};
 
@@ -149,6 +152,47 @@ fn a_snapshot_without_revision_loads_as_revision_zero() {
     assert!(!text.contains("\"revision\""));
     let (_, revision) = persist::load_with_revision(&text).expect("old snapshot loads");
     assert_eq!(revision, 0);
+}
+
+/// A state with the removed notification channels (email, Slack) and the removed `resolved` mark
+/// on line comments loads: the browser choices stay, the rest is ignored and not written again.
+#[test]
+fn a_state_with_removed_channels_and_marks_still_loads() {
+    let text = read("legacy_removed_fields_workspace.json");
+    // The fixture really holds what was removed.
+    for old in [
+        "\"email\":true",
+        "\"slack\":true",
+        "\"resolved\":\"review-87\"",
+    ] {
+        assert!(text.contains(old), "the fixture lost {old}");
+    }
+
+    let (ws, revision) = persist::load_with_revision(&text).expect("the old state loads");
+    assert!(
+        ws.notifications
+            .enabled(NotifyReason::Mention, Channel::Browser)
+    );
+    assert!(
+        !ws.notifications
+            .enabled(NotifyReason::AgentFinished, Channel::Browser)
+    );
+    assert!(
+        ws.notifications
+            .enabled(NotifyReason::Assigned, Channel::Browser)
+    );
+    // Every comment is there; the own one goes out with the review again.
+    let review = ws.review(91).unwrap();
+    assert_eq!(review.line_comments.len(), 3);
+    assert_eq!(review.comment_count(), review.approved() + 1);
+
+    let saved = persist::save_with_revision(&ws, revision);
+    for gone in ["\"email\"", "\"slack\"", "\"resolved\""] {
+        assert!(!saved.contains(gone), "{gone} is still written");
+    }
+    let (again, _) = persist::load_with_revision(&saved).expect("the saved state loads");
+    assert_eq!(again, ws);
+    assert_eq!(persist::save_with_revision(&again, revision), saved);
 }
 
 /// A state from the time of the simulated agent loads: the removed fields are ignored, the two

@@ -10,9 +10,7 @@
 //!   actions.
 //! * [`deliveries`] says which event is reported over which channel.
 //!
-//! **Browser** is sent by the app itself. **Email** and **Slack** are only prepared: the types
-//! are `serde`-capable so that the backend can use them later; there is no sending code.
-//! Addresses and webhook URLs never appear in these types – they belong in the backend.
+//! The notification is sent by the app itself, in the browser.
 
 use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};
@@ -105,20 +103,14 @@ impl NotifyReason {
 pub enum Channel {
     /// System notification of the browser (Notification API) and hint in the app.
     Browser,
-    /// Will be sent by the backend later.
-    Email,
-    /// Will be sent by the backend later.
-    Slack,
 }
 
 impl Channel {
-    pub const ALL: [Channel; 3] = [Channel::Browser, Channel::Email, Channel::Slack];
+    pub const ALL: [Channel; 1] = [Channel::Browser];
 
     pub fn id(self) -> &'static str {
         match self {
             Channel::Browser => "browser",
-            Channel::Email => "email",
-            Channel::Slack => "slack",
         }
     }
 
@@ -129,8 +121,6 @@ impl Channel {
     pub fn msg(self) -> Msg {
         match self {
             Channel::Browser => msg!(CoreNotifyChannelBrowser),
-            Channel::Email => msg!(CoreNotifyChannelEmail),
-            Channel::Slack => msg!(CoreNotifyChannelSlack),
         }
     }
 
@@ -138,38 +128,26 @@ impl Channel {
     pub fn label(self) -> String {
         self.msg().de()
     }
-
-    /// Is it sent by the backend (not built yet), not by the browser?
-    pub fn via_backend(self) -> bool {
-        self != Channel::Browser
-    }
 }
 
-/// Which channels are on for a reason.
+/// Which channels are on for a reason. Stored states may still name channels that do not exist
+/// any more; they are ignored.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Channels {
     #[serde(default)]
     pub browser: bool,
-    #[serde(default)]
-    pub email: bool,
-    #[serde(default)]
-    pub slack: bool,
 }
 
 impl Channels {
     pub fn get(self, channel: Channel) -> bool {
         match channel {
             Channel::Browser => self.browser,
-            Channel::Email => self.email,
-            Channel::Slack => self.slack,
         }
     }
 
     fn set(&mut self, channel: Channel, on: bool) {
         match channel {
             Channel::Browser => self.browser = on,
-            Channel::Email => self.email = on,
-            Channel::Slack => self.slack = on,
         }
     }
 }
@@ -244,13 +222,9 @@ pub struct NotifySettings {
 }
 
 impl NotifySettings {
-    /// Default: everything on in the browser, email and Slack off.
+    /// Default: everything on in the browser.
     pub fn default_channels() -> Channels {
-        Channels {
-            browser: true,
-            email: false,
-            slack: false,
-        }
+        Channels { browser: true }
     }
 
     pub fn channels(&self, reason: NotifyReason) -> Channels {

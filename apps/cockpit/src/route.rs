@@ -129,9 +129,7 @@ impl Route {
             (Some("snoozed"), _) => item(Filter::Snoozed, 1),
             (Some("item"), _) => item(Filter::All, 0),
             (Some("overview"), Some(ALL_PEOPLE)) => Route::OverviewAll,
-            (Some("overview"), Some(name)) => {
-                Route::OverviewMember(segment::decode(name))
-            }
+            (Some("overview"), Some(name)) => Route::OverviewMember(segment::decode(name)),
             (Some("overview"), None) => Route::Overview,
             (Some("log"), _) => Route::Log,
             (Some("notifications"), _) => Route::Notifications,

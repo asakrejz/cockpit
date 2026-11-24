@@ -1,7 +1,5 @@
 # Notifications: reasons, channels and the events
 core_notify.channel_browser = Browser
-core_notify.channel_email = E-Mail
-core_notify.channel_slack = Slack
 core_notify.reason_review = Review-Anfrage an mich
 core_notify.reason_review_hint = Jemand bittet dich um ein Review
 core_notify.reason_mention = Erwähnung
