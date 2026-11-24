@@ -29,10 +29,6 @@ pub struct Settings {
     pub config_path: Option<PathBuf>,
     /// The folder `config/` (Git and permission checks in `/api/health`).
     pub config_dir: Option<PathBuf>,
-    /// Places of old files, reported while they still exist.
-    pub legacy_files: Vec<PathBuf>,
-    /// The old `<project>/.env` next to `config/.env`.
-    pub legacy_env: Option<PathBuf>,
     /// `[agent] repo`: the default repo in which the agent works.
     pub agent_repo: Option<String>,
     /// `[[agent.repos]]`: the repos the agent may work in.
@@ -67,8 +63,6 @@ impl Settings {
             container_mode: !config.bind.is_loopback(),
             config_path: config.config_path.clone(),
             config_dir: config.config_dir.clone(),
-            legacy_files: config.legacy_files.clone(),
-            legacy_env: config.legacy_env.clone(),
             agent_repo: config.agent_repo.clone(),
             agent_repos: config.agent_repos.clone(),
             agent_dir: Some(agent_dir_find(config)),

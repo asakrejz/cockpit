@@ -28,7 +28,7 @@ through Jira, GitHub and the model. Every step can be skipped. What only you can
 
 ## Run with Docker
 
-Instead of building, you can run the ready-made image (log in to `ghcr.io` first, see the guide). One command starts
+Instead of building, you can run the ready-made image (pulling it needs no sign-in). One command starts
 Cockpit, and the same command updates it (it pulls a newer image and replaces the container only if there is one):
 
 ```bash
@@ -41,7 +41,7 @@ live in the `cockpit-config` volume; `docker compose down` keeps it (never add `
 
 ### Only the image
 
-No clone and no compose needed. Log in to `ghcr.io` once (guide: [docs/container.md](docs/container.md#sign-in-to-the-registry-private-repo)), then:
+No clone and no compose needed:
 
 ```bash
 docker pull ghcr.io/<owner>/cockpit:latest

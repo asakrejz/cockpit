@@ -20,7 +20,6 @@ server_config.repos_repo_form = [[agent.repos]] repo „{repo}“ muss die Form 
 server_config.repos_duplicate = [[agent.repos]] nennt das Repo „{repo}“ mehrfach
 server_config.repos_base_branch = [[agent.repos]] base_branch „{base}“ von {repo} ist kein gültiger Branch-Name
 server_config.repos_pattern = [[agent.repos]] branch_pattern von {repo}: {reason}
-server_config.legacy_folder = Alte Konfiguration liegt noch unter {path}, du kannst sie löschen. Cockpit nutzt nur noch den Ordner config im Projekt.
 server_config.files_loose = {path} ist für andere Benutzer zugänglich (Rechte {mode}). Sie sollte nur dir gehören (Ordner 700, Dateien 600); beim nächsten Start des Servers wird das korrigiert.
 server_config.files_tracked = Die Datei {file} wird von Git verfolgt. Ein Commit würde deine Konfiguration veröffentlichen. Entferne sie mit „git rm --cached config/{name}“ und committe sie nie.
 server_config.files_not_ignored = Die Datei {file} ist nicht durch .gitignore geschützt. Trage „config/*“ in die .gitignore ein, damit sie nie versehentlich committet wird.
@@ -28,7 +27,6 @@ server_config.env_loose = Die Datei {path} ist für andere Benutzer lesbar (Rech
 server_config.env_tracked = Die Datei {file} wird von Git verfolgt. Ein Commit würde deine Zugangsdaten veröffentlichen. Entferne sie mit „git rm --cached {name}“, committe sie nie und tausche die darin liegenden Schlüssel aus, falls sie schon einmal committet wurden.
 server_config.env_not_ignored = Die Datei {file} ist nicht durch .gitignore geschützt. Trage „{name}“ in die .gitignore ein, damit sie nie versehentlich committet wird.
 server_config.repos_pr_language = Repo {repo}: Die Sprache "{value}" für Pull Requests gibt es nicht. Nimm "en" oder "de".
-server_config.legacy_env = Die alte Schlüsseldatei {path} liegt noch da, Cockpit nutzt aber jetzt config/.env. Du kannst die alte Datei löschen.
 
 server_config.tickets_from_unknown = [github_projects] tickets_from „{value}“ ist unbekannt (erlaubt: jira, github_projects oder both)
 server_config.project_form = GitHub-Projekt „{project}“ ist nicht von der Form owner/nummer (z. B. acme/3)

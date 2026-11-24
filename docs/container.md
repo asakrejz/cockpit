@@ -2,18 +2,8 @@
 
 Instead of building Cockpit yourself you can pull a ready-made image and start it. Every merge to `main` publishes
 it as `ghcr.io/<owner>/cockpit:latest` (`linux/amd64` and `linux/arm64`, so also Apple Silicon). Replace `<owner>`
-with the GitHub account or organisation that owns the repository. Security notes: [security.md](security.md).
-
-## Sign in to the registry (private repo)
-
-The repository is private, so the image is private too. Create a classic personal access token with the scope
-`read:packages` (GitHub › Settings › Developer settings › Personal access tokens) and sign in once:
-
-```bash
-echo "<token>" | docker login ghcr.io -u <github-user> --password-stdin
-```
-
-(`podman login ghcr.io` works the same.) The token only reads packages; do not give it more.
+with the GitHub account or organisation that owns the repository. The repository and the image are public: pulling
+needs no sign-in. Security notes: [security.md](security.md).
 
 ## Start and update (one command)
 
@@ -44,14 +34,10 @@ scripts/cockpit-container.sh status   # also: stop, logs
   then accepts that port in the `Host` header (`COCKPIT_PUBLIC_PORT`, set for you). For the OAuth sign-in the callback
   address of your OAuth app must use that port too; the simplest setup is the same port on both sides.
 - `docker ps` shows the state `healthy` once the server answers (`cockpit-server health` is the healthcheck).
-- **If you started Cockpit earlier with `docker run --name cockpit`:** remove that container once
-  (`docker rm -f cockpit`; the volume `cockpit-config` stays and is reused), then use the commands above.
-  Compose may warn that the volume "was not created by Docker Compose"; that is harmless.
 
 ### Only the image (no clone, no compose)
 
-Everything above also works with `docker run` alone; you do not need the repository. After logging in to `ghcr.io`
-(see above):
+Everything above also works with `docker run` alone; you do not need the repository:
 
 ```bash
 docker pull ghcr.io/<owner>/cockpit:latest
@@ -140,9 +126,8 @@ command drops root itself, but `-u cockpit` states it.
 ### No "paths must match": copy instead of bind mounts
 
 The engine runs on the host, so a folder that Cockpit hands to an agent container with `-v <path>:/work` would be
-resolved *on the host*, where a path of the Cockpit container does not exist. Earlier versions therefore needed a host
-folder mounted at the same absolute path. That is gone. Inside the image Cockpit uses the **copy strategy**
-(`COCKPIT_AGENT_IO=copy`, chosen automatically when Cockpit runs in a container):
+resolved *on the host*, where a path of the Cockpit container does not exist. Inside the image Cockpit therefore uses
+the **copy strategy** (`COCKPIT_AGENT_IO=copy`, chosen automatically when Cockpit runs in a container):
 
 1. `docker create` the agent container (same switches as before: label `cockpit.run`, no capabilities, no token in the
    arguments, secrets only as `-e NAME` from the environment of the process), without mounts.
@@ -158,24 +143,6 @@ GitHub token. The native start keeps the bind mounts (`COCKPIT_AGENT_IO=bind`, t
 `COCKPIT_AGENT_IO=bind|copy` overrides the choice. One difference: a plan or review run no longer gets a read-only mount
 (there is none); its copy is discarded unread.
 
-### Migrating from the host folder
-
-If you started with the old agent file (`user: root`, a host folder mounted at the same path, `COCKPIT_CONFIG`,
-`COCKPIT_DB`, `COCKPIT_ENV_FILE` pointing into it), your data still works. Two ways:
-
-* **Keep the host folder:** keep your three `COCKPIT_*` variables and the mount, remove `--user root`, and let the
-  entrypoint fix the owner once with `-e COCKPIT_FIX_OWNER=1` (it changes the owner of that folder to uid 10001; start
-  again without it). Without that the container says why it cannot write.
-* **Move it into a volume** (the new default): stop Cockpit, then
-
-```bash
-docker rm -f cockpit                         # compose: docker compose down (never `-v`)
-docker run --rm -v "$HOME/cockpit-config:/from:ro" -v cockpit-config:/to --user root \
-  --entrypoint sh ghcr.io/<owner>/cockpit:latest -c 'cp -a /from/. /to/ && chown -R 10001:10001 /to'
-```
-
-  then start as in "Only the image" or with compose. The host folder stays as a backup.
-
 The agent image itself is **not** part of this image: "Build image" in the app builds it from the sources inside the
 image (`/app/apps/agent`) with the engine of your host (the build context is sent through the CLI, so no host path is
 needed). The native start (`start-cockpit.command`, see the [README](../README.md)) remains the best-tested way to use
@@ -186,7 +153,7 @@ the agent.
 Inside the image the "Container" step knows it runs in a container (`COCKPIT_IN_CONTAINER=1`, also detected via
 `/.dockerenv` or `/run/.containerenv`; `GET /api/health` reports `container.in_container` and `container.socket`:
 `missing`, `denied` or `reachable`). Without a socket it explains how to mount it instead of "not installed"; with a
-socket the user cannot use (`denied`, only with an old image) it says to pull the current image; with a reachable socket
+socket the user cannot use (`denied`) it says to pull the current image; with a reachable socket
 it proceeds as normal: "reachable" is enough, there is nothing else to set up.
 
 Webhooks (a tunnel into Cockpit) need the native start as well: the webhook routes accept only a loopback peer.
@@ -194,8 +161,7 @@ Webhooks (a tunnel into Cockpit) need the native start as well: the webhook rout
 ## Size and the `latest`-only policy
 
 - The compressed image is far below 150 MB (Debian slim, `git`, the stripped server, the web app and the docker
-  CLI). The workflow measures every platform before it pushes and **fails at 450 MB or more**; the registry limit
-  of the private repo is 500 MB.
+  CLI). The workflow measures every platform before it pushes and **fails at 450 MB or more**.
 - There is only ever **one image: `latest`**. After each push the workflow deletes every other version of the
   package, including untagged ones. Only the pushed index and the platform manifests it references stay (they are
   separate versions; deleting them would break `docker pull`). So storage does not grow, and there is no older

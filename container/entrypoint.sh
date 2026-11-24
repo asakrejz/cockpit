@@ -14,8 +14,8 @@
 #     Not needed, and not done, when the socket is world-accessible.
 #   * Started with another user (docker run --user 10001): nothing to drop, the server is started as is.
 #
-# Old setups that ran as root on a host folder: the folder must belong to uid 10001. If it does not, this script
-# says so and tells the one-time fix; COCKPIT_FIX_OWNER=1 does it (chown of that folder only).
+# The folders of config, database and keys must be writable for uid 10001 (a volume is; a bind mount has to be).
+# If one is not, this script says so before the server fails on it.
 set -eu
 
 server=/usr/local/libexec/cockpit-server
@@ -49,13 +49,8 @@ for f in "${COCKPIT_CONFIG:-/app/config/config.toml}" "${COCKPIT_DB:-/app/config
   dir="$(dirname "$f")"
   [ -d "$dir" ] || continue
   if ! setpriv --reuid="$run_as" --regid="$run_as" --clear-groups test -w "$dir"; then
-    if [ "${COCKPIT_FIX_OWNER:-}" = 1 ]; then
-      chown -R "$run_as:$run_as" "$dir"
-    else
-      echo "cockpit: the folder $dir is not writable for the user 'cockpit' (uid 10001)." >&2
-      echo "cockpit: it was probably created by an older setup that ran as root. Fix it once: start with" >&2
-      echo "cockpit:   -e COCKPIT_FIX_OWNER=1   (this changes the owner of that folder to uid 10001), then start again without it." >&2
-    fi
+    echo "cockpit: the folder $dir is not writable for the user 'cockpit' (uid 10001)." >&2
+    echo "cockpit: use a volume, or make that folder writable for uid 10001 (chown 10001:10001)." >&2
   fi
 done
 

@@ -74,7 +74,7 @@ cmd_up() {
     say "Skipping pull (COCKPIT_PULL=0), using the local image ${image}."
   else
     say "Pulling ${image} ..."
-    "$engine" pull "$image" >/dev/null || die "pull failed. For a private image log in first: ${engine} login ghcr.io (see docs/container.md)."
+    "$engine" pull "$image" >/dev/null || die "pull failed. Check the network and the image name (${image}); see docs/container.md."
   fi
   local new_id old_id old_mode
   new_id="$("$engine" image inspect --format '{{.Id}}' "$image")"
