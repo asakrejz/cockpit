@@ -111,6 +111,28 @@ const TEXTS = {
   },
   deny_command_git_dir: { de: "Das .git-Verzeichnis fasst der Agent nicht an.", en: "The agent does not touch the .git directory." },
   deny_command_secrets: { de: "Zugangsdaten liest der Agent nicht aus.", en: "The agent does not read credentials." },
+  // Check mode (`check.ts`): does the container reach the model endpoint? `{who}` is "Anthropic", "OpenAI"
+  // or the endpoint (subject form in the answers, object form in "cannot reach").
+  check_no_endpoint: {
+    de: "Im Container ist weder eine Endpunkt-Adresse noch ein Anthropic-Key eingestellt.",
+    en: "The container has neither an endpoint address nor an Anthropic key set.",
+  },
+  check_no_openai_key: {
+    de: "Im Container ist kein Key (OPENAI_API_KEY) eingestellt.",
+    en: "The container has no key (OPENAI_API_KEY) set.",
+  },
+  check_answers: { de: "{who} antwortet aus dem Container.", en: "{who} answers from the container." },
+  check_key_refused: {
+    de: "{who} antwortet aus dem Container, lehnt den Key aber ab (Status {status}).",
+    en: "{who} answers from the container but refuses the key (status {status}).",
+  },
+  check_unreachable: {
+    de: "Der Container erreicht {who} nicht ({reason}).",
+    en: "The container cannot reach {who} ({reason}).",
+  },
+  check_no_answer: { de: "keine Antwort innerhalb von 10 Sekunden", en: "no answer within 10 seconds" },
+  check_endpoint_subject: { de: "Der Endpunkt", en: "The endpoint" },
+  check_endpoint_object: { de: "den Endpunkt", en: "the endpoint" },
   commit_followup_comments: { de: "Review-Kommentare umsetzen (#{pr})", en: "Address review comments (#{pr})" },
   commit_followup_checks: { de: "Rote Checks beheben (#{pr})", en: "Fix failing checks (#{pr})" },
   commit_footer: { de: "Umgesetzt vom Cockpit-Agenten.", en: "Implemented by the Cockpit agent." },

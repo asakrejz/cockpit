@@ -16,7 +16,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::AgentRepos;
-use crate::model::repo_name_valid;
+use crate::repo_name_valid;
 
 /// Why a repo is suggested. The interface turns it into a short text.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]

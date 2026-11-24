@@ -156,7 +156,7 @@ impl AppState {
         &self,
         repo: &str,
     ) -> Result<BranchSuggestion, (StatusCode, Msg)> {
-        if !crate::agent_git::repo_name_ok(repo) {
+        if !cockpit_core::repo_name_valid(repo) {
             return Err((StatusCode::BAD_REQUEST, msg!(ServerSetupRepoInvalid)));
         }
         self.oauth_refresh().await;
@@ -246,7 +246,7 @@ impl AppState {
         };
         let mut out = Vec::new();
         for repo in repos.into_iter().take(20) {
-            out.push(if crate::agent_git::repo_name_ok(&repo) {
+            out.push(if cockpit_core::repo_name_valid(&repo) {
                 repo_lookup(&access.client, repo).await
             } else {
                 repo_check(
@@ -409,7 +409,7 @@ impl AppState {
             .filter(|r| !r.is_empty());
         if repo
             .as_deref()
-            .is_some_and(|r| !cockpit_core::project::repo_valid(r))
+            .is_some_and(|r| !cockpit_core::repo_name_valid(r))
         {
             return Err((
                 StatusCode::UNPROCESSABLE_ENTITY,

@@ -123,7 +123,8 @@ Lines arriving on stdin: `{"t":"answer","text":…}` and `{"t":"hint","text":…
   prompt names the language the model writes in ("Write your answer in English." / "Write your answer in German."), and
   plan, summary and questions follow it (review runs use `review_language`, below). Whatever a person reads from the
   runner is in it too: step titles, error texts, the deny messages of `policy.ts` (the policy file of the Claude Code
-  hook carries the language) and the result line of a review, all from the catalog in `src/texts.ts`. Missing: `"en"`.
+  hook carries the language), the result line of a review and the hint of the check mode, all from the catalog in
+  `src/texts.ts`. Missing: `"en"`.
 - `pr_language`: the language of the text the agent creates for a pull request. The commit message the runner creates is
   written in it. The backend picks it per run: detected from the ticket description, else the repo's `pr_language`
   (`[[agent.repos]]`), else English. Missing: `"en"`.
@@ -178,6 +179,11 @@ Path patterns (`*`, `?`, `**`, a leading `./` or `/`, a trailing `/` for a whole
 (`globFits` in `runner/src/policy.ts`) and in the backend (`glob_match` in `crates/cockpit-core/src/rules.rs`). Both are
 tested against `crates/cockpit-core/tests/fixtures/glob_cases.json`; change the rules and the file together.
 
+A repo name (`owner/name`: an owner of 1 to 39 letters, digits, `-` and `_`, a name of 1 to 100 letters, digits,
+`.`, `_` and `-`, never `.` or `..`; neither part starts with `-`) is checked by `repo_name_valid` in `crates/cockpit-core/src/model/pull_request.rs`
+wherever the backend reads one. The runner checks it again (`repoNameValid` in `runner/src/job.ts`); both are tested
+against `crates/cockpit-core/tests/fixtures/repo_name_cases.json`, so change the rule and the file together.
+
 ## Jobs in several repos
 
 If the job has `repos` (two or more entries `{repo, dir, branch, base_branch, rules, contributing, pr_language}`), the backend
@@ -202,5 +208,6 @@ The job is checked again in the runner (folder must be `<owner>__<name>`, branch
 cd apps/agent/runner && npm install && npm test   # Node >= 26.13.1 (current LTS), no network; the SDK, `claude` and `codex` are stand-ins
 ```
 
-The test of the path rules also reads `crates/cockpit-core/tests/fixtures/glob_cases.json`, so it needs the whole checkout; the
-image build only copies `runner/src` and the package files and never sees it.
+The tests of the path rules and of the repo-name rule also read `glob_cases.json` and `repo_name_cases.json` in
+`crates/cockpit-core/tests/fixtures/`, so they need the whole checkout; the image build only copies `runner/src` and the
+package files and never sees them.

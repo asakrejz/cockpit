@@ -89,7 +89,24 @@ export interface Job {
   review_language: Lang;
 }
 
-const REPO_NAME = /^(?!\.{1,2}\/)[A-Za-z0-9._-]+\/(?!\.{1,2}$)[A-Za-z0-9._-]+$/;
+// Second line of defence: the backend has already checked every repo name with `repo_name_valid`
+// (crates/cockpit-core/src/model/pull_request.rs); the runner checks it again because it builds a folder
+// name and prompts from it. Same rule as there: `owner/name` with exactly one slash; the owner has 1 to 39
+// ASCII letters, digits, `-` and `_`, the name 1 to 100 letters, digits, `.`, `_` and `-`, never `.` or `..`;
+// neither part starts with `-` (it could be read as an option by `git` or another command). Both sides are
+// tested against crates/cockpit-core/tests/fixtures/repo_name_cases.json.
+const REPO_OWNER = /^[A-Za-z0-9_][A-Za-z0-9_-]*$/;
+const REPO_NAME_PART = /^[A-Za-z0-9._][A-Za-z0-9._-]*$/;
+
+export function repoNameValid(repo: string): boolean {
+  const parts = repo.split("/");
+  if (parts.length !== 2) return false;
+  const [owner, name] = parts;
+  return (
+    owner.length <= 39 && REPO_OWNER.test(owner) && name.length <= 100 && name !== "." && name !== ".." && REPO_NAME_PART.test(name)
+  );
+}
+
 const BRANCH_NAME = /^[A-Za-z0-9][A-Za-z0-9._\/-]*$/;
 
 function branchOk(branch: string): boolean {
@@ -112,7 +129,7 @@ function reposFrom(raw: unknown, mode: string): JobRepo[] {
   const seen = new Set<string>();
   return raw.map((x: any) => {
     const repo = String(x?.repo ?? "");
-    if (!REPO_NAME.test(repo)) throw new Error(`The repo name “${repo}” is invalid.`);
+    if (!repoNameValid(repo)) throw new Error(`The repo name “${repo}” is invalid.`);
     const dir = String(x?.dir ?? "");
     if (dir !== repo.replace("/", "__")) throw new Error(`The folder “${dir}” does not match the repo ${repo}.`);
     if (seen.has(dir)) throw new Error(`The repo ${repo} appears twice.`);
@@ -255,7 +272,7 @@ export function checkJob(raw: unknown): Job {
     branch,
     base_branch: String(o.base_branch ?? "main"),
     contributing: GUIDELINES.includes(o.contributing) ? o.contributing : "",
-    repo: typeof o.repo === "string" && /^(?!\.{1,2}\/)[A-Za-z0-9._-]+\/(?!\.{1,2}$)[A-Za-z0-9._-]+$/.test(o.repo) ? o.repo : "",
+    repo: typeof o.repo === "string" && repoNameValid(o.repo) ? o.repo : "",
     repos: reposFrom(o.repos, o.mode),
     max_seconds: Number.isFinite(o.max_seconds) && o.max_seconds > 0 ? Math.floor(o.max_seconds) : 1800,
     language: langOf(o.language, "en"),
