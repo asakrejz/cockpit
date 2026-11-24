@@ -279,7 +279,7 @@ async fn post_sync_fetches_pull_requests_and_shows_the_state() {
 
     let (ws, _) = snapshot(&state).await;
     assert!(ws.item("gh-a-x-7").is_some());
-    assert!(ws.item("bau142").is_none(), "sample data is gone");
+    assert!(ws.item("bau142").is_some(), "sample data stays");
     assert_eq!(ws.sync.pr(7).unwrap().repo, "a/x");
     assert_eq!(ws.review(7).unwrap().files[0].name, "a.rs");
     let h = health(&state).await;

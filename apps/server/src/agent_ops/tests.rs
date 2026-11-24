@@ -1,6 +1,6 @@
 use super::*;
 use crate::app::Settings;
-use crate::config::{AgentChoice, EndpointConfig};
+use crate::config::{AgentChoice, EndpointConfig, Seed};
 use crate::secrets;
 use crate::secrets::{MemoryStore, SecretStore};
 use cockpit_core::api::Provider;

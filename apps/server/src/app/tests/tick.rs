@@ -1,44 +1,13 @@
 use super::*;
 
-// ---------- Agent-Takt ----------
+// ---------- Tick ----------
 
 #[tokio::test]
-async fn tick_lets_the_agents_work_as_agent() {
+async fn tick_without_anything_to_do_changes_nothing() {
     let state = state(Arc::new(MemoryStore::new()));
-    let app = || router(state.clone(), PathBuf::from("/x"));
-    // Without a running agent the tick changes nothing.
     let s = state.clone();
     tokio::task::spawn_blocking(move || s.tick()).await.unwrap();
     assert_eq!(state.inner.live.revision(), 0);
-
-    let ws = cockpit_core::demo::workspace();
-    let ticket = ws
-        .items
-        .iter()
-        .find(|i| i.key.starts_with("BAU-"))
-        .expect("ticket in the sample data")
-        .key
-        .clone();
-    let start = serde_json::to_string(&ActionRequest {
-        action: cockpit_core::Action::StartAgent {
-            ticket: ticket.clone(),
-            options: cockpit_core::AgentOptions {
-                plan_first: false,
-                ..Default::default()
-            },
-        },
-    })
-    .unwrap();
-    let (status, body) = send(app(), &start).await;
-    assert_eq!(status, StatusCode::OK, "{body}");
-    let before = state.inner.live.revision();
-
-    let s = state.clone();
-    tokio::task::spawn_blocking(move || s.tick()).await.unwrap();
-    assert_eq!(state.inner.live.revision(), before + 1);
-    let (_, body) = hole(app(), "/api/workspace").await;
-    let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();
-    assert_eq!(ws.log.last().unwrap().actor, Actor::Agent);
 }
 
 #[tokio::test]
@@ -71,45 +40,6 @@ async fn tick_linked_pull_requests_and_leads_the_status_after() {
 }
 
 #[tokio::test]
-async fn tick_drives_follow_up_jobs_until_to_diagnose() {
-    let state = state(Arc::new(MemoryStore::new()));
-    let app = || router(state.clone(), PathBuf::from("/x"));
-    let start = serde_json::to_string(&ActionRequest {
-        action: cockpit_core::Action::InvestigateCheck {
-            review: 85.into(),
-            check: "Lint".into(),
-        },
-    })
-    .unwrap();
-    let (status, body) = send(app(), &start).await;
-    assert_eq!(status, StatusCode::OK, "{body}");
-    for _ in 0..3 {
-        let s = state.clone();
-        tokio::task::spawn_blocking(move || s.tick()).await.unwrap();
-    }
-    let (_, body) = hole(app(), "/api/workspace").await;
-    let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();
-    let run = ws.run("check-acme~app-85-lint").unwrap();
-    assert!(run.is_diagnosed(), "wartet auf deine Entscheidung");
-    assert!(run.diagnosis.is_some());
-    // After that the tick rests until you adopt the fix.
-    let before = state.inner.live.revision();
-    let s = state.clone();
-    tokio::task::spawn_blocking(move || s.tick()).await.unwrap();
-    assert_eq!(state.inner.live.revision(), before);
-    // Even now nothing can be merged: #85 has red checks.
-    let merge = serde_json::to_string(&ActionRequest {
-        action: cockpit_core::Action::MergePr {
-            review: 85.into(),
-            method: cockpit_core::MergeMethod::Squash,
-        },
-    })
-    .unwrap();
-    let (status, _) = send(app(), &merge).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-}
-
-#[tokio::test]
 async fn tick_brings_snoozed_entries_back() {
     let state = state(Arc::new(MemoryStore::new()));
     let app = || router(state.clone(), PathBuf::from("/x"));
@@ -128,13 +58,13 @@ async fn tick_brings_snoozed_entries_back() {
 
     // Before it expires the tick does nothing …
     let s = state.clone();
-    tokio::task::spawn_blocking(move || s.inner.live.tick(&s.inner.db, bis - 1, true))
+    tokio::task::spawn_blocking(move || s.inner.live.tick(&s.inner.db, bis - 1))
         .await
         .unwrap();
     assert_eq!(state.inner.live.revision(), before);
     // … afterwards the entry is back, logged as system.
     let s = state.clone();
-    tokio::task::spawn_blocking(move || s.inner.live.tick(&s.inner.db, bis + 1, true))
+    tokio::task::spawn_blocking(move || s.inner.live.tick(&s.inner.db, bis + 1))
         .await
         .unwrap();
     assert_eq!(state.inner.live.revision(), before + 1);

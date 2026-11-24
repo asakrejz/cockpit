@@ -57,7 +57,7 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         f[0].contains("veraltet") && f[0].contains("neu bauen"),
         "{f:?}"
     );
-    let s = status(true, &outdated);
+    let s = status(&outdated);
     assert!(!s.ready && s.image && s.image_state == ImageState::Outdated);
     let unknown = Prerequisites {
         image: ImageState::Unknown,
@@ -69,15 +69,12 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         f[0].contains("nicht prüfen") && f[0].contains("Der Ordner fehlt."),
         "{f:?}"
     );
-    let s = status(
-        true,
-        &Prerequisites {
-            image: ImageState::Current,
-            image_hint: None,
-            ..fast
-        },
-    );
-    assert!(s.ready && s.mode == "real");
+    let s = status(&Prerequisites {
+        image: ImageState::Current,
+        image_hint: None,
+        ..fast
+    });
+    assert!(s.ready);
     let not_running = ContainerStatus {
         runtime: Some("podman".into()),
         engine_running: false,
@@ -92,8 +89,8 @@ fn prerequisites_say_in_plain_text_was_missing_and_where() {
         github_access: true,
     }));
     assert!(f[0].contains("Podman") && f[0].contains("Schritt „Container“"));
-    // Simulated: always ready.
-    assert!(status(false, &v).ready);
+    // Nothing is set up: not ready.
+    assert!(!status(&v).ready);
 }
 
 #[test]

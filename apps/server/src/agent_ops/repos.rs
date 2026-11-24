@@ -62,15 +62,12 @@ impl AppState {
         }
     }
 
-    /// First use of a repo (real agent only): reads its default branch and the branch proposal
+    /// First use of a repo: reads its default branch and the branch proposal
     /// of its `CONTRIBUTING.md` from GitHub and stores them as an entry of `[[agent.repos]]`
     /// (with `watch = false`, so the sync does not start loading all its pull requests). From
     /// then on the settings are the same ones every other part uses – and the user can edit them
     /// in the file. A repo that has settings already is left alone. Only reads from GitHub.
     pub(crate) async fn repo_settings_prepare(&self, action: &Action) -> Result<(), Msg> {
-        if !self.agent_real() {
-            return Ok(());
-        }
         for repo in self.action_repos(action) {
             self.repo_settings_prepare_one(&repo).await?;
         }
@@ -159,11 +156,11 @@ impl AppState {
     }
 
     /// The repo a run works in: the one it was started for, or the default for runs of an
-    /// old state without repo (or with the placeholder repo of the sample data). Always one
-    /// of the configured repos; otherwise the plain-text reason.
+    /// old state without repo. Always one of the configured repos; otherwise the plain-text
+    /// reason.
     pub(crate) fn run_repo(&self, run: &cockpit_core::AgentRun) -> Result<String, Msg> {
         let repos = self.agent_repos();
-        let repo = if run.repo.is_empty() || run.repo == cockpit_core::DEMO_REPO {
+        let repo = if run.repo.is_empty() {
             repos.default.clone()
         } else {
             Some(run.repo.clone())
@@ -207,8 +204,8 @@ impl AppState {
 
     /// Settles the repo of a start before it is applied: the user's choice if it is one of
     /// the configured repos, otherwise the one the routing rules name for the ticket's Jira
-    /// project, otherwise the default. In real mode a start without any repo is rejected with
-    /// the reason; the simulation keeps its own default. Everything else passes unchanged.
+    /// project, otherwise the default. A start without any repo is rejected with the reason.
+    /// Everything else passes unchanged.
     pub(crate) fn agent_route(&self, action: Action) -> Result<Action, Msg> {
         let repos = self.agent_repos();
         let (ticket, mut options) = match action {
@@ -274,13 +271,12 @@ impl AppState {
                 RepoChoice::Rule(r) | RepoChoice::Default(r) => {
                     self.settle_targets(&repos, std::slice::from_ref(&r), &mut options);
                 }
-                RepoChoice::None if self.agent_real() => {
+                RepoChoice::None => {
                     return Err(match project {
                         Some(p) => msg!(ServerAgentRepoNoRule, project = p),
                         None => msg!(ServerAgentRepoNoDefault),
                     });
                 }
-                RepoChoice::None => {}
             }
         }
         if let Some(item) = self.inner.live.copy().item_by_key(&ticket) {

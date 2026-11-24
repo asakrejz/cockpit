@@ -8,7 +8,7 @@ use axum::Json;
 use axum::extract::{Query, State};
 use cockpit_core::api::RepoSuggestions;
 use cockpit_core::repos::suggest::{SuggestInput, suggest_repos};
-use cockpit_core::{DEMO_REPO, Kind, Workspace};
+use cockpit_core::{Kind, Workspace};
 
 use super::*;
 
@@ -23,7 +23,7 @@ pub(crate) fn runs_used(ws: &Workspace) -> Vec<(String, String)> {
             } else {
                 run.repo.clone()
             };
-            if repo.is_empty() || repo == DEMO_REPO {
+            if repo.is_empty() {
                 return None;
             }
             let project = ws.item_by_key(&run.ticket_key)?.project()?.to_string();

@@ -36,6 +36,32 @@ async fn action_changes_the_state_and_counts_the_revision() {
     assert!(last.at_ms > 1_600_000_000_000);
 }
 
+/// With the sample data and no agent set up, starting an agent is refused and says what is
+/// missing; nothing runs and nothing changes.
+#[tokio::test]
+async fn the_sample_data_has_no_agent_of_its_own() {
+    let state = state(Arc::new(MemoryStore::new()));
+    let app = || router(state.clone(), PathBuf::from("/x"));
+    let start = serde_json::to_string(&ActionRequest {
+        action: cockpit_core::Action::StartAgent {
+            ticket: "BAU-142".into(),
+            options: cockpit_core::AgentOptions {
+                plan_first: false,
+                repo: Some("acme/app".into()),
+                ..Default::default()
+            },
+        },
+    })
+    .unwrap();
+    let (status, body) = send(app(), &start).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert!(body.contains("Einrichten"), "{body}");
+    assert_eq!(state.inner.live.revision(), 0);
+    let (_, body) = hole(app(), "/api/workspace").await;
+    let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();
+    assert!(!ws.runs.iter().any(|r| r.is_active()));
+}
+
 #[tokio::test]
 async fn rule_violation_is_422_with_german_message_and_changes_nothing() {
     let state = state(Arc::new(MemoryStore::new()));

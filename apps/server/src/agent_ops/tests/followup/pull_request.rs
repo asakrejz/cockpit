@@ -204,30 +204,3 @@ async fn no_pull_request_before_the_run_is_done_or_with_an_empty_title() {
             .all(|r| r.method.as_str() != "POST")
     );
 }
-
-#[tokio::test]
-async fn the_simulation_refuses_followups_and_pull_requests() {
-    let w = welt(true);
-    let mut settings = w.state.inner.settings.clone();
-    settings.seed = Seed::Demo;
-    let conn = crate::db::open(&w.tmp.path().join("sim.db")).unwrap();
-    let state = AppState::create(
-        conn,
-        w.secrets.clone(),
-        8787,
-        crate::sync::Sources::default(),
-        settings,
-    );
-    state.inner.live.set_state_for_test(demo::workspace());
-    for a in [
-        Action::AddressReviewThreads {
-            review: 85.into(),
-            options: direct(),
-        },
-        create("x"),
-    ] {
-        let e = state.action_run(a).await;
-        assert!(e.is_err());
-    }
-    let _ = FollowupTask::ReviewThreads;
-}

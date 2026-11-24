@@ -4,7 +4,7 @@
 
 use super::followup::pr_welt;
 use super::*;
-use cockpit_core::{DiffSide, Origin, PrKey};
+use cockpit_core::{DiffSide, PrKey};
 use wiremock::MockServer;
 
 const KEY: &str = "prreview-firma~app-85";
@@ -109,11 +109,7 @@ async fn a_review_run_reads_only_and_keeps_its_drafts_local() {
     // Only the draft that fits the diff was kept; the summary is stored, everything stays local.
     let ws = w.ws();
     let r = ws.review(85).unwrap();
-    let drafts: Vec<_> = r
-        .suggestions
-        .iter()
-        .filter(|s| s.origin == Origin::Agent)
-        .collect();
+    let drafts: Vec<_> = r.suggestions.iter().collect();
     assert_eq!(drafts.len(), 1, "{drafts:#?}");
     assert_eq!(
         (drafts[0].path.as_str(), drafts[0].line, drafts[0].side),

@@ -91,25 +91,9 @@ pub fn repos_effective(
 }
 
 /// The status for `/api/health`.
-pub fn status(real: bool, v: &Prerequisites) -> AgentStatus {
-    if !real {
-        return AgentStatus {
-            mode: "simulated".into(),
-            ready: true,
-            image: v.image != ImageState::Missing,
-            image_state: v.image,
-            image_hint: v.image_hint.as_ref().map(Msg::de),
-            image_hint_msg: v.image_hint.clone(),
-            image_name: IMAGE.into(),
-            repo: None,
-            repos: AgentRepos::default(),
-            missing: Vec::new(),
-            missing_msgs: Vec::new(),
-        };
-    }
+pub fn status(v: &Prerequisites) -> AgentStatus {
     let missing = missing(v);
     AgentStatus {
-        mode: "real".into(),
         ready: missing.is_empty(),
         image: v.image != ImageState::Missing,
         image_state: v.image,

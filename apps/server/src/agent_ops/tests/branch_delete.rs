@@ -14,7 +14,6 @@ const REF_PATH: &str = "/repos/firma/app/git/refs/heads/claude/BAU-142-toggle-fo
 fn finished_run() -> AgentRun {
     let mut run = AgentRun::new("BAU-142", TITLE);
     run.state = RunState::Done;
-    run.real = true;
     run.repo = "firma/app".into();
     run.pull_request = Some(PullRequestRef {
         number: 31,
@@ -204,15 +203,13 @@ async fn a_branch_that_is_already_gone_is_reported() {
 #[tokio::test]
 async fn runs_that_own_no_branch_are_refused_without_asking_github() {
     let github = MockServer::start().await;
-    let mut simulated = finished_run();
-    simulated.real = false;
     let mut no_pr = finished_run();
     no_pr.pull_request = None;
     let mut review = finished_run();
     review.kind = cockpit_core::RunKind::ReviewPr {
         review: cockpit_core::PrKey::new("firma/app", 31),
     };
-    for run in [simulated, no_pr, review] {
+    for run in [no_pr, review] {
         let w = world(&github, run);
         let key = w.ws().runs[0].key();
         assert!(!w.state.branch_check(&key, "").await.allowed);
