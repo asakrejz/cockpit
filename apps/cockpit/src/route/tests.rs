@@ -35,23 +35,17 @@ fn every_route_survives_a_roundtrip() {
 }
 
 #[test]
-fn older_german_addresses_still_work() {
-    for (hash, route) in [
-        ("#/einrichten", Route::Setup),
-        ("#/meine", Route::Inbox(Filter::Mine)),
-        ("#/zurueckgestellt", Route::Inbox(Filter::Snoozed)),
-        ("#/uebersicht", Route::Overview),
-        ("#/protokoll", Route::Log),
-        ("#/benachrichtigungen", Route::Notifications),
-        ("#/grenzen", Route::Limits),
-    ] {
-        assert_eq!(Route::parse(hash), route, "{hash}");
-    }
-}
-
-#[test]
 fn unknown_addresses_lead_to_the_inbox() {
-    for hash in ["", "#", "#/", "#/does-not-exist", "unsinn"] {
+    for hash in [
+        "",
+        "#",
+        "#/",
+        "#/does-not-exist",
+        "unsinn",
+        "#/einrichten",
+        "#/meine",
+        "#/uebersicht",
+    ] {
         assert_eq!(Route::parse(hash), Route::Inbox(Filter::All), "{hash}");
     }
 }
@@ -70,6 +64,7 @@ fn equal_numbers_of_two_repos_have_different_addresses() {
 fn broken_parameters_are_dropped() {
     assert_eq!(Route::parse("#/review/abc"), Route::Review(None));
     assert_eq!(Route::parse("#/agent/"), Route::Agent(None));
+    // A pull request without a known repo is addressed by its number.
     assert_eq!(
         Route::parse("#review/87"),
         Route::Review(Some(PrKey::from(87)))
@@ -84,20 +79,17 @@ fn broken_parameters_are_dropped() {
 #[test]
 fn setup_addresses_with_and_without_a_step() {
     assert_eq!(Route::parse("#/setup"), Route::Setup);
-    assert_eq!(Route::parse("#/einrichten"), Route::Setup);
     assert_eq!(Route::parse("#/setup/"), Route::Setup);
     assert_eq!(Route::parse("#/setup/jira"), Route::SetupStep(Step::Jira));
     assert_eq!(
-        Route::parse("#/einrichten/github"),
-        Route::SetupStep(Step::GitHub)
-    );
-    // The older German step ids and unknown steps.
-    assert_eq!(
-        Route::parse("#/setup/modell"),
+        Route::parse("#/setup/model"),
         Route::SetupStep(Step::Model)
     );
-    assert_eq!(Route::parse("#/setup/fertig"), Route::SetupStep(Step::Done));
+    assert_eq!(Route::parse("#/setup/done"), Route::SetupStep(Step::Done));
+    // Unknown steps, among them the German ids.
     assert_eq!(Route::parse("#/setup/unsinn"), Route::Setup);
+    assert_eq!(Route::parse("#/setup/modell"), Route::Setup);
+    assert_eq!(Route::parse("#/setup/fertig"), Route::Setup);
     assert_eq!(Route::SetupStep(Step::Jira).hash(), "#/setup/jira");
 }
 

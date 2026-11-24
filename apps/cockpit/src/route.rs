@@ -35,8 +35,8 @@ pub enum Route {
     Notifications,
     /// Costs, limits and rules per repo for the agents.
     Limits,
-    /// A review of a pull request (repo and number). Without one: the first open review.
-    /// The older address with only a number (`#/review/87`) still works.
+    /// A review of a pull request (repo and number). Without one: the first open review. A pull
+    /// request whose repo is not known is addressed by its number alone (`#/review/87`).
     Review(Option<PrKey>),
     /// An agent run. Without a ticket: a sensible suggestion.
     Agent(Option<String>),
@@ -120,23 +120,22 @@ impl Route {
             _ => Route::Inbox(filter),
         };
         match (first, second) {
-            // The older German addresses keep working (bookmarks).
-            (Some("setup" | "einrichten"), step) => match step.and_then(Step::from_id) {
+            (Some("setup"), step) => match step.and_then(Step::from_id) {
                 Some(step) => Route::SetupStep(step),
                 None => Route::Setup,
             },
-            (Some("mine" | "meine"), _) => item(Filter::Mine, 1),
+            (Some("mine"), _) => item(Filter::Mine, 1),
             (Some("team"), _) => item(Filter::Team, 1),
-            (Some("snoozed" | "zurueckgestellt"), _) => item(Filter::Snoozed, 1),
+            (Some("snoozed"), _) => item(Filter::Snoozed, 1),
             (Some("item"), _) => item(Filter::All, 0),
-            (Some("overview" | "uebersicht"), Some(ALL_PEOPLE)) => Route::OverviewAll,
-            (Some("overview" | "uebersicht"), Some(name)) => {
+            (Some("overview"), Some(ALL_PEOPLE)) => Route::OverviewAll,
+            (Some("overview"), Some(name)) => {
                 Route::OverviewMember(segment::decode(name))
             }
-            (Some("overview" | "uebersicht"), None) => Route::Overview,
-            (Some("log" | "protokoll"), _) => Route::Log,
-            (Some("notifications" | "benachrichtigungen"), _) => Route::Notifications,
-            (Some("limits" | "grenzen"), _) => Route::Limits,
+            (Some("overview"), None) => Route::Overview,
+            (Some("log"), _) => Route::Log,
+            (Some("notifications"), _) => Route::Notifications,
+            (Some("limits"), _) => Route::Limits,
             (Some("review"), _) => Route::Review(PrKey::from_route(&rest.join("/"))),
             (Some("agent"), key) => Route::Agent(key.map(str::to_string)),
             _ => Route::Inbox(Filter::All),
