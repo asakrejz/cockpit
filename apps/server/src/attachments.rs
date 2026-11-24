@@ -24,7 +24,7 @@ use axum::http::{HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use cockpit_core::Attachment;
 use cockpit_i18n::msg;
-use cockpit_integrations::Error;
+use cockpit_integrations::{Cause, Error};
 
 use crate::app::{AppState, error_msg};
 
@@ -208,12 +208,13 @@ async fn fetch(state: &AppState, id: &str, thumb: bool) -> Result<Stored, Error>
 
 fn failure(e: Error) -> Response {
     tracing::warn!("Jira attachment: {e}");
-    match e {
-        Error::TooLarge => error_msg(StatusCode::PAYLOAD_TOO_LARGE, e.msg()),
-        Error::NotFound => error_msg(StatusCode::NOT_FOUND, e.msg()),
-        Error::NotSignedIn | Error::NoPermission => error_msg(StatusCode::BAD_GATEWAY, e.msg()),
-        other => error_msg(StatusCode::BAD_GATEWAY, other.msg()),
-    }
+    let status = match e.cause() {
+        Cause::TooLarge => StatusCode::PAYLOAD_TOO_LARGE,
+        Cause::NotFound => StatusCode::NOT_FOUND,
+        // Also a refused key: the request of the browser was fine, the answer of Jira was not.
+        _ => StatusCode::BAD_GATEWAY,
+    };
+    error_msg(status, e.msg())
 }
 
 fn respond(stored: Stored, record: &Attachment, thumb: bool) -> Response {

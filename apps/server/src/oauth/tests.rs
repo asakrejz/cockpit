@@ -21,6 +21,7 @@ use crate::sync::Sources;
 
 mod atlassian;
 mod callback;
+mod errors;
 mod refresh;
 mod revoke;
 mod sign_in;

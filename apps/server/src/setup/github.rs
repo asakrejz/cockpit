@@ -5,6 +5,7 @@ use cockpit_core::api::{
     BranchSuggestion, BranchSuggestionRequest, GitHubCause, GitHubCheck, GitHubRepoInfo,
     GitHubRepoList,
 };
+use cockpit_integrations::Cause;
 use cockpit_integrations::github::{GitHubClient, RepoList};
 
 use super::*;
@@ -18,42 +19,34 @@ pub(super) struct Access {
 
 /// What the plain text says for a failed call, and the status of our answer.
 pub(super) fn github_failure(e: &Error) -> (StatusCode, Msg) {
-    match e {
-        Error::NotSignedIn => (
-            StatusCode::UNAUTHORIZED,
-            github_cause_msg(GitHubCause::Token, None),
-        ),
-        Error::NoPermission => (
-            StatusCode::FORBIDDEN,
-            github_cause_msg(GitHubCause::Permission, None),
-        ),
+    let kind = e.cause();
+    match kind {
         // The exact right that is missing, in plain words.
-        Error::MissingRight { .. } => (StatusCode::FORBIDDEN, e.msg()),
-        Error::NotFound => (StatusCode::NOT_FOUND, msg!(ServerSetupGithubUnknownAddress)),
-        Error::RateLimit { .. } => (
-            StatusCode::TOO_MANY_REQUESTS,
-            github_cause_msg(GitHubCause::RateLimit, None),
-        ),
-        Error::Network(_) => (
-            StatusCode::BAD_GATEWAY,
-            github_cause_msg(GitHubCause::Network, None),
-        ),
-        other => {
-            tracing::warn!("GitHub: {other}");
-            (
-                StatusCode::BAD_GATEWAY,
-                github_cause_msg(GitHubCause::Other, None),
-            )
+        Cause::MissingRight => (StatusCode::FORBIDDEN, e.msg()),
+        Cause::NotFound => (StatusCode::NOT_FOUND, msg!(ServerSetupGithubUnknownAddress)),
+        _ => {
+            let shown = cause(e);
+            if shown == GitHubCause::Other {
+                tracing::warn!("GitHub: {e}");
+            }
+            let status = match kind {
+                Cause::Token => StatusCode::UNAUTHORIZED,
+                Cause::Permission => StatusCode::FORBIDDEN,
+                Cause::RateLimit => StatusCode::TOO_MANY_REQUESTS,
+                _ => StatusCode::BAD_GATEWAY,
+            };
+            (status, github_cause_msg(shown, None))
         }
     }
 }
 
-fn cause(e: &Error) -> GitHubCause {
-    match e {
-        Error::NotSignedIn => GitHubCause::Token,
-        Error::NoPermission => GitHubCause::Permission,
-        Error::RateLimit { .. } => GitHubCause::RateLimit,
-        Error::Network(_) => GitHubCause::Network,
+/// What the connection test of GitHub says for a failed call.
+pub(super) fn cause(e: &Error) -> GitHubCause {
+    match e.cause() {
+        Cause::Token => GitHubCause::Token,
+        Cause::Permission => GitHubCause::Permission,
+        Cause::RateLimit => GitHubCause::RateLimit,
+        Cause::Network => GitHubCause::Network,
         _ => GitHubCause::Other,
     }
 }
@@ -345,8 +338,8 @@ impl AppState {
         // below can be explained.
         match client.probe_access().await {
             Ok(_) => {}
-            Err(Error::NotSignedIn) => {
-                out.problem = Some(Error::NotSignedIn.msg());
+            Err(e) if e.cause() == Cause::Token => {
+                out.problem = Some(e.msg());
                 return Ok(out);
             }
             Err(e) => tracing::warn!("GitHub access probe: {e}"),

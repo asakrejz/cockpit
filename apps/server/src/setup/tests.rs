@@ -103,6 +103,7 @@ use crate::config::JiraConfig;
 
 mod access;
 mod change;
+mod errors;
 mod github;
 mod jira;
 mod messages;

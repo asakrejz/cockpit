@@ -1,5 +1,7 @@
 //! Refreshing tokens that expire soon.
 
+use cockpit_integrations::Cause;
+
 use super::*;
 
 impl AppState {
@@ -49,16 +51,20 @@ impl AppState {
                 })
                 .await;
             }
-            Err(
-                f @ (Error::NotSignedIn
-                | Error::Rejected(_)
-                | Error::NoPermission
-                | Error::Response(_)),
-            ) => {
+            Err(f) if tokens_unusable(&f) => {
                 tracing::warn!("{}: refresh rejected ({f}) - disconnected", d.id());
                 let _ = tokio::task::spawn_blocking(move || s.oauth_tokens_delete(d)).await;
             }
             Err(f) => tracing::warn!("{}: refresh failed: {f}", d.id()),
         }
     }
+}
+
+/// Does the failure of a refresh mean that the service no longer accepts the stored tokens?
+/// Only then they are deleted; an outage or a network error leaves them as they are.
+pub(super) fn tokens_unusable(f: &Error) -> bool {
+    matches!(
+        f.cause(),
+        Cause::Token | Cause::Rejected | Cause::Permission | Cause::BadResponse
+    )
 }

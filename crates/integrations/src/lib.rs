@@ -27,6 +27,6 @@ pub mod endpoint;
 pub mod github;
 pub mod jira;
 
-pub use error::Error;
+pub use error::{Cause, Error};
 pub use secret::Secret;
 pub use sync::{GitHubService, JiraService, ProjectsService, Services};

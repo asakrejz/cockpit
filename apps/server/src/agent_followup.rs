@@ -13,9 +13,9 @@
 use cockpit_core::api::PullRequestPreview;
 use cockpit_core::{Action, Actor, FollowupTask, PullRequestRef, RunKind, Workspace};
 use cockpit_i18n::{Msg, msg};
-use cockpit_integrations::Error as ServiceError;
 use cockpit_integrations::github::GitHubClient;
 use cockpit_integrations::github::dto::PullSummary;
+use cockpit_integrations::{Cause, Error as ServiceError};
 
 use crate::agent_run::FollowupJob;
 use crate::app::{AppState, now_ms};
@@ -24,19 +24,19 @@ use crate::sync::ActionFailure;
 
 /// A message for the person: what failed at GitHub and what to do about it.
 pub(crate) fn github_message(what: Msg, e: &ServiceError) -> Msg {
-    match e {
-        ServiceError::NotSignedIn => msg!(ServerAgentGithub401, what = what),
-        ServiceError::NoPermission => msg!(ServerAgentGithub403, what = what),
-        ServiceError::NotFound => msg!(ServerAgentGithub404, what = what),
-        ServiceError::Rejected(m) if m.is_empty() => msg!(ServerAgentGithub422, what = what),
-        ServiceError::Rejected(m) => {
+    match (e.cause(), e.rejection()) {
+        (Cause::Token, _) => msg!(ServerAgentGithub401, what = what),
+        (Cause::Permission, _) => msg!(ServerAgentGithub403, what = what),
+        (Cause::NotFound, _) => msg!(ServerAgentGithub404, what = what),
+        (Cause::Rejected, None) => msg!(ServerAgentGithub422, what = what),
+        (Cause::Rejected, Some(reason)) => {
             msg!(
                 ServerAgentGithub422Detail,
                 what = what,
-                detail = Msg::raw(m)
+                detail = Msg::raw(reason)
             )
         }
-        other => msg!(ServerAgentGithubOther, what = what, error = other.msg()),
+        _ => msg!(ServerAgentGithubOther, what = what, error = e.msg()),
     }
 }
 
@@ -340,3 +340,6 @@ fn link(p: &PullSummary, existed: bool) -> PullRequestRef {
         existed,
     }
 }
+
+#[cfg(test)]
+mod tests;
