@@ -431,17 +431,6 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
                 route: format!("#/agent/{key}"),
             });
         }
-        if run.is_diagnosed() && !old.is_some_and(AgentRun::is_diagnosed) {
-            out.push(Event {
-                reason: NotifyReason::AgentWaiting,
-                title: msg!(CoreNotifyWaitingTitle, label = &label),
-                text: run.diagnosis.as_ref().map_or_else(
-                    || msg!(CoreNotifyDiagnosisDefault),
-                    |d| msg!(CoreNotifyDiagnosisText, cause = d.cause_message()),
-                ),
-                route: format!("#/agent/{key}"),
-            });
-        }
         if let Some(reason) = run.stop_reason()
             && old.and_then(AgentRun::stop_reason) != Some(reason)
         {
@@ -462,15 +451,7 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
                     ),
                     format!("#/review/{}", n.route()),
                 ),
-                Some(n) => (
-                    msg!(
-                        CoreNotifyDonePr,
-                        title = &run.ticket_title,
-                        pr = n.to_string()
-                    ),
-                    format!("#/review/{}", n.route()),
-                ),
-                None => (Msg::raw(run.ticket_title.clone()), format!("#/agent/{key}")),
+                _ => (Msg::raw(run.ticket_title.clone()), format!("#/agent/{key}")),
             };
             out.push(Event {
                 reason: NotifyReason::AgentFinished,

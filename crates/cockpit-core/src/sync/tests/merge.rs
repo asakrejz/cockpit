@@ -1,16 +1,33 @@
 use super::*;
 
 #[test]
-fn new_entries_come_in_front_and_the_demo_goes() {
-    let (ws, changes) = merge(
-        &demo::workspace(),
+fn sample_data_stays_next_to_the_synced_entries() {
+    let sample = demo::workspace();
+    let (ws, _) = merge(
+        &sample,
         &jira(vec![ticket("ABC-1", "Eins"), ticket("ABC-2", "Zwei")]),
         T,
     );
     let keys: Vec<&str> = ws.items.iter().map(|i| i.key.as_str()).collect();
-    assert_eq!(keys, ["ABC-1", "ABC-2"], "sample data is gone");
-    assert!(ws.reviews.is_empty() && ws.runs.is_empty());
-    assert!(ws.sync.demo_dropped);
+    assert_eq!(&keys[..2], ["ABC-1", "ABC-2"], "new entries come in front");
+    assert_eq!(ws.items.len(), sample.items.len() + 2);
+    assert_eq!(ws.reviews, sample.reviews);
+    assert_eq!(ws.runs, sample.runs);
+    assert!(
+        !ws.sync.is_synced("bau142"),
+        "only the entries of a service count as synced"
+    );
+}
+
+#[test]
+fn new_entries_come_in_front() {
+    let (ws, changes) = merge(
+        &Workspace::default(),
+        &jira(vec![ticket("ABC-1", "Eins"), ticket("ABC-2", "Zwei")]),
+        T,
+    );
+    let keys: Vec<&str> = ws.items.iter().map(|i| i.key.as_str()).collect();
+    assert_eq!(keys, ["ABC-1", "ABC-2"]);
     assert!(ws.sync.is_synced("abc-1"));
     assert_eq!(
         changes

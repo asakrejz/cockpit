@@ -137,7 +137,10 @@ fn checks_turning_red_on_my_pr() {
         .checks = Checks::Failed;
     let e = only(events(&before, &after));
     assert_eq!(e.reason, NotifyReason::ChecksFailed);
-    assert_eq!(e.route, format!("#/review/{}/{number}", crate::DEMO_REPO));
+    assert_eq!(
+        e.route,
+        format!("#/review/{}/{number}", crate::demo::DEMO_REPO)
+    );
     // Already been red: no second notification.
     assert!(events(&after, &after).is_empty());
 }
@@ -169,17 +172,8 @@ fn agent_question_is_reported_once() {
     };
     before.start_agent("BAU-142", direct).unwrap();
     let mut after = before.clone();
-    let mut found = None;
-    for _ in 0..crate::agent::STEPS {
-        let prev = after.clone();
-        after.advance_agents();
-        let list = events(&prev, &after);
-        if !list.is_empty() {
-            found = Some(only(list));
-            break;
-        }
-    }
-    let e = found.expect("follow-up question is reported");
+    crate::test_support::question(&mut after, "BAU-142", "Remove it or mark it as deprecated?");
+    let e = only(events(&before, &after));
     assert_eq!(e.reason, NotifyReason::AgentWaiting);
     assert_eq!(e.route, "#/agent/BAU-142");
     assert!(e.text.de().contains("deprecated"), "{e:?}");
@@ -193,8 +187,7 @@ fn agent_waiting_and_finished() {
     let key = before
         .items
         .iter()
-        // Without a follow-up question in the demo, so that the run goes through.
-        .find(|i| i.is_ticket() && i.pr.is_none() && demo::agent_question(&i.key).is_none())
+        .find(|i| i.is_ticket() && i.pr.is_none())
         .unwrap()
         .key
         .clone();
@@ -206,6 +199,18 @@ fn agent_waiting_and_finished() {
     assert_eq!(e.route, format!("#/agent/{key}"));
 
     let mut running = waiting.clone();
+    running
+        .report_agent(
+            &key,
+            crate::agent::AgentReport::Plan {
+                summary: "Plan".into(),
+                files: vec!["a.rs".into()],
+                steps: vec!["Change it".into()],
+            },
+            0,
+        )
+        .unwrap();
+    waiting = running.clone();
     assert!(running.approve_plan(&key));
     assert!(
         events(&waiting, &running).is_empty(),
@@ -214,15 +219,14 @@ fn agent_waiting_and_finished() {
 
     let mut after = running.clone();
     for _ in 0..crate::agent::STEPS - 1 {
-        after.advance_agents();
+        crate::test_support::advance(&mut after);
         assert!(events(&running, &after).is_empty(), "quiet on the way");
     }
     let prev = after.clone();
-    after.advance_agents();
+    crate::test_support::advance(&mut after);
     let e = only(events(&prev, &after));
     assert_eq!(e.reason, NotifyReason::AgentFinished);
-    assert!(e.route.starts_with("#/review/"), "{}", e.route);
-    assert!(e.text.de().contains("Review"));
+    assert_eq!(e.route, format!("#/agent/{key}"));
 }
 
 #[test]

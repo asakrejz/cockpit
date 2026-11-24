@@ -137,14 +137,12 @@ fn a_jira_project_narrows_the_inbox() {
         ActionError::InvalidInput,
     );
 
-    // The choice is a setting: it survives the demo reset.
-    w.apply(Action::ResetDemo, Actor::User, T).unwrap();
     assert_eq!(w.jira_project.as_deref(), Some("WEB"));
     assert_eq!(w.projects(), ["BAU", "DOC", "WEB"]);
 
     let applied = ok(&mut w, Action::SelectJiraProject { project: None }, 1);
     assert_eq!(applied.summary, "Jira-Projekt: alle");
-    assert!(w.search(Filter::All, SourceFilter::All, "", 0).len() < all);
+    assert_eq!(w.search(Filter::All, SourceFilter::All, "", 0).len(), all);
 }
 
 #[test]
@@ -188,11 +186,9 @@ fn the_automation_can_be_switched_off() {
     );
     assert!(w.item("bau138").unwrap().pr.as_ref().unwrap().merged);
 
-    // The setting survives reset and saving.
+    // The setting survives saving.
     let (back, _) = persist::restore(Some(&persist::save(&w)));
     assert!(back.pr_status_off);
-    w.apply(Action::ResetDemo, Actor::User, T).unwrap();
-    assert!(w.pr_status_off);
 
     // On again: whatever has moved is brought in line, with the system as author.
     let mut w = back;
@@ -204,30 +200,6 @@ fn the_automation_can_be_switched_off() {
     assert_eq!(status(&w, "bau150"), TicketStatus::Review);
     assert_eq!(status(&w, "bau138"), TicketStatus::Done);
     assert!(w.log.iter().rev().take(2).all(|e| e.actor == Actor::System));
-}
-
-#[test]
-fn the_agent_publishes_through_the_same_status_rule() {
-    let mut w = ws();
-    w.apply(
-        Action::StartAgent {
-            ticket: "BAU-150".into(),
-            options: direct(),
-        },
-        Actor::User,
-        T,
-    )
-    .unwrap();
-    for _ in 0..STEPS {
-        let _ = w.apply(Action::AdvanceAgents, Actor::Agent, T);
-    }
-    let ticket = w.item("bau150").unwrap();
-    assert_eq!(ticket.status, TicketStatus::Review);
-    assert!(ticket.pr.as_ref().unwrap().review_requested);
-    // The agent linked the ticket; the tick finds nothing left to do.
-    assert!(w.ticket_of_pr(92).is_some());
-    fails(&mut w, Action::SyncTicketStatus, ActionError::NothingToDo);
-    fails(&mut w, Action::AutoLinkPrs, ActionError::NothingToDo);
 }
 
 #[test]

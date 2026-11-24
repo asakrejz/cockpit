@@ -86,7 +86,6 @@ impl ActionError {
             ActionError::Agent(AgentError::AlreadyRunning) => msg!(CoreActionErrAlreadyRunning),
             ActionError::Agent(AgentError::UnknownReview) => msg!(CoreActionErrNoReview),
             ActionError::Agent(AgentError::Merged) => msg!(CoreActionErrPrMerged),
-            ActionError::Agent(AgentError::NoComments) => msg!(CoreActionErrNoComments),
             ActionError::Agent(AgentError::NotAgentBranch) => msg!(CoreActionErrNotAgentBranch),
             ActionError::Agent(AgentError::NothingToReview) => {
                 msg!(CoreActionErrNothingToReview)

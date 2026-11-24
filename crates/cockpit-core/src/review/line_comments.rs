@@ -1,4 +1,4 @@
-//! Own and others' line comments of a review: create, edit, take over suggestions, show.
+//! Own and others' line comments of a review: create, edit, delete, show.
 
 use super::*;
 
@@ -97,106 +97,6 @@ impl Review {
     }
 
     // ---------- Implementing comments (follow-up job for the agent) ----------
-
-    /// Comments that are not implemented yet – own as well as others'.
-    pub fn open_comments(&self) -> Vec<&LineComment> {
-        self.line_comments.iter().filter(|c| c.is_open()).collect()
-    }
-
-    /// Sets the comments to „done“, with a reference to the run. Returns how
-    /// many there were; already done and unknown ones do not count. This changes nothing about
-    /// the verdict, but the review then counts as to be sent anew.
-    pub fn resolve_comments(&mut self, ids: &[String], run: &str) -> usize {
-        let mut n = 0;
-        for c in self
-            .line_comments
-            .iter_mut()
-            .filter(|c| c.is_open() && ids.contains(&c.id))
-        {
-            c.resolved = Some(run.to_string());
-            n += 1;
-        }
-        n
-    }
-
-    /// Takes over the change suggestion of a comment into the diff: the line is replaced by
-    /// the replacement. An unchanged line stays as a removed one. Comments
-    /// further down in the file move along. `false` if there is nothing to take over.
-    pub fn apply_comment_suggestion(&mut self, id: &str) -> bool {
-        let Some((file, index, code)) = self
-            .line_comments
-            .iter()
-            .find(|c| c.id == id)
-            .and_then(|c| Some((c.file.clone(), c.line, c.suggestion.clone()?)))
-        else {
-            return false;
-        };
-        let Some(diff) = self.files.iter_mut().find(|f| f.name == file) else {
-            return false;
-        };
-        let Some(old) = diff.lines.get(index).cloned() else {
-            return false;
-        };
-        if old.kind == LineKind::Del {
-            return false;
-        }
-        let mut replacement = Vec::new();
-        if old.kind == LineKind::Context {
-            replacement.push(DiffLine {
-                kind: LineKind::Del,
-                ..old.clone()
-            });
-        }
-        replacement.extend(code.lines().enumerate().map(|(i, text)| DiffLine {
-            no: old.no + i as u32,
-            kind: LineKind::Add,
-            text: text.to_string(),
-        }));
-        let grown = replacement.len() - 1;
-        diff.lines.splice(index..=index, replacement);
-        self.shift_comments(&file, index, grown as isize);
-        true
-    }
-
-    /// Moves the comments below `index` by `by` lines.
-    pub(super) fn shift_comments(&mut self, file: &str, index: usize, by: isize) {
-        for c in self
-            .line_comments
-            .iter_mut()
-            .filter(|c| c.file == file && c.line > index)
-        {
-            c.line = c.line.saturating_add_signed(by);
-        }
-    }
-
-    /// Applies the change of a diagnosis: the line is replaced or removed.
-    /// `false` if file or line (no longer) fit.
-    pub fn apply_fix(&mut self, fix: &Fix) -> bool {
-        let Some(diff) = self.files.iter_mut().find(|f| f.name == fix.file) else {
-            return false;
-        };
-        let Some(index) = diff.lines.iter().position(|l| {
-            l.no == fix.no && l.kind != LineKind::Del && l.text.trim_end() == fix.before.trim_end()
-        }) else {
-            return false;
-        };
-        let file = fix.file.clone();
-        match &fix.after {
-            Some(after) => diff.lines[index].text = after.clone(),
-            None => {
-                diff.lines.remove(index);
-                self.shift_comments(&file, index, -1);
-            }
-        }
-        true
-    }
-
-    /// Determines how the next restart of a check ends (after a fix: green).
-    pub fn set_rerun(&mut self, check: &str, rerun: Checks) {
-        if let Some(c) = self.check_runs.iter_mut().find(|c| c.name == check) {
-            c.rerun = rerun;
-        }
-    }
 
     /// Own comments on a line, in the order of creation.
     pub fn line_comments_at(&self, file: &str, line: usize) -> Vec<&LineComment> {

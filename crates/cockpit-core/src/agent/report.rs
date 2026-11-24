@@ -17,12 +17,6 @@ impl AgentRun {
         let mut effect = ReportEffect::default();
         match report {
             AgentReport::Started { detail } => {
-                self.real = true;
-                // A ready-to-start run carries placeholder names. The container reports the
-                // files it really changes (`Files`, `Repos`), so an implementation starts empty.
-                if self.kind == RunKind::Implement {
-                    self.files.clear();
-                }
                 effect
                     .notes
                     .push(msg!(CoreAgentNContainerStarted, label = self.label_msg()));
@@ -36,7 +30,6 @@ impl AgentRun {
                 if !self.is_awaiting() {
                     return None;
                 }
-                self.real = true;
                 self.files = files.clone();
                 self.agent_plan = Some(AgentPlan {
                     summary,

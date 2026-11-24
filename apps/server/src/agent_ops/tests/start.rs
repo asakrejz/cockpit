@@ -8,7 +8,6 @@ async fn without_setup_starts_no_run_and_the_message_says_where() {
     let status = tokio::task::spawn_blocking(move || st.agent_status())
         .await
         .unwrap();
-    assert_eq!(status.mode, "real");
     assert!(!status.ready);
     let text = status.missing.join(" ");
     assert!(
@@ -30,15 +29,6 @@ async fn without_setup_starts_no_run_and_the_message_says_where() {
         "{error}"
     );
     assert!(w.run().is_idle(), "nothing was started");
-    // The simulated follow-up jobs (own comments, diagnosis) do not exist with the real agent.
-    let f = w
-        .action(Action::InvestigateCheck {
-            review: 85.into(),
-            check: "Lint".into(),
-        })
-        .await
-        .unwrap_err();
-    assert!(f.contains("mit dem echten Agenten nicht"), "{f}");
 }
 
 #[tokio::test]

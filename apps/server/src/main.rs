@@ -209,8 +209,8 @@ async fn start() -> Result<(), String> {
         .map_err(|e| format!("Port {} not available: {e}", config.port))?;
     tracing::info!("Cockpit running at http://{address}");
 
-    // In server mode the tick of the simulated agent runs here, not in the browser.
-    app::agent_tick_start(state.clone());
+    // The watcher of the agent containers and the tick of the other background tasks.
+    agent_ops::watcher_start(state.clone());
     // Jira and GitHub: sync regularly. Without a source or key nothing happens.
     sync::sync_start(state);
 

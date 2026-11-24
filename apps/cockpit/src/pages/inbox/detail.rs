@@ -264,7 +264,7 @@ pub(super) fn detail(
                     who=c.author.name.clone()
                     initials=c.author.initials.clone()
                     time=c.time.clone()
-                    text=c.text_msg.as_ref().map_or_else(|| c.text.clone(), |m| m.render(lang()))
+                    text=c.text_msg.as_ref().map_or_else(|| c.text.clone(), |m| m.render_or(lang(), &c.text))
                     rich=c.rich.clone().unwrap_or_default()
                     own=c.own
                     markdown=is_project
@@ -391,7 +391,7 @@ pub(super) fn detail(
                     {item
                         .agent_note_msg
                         .as_ref()
-                        .map(|m| m.render(lang()))
+                        .map(|m| m.render_or(lang(), item.agent_note.as_deref().unwrap_or_default()))
                         .or_else(|| item.agent_note.clone())
                         .map(|note| {
                             view! {

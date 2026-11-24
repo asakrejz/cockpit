@@ -127,7 +127,7 @@ fn drafts_follow_their_line_when_the_diff_shifts() {
 }
 
 #[test]
-fn a_review_number_from_the_demo_or_simulation_does_not_leak_into_real_state() {
+fn a_local_review_with_the_same_number_does_not_leak_into_real_state() {
     let mut ws = Workspace::default();
     ws.reviews.push(review(5, vec![]));
     ws.reviews[0].verdict = Verdict::Approve;
@@ -165,13 +165,11 @@ fn only_the_system_may_apply_a_sync() {
 }
 
 #[test]
-fn checks_of_github_pull_requests_are_not_simulated() {
+fn a_restarted_check_of_a_github_pull_request_runs_until_the_sync_reports() {
     let mut r = review(5, vec![]);
     r.check_runs = vec![crate::CheckRun::new("Tests", Checks::Failed, 10, "")];
     let mut ws = synced(&github(vec![pr_item(5)], vec![r]));
     assert!(ws.restart_check(5, "Tests"));
-    assert_eq!(ws.running_checks(), 0, "GitHub runs the check");
-    assert!(ws.advance_checks().is_empty());
     assert_eq!(ws.review(5).unwrap().check_runs[0].status, Checks::Running);
 }
 

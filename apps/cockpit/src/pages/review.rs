@@ -1,11 +1,9 @@
 //! Pull request review: in the middle the diff, on the right the comments that the agent
 //! prepared. Sending only happens once every suggestion has been decided.
 
-use std::time::Duration;
-
 use cockpit_core::{
-    Action, AgentOptions, AgentRun, Checks, Decision, Level, MergeMethod, Ownership, PrKey, Review,
-    RunKind, Suggestion, SuggestionDiff, Verdict,
+    Action, AgentRun, Checks, Decision, Level, MergeMethod, Ownership, PrKey, Review, RunKind,
+    Suggestion, SuggestionDiff, Verdict,
 };
 use feature_ui::*;
 use leptos::prelude::*;
@@ -17,9 +15,6 @@ use crate::{
     store::{Store, use_store},
     view,
 };
-
-/// The demo agent "reads" a pull request for this long.
-const REVIEW_TIME: Duration = Duration::from_millis(1200);
 
 #[component]
 pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
@@ -71,10 +66,8 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
         own_comment: RwSignal::new(String::new()),
         editing: RwSignal::new(None),
         edit_text: RwSignal::new(String::new()),
-        agent_reading: RwSignal::new(false),
         merge_method: RwSignal::new(MergeMethod::default().id()),
         open_check: RwSignal::new(None),
-        deselected: RwSignal::new(Vec::new()),
         review_language: RwSignal::new(None),
     };
 
@@ -208,13 +201,10 @@ struct Panel {
     /// ID of the suggestion whose text is being edited right now.
     editing: RwSignal<Option<String>>,
     edit_text: RwSignal<String>,
-    agent_reading: RwSignal<bool>,
     /// Chosen merge method (ID from `MergeMethod::OPTIONS`).
     merge_method: RwSignal<&'static str>,
     /// Name of the check whose log is expanded.
     open_check: RwSignal<Option<String>>,
-    /// IDs of the comments that the agent should not implement. Default: all open ones.
-    deselected: RwSignal<Vec<String>>,
     /// The language of the next agent review picked by the user; `None` = detect it.
     review_language: RwSignal<Option<cockpit_i18n::Lang>>,
 }
@@ -237,7 +227,6 @@ struct LineUi {
 }
 
 mod checks;
-mod comments;
 mod diff;
 mod drafts;
 mod filter;
@@ -248,7 +237,6 @@ mod sections;
 mod suggestions;
 
 use checks::{checks_label, checks_section};
-use comments::comments_section;
 use diff::diff_pane;
 use drafts::{code_rows, draft_notes, location_label};
 use followups::followup_section;

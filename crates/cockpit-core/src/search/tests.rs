@@ -124,7 +124,7 @@ fn filters_by_repo() {
     };
     assert_eq!(keys_of(&f), ["#12"]);
     let f = InboxFilter {
-        repo: Some(crate::DEMO_REPO.into()),
+        repo: Some(crate::demo::DEMO_REPO.into()),
         ..Default::default()
     };
     assert_eq!(keys_of(&f), ["#87", "#85"], "tickets have no repo");
@@ -154,7 +154,7 @@ fn filters_by_person_status_and_label() {
 fn filters_combine_with_and() {
     let f = InboxFilter {
         label: Some("bug".into()),
-        repo: Some(crate::DEMO_REPO.into()),
+        repo: Some(crate::demo::DEMO_REPO.into()),
         ..Default::default()
     };
     assert_eq!(keys_of(&f), ["#85"]);
@@ -172,7 +172,7 @@ fn the_choices_come_from_the_workspace() {
     let ws = demo::workspace();
     assert_eq!(
         ws.item_repos(),
-        [crate::DEMO_REPO, crate::demo::DEMO_REPO_TOKENS]
+        [crate::demo::DEMO_REPO, crate::demo::DEMO_REPO_TOKENS]
     );
     assert_eq!(
         ws.labels(),

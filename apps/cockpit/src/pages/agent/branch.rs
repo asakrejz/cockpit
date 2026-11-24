@@ -13,7 +13,7 @@ use crate::server;
 
 /// Does the run own a branch the cockpit pushed, and is the run done with?
 fn eligible(r: &AgentRun) -> bool {
-    r.kind == RunKind::Implement && r.real && r.is_closed() && !r.pull_requests().is_empty()
+    r.kind == RunKind::Implement && r.is_closed() && !r.pull_requests().is_empty()
 }
 
 /// One panel per repo that has a pull request (a run in one repo has one).

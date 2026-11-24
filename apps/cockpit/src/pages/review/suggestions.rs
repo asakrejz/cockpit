@@ -17,7 +17,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
         t!(ReviewSuggestionsSend, n = r.comment_count())
     };
     let (can_send, sent) = (r.can_send(), r.sent);
-    let (agent_reviewed, verdict) = (r.agent_reviewed, r.verdict.id());
+    let verdict = r.verdict.id();
     let suggestions = r
         .suggestions
         .iter()
@@ -27,10 +27,9 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
             suggestion(store, number, s, panel, rows)
         })
         .collect_view();
-    let real = store.agent_real();
     let summary_text = r.agent_summary.clone();
 
-    // The real run: only you start it; the agent reads, nothing goes to GitHub.
+    // Only you start the run; the agent reads, nothing goes to GitHub.
     let review_run = move |_| {
         let _ = store.dispatch(Action::StartPrReview {
             language: panel.review_language.get_untracked(),
@@ -52,19 +51,6 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
         })
     };
     let blocked = Signal::derive(move || store.conn.get().agent_blocked().is_some());
-    let request_review = move |_| {
-        panel.agent_reading.set(true);
-        set_timeout(
-            move || {
-                let _ = store.dispatch(Action::RequestAgentReview {
-                    review: number.get_value(),
-                });
-                // The page may have been left in the meantime.
-                let _ = panel.agent_reading.try_set(false);
-            },
-            REVIEW_TIME,
-        );
-    };
     let send = move |_| {
         let own = panel.own_comment.get_untracked();
         let sent = store.dispatch(Action::SendReview {
@@ -76,10 +62,8 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
         }
     };
 
-    let intro = if !r.agent_reviewed && real {
+    let intro = if !r.agent_reviewed {
         t!(ReviewSuggestionsIntroReal)
-    } else if !r.agent_reviewed {
-        t!(ReviewSuggestionsIntroNone)
     } else if r.suggestions.is_empty() {
         t!(ReviewSuggestionsIntroClean)
     } else {
@@ -100,41 +84,36 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
             </PaneHeader>
 
             <PaneBody>
-                {real
-                    .then(|| {
-                        view! {
-                            <div class="ui-vstack" style="--spacing: 6px">
-                                {segmented(
-                                    vec![
-                                        ("auto", t!(ReviewSuggestionsLangAuto)),
-                                        ("de", "DE".to_string()),
-                                        ("en", "EN".to_string()),
-                                    ],
-                                    move || panel.review_language.get().map_or("auto", |l| l.code()),
-                                    move |id| panel.review_language.set(cockpit_i18n::Lang::from_code(id)),
-                                    t!(ReviewSuggestionsLangLabel),
-                                    false,
-                                )}
-                                <span class="t-footnote t-secondary" style="padding-inline: 4px">
-                                    {move || match panel.review_language.get() {
-                                        Some(l) => t!(ReviewSuggestionsLangNote, lang = lang_name(l), why = lang_why(LangSource::Chosen)),
-                                        None => t!(ReviewSuggestionsLangAutoHint),
-                                    }}
-                                </span>
-                            </div>
-                            <Button
-                                variant=ButtonStyle::BorderedProminent
-                                size=ControlSize::Large
-                                disabled=Signal::derive(move || run_busy.get() || blocked.get())
-                                on_click=review_run
-                            >
-                                <Icon path=icons::SPARKLES />
-                                {move || if run_busy.get() { t!(ReviewSuggestionsReading) } else { t!(ReviewSuggestionsReviewPr) }}
-                            </Button>
-                        }
-                    })}
+                <div class="ui-vstack" style="--spacing: 6px">
+                    {segmented(
+                        vec![
+                            ("auto", t!(ReviewSuggestionsLangAuto)),
+                            ("de", "DE".to_string()),
+                            ("en", "EN".to_string()),
+                        ],
+                        move || panel.review_language.get().map_or("auto", |l| l.code()),
+                        move |id| panel.review_language.set(cockpit_i18n::Lang::from_code(id)),
+                        t!(ReviewSuggestionsLangLabel),
+                        false,
+                    )}
+                    <span class="t-footnote t-secondary" style="padding-inline: 4px">
+                        {move || match panel.review_language.get() {
+                            Some(l) => t!(ReviewSuggestionsLangNote, lang = lang_name(l), why = lang_why(LangSource::Chosen)),
+                            None => t!(ReviewSuggestionsLangAutoHint),
+                        }}
+                    </span>
+                </div>
+                <Button
+                    variant=ButtonStyle::BorderedProminent
+                    size=ControlSize::Large
+                    disabled=Signal::derive(move || run_busy.get() || blocked.get())
+                    on_click=review_run
+                >
+                    <Icon path=icons::SPARKLES />
+                    {move || if run_busy.get() { t!(ReviewSuggestionsReading) } else { t!(ReviewSuggestionsReviewPr) }}
+                </Button>
                 {move || {
-                    (if real { run_state() } else { None }).map(|run| {
+                    run_state().map(|run| {
                         let used = run.options.review_language.map(|c| {
                             view! {
                                 <p class="t-footnote t-secondary">
@@ -189,21 +168,6 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                                     {t!(ReviewSuggestionsTakeOver)}
                                 </Button>
                             </div>
-                        }
-                    })}
-                {(!agent_reviewed && !real)
-                    .then(|| {
-                        view! {
-                            <Button
-                                size=ControlSize::Large
-                                disabled=panel.agent_reading
-                                on_click=request_review
-                            >
-                                <Icon path=icons::SPARKLES />
-                                {move || {
-                                    if panel.agent_reading.get() { t!(ReviewSuggestionsReading) } else { t!(ReviewSuggestionsRequest) }
-                                }}
-                            </Button>
                         }
                     })}
                 <div class="ui-vstack" style="--spacing: 10px">
@@ -264,11 +228,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                         })}
                 </div>
 
-                {if store.agent_real() {
-                    followup_section(store, &r).into_any()
-                } else {
-                    comments_section(store, &r, panel).into_any()
-                }}
+                {followup_section(store, &r)}
                 {checks_section(store, &r, panel)}
                 {merge_section(store, &r, panel)}
             </PaneBody>

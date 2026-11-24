@@ -58,9 +58,7 @@ fn a_real_run_logs_as_agent_and_books_the_cost() {
     assert_eq!(last.actor, Actor::Agent);
     assert_eq!(last.target, Some(Target::Run("BAU-142".into())));
     assert_eq!(w.spent_month(T).input_tokens, 10_000);
-    // The simulated tick does not touch the real run.
-    assert_eq!(w.running_agents(), 0);
-    fails(&mut w, Action::AdvanceAgents, ActionError::NothingToDo);
+    assert_eq!(w.running_agents(), 1);
     // Done: branch on the ticket, no invented pull request.
     let reviews = w.reviews.len();
     report(

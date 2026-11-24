@@ -20,15 +20,10 @@ impl Workspace {
         let mut run = AgentRun::new(&item.key, &item.title);
         self.apply_rules(&mut run);
         run.comments = item.comments.len();
-        run.files = demo::agent_changes(&item.key)
-            .into_iter()
-            .map(|f| f.name)
-            .collect();
         Some(run)
     }
 
     pub(super) fn apply_rules(&self, run: &mut AgentRun) {
-        run.repo = self.repo_of(&run.ticket_key).to_string();
         run.rules = self.rules_for(&run.repo);
     }
 
@@ -57,7 +52,7 @@ impl Workspace {
         if run.is_active() {
             return Err(AgentError::AlreadyRunning);
         }
-        run.start(options, self.next_pr_number());
+        run.start(options);
         // A run that works immediately needs a free slot.
         if run.is_consuming()
             && let Some(max) = self.parallel_full()
@@ -260,69 +255,7 @@ impl Workspace {
         true
     }
 
-    /// Lets every running agent complete a step or ask a question.
-    /// Returns the keys of the runs that finished in the process. Without a clock: bookings
-    /// carry the time 0. Whoever knows the time takes [`Workspace::advance_agents_at`].
-    pub fn advance_agents(&mut self) -> Vec<String> {
-        self.advance_agents_at(0)
-    }
-
-    /// Like [`Workspace::advance_agents`], with the time of the tick (milliseconds since 1970).
-    /// The consumption of each step goes into the ledger; if a limit is reached, the run stops.
-    pub fn advance_agents_at(&mut self, now_ms: u64) -> Vec<String> {
-        let mut finished = Vec::new();
-        let mut asking = Vec::new();
-        let mut diagnosed = Vec::new();
-        let mut stopped = Vec::new();
-        let mut charges = Vec::new();
-        let limits = self.limits.clone();
-        let mut month_spent = self.spent_month(now_ms).cost_cents;
-        for run in &mut self.runs {
-            let before = run.step_usage.len();
-            let tick = run.tick_with(&limits, month_spent);
-            // Newly reported consumption belongs in the ledger.
-            if run.step_usage.len() > before
-                && let Some(usage) = run.step_usage.last().copied()
-            {
-                month_spent = month_spent.saturating_add(usage.cost_cents);
-                charges.push((run.ticket_key.clone(), usage));
-            }
-            match tick {
-                Tick::Finished => finished.push(run.clone()),
-                Tick::Asked => asking.push(run.key()),
-                Tick::Diagnosed => diagnosed.push(run.key()),
-                Tick::Stopped => stopped.push((run.key(), run.stop_reason())),
-                Tick::Stepped | Tick::Idle => {}
-            }
-        }
-        for (key, usage) in charges {
-            self.charge(now_ms, &key, usage);
-        }
-        for (key, reason) in &stopped {
-            if let Some(reason) = reason {
-                self.set_agent_note(
-                    key,
-                    msg!(CoreWorkspaceAgentStopped, reason = reason.label_msg()),
-                );
-            }
-        }
-        for key in &asking {
-            self.set_agent_note(key, msg!(CoreWorkspaceAgentQuestion));
-        }
-        for key in &diagnosed {
-            self.diagnose_run(key);
-        }
-        for run in &finished {
-            if run.is_followup() {
-                self.finish_followup(run);
-            } else {
-                self.publish(run);
-            }
-        }
-        finished.into_iter().map(|r| r.key()).collect()
-    }
-
-    /// Books a report of the real agent (from the container) on run `key`: state,
+    /// Books a report of the agent (from the container) on run `key`: state,
     /// consumption in the ledger, note on the ticket. `None` if the report does not fit – then
     /// everything stays as it was.
     pub fn report_agent(
@@ -381,7 +314,7 @@ impl Workspace {
         Some(effect)
     }
 
-    /// The real agent is done: the new commits are on the branch on GitHub. The pull request is only
+    /// The agent is done: the new commits are on the branch on GitHub. The pull request is only
     /// created after your approval (`Action::CreatePullRequest`); a follow-up job continues on
     /// the branch of an existing pull request.
     pub(super) fn finish_real(&mut self, run: &AgentRun) {
@@ -406,10 +339,6 @@ impl Workspace {
                 item.read = false;
             }
             return;
-        }
-        // The pull request number of a real run is only known once GitHub has created it.
-        if let Some(slot) = self.runs.iter_mut().find(|r| r.key() == run.key()) {
-            slot.pr_number = None;
         }
         if let Some(item) = self.items.iter_mut().find(|i| i.key == run.ticket_key) {
             item.branch = Some(branch.clone());
@@ -520,7 +449,7 @@ impl Workspace {
         })
     }
 
-    /// May a pull request be created for this run? The run must be a finished real run
+    /// May a pull request be created for this run? The run must be a finished implementation
     /// (the backend pushed its branch before reporting it done) without a pull request.
     /// With several repos the pull request is created per repo: only a repo whose branch was
     /// pushed qualifies (not an unchanged or refused one), and each gets only one.
@@ -530,7 +459,7 @@ impl Workspace {
             .iter()
             .find(|r| r.key() == run_key)
             .ok_or(ActionError::NothingToDo)?;
-        if run.kind != RunKind::Implement || !run.real || !run.is_done() {
+        if run.kind != RunKind::Implement || !run.is_done() {
             return Err(ActionError::PullRequestNotReady);
         }
         let repo = if repo.is_empty() {

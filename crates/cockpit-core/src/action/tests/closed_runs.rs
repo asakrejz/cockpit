@@ -4,7 +4,6 @@ use crate::agent::Closure;
 fn finished_run() -> AgentRun {
     let mut run = AgentRun::new("BAU-138", "Sample");
     run.state = RunState::Done;
-    run.real = true;
     run.repo = "acme/app".into();
     run.pull_request = Some(PullRequestRef {
         number: 7,
@@ -141,7 +140,7 @@ fn a_follow_up_job_is_tied_to_the_pull_request_it_works_on() {
 fn a_new_start_clears_the_state_and_old_data_still_loads() {
     let mut run = finished_run();
     run.closure = Some(Closure::Merged);
-    run.start(AgentOptions::default(), 8);
+    run.start(AgentOptions::default());
     assert_eq!(run.closure, None);
     let text = serde_json::to_string(&finished_run()).unwrap();
     assert!(!text.contains("closure"), "{text}");

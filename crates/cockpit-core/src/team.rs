@@ -6,7 +6,6 @@
 use cockpit_i18n::{Msg, msg};
 
 use crate::agent::AgentRun;
-use crate::diagnosis::Diagnosis;
 use crate::model::{Item, Person, PrKey, PrRef, Source, TicketStatus, Tone};
 use crate::workspace::Workspace;
 use crate::{Checks, Kind};
@@ -348,8 +347,6 @@ pub enum StuckKind {
     AgentStopped,
     /// The agent has a follow-up question and waits for the answer.
     QuestionWaiting,
-    /// The agent has examined a red check and waits whether it should adopt the fix.
-    DiagnosisWaiting,
     PlanWaiting,
     AgentWaiting,
     ReviewWaiting,
@@ -373,31 +370,12 @@ pub struct Stuck {
     pub plan: Option<String>,
     /// Ticket where the agent asked a question.
     pub question: Option<String>,
-    /// Run whose diagnosis waits for your decision.
-    pub diagnosis: Option<String>,
 }
 
 /// The first rule that matches the entry. An entry is stuck only once.
 fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, Msg)> {
     let me = Person::me();
     let pr = item.pr.as_ref();
-
-    // The diagnosis comes first: the check is red, but the agent already has a proposal.
-    if let Some(run) = ws
-        .runs
-        .iter()
-        .find(|r| item.matches_run_key(&r.ticket_key) && r.is_diagnosed())
-    {
-        let cause = run
-            .diagnosis
-            .as_ref()
-            .map_or_else(|| msg!(CoreDiagnosisCauseDefault), Diagnosis::cause_message);
-        return Some((
-            StuckKind::DiagnosisWaiting,
-            me,
-            msg!(CoreMiscStuckDiagnosis, cause = cause),
-        ));
-    }
 
     if let Some(pr) = pr.filter(|p| p.checks == Checks::Failed) {
         return Some((
@@ -530,8 +508,6 @@ pub fn stuck(ws: &Workspace) -> Vec<Stuck> {
                     .filter(|_| kind == StuckKind::PlanWaiting),
                 question: waiting(crate::AgentRun::is_asking)
                     .filter(|_| kind == StuckKind::QuestionWaiting),
-                diagnosis: waiting(crate::AgentRun::is_diagnosed)
-                    .filter(|_| kind == StuckKind::DiagnosisWaiting),
             })
         })
         .collect();

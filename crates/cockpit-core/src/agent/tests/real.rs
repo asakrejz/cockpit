@@ -2,13 +2,10 @@ use super::*;
 
 fn real_run() -> AgentRun {
     let mut r = run();
-    r.start(
-        AgentOptions {
-            plan_first: false,
-            ..AgentOptions::default()
-        },
-        92,
-    );
+    r.start(AgentOptions {
+        plan_first: false,
+        ..AgentOptions::default()
+    });
     r.report(
         AgentReport::Started {
             detail: "Container gestartet".into(),
@@ -30,27 +27,8 @@ fn step(tokens_in: u64, tokens_out: u64, millis: u64) -> AgentReport {
 }
 
 #[test]
-fn a_real_implementation_starts_without_the_placeholder_files() {
-    let mut r = run();
-    assert!(
-        !r.files.is_empty(),
-        "a ready-to-start run carries placeholders"
-    );
-    r.start(
-        AgentOptions {
-            plan_first: false,
-            ..AgentOptions::default()
-        },
-        92,
-    );
-    r.report(
-        AgentReport::Started {
-            detail: "Container gestartet".into(),
-        },
-        &AgentLimits::unlimited(),
-        0,
-    );
-    assert!(r.files.is_empty());
+fn the_container_reports_the_files_it_changes() {
+    let mut r = real_run();
     r.report(
         AgentReport::Files {
             files: vec!["src/toggle.rs".into()],
@@ -73,7 +51,7 @@ fn a_followup_keeps_the_files_of_its_comments_when_the_container_starts() {
         "claude/bau-138",
     );
     r.files = vec!["controls.rs".into()];
-    r.start(AgentOptions::default(), 91);
+    r.start(AgentOptions::default());
     r.report(
         AgentReport::Started {
             detail: "Container gestartet".into(),
@@ -82,14 +60,6 @@ fn a_followup_keeps_the_files_of_its_comments_when_the_container_starts() {
         0,
     );
     assert_eq!(r.files, ["controls.rs"]);
-}
-
-#[test]
-fn a_real_run_is_not_touched_by_the_simulated_tick() {
-    let mut r = real_run();
-    assert!(r.real);
-    assert_eq!(r.tick(), Tick::Idle);
-    assert_eq!(r.completed, 0);
 }
 
 #[test]
@@ -196,11 +166,11 @@ fn done_finishes_and_failed_resets_with_the_reason() {
             0,
         )
         .unwrap();
-    assert!(e.failed && r.is_idle() && !r.real);
+    assert!(e.failed && r.is_idle());
     assert_eq!(r.ended.as_deref(), Some("Der Container endete mit Code 1"));
     assert!(r.log().contains("Der Container endete mit Code 1"));
     // A new start clears the reason.
-    r.start(AgentOptions::default(), 92);
+    r.start(AgentOptions::default());
     assert_eq!(r.ended, None);
 }
 
@@ -219,7 +189,7 @@ fn reports_for_an_inactive_run_change_nothing() {
 fn the_plan_comes_from_the_agent_and_cannot_be_approved_before() {
     let mut r = run();
     let limits = AgentLimits::unlimited();
-    r.start(AgentOptions::default(), 92);
+    r.start(AgentOptions::default());
     r.report(
         AgentReport::Started {
             detail: "Plan-Lauf".into(),

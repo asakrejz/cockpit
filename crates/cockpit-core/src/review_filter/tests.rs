@@ -11,7 +11,7 @@ fn linked() -> Workspace {
         .find(|i| i.id == "gh-acme-app-31")
         .and_then(|i| i.project.as_mut())
         .unwrap();
-    issue.linked_prs = vec![PrKey::new(crate::DEMO_REPO, 101)];
+    issue.linked_prs = vec![PrKey::new(crate::demo::DEMO_REPO, 101)];
     ws
 }
 
@@ -49,7 +49,7 @@ fn several_repos_are_an_or() {
     let repos = repos_of(&ws.reviews_filtered(&f, None));
     assert!(repos.iter().any(|r| r == demo::DEMO_REPO_SHOP));
     assert!(repos.iter().any(|r| r == demo::DEMO_REPO_TOKENS));
-    assert!(!repos.iter().any(|r| r == crate::DEMO_REPO));
+    assert!(!repos.iter().any(|r| r == crate::demo::DEMO_REPO));
 }
 
 #[test]
@@ -58,7 +58,7 @@ fn the_open_review_stays_even_if_the_filter_hides_it() {
     let hidden = ws
         .reviews
         .iter()
-        .find(|r| r.repo == crate::DEMO_REPO)
+        .find(|r| r.repo == crate::demo::DEMO_REPO)
         .unwrap()
         .key();
     let f = ReviewFilter {
@@ -133,7 +133,7 @@ fn the_choices_come_from_the_reviews() {
         .flat_map(|g| g.repos.iter().map(|(r, _)| r.as_str()))
         .collect();
     assert!(all.contains(&demo::DEMO_REPO_SHOP));
-    assert!(all.contains(&crate::DEMO_REPO));
+    assert!(all.contains(&crate::demo::DEMO_REPO));
     assert!(all.contains(&demo::DEMO_REPO_TOKENS));
     let projects = ws.review_projects();
     assert_eq!(projects.len(), 1);
@@ -204,14 +204,14 @@ fn sections_are_per_repo_sorted_by_attention_then_name_and_keep_the_order_inside
         [
             demo::DEMO_REPO_TOKENS,
             demo::DEMO_REPO_SHOP,
-            crate::DEMO_REPO
+            crate::demo::DEMO_REPO
         ]
     );
     assert_eq!(sections[0].attention, 1);
     assert_eq!(sections[2].attention, 0);
     let in_app: Vec<u32> = list
         .iter()
-        .filter(|r| r.repo == crate::DEMO_REPO)
+        .filter(|r| r.repo == crate::demo::DEMO_REPO)
         .map(|r| r.number)
         .collect();
     let section_numbers: Vec<u32> = sections[2].keys.iter().map(|k| k.number).collect();

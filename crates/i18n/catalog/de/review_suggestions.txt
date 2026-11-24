@@ -1,6 +1,5 @@
 review_suggestions.pane = Agent-Review
 review_suggestions.intro_real = Der Agent liest den Pull Request und bereitet Kommentare vor. Er ändert nichts und sendet nichts.
-review_suggestions.intro_none = Der Agent hat diesen Pull Request noch nicht durchgesehen.
 review_suggestions.intro_clean = Der Agent hat nichts zu beanstanden.
 review_suggestions.intro_drafts = Der Agent hat Kommentare vorbereitet. Nichts wird gesendet, bevor du es freigibst.
 review_suggestions.reading = Agent liest …
@@ -9,7 +8,6 @@ review_suggestions.last_run_ended = Der letzte Lauf endete ohne Ergebnis: {reaso
 review_suggestions.summary_region = Zusammenfassung des Agenten
 review_suggestions.summary_note = Zusammenfassung des Agenten (bleibt bei dir)
 review_suggestions.take_over = In meinen Kommentar übernehmen
-review_suggestions.request = Agent-Review anfordern
 review_suggestions.own_note = Eigener Kommentar (optional)
 review_suggestions.own_label = Eigener Kommentar
 review_suggestions.own_placeholder = Zusammenfassung für das Review …

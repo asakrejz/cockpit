@@ -26,9 +26,6 @@ const ALLOWED_FILES: &[&str] = &[
     "crates/cockpit-core/src/model.rs",
     "crates/cockpit-core/src/model/status.rs",
     "crates/cockpit-core/src/workspace/inbox_filter.rs",
-    // Simulated agent data (the demo agent): sample content like `demo/`.
-    "crates/cockpit-core/src/review/checks.rs",
-    "crates/cockpit-core/src/review/suggest.rs",
 ];
 
 fn looks_german(text: &str) -> bool {

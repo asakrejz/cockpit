@@ -1,9 +1,10 @@
 //! A message as code and parameters: the wire and storage form of every text that the core and
-//! the server produce for people (log entries, errors, hints, diagnoses). The language is chosen
+//! the server produce for people (log entries, errors, hints). The language is chosen
 //! only where it is shown ([`Msg::render`]), so a stored entry reads right in either language.
 //!
 //! The code is the id of a catalog key (`core.note.status_set`). A code that this build does not
-//! know (a newer server) renders as the code itself, never as a crash.
+//! know (a newer server) renders as the code itself, never as a crash; a stored entry that also
+//! kept its plain text shows that text instead ([`Msg::render_or`]).
 
 use serde::{Deserialize, Serialize};
 
@@ -107,6 +108,21 @@ impl Msg {
             .map(|(k, v)| (k.clone(), v.render(lang)))
             .collect();
         catalog::text_by_id(lang, &self.code, &args)
+    }
+
+    /// Is the code in the catalog? A stored message can carry a code that was removed later.
+    pub fn is_known(&self) -> bool {
+        catalog::has_id(&self.code)
+    }
+
+    /// The text in `lang`; if the code is no longer in the catalog, `stored` – the plain text
+    /// that was saved next to the code.
+    pub fn render_or(&self, lang: Lang, stored: &str) -> String {
+        if self.is_known() {
+            self.render(lang)
+        } else {
+            stored.to_string()
+        }
     }
 
     /// The German text: what plain-text readers (old clients, searches) get next to the code.

@@ -186,13 +186,14 @@ async fn model_list_reports_rejected_key_and_missing_key_in_plain_text() {
 
 #[tokio::test]
 async fn health_reports_the_agents_never_secrets() {
-    // Simulated (tests start with the seed demo): always ready.
+    // With the sample data (the tests start with the seed demo) and nothing set up, the agent
+    // is not ready and says in plain text what is missing.
     let app = router(state(Arc::new(MemoryStore::new())), PathBuf::from("/x"));
     let (_, body) = hole(app, "/api/health").await;
     let j = json(&body);
-    assert_eq!(j["agent"]["mode"], "simulated");
-    assert_eq!(j["agent"]["ready"], true);
-    // Real, but nothing set up: says in plain text what is missing.
+    assert_eq!(j["agent"]["ready"], false);
+    assert!(j["agent"]["mode"].is_null());
+    // Nothing set up and an empty workspace: the same.
     let conn = db::open_in_memory().unwrap();
     let e = Settings {
         seed: Seed::Empty,
@@ -204,7 +205,6 @@ async fn health_reports_the_agents_never_secrets() {
     );
     let (_, body) = hole(app, "/api/health").await;
     let j = json(&body);
-    assert_eq!(j["agent"]["mode"], "real");
     assert_eq!(j["agent"]["ready"], false);
     assert_eq!(j["agent"]["image_name"], "localhost/cockpit-agent:local");
     let missing = j["agent"]["missing"].as_array().unwrap();

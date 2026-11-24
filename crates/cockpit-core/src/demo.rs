@@ -1,11 +1,11 @@
-//! Sample data following the design. They stand in for Jira, GitHub and the agent
-//! as long as no backend is connected.
+//! Sample data following the design: the server's seed `COCKPIT_SEED=demo`, test data and the
+//! data of the Playground stories. Static data only: nothing here runs or changes by itself.
 
-use crate::agent::{AgentRun, Question, RunState, STEPS};
+use crate::agent::{AgentRun, RunState, STEPS};
 use crate::model::*;
 use crate::review::LineKind::{Add, Context as Ctx, Del};
 use crate::review::{CheckRun, FileDiff, Level, LineComment, Review, Suggestion, Verdict};
-use crate::rules::{DEMO_REPO, RepoRules};
+use crate::rules::RepoRules;
 use crate::usage::Usage;
 use crate::workspace::Workspace;
 use std::collections::BTreeMap;
@@ -16,9 +16,6 @@ mod rich;
 use items::items;
 pub use items::{DEMO_PROJECT, project_tickets};
 pub use reviews::*;
-
-mod agent;
-pub use agent::*;
 
 fn lena() -> Person {
     Person::new("Lena", "LK")
@@ -84,6 +81,8 @@ fn item(
     }
 }
 
+/// The main repo of the sample data.
+pub const DEMO_REPO: &str = "acme/app";
 /// The second repo of the sample data.
 pub const DEMO_REPO_TOKENS: &str = "acme/design-tokens";
 /// A third repo of the sample data (pull requests of colleagues): the Reviews filter has
@@ -138,6 +137,16 @@ fn add_people_in_both_sources(ws: &mut Workspace) {
     }
 }
 
+/// What the steps of the finished sample run of BAU-138 consumed: input tokens, output tokens and
+/// runtime in milliseconds.
+const RUN138_STEPS: [(u64, u64, u64); STEPS] = [
+    (14_800, 1_740, 33_000),
+    (22_200, 2_240, 37_000),
+    (52_900, 7_640, 100_000),
+    (35_500, 3_140, 76_000),
+    (16_000, 2_340, 42_000),
+];
+
 /// The initial state of the cockpit.
 pub fn workspace() -> Workspace {
     let [bau142, pr87, bau138, pr85, bau150, doc7, pr12] = items();
@@ -151,8 +160,7 @@ pub fn workspace() -> Workspace {
     run138.pr_number = Some(91);
     run138.repo = DEMO_REPO.into();
     let pricing = crate::Pricing::default();
-    for step in 0..STEPS {
-        let (input, output, millis) = step_tokens(&run138.ticket_key, step);
+    for (input, output, millis) in RUN138_STEPS {
         run138
             .step_usage
             .push(Usage::priced(input, output, millis, &pricing));
@@ -172,7 +180,7 @@ pub fn workspace() -> Workspace {
 
 /// The sample data plus a second repo with a pull request of the same number (`#87` in both
 /// repos), so that the interface shows that equal numbers from two repos are two different
-/// pull requests. This is what the server's seed `demo` and the browser demo start with.
+/// pull requests. This is what the server's seed `demo` starts with.
 pub fn multi_repo_workspace() -> Workspace {
     let mut ws = workspace();
     let pr87t = Item {

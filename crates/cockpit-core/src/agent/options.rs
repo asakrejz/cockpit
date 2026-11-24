@@ -102,7 +102,10 @@ impl Default for AgentOptions {
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum RunState {
+    /// Ready to start, or ended (cancelled, failed). A stored `AwaitingFix` (the diagnosis of a
+    /// follow-up job that no longer exists) reads as this.
     #[default]
+    #[serde(alias = "AwaitingFix")]
     Idle,
     /// The plan is ready, the agent waits for the user.
     AwaitingApproval,
@@ -111,8 +114,6 @@ pub enum RunState {
     AwaitingAnswer,
     /// The user has paused the run.
     Paused,
-    /// The diagnosis of a red check is ready; the agent waits whether it should adopt the fix.
-    AwaitingFix,
     /// A limit (budget, time limit) is reached: the run waits for you.
     Stopped(StopReason),
     Done,
@@ -142,26 +143,12 @@ impl Closure {
 
 /// What the run does.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
+#[serde(from = "RunKindStored")]
 pub enum RunKind {
     /// Implement a ticket and create a pull request.
     #[default]
     Implement,
-    /// Implement comments of a review and push to the pull request's branch.
-    AddressReview {
-        /// The pull request (repo and number).
-        review: PrKey,
-        /// IDs of the line comments the agent is to implement.
-        comments: Vec<String>,
-    },
-    /// Investigate a red check, present a diagnosis and – after your approval –
-    /// push the fix.
-    Diagnose {
-        /// The pull request (repo and number).
-        review: PrKey,
-        /// Name of the check.
-        check: String,
-    },
-    /// Follow-up job of the **real** agent on the branch of an existing pull request: the
+    /// Follow-up job on the branch of an existing pull request: the
     /// backend reads the inputs (review threads, failed checks) from GitHub when the run starts and
     /// hands them to the container. The agent continues on the same `claude/…` branch; the backend
     /// pushes the new commits (never a force-push).
@@ -170,7 +157,7 @@ pub enum RunKind {
         review: PrKey,
         task: FollowupTask,
     },
-    /// The **real** agent reads a pull request and prepares review comments as drafts. It only
+    /// The agent reads a pull request and prepares review comments as drafts. It only
     /// reads: the clone of the branch is mounted read-only, nothing is pushed, nothing goes to
     /// GitHub. The drafts become suggestions of the review and wait for your decision.
     ReviewPr {
@@ -179,7 +166,38 @@ pub enum RunKind {
     },
 }
 
-/// What a real follow-up job does.
+/// How a stored run kind is read: the current kinds, plus the two kinds of the simulated agent
+/// that older states may still hold. They become the follow-up job with the same purpose.
+#[derive(Deserialize)]
+enum RunKindStored {
+    Implement,
+    AddressReview { review: PrKey },
+    Diagnose { review: PrKey, check: String },
+    Followup { review: PrKey, task: FollowupTask },
+    ReviewPr { review: PrKey },
+}
+
+impl From<RunKindStored> for RunKind {
+    fn from(stored: RunKindStored) -> Self {
+        match stored {
+            RunKindStored::Implement => RunKind::Implement,
+            RunKindStored::AddressReview { review } => RunKind::Followup {
+                review,
+                task: FollowupTask::ReviewThreads,
+            },
+            RunKindStored::Diagnose { review, check } => RunKind::Followup {
+                review,
+                task: FollowupTask::FailedChecks {
+                    checks: vec![check],
+                },
+            },
+            RunKindStored::Followup { review, task } => RunKind::Followup { review, task },
+            RunKindStored::ReviewPr { review } => RunKind::ReviewPr { review },
+        }
+    }
+}
+
+/// What a follow-up job does.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum FollowupTask {
     /// Implement the review comments of the pull request.
@@ -203,18 +221,7 @@ impl RunKind {
     pub fn review(&self) -> Option<PrKey> {
         match self {
             RunKind::Implement => None,
-            RunKind::AddressReview { review, .. }
-            | RunKind::Diagnose { review, .. }
-            | RunKind::Followup { review, .. }
-            | RunKind::ReviewPr { review } => Some(review.clone()),
+            RunKind::Followup { review, .. } | RunKind::ReviewPr { review } => Some(review.clone()),
         }
-    }
-
-    /// Does the real agent run this job in a container (as opposed to the simulation)?
-    pub fn runs_in_container(&self) -> bool {
-        matches!(
-            self,
-            RunKind::Implement | RunKind::Followup { .. } | RunKind::ReviewPr { .. }
-        )
     }
 }

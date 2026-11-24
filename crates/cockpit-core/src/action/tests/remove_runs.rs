@@ -56,7 +56,6 @@ fn working_and_waiting_runs_cannot_be_removed() {
         RunState::Running,
         RunState::AwaitingApproval,
         RunState::AwaitingAnswer,
-        RunState::AwaitingFix,
         RunState::Paused,
     ] {
         let mut w = workspace(&[("A-1", state)]);

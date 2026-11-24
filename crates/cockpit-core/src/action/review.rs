@@ -142,32 +142,6 @@ impl Workspace {
                     ),
                 )])
             }
-            Action::RequestAgentReview { review } => {
-                self.need_open_review(&review)?;
-                let count = self.request_agent_review(&review);
-                let result = match count {
-                    0 => msg!(CoreActionAgentReviewNone),
-                    n => msg!(CoreActionAgentReviewFound, comments = labels::comments(n)),
-                };
-                Ok(vec![
-                    Note::coded(
-                        Target::Review(review.clone()),
-                        msg!(
-                            CoreActionLogAgentReviewRequested,
-                            review = review.to_string()
-                        ),
-                    ),
-                    Note::coded(
-                        Target::Review(review.clone()),
-                        msg!(
-                            CoreActionLogAgentReviewDone,
-                            review = review.to_string(),
-                            result = result
-                        ),
-                    )
-                    .by(Actor::Agent),
-                ])
-            }
             Action::SendReview { review, comment } => {
                 let count = self.send_review(&review, &comment).map_err(|e| match e {
                     SendError::UnknownReview => ActionError::UnknownReview(review.clone()),
@@ -201,28 +175,6 @@ impl Workspace {
                         review = review.to_string()
                     ),
                 )])
-            }
-            Action::AdvanceChecks => {
-                if self.running_checks() == 0 {
-                    return Err(ActionError::NothingToDo);
-                }
-                Ok(self
-                    .advance_checks()
-                    .into_iter()
-                    .map(|(number, check, status)| {
-                        let (check, review) = (check, number.to_string());
-                        let text = if status == Checks::Passed {
-                            msg!(CoreActionLogCheckPassed, check = check, review = review)
-                        } else {
-                            msg!(
-                                CoreActionLogCheckFailedAgain,
-                                check = check,
-                                review = review
-                            )
-                        };
-                        Note::coded(Target::Review(number.clone()), text).by(Actor::System)
-                    })
-                    .collect())
             }
             Action::MergePr { review, method } => {
                 self.need_review(&review)?;

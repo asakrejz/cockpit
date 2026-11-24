@@ -7,7 +7,6 @@ core_misc.hit_overdue.one = Overdue since yesterday
 core_misc.hit_overdue.other = Overdue for {n} days
 core_misc.hit_agent = Agent finished · pull request #{number} created
 core_misc.hit_assigned = Assigned to you
-core_misc.stuck_diagnosis = The agent's diagnosis waits for your decision: {cause}
 core_misc.stuck_checks_me = The checks of {pr} have failed. You cannot move on.
 core_misc.stuck_checks_other = The checks of {pr} have failed. {name} cannot move on.
 core_misc.stuck_stopped = The agent is stopped: {reason}. Raise the limit and resume it, or cancel.

@@ -43,7 +43,7 @@ pub(super) fn sidebar_runs(ctx: AgentCtx, show_closed: bool) -> impl IntoView {
             .map(|r| {
                 let state = if r.is_closed() {
                     t::closed_badge()
-                } else if r.is_awaiting() || r.is_diagnosed() {
+                } else if r.is_awaiting() {
                     t!(AgentSidebarWaiting)
                 } else if r.is_asking() {
                     t!(AgentSidebarAsking)

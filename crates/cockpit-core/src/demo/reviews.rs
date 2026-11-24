@@ -132,7 +132,7 @@ pub(super) fn reviews(pr87: &Item, bau138: &Item, pr85: &Item) -> [Review; 3] {
             bau138,
             Person::agent(),
             "BAU-138",
-            agent_changes("BAU-138"),
+            segmented_picker_changes(),
         )
     };
     let mut review85 = review(
@@ -216,8 +216,7 @@ pub(super) fn failing_checks() -> Vec<CheckRun> {
             Checks::Failed,
             37,
             "$ cargo clippy --all-targets -- -D warnings\nerror: unused variable: `inset`\n  --> features/ui/src/list.rs:62:13\n   |\n62 |         let inset = icon.map(|_| 46);\n   |             ^^^^^ help: if this is intentional, prefix it with an underscore: `_inset`\n   |\n   = note: `-D unused-variables` implied by `-D warnings`\n\nerror: could not compile `feature-ui` (lib) due to 1 previous error\n",
-        )
-        .rerun_as(Checks::Failed),
+        ),
         CheckRun::new(
             "Tests (Browser)",
             Checks::Failed,
@@ -227,123 +226,49 @@ pub(super) fn failing_checks() -> Vec<CheckRun> {
     ]
 }
 
-/// What the demo agent changes for a ticket.
-pub fn agent_changes(ticket_key: &str) -> Vec<FileDiff> {
-    match ticket_key {
-        "BAU-142" => vec![
-            FileDiff::new(
-                "components.css",
-                &[
-                    (108, Ctx, ".ui-toggle input:focus-visible {"),
-                    (109, Ctx, "  outline: none;"),
-                    (110, Del, "  box-shadow: 0 0 0 4px rgb(0 122 255 / 0.3);"),
-                    (110, Add, "  box-shadow: var(--sys-focus-ring);"),
-                    (111, Ctx, "}"),
-                    (124, Ctx, ".ui-slider:focus-visible::-webkit-slider-thumb {"),
-                    (
-                        125,
-                        Add,
-                        "  box-shadow: var(--ref-shadow-thumb), var(--sys-focus-ring);",
-                    ),
-                    (126, Ctx, "}"),
-                ],
-            ),
-            FileDiff::new(
-                "tokens.css",
-                &[
-                    (322, Ctx, "[data-theme=\"dark\"] {"),
-                    (
-                        323,
-                        Add,
-                        "  --sys-focus-ring: 0 0 0 4px color-mix(in oklab, var(--sys-color-tint) 60%, transparent);",
-                    ),
-                ],
-            ),
-        ],
-        "BAU-138" => vec![
-            FileDiff::new(
-                "controls.rs",
-                &[
-                    (44, Ctx, "                        <button"),
-                    (45, Ctx, "                            type=\"button\""),
-                    (
-                        46,
-                        Del,
-                        "                            aria-pressed=move || (value.get() == id).to_string()",
-                    ),
-                    (46, Add, "                            role=\"radio\""),
-                    (
-                        47,
-                        Add,
-                        "                            aria-checked=move || (value.get() == id).to_string()",
-                    ),
-                    (
-                        48,
-                        Add,
-                        "                            tabindex=move || if value.get() == id { \"0\" } else { \"-1\" }",
-                    ),
-                    (
-                        49,
-                        Add,
-                        "                            on:keydown=move |ev| select_with_arrows(&ev, options, value)",
-                    ),
-                    (
-                        50,
-                        Ctx,
-                        "                            on:click=move |_| value.set(id)",
-                    ),
-                ],
-            ),
-            FileDiff::new(
-                "components.css",
-                &[
-                    (114, Ctx, ".ui-segmented button:focus-visible {"),
-                    (115, Add, "  z-index: 1;"),
-                    (116, Ctx, "  box-shadow: var(--sys-focus-ring);"),
-                ],
-            ),
-        ],
-        _ => vec![
-            FileDiff::new(
-                "sheet.rs",
-                &[
-                    (6, Add, "pub enum Detent {"),
-                    (7, Add, "    Medium,"),
-                    (8, Add, "    Large,"),
-                    (9, Add, "}"),
-                    (10, Ctx, ""),
-                    (
-                        24,
-                        Del,
-                        "                <div class=\"ui-sheet\" data-detent=\"floating\" role=\"dialog\">",
-                    ),
-                    (
-                        24,
-                        Add,
-                        "                <div class=\"ui-sheet\" data-detent=move || detent.get().id() role=\"dialog\">",
-                    ),
-                ],
-            ),
-            FileDiff::new(
-                "components.css",
-                &[
-                    (
-                        220,
-                        Ctx,
-                        ".ui-sheet[data-detent=\"floating\"] { border-radius: var(--sys-radius-sheet); margin: 0 8px 8px; }",
-                    ),
-                    (
-                        221,
-                        Add,
-                        ".ui-sheet[data-detent=\"medium\"] { height: 50%; }",
-                    ),
-                    (
-                        222,
-                        Add,
-                        ".ui-sheet[data-detent=\"large\"] { height: calc(100% - var(--ref-space-48)); }",
-                    ),
-                ],
-            ),
-        ],
-    }
+/// The files the sample pull request #91 changes (the segmented picker).
+fn segmented_picker_changes() -> Vec<FileDiff> {
+    vec![
+        FileDiff::new(
+            "controls.rs",
+            &[
+                (44, Ctx, "                        <button"),
+                (45, Ctx, "                            type=\"button\""),
+                (
+                    46,
+                    Del,
+                    "                            aria-pressed=move || (value.get() == id).to_string()",
+                ),
+                (46, Add, "                            role=\"radio\""),
+                (
+                    47,
+                    Add,
+                    "                            aria-checked=move || (value.get() == id).to_string()",
+                ),
+                (
+                    48,
+                    Add,
+                    "                            tabindex=move || if value.get() == id { \"0\" } else { \"-1\" }",
+                ),
+                (
+                    49,
+                    Add,
+                    "                            on:keydown=move |ev| select_with_arrows(&ev, options, value)",
+                ),
+                (
+                    50,
+                    Ctx,
+                    "                            on:click=move |_| value.set(id)",
+                ),
+            ],
+        ),
+        FileDiff::new(
+            "components.css",
+            &[
+                (114, Ctx, ".ui-segmented button:focus-visible {"),
+                (115, Add, "  z-index: 1;"),
+                (116, Ctx, "  box-shadow: var(--sys-focus-ring);"),
+            ],
+        ),
+    ]
 }

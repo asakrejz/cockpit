@@ -1,9 +1,9 @@
 use super::*;
-use crate::review::{AgentComment, DiffSide, Origin};
+use crate::review::{AgentComment, DiffSide};
 
 /// The key of the review run of pull request #91 in the sample repo.
 fn key() -> String {
-    format!("prreview-{}", PrKey::new(crate::DEMO_REPO, 91).slug())
+    format!("prreview-{}", PrKey::new(crate::demo::DEMO_REPO, 91).slug())
 }
 
 /// `(file, line number of an added line, line number of a removed line)` of the first review with both.
@@ -80,7 +80,7 @@ fn only_the_user_starts_a_review_run_and_it_is_a_read_only_job() {
         1,
     );
     let run = w.runs.iter().find(|r| r.key() == key()).unwrap();
-    assert!(run.is_running() && run.kind.runs_in_container());
+    assert!(run.is_running());
     assert!(!run.options.plan_first, "your click is the approval");
     // Works on any branch, not only `claude/…`.
     assert!(!run.branch().is_empty());
@@ -122,11 +122,7 @@ fn drafts_are_checked_against_the_diff_and_wait_for_a_decision() {
     let r = w.review(91).unwrap();
     assert!(r.agent_reviewed);
     assert_eq!(r.agent_summary, "Insgesamt gut.");
-    let d = r
-        .suggestions
-        .iter()
-        .find(|s| s.origin == Origin::Agent)
-        .unwrap();
+    let d = r.suggestions.first().unwrap();
     assert_eq!(
         (d.path.as_str(), d.line, d.decision),
         (file.as_str(), add, None)
@@ -220,12 +216,7 @@ fn approved_drafts_are_the_only_ones_that_go_out_with_code_and_verdict_comment()
     )
     .unwrap();
     let r = w.review(91).unwrap();
-    let ids: Vec<String> = r
-        .suggestions
-        .iter()
-        .filter(|s| s.origin == Origin::Agent)
-        .map(|s| s.id.clone())
-        .collect();
+    let ids: Vec<String> = r.suggestions.iter().map(|s| s.id.clone()).collect();
     let (first, second) = (ids[0].clone(), ids[1].clone());
     assert_eq!(r.verdict, crate::Verdict::Comment);
     ok(
@@ -271,7 +262,7 @@ fn a_suggestion_without_new_fields_still_loads() {
         r#"{"id":"s1","location":"a.css · Zeile 2","level":"Note","text":"alt"}"#,
     )
     .unwrap();
-    assert_eq!((s.path.as_str(), s.line, s.origin), ("", 0, Origin::Demo));
+    assert_eq!((s.path.as_str(), s.line), ("", 0));
     // And the new fields stay out of the saved form while they are unused.
     assert!(!serde_json::to_string(&s).unwrap().contains("side"));
     let _ = AgentComment {

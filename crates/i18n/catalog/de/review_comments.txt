@@ -1,5 +1,1 @@
 review_comments.title = Review-Kommentare umsetzen
-review_comments.intro = Der Agent setzt die gewählten Kommentare um und pusht auf denselben Branch. Es gibt keinen neuen Pull Request.
-review_comments.toggle = Kommentar {id} umsetzen
-review_comments.start.one = Agent: {n} Kommentar umsetzen
-review_comments.start.other = Agent: {n} Kommentare umsetzen

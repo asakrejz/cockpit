@@ -1,7 +1,7 @@
 //! An agent implements a ticket: read, branch, changes, tests, pull request.
 //!
-//! The run is a small state machine. Whoever drives it – in the demo a
-//! timer, later a backend – only calls [`AgentRun::advance`].
+//! The run is a small state machine. The container of the real agent drives it: what it reports
+//! ([`AgentReport`]) is applied by [`AgentRun::report`].
 //!
 //! On request the agent first presents a [`Plan`] and waits for approval
 //! ([`RunState::AwaitingApproval`]). Until then nothing comes into being: no branch, no change.
@@ -10,10 +10,9 @@
 //! the user can send it hints ([`AgentRun::steer`]) and pause it
 //! ([`RunState::Paused`]). Everything said is in the conversation history ([`AgentRun::messages`]).
 //!
-//! Besides the run „implement ticket“ there are two follow-up jobs ([`RunKind`]): implementing review comments
-//! (new commit on the same branch, no new pull request) and investigating a red check.
-//! The investigation stops after the [`Diagnosis`] ([`RunState::AwaitingFix`]) and
-//! does nothing before you adopt the fix.
+//! Besides the run „implement ticket“ there are follow-up jobs ([`RunKind`]): implementing review
+//! comments and fixing red checks (new commits on the same branch, no new pull request) and
+//! reading a pull request to prepare review comments.
 //!
 //! Every step has a consumption ([`AgentRun::step_usage`]). If a run reaches a limit
 //! ([`AgentLimits`]), it stops ([`RunState::Stopped`]) and waits for you to raise the limit
@@ -23,10 +22,8 @@
 use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};
 
-use crate::diagnosis::Diagnosis;
 use crate::model::PrKey;
 use crate::rules::{PathViolation, RepoRules};
-use crate::text::slug;
 use crate::usage::{AgentLimits, StopReason, Usage};
 
 mod options;
@@ -40,9 +37,6 @@ pub use types::*;
 
 /// Number of steps of a run.
 pub const STEPS: usize = 5;
-
-/// After this many completed steps the investigation presents the diagnosis.
-const DIAGNOSED_AT: usize = 3;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct AgentRun {
@@ -84,15 +78,12 @@ pub struct AgentRun {
     /// Hints the agent takes into account in the next step.
     #[serde(default)]
     pub pending_hints: Vec<String>,
-    /// What the run does. Old states know only „implement ticket“.
+    /// What the run does.
     #[serde(default)]
     pub kind: RunKind,
     /// Branch of the pull request a follow-up job pushes to. Empty for „implement ticket“.
     #[serde(default)]
     pub target_branch: String,
-    /// The diagnosis of an investigation, once it is available.
-    #[serde(default)]
-    pub diagnosis: Option<Diagnosis>,
     /// The repo (`owner/name`) the run works in: where it clones and pushes, and the key of
     /// the rules. Empty in old states (then the only configured repo applies).
     #[serde(default)]
@@ -113,9 +104,6 @@ pub struct AgentRun {
     /// Additionally allowed minutes of this run on resume.
     #[serde(default)]
     pub extra_minutes: u64,
-    /// The run belongs to the real agent (container); the simulated tick does not touch it.
-    #[serde(default)]
-    pub real: bool,
     /// The plan from the container. As long as it is missing, the agent is still working on it.
     #[serde(default)]
     pub agent_plan: Option<AgentPlan>,
@@ -153,14 +141,12 @@ impl AgentRun {
             pending_hints: Vec::new(),
             kind: RunKind::Implement,
             target_branch: String::new(),
-            diagnosis: None,
             repo: String::new(),
             repos: Vec::new(),
             rules: RepoRules::default(),
             step_usage: Vec::new(),
             extra_budget_cents: 0,
             extra_minutes: 0,
-            real: false,
             agent_plan: None,
             ended: None,
             summary: String::new(),
@@ -183,14 +169,10 @@ impl AgentRun {
     }
 
     /// The key of the run under which pages, actions and log find it:
-    /// for „implement ticket“ the ticket key, otherwise `review-91` or `check-85-lint`.
+    /// for „implement ticket“ the ticket key, otherwise `threads-91`, `fixes-85` or `prreview-91`.
     pub fn key(&self) -> String {
         match &self.kind {
             RunKind::Implement => self.ticket_key.clone(),
-            RunKind::AddressReview { review, .. } => format!("review-{}", review.slug()),
-            RunKind::Diagnose { review, check } => {
-                format!("check-{}-{}", review.slug(), slug(check, 24))
-            }
             RunKind::Followup { review, task } => match task {
                 FollowupTask::ReviewThreads => format!("threads-{}", review.slug()),
                 FollowupTask::FailedChecks { .. } => format!("fixes-{}", review.slug()),
@@ -209,14 +191,6 @@ impl AgentRun {
     pub fn label_msg(&self) -> Msg {
         match &self.kind {
             RunKind::Implement => Msg::raw(self.ticket_key.clone()),
-            RunKind::AddressReview { review, .. } => {
-                msg!(CoreAgentLabelAddress, review = review.to_string())
-            }
-            RunKind::Diagnose { review, check } => msg!(
-                CoreAgentLabelDiagnose,
-                check = check,
-                review = review.to_string()
-            ),
             RunKind::Followup { review, task } => match task {
                 FollowupTask::ReviewThreads => {
                     msg!(CoreAgentLabelThreads, review = review.to_string())
@@ -334,28 +308,17 @@ impl AgentRun {
             || self.is_running()
             || self.is_asking()
             || self.is_paused()
-            || self.is_diagnosed()
             || self.is_stopped()
     }
 
-    /// The agent works on the steps (running, asking, paused, stopped or waiting
-    /// for the decision about its fix).
+    /// The agent works on the steps (running, asking, paused or stopped).
     fn is_working(&self) -> bool {
-        self.is_running()
-            || self.is_asking()
-            || self.is_paused()
-            || self.is_diagnosed()
-            || self.is_stopped()
+        self.is_running() || self.is_asking() || self.is_paused() || self.is_stopped()
     }
 
-    /// The diagnosis is ready; the agent waits for „Fix übernehmen“ or „Verwerfen“.
-    pub fn is_diagnosed(&self) -> bool {
-        self.state == RunState::AwaitingFix
-    }
-
-    /// Is the run waiting for a decision from you (plan, answer or fix)?
+    /// Is the run waiting for a decision from you (plan or answer)?
     pub fn is_waiting_for_you(&self) -> bool {
-        self.is_awaiting() || self.is_asking() || self.is_diagnosed()
+        self.is_awaiting() || self.is_asking()
     }
 
     /// The run currently consumes resources: it works or waits in the middle of a step for an
@@ -373,9 +336,8 @@ impl AgentRun {
         sum
     }
 
-    /// Enters the consumption of the step the agent is currently working on. In the demo
-    /// the tick does this; the real agent reports the values from the run here. Several reports for
-    /// the same step add up.
+    /// Enters the consumption of the step the agent is currently working on (the values the
+    /// container reports). Several reports for the same step add up.
     pub fn record_usage(&mut self, usage: Usage) {
         while self.step_usage.len() <= self.completed {
             self.step_usage.push(Usage::default());

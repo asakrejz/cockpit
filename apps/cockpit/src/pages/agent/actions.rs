@@ -102,16 +102,4 @@ impl AgentCtx {
             self.store.open_item(&item.id);
         }
     }
-
-    pub(super) fn apply_fix(self) {
-        let _ = self.store.dispatch(Action::ApplyFix {
-            run: self.key.get_value(),
-        });
-    }
-
-    pub(super) fn discard_fix(self) {
-        let _ = self.store.dispatch(Action::DiscardFix {
-            run: self.key.get_value(),
-        });
-    }
 }

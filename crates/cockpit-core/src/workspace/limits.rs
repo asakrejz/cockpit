@@ -85,16 +85,11 @@ impl Workspace {
 
     // ---------- Rules per repo ----------
 
-    /// The repo in which a ticket is implemented. Today there is only the demo repo.
-    pub fn repo_of(&self, _ticket_key: &str) -> &'static str {
-        DEMO_REPO
-    }
-
-    /// The repos known from the data, for the choice of rules: the sample repo, those with
-    /// rules, and every repo that reviews, entries and runs name. (Rules can be set for any repo
+    /// The repos known from the data, for the choice of rules: those with rules, and every repo
+    /// that reviews, entries and runs name. (Rules can be set for any repo
     /// of the form `owner/name`; the interface adds the configured ones.)
     pub fn repos(&self) -> Vec<String> {
-        let mut repos = vec![DEMO_REPO.to_string()];
+        let mut repos: Vec<String> = Vec::new();
         let known = self
             .repo_rules
             .keys()
@@ -140,16 +135,5 @@ impl Workspace {
     /// Paused agents.
     pub fn paused_agents(&self) -> usize {
         self.runs.iter().filter(|r| r.is_paused()).count()
-    }
-
-    /// Number the next pull request gets.
-    pub fn next_pr_number(&self) -> u32 {
-        let reviews = self.reviews.iter().map(|r| r.number);
-        let items = self
-            .items
-            .iter()
-            .filter_map(|i| i.pr.as_ref().map(|p| p.number));
-        let runs = self.runs.iter().filter_map(|r| r.pr_number);
-        reviews.chain(items).chain(runs).max().unwrap_or(0) + 1
     }
 }
