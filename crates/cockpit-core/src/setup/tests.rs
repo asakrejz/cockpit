@@ -409,7 +409,11 @@ fn jira_line_names_the_kind_of_login() {
     s.jira = oauth(true);
     let z = &summary(&s)[2];
     assert_eq!(z.tone, Tone::Good);
-    assert!(z.text.de().contains("mit OAuth"), "{}", z.text.de());
+    assert!(
+        z.text.de().contains("über Atlassian angemeldet"),
+        "{}",
+        z.text.de()
+    );
 }
 
 #[test]
@@ -631,6 +635,40 @@ fn the_repo_search_needs_every_word_and_ignores_case() {
     assert!(repo_matches("Firma/Web-Shop", "web"));
     assert!(repo_matches("Firma/Web-Shop", "firma SHOP"));
     assert!(!repo_matches("Firma/Web-Shop", "firma api"));
+}
+
+#[test]
+fn a_repo_page_keeps_the_order_and_says_what_it_left_out() {
+    let repos: Vec<String> = (0..REPOS_SHOWN + 20)
+        .map(|i| format!("acme/app-{i:03}"))
+        .chain(["acme/web".to_string()])
+        .collect();
+    let page = |q: &str| repo_page(&repos, |r| r.as_str(), q);
+
+    // No search: the first ones in the given order, and the rest is counted.
+    let all = page("");
+    assert_eq!(all.shown.len(), REPOS_SHOWN);
+    assert_eq!(all.shown[0], "acme/app-000");
+    assert_eq!(all.matching, REPOS_SHOWN + 21);
+    assert!(all.too_many());
+
+    // The search runs over every entry, not only over the drawn ones.
+    let late = page("WEB");
+    assert_eq!(
+        (late.shown.as_slice(), late.matching),
+        (&repos[REPOS_SHOWN + 20..], 1)
+    );
+    assert!(!late.too_many());
+    assert_eq!(page("acme app-11").matching, 10);
+
+    // Exactly the limit is not "too many"; nothing found is an empty page.
+    let exact = repo_page(&repos[..REPOS_SHOWN], |r| r.as_str(), "");
+    assert_eq!((exact.shown.len(), exact.too_many()), (REPOS_SHOWN, false));
+    let none = page("nirgends");
+    assert_eq!(
+        (none.shown.len(), none.matching, none.too_many()),
+        (0, 0, false)
+    );
 }
 
 #[test]

@@ -4,7 +4,7 @@
 //! * [`attention`]: rules why an entry needs attention, and snoozing
 //! * [`review`]: diff, suggestions of the agent, approval and verdict
 //! * [`agent`]: the run of an agent as a state machine
-//! * [`connections`]: connections, permissions and input validation
+//! * [`connections`]: the sign-in state of Jira and GitHub
 //! * [`setup`]: steps, inputs and summary of the setup assistant
 //! * [`link`]: link ticket and pull request via the ticket key
 //! * [`search`]: search and filter of the inbox
@@ -68,7 +68,7 @@ pub use agent::{
     judge, repo_dir,
 };
 pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
-pub use connections::{AuthChoice, AuthKind, Connections, OAuthTokens, ServiceStatus};
+pub use connections::{AuthChoice, AuthKind, OAuthTokens, ServiceStatus};
 pub use details::{Attachment, DetailField, DetailValue, Details};
 pub use filters::{
     ASSIGNED_TO_ME, ActiveFilter, Applies, Choices, FILTERS, FilterDef, JIRA_PROJECT_FILTER,

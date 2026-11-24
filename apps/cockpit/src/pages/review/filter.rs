@@ -7,7 +7,6 @@ use cockpit_core::{Action, ActionError, Applied, Ownership, ReviewFilter};
 use feature_ui::*;
 use leptos::prelude::*;
 
-use crate::pages::inbox::picker::SearchBox;
 use crate::store::Store;
 
 /// With more repos than this the dialog shows a search field.
@@ -118,7 +117,7 @@ pub(super) fn filter_dialog(store: Store, open: RwSignal<bool>) -> impl IntoView
                 <h2 class="t-headline ck-dialog__heading">{t!(ReviewFilterRepos)}</h2>
                 <p class="t-footnote t-secondary">{t!(ReviewFilterAllHint)}</p>
                 <Show when=move || { total_repos() > SEARCH_FROM || !query.with(String::is_empty) }>
-                    <SearchBox value=query placeholder=t!(ReviewFilterSearch) />
+                    <SearchField value=query placeholder=t!(ReviewFilterSearch) />
                 </Show>
                 <div class="ck-filter-groups">
                     {move || {

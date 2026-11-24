@@ -19,7 +19,7 @@ pub fn use_github_access() -> (RwSignal<Option<GitHubAccess>>, Callback<()>) {
     let store = use_store();
     let access = RwSignal::new(None::<GitHubAccess>);
     let load = Callback::new(move |()| {
-        if !store.conn.with_untracked(|c| c.github) {
+        if !untrack(|| store.github_connected()) {
             access.set(None);
             return;
         }
@@ -30,7 +30,7 @@ pub fn use_github_access() -> (RwSignal<Option<GitHubAccess>>, Callback<()>) {
     // The connection state arrives a moment after the page: ask again when GitHub turns up as
     // connected (or goes away).
     Effect::new(move |_| {
-        let _ = store.conn.with(|c| c.github);
+        let _ = store.github_connected();
         load.run(());
     });
     (access, load)

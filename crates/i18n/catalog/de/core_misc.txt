@@ -16,7 +16,4 @@ core_misc.stuck_agent_done = Der Agent ist fertig und wartet auf dein Review von
 core_misc.stuck_review = {name} wartet auf dein Review von {pr}.
 core_misc.stuck_no_branch_me = Das Ticket ist in Arbeit, hat aber noch keinen Branch. Lege einen an.
 core_misc.stuck_no_branch_other = Das Ticket ist in Arbeit, hat aber noch keinen Branch. {name} muss einen anlegen.
-core_misc.auth_none = Getrennt
-core_misc.auth_token = Token
-core_misc.auth_oauth = OAuth
 core_misc.agent_not_connected = Der Agent ist nicht verbunden.

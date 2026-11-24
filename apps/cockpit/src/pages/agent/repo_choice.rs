@@ -7,10 +7,7 @@ use feature_ui::*;
 use leptos::prelude::*;
 
 use super::context::AgentCtx;
-use crate::pages::setup::static_text;
-
-/// At most this many lines are drawn; the search narrows the rest down.
-const SHOWN: usize = 100;
+use crate::repo_list::{RepoEntry, RepoList, RepoSearch};
 
 /// The short sentence for a reason.
 fn reason_text(reason: &SuggestReason) -> String {
@@ -38,7 +35,6 @@ pub(super) fn repo_choice(ctx: AgentCtx) -> impl IntoView {
     let repo = ctx.form.repo;
     let others = ctx.form.others;
     let agent_repos = ctx.form.agent_repos;
-    let query = RwSignal::new(String::new());
 
     let all = Memo::new(move |_| {
         repo_list.with(|l| {
@@ -55,18 +51,26 @@ pub(super) fn repo_choice(ctx: AgentCtx) -> impl IntoView {
         }
         list
     });
-    let rows = Memo::new(move |_| {
-        let q = query.get();
-        suggestions.with(|s| known.with(|k| picker_rows(s, k, &q, SHOWN + 1)))
+    // The suggestions first, with their reason; the search and the limit are those of every repo list.
+    let entries = Memo::new(move |_| {
+        suggestions.with(|s| {
+            known.with(|k| {
+                picker_rows(s, k)
+                    .into_iter()
+                    .map(|row| RepoEntry {
+                        repo: row.repo,
+                        detail: row.reason.as_ref().map(reason_text).unwrap_or_default(),
+                    })
+                    .collect::<Vec<_>>()
+            })
+        })
     });
-    let too_many = Memo::new(move |_| rows.with(Vec::len) > SHOWN);
-    let visible =
-        Memo::new(move |_| rows.with(|r| r.iter().take(SHOWN).cloned().collect::<Vec<_>>()));
+    let search = RepoSearch::new(entries);
     // A name typed in the search that is a valid repo but not in the list.
     let typed = Memo::new(move |_| {
-        let q = query.get().trim().to_string();
+        let q = search.query().trim().to_string();
         (repo_name_valid(&q)
-            && !rows.with(|r| r.iter().any(|row| row.repo.eq_ignore_ascii_case(&q))))
+            && !entries.with(|e| e.iter().any(|row| row.repo.eq_ignore_ascii_case(&q))))
         .then_some(q)
     });
     // All chosen repos, the first one is the primary one.
@@ -132,57 +136,29 @@ pub(super) fn repo_choice(ctx: AgentCtx) -> impl IntoView {
                 </Show>
             </Show>
             <Show when=move || !locked.get()>
-                <SearchField value=query placeholder=static_text(t!(AgentJobRepoSearch)) />
-                <Show when=move || repo_loading.get()>
-                    <p class="t-footnote t-secondary" role="status">{t!(AgentJobRepoLoading)}</p>
-                </Show>
-                {move || {
-                    repo_list_error
-                        .get()
-                        .map(|e| {
-                            view! {
-                                <p class="t-footnote t-secondary" role="status">
-                                    {t!(AgentJobRepoNotLoaded, error = e)}
-                                </p>
-                            }
-                        })
-                }}
-                <ul class="ck-repo-list" aria-label=move || t!(AgentJobRepoListLabel)>
-                    <For each=move || visible.get() key=|r| r.repo.clone() let:row>
-                        {
-                            let name = row.repo.clone();
-                            let chosen = {
-                                let name = name.clone();
-                                move || selected.with(|s| s.contains(&name))
-                            };
-                            let on_pick = {
-                                let name = name.clone();
-                                move |_| pick(name.clone())
-                            };
-                            view! {
-                                <li>
-                                    <label class="ck-repo-item">
-                                        <input
-                                            type="checkbox"
-                                            name="agent-repo"
-                                            prop:checked=chosen
-                                            on:change=on_pick
-                                        />
-                                        <span class="ck-repo-name">{name}</span>
-                                        <span class="t-footnote t-secondary">
-                                            {row.reason.as_ref().map(reason_text)}
-                                        </span>
-                                    </label>
-                                </li>
-                            }
-                        }
-                    </For>
-                </ul>
-                <Show when=move || too_many.get()>
-                    <p class="t-footnote t-secondary">{move || t!(AgentJobRepoTooMany, max = SHOWN)}</p>
-                </Show>
+                <RepoList
+                    search=search
+                    label=Signal::derive(move || t!(AgentJobRepoListLabel))
+                    selected=selected
+                    on_toggle=Callback::new(pick)
+                >
+                    <Show when=move || repo_loading.get()>
+                        <p class="t-footnote t-secondary" role="status">{t!(AgentJobRepoLoading)}</p>
+                    </Show>
+                    {move || {
+                        repo_list_error
+                            .get()
+                            .map(|e| {
+                                view! {
+                                    <p class="t-footnote t-secondary" role="status">
+                                        {t!(AgentJobRepoNotLoaded, error = e)}
+                                    </p>
+                                }
+                            })
+                    }}
+                </RepoList>
                 <Show when=move || {
-                    !repo_loading.get() && rows.with(Vec::is_empty) && typed.get().is_none()
+                    !repo_loading.get() && search.matching() == 0 && typed.get().is_none()
                 }>
                     <p class="t-footnote t-secondary">{t!(AgentJobRepoNoneFound)}</p>
                 </Show>

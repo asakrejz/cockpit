@@ -152,29 +152,23 @@ pub struct PickerRow {
     pub reason: Option<SuggestReason>,
 }
 
-/// The lines of the picker: the suggestions first (in their order), then every other repo of
-/// `all` alphabetically; `query` narrows both (every word has to occur in `owner/name`). At
-/// most `max` lines; `all` may be empty (GitHub could not be asked), then only the suggestions
-/// show.
+/// The lines of the picker in the order they are shown: the suggestions first (in their order),
+/// then every other repo of `all` alphabetically. `all` may be empty (GitHub could not be asked),
+/// then only the suggestions show. The search and the limit of what is drawn are those of every
+/// repo list (`setup::repo_page`).
 ///
 /// ```
 /// use cockpit_core::repos::suggest::{picker_rows, RepoSuggestion, SuggestReason};
 /// let s = vec![RepoSuggestion { repo: "acme/web".into(), reason: SuggestReason::LinkedPr }];
 /// let all = vec!["acme/api".to_string(), "acme/web".to_string()];
-/// let rows = picker_rows(&s, &all, "", 10);
+/// let rows = picker_rows(&s, &all);
 /// let names: Vec<_> = rows.iter().map(|r| r.repo.as_str()).collect();
 /// assert_eq!(names, ["acme/web", "acme/api"]);
 /// assert_eq!(rows[0].reason, Some(SuggestReason::LinkedPr));
 /// ```
-pub fn picker_rows(
-    suggestions: &[RepoSuggestion],
-    all: &[String],
-    query: &str,
-    max: usize,
-) -> Vec<PickerRow> {
+pub fn picker_rows(suggestions: &[RepoSuggestion], all: &[String]) -> Vec<PickerRow> {
     let mut rows: Vec<PickerRow> = suggestions
         .iter()
-        .filter(|s| crate::setup::repo_matches(&s.repo, query))
         .map(|s| PickerRow {
             repo: s.repo.clone(),
             reason: Some(s.reason.clone()),
@@ -182,7 +176,6 @@ pub fn picker_rows(
         .collect();
     let mut rest: Vec<&String> = all
         .iter()
-        .filter(|r| crate::setup::repo_matches(r, query))
         .filter(|r| !rows.iter().any(|row| row.repo.eq_ignore_ascii_case(r)))
         .collect();
     rest.sort_by_key(|r| r.to_lowercase());
@@ -190,7 +183,6 @@ pub fn picker_rows(
         repo: r.clone(),
         reason: None,
     }));
-    rows.truncate(max);
     rows
 }
 

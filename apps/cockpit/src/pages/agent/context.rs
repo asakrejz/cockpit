@@ -227,7 +227,7 @@ impl AgentCtx {
             Signal::derive(move || rules.get().plan_required || !violations.get().is_empty());
         let done = Signal::derive(move || run.get().is_some_and(|r| r.is_done()));
         let locked = Signal::derive(move || !idle.get());
-        let blocked = Signal::derive(move || store.conn.get().agent_blocked());
+        let blocked = Signal::derive(move || store.agent_blocked());
 
         // Before the start: ask once for the repos GitHub shows and the suggestions for this
         // ticket (the server keeps the list for a few minutes).

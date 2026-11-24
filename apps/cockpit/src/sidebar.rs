@@ -176,12 +176,12 @@ fn agent_summary(store: Store) -> String {
 #[component]
 pub fn ConnectionItem(
     #[prop(into)] label: String,
-    on: fn(&cockpit_core::Connections) -> bool,
+    on: fn(&Store) -> bool,
     /// What the green state says ("Connected", "Ready").
     text: Key,
 ) -> impl IntoView {
     let store = use_store();
-    let connected = Signal::derive(move || on(&store.conn.get()));
+    let connected = Signal::derive(move || on(&store));
     let status = view! {
         <Status tone=Signal::derive(move || {
             if connected.get() { StatusTone::Green } else { StatusTone::Gray }
@@ -194,9 +194,9 @@ pub fn ConnectionItem(
 #[component]
 pub fn Connections() -> impl IntoView {
     view! {
-        <ConnectionItem label="Jira" on=|c| c.jira text=Key::NavConnected />
-        <ConnectionItem label="GitHub" on=|c| c.github text=Key::NavConnected />
-        <ConnectionItem label=t!(NavAgent) on=|c| c.agent text=Key::NavReady />
+        <ConnectionItem label="Jira" on=Store::jira_connected text=Key::NavConnected />
+        <ConnectionItem label="GitHub" on=Store::github_connected text=Key::NavConnected />
+        <ConnectionItem label=t!(NavAgent) on=Store::agent_ready text=Key::NavReady />
     }
 }
 

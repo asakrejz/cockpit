@@ -14,6 +14,16 @@ pub fn tone(tone: Tone) -> StatusTone {
     }
 }
 
+/// The color of a row in the setup summary.
+pub fn setup_tone(tone: cockpit_core::setup::Tone) -> StatusTone {
+    use cockpit_core::setup::Tone;
+    match tone {
+        Tone::Good => StatusTone::Green,
+        Tone::Open => StatusTone::Gray,
+        Tone::Problem => StatusTone::Red,
+    }
+}
+
 pub fn reason_icon(reason: ReasonKind) -> &'static str {
     match reason {
         ReasonKind::Comment | ReasonKind::Mention => icons::COMMENT,

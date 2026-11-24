@@ -1,18 +1,15 @@
 //! Watched repos (optional): Cockpit finds the pull requests you are involved in across every repo
 //! you can see. Repos picked here are loaded completely – all their open pull requests.
 
-use cockpit_core::api::{ConfigChange, GitHubInput, GitHubRepoInfo, GitHubRepoList};
-use cockpit_core::setup::{repo_matches, repo_summary, repos_read};
+use cockpit_core::api::{ConfigChange, GitHubInput, GitHubRepoList};
+use cockpit_core::setup::{repo_summary, repos_read};
 use feature_ui::*;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 
 use super::fields::{Context, Feedback, Message, config_save, error_text};
-use super::repo_picker::static_text;
+use crate::repo_list::{RepoEntry, RepoList, RepoSearch};
 use crate::server;
-
-/// At most this many entries are drawn; the search narrows the rest down.
-const SHOWN: usize = 100;
 
 #[component]
 pub fn WatchedRepos(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
@@ -30,7 +27,6 @@ pub fn WatchedRepos(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
     let list: RwSignal<Option<GitHubRepoList>> = RwSignal::new(None);
     let loading = RwSignal::new(false);
     let list_error: Feedback = RwSignal::new(None);
-    let query = RwSignal::new(String::new());
     let load = move || {
         loading.set(true);
         list_error.set(None);
@@ -57,32 +53,27 @@ pub fn WatchedRepos(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
         }
     });
 
-    let toggle = move |info: GitHubRepoInfo| {
+    let toggle = move |name: String| {
         chosen.update(|c| {
-            if let Some(i) = c.iter().position(|r| *r == info.repo) {
+            if let Some(i) = c.iter().position(|r| *r == name) {
                 c.remove(i);
             } else {
-                c.push(info.repo);
+                c.push(name);
             }
         });
     };
-    let filtered = Memo::new(move |_| {
-        let q = query.get();
+    let search = RepoSearch::new(Memo::new(move |_| {
         list.with(|l| {
             l.as_ref()
                 .map(|l| {
                     l.repos
                         .iter()
-                        .filter(|r| repo_matches(&r.repo, &q))
-                        .cloned()
+                        .map(|r| RepoEntry::from_github(r, false))
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default()
         })
-    });
-    let visible =
-        Memo::new(move |_| filtered.with(|f| f.iter().take(SHOWN).cloned().collect::<Vec<_>>()));
-    let too_many = Memo::new(move |_| filtered.with(Vec::len) > SHOWN);
+    }));
 
     let manual = RwSignal::new(String::new());
     let manual_feedback: Feedback = RwSignal::new(None);
@@ -127,61 +118,37 @@ pub fn WatchedRepos(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
     view! {
         <VStack spacing="12px">
             <p class="t-subheadline t-secondary">{t!(SetupReposWatchIntro)}</p>
-            <SearchField value=query placeholder=static_text(t!(SetupReposSearch)) />
-            <HStack spacing="12px">
-                <Button on_click=move |_| load() disabled=Signal::derive(move || loading.get())>
-                    {move || {
-                        if loading.get() {
-                            t!(SetupReposLoading)
-                        } else if list.with(Option::is_some) {
-                            t!(SetupReposReload)
-                        } else {
-                            t!(SetupReposLoad)
-                        }
-                    }}
-                </Button>
-            </HStack>
-            <Message feedback=list_error />
-            {move || {
-                list.with(|l| l.as_ref().map(|l| (l.repos.len(), l.truncated)))
-                    .map(|(found, truncated)| {
-                        view! {
-                            <p class="t-footnote t-secondary" role="status">
-                                {repo_summary(found, filtered.with(Vec::len), chosen.with(Vec::len), truncated).render(lang())}
-                            </p>
-                        }
-                    })
-            }}
-            <ul class="ck-repo-list" aria-label=move || t!(SetupReposListLabel)>
-                <For each=move || visible.get() key=|r| r.repo.clone() let:info>
-                    {
-                        let name = info.repo.clone();
-                        let pick = info.clone();
-                        view! {
-                            <li>
-                                <label class="ck-repo-item">
-                                    <input
-                                        type="checkbox"
-                                        prop:checked={
-                                            let name = name.clone();
-                                            move || chosen.with(|c| c.contains(&name))
-                                        }
-                                        on:change=move |_| toggle(pick.clone())
-                                    />
-                                    <span class="ck-repo-name">{name.clone()}</span>
-                                    <span class="t-footnote t-secondary">
-                                        {if info.private { t!(SetupReposPrivate) } else { t!(SetupReposPublic) }}
-                                        {info.archived.then(|| format!(" · {}", t!(SetupReposArchived)))}
-                                    </span>
-                                </label>
-                            </li>
-                        }
-                    }
-                </For>
-            </ul>
-            <Show when=move || too_many.get()>
-                <p class="t-footnote t-secondary">{move || t!(SetupReposTooMany, max = SHOWN)}</p>
-            </Show>
+            <RepoList
+                search=search
+                label=Signal::derive(move || t!(SetupReposListLabel))
+                selected=chosen
+                on_toggle=Callback::new(toggle)
+            >
+                <HStack spacing="12px">
+                    <Button on_click=move |_| load() disabled=Signal::derive(move || loading.get())>
+                        {move || {
+                            if loading.get() {
+                                t!(SetupReposLoading)
+                            } else if list.with(Option::is_some) {
+                                t!(SetupReposReload)
+                            } else {
+                                t!(SetupReposLoad)
+                            }
+                        }}
+                    </Button>
+                </HStack>
+                <Message feedback=list_error />
+                {move || {
+                    list.with(|l| l.as_ref().map(|l| (l.repos.len(), l.truncated)))
+                        .map(|(found, truncated)| {
+                            view! {
+                                <p class="t-footnote t-secondary" role="status">
+                                    {repo_summary(found, search.matching(), chosen.with(Vec::len), truncated).render(lang())}
+                                </p>
+                            }
+                        })
+                }}
+            </RepoList>
             <TextField
                 label=t!(SetupReposManualLabel)
                 value=manual

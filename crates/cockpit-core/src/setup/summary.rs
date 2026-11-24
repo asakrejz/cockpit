@@ -83,21 +83,21 @@ pub(super) fn service_line(
     secret: bool,
     token_way: Option<Msg>,
 ) -> Line {
-    let (tone, text) = match (status.connected, status.kind) {
-        // The sign-in ran out and no token takes over: say why, not "not set up".
-        (false, _) if status.expired => (Tone::Problem, msg!(CoreSetupExpired)),
-        (true, AuthKind::OAuth) => (Tone::Good, msg!(CoreSetupConnectedOauth, name = provider)),
-        (true, _) => (Tone::Good, msg!(CoreSetupConnectedToken)),
-        (false, _) if !client_id && !secret => (
-            Tone::Open,
-            match token_way {
-                Some(hint) => msg!(CoreSetupNotSetUpHint, hint = hint),
-                None => msg!(CoreSetupNotSetUp),
-            },
-        ),
-        (false, _) if !client_id => (Tone::Problem, msg!(CoreSetupClientIdMissing)),
-        (false, _) if !secret => (Tone::Problem, msg!(CoreSetupSecretMissing)),
-        (false, _) => (Tone::Open, msg!(CoreSetupAlmostDone, name = provider)),
+    let (tone, text) = if status.is_settled() {
+        status.summary(provider)
+    } else {
+        match (client_id, secret) {
+            (false, false) => (
+                Tone::Open,
+                match token_way {
+                    Some(hint) => msg!(CoreSetupNotSetUpHint, hint = hint),
+                    None => msg!(CoreSetupNotSetUp),
+                },
+            ),
+            (false, true) => (Tone::Problem, msg!(CoreSetupClientIdMissing)),
+            (true, false) => (Tone::Problem, msg!(CoreSetupSecretMissing)),
+            (true, true) => (Tone::Open, msg!(CoreSetupAlmostDone, name = provider)),
+        }
     };
     Line {
         name,
@@ -112,43 +112,39 @@ pub(super) fn jira_line(s: &Snapshot) -> Line {
     let e = &s.setup;
     let client_id = e.atlassian_client_id.is_some();
     let secret = e.has_key("atlassian-oauth");
-    let (tone, text) = match (s.jira.connected, s.jira.kind) {
-        (false, _) if s.jira.expired => (Tone::Problem, msg!(CoreSetupExpired)),
-        (true, AuthKind::OAuth) => (Tone::Good, msg!(CoreSetupJiraConnectedOauth)),
-        (true, _) => (Tone::Good, msg!(CoreSetupConnectedToken)),
-        // The way via the Atlassian app is started: say what is missing, as before.
-        (false, _) if client_id || secret => {
-            let z = service_line(
-                msg!(CoreSetupNameJira),
-                "Atlassian",
-                Step::Jira,
-                &s.jira,
-                client_id,
-                secret,
-                None,
-            );
-            (z.tone, z.text)
-        }
-        (false, _) => {
-            let missing: Vec<Msg> = [
-                (e.jira_site.is_empty(), msg!(CoreSetupMissingSite)),
-                (e.jira_email.is_empty(), msg!(CoreSetupMissingEmail)),
-                (!e.has_key("jira"), msg!(CoreSetupMissingToken)),
-            ]
-            .into_iter()
-            .filter_map(|(missing, what)| missing.then_some(what))
-            .collect();
-            if missing.len() == 3 {
-                (Tone::Open, msg!(CoreSetupJiraNotSetUp))
-            } else {
-                (
-                    Tone::Open,
-                    msg!(
-                        CoreSetupJiraTokenMissing,
-                        what = ArgValue::joined(missing, ", ")
-                    ),
-                )
-            }
+    let (tone, text) = if s.jira.is_settled() {
+        s.jira.summary("Atlassian")
+    } else if client_id || secret {
+        // The way via the Atlassian app is started: say what is missing.
+        let z = service_line(
+            msg!(CoreSetupNameJira),
+            "Atlassian",
+            Step::Jira,
+            &s.jira,
+            client_id,
+            secret,
+            None,
+        );
+        (z.tone, z.text)
+    } else {
+        let missing: Vec<Msg> = [
+            (e.jira_site.is_empty(), msg!(CoreSetupMissingSite)),
+            (e.jira_email.is_empty(), msg!(CoreSetupMissingEmail)),
+            (!e.has_key("jira"), msg!(CoreSetupMissingToken)),
+        ]
+        .into_iter()
+        .filter_map(|(missing, what)| missing.then_some(what))
+        .collect();
+        if missing.len() == 3 {
+            (Tone::Open, msg!(CoreSetupJiraNotSetUp))
+        } else {
+            (
+                Tone::Open,
+                msg!(
+                    CoreSetupJiraTokenMissing,
+                    what = ArgValue::joined(missing, ", ")
+                ),
+            )
         }
     };
     Line {

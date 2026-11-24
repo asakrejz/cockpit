@@ -10,6 +10,7 @@ use leptos::task::spawn_local;
 
 use crate::server::{self, CallError};
 use crate::store::use_store;
+use crate::view::setup_tone;
 
 /// Brand name (not translated).
 const ATLASSIAN: &str = "Atlassian";
@@ -81,18 +82,6 @@ pub async fn forget_client(service: Service) -> Result<(), CallError> {
     Ok(())
 }
 
-/// Text about the state of a connection.
-fn describe(status: &ServiceStatus) -> String {
-    match (status.connected, status.kind) {
-        (true, AuthKind::OAuth) => match &status.site {
-            Some(site) => t!(OauthConnectedSite, site = site),
-            None => t!(OauthConnected),
-        },
-        (true, kind) => t!(OauthConnectedKind, kind = kind.label().render(lang())),
-        (false, _) => t!(OauthDisconnected),
-    }
-}
-
 #[component]
 pub fn OAuthCard(
     service: Service,
@@ -155,7 +144,7 @@ pub fn OAuthCard(
             {
                 {
                     let s = status.get().unwrap_or_default();
-                    let tone = if s.connected { StatusTone::Green } else { StatusTone::Gray };
+                    let (tone, text) = s.summary(service.name());
                     let oauth = s.kind == AuthKind::OAuth;
                     let possible = s.oauth_possible;
                     let login_label = t!(OauthSignIn, service = service.name());
@@ -165,7 +154,7 @@ pub fn OAuthCard(
                             <CardBody css="gap: 12px">
                                 <HStack css="justify-content: space-between">
                                     <span class="t-headline">{t!(OauthSignInTo, service = service.name())}</span>
-                                    <Status tone=tone>{describe(&s)}</Status>
+                                    <Status tone=setup_tone(tone)>{text.render(lang())}</Status>
                                 </HStack>
                                 <HStack spacing="12px">
                                     {(!oauth)

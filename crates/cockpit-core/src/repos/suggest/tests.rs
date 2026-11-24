@@ -167,7 +167,7 @@ fn an_address_upgrades_an_earlier_bare_mention() {
 }
 
 #[test]
-fn the_picker_lists_suggestions_first_then_the_rest_and_the_search_narrows_both() {
+fn the_picker_lists_suggestions_first_then_the_rest_and_the_shared_search_narrows_both() {
     let s = vec![
         RepoSuggestion {
             repo: "acme/web".into(),
@@ -183,19 +183,17 @@ fn the_picker_lists_suggestions_first_then_the_rest_and_the_search_narrows_both(
         .map(|r| r.to_string())
         .collect();
     let names = |rows: &[PickerRow]| rows.iter().map(|r| r.repo.clone()).collect::<Vec<_>>();
-    let rows = picker_rows(&s, &all, "", 10);
+    let rows = picker_rows(&s, &all);
     assert_eq!(
         names(&rows),
         ["acme/web", "acme/shop", "acme/api", "acme/zed"]
     );
     assert!(rows[2].reason.is_none());
-    assert_eq!(names(&picker_rows(&s, &all, "sho", 10)), ["acme/shop"]);
-    assert_eq!(names(&picker_rows(&s, &all, "", 3)).len(), 3);
+    // The search of every repo list narrows suggestions and the rest alike.
+    let found = crate::setup::repo_page(&rows, |r| r.repo.as_str(), "sho");
+    assert_eq!(names(&found.shown), ["acme/shop"]);
     // Without the list from GitHub only the suggestions are there.
-    assert_eq!(
-        names(&picker_rows(&s, &[], "", 10)),
-        ["acme/web", "acme/shop"]
-    );
+    assert_eq!(names(&picker_rows(&s, &[])), ["acme/web", "acme/shop"]);
 }
 
 #[test]

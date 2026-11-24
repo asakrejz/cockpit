@@ -40,22 +40,23 @@ pub fn TextField(
     }
 }
 
-/// Search field with magnifier.
+/// Search field with magnifier. The placeholder is a text or a signal, so it can follow the
+/// language; it is also the label for screen readers.
 #[component]
 pub fn SearchField(
     value: RwSignal<String>,
-    #[prop(default = "Suchen")] placeholder: &'static str,
+    #[prop(into, default = Signal::stored("Suchen".to_string()))] placeholder: Signal<String>,
 ) -> impl IntoView {
     let id = next_id("search");
     view! {
         <div class="ui-search">
             <Icon path=icons::SEARCH size=17 stroke=2.2 />
-            <label class="ui-sr-only" for=id.clone()>{placeholder}</label>
+            <label class="ui-sr-only" for=id.clone()>{move || placeholder.get()}</label>
             <input
                 class="ui-field__input"
                 id=id
                 type="search"
-                placeholder=placeholder
+                placeholder=move || placeholder.get()
                 prop:value=move || value.get()
                 on:input=move |ev| value.set(event_target_value(&ev))
             />
