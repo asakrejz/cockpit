@@ -71,11 +71,6 @@ impl Usage {
             time = format_duration(self.millis)
         )
     }
-
-    /// [`Usage::line_msg`] in German.
-    pub fn line(&self) -> String {
-        self.line_msg().de()
-    }
 }
 
 /// Prices in euro cents per million tokens.
@@ -124,11 +119,6 @@ impl StopReason {
         }
     }
 
-    /// [`StopReason::label_msg`] in German.
-    pub fn label(self) -> String {
-        self.label_msg().de()
-    }
-
     /// What is raised on resume.
     pub fn raises_msg(self) -> Msg {
         match self {
@@ -136,11 +126,6 @@ impl StopReason {
             StopReason::MonthBudget => msg!(CoreUsageRaisesMonthBudget),
             StopReason::Time => msg!(CoreUsageRaisesTime),
         }
-    }
-
-    /// [`StopReason::raises_msg`] in German.
-    pub fn raises(self) -> String {
-        self.raises_msg().de()
     }
 
     /// Increases the UI offers: cents for budgets, minutes for the time limit.
@@ -157,11 +142,6 @@ impl StopReason {
             StopReason::Time => msg!(CoreUsageMinutes, n = extra),
             _ => Msg::raw(format_euro(extra)),
         }
-    }
-
-    /// [`StopReason::raise_label_msg`] in German.
-    pub fn raise_label(self, extra: u64) -> String {
-        self.raise_label_msg(extra).de()
     }
 }
 
@@ -264,11 +244,6 @@ impl AgentLimits {
         }
     }
 
-    /// [`AgentLimits::describe_msg`] in German.
-    pub fn describe(&self, reason: StopReason, run: &AgentRun, month_spent_cents: u64) -> String {
-        self.describe_msg(reason, run, month_spent_cents).de()
-    }
-
     /// Short sentence for the log.
     pub fn summary_msg(&self) -> Msg {
         let money = |v: Option<u64>| {
@@ -284,11 +259,6 @@ impl AgentLimits {
             ),
             parallel = self.max_parallel
         )
-    }
-
-    /// [`AgentLimits::summary_msg`] in German.
-    pub fn summary(&self) -> String {
-        self.summary_msg().de()
     }
 }
 

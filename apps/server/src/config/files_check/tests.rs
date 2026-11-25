@@ -153,9 +153,15 @@ fn loose_modes_are_reported_and_fixed_at_startup() {
 }
 
 #[test]
-fn status_names_the_folder_and_gives_the_warnings_in_both_forms() {
+fn status_names_the_folder_and_gives_the_warnings_as_messages() {
     let dir = tempfile::tempdir().unwrap();
     let st = status(dir.path());
     assert_eq!(st.path, dir.path().display().to_string());
-    assert_eq!(st.warnings.len(), st.warning_msgs.len());
+    assert_eq!(
+        st.warnings,
+        findings(dir.path())
+            .iter()
+            .map(Finding::msg)
+            .collect::<Vec<_>>()
+    );
 }

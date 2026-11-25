@@ -193,7 +193,7 @@ impl Workspace {
             Action::RemoveAgentRun { run } => {
                 let label = self.remove_run(&run).map_err(|active| {
                     if active {
-                        ActionError::RunStillActive(self.label_of(&run).de())
+                        ActionError::RunStillActive(self.label_of(&run))
                     } else {
                         ActionError::NothingToDo
                     }

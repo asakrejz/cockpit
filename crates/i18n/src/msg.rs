@@ -4,7 +4,7 @@
 //!
 //! The code is the id of a catalog key (`core.note.status_set`). A code that this build does not
 //! know (a newer server) renders as the code itself, never as a crash; a stored entry that also
-//! kept its plain text shows that text instead ([`Msg::render_or`]).
+//! holds a plain text shows that text instead ([`Msg::render_or`]).
 
 use serde::{Deserialize, Serialize};
 
@@ -47,6 +47,11 @@ impl ArgValue {
 impl From<Msg> for ArgValue {
     fn from(m: Msg) -> Self {
         ArgValue::Msg(m)
+    }
+}
+impl From<&Msg> for ArgValue {
+    fn from(m: &Msg) -> Self {
+        ArgValue::Msg(m.clone())
     }
 }
 impl From<String> for ArgValue {
@@ -116,7 +121,7 @@ impl Msg {
     }
 
     /// The text in `lang`; if the code is no longer in the catalog, `stored` – the plain text
-    /// that was saved next to the code.
+    /// that an entry of an earlier version saved next to the code.
     pub fn render_or(&self, lang: Lang, stored: &str) -> String {
         if self.is_known() {
             self.render(lang)
@@ -124,11 +129,38 @@ impl Msg {
             stored.to_string()
         }
     }
+}
 
-    /// The German text: what plain-text readers (old clients, searches) get next to the code.
-    pub fn de(&self) -> String {
-        self.render(Lang::De)
-    }
+/// A message or, in a state saved earlier, the plain text that stood in its place.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum MsgOrText {
+    Msg(Msg),
+    Text(String),
+}
+
+/// For a stored field that holds a [`Msg`] and used to hold plain text: reads both (`serde`'s
+/// `deserialize_with`). A plain text reads as [`Msg::raw`], the same in every language.
+pub fn msg_or_text<'de, D>(deserializer: D) -> Result<Msg, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(match MsgOrText::deserialize(deserializer)? {
+        MsgOrText::Msg(m) => m,
+        MsgOrText::Text(t) => Msg::raw(t),
+    })
+}
+
+/// Like [`msg_or_text`] for an optional field; an empty plain text reads as `None`.
+pub fn opt_msg_or_text<'de, D>(deserializer: D) -> Result<Option<Msg>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    Ok(match Option::<MsgOrText>::deserialize(deserializer)? {
+        Some(MsgOrText::Msg(m)) => Some(m),
+        Some(MsgOrText::Text(t)) if !t.is_empty() => Some(Msg::raw(t)),
+        _ => None,
+    })
 }
 
 /// `msg!(CoreNoteStatusSet, key = ticket, n = 3)` builds a [`Msg`]. Values can be text, numbers or

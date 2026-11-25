@@ -121,20 +121,14 @@ pub struct Request {
     pub body: Option<Value>,
 }
 
-/// Why an action cannot be mapped to the outside (German message).
+/// Why an action cannot be mapped to the outside. The message is what people read; `Display`
+/// is its English text, for logs.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PlanError(pub String, pub cockpit_i18n::Msg);
-
-impl PlanError {
-    /// From a message: the German text next to the code.
-    pub fn new(msg: cockpit_i18n::Msg) -> Self {
-        PlanError(msg.de(), msg)
-    }
-}
+pub struct PlanError(pub cockpit_i18n::Msg);
 
 impl std::fmt::Display for PlanError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
+        f.write_str(&self.0.render(cockpit_i18n::Lang::En))
     }
 }
 
@@ -197,14 +191,12 @@ pub fn plane(
             }
             // The default repo; without one the user has to set it (the button offers no choice).
             let Some(repo) = targets.default_repo.as_ref() else {
-                return Err(PlanError::new(cockpit_i18n::msg!(
-                    IntegrationsPlanChooseRepo
-                )));
+                return Err(PlanError(cockpit_i18n::msg!(IntegrationsPlanChooseRepo)));
             };
             let name = after
                 .item(item)
                 .and_then(|n| n.branch.clone())
-                .ok_or_else(|| PlanError::new(cockpit_i18n::msg!(IntegrationsPlanNoBranchName)))?;
+                .ok_or_else(|| PlanError(cockpit_i18n::msg!(IntegrationsPlanNoBranchName)))?;
             Some(Outbound::GitHubBranch {
                 repo: repo.clone(),
                 name,
@@ -277,7 +269,7 @@ fn plan_project(
     if matches!(action, Action::ConvertDraft { .. }) {
         return Some(Ok(None));
     }
-    let fail = |m: cockpit_i18n::Msg| Some(Err(PlanError::new(m)));
+    let fail = |m: cockpit_i18n::Msg| Some(Err(PlanError(m)));
     if !targets.projects {
         return fail(msg!(IntegrationsPlanProjectsOff));
     }

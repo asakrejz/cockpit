@@ -172,12 +172,7 @@ async fn a_failing_container_ends_the_run_with_a_reason_and_no_drafts() {
     .await;
     let ws = w.ws();
     let run = ws.runs.iter().find(|r| r.key() == KEY).unwrap();
-    assert!(
-        run.ended
-            .as_deref()
-            .unwrap()
-            .contains("Modell nicht erreichbar")
-    );
+    assert!(german(&run.ended).contains("Modell nicht erreichbar"));
     assert!(!ws.review(85).unwrap().agent_reviewed);
 }
 

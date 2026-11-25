@@ -264,7 +264,7 @@ pub(super) fn detail(
                     who=c.author.name_in(lang())
                     initials=c.author.initials_in(lang())
                     time=labels::comment_time(c, store.now.get_untracked())
-                    text=c.text_msg.as_ref().map_or_else(|| c.text.clone(), |m| m.render_or(lang(), &c.text))
+                    text=c.text_in(lang())
                     rich=c.rich.clone().unwrap_or_default()
                     own=c.own
                     markdown=is_project
@@ -326,6 +326,7 @@ pub(super) fn detail(
     let project_part = project::project_section(store, &item);
     let key_link = super::details::key_link(&item);
     let detail_sections = super::details::details_sections(item.details.as_ref());
+    let agent_note = item.agent_note_in(lang());
     view! {
         <PaneHeader>
             <div class="ui-hstack ui-gap-10">
@@ -388,11 +389,7 @@ pub(super) fn detail(
                             }
                         })}
                     {linked_ticket}
-                    {item
-                        .agent_note_msg
-                        .as_ref()
-                        .map(|m| m.render_or(lang(), item.agent_note.as_deref().unwrap_or_default()))
-                        .or_else(|| item.agent_note.clone())
+                    {agent_note
                         .map(|note| {
                             view! {
                                 <li>

@@ -69,11 +69,6 @@ impl Step {
         Step::Done,
     ];
 
-    /// Short name for the progress display (German).
-    pub fn name(self) -> String {
-        self.msg().de()
-    }
-
     /// Short name for the progress display.
     pub fn msg(self) -> Msg {
         match self {

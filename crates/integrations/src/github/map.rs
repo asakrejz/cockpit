@@ -191,7 +191,6 @@ pub fn pull_to_review(pull: &Pull, files: &[PullFile], checks: Checks) -> Review
         repo: String::new(),
         title: pull.title.clone(),
         description: pull.body.clone().unwrap_or_default(),
-        description_msg: None,
         author: text::person(&pull.user.login),
         branch: pull.head.name.clone(),
         base: pull.base.name.clone(),
@@ -254,7 +253,7 @@ pub fn comments_with_reviews(
     me: &str,
 ) -> Vec<Comment> {
     let mut all: Vec<(i64, Comment)> = Vec::new();
-    let mut add = |login: &str, time_iso: &str, body: String, coded: Option<(Msg, String)>| {
+    let mut add = |login: &str, time_iso: &str, body: String, verdict: Option<Msg>| {
         let own = login.eq_ignore_ascii_case(me);
         let author = if own {
             Person::me()
@@ -262,21 +261,22 @@ pub fn comments_with_reviews(
             text::person(login)
         };
         let sorting = time::parse_iso(time_iso).unwrap_or(0);
+        let text = if own { body } else { mention_for(&body, me) };
         all.push((
             sorting,
             Comment {
                 author,
                 time: String::new(),
                 created_ms: time::parse_iso(time_iso).map(|s| s.max(0) as u64 * 1000),
-                text: if own { body } else { mention_for(&body, me) },
-                text_msg: coded.map(|(verdict, text)| {
-                    let text = if own { text } else { mention_for(&text, me) };
+                // A review shows its verdict in front of the words; the words stay the text.
+                text_msg: verdict.map(|verdict| {
                     cockpit_i18n::msg!(
                         IntegrationsSyncReviewComment,
                         verdict = verdict,
-                        text = text
+                        text = text.clone()
                     )
                 }),
+                text,
                 rich: None,
                 own,
             },
@@ -316,8 +316,8 @@ pub fn comments_with_reviews(
         add(
             &r.user.login,
             &r.submitted_at,
-            format!("{}\n{text}", verdict.de()),
-            Some((verdict, text.to_string())),
+            text.to_string(),
+            Some(verdict),
         );
     }
     all.sort_by_key(|(t, _)| *t);

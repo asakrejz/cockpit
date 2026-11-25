@@ -173,10 +173,12 @@ pub struct Item {
     pub branch: Option<String>,
     #[serde(default)]
     pub pr: Option<PrRef>,
-    /// Note from the agent, e.g. „Vom Agenten umgesetzt · Tests bestanden“.
-    #[serde(default)]
+    /// The note of the agent as plain German text; only a state saved earlier holds it, new
+    /// notes are in [`Item::agent_note_msg`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_note: Option<String>,
-    /// The same note as code and parameters; the UI renders it in its language.
+    /// Note from the agent as code and parameters (e.g. "Implemented by the agent · tests
+    /// passed"); the UI renders it in its language.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_note_msg: Option<cockpit_i18n::Msg>,
     #[serde(default)]
@@ -303,10 +305,20 @@ impl Item {
             .unwrap_or_else(|| cockpit_i18n::Msg::raw(self.reason_text.clone()))
     }
 
-    /// Sets the note of the agent: the code and, next to it, the German text.
+    /// Sets the note of the agent.
     pub fn set_note(&mut self, msg: cockpit_i18n::Msg) {
-        self.agent_note = Some(msg.de());
+        self.agent_note = None;
         self.agent_note_msg = Some(msg);
+    }
+
+    /// The note of the agent in `lang`: the message, for a note of older data (or a code that
+    /// no longer exists) its stored text.
+    pub fn agent_note_in(&self, lang: cockpit_i18n::Lang) -> Option<String> {
+        let stored = self.agent_note.as_deref().unwrap_or_default();
+        match &self.agent_note_msg {
+            Some(m) => Some(m.render_or(lang, stored)),
+            None => self.agent_note.clone(),
+        }
     }
 
     /// Removes the note of the agent.

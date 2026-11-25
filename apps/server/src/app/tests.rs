@@ -53,8 +53,9 @@ fn app_without_dist() -> Router {
     )
 }
 
+/// The JSON of an answer, its messages in German.
 fn json(text: &str) -> serde_json::Value {
-    serde_json::from_str(text).unwrap()
+    crate::german::german_json(text)
 }
 
 /// Internal ID of the first entry of the sample data.

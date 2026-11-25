@@ -1,6 +1,7 @@
 //! The check before clone and push against the configured pattern of the repo.
 
 use super::*;
+use cockpit_i18n::Lang;
 
 fn with<'a>(branch: &'a str, pattern: &'a str) -> BranchRule<'a> {
     BranchRule {
@@ -40,7 +41,7 @@ fn a_branch_outside_the_pattern_is_never_cloned_or_pushed() {
     // The default name does not fit the repo's pattern.
     let e = clone(&a.url, &a.clone, None, &with("claude/BAU-1-x", FEATURE))
         .unwrap_err()
-        .de();
+        .render(Lang::De);
     assert!(e.contains("passt nicht zum Muster"), "{e}");
     assert!(!a.clone.exists());
 
@@ -59,7 +60,7 @@ fn a_branch_outside_the_pattern_is_never_cloned_or_pushed() {
         &wrong,
     )
     .unwrap_err()
-    .de();
+    .render(Lang::De);
     assert!(e.contains("passt nicht zum Muster"), "{e}");
     assert_eq!(heads(&a.remote), ["main"]);
 }
@@ -113,7 +114,9 @@ fn an_existing_foreign_branch_is_never_used() {
     g(&a.remote, &["branch", "feature/BAU-7-fremd", "main"]);
     let foreign = g(&a.remote, &["rev-parse", "feature/BAU-7-fremd"]);
     let r = with("feature/BAU-7-fremd", FEATURE);
-    let e = clone(&a.url, &a.clone, None, &r).unwrap_err().de();
+    let e = clone(&a.url, &a.clone, None, &r)
+        .unwrap_err()
+        .render(Lang::De);
     assert!(e.contains("gibt es im Repo schon"), "{e}");
     assert!(!a.clone.exists());
 
@@ -132,7 +135,7 @@ fn an_existing_foreign_branch_is_never_used() {
         &r2,
     )
     .unwrap_err()
-    .de();
+    .render(Lang::De);
     assert!(e.contains("gibt es im Repo schon"), "{e}");
     assert_eq!(g(&a.remote, &["rev-parse", "feature/BAU-7-fremd"]), foreign);
 }

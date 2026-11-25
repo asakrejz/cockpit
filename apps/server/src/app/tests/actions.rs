@@ -54,7 +54,10 @@ async fn the_sample_data_has_no_agent_of_its_own() {
     .unwrap();
     let (status, body) = send(app(), &start).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
-    assert!(body.contains("Einrichten"), "{body}");
+    assert!(
+        crate::german::german(&body).contains("Einrichten"),
+        "{body}"
+    );
     assert_eq!(state.inner.live.revision(), 0);
     let (_, body) = hole(app(), "/api/workspace").await;
     let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();

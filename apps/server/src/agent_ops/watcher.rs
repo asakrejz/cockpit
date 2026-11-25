@@ -90,7 +90,7 @@ impl AppState {
                 | RunState::AwaitingAnswer
                 | RunState::Paused
                 | RunState::AwaitingApproval => {
-                    let reason = cockpit_i18n::msg!(ServerRunRestartLost).de();
+                    let reason = cockpit_i18n::msg!(ServerRunRestartLost);
                     if let Err(e) = self.report_blocking(&key, AgentReport::Failed { reason }) {
                         tracing::warn!("Run {key} not marked as aborted: {e:?}");
                     }

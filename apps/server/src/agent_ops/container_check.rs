@@ -1,7 +1,6 @@
 use cockpit_i18n::{ArgValue, Msg, msg};
 
 use super::*;
-use image_build::status_hint;
 
 impl AppState {
     // ---------- Reachability from the container ----------
@@ -21,8 +20,7 @@ impl AppState {
             return ContainerCheck::default();
         };
         let not = |hint: Msg| ContainerCheck {
-            hint: Some(hint.de()),
-            hint_msg: Some(hint),
+            hint: Some(hint),
             ..Default::default()
         };
         let Some(endpoint) = choice.endpoint else {
@@ -32,7 +30,10 @@ impl AppState {
             return not(msg!(ServerRunCheckKeyMissing));
         };
         let Some(cli) = cli else {
-            return not(status_hint(&status).unwrap_or_else(|| msg!(ServerRunCheckRuntimeDown)));
+            return not(status
+                .hint
+                .clone()
+                .unwrap_or_else(|| msg!(ServerRunCheckRuntimeDown)));
         };
         if let Some(problem) = image.and_then(|p| agent_run::image_problem(p.state, p.hint)) {
             return not(msg!(ServerRunCheckThenTest, problem = problem));
@@ -68,8 +69,7 @@ impl AppState {
             mac_reached: mac.reachable,
             container_reached: reached,
             key_ok,
-            hint: Some(hint.de()),
-            hint_msg: Some(hint),
+            hint: Some(hint),
         }
     }
 }

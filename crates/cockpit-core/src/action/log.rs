@@ -57,10 +57,12 @@ pub struct LogEntry {
     pub actor: Actor,
     #[serde(default)]
     pub target: Option<Target>,
-    /// Short sentence, German for old entries. New entries also carry `msg`.
+    /// The sentence of an old entry as plain German text; new entries carry `msg` and leave
+    /// this empty.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub text: String,
-    /// The sentence as code and parameters. Shown in the language of the interface; without it
-    /// (entries from before) `text` is shown as it is.
+    /// The sentence as code and parameters. Shown in the language of the interface; without it,
+    /// or with a code this build no longer knows, `text` is shown as it is.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub msg: Option<cockpit_i18n::Msg>,
 }

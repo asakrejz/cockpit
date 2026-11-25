@@ -48,7 +48,7 @@ fn started() -> Workspace {
         &mut w,
         &key(),
         AgentReport::Started {
-            detail: "docker".into(),
+            detail: cockpit_i18n::Msg::raw("docker"),
         },
     )
     .unwrap();
@@ -115,7 +115,7 @@ fn drafts_are_checked_against_the_diff_and_wait_for_a_decision() {
         &mut w,
         &key(),
         AgentReport::Done {
-            summary: "1 Kommentar als Entwurf vorbereitet.".into(),
+            summary: cockpit_i18n::Msg::raw("1 Kommentar als Entwurf vorbereitet."),
         },
     )
     .unwrap();
@@ -142,14 +142,14 @@ fn a_failed_review_run_leaves_the_reason_and_the_old_state_is_replaced_on_restar
         &mut w,
         &key(),
         AgentReport::Failed {
-            reason: "Zeitlimit".into(),
+            reason: cockpit_i18n::Msg::raw("Zeitlimit"),
         },
     )
     .unwrap();
     // The run stays (idle) with its reason, so the page can show it.
     let run = w.runs.iter().find(|r| r.key() == key()).unwrap();
     assert!(run.is_idle());
-    assert_eq!(run.ended.as_deref(), Some("Zeitlimit"));
+    assert_eq!(run.ended, Some(cockpit_i18n::Msg::raw("Zeitlimit")));
     assert!(!w.review(91).unwrap().agent_reviewed);
     // A new run replaces the old drafts.
     ok(
@@ -211,7 +211,7 @@ fn approved_drafts_are_the_only_ones_that_go_out_with_code_and_verdict_comment()
         &mut w,
         &key(),
         AgentReport::Done {
-            summary: "ok".into(),
+            summary: cockpit_i18n::Msg::raw("ok"),
         },
     )
     .unwrap();

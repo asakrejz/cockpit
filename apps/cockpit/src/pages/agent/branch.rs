@@ -96,7 +96,7 @@ fn RepoBranchPanel(run: Memo<Option<AgentRun>>, repo: String) -> impl IntoView {
         }
         match check.get() {
             None if problem.get().is_none() => Some(t::branch_checking().to_string()),
-            Some(c) => c.reason,
+            Some(c) => c.reason.map(|r| r.render(lang())),
             None => None,
         }
     };

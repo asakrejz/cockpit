@@ -123,6 +123,14 @@ fn param(url: &str, name: &str) -> String {
         .unwrap_or_default()
 }
 
+/// The message of the redirect (`msg`, as JSON), in German.
+fn message(url: &str) -> String {
+    let coded = param(url, "msg");
+    let m: cockpit_i18n::Msg =
+        serde_json::from_str(&coded).unwrap_or_else(|e| panic!("no message in {url}: {e}"));
+    m.render(cockpit_i18n::Lang::De)
+}
+
 fn decoded(v: &str) -> String {
     let b = v.as_bytes();
     let mut out = Vec::new();

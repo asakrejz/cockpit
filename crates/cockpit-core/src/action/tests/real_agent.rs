@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[test]
 fn only_the_agent_may_report() {
@@ -37,7 +38,7 @@ fn a_real_run_logs_as_agent_and_books_the_cost() {
         &mut w,
         "BAU-142",
         AgentReport::Started {
-            detail: "docker, Modus umsetzen".into(),
+            detail: cockpit_i18n::Msg::raw("docker, Modus umsetzen"),
         },
     )
     .unwrap();
@@ -65,7 +66,7 @@ fn a_real_run_logs_as_agent_and_books_the_cost() {
         &mut w,
         "BAU-142",
         AgentReport::Done {
-            summary: "Fokus-Ring ergänzt".into(),
+            summary: cockpit_i18n::Msg::raw("Fokus-Ring ergänzt"),
         },
     )
     .unwrap();
@@ -75,7 +76,12 @@ fn a_real_run_logs_as_agent_and_books_the_cost() {
         item.branch.as_deref(),
         Some("claude/BAU-142-toggle-fokus-ring-fehlt")
     );
-    assert!(item.agent_note.as_deref().unwrap().contains("gepusht"));
+    assert!(
+        item.agent_note_in(Lang::De)
+            .as_deref()
+            .unwrap()
+            .contains("gepusht")
+    );
 }
 
 #[test]
@@ -93,15 +99,17 @@ fn a_failed_real_run_ends_with_the_reason_and_clears_the_note() {
         &mut w,
         "BAU-142",
         AgentReport::Failed {
-            reason: "Zeitlimit des Containers überschritten".into(),
+            reason: cockpit_i18n::Msg::raw("Zeitlimit des Containers überschritten"),
         },
     )
     .unwrap();
     let run = w.run("BAU-142").unwrap();
     assert!(run.is_idle());
     assert_eq!(
-        run.ended.as_deref(),
-        Some("Zeitlimit des Containers überschritten")
+        run.ended,
+        Some(cockpit_i18n::Msg::raw(
+            "Zeitlimit des Containers überschritten"
+        ))
     );
     assert_eq!(w.item_by_key("BAU-142").unwrap().agent_note, None);
     // Nothing active any more: further reports are rejected and change nothing.

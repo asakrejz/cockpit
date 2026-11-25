@@ -307,7 +307,7 @@ pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi, panel: PanelUi) -> 
                     {ticket}
                 </div>
                 <Markdown
-                    text=r.description_msg.as_ref().map_or_else(|| r.description.clone(), |m| m.render_or(lang(), &r.description))
+                    text=r.description.clone()
                     class="t-body t-secondary"
                 />
             </PaneHeader>

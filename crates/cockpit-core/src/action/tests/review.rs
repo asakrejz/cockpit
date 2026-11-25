@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[test]
 fn merging_is_refused_until_every_condition_holds() {
@@ -27,7 +28,11 @@ fn merging_is_refused_until_every_condition_holds() {
     let err = w
         .apply(merge(85, MergeMethod::Merge), Actor::User, T)
         .unwrap_err();
-    assert!(err.message().contains("Check ist fehlgeschlagen"));
+    assert!(
+        err.msg()
+            .render(Lang::De)
+            .contains("Check ist fehlgeschlagen")
+    );
     // Unknown.
     fails(
         &mut w,
@@ -55,7 +60,7 @@ fn a_paused_agent_makes_no_progress_until_resumed() {
         1,
     );
     assert_eq!(
-        w.item("bau150").unwrap().agent_note.as_deref(),
+        w.item("bau150").unwrap().agent_note_in(Lang::De).as_deref(),
         Some("Der Agent ist pausiert")
     );
     // While paused the run takes no step.
@@ -114,7 +119,7 @@ fn the_agent_still_never_merges_after_questions() {
     assert!(
         w.log
             .iter()
-            .all(|e| !e.text.to_lowercase().contains("gemergt"))
+            .all(|e| !e.text_in(Lang::De).to_lowercase().contains("gemergt"))
     );
 }
 
@@ -151,7 +156,11 @@ fn only_you_may_merge() {
             .apply(merge(87, MergeMethod::Merge), actor, T)
             .unwrap_err();
         assert_eq!(err, ActionError::MergeNotAllowed(actor));
-        assert!(err.message().starts_with("Nur du darfst mergen"));
+        assert!(
+            err.msg()
+                .render(Lang::De)
+                .starts_with("Nur du darfst mergen")
+        );
     }
     assert_eq!(w, before, "no merge, no log entry");
     w.apply(merge(87, MergeMethod::Merge), Actor::User, T)
@@ -199,7 +208,7 @@ fn merging_marks_the_pull_request_and_finishes_the_ticket() {
     assert_eq!(entry.actor, Actor::System);
     assert_eq!(entry.target, Some(Target::Item("bau138".into())));
     assert_eq!(
-        entry.text,
+        entry.text_in(Lang::De),
         "Status von BAU-138 automatisch auf „Fertig“ gesetzt – acme/app#91 ist gemergt"
     );
     assert_eq!(w.review(91).unwrap().merged, Some(MergeMethod::Rebase));
@@ -234,7 +243,7 @@ fn merging_a_pull_request_without_ticket_marks_its_entry() {
     let item = w.item("pr87").unwrap();
     assert_eq!(crate::team::state_tone(item), Tone::Indigo);
     assert!(item.read);
-    assert_eq!(item.reason_line().de(), "Gemergt (Squash)");
+    assert_eq!(item.reason_line().render(Lang::De), "Gemergt (Squash)");
     let entry = w.log.last().unwrap();
     assert_eq!(
         (entry.actor, &entry.target),
@@ -329,7 +338,7 @@ fn line_comment_suggestions_go_through_the_actions() {
         w.log
             .last()
             .unwrap()
-            .text
+            .text_in(Lang::De)
             .contains("mit Änderungsvorschlag")
     );
     assert!(w.review(87).unwrap().suggestion_diff(&comment).is_some());

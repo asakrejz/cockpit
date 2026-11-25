@@ -3,6 +3,7 @@
 use super::*;
 use crate::filters::{ASSIGNED_TO_ME, JIRA_PROJECT_FILTER, UNASSIGNED};
 use crate::{InboxFilter, Item, Ownership, SourceFilter, SprintView};
+use cockpit_i18n::Lang;
 
 fn narrowed() -> InboxFilter {
     InboxFilter {
@@ -20,7 +21,7 @@ fn applying_the_filter_is_stored_and_logged() {
     assert!(w.inbox_filter.is_default());
     ok(&mut w, Action::SetInboxFilter { filter: narrowed() }, 1);
     assert_eq!(w.inbox_filter, narrowed());
-    assert_eq!(w.log.last().unwrap().text, "Filter angewendet");
+    assert_eq!(w.log.last().unwrap().text_in(Lang::De), "Filter angewendet");
     // The same filter again changes nothing.
     fails(
         &mut w,
@@ -34,7 +35,10 @@ fn applying_the_filter_is_stored_and_logged() {
         },
         1,
     );
-    assert_eq!(w.log.last().unwrap().text, "Filter zurückgesetzt");
+    assert_eq!(
+        w.log.last().unwrap().text_in(Lang::De),
+        "Filter zurückgesetzt"
+    );
 }
 
 #[test]
@@ -185,7 +189,7 @@ fn the_team_choice_is_an_action_and_filters_the_inbox() {
         },
         1,
     );
-    assert!(w.log.last().unwrap().text.contains("Web"));
+    assert!(w.log.last().unwrap().text_in(Lang::De).contains("Web"));
     let shown = list(&w, Filter::All, &by);
     assert!(shown.len() < all);
     // Mine stays, tickets of the chosen team stay, tickets of other teams go.

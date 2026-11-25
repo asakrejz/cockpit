@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 fn files(names: &[&str]) -> Vec<String> {
     names.iter().map(|s| s.to_string()).collect()
@@ -70,7 +71,7 @@ fn no_rules_allow_everything() {
             .violations(&files(&["a.rs", ".github/x.yml"]))
             .is_empty()
     );
-    assert!(rules.lines().is_empty());
+    assert!(rules.lines_msg().is_empty());
 }
 
 #[test]
@@ -86,7 +87,7 @@ fn forbidden_paths_are_reported_with_their_pattern() {
     assert_eq!(v[0].pattern, ".github/**");
     assert_eq!(v[1].pattern, "*.lock");
     assert_eq!(
-        v[0].reason(),
+        v[0].reason_msg().render(Lang::De),
         ".github/ci.yml ist verboten (Regel „.github/**“)"
     );
 }
@@ -102,7 +103,7 @@ fn allowed_paths_exclude_everything_else() {
     assert_eq!(v[0].file, "README.md");
     assert_eq!(v[0].kind, ViolationKind::NotAllowed);
     assert_eq!(
-        v[0].reason(),
+        v[0].reason_msg().render(Lang::De),
         "README.md liegt außerhalb der erlaubten Pfade"
     );
 }
@@ -144,8 +145,13 @@ fn lines_name_every_active_rule() {
         instructions: "Kleine Commits.".into(),
         plan_required: true,
     };
+    let lines: Vec<String> = rules
+        .lines_msg()
+        .iter()
+        .map(|m| m.render(Lang::De))
+        .collect();
     assert_eq!(
-        rules.lines(),
+        lines,
         [
             "Erlaubt nur: src/**",
             "Verboten: *.lock",

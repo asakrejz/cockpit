@@ -2,7 +2,7 @@
 //! GitHub. Deleting is never automatic: it only happens on the user's click, and only when every
 //! rule here says yes.
 
-use super::{check_msg, structure_msg};
+use super::{check, structure};
 use crate::agent::Closure;
 use cockpit_i18n::{Msg, msg};
 
@@ -27,7 +27,7 @@ pub struct DeleteFacts<'a> {
     pub ended: Option<Closure>,
 }
 
-/// `Ok` if the branch may be deleted, otherwise the reason in plain German.
+/// `Ok` if the branch may be deleted, otherwise the reason as a message.
 ///
 /// ```
 /// use cockpit_core::branch::{DeleteFacts, deletable};
@@ -45,13 +45,8 @@ pub struct DeleteFacts<'a> {
 /// assert!(deletable(&facts).is_ok());
 /// assert!(deletable(&DeleteFacts { ended: None, ..facts }).is_err());
 /// ```
-pub fn deletable(f: &DeleteFacts) -> Result<(), String> {
-    deletable_msg(f).map_err(|m| m.de())
-}
-
-/// [`deletable`] with the reason as code and parameters.
-pub fn deletable_msg(f: &DeleteFacts) -> Result<(), Msg> {
-    structure_msg(f.branch)?;
+pub fn deletable(f: &DeleteFacts) -> Result<(), Msg> {
+    structure(f.branch)?;
     if f.ended.is_none() {
         return Err(msg!(CoreBranchDeleteOpen));
     }
@@ -59,7 +54,7 @@ pub fn deletable_msg(f: &DeleteFacts) -> Result<(), Msg> {
         return Err(msg!(CoreBranchDeleteDefault, branch = f.branch));
     }
     // Base branch, main branches and the pattern of the repo.
-    check_msg(f.pattern, f.base_branch, f.branch)?;
+    check(f.pattern, f.base_branch, f.branch)?;
     if f.protected {
         return Err(msg!(CoreBranchDeleteProtected, branch = f.branch));
     }

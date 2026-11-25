@@ -35,8 +35,6 @@ pub(super) async fn run_task(
         End::Error(reason) => {
             tracing::warn!("Run {key} ends with error: {}", reason.render(Lang::En));
             lock(&state.inner.agent.failed).insert(key.clone(), Instant::now());
-            // The report of the agent carries plain text (the workspace log has no codes there yet).
-            let reason = reason.de();
             if let Err(e) = state.report(&key, AgentReport::Failed { reason }).await {
                 tracing::debug!("Error of run {key} can no longer be reported: {e:?}");
             }
@@ -355,7 +353,6 @@ pub(super) async fn run_run(
         state,
         key,
         AgentReport::Started {
-            // The history of the run takes plain text (no codes there yet).
             detail: msg!(
                 ServerRunStartedDetail,
                 runtime = runtime,
@@ -369,8 +366,7 @@ pub(super) async fn run_run(
                     (Mode::Implement, _) => msg!(ServerRunModeTicket),
                 },
                 model = &access.model
-            )
-            .de(),
+            ),
         },
     )
     .await;
@@ -537,7 +533,7 @@ pub(super) async fn run_run(
     }
     if mode == Mode::Review {
         // Nothing to push: the drafts are already booked on the review.
-        return End::Done(text);
+        return End::Done(Msg::raw(text));
     }
     if !multi && result_branch != branch {
         return End::Error(msg!(
@@ -589,20 +585,16 @@ pub(super) async fn run_run(
                         repo: t.repo.clone(),
                         state: cockpit_core::RunRepoState::Pushed,
                         files: v.files.clone(),
-                        reason: String::new(),
+                        reason: None,
                     };
                     let _ = apply(state, key, AgentReport::Repos { repos: vec![one] }).await;
                 }
-                // The summary of the run takes plain text (no codes there yet).
-                End::Done(
-                    msg!(
-                        ServerRunDonePushed,
-                        text = text,
-                        branch = &branch,
-                        n = v.files.len()
-                    )
-                    .de(),
-                )
+                End::Done(msg!(
+                    ServerRunDonePushed,
+                    text = text,
+                    branch = &branch,
+                    n = v.files.len()
+                ))
             }
             Ok(Err(m)) => End::Error(m),
             Err(_) => End::Error(msg!(ServerRunInternalPush)),
@@ -688,7 +680,7 @@ async fn publish_repos(
             Ok(agent_git::Outcome::Pushed(v)) => (
                 RunRepoState::Pushed,
                 v.files.clone(),
-                String::new(),
+                None,
                 msg!(
                     ServerRunRepoPushed,
                     repo = &t.repo,
@@ -699,13 +691,13 @@ async fn publish_repos(
             Ok(agent_git::Outcome::Unchanged) => (
                 RunRepoState::Unchanged,
                 Vec::new(),
-                String::new(),
+                None,
                 msg!(ServerRunRepoUnchanged, repo = &t.repo),
             ),
             Err(m) => (
                 RunRepoState::Refused,
                 Vec::new(),
-                m.de(),
+                Some(m.clone()),
                 msg!(ServerRunRepoRefused, repo = &t.repo, reason = m),
             ),
         };
@@ -720,17 +712,16 @@ async fn publish_repos(
     match cockpit_core::judge(&results) {
         cockpit_core::Judgement::Done { .. } => {
             let _ = apply(state, key, AgentReport::Repos { repos: results }).await;
-            let mut summary = text.to_string();
-            for l in &lines {
-                summary.push('\n');
-                summary.push_str(&l.de());
-            }
             let _ = run;
-            End::Done(summary)
+            End::Done(msg!(
+                ServerRunDoneSummary,
+                text = text,
+                repos = ArgValue::joined(lines, "\n")
+            ))
         }
         cockpit_core::Judgement::NothingChanged => End::Error(msg!(ServerRunNothingChanged)),
         cockpit_core::Judgement::AllRefused { reason } => {
-            End::Error(msg!(ServerRunAllReposRefused, reason = Msg::raw(reason)))
+            End::Error(msg!(ServerRunAllReposRefused, reason = reason))
         }
     }
 }

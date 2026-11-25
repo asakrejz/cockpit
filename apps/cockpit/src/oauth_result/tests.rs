@@ -1,17 +1,34 @@
 use super::*;
+use cockpit_i18n::{Lang, Msg, msg};
+
+/// The query the backend appends: the message as JSON, percent-encoded.
+fn query(state: &str, message: &Msg) -> String {
+    let json = serde_json::to_string(message).unwrap();
+    let mut encoded = String::new();
+    for b in json.bytes() {
+        if b.is_ascii_alphanumeric() {
+            encoded.push(b as char);
+        } else {
+            encoded.push_str(&format!("%{b:02X}"));
+        }
+    }
+    format!("?oauth={state}&service=github&msg={encoded}")
+}
 
 #[test]
 fn reads_success_and_error() {
-    assert_eq!(
-        parse("?oauth=ok&service=github&message=Mit%20GitHub%20angemeldet"),
-        Some((true, "Mit GitHub angemeldet".into()))
-    );
-    assert_eq!(
-        parse("?oauth=error&service=atlassian&message=Site%20%C3%A4%20nicht+frei"),
-        Some((false, "Site ä nicht frei".into()))
-    );
-    assert_eq!(parse("?oauth=ok"), Some((true, String::new())));
-    assert_eq!(parse("?oauth=error"), Some((false, String::new())));
+    let ok = msg!(OauthSignedIn);
+    let (state, message) = parse(&query("ok", &ok)).unwrap();
+    assert!(state);
+    assert_eq!(message.unwrap().render(Lang::En), ok.render(Lang::En));
+
+    let failed = Msg::raw("Site ä nicht frei");
+    let (state, message) = parse(&query("error", &failed)).unwrap();
+    assert!(!state);
+    assert_eq!(message, Some(failed));
+
+    assert_eq!(parse("?oauth=ok"), Some((true, None)));
+    assert_eq!(parse("?oauth=error"), Some((false, None)));
 }
 
 #[test]
@@ -22,6 +39,6 @@ fn ignores_other_addresses() {
 
 #[test]
 fn survives_broken_encoding() {
-    assert_eq!(parse("?oauth=ok&message=100%").unwrap().1, "100%");
-    assert_eq!(parse("?oauth=ok&message=%zz").unwrap().1, "%zz");
+    assert_eq!(parse("?oauth=ok&msg=100%"), Some((true, None)));
+    assert_eq!(parse("?oauth=ok&msg=%zz"), Some((true, None)));
 }

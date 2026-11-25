@@ -4,6 +4,7 @@
 
 use super::*;
 use cockpit_core::{Scope, SprintView};
+use cockpit_i18n::Lang;
 use cockpit_integrations::jira::{JiraQuery, jql_for_selection};
 
 fn ticket(key: &str, assignee: serde_json::Value) -> serde_json::Value {
@@ -148,7 +149,7 @@ async fn all_open_tickets_arrive_including_those_of_other_people() {
         (other.scope, other.owner.name.as_str()),
         (Scope::Team, "Tobias Lang")
     );
-    assert_eq!(other.reason_line().de(), "Im Projekt");
+    assert_eq!(other.reason_line().render(Lang::De), "Im Projekt");
     let nobody = ws.item_by_key("BAU-3").unwrap();
     assert!(nobody.owner.nobody);
     assert_eq!(nobody.scope, Scope::Team);
@@ -185,7 +186,10 @@ async fn without_a_selection_the_sprint_query_stays_as_before() {
     .await;
     let (ws, _) = sync(&services(&s, q), &Workspace::default(), NOW_MS).await;
     assert_eq!(
-        ws.item_by_key("WEB-1").unwrap().reason_line().de(),
+        ws.item_by_key("WEB-1")
+            .unwrap()
+            .reason_line()
+            .render(Lang::De),
         "Im Sprint"
     );
 }

@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -103,7 +104,12 @@ async fn a_response_beyond_the_size_limit_is_refused() {
     let server = proxy(ResponseTemplate::new(200).set_body_string(gross)).await;
     let l = models_load(&target(&server), Some(&Secret::new(KEY))).await;
     assert!(!l.loaded && l.models.is_empty());
-    assert!(l.hint.unwrap().contains("keine Modellliste"));
+    assert!(
+        l.hint
+            .unwrap()
+            .render(Lang::De)
+            .contains("keine Modellliste")
+    );
 }
 
 #[tokio::test]
@@ -111,23 +117,34 @@ async fn rejected_key_empty_list_and_broken_json_say_so() {
     let server = proxy(ResponseTemplate::new(401)).await;
     let l = models_load(&target(&server), Some(&Secret::new(KEY))).await;
     assert!(l.reachable && !l.key_ok && !l.loaded);
-    assert!(l.hint.unwrap().contains("lehnt den Key ab"));
+    assert!(
+        l.hint
+            .unwrap()
+            .render(Lang::De)
+            .contains("lehnt den Key ab")
+    );
 
     let server = proxy(ResponseTemplate::new(200).set_body_json(models(&[]))).await;
     let l = models_load(&target(&server), Some(&Secret::new(KEY))).await;
     assert!(l.reachable && l.key_ok && !l.loaded && l.models.is_empty());
-    assert!(l.hint.unwrap().contains("keine Modelle"));
+    assert!(l.hint.unwrap().render(Lang::De).contains("keine Modelle"));
 
     for broken in ["<html>", "{\"data\": 5}", "{\"modelle\": []}", ""] {
         let server = proxy(ResponseTemplate::new(200).set_body_string(broken)).await;
         let l = models_load(&target(&server), Some(&Secret::new(KEY))).await;
         assert!(!l.loaded && l.reachable, "{broken}");
-        assert!(l.hint.unwrap().contains("keine Modellliste"), "{broken}");
+        assert!(
+            l.hint
+                .unwrap()
+                .render(Lang::De)
+                .contains("keine Modellliste"),
+            "{broken}"
+        );
     }
 
     let server = proxy(ResponseTemplate::new(500)).await;
     let l = models_load(&target(&server), Some(&Secret::new(KEY))).await;
-    assert!(l.hint.unwrap().contains("500"));
+    assert!(l.hint.unwrap().render(Lang::De).contains("500"));
 }
 
 #[test]
@@ -165,7 +182,7 @@ async fn codex_calls_use_the_bearer_key_even_directly_and_name_openai() {
         .port();
     let z = Target::for_provider(true, None, Some(&format!("http://127.0.0.1:{free}")));
     let p = verify(&z, Some(&Secret::new(KEY)), Some("m")).await;
-    assert!(p.hint.unwrap().contains("OpenAI"));
+    assert!(p.hint.unwrap().render(Lang::De).contains("OpenAI"));
 }
 
 #[tokio::test]
@@ -212,7 +229,7 @@ async fn missing_model_names_the_offered_ones() {
     let z = Target::from(Some(&format!("{}/", server.uri())), None);
     let p = verify(&z, Some(&Secret::new(KEY)), Some("claude-sonnet-5-5")).await;
     assert!(p.reachable && p.key_ok && !p.model_present);
-    let hint = p.hint.unwrap();
+    let hint = p.hint.unwrap().render(Lang::De);
     assert!(
         hint.contains("gpt-x") && hint.contains("claude-a"),
         "{hint}"
@@ -224,7 +241,7 @@ async fn check_without_a_model_gives_a_hint() {
     let server = proxy(ResponseTemplate::new(200).set_body_json(models(&["a"]))).await;
     let p = verify(&target(&server), Some(&Secret::new(KEY)), None).await;
     assert!(p.key_ok && !p.model_present);
-    assert!(p.hint.unwrap().contains("Kein Modell"));
+    assert!(p.hint.unwrap().render(Lang::De).contains("Kein Modell"));
 }
 
 #[tokio::test]
@@ -232,7 +249,7 @@ async fn check_with_a_wrong_key_is_reachable_but_not_ok() {
     let server = proxy(ResponseTemplate::new(401)).await;
     let p = verify(&target(&server), Some(&Secret::new(KEY)), Some("m")).await;
     assert!(p.reachable && !p.key_ok && !p.model_present);
-    assert!(p.hint.unwrap().contains("Key"));
+    assert!(p.hint.unwrap().render(Lang::De).contains("Key"));
 }
 
 #[tokio::test]
@@ -265,7 +282,12 @@ async fn unreachable_endpoint() {
     let z = Target::from(Some(&format!("http://127.0.0.1:{free}")), None);
     let p = verify(&z, Some(&Secret::new(KEY)), Some("m")).await;
     assert!(p.configured && !p.reachable && !p.key_ok);
-    assert!(p.hint.unwrap().contains("nicht erreichbar"));
+    assert!(
+        p.hint
+            .unwrap()
+            .render(Lang::De)
+            .contains("nicht erreichbar")
+    );
     let l = models_load(&z, Some(&Secret::new(KEY))).await;
     assert!(!l.reachable && !l.loaded);
 }
@@ -281,11 +303,11 @@ async fn without_a_key_nothing_is_called_and_the_key_never_shows_up() {
     let p = verify(&target(&server), None, Some("m")).await;
     assert!(p.configured && !p.reachable);
     assert!({
-        let hint = p.hint.as_deref().unwrap();
+        let hint = p.hint.as_ref().unwrap().render(Lang::De);
         hint.contains("Schritt „Modell“") && !hint.contains("token set")
     });
     let l = models_load(&target(&server), Some(&Secret::new(""))).await;
-    assert!(!l.loaded && l.hint.unwrap().contains("kein Key"));
+    assert!(!l.loaded && l.hint.unwrap().render(Lang::De).contains("kein Key"));
 
     let server = proxy(ResponseTemplate::new(401)).await;
     let p = verify(&target(&server), Some(&Secret::new(KEY)), Some("m")).await;

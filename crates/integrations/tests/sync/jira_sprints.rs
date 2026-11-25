@@ -3,6 +3,7 @@
 
 use super::*;
 use cockpit_core::{Source as Src, SprintState};
+use cockpit_i18n::Lang;
 use cockpit_integrations::jira::{jql_for, open_tickets_jql, sprint_of};
 
 const SPRINT_JQL: &str = "sprint in openSprints() AND project in (BAU) ORDER BY updated DESC";
@@ -99,9 +100,12 @@ async fn the_default_query_asks_for_active_sprints_and_reads_sprint_and_status()
     assert_eq!(two.status, cockpit_core::TicketStatus::Done);
     assert!(two.updated_ms.is_some());
     let st = ws.sync.state_of(Src::Jira).unwrap();
-    assert!(st.is_ok() && st.warnings.is_empty(), "{st:?}");
+    assert!(
+        st.is_ok() && st.warning_lines(Lang::De).is_empty(),
+        "{st:?}"
+    );
     // Not assigned to me: shown because of the sprint, not because of a watch.
-    assert_eq!(one.reason_line().de(), "Im Sprint");
+    assert_eq!(one.reason_line().render(Lang::De), "Im Sprint");
 }
 
 #[tokio::test]
@@ -151,7 +155,7 @@ async fn a_rejected_sprint_query_falls_back_to_all_open_tickets_with_a_hint() {
     let st = ws.sync.state_of(Src::Jira).unwrap();
     assert!(st.is_ok());
     assert_eq!(
-        st.warnings,
+        st.warning_lines(Lang::De),
         ["Dieses Projekt hat keine Sprints – zeige alle offenen Tickets"]
     );
     // The sprint filter then falls back to „Alle offenen“, so the ticket is not hidden.
@@ -187,7 +191,7 @@ async fn no_active_sprint_but_closed_ones_says_so() {
     .await;
     let (ws, _) = sync(&service(&s, SPRINT_JQL), &Workspace::default(), NOW_MS).await;
     assert_eq!(
-        ws.sync.state_of(Src::Jira).unwrap().warnings,
+        ws.sync.state_of(Src::Jira).unwrap().warning_lines(Lang::De),
         ["Kein aktiver Sprint – zeige alle offenen Tickets"]
     );
     // The ticket's sprint is closed: „Aktueller Sprint“ hides it, „Alle offenen“ shows it.

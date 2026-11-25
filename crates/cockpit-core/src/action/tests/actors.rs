@@ -107,7 +107,7 @@ fn the_backend_and_the_agent_keep_their_own_actions() {
     let report = Action::ReportAgent {
         run: "BAU-142".into(),
         report: AgentReport::Started {
-            detail: String::new(),
+            detail: cockpit_i18n::Msg::raw("started"),
         },
     };
     assert_eq!(sync.required_actor(), Some(Actor::System));

@@ -1,35 +1,26 @@
 //! Return from the OAuth sign-in: the backend redirects to `/` and appends result and
-//! message to the address (`?oauth=ok|error&service=…&message=…`). The message never contains a
-//! key. Here it is displayed and the address is tidied up.
+//! message to the address (`?oauth=ok|error&service=…&msg=…`, the message as JSON). The message
+//! never contains a key. Here it is displayed and the address is tidied up.
 
 use feature_ui::t;
 use leptos::prelude::*;
 
 use crate::store::Store;
 
-/// Result from the query of an address: `(ok, message)`; the message is empty if the backend
+/// Result from the query of an address: `(ok, message)`; the message is `None` if the backend
 /// sent none (then [`announce`] uses a standard text).
-pub fn parse(search: &str) -> Option<(bool, String)> {
+pub fn parse(search: &str) -> Option<(bool, Option<cockpit_i18n::Msg>)> {
     let mut ok = None;
-    let mut message = String::new();
+    let mut message = None;
     for pair in search.trim_start_matches('?').split('&') {
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
         match key {
             "oauth" => ok = Some(value == "ok"),
-            "message" => message = decode(value),
+            "msg" => message = serde_json::from_str(&decode(value)).ok(),
             _ => {}
         }
     }
     ok.map(|ok| (ok, message))
-}
-
-/// The message as code and parameters (`msg`, JSON), if the backend sent one.
-pub fn parse_msg(search: &str) -> Option<cockpit_i18n::Msg> {
-    search
-        .trim_start_matches('?')
-        .split('&')
-        .find_map(|pair| pair.strip_prefix("msg="))
-        .and_then(|value| serde_json::from_str(&decode(value)).ok())
 }
 
 /// Undo percent encoding (UTF-8). Unreadable parts stay as they are.
@@ -69,10 +60,8 @@ pub fn announce(store: Store) {
     let Some((ok, message)) = parse(&search) else {
         return;
     };
-    let message = if let Some(coded) = parse_msg(&search) {
+    let message = if let Some(coded) = message {
         coded.render(feature_ui::lang_untracked())
-    } else if !message.is_empty() {
-        message
     } else if ok {
         t!(OauthSignedIn)
     } else {

@@ -134,7 +134,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                         } else if let Some(reason) = run.ended.clone() {
                             view! {
                                 <p class="t-footnote t-secondary">
-                                    {t!(ReviewSuggestionsLastRunEnded, reason = reason)}
+                                    {t!(ReviewSuggestionsLastRunEnded, reason = reason.render(lang()))}
                                 </p>
                             }
                             .into_any()

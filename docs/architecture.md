@@ -134,7 +134,7 @@ All routes live under `/api`; see [security.md](security.md) for the request che
 | `GET /api/setup` | what the assistant prefills: Jira site/email/projects, client IDs, repos, provider, endpoint address and model, both callback addresses, and per key only `{name, set}` |
 | `POST /api/github/repos/check` | read-only look at repos (`{repos:[…]}` → per repo `Ok`/`ReadOnly`/`NotFound`/`NoAccess`/`Failed` plus the default branch); only `GET /repos/{owner}/{name}`, never changes anything |
 | `GET /api/agent/repo-suggestions?ticket=KEY` | repos to offer first for the ticket, best first, each with a reason (`issue`, `previous_run`, `linked_pr`, `mentioned`, `default`); only reads |
-| `PUT /api/config` | writes client IDs, Jira, repos, `[github_projects]` (`github_projects`: `tickets_from`, `projects`, `status_field`, `team_field`), the agent's repos (`agent_repos`: list with base branch, branch pattern and language, plus default; a `projects` key of an entry is left out), agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with plain text |
+| `PUT /api/config` | writes client IDs, Jira, repos, `[github_projects]` (`github_projects`: `tickets_from`, `projects`, `status_field`, `team_field`), the agent's repos (`agent_repos`: list with base branch, branch pattern and language, plus default; a `projects` key of an entry is left out), agent provider and endpoint into `config.toml`; answer `{stored, takes_effect_immediately, hint}`; invalid input is `422` with a message (`ErrorBody`) |
 | `PUT /api/secrets/{name}` | stores a key in `config/.env`; body `{"value": "…"}`; names in [configuration.md](configuration.md#credentials-the-env-file) (plus `github-webhook`, `jira-webhook`); answer `{name, set}`, never the value |
 | `DELETE /api/secrets/{name}` | "Trennen" for tokens: deletes `jira` or `github` from `config/.env` (other names: `404`); answer `{name, set: false}` |
 | `POST /api/webhooks/github`, `POST /api/webhooks/jira` | optional (`[server] webhooks`), the only routes reachable with a foreign `Host`: HMAC-signed triggers for the sync; `202`/`200`/`204`/`401`/`404`/`413`/`415`/`429`, no body, payload never used as data |
@@ -295,8 +295,8 @@ online, offline, plus `navigator.onLine`), whether the first workspace has arriv
 - `apps/cockpit/src/banner.rs`: link banners and one banner per source with a problem, built by
   `cockpit_core::notice::source_notices` (pure, tested). The cause decides the action: token rejected or no permission →
   "Einrichten", rate limit with time → wait (says when), otherwise "Jetzt abgleichen".
-- `cockpit_core::notice::http_failure_text` turns a failed request to the local backend (by HTTP status plus the
-  backend's own German message) into the notice text; pages never build error strings themselves.
+- `cockpit_core::notice::http_failure_msg` turns a failed request to the local backend (by HTTP status plus the
+  backend's own message) into the notice message; pages never build error strings themselves.
 - UI blocks: `EmptyState`, `ErrorState` (`role="alert"`), `StatusBanner` (`alert` for errors, `status` otherwise) and
   `Skeleton` (`aria-busy`) in `crates/ui/src/state.rs`, styled in `extras.css` with design tokens only.
 
@@ -373,7 +373,7 @@ timeline, with the run total plus "today" and "this month" below. Prices are a s
 values through `AgentRun::record_usage`. If a run reaches a limit (budget per run, monthly budget, time limit) it stops
 (`RunState::Stopped(StopReason)`): the agent page offers "Um X erhöhen und fortsetzen" (`ResumeStopped`) or "Abbrechen",
 the run shows under "Hängt" in the overview and a notification "Agent angehalten" fires. A new run above the parallel-run
-limit **does not start** (`ActionError::ParallelLimit`, German message); there is deliberately no queue. Day and month
+limit **does not start** (`ActionError::ParallelLimit`); there is deliberately no queue. Day and month
 count in UTC; cancelled runs stay in the ledger.
 
 **Rules per repo.** Per repo (key: name) allowed and forbidden paths (glob patterns, `cockpit_core::rules::glob_match`),
@@ -436,13 +436,17 @@ The interface is available in German and English and switches at once, without a
   no key is unused; a scan test (`tests/scan.rs`) fails when `apps/cockpit/src` or `crates/ui/src` contain a visible string literal
   (names like "Cockpit" or "GitHub" are on an allowlist there).
 - **German texts** are in simple German: short sentences, no word-for-word translated jargon.
-- **Messages from core and server** (log entries, errors, hints, notifications, setup checks) are `cockpit_i18n::Msg`
-  (`msg!(CoreActionStatusSet, key = ticket)`): a code (the catalog id) plus parameters, which may be nested messages. The UI renders
-  them with `msg.render(lang())`. Server errors travel as `ErrorBody { error, msg }` (`error` is the German sentence for plain
-  readers). Log entries keep `text` (German rendering) next to `msg`; old entries without `msg` are shown as text. Stored texts
-  that cannot change type get a parallel optional `*_msg` field (skipped when empty, so old snapshots stay byte-identical).
-  A code this build does not know renders as the code itself. Texts from outside (a message of GitHub, git stderr) use
-  `Msg::raw`. An error of Jira or GitHub (`cockpit_integrations::Error`) is passed on as `Error::msg()` (a nested message, never
+- **Every text for people is a message.** Core, server and integrations produce log entries, errors, hints, notifications and
+  setup checks as `cockpit_i18n::Msg` (`msg!(CoreActionStatusSet, key = ticket)`): a code (the catalog id) plus parameters, which
+  may be nested messages. A text is one field, never a message with a plain-text copy beside it: API types carry the `Msg`
+  (`ErrorBody { error }`, `hint`, `message`, `reason`, `warnings`), and only the place that shows it picks the language
+  (`msg.render(lang())`). Stored types do the same (`LogEntry::msg`, `RunMessage::msg`, `Item::agent_note_msg`,
+  `Comment::text_msg`); their plain-text fields (`LogEntry::text`, `RunMessage::text`, `Item::agent_note`,
+  `SourceState::warnings`) stay readable and are shown where the message is missing or its code is not in the catalog
+  (`Msg::render_or`, `LogEntry::text_in`), but new entries leave them empty. A stored field that holds a message and may hold
+  a plain text (`AgentRun::ended`, `AgentRun::summary`) reads the text as `Msg::raw` (`cockpit_i18n::msg_or_text`). A code this
+  build does not know renders as the code itself. Where a test compares text, it renders explicitly (`render(Lang::De)`).
+  Texts from outside (a message of GitHub, git stderr) use `Msg::raw`. An error of Jira or GitHub (`cockpit_integrations::Error`) is passed on as `Error::msg()` (a nested message, never
   `to_string()` wrapped in `Msg::raw`), and a failed fetch is stored as `Problem::Other(Msg)` in the sync state; the `Display` of
   the error is English and only for logs. A scan test (`tests/scan_core.rs`) fails when core, server or integrations contain German
   literals (demo data and tests excepted).

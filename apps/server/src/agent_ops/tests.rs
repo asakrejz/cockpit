@@ -5,6 +5,12 @@ use crate::secrets;
 use crate::secrets::{MemoryStore, SecretStore};
 use cockpit_core::api::Provider;
 use cockpit_core::{AgentOptions, MessageKind, demo};
+use cockpit_i18n::Lang;
+
+/// The German text of a message that a run stored (what these tests compare with).
+fn german(m: &Option<cockpit_i18n::Msg>) -> String {
+    m.as_ref().map(|m| m.render(Lang::De)).unwrap_or_default()
+}
 
 const TOKEN: &str = "sk-test-geheim-123";
 const GITHUB: &str = "ghp_test_geheim_456";
@@ -137,9 +143,9 @@ impl World {
             .await
             .map(|_| ())
             .map_err(|e| match e {
-                crate::sync::ActionFailure::Plan(m) => m.de(),
-                crate::sync::ActionFailure::Service(m) => m.de(),
-                crate::sync::ActionFailure::Rule(e) => e.message(),
+                crate::sync::ActionFailure::Plan(m) => m.render(Lang::De),
+                crate::sync::ActionFailure::Service(m) => m.render(Lang::De),
+                crate::sync::ActionFailure::Rule(e) => e.msg().render(Lang::De),
                 other => format!("{other:?}"),
             })
     }

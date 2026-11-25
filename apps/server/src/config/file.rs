@@ -244,11 +244,7 @@ pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>,
             .filter(|p| !p.is_empty())
             .unwrap_or(cockpit_core::branch::DEFAULT_PATTERN);
         cockpit_core::branch::validate(pattern).map_err(|m| {
-            ConfigError::Wert(msg!(
-                ServerConfigReposPattern,
-                repo = &repo,
-                reason = Msg::raw(m)
-            ))
+            ConfigError::Wert(msg!(ServerConfigReposPattern, repo = &repo, reason = m))
         })?;
         let pr_language = match r.pr_language.as_deref().map(str::trim) {
             None | Some("") => cockpit_i18n::Lang::En,

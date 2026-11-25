@@ -189,15 +189,12 @@ impl AppState {
                         reason = f.msg(),
                         service = d.name()
                     );
-                    answer.hint = Some(m.de());
-                    answer.msg = Some(m);
+                    answer.hint = Some(m);
                 }
             }
         }
         if d == Service::Atlassian && answer.hint.is_none() {
-            let m = msg!(ServerOauthRevokeAtlassian);
-            answer.hint = Some(m.de());
-            answer.msg = Some(m);
+            answer.hint = Some(msg!(ServerOauthRevokeAtlassian));
         }
         let s = self.clone();
         tokio::task::spawn_blocking(move || s.oauth_tokens_delete(d))

@@ -32,11 +32,6 @@ impl StateError {
             StateError::WrongService => cockpit_i18n::msg!(IntegrationsSignInWrongService),
         }
     }
-
-    /// The German text.
-    pub fn text(&self) -> String {
-        self.msg().de()
-    }
 }
 
 /// Open sign-ins: `state` → PKCE verifier. Single use (deleted when taken) and

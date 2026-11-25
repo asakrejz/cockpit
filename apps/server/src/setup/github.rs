@@ -182,32 +182,22 @@ impl AppState {
             .await
             .map_err(|e| github_failure(&e))?;
         Ok(match found {
-            None => {
-                let m = msg!(ServerSetupBranchNoContributing, repo = repo);
-                BranchSuggestion {
-                    pattern: None,
-                    source: None,
-                    message: m.de(),
-                    msg: Some(m),
-                }
-            }
+            None => BranchSuggestion {
+                pattern: None,
+                source: None,
+                message: msg!(ServerSetupBranchNoContributing, repo = repo),
+            },
             Some((file, text)) => match cockpit_core::branch::suggest(&text) {
                 Some(s) => BranchSuggestion {
                     pattern: Some(s.pattern),
                     source: Some(file),
-                    // The reason comes from the core as German text.
                     message: s.reason,
-                    msg: None,
                 },
-                None => {
-                    let m = msg!(ServerSetupBranchNothingFound, file = &file);
-                    BranchSuggestion {
-                        pattern: None,
-                        source: Some(file),
-                        message: m.de(),
-                        msg: Some(m),
-                    }
-                }
+                None => BranchSuggestion {
+                    pattern: None,
+                    message: msg!(ServerSetupBranchNothingFound, file = &file),
+                    source: Some(file),
+                },
             },
         })
     }
@@ -222,16 +212,12 @@ impl AppState {
             .ok()
             .and_then(Result::ok)
             .flatten();
-        let done = |cause: GitHubCause, user: Option<String>, repos: Vec<RepoCheck>| {
-            let m = github_cause_msg(cause, user.as_deref());
-            GitHubCheck {
-                ok: cause == GitHubCause::Ok && repos.iter().all(|r| r.state == RepoState::Ok),
-                cause,
-                message: m.de(),
-                msg: Some(m),
-                user,
-                repos,
-            }
+        let done = |cause: GitHubCause, user: Option<String>, repos: Vec<RepoCheck>| GitHubCheck {
+            ok: cause == GitHubCause::Ok && repos.iter().all(|r| r.state == RepoState::Ok),
+            cause,
+            message: github_cause_msg(cause, user.as_deref()),
+            user,
+            repos,
         };
         let Some(access) = access else {
             return done(GitHubCause::NotConnected, None, Vec::new());

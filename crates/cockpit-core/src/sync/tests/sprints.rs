@@ -16,7 +16,7 @@ fn in_sprint(key: &str, state: SprintState) -> Item {
     }
 }
 
-fn shown(ws: &Workspace, by: &InboxFilter) -> Vec<String> {
+fn visible_keys(ws: &Workspace, by: &InboxFilter) -> Vec<String> {
     ws.inbox(Filter::All, SourceFilter::All, "", T, by)
         .iter()
         .map(|i| i.key.clone())
@@ -37,7 +37,7 @@ fn a_ticket_that_the_sync_no_longer_delivers_leaves_the_current_sprint() {
         ownership: Ownership::All,
         ..Default::default()
     };
-    assert_eq!(shown(&ws, &mine), ["ABC-1", "ABC-2"]);
+    assert_eq!(visible_keys(&ws, &mine), ["ABC-1", "ABC-2"]);
 
     // The sprint ended: the query no longer delivers ABC-2, and ABC-1 now says „closed“.
     let (ws, changes) = merge(
@@ -54,13 +54,13 @@ fn a_ticket_that_the_sync_no_longer_delivers_leaves_the_current_sprint() {
             .iter()
             .any(|c| matches!(c, Change::ItemRemoved { key, .. } if key == "ABC-2"))
     );
-    assert!(shown(&ws, &mine).is_empty(), "closed is not current");
+    assert!(visible_keys(&ws, &mine).is_empty(), "closed is not current");
     // Still reachable while the sync delivers it.
     let open = InboxFilter {
         sprint: crate::SprintView::AllOpen,
         ..mine
     };
-    assert_eq!(shown(&ws, &open), ["ABC-1"]);
+    assert_eq!(visible_keys(&ws, &open), ["ABC-1"]);
 }
 
 #[test]
@@ -89,12 +89,12 @@ fn done_tickets_are_hidden_by_default_and_shown_on_request() {
         ownership: Ownership::All,
         ..Default::default()
     };
-    assert!(shown(&ws, &by).is_empty());
+    assert!(visible_keys(&ws, &by).is_empty());
     let by = InboxFilter {
         hide_done: false,
         ..by
     };
-    assert_eq!(shown(&ws, &by), ["ABC-1"]);
+    assert_eq!(visible_keys(&ws, &by), ["ABC-1"]);
 }
 
 #[test]

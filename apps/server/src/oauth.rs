@@ -115,15 +115,14 @@ fn parse_service(id: &str) -> Result<Service, ()> {
 fn unknown_service() -> Response {
     (
         StatusCode::NOT_FOUND,
-        Json(ErrorBody::coded(msg!(ServerOauthUnknownService))),
+        Json(ErrorBody::new(msg!(ServerOauthUnknownService))),
     )
         .into_response()
 }
 
 /// Back into the app – via the address `127.0.0.1` so that the stored mode of the browser
 /// applies, even if the service redirected to `localhost`.
-/// The message travels twice: as German text (`message`) and as code and parameters (`msg`,
-/// JSON), which the app shows in its language.
+/// The message travels as code and parameters (`msg`, JSON), which the app shows in its language.
 fn back(port: u16, d: Service, result: &Result<Msg, Msg>) -> Redirect {
     let base = format!("http://127.0.0.1:{port}/");
     let (state, m) = match result {
@@ -132,9 +131,8 @@ fn back(port: u16, d: Service, result: &Result<Msg, Msg>) -> Redirect {
     };
     let coded = serde_json::to_string(m).unwrap_or_default();
     Redirect::to(&format!(
-        "{base}?oauth={state}&service={}&message={}&msg={}#/setup",
+        "{base}?oauth={state}&service={}&msg={}#/setup",
         d.id(),
-        encoded(&m.de()),
         encoded(&coded)
     ))
 }
@@ -179,7 +177,7 @@ pub async fn revoke(State(state): State<AppState>, Path(service): Path<String>) 
     state.repo_list_forget();
     match state.oauth_revoke(d).await {
         Ok(a) => Json(a).into_response(),
-        Err(m) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorBody::coded(m))).into_response(),
+        Err(m) => (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorBody::new(m))).into_response(),
     }
 }
 

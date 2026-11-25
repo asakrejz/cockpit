@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[tokio::test]
 async fn fetches_pull_requests_tickets_comments_checks_and_diffs() {
@@ -16,11 +17,10 @@ async fn fetches_pull_requests_tickets_comments_checks_and_diffs() {
         pr91.pr.as_ref().unwrap().changes_requested,
         "verdict of mkeller"
     );
-    assert!(
-        pr91.comments
-            .iter()
-            .any(|c| c.text.starts_with("Review: Änderungen angefordert")),
-    );
+    assert!(pr91.comments.iter().any(|c| {
+        c.text_in(Lang::De)
+            .starts_with("Review: Änderungen angefordert")
+    }),);
     assert_eq!(
         pr91.pr.as_ref().unwrap().checks,
         cockpit_core::Checks::Failed

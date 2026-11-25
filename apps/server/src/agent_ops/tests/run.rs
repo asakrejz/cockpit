@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[tokio::test]
 async fn plan_first_then_approval_then_run() {
@@ -26,7 +27,10 @@ exit 0
     w.wait_for_end().await;
     let run = w.run();
     assert!(run.is_awaiting());
-    assert_eq!(run.plan().unwrap().summary, "Fokus-Ring ergänzen");
+    assert_eq!(
+        run.plan().unwrap().summary.render(Lang::De),
+        "Fokus-Ring ergänzen"
+    );
     assert_eq!(run.usage().input_tokens, 500, "planning costs too");
     assert!(
         w.branches() == ["main"],
@@ -85,11 +89,10 @@ exit 137
         "the container was removed"
     );
     let run = w.run();
-    assert!(
-        run.messages
-            .iter()
-            .any(|m| m.text.starts_with("Angehalten: Budget pro Lauf erreicht"))
-    );
+    assert!(run.messages.iter().any(|m| {
+        m.text_in(Lang::De)
+            .starts_with("Angehalten: Budget pro Lauf erreicht")
+    }));
     assert_eq!(w.branches(), ["main"]);
     // The clone stays for resuming.
     assert!(w.state.agent_dir().join("runs/BAU-142/run/.git").exists());
@@ -148,11 +151,8 @@ exit 1
     w.wait_for_end().await;
     let run = w.run();
     assert!(run.is_idle());
-    assert_eq!(
-        run.ended.as_deref(),
-        Some("Das SDK meldet: Verbindung abgewiesen")
-    );
-    assert!(run.log().contains("Verbindung abgewiesen"));
+    assert_eq!(german(&run.ended), "Das SDK meldet: Verbindung abgewiesen");
+    assert!(run.log_in(Lang::De).contains("Verbindung abgewiesen"));
     assert!(!w.state.agent_dir().join("runs/BAU-142").exists());
 
     // The container dies without a message; its error output contains a secret.
@@ -163,16 +163,16 @@ exit 1
     lock(&w.state.inner.agent.failed).clear();
     w.start(false).await;
     w.wait("beendet", |ws| {
-        ws.run("BAU-142").is_some_and(|r| {
-            r.ended
-                .as_deref()
-                .is_some_and(|e| e.contains("Fehlercode 3"))
-        })
+        ws.run("BAU-142")
+            .is_some_and(|r| german(&r.ended).contains("Fehlercode 3"))
     })
     .await;
     let ended = w.run().ended.unwrap();
-    assert!(ended.contains("boom mit"), "{ended}");
-    assert!(!ended.contains(TOKEN) && !ended.contains(GITHUB), "{ended}");
+    assert!(ended.render(Lang::De).contains("boom mit"), "{ended:?}");
+    assert!(
+        !ended.render(Lang::De).contains(TOKEN) && !ended.render(Lang::De).contains(GITHUB),
+        "{ended:?}"
+    );
     assert!(
         !w.ws()
             .log
@@ -195,8 +195,9 @@ async fn docker_starts_not_in_plain_text() {
     .await;
     let e = w.run().ended.unwrap();
     assert!(
-        e.contains("ließ sich nicht starten") && e.contains("Docker daemon"),
-        "{e}"
+        e.render(Lang::De).contains("ließ sich nicht starten")
+            && e.render(Lang::De).contains("Docker daemon"),
+        "{e:?}"
     );
 }
 
@@ -276,7 +277,7 @@ printf '%s\n' '{{"t":"hints_arrived"}}'
     assert!(
         run.messages
             .iter()
-            .any(|m| m.kind == MessageKind::Ack && m.text.contains("Kleine Commits"))
+            .any(|m| m.kind == MessageKind::Ack && m.text_in(Lang::De).contains("Kleine Commits"))
     );
 }
 
@@ -341,7 +342,10 @@ async fn timeout_ended_the_container_with_plain_text() {
     })
     .await;
     let e = w.run().ended.unwrap();
-    assert!(e.contains("Zeitlimit") && e.contains("beendet"), "{e}");
+    assert!(
+        e.render(Lang::De).contains("Zeitlimit") && e.render(Lang::De).contains("beendet"),
+        "{e:?}"
+    );
     assert!(
         w.log("calls.log")
             .lines()
@@ -372,6 +376,7 @@ async fn forbidden_paths_prevent_the_push() {
         w.run()
             .ended
             .unwrap()
+            .render(Lang::De)
             .contains("verstoßen gegen die Regeln")
     );
     assert_eq!(w.branches(), ["main"]);

@@ -109,11 +109,6 @@ impl PathViolation {
             ViolationKind::NotAllowed => msg!(CoreAgentViolationNotAllowed, file = &self.file),
         }
     }
-
-    /// [`PathViolation::reason_msg`] in German.
-    pub fn reason(&self) -> String {
-        self.reason_msg().de()
-    }
 }
 
 /// The rules of a repo.
@@ -216,11 +211,6 @@ impl RepoRules {
             lines.push(msg!(CoreAgentRuleInstruction, text = &self.instructions));
         }
         lines
-    }
-
-    /// [`RepoRules::lines_msg`] in German.
-    pub fn lines(&self) -> Vec<String> {
-        self.lines_msg().iter().map(Msg::de).collect()
     }
 }
 

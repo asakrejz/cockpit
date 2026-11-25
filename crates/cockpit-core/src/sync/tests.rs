@@ -93,7 +93,6 @@ fn review(number: u32, files: Vec<FileDiff>) -> Review {
         number,
         title: format!("PR {number}"),
         description: String::new(),
-        description_msg: None,
         author: Person::new("Lena", "LK"),
         branch: "feature/x".into(),
         base: "main".into(),
@@ -141,7 +140,6 @@ fn github(items: Vec<Item>, reviews: Vec<Review>) -> Remote {
                 prs,
                 projects: Vec::new(),
                 warnings: Vec::new(),
-                warning_msgs: Vec::new(),
             }),
         }],
     }

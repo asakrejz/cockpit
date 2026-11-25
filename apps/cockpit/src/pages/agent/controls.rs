@@ -102,7 +102,14 @@ pub(super) fn blocked_hint(ctx: AgentCtx) -> Option<impl IntoView> {
         // The server says exactly what is missing and where to set it up.
         let exactly = store.health.with(|h| {
             h.as_ref()
-                .map(|h| h.agent.missing.join(" "))
+                .map(|h| {
+                    h.agent
+                        .missing
+                        .iter()
+                        .map(|m| m.render(lang()))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                })
                 .filter(|t| !t.is_empty())
         });
         view! {
@@ -121,6 +128,7 @@ pub(super) fn ended_banner(ctx: AgentCtx) -> Option<impl IntoView> {
     run.get()
         .filter(|r| r.is_idle())
         .and_then(|r| r.ended)
+        .map(|text| text.render(lang()))
         .map(|text| {
             view! {
                 <StatusBanner

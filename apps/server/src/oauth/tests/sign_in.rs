@@ -11,7 +11,7 @@ async fn start_without_setup_shows_a_understandable_message() {
         ort.starts_with("http://127.0.0.1:8787/?oauth=error&service=github"),
         "{ort}"
     );
-    let message = param(&ort, "message");
+    let message = message(&ort);
     assert!(
         message.contains("Schritt „GitHub“") && message.contains("Client-Secret"),
         "{message}"
@@ -97,7 +97,7 @@ async fn wrong_and_duplicate_state() {
     )
     .await;
     assert!(ort.contains("oauth=error"), "{ort}");
-    assert!(param(&ort, "message").contains("unbekannt"));
+    assert!(message(&ort).contains("unbekannt"));
     // Without state (e.g. return from the installation without our start).
     let (_, ort, _) = call(
         &p.app,
@@ -106,7 +106,7 @@ async fn wrong_and_duplicate_state() {
     )
     .await;
     assert!(ort.contains("oauth=error"));
-    assert!(param(&ort, "message").contains("Mit GitHub anmelden"));
+    assert!(message(&ort).contains("Mit GitHub anmelden"));
     assert!(
         p.secrets
             .get(secrets::GITHUB_OAUTH_TOKENS)
@@ -120,7 +120,7 @@ async fn wrong_and_duplicate_state() {
     assert!(call(&p.app, "GET", &url).await.1.contains("oauth=ok"));
     let (_, ort, _) = call(&p.app, "GET", &url).await;
     assert!(ort.contains("oauth=error"), "{ort}");
-    assert!(param(&ort, "message").contains("schon verwendet"));
+    assert!(message(&ort).contains("schon verwendet"));
     assert!(
         p.secrets
             .get(secrets::GITHUB_OAUTH_TOKENS)
@@ -136,7 +136,7 @@ async fn wrong_and_duplicate_state() {
         &format!("/api/oauth/atlassian/callback?code=abc&state={state}"),
     )
     .await;
-    assert!(param(&ort, "message").contains("anderen Dienst"), "{ort}");
+    assert!(message(&ort).contains("anderen Dienst"), "{ort}");
 }
 
 #[tokio::test]
@@ -159,7 +159,7 @@ async fn error_the_service_and_cancel() {
     )
     .await;
     assert!(ort.contains("oauth=error"));
-    assert!(param(&ort, "message").contains("abgelaufen"));
+    assert!(message(&ort).contains("abgelaufen"));
     assert!(
         p.secrets
             .get(secrets::GITHUB_OAUTH_TOKENS)
@@ -176,7 +176,7 @@ async fn error_the_service_and_cancel() {
     )
     .await;
     assert!(
-        param(&ort, "message").contains("abgebrochen oder abgelehnt: The user denied"),
+        message(&ort).contains("abgebrochen oder abgelehnt: The user denied"),
         "{ort}"
     );
     // The state is consumed by that.
@@ -186,5 +186,5 @@ async fn error_the_service_and_cancel() {
         &format!("/api/oauth/github/callback?code=abc&state={state}"),
     )
     .await;
-    assert!(param(&ort, "message").contains("schon verwendet"));
+    assert!(message(&ort).contains("schon verwendet"));
 }

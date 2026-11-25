@@ -1,6 +1,7 @@
 //! The branch pattern of a repo: set in the configuration, applied at the start, enforced at the push.
 
 use super::*;
+use cockpit_i18n::Lang;
 
 fn with_pattern(pattern: &str) -> Vec<cockpit_core::AgentRepo> {
     vec![cockpit_core::AgentRepo {
@@ -90,7 +91,7 @@ async fn a_branch_outside_the_pattern_is_not_pushed() {
     w.wait_for_end().await;
     assert_eq!(w.branches_of("web"), ["main"], "nothing was pushed");
     let ended = w.run().ended.unwrap_or_default();
-    assert!(ended.contains("erwartet war"), "{ended}");
+    assert!(ended.render(Lang::De).contains("erwartet war"), "{ended:?}");
 }
 
 #[tokio::test]
@@ -119,5 +120,8 @@ async fn an_existing_branch_of_somebody_else_stops_the_run_before_the_container_
     .await;
     w.wait_for_end().await;
     let ended = w.run().ended.unwrap_or_default();
-    assert!(ended.contains("gibt es im Repo schon"), "{ended}");
+    assert!(
+        ended.render(Lang::De).contains("gibt es im Repo schon"),
+        "{ended:?}"
+    );
 }

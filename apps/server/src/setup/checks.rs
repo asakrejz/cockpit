@@ -5,12 +5,10 @@ use cockpit_integrations::Cause;
 use super::*;
 
 pub(super) fn check(cause: JiraCause, name: Option<String>) -> JiraCheck {
-    let msg = jira_cause_msg(cause, name.as_deref());
     JiraCheck {
         ok: cause == JiraCause::Ok,
         cause,
-        message: msg.de(),
-        msg: Some(msg),
+        message: jira_cause_msg(cause, name.as_deref()),
         name: name.filter(|n| !n.is_empty()),
     }
 }
@@ -117,8 +115,7 @@ pub(super) fn repo_check(
         repo,
         state,
         default_branch,
-        message: message.de(),
-        msg: Some(message),
+        message,
     }
 }
 

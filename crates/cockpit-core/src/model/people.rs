@@ -137,9 +137,12 @@ pub struct Comment {
     /// shows it as "5 minutes ago".
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_ms: Option<u64>,
+    /// The words as written; for a comment of the system (`text_msg`) empty or the plain text of
+    /// a state saved earlier.
     #[serde(default)]
     pub text: String,
-    /// The text as code and parameters (comments the agent writes); `None` = only [`Comment::text`].
+    /// What is shown instead of the words: a comment of the system as code and parameters (the
+    /// sent review, the verdict of a review on GitHub); `None` = only [`Comment::text`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub text_msg: Option<cockpit_i18n::Msg>,
     /// The comment as formatted Jira text (ADF); `None` = only [`Comment::text`] exists.
@@ -162,6 +165,14 @@ impl Comment {
             rich: None,
             own: false,
         }
+    }
+
+    /// The text in `lang`: the message, or the words as written (also when the code of the message
+    /// no longer exists).
+    pub fn text_in(&self, lang: cockpit_i18n::Lang) -> String {
+        self.text_msg
+            .as_ref()
+            .map_or_else(|| self.text.clone(), |m| m.render_or(lang, &self.text))
     }
 
     /// A comment written at `created_ms`.

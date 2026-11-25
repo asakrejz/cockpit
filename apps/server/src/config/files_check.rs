@@ -20,10 +20,8 @@ const CACHE_TTL: Duration = Duration::from_secs(15);
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct ConfigFilesStatus {
     pub path: String,
-    /// German text of the warnings (for readers that only know plain text).
-    pub warnings: Vec<String>,
-    /// The same warnings as code and parameters; the interface shows them in its language.
-    pub warning_msgs: Vec<Msg>,
+    /// The warnings as code and parameters; the interface shows them in its language.
+    pub warnings: Vec<Msg>,
 }
 
 /// One finding of the check; it is a message for the interface or an English line for the terminal.
@@ -76,7 +74,7 @@ pub enum Language {
 /// Checks the folder without changing anything (cached for a few seconds).
 pub fn status(dir: &Path) -> ConfigFilesStatus {
     static CACHE: Mutex<Option<(PathBuf, Instant, Vec<Msg>)>> = Mutex::new(None);
-    let warning_msgs = {
+    let warnings = {
         let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
         match cache.as_ref() {
             Some((p, at, w)) if p == dir && at.elapsed() < CACHE_TTL => w.clone(),
@@ -89,8 +87,7 @@ pub fn status(dir: &Path) -> ConfigFilesStatus {
     };
     ConfigFilesStatus {
         path: dir.display().to_string(),
-        warnings: warning_msgs.iter().map(Msg::de).collect(),
-        warning_msgs,
+        warnings,
     }
 }
 
@@ -115,7 +112,7 @@ pub fn check(dir: &Path, language: Language) -> Vec<String> {
         .iter()
         .map(|f| match language {
             Language::English => f.english(),
-            Language::German => f.msg().de(),
+            Language::German => f.msg().render(cockpit_i18n::Lang::De),
         })
         .collect()
 }

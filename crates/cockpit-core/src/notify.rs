@@ -74,16 +74,6 @@ impl NotifyReason {
         }
     }
 
-    /// The name in German (for log lines that are kept as plain text).
-    pub fn label(self) -> String {
-        self.msg().de()
-    }
-
-    /// A sentence on when it reports.
-    pub fn hint(self) -> String {
-        self.hint_msg().de()
-    }
-
     /// A sentence on when it reports.
     pub fn hint_msg(self) -> Msg {
         match self {
@@ -122,11 +112,6 @@ impl Channel {
         match self {
             Channel::Browser => msg!(CoreNotifyChannelBrowser),
         }
-    }
-
-    /// The name in German (for log lines that are kept as plain text).
-    pub fn label(self) -> String {
-        self.msg().de()
     }
 }
 
@@ -385,7 +370,7 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
 
     for run in &after.runs {
         let old = run_of(before, &run.key());
-        let (key, label) = (run.key(), run.label());
+        let (key, label) = (run.key(), run.label_msg());
         if run.is_awaiting() && !old.is_some_and(AgentRun::is_awaiting) {
             out.push(Event {
                 reason: NotifyReason::AgentWaiting,
@@ -411,7 +396,7 @@ pub fn events(before: &Workspace, after: &Workspace) -> Vec<Event> {
             out.push(Event {
                 reason: NotifyReason::AgentStopped,
                 title: msg!(CoreNotifyStoppedTitle, key = &run.ticket_key),
-                text: msg!(CoreNotifyStoppedText, reason = reason.label()),
+                text: msg!(CoreNotifyStoppedText, reason = reason.label_msg()),
                 route: format!("#/agent/{}", run.ticket_key),
             });
         }

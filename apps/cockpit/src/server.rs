@@ -30,15 +30,6 @@ pub enum CallError {
     Unreachable,
 }
 
-/// A text of the server in the current language: the coded message if there is one, otherwise
-/// the plain text (which comes from outside or from an older server).
-pub fn shown(text: &str, msg: Option<&cockpit_i18n::Msg>) -> String {
-    msg.map_or_else(
-        || text.to_string(),
-        |m| m.render(feature_ui::lang_untracked()),
-    )
-}
-
 impl CallError {
     pub fn message(&self) -> String {
         match self {
@@ -67,7 +58,7 @@ async fn rejection(resp: gloo_net::http::Response) -> CallError {
 /// already say in plain text what is wrong, e.g. which token problem).
 async fn rejection_own(resp: gloo_net::http::Response) -> CallError {
     match resp.json::<ErrorBody>().await {
-        Ok(e) if !e.error.trim().is_empty() => {
+        Ok(e) if !e.error.code.is_empty() => {
             CallError::Rejected(e.in_lang(feature_ui::lang_untracked()))
         }
         _ => CallError::Rejected(t!(ServerGithubUnavailable)),
@@ -278,11 +269,9 @@ pub struct UnreadableState {
 pub struct ConfigFilesStatus {
     #[serde(default)]
     pub path: String,
-    #[serde(default)]
-    pub warnings: Vec<String>,
     /// The warnings as code and parameters (shown in the current language).
     #[serde(default)]
-    pub warning_msgs: Vec<cockpit_i18n::Msg>,
+    pub warnings: Vec<cockpit_i18n::Msg>,
 }
 
 /// Path of the `.env` file and warnings of the server (tracked by Git, not ignored, permissions).
@@ -290,22 +279,9 @@ pub struct ConfigFilesStatus {
 pub struct EnvFileStatus {
     #[serde(default)]
     pub path: String,
-    #[serde(default)]
-    pub warnings: Vec<String>,
     /// The warnings as code and parameters (shown in the current language).
     #[serde(default)]
-    pub warning_msgs: Vec<cockpit_i18n::Msg>,
-}
-
-/// The texts of a list: the coded messages in the current language, or the plain texts.
-pub fn shown_list(texts: &[String], msgs: &[cockpit_i18n::Msg]) -> Vec<String> {
-    if msgs.is_empty() {
-        texts.to_vec()
-    } else {
-        msgs.iter()
-            .map(|m| m.render(feature_ui::lang_untracked()))
-            .collect()
-    }
+    pub warnings: Vec<cockpit_i18n::Msg>,
 }
 
 /// State of the sign-in, of the agent endpoint and of the container runtime (`GET /api/health`).

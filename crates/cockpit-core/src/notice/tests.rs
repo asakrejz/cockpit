@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 const NOW: u64 = 1_800_000_000_000;
 
@@ -25,16 +26,16 @@ fn unauthorized_points_to_setup() {
     let n = source_notice(&state(Some(Problem::Unauthorized)), NOW).unwrap();
     assert_eq!(n.tone, NoticeTone::Error);
     assert_eq!(n.action, NoticeAction::OpenSetup);
-    assert!(n.title.de().contains("Token abgelehnt"));
-    assert!(n.detail.de().contains("Einrichten"));
-    assert!(n.detail.de().contains("vor 10 Minuten"));
+    assert!(n.title.render(Lang::De).contains("Token abgelehnt"));
+    assert!(n.detail.render(Lang::De).contains("Einrichten"));
+    assert!(n.detail.render(Lang::De).contains("vor 10 Minuten"));
 }
 
 #[test]
 fn forbidden_is_not_a_token_problem() {
     let n = source_notice(&state(Some(Problem::NoPermission)), NOW).unwrap();
     assert_eq!(n.action, NoticeAction::OpenSetup);
-    assert!(n.title.de().contains("Berechtigung"));
+    assert!(n.title.render(Lang::De).contains("Berechtigung"));
 }
 
 #[test]
@@ -46,7 +47,11 @@ fn rate_limit_with_time_waits_and_names_the_wait() {
     assert_eq!(n.tone, NoticeTone::Info);
     assert_eq!(n.action, NoticeAction::Wait);
     assert_eq!(n.retry_at_ms, Some(NOW + 90_000));
-    assert!(n.detail.de().contains("in 2 Min."), "{}", n.detail.de());
+    assert!(
+        n.detail.render(Lang::De).contains("in 2 Min."),
+        "{}",
+        n.detail.render(Lang::De)
+    );
 }
 
 #[test]
@@ -66,13 +71,25 @@ fn rate_limit_without_time_or_in_the_past_retries() {
 #[test]
 fn unreachable_shows_the_last_good_state() {
     let n = source_notice(&state(Some(Problem::Offline)), NOW).unwrap();
-    assert_eq!(n.title.de(), "GitHub nicht erreichbar");
-    assert!(n.detail.de().contains("Letzter Stand: vor 10 Minuten"));
-    assert!(!n.detail.de().contains(".."), "{}", n.detail.de());
+    assert_eq!(n.title.render(Lang::De), "GitHub nicht erreichbar");
+    assert!(
+        n.detail
+            .render(Lang::De)
+            .contains("Letzter Stand: vor 10 Minuten")
+    );
+    assert!(
+        !n.detail.render(Lang::De).contains(".."),
+        "{}",
+        n.detail.render(Lang::De)
+    );
     let mut never = state(Some(Problem::Offline));
     never.last_ok_ms = None;
     let n = source_notice(&never, NOW).unwrap();
-    assert!(n.detail.de().contains("noch keinen abgeglichenen Stand"));
+    assert!(
+        n.detail
+            .render(Lang::De)
+            .contains("noch keinen abgeglichenen Stand")
+    );
 }
 
 #[test]
@@ -81,7 +98,7 @@ fn server_error_keeps_the_message() {
     let n = source_notice(&state(Some(p)), NOW).unwrap();
     assert!(
         n.detail
-            .de()
+            .render(Lang::De)
             .contains("Unerwarteter Status vom Dienst: 502")
     );
     assert!(
@@ -94,17 +111,23 @@ fn server_error_keeps_the_message() {
 
 #[test]
 fn times_are_coarse_and_rounded_up_for_waits() {
-    assert_eq!(ago_msg(NOW, NOW).de(), "gerade eben");
-    assert_eq!(ago_msg(NOW - 2 * 3_600_000, NOW).de(), "vor 2 Stunden");
-    assert_eq!(ago_msg(NOW - 3 * 86_400_000, NOW).de(), "vor 3 Tagen");
-    assert_eq!(wait_msg(NOW + 20_000, NOW).de(), "in 20 Sek.");
-    assert_eq!(wait_msg(NOW + 61_000, NOW).de(), "in 2 Min.");
-    assert_eq!(wait_msg(NOW, NOW).de(), "gleich");
+    assert_eq!(ago_msg(NOW, NOW).render(Lang::De), "gerade eben");
+    assert_eq!(
+        ago_msg(NOW - 2 * 3_600_000, NOW).render(Lang::De),
+        "vor 2 Stunden"
+    );
+    assert_eq!(
+        ago_msg(NOW - 3 * 86_400_000, NOW).render(Lang::De),
+        "vor 3 Tagen"
+    );
+    assert_eq!(wait_msg(NOW + 20_000, NOW).render(Lang::De), "in 20 Sek.");
+    assert_eq!(wait_msg(NOW + 61_000, NOW).render(Lang::De), "in 2 Min.");
+    assert_eq!(wait_msg(NOW, NOW).render(Lang::De), "gleich");
 }
 
 #[test]
 fn http_status_texts() {
-    let de = |status, own| http_failure_msg(status, own).de();
+    let de = |status, own| http_failure_msg(status, own).render(Lang::De);
     assert!(de(401, None).contains("Einrichten"));
     assert_eq!(
         de(403, Some("Nur du darfst mergen")),

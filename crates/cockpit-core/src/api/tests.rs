@@ -96,3 +96,17 @@ fn has_key_looks_only_at_the_name_asked_for() {
     assert!(!with("agent-key").has_key("jira"));
     assert!(!Setup::default().has_key("agent-key"));
 }
+
+#[test]
+fn an_error_body_carries_one_message() {
+    let body = ErrorBody::new(cockpit_i18n::msg!(CommonRaw, text = "boom"));
+    let json = serde_json::to_string(&body).unwrap();
+    assert_eq!(
+        json,
+        r#"{"error":{"code":"common.raw","args":[["text","boom"]]}}"#
+    );
+    let back: ErrorBody = serde_json::from_str(&json).unwrap();
+    assert_eq!(back.in_lang(cockpit_i18n::Lang::De), "boom");
+    // The plain-text form of an error is no error body.
+    assert!(serde_json::from_str::<ErrorBody>(r#"{"error":"boom"}"#).is_err());
+}

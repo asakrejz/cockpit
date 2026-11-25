@@ -98,9 +98,9 @@ async fn a_status_without_a_column_is_a_plain_message_and_nothing_goes_out() {
     )
     .unwrap_err();
     assert!(
-        err.1.render(cockpit_i18n::Lang::En).contains("no column"),
+        err.0.render(cockpit_i18n::Lang::En).contains("no column"),
         "{}",
-        err.0
+        err
     );
 }
 
@@ -122,7 +122,7 @@ async fn a_ticket_of_a_project_is_not_changed_when_projects_is_not_connected() {
     )
     .unwrap_err();
     assert!(
-        err.1
+        err.0
             .render(cockpit_i18n::Lang::En)
             .contains("not connected")
     );
@@ -203,7 +203,7 @@ async fn a_draft_cannot_be_commented_or_assigned_but_its_text_can_be_edited() {
         &targets(),
     )
     .unwrap_err();
-    assert!(reply.1.render(cockpit_i18n::Lang::En).contains("draft"));
+    assert!(reply.0.render(cockpit_i18n::Lang::En).contains("draft"));
     let assign = plan(
         &ws,
         Action::AssignTicket {
@@ -213,7 +213,7 @@ async fn a_draft_cannot_be_commented_or_assigned_but_its_text_can_be_edited() {
         &targets(),
     )
     .unwrap_err();
-    assert!(assign.1.render(cockpit_i18n::Lang::En).contains("draft"));
+    assert!(assign.0.render(cockpit_i18n::Lang::En).contains("draft"));
     let edit = plan(
         &ws,
         Action::EditTicket {
@@ -341,7 +341,7 @@ async fn priority_and_other_fields_go_to_the_project() {
         &targets(),
     )
     .unwrap_err();
-    assert!(err.1.render(cockpit_i18n::Lang::En).contains("Priority"));
+    assert!(err.0.render(cockpit_i18n::Lang::En).contains("Priority"));
 }
 
 #[tokio::test]

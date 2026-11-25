@@ -24,6 +24,8 @@ mod attachments;
 mod config;
 mod container;
 mod db;
+#[cfg(test)]
+mod german;
 mod live;
 mod oauth;
 mod projects_write;

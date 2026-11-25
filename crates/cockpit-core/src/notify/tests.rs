@@ -1,6 +1,7 @@
 use super::*;
 use crate::model::{Comment, PrRef};
 use crate::{AgentOptions, demo};
+use cockpit_i18n::Lang;
 
 fn ws() -> Workspace {
     demo::workspace()
@@ -42,7 +43,7 @@ fn new_review_request_is_reported_once() {
     let e = only(events(&before, &after));
     assert_eq!(e.reason, NotifyReason::ReviewRequested);
     assert_eq!(e.route, "#/review/99");
-    assert!(e.title.de().contains("Neuer Button"));
+    assert!(e.title.render(Lang::De).contains("Neuer Button"));
     // Not again afterwards.
     assert!(events(&after, &after).is_empty());
 }
@@ -72,7 +73,7 @@ fn assignment_is_reported() {
     item.reason = ReasonKind::Assigned;
     let e = only(events(&before, &after));
     assert_eq!(e.reason, NotifyReason::Assigned);
-    assert!(e.title.de().contains("BAU-142"));
+    assert!(e.title.render(Lang::De).contains("BAU-142"));
     assert_eq!(e.route, "#/");
 }
 
@@ -94,7 +95,7 @@ fn mention_needs_a_new_foreign_comment_with_my_name() {
     comments(&mut after).push(Comment::new(lena, "gerade eben", "Was meinst du, @du?"));
     let e = only(events(&before, &after));
     assert_eq!(e.reason, NotifyReason::Mention);
-    assert!(e.title.de().contains("Lena"));
+    assert!(e.title.render(Lang::De).contains("Lena"));
     // Own comments and old comments report nothing.
     let mut own = before.clone();
     own.reply("bau142", "@Du bin das selbst", 0);
@@ -177,7 +178,7 @@ fn agent_question_is_reported_once() {
     let e = only(events(&before, &after));
     assert_eq!(e.reason, NotifyReason::AgentWaiting);
     assert_eq!(e.route, "#/agent/BAU-142");
-    assert!(e.text.de().contains("deprecated"), "{e:?}");
+    assert!(e.text.render(Lang::De).contains("deprecated"), "{e:?}");
     // As long as it is open, it does not come again.
     assert!(events(&after, &after.clone()).is_empty());
 }
