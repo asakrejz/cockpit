@@ -1,8 +1,7 @@
-//! The inbox filters as data: one list says which filters exist, what they are called, which
-//! choices they offer and what they start with. The filter dialog renders this list. The values
-//! live in [`InboxFilter`](crate::InboxFilter),
-//! which reads and writes them by filter ID (`get`/`set`), always as text where the empty text
-//! means „all“.
+//! The inbox filters: one list says which filters exist, what they are called, which choices
+//! they offer and what they start with. The filter dialog renders this list. The values live in
+//! [`InboxFilter`], which reads and writes them by filter ID (`get`/`set`), always as text
+//! where the empty text means „all“, and decides which entries match.
 //!
 //! The chosen values are part of the workspace ([`Workspace::inbox_filter`](crate::Workspace))
 //! and change only by [`Action::SetInboxFilter`](crate::Action).
@@ -10,6 +9,10 @@
 //! Filters whose choices come from the data (repos, people, projects, labels) have
 //! [`Choices::FromData`]; [`Workspace::filter_choices`](crate::Workspace::filter_choices) lists
 //! them.
+
+mod inbox;
+
+pub use inbox::InboxFilter;
 
 /// Whose entries are listed. „Alle“ (the start value) lists the entries of colleagues too,
 /// without attention; "Mine" keeps only what needs your attention.

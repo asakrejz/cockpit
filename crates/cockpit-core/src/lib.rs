@@ -7,7 +7,8 @@
 //! * [`connections`]: the sign-in state of Jira and GitHub
 //! * [`setup`]: steps, inputs and summary of the setup assistant
 //! * [`link`]: link ticket and pull request via the ticket key
-//! * [`search`]: search and filter of the inbox
+//! * [`search`]: text search over the inbox
+//! * [`filters`]: the inbox filters (definitions, values and matching)
 //! * [`notice`]: plain-language banners for sources that are not healthy, and failure texts
 //! * [`notify`]: events for notifications, channels and quiet hours
 //! * [`usage`]: consumption, costs, limits and the ledger of the agents
@@ -71,8 +72,8 @@ pub use attention::{Hit, Rule, Rules, Snooze, SnoozeChoice};
 pub use connections::{AuthChoice, AuthKind, OAuthTokens, ServiceStatus};
 pub use details::{Attachment, DetailField, DetailValue, Details};
 pub use filters::{
-    ASSIGNED_TO_ME, ActiveFilter, Applies, Choices, FILTERS, FilterDef, JIRA_PROJECT_FILTER,
-    NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED, filter_def,
+    ASSIGNED_TO_ME, ActiveFilter, Applies, Choices, FILTERS, FilterDef, InboxFilter,
+    JIRA_PROJECT_FILTER, NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED, filter_def,
 };
 pub use model::*;
 pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};
@@ -93,7 +94,6 @@ pub use review::{
 };
 pub use review_filter::{ProjectChoice, RepoGroup, ReviewFilter};
 pub use rules::{PathViolation, RepoRules, ViolationKind, glob_match};
-pub use search::InboxFilter;
 pub use sync::{
     Change, Loaded, Outcome, PrLink, Problem, Remote, SourceData, SourceState, SyncState,
 };

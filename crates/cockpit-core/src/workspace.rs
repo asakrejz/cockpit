@@ -11,12 +11,12 @@ use crate::agent::{
     RunKind,
 };
 use crate::attention::{self, Hit, Rule, Rules, Snooze};
+use crate::filters::InboxFilter;
 use crate::filters::{Choices, NO_TICKET, Ownership, SprintView};
 use crate::model::*;
 use crate::notify::NotifySettings;
 use crate::review::{Decision, MergeBlocker, MergeMethod, Review, SendError, Verdict};
 use crate::rules::RepoRules;
-use crate::search::InboxFilter;
 use crate::sync::SyncState;
 use crate::text::slug;
 use crate::usage::{
