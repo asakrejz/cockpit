@@ -131,7 +131,7 @@ fn only_known_key_names() {
 
 #[test]
 fn jira_site_in_all_spellings() {
-    for ein in [
+    for input in [
         "firma",
         "Firma.atlassian.net",
         "https://firma.atlassian.net/",
@@ -139,9 +139,9 @@ fn jira_site_in_all_spellings() {
         "  firma.atlassian.net  ",
     ] {
         assert_eq!(
-            jira_site_read(ein).unwrap(),
+            jira_site_read(input).unwrap(),
             "https://firma.atlassian.net",
-            "{ein}"
+            "{input}"
         );
     }
     assert_eq!(jira_site_read("").unwrap(), "");
