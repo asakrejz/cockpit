@@ -445,7 +445,7 @@ The interface is available in German and English and switches at once, without a
   (`apps/cockpit/src/language.rs`) is in the "More" sheet and in the first step of the setup assistant; the playground has one too.
 - **Content from Jira and GitHub** (titles, descriptions, comments) is never translated.
 - **Tests** (`crates/i18n/src/tests.rs`): both catalogs have the same files, ids and parameters; plural keys have `one` and `other`;
-  no key is unused; a scan test (`tests/scan.rs`) fails when `apps/cockpit/src` or `crates/ui/src` contain a visible string literal
+  no key is unused; a scan test (`crates/i18n/src/tests/scan.rs`) fails when `apps/cockpit/src` or `crates/ui/src` contain a visible string literal
   (names like "Cockpit" or "GitHub" are on an allowlist there).
 - **German texts** are in simple German: short sentences, no word-for-word translated jargon.
 - **Every text for people is a message.** Core, server and integrations produce log entries, errors, hints, notifications and
@@ -460,7 +460,7 @@ The interface is available in German and English and switches at once, without a
   build does not know renders as the code itself. Where a test compares text, it renders explicitly (`render(Lang::De)`).
   Texts from outside (a message of GitHub, git stderr) use `Msg::raw`. An error of Jira or GitHub (`cockpit_integrations::Error`) is passed on as `Error::msg()` (a nested message, never
   `to_string()` wrapped in `Msg::raw`), and a failed fetch is stored as `Problem::Other(Msg)` in the sync state; the `Display` of
-  the error is English and only for logs. A scan test (`tests/scan_core.rs`) fails when core, server or integrations contain German
+  the error is English and only for logs. A scan test (`crates/i18n/src/tests/scan_core.rs`) fails when core, server or integrations contain German
   literals (demo data and tests excepted).
 - **Times, people and labels in the data.** The reason line of an entry is a message (`Item::reason_msg`; the kind is
   `Item::reason`). Times are timestamps (`Item::updated_ms`, `Comment::created_ms`), which the UI shows with `ago`, so they age.
