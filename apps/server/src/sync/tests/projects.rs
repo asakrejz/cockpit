@@ -176,7 +176,8 @@ async fn a_refused_write_changes_nothing_and_names_the_missing_right() {
     assert_eq!(status, StatusCode::BAD_GATEWAY, "{body}");
     // The token of the test is a classic one (`ghp_…`): the answer names the scope it lacks.
     assert!(
-        body.contains("`project`") && body.contains("GitHub Projects ändern"),
+        crate::german::german(&body).contains("`project`")
+            && crate::german::german(&body).contains("GitHub Projects ändern"),
         "{body}"
     );
     assert!(!body.contains(TOKEN));
@@ -398,7 +399,8 @@ async fn creating_a_project_checks_its_input_and_explains_a_missing_right() {
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
     assert!(
-        body.contains("`project`") && body.contains("GitHub Projects ändern"),
+        crate::german::german(&body).contains("`project`")
+            && crate::german::german(&body).contains("GitHub Projects ändern"),
         "{body}"
     );
     // Without a token: a plain message, not a call.

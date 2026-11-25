@@ -12,9 +12,7 @@ fn error_body(body: &str) -> ErrorBody {
 
 /// The message of a response, rendered in both languages (German first).
 fn both(body: &str) -> (String, String) {
-    let m = error_body(body)
-        .msg
-        .expect("a catalog message, not a plain text");
+    let m = error_body(body).error;
     (m.render(Lang::De), m.render(Lang::En))
 }
 
@@ -68,10 +66,7 @@ async fn a_failed_github_lookup_is_a_github_message_in_both_languages() {
         .unwrap();
     let (status, body) = send_request(&state, req).await;
     assert_eq!(status, StatusCode::BAD_GATEWAY);
-    assert_eq!(
-        error_body(&body).msg.unwrap().code,
-        "server_run.github_no_people"
-    );
+    assert_eq!(error_body(&body).error.code, "server_run.github_no_people");
     let (de, en) = both(&body);
     assert_eq!(
         de,
@@ -92,10 +87,7 @@ async fn a_github_client_error_is_not_reported_as_a_jira_error() {
         .unwrap();
     let (status, body) = send_request(&state, req).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(
-        error_body(&body).msg.unwrap().code,
-        "server_run.github_error"
-    );
+    assert_eq!(error_body(&body).error.code, "server_run.github_error");
     let (de, en) = both(&body);
     assert!(de.starts_with("GitHub: "), "{de}");
     assert!(en.starts_with("GitHub: "), "{en}");
@@ -116,10 +108,7 @@ async fn a_failed_jira_lookup_is_a_jira_message_in_both_languages() {
         .unwrap();
     let (status, body) = send_request(&state, req).await;
     assert_eq!(status, StatusCode::BAD_GATEWAY);
-    assert_eq!(
-        error_body(&body).msg.unwrap().code,
-        "server_run.jira_no_projects"
-    );
+    assert_eq!(error_body(&body).error.code, "server_run.jira_no_projects");
     let (de, en) = both(&body);
     assert_eq!(
         de,

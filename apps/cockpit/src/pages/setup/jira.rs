@@ -428,7 +428,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                     match server::post_jira_check().await {
                         Ok(p) => result.set(Some(p)),
                         Err(e) => result.set(Some(JiraCheck {
-                            message: e.message(),
+                            message: cockpit_i18n::Msg::raw(e.message()),
                             ..Default::default()
                         })),
                     }
@@ -519,7 +519,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                                 style=(!p.ok).then_some("color: var(--sys-color-red)")
                             >
                                 {if p.ok { "✓ " } else { "" }}
-                                {server::shown(&p.message, p.msg.as_ref())}
+                                {p.message.render(lang())}
                             </p>
                         }
                     })

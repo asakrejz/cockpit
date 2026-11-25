@@ -29,7 +29,7 @@ pub(super) fn RunRepos(run: Memo<Option<AgentRun>>) -> impl IntoView {
                 let pull = e.pull_request.clone();
                 let lang = lang_untracked();
                 let state = e.state_msg().render(lang);
-                let reason = (!e.reason.is_empty()).then(|| e.reason.clone());
+                let reason = e.reason.as_ref().map(|r| r.render(lang));
                 view! {
                     <li class="ui-list__row" style="flex-wrap: wrap">
                         <span class="ui-list__title t-mono">{e.repo.clone()}</span>

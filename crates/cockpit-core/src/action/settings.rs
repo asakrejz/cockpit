@@ -109,8 +109,7 @@ impl Workspace {
                         Note {
                             actor: Some(Actor::System),
                             target: c.target(),
-                            text: msg.de(),
-                            msg: Some(msg),
+                            msg,
                         }
                     })
                     .collect();

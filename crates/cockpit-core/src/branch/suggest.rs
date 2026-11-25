@@ -21,11 +21,8 @@ const WORDS: [&str; 7] = [
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Suggestion {
     pub pattern: String,
-    /// Plain German: what was found and what to check.
-    pub reason: String,
-    /// The same as code and parameters; the UI renders it in its language.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reason_msg: Option<Msg>,
+    /// What was found and what to check.
+    pub reason: Msg,
 }
 
 /// Words followed by `/` that the text names as a branch prefix, in order, without doubles.
@@ -108,11 +105,7 @@ pub fn suggest(text: &str) -> Option<Suggestion> {
     } else {
         return None;
     };
-    Some(Suggestion {
-        pattern,
-        reason: reason.de(),
-        reason_msg: Some(reason),
-    })
+    Some(Suggestion { pattern, reason })
 }
 
 #[cfg(test)]

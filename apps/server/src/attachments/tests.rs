@@ -341,6 +341,6 @@ async fn a_failed_download_is_answered_with_the_matching_status() {
         assert_eq!(answer.status(), status, "{e:?}");
         let body = answer.into_body().collect().await.unwrap().to_bytes();
         let body: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert_eq!(body["msg"], serde_json::to_value(&text).unwrap(), "{e:?}");
+        assert_eq!(body["error"], serde_json::to_value(&text).unwrap(), "{e:?}");
     }
 }

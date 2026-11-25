@@ -52,11 +52,7 @@ pub async fn test(State(state): State<AppState>, UrlPath(source): UrlPath<String
 }
 
 pub(super) fn test_answer(ok: bool, message: Msg) -> WebhookTestResponse {
-    WebhookTestResponse {
-        ok,
-        message: message.de(),
-        msg: Some(message),
-    }
+    WebhookTestResponse { ok, message }
 }
 
 impl AppState {

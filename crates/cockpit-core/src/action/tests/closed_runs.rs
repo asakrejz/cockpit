@@ -1,5 +1,6 @@
 use super::*;
 use crate::agent::Closure;
+use cockpit_i18n::Lang;
 
 fn finished_run() -> AgentRun {
     let mut run = AgentRun::new("BAU-138", "Sample");
@@ -48,7 +49,10 @@ fn a_finished_run_becomes_done_merged() {
     let run = w.run("BAU-138").unwrap();
     assert_eq!(run.closure, Some(Closure::Merged));
     assert!(run.is_closed() && run.is_done());
-    assert_eq!(Closure::Merged.label(), "Erledigt (gemergt)");
+    assert_eq!(
+        Closure::Merged.label_msg().render(Lang::De),
+        "Erledigt (gemergt)"
+    );
     assert!(
         w.runs_to_watch().is_empty(),
         "a closed run is not asked again"
@@ -60,7 +64,10 @@ fn a_closed_pull_request_gets_its_own_state() {
     let mut w = with_run(finished_run());
     close(&mut w, "BAU-138", Closure::Closed).unwrap();
     assert_eq!(w.runs[0].closure, Some(Closure::Closed));
-    assert_eq!(Closure::Closed.label(), "Erledigt (geschlossen)");
+    assert_eq!(
+        Closure::Closed.label_msg().render(Lang::De),
+        "Erledigt (geschlossen)"
+    );
 }
 
 #[test]

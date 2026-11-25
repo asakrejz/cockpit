@@ -395,10 +395,11 @@ impl Workspace {
             .map_or(run.options.pr_language, |e| e.pr_language);
         let lang = self.pr_text_language(run, repo_lang).lang;
         let text = |msg: cockpit_i18n::Msg| msg.render(lang);
+        let summary = run.summary.clone().map(&text).unwrap_or_default();
         let mut body = format!(
             "## {}\n{}\n",
             text(cockpit_i18n::msg!(CorePrWhat)),
-            run.summary.trim()
+            summary.trim()
         );
         body.push_str(&format!(
             "\n## {}\n{}: {}\n",

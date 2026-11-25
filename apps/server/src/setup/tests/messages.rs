@@ -1,5 +1,6 @@
 //! The texts that reach the interface name fields of the assistant, never terminal commands.
 
+use cockpit_i18n::Lang;
 use std::path::{Path, PathBuf};
 
 use cockpit_core::setup::step_mentioned;
@@ -13,14 +14,14 @@ const COMMANDS: &[&str] = &["token set", "token delete", "cargo run"];
 #[test]
 fn oauth_messages_name_the_step_and_the_field() {
     for service in [Service::GitHub, Service::Atlassian] {
-        let text = secret_missing_msg(service).de();
+        let text = secret_missing_msg(service).render(Lang::De);
         assert!(text.contains("Client-Secret"), "{text}");
         for command in COMMANDS {
             assert!(!text.contains(command), "{text}");
         }
         // The interface turns the named step into a link.
         let step = step_mentioned(&text).expect("names a step");
-        assert_eq!(step.name(), step_name(service), "{text}");
+        assert_eq!(step.msg().render(Lang::De), step_name(service), "{text}");
     }
     assert_eq!(step_name(Service::GitHub), "GitHub");
     assert_eq!(step_name(Service::Atlassian), "Jira");

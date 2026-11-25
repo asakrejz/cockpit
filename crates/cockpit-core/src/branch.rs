@@ -13,7 +13,7 @@
 use cockpit_i18n::{Msg, msg};
 
 mod delete;
-pub use delete::{DeleteFacts, deletable, deletable_msg};
+pub use delete::{DeleteFacts, deletable};
 mod suggest;
 pub use suggest::{GUIDELINE_FILES, Suggestion, suggest};
 
@@ -157,7 +157,7 @@ fn parts(pattern: &str) -> Result<Vec<Part<'_>>, Msg> {
     Ok(out)
 }
 
-/// Is the pattern usable? The message is plain German and goes to the user.
+/// Is the pattern usable? The reason is a message for the user.
 ///
 /// A pattern needs `{ticket}`; it may only contain letters, digits and `/ - _ . { }`; it never
 /// begins or ends with a separator, and two placeholders are never glued together.
@@ -169,12 +169,7 @@ fn parts(pattern: &str) -> Result<Vec<Part<'_>>, Msg> {
 /// assert!(validate("").is_err());
 /// assert!(validate("fix/{slug}").is_err());
 /// ```
-pub fn validate(pattern: &str) -> Result<(), String> {
-    validate_msg(pattern).map_err(|m| m.de())
-}
-
-/// [`validate`] with the reason as code and parameters.
-pub fn validate_msg(pattern: &str) -> Result<(), Msg> {
+pub fn validate(pattern: &str) -> Result<(), Msg> {
     let p = pattern.trim();
     if p.is_empty() {
         return Err(msg!(CoreBranchPatternEmpty));
@@ -215,7 +210,7 @@ pub fn validate_msg(pattern: &str) -> Result<(), Msg> {
     }
     // The shape must also hold for what the pattern renders.
     let sample = render(p, "ABC-1", "Beispiel Titel", BranchType::Feature);
-    structure_msg(&sample).map_err(|_| msg!(CoreBranchPatternResultInvalid))
+    structure(&sample).map_err(|_| msg!(CoreBranchPatternResultInvalid))
 }
 
 /// The branch for a ticket. The pattern has to be valid (see [`validate`]); an invalid one is
@@ -339,11 +334,7 @@ fn fits(list: &[Part<'_>], rest: &str) -> bool {
 }
 
 /// Branch names Git accepts and the backend lets through: inconspicuous characters only.
-fn structure(branch: &str) -> Result<(), String> {
-    structure_msg(branch).map_err(|m| m.de())
-}
-
-fn structure_msg(branch: &str) -> Result<(), Msg> {
+fn structure(branch: &str) -> Result<(), Msg> {
     let bad = branch.is_empty()
         || branch.len() > MAX_BRANCH
         || branch.starts_with(['-', '/', '.'])
@@ -371,7 +362,7 @@ pub fn is_protected(branch: &str, base_branch: &str) -> bool {
 }
 
 /// The check before the agent clones, and before the backend pushes: a valid name, not a
-/// protected one, and one that the pattern of the repo produces. The message is plain German.
+/// protected one, and one that the pattern of the repo produces. The reason is a message for the user.
 ///
 /// ```
 /// use cockpit_core::branch::check;
@@ -380,13 +371,8 @@ pub fn is_protected(branch: &str, base_branch: &str) -> bool {
 /// assert!(check(pattern, "main", "main").is_err());
 /// assert!(check(pattern, "main", "claude/BAU-1-x").is_err());
 /// ```
-pub fn check(pattern: &str, base_branch: &str, branch: &str) -> Result<(), String> {
-    check_msg(pattern, base_branch, branch).map_err(|m| m.de())
-}
-
-/// [`check`] with the reason as code and parameters.
-pub fn check_msg(pattern: &str, base_branch: &str, branch: &str) -> Result<(), Msg> {
-    structure_msg(branch)?;
+pub fn check(pattern: &str, base_branch: &str, branch: &str) -> Result<(), Msg> {
+    structure(branch)?;
     if is_protected(branch, base_branch) {
         return Err(msg!(CoreBranchProtected, branch = branch));
     }
@@ -404,13 +390,8 @@ pub fn check_msg(pattern: &str, base_branch: &str, branch: &str) -> Result<(), M
 /// pattern of the repo, anything under `claude/` counts, because pull requests of the agent from
 /// before the pattern was changed keep their name (and the agent only ever added to such a
 /// branch before this setting existed).
-pub fn check_existing(pattern: &str, base_branch: &str, branch: &str) -> Result<(), String> {
-    check_existing_msg(pattern, base_branch, branch).map_err(|m| m.de())
-}
-
-/// [`check_existing`] with the reason as code and parameters.
-pub fn check_existing_msg(pattern: &str, base_branch: &str, branch: &str) -> Result<(), Msg> {
-    check_msg(pattern, base_branch, branch).or_else(|first| {
+pub fn check_existing(pattern: &str, base_branch: &str, branch: &str) -> Result<(), Msg> {
+    check(pattern, base_branch, branch).or_else(|first| {
         let legacy = structure(branch).is_ok()
             && !is_protected(branch, base_branch)
             && branch

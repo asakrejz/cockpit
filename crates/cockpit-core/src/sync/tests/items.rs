@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[test]
 fn labels_and_repo_come_from_the_service() {
@@ -123,7 +124,10 @@ fn drafts_follow_their_line_when_the_diff_shifts() {
         T + 2,
     );
     assert!(after.review(5).unwrap().line_comments.is_empty());
-    assert!(changes[0].text().contains("Warum?"), "{changes:?}");
+    assert!(
+        changes[0].msg().render(Lang::De).contains("Warum?"),
+        "{changes:?}"
+    );
 }
 
 #[test]

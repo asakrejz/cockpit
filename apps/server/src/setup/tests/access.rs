@@ -46,7 +46,7 @@ async fn report(app: &Router) -> serde_json::Value {
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(!body.contains(TOKEN), "token in the answer: {body}");
-    serde_json::from_str(&body).unwrap()
+    crate::german::german_json(&body)
 }
 
 async fn repo_answers(gh: &MockServer, repo: &str, code: u16) {

@@ -20,7 +20,7 @@ impl AgentRun {
                 effect
                     .notes
                     .push(msg!(CoreAgentNContainerStarted, label = self.label_msg()));
-                self.say(Speaker::Agent, MessageKind::Info, detail);
+                self.say_msg(Speaker::Agent, MessageKind::Info, detail);
             }
             AgentReport::Plan {
                 summary,
@@ -147,9 +147,9 @@ impl AgentRun {
                 }
                 self.state = RunState::Done;
                 self.completed = STEPS;
-                self.summary = summary.clone();
+                self.summary = Some(summary.clone());
                 self.question = None;
-                self.say(Speaker::Agent, MessageKind::Info, summary);
+                self.say_msg(Speaker::Agent, MessageKind::Info, summary);
                 effect.finished = true;
             }
             AgentReport::Failed { reason } => {

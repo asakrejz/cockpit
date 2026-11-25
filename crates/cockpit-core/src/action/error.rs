@@ -59,7 +59,7 @@ pub enum ActionError {
     /// The project has no such field, or the field has no such choice.
     UnknownField(String),
     /// The run still works or waits (its label); it has to be cancelled before it can be removed.
-    RunStillActive(String),
+    RunStillActive(Msg),
 }
 
 impl ActionError {
@@ -131,16 +131,12 @@ impl ActionError {
             ),
         }
     }
-
-    /// The German text, for readers without a language (logs, tests).
-    pub fn message(&self) -> String {
-        self.msg().de()
-    }
 }
 
+/// The English text, for logs; people get [`ActionError::msg`] in their language.
 impl std::fmt::Display for ActionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.message())
+        f.write_str(&self.msg().render(cockpit_i18n::Lang::En))
     }
 }
 

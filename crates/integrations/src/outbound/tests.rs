@@ -137,7 +137,6 @@ fn remote() -> Remote {
                     }],
                     projects: vec![],
                     warnings: vec![],
-                    warning_msgs: vec![],
                 }),
             },
         ],
@@ -474,7 +473,6 @@ fn ws_two() -> Workspace {
                     },
                 ],
                 warnings: vec![],
-                warning_msgs: vec![],
             }),
         }],
     };
@@ -545,18 +543,18 @@ fn a_branch_without_a_default_repo_asks_the_user_to_set_one() {
     )
     .unwrap_err();
     assert!(
-        err.1
+        err.0
             .render(cockpit_i18n::Lang::En)
             .contains("default repo"),
         "{}",
-        err.0
+        err
     );
     assert!(
-        err.1
+        err.0
             .render(cockpit_i18n::Lang::De)
             .contains("Standard-Repo"),
         "{}",
-        err.0
+        err
     );
 }
 

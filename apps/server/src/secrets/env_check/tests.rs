@@ -1,5 +1,11 @@
 use super::*;
+use cockpit_i18n::Lang;
 use std::process::Command;
+
+/// The German texts of warnings.
+fn german(warnings: Vec<Msg>) -> Vec<String> {
+    warnings.iter().map(|m| m.render(Lang::De)).collect()
+}
 
 fn git_available() -> bool {
     Command::new("git").arg("--version").output().is_ok()
@@ -37,7 +43,7 @@ fn outside_a_repository_nothing_is_said() {
     }
     let path = dir.path().join(".env");
     std::fs::write(&path, "JIRA_TOKEN=dummy\n").unwrap();
-    assert!(git_warnings(&path).is_empty());
+    assert!(german(git_messages(&path)).is_empty());
 }
 
 #[test]
@@ -48,7 +54,7 @@ fn not_ignored_is_reported() {
     let dir = repo();
     let path = dir.path().join(".env");
     std::fs::write(&path, "JIRA_TOKEN=dummy\n").unwrap();
-    let w = git_warnings(&path);
+    let w = german(git_messages(&path));
     assert_eq!(w.len(), 1, "{w:?}");
     assert!(w[0].contains("nicht durch .gitignore geschützt"));
     assert!(!w[0].contains("dummy"));
@@ -63,10 +69,10 @@ fn ignored_file_gives_no_warning() {
     std::fs::write(dir.path().join(".gitignore"), ".env\n").unwrap();
     let path = dir.path().join(".env");
     std::fs::write(&path, "JIRA_TOKEN=dummy\n").unwrap();
-    assert!(git_warnings(&path).is_empty());
+    assert!(german(git_messages(&path)).is_empty());
     // Also before the file exists.
     std::fs::remove_file(&path).unwrap();
-    assert!(git_warnings(&path).is_empty());
+    assert!(german(git_messages(&path)).is_empty());
 }
 
 #[test]
@@ -79,7 +85,7 @@ fn tracked_file_is_reported_even_if_ignored() {
     std::fs::write(&path, "JIRA_TOKEN=dummy\n").unwrap();
     run(dir.path(), &["add", ".env"]);
     std::fs::write(dir.path().join(".gitignore"), ".env\n").unwrap();
-    let w = git_warnings(&path);
+    let w = german(git_messages(&path));
     assert_eq!(w.len(), 1, "{w:?}");
     assert!(w[0].contains("von Git verfolgt"));
     assert!(w[0].contains("git rm --cached .env"));
@@ -109,7 +115,11 @@ fn loose_permissions_are_reported_and_fixed_at_startup() {
     std::fs::write(&path, "JIRA_TOKEN=dummy\n").unwrap();
     std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
     let w = check(&path);
-    assert!(w.iter().any(|m| m.contains("lesbar (Rechte 644)")), "{w:?}");
+    assert!(
+        w.iter()
+            .any(|m| m.render(Lang::De).contains("lesbar (Rechte 644)")),
+        "{w:?}"
+    );
     // `check` changes nothing.
     assert_eq!(
         std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
@@ -121,7 +131,11 @@ fn loose_permissions_are_reported_and_fixed_at_startup() {
         std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
         0o600
     );
-    assert!(check(&path).iter().all(|m| !m.contains("Rechte")));
+    assert!(
+        check(&path)
+            .iter()
+            .all(|m| !m.render(Lang::De).contains("Rechte"))
+    );
 }
 
 #[cfg(unix)]

@@ -3,7 +3,7 @@ use cockpit_i18n::Msg;
 
 /// The German texts of the missing parts.
 fn texts(f: Vec<Msg>) -> Vec<String> {
-    f.iter().map(Msg::de).collect()
+    f.iter().map(|m| m.render(cockpit_i18n::Lang::De)).collect()
 }
 
 #[test]

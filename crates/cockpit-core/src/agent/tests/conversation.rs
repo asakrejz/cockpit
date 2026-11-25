@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 /// Brings BAU-142 up to the follow-up question.
 fn asking() -> AgentRun {
@@ -19,7 +20,7 @@ fn the_agent_asks_a_question_and_waits() {
     assert!(q.text.contains("deprecated"));
     assert_eq!(q.suggestions.len(), 2);
     let steps = r.steps();
-    assert_eq!(steps[2].title, "Frage an dich");
+    assert_eq!(steps[2].title.render(Lang::De), "Frage an dich");
     assert_eq!(steps[2].state, StepState::Active);
     assert!(steps[3..].iter().all(|s| s.state == StepState::Pending));
     assert!(
@@ -40,7 +41,7 @@ fn an_answer_continues_the_run_and_stays_in_the_history() {
     assert!(!r.answer("noch einmal"), "answer only once");
     let last = r.messages.last().unwrap();
     assert_eq!(
-        (last.from, last.kind, last.text.as_str()),
+        (last.from, last.kind, last.text_in(Lang::De).as_str()),
         (Speaker::User, MessageKind::Answer, "Mark it as deprecated")
     );
     assert!(r.log().contains("› Du: Mark it as deprecated"));
@@ -57,6 +58,7 @@ fn an_answer_continues_the_run_and_stays_in_the_history() {
     assert!(
         r.steps()[2]
             .text
+            .render(Lang::De)
             .ends_with("Deine Antwort: Mark it as deprecated")
     );
 }
@@ -84,7 +86,7 @@ fn a_hint_is_acknowledged_when_the_container_got_it() {
         .find(|m| m.kind == MessageKind::Ack)
         .unwrap();
     assert_eq!(
-        (ack.from, ack.text.as_str()),
+        (ack.from, ack.text_in(Lang::De).as_str()),
         (Speaker::Agent, "Hinweis erhalten: Auch den Slider prüfen")
     );
     assert!(
@@ -127,7 +129,7 @@ fn pause_and_resume() {
     assert!(!r.pause(), "schon pausiert");
     assert_eq!(r.completed, 1);
     assert_eq!(r.steps()[1].state, StepState::Active);
-    assert!(r.steps()[1].text.starts_with("Pausiert"));
+    assert!(r.steps()[1].text.render(Lang::De).starts_with("Pausiert"));
     assert!(r.log().contains("Lauf pausiert."));
     // Hints can also be sent while paused and wait until resume.
     assert!(r.steer("Während der Pause"));

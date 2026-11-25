@@ -3,6 +3,7 @@
 
 use super::*;
 use cockpit_core::{Scope, Source as Src};
+use cockpit_i18n::Lang;
 use cockpit_integrations::github::PrLimits;
 use wiremock::matchers::path_regex;
 
@@ -110,7 +111,10 @@ async fn pull_requests_without_a_relation_to_me_are_listed_but_stay_quiet() {
     assert_eq!(one.scope, Scope::Team);
     assert!(!one.pr.as_ref().unwrap().mine);
     assert_eq!(one.pr.as_ref().unwrap().author, "tobias-lang");
-    assert_eq!(one.reason_line().de(), "Pull Request von tobias-lang");
+    assert_eq!(
+        one.reason_line().render(Lang::De),
+        "Pull Request von tobias-lang"
+    );
     assert!(two.is_mine() && two.pr.as_ref().unwrap().mine);
     assert!(three.pr.as_ref().unwrap().requested_me && three.pr.as_ref().unwrap().review_requested);
     assert!(four.pr.as_ref().unwrap().assigned_me && four.is_mine());
@@ -168,7 +172,7 @@ async fn pages_and_the_per_repo_limit_say_what_was_left_out() {
     let st = ws.sync.state_of(Src::GitHub).unwrap();
     assert!(st.is_ok());
     assert_eq!(
-        st.warnings,
+        st.warning_lines(Lang::De),
         [format!("{REPO}: Nur die ersten 150 PRs je Repo geladen")]
     );
 
@@ -183,7 +187,13 @@ async fn pages_and_the_per_repo_limit_say_what_was_left_out() {
     );
     let (ws, _) = sync(&d, &Workspace::default(), NOW_MS).await;
     assert_eq!(ws.items.len(), 205);
-    assert!(ws.sync.state_of(Src::GitHub).unwrap().warnings.is_empty());
+    assert!(
+        ws.sync
+            .state_of(Src::GitHub)
+            .unwrap()
+            .warning_lines(Lang::De)
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -211,9 +221,11 @@ async fn the_total_limit_holds_over_all_repos() {
     assert_eq!(ws.items.len(), 40);
     let st = ws.sync.state_of(Src::GitHub).unwrap();
     assert!(
-        st.warnings.iter().any(|w| w.contains("40 PRs insgesamt")),
+        st.warning_lines(Lang::De)
+            .iter()
+            .any(|w| w.contains("40 PRs insgesamt")),
         "{:?}",
-        st.warnings
+        st.warning_lines(Lang::De)
     );
 }
 
@@ -234,8 +246,16 @@ async fn a_forbidden_or_missing_repo_does_not_block_the_other() {
     let st = ws.sync.state_of(Src::GitHub).unwrap();
     assert!(st.is_ok(), "{st:?}");
     assert_eq!(ws.items.len(), 1);
-    assert!(st.warnings.iter().any(|w| w.starts_with("acme/secret")));
-    assert!(st.warnings.iter().any(|w| w.starts_with("acme/gone")));
+    assert!(
+        st.warning_lines(Lang::De)
+            .iter()
+            .any(|w| w.starts_with("acme/secret"))
+    );
+    assert!(
+        st.warning_lines(Lang::De)
+            .iter()
+            .any(|w| w.starts_with("acme/gone"))
+    );
 }
 
 #[tokio::test]
@@ -270,9 +290,11 @@ async fn a_repo_that_fails_for_a_moment_keeps_its_last_state() {
     assert!(after.item("gh-acme-web-7").is_some(), "stale, but not gone");
     assert!(after.item("gh-acme-baukasten-2").is_some());
     assert!(
-        st.warnings.iter().any(|w| w.starts_with("acme/web")),
+        st.warning_lines(Lang::De)
+            .iter()
+            .any(|w| w.starts_with("acme/web")),
         "{:?}",
-        st.warnings
+        st.warning_lines(Lang::De)
     );
 }
 

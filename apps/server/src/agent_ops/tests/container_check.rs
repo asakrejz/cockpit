@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[tokio::test]
 async fn check_out_the_container_names_vpn_when_only_the_mac_the_proxy_reached() {
@@ -43,10 +44,11 @@ exit 1
     assert!(p.checked && p.mac_reached && !p.container_reached, "{p:?}");
     let h = p.hint.unwrap();
     assert!(
-        h.contains("Dein Mac erreicht den Proxy, der Container aber nicht")
-            && h.contains("VPN")
-            && h.contains("ENOTFOUND"),
-        "{h}"
+        h.render(Lang::De)
+            .contains("Dein Mac erreicht den Proxy, der Container aber nicht")
+            && h.render(Lang::De).contains("VPN")
+            && h.render(Lang::De).contains("ENOTFOUND"),
+        "{h:?}"
     );
     let calls = w.log("calls.log");
     let z = calls.lines().find(|z| z.starts_with("run ")).unwrap();
@@ -62,6 +64,7 @@ exit 1
     assert!(
         p.hint
             .unwrap()
+            .render(Lang::De)
             .contains("auch aus dem Container erreichbar")
     );
 }
@@ -70,11 +73,17 @@ exit 1
 async fn check_out_the_container_without_image_or_key_calls_nothing_on() {
     let w = welt(false);
     let p = w.state.container_check().await;
-    assert!(!p.checked && p.hint.unwrap().contains("nicht eingerichtet"));
+    assert!(
+        !p.checked
+            && p.hint
+                .unwrap()
+                .render(Lang::De)
+                .contains("nicht eingerichtet")
+    );
     let w = welt(true);
     std::fs::write(w.bin().join("no-image"), "").unwrap();
     let p = w.state.container_check().await;
-    assert!(!p.checked && p.hint.unwrap().contains("Image fehlt"));
+    assert!(!p.checked && p.hint.unwrap().render(Lang::De).contains("Image fehlt"));
     assert!(!w.log("calls.log").contains("run "));
 }
 

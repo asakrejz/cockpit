@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[tokio::test]
 async fn errors_become_the_source_state_and_nothing_is_lost() {
@@ -179,9 +180,9 @@ async fn unknown_repo_is_a_hint_not_an_outage() {
     let st = ws.sync.state_of(Source::GitHub).unwrap();
     assert!(st.is_ok());
     assert!(
-        st.warnings[0].contains("gibt/es-nicht"),
+        st.warning_lines(Lang::De)[0].contains("gibt/es-nicht"),
         "{:?}",
-        st.warnings
+        st.warning_lines(Lang::De)
     );
     assert!(ws.item("gh-acme-baukasten-87").is_some());
 }

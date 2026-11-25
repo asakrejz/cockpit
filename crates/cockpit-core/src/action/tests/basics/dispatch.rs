@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[test]
 fn every_action_variant_is_applied_and_logged() {
@@ -183,7 +184,13 @@ fn entries_carry_time_actor_target_and_a_german_sentence() {
     .unwrap();
     let e = &w.log[0];
     assert_eq!(
-        (e.id, e.at_ms, e.actor, e.target.clone(), e.text.as_str()),
+        (
+            e.id,
+            e.at_ms,
+            e.actor,
+            e.target.clone(),
+            e.text_in(Lang::De).as_str()
+        ),
         (
             1,
             T,
@@ -203,7 +210,7 @@ fn entries_carry_time_actor_target_and_a_german_sentence() {
     .unwrap();
     assert_eq!(w.log[1].id, 2);
     assert_eq!(
-        w.log[1].text,
+        w.log[1].text_in(Lang::De),
         "Status von BAU-150 auf „In Arbeit“ ggesetzt".replace("gg", "g")
     );
     assert_eq!(w.log[1].at_ms, T + 5);
@@ -334,7 +341,7 @@ fn failures_are_returned_and_leave_no_entry() {
         ActionError::NothingToDo,
     );
     assert!(w.log.is_empty());
-    assert!(!ActionError::NothingToDo.message().is_empty());
+    assert!(!ActionError::NothingToDo.msg().render(Lang::De).is_empty());
 }
 
 #[test]
@@ -374,7 +381,7 @@ fn what_the_container_reports_is_logged_as_agent() {
         &mut w,
         "BAU-142",
         AgentReport::Started {
-            detail: "docker".into(),
+            detail: cockpit_i18n::Msg::raw("docker"),
         },
     )
     .unwrap();
@@ -420,7 +427,7 @@ fn what_the_container_reports_is_logged_as_agent() {
             &mut w,
             "BAU-142",
             AgentReport::Done {
-                summary: "again".into()
+                summary: cockpit_i18n::Msg::raw("again")
             }
         )
         .is_err()

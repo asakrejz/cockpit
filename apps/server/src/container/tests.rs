@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 fn all_ok(_: &str) -> bool {
     true
@@ -29,9 +30,9 @@ fn present_but_without_engine_gives_a_hint() {
     let s = choose(None, None, all_ok, no);
     assert_eq!(s.runtime.as_deref(), Some("docker"), "the first one found");
     assert!(!s.engine_running);
-    assert!(s.hint.unwrap().contains("dockerd (moby)"));
+    assert!(s.hint.unwrap().render(Lang::De).contains("dockerd (moby)"));
     let s = choose(None, None, |c| c == "podman", no);
-    assert!(s.hint.unwrap().contains("Podman-Maschine"));
+    assert!(s.hint.unwrap().render(Lang::De).contains("Podman-Maschine"));
 }
 
 #[test]
@@ -39,7 +40,12 @@ fn without_both_gives_it_no_runtime() {
     let s = choose(None, None, no, no);
     assert_eq!(s.runtime, None);
     assert_eq!(s.source, "none");
-    assert!(s.hint.unwrap().contains("Weder podman noch docker"));
+    assert!(
+        s.hint
+            .unwrap()
+            .render(Lang::De)
+            .contains("Weder podman noch docker")
+    );
 }
 
 #[test]
@@ -55,7 +61,7 @@ fn explicit_choice_goes_before_and_env_before_file() {
     assert_eq!(s.runtime.as_deref(), Some("docker"));
     assert!(!s.engine_running);
     let s = choose(Some("docker"), None, |cli| cli == "podman", all_ok);
-    assert!(s.hint.unwrap().contains("nicht im PATH"));
+    assert!(s.hint.unwrap().render(Lang::De).contains("nicht im PATH"));
 }
 
 #[cfg(unix)]
@@ -134,11 +140,17 @@ fn in_container_without_socket_explains_instead_of_not_installed() {
     assert!(s.in_container && s.socket == SocketState::Missing && !s.engine_running);
     let hint = s.hint.unwrap();
     assert!(
-        hint.contains("Container") && !hint.contains("dockerd (moby)"),
-        "{hint}"
+        hint.render(Lang::De).contains("Container")
+            && !hint.render(Lang::De).contains("dockerd (moby)"),
+        "{hint:?}"
     );
     let s = in_container_view(choose(None, None, no, no), true, SocketState::Missing);
-    assert!(!s.hint.unwrap().contains("Weder podman noch docker"));
+    assert!(
+        !s.hint
+            .unwrap()
+            .render(Lang::De)
+            .contains("Weder podman noch docker")
+    );
 }
 
 #[test]
@@ -147,8 +159,9 @@ fn in_container_with_denied_socket_says_to_pull_the_current_image() {
     assert_eq!(s.socket, SocketState::Denied);
     let hint = s.hint.unwrap();
     assert!(
-        hint.contains("docker pull") && hint.contains("Gruppe des Sockets"),
-        "{hint}"
+        hint.render(Lang::De).contains("docker pull")
+            && hint.render(Lang::De).contains("Gruppe des Sockets"),
+        "{hint:?}"
     );
 }
 

@@ -43,7 +43,7 @@ fn ask(r: &mut AgentRun) {
 fn finish(r: &mut AgentRun) {
     r.report(
         AgentReport::Done {
-            summary: "Done".into(),
+            summary: cockpit_i18n::Msg::raw("Done"),
         },
         &AgentLimits::unlimited(),
         0,

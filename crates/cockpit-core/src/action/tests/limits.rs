@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[test]
 fn every_step_has_usage_and_lands_in_the_ledger() {
@@ -55,7 +56,7 @@ fn the_run_budget_stops_the_run_and_you_can_raise_it() {
     assert!(
         w.log
             .iter()
-            .any(|e| e.text == "BAU-150: Angehalten – Budget pro Lauf erreicht")
+            .any(|e| e.text_in(Lang::De) == "BAU-150: Angehalten – Budget pro Lauf erreicht")
     );
     // A stopped run makes no progress.
     let done = run.completed;
@@ -182,7 +183,12 @@ fn a_stopped_run_needs_attention_and_notifies() {
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].reason, crate::NotifyReason::AgentStopped);
     assert_eq!(events[0].route, "#/agent/BAU-150");
-    assert!(events[0].text.de().contains("Budget pro Lauf erreicht"));
+    assert!(
+        events[0]
+            .text
+            .render(Lang::De)
+            .contains("Budget pro Lauf erreicht")
+    );
     let stuck = crate::team::stuck(&w);
     let entry = stuck.iter().find(|s| s.key == "BAU-150").unwrap();
     assert_eq!(entry.kind, crate::StuckKind::AgentStopped);
@@ -205,7 +211,8 @@ fn too_many_parallel_runs_do_not_start() {
     );
     assert!(
         ActionError::ParallelLimit(1)
-            .message()
+            .msg()
+            .render(Lang::De)
             .starts_with("Es arbeiten schon 1 Agenten")
     );
     // A run with a plan only waits and occupies no slot – only the approval counts.
@@ -300,7 +307,13 @@ fn a_plan_touching_forbidden_paths_cannot_be_approved() {
     let plan = run.plan().unwrap();
     assert_eq!(plan.violations.len(), 1);
     assert_eq!(plan.violations[0].file, "tokens.css");
-    assert_eq!(plan.rules, ["Verboten: tokens.css"]);
+    assert_eq!(
+        plan.rules
+            .iter()
+            .map(|r| r.render(Lang::De))
+            .collect::<Vec<_>>(),
+        ["Verboten: tokens.css"]
+    );
     let err = w
         .apply(
             Action::ApprovePlan {
@@ -311,7 +324,11 @@ fn a_plan_touching_forbidden_paths_cannot_be_approved() {
         )
         .unwrap_err();
     assert!(matches!(err, ActionError::PlanViolatesRules(_)));
-    assert!(err.message().contains("tokens.css ist verboten"));
+    assert!(
+        err.msg()
+            .render(Lang::De)
+            .contains("tokens.css ist verboten")
+    );
     assert!(w.run("BAU-142").unwrap().is_awaiting());
     // The state model itself does not release it either.
     assert!(!w.approve_plan("BAU-142"));
@@ -353,7 +370,8 @@ fn allowed_paths_limit_what_the_plan_may_touch() {
     assert_eq!(plan.violations.len(), 2);
     assert!(
         plan.violations[0]
-            .reason()
+            .reason_msg()
+            .render(Lang::De)
             .contains("außerhalb der erlaubten")
     );
 }
@@ -388,12 +406,20 @@ fn required_tests_and_plan_approval_are_enforced_at_the_start() {
     assert!(run.is_awaiting());
     let plan = run.plan().unwrap();
     assert!(plan.violations.is_empty());
-    assert!(plan.rules.iter().any(|l| l.contains("Pflicht-Tests")));
-    assert!(plan.rules.iter().any(|l| l == "Anweisung: Kleine Commits."));
+    assert!(
+        plan.rules
+            .iter()
+            .any(|l| l.render(Lang::De).contains("Pflicht-Tests"))
+    );
+    assert!(
+        plan.rules
+            .iter()
+            .any(|l| l.render(Lang::De) == "Anweisung: Kleine Commits.")
+    );
     assert!(
         plan.steps
             .iter()
-            .any(|s| s == "Pflicht-Tests ausführen: cargo test, cargo clippy")
+            .any(|s| s.render(Lang::De) == "Pflicht-Tests ausführen: cargo test, cargo clippy")
     );
     plan_ready(&mut w, "BAU-150");
     ok(
@@ -405,7 +431,7 @@ fn required_tests_and_plan_approval_are_enforced_at_the_start() {
     );
     let run = w.run("BAU-150").unwrap();
     let steps = run.steps();
-    assert_eq!(steps[3].title, "Pflicht-Tests ausgeführt");
+    assert_eq!(steps[3].title.render(Lang::De), "Pflicht-Tests ausgeführt");
 }
 
 #[test]

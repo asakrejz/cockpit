@@ -134,11 +134,6 @@ impl Closure {
             Closure::Closed => cockpit_i18n::msg!(CoreAgentClosureClosed),
         }
     }
-
-    /// [`Closure::label_msg`] in German (plain-text readers, tests).
-    pub fn label(self) -> String {
-        self.label_msg().de()
-    }
 }
 
 /// What the run does.

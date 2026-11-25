@@ -387,7 +387,7 @@ fn every_action() -> Vec<Action> {
         Action::ReportAgent {
             run: "ABC-1".into(),
             report: AgentReport::Started {
-                detail: String::new(),
+                detail: cockpit_i18n::Msg::default(),
             },
         },
         Action::CloseAgentRun {

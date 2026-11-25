@@ -1,5 +1,6 @@
 use super::*;
 use crate::{AgentOptions, demo};
+use cockpit_i18n::Lang;
 
 /// Without a plan step: the agent gets going right away.
 fn direct() -> AgentOptions {
@@ -138,20 +139,20 @@ fn stuck_entries_name_reason_and_target() {
 
     let failed = by_key("#85");
     assert_eq!(failed.who.name, "Mira");
-    assert!(failed.reason.de().contains("Mira"));
+    assert!(failed.reason.render(Lang::De).contains("Mira"));
     assert_eq!(failed.review.as_ref().map(|k| k.number), Some(85));
 
     let agent = by_key("BAU-138");
     assert_eq!(agent.who, Person::me());
-    assert!(agent.reason.de().contains("#91"));
+    assert!(agent.reason.render(Lang::De).contains("#91"));
     assert_eq!(agent.review.as_ref().map(|k| k.number), Some(91));
 
     let review = by_key("#87");
-    assert!(review.reason.de().starts_with("Jonas wartet"));
+    assert!(review.reason.render(Lang::De).starts_with("Jonas wartet"));
 
     let branch = by_key("BAU-142");
     assert_eq!(branch.review, None);
-    assert!(branch.reason.de().contains("keinen Branch"));
+    assert!(branch.reason.render(Lang::De).contains("keinen Branch"));
 }
 
 #[test]
@@ -251,7 +252,12 @@ fn own_entries_read_naturally() {
     w.items.iter_mut().find(|i| i.id == "pr85").unwrap().owner = Person::me();
     let list = stuck(&w);
     let entry = list.iter().find(|s| s.key == "#85").unwrap();
-    assert!(entry.reason.de().contains("Du kommst nicht weiter"));
+    assert!(
+        entry
+            .reason
+            .render(Lang::De)
+            .contains("Du kommst nicht weiter")
+    );
 }
 
 #[test]
@@ -269,9 +275,9 @@ fn a_waiting_question_is_stuck_with_me() {
     assert_eq!(entry.question.as_deref(), Some("BAU-142"));
     assert!(entry.plan.is_none());
     assert!(
-        entry.reason.de().contains("deprecated"),
+        entry.reason.render(Lang::De).contains("deprecated"),
         "{}",
-        entry.reason.de()
+        entry.reason.render(Lang::De)
     );
     assert_eq!(w.waiting_agents(), 1, "counts in the sidebar under agents");
     // A question is more urgent than a waiting plan.

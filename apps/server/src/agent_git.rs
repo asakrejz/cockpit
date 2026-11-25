@@ -51,13 +51,11 @@ impl BranchRule<'_> {
     /// Valid name, not protected, produced by the pattern. A follow-up may also keep a name
     /// from the default pattern.
     pub fn check(&self) -> Result<(), Msg> {
-        // The texts come from `cockpit-core`; they have no code yet.
         if self.existing {
             cockpit_core::branch::check_existing(self.pattern, self.base, self.branch)
         } else {
             cockpit_core::branch::check(self.pattern, self.base, self.branch)
         }
-        .map_err(Msg::raw)
     }
 }
 
@@ -494,8 +492,7 @@ fn publish_inner(
     }
     let violations = rules.violations(&files);
     if !violations.is_empty() {
-        // The reasons come from `cockpit-core` and have no code yet.
-        let reasons = ArgValue::joined(violations.iter().map(|v| Msg::raw(v.reason())), "; ");
+        let reasons = ArgValue::joined(violations.iter().map(|v| v.reason_msg()), "; ");
         return Err(msg!(ServerRunRulesViolated, reasons = reasons));
     }
     if !rule.existing {

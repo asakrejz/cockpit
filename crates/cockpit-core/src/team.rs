@@ -410,7 +410,7 @@ fn classify(ws: &Workspace, item: &Item) -> Option<(StuckKind, Person, Msg)> {
         return Some((
             StuckKind::AgentStopped,
             me,
-            msg!(CoreMiscStuckStopped, reason = reason.label()),
+            msg!(CoreMiscStuckStopped, reason = reason.label_msg()),
         ));
     }
 

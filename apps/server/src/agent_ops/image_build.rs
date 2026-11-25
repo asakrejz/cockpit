@@ -23,10 +23,16 @@ impl AppState {
     pub(crate) fn image_build(&self) -> Result<ImageBuild, Msg> {
         let status = self.container_status();
         let Some(cli) = self.cli_path(&status) else {
-            return Err(status_hint(&status).unwrap_or_else(|| msg!(ServerRunBuildNoRuntime)));
+            return Err(status
+                .hint
+                .clone()
+                .unwrap_or_else(|| msg!(ServerRunBuildNoRuntime)));
         };
         if !status.engine_running {
-            return Err(status_hint(&status).unwrap_or_else(|| msg!(ServerRunBuildRuntimeStopped)));
+            return Err(status
+                .hint
+                .clone()
+                .unwrap_or_else(|| msg!(ServerRunBuildRuntimeStopped)));
         }
         let source = self.agent_source();
         if !source.join("Containerfile").is_file() {
@@ -46,22 +52,13 @@ impl AppState {
                 present: false,
                 state: ImageState::Missing,
                 error: None,
-                error_msg: None,
-                lines: vec![msg!(ServerRunBuildStarting).de()],
+                lines: vec![msg!(ServerRunBuildStarting)],
             };
         }
         let s = self.clone();
         tokio::spawn(async move { build_task(s, cli, source, fingerprint).await });
         Ok(lock(&self.inner.agent.build).clone())
     }
-}
-
-/// The hint of the container status as a message (the old plain text counts as raw).
-pub(super) fn status_hint(status: &ContainerStatus) -> Option<Msg> {
-    status
-        .hint_msg
-        .clone()
-        .or_else(|| status.hint.clone().map(Msg::raw))
 }
 
 // ---------- Build image ----------
@@ -126,8 +123,7 @@ pub(super) async fn build_task(
         } else {
             ImageState::Missing
         };
-        b.error = error.as_ref().map(Msg::de);
-        b.error_msg = error;
+        b.error = error;
     };
     let mut kind = match kind {
         Ok(k) => k,
@@ -136,7 +132,7 @@ pub(super) async fn build_task(
             return;
         }
     };
-    let (tx, mut rx) = mpsc::unbounded_channel::<String>();
+    let (tx, mut rx) = mpsc::unbounded_channel::<Msg>();
     for (strom, tx) in [
         (
             kind.stdout.take().map(BufReader::new).map(Strom::Off),
@@ -153,10 +149,6 @@ pub(super) async fn build_task(
     }
     drop(tx);
     while let Some(z) = rx.recv().await {
-        let z = z.trim_end().to_string();
-        if z.is_empty() {
-            continue;
-        }
         let mut b = lock(&state.inner.agent.build);
         b.lines.push(z);
         let n = b.lines.len();
@@ -168,7 +160,13 @@ pub(super) async fn build_task(
     match status {
         Ok(s) if s.success() => done(None),
         Ok(s) => {
-            let lines = lock(&state.inner.agent.build).lines.clone();
+            // The output of the tool is read in one language, whatever the reader's: the hint
+            // only looks for its keywords.
+            let lines: Vec<String> = lock(&state.inner.agent.build)
+                .lines
+                .iter()
+                .map(|m| m.render(cockpit_i18n::Lang::En))
+                .collect();
             let last = lines.iter().rev().find(|z| !z.trim().is_empty()).cloned();
             let mut parts = vec![msg!(
                 ServerRunBuildFailed,
@@ -193,13 +191,19 @@ pub(super) enum Strom {
 }
 
 impl Strom {
-    async fn lines(self, tx: mpsc::UnboundedSender<String>) {
-        async fn read<R: AsyncBufRead + Unpin>(mut r: R, tx: mpsc::UnboundedSender<String>) {
+    async fn lines(self, tx: mpsc::UnboundedSender<Msg>) {
+        async fn read<R: AsyncBufRead + Unpin>(mut r: R, tx: mpsc::UnboundedSender<Msg>) {
             let mut buffer = Vec::new();
             while let Ok(Some(g)) = read_line(&mut r, &mut buffer).await {
                 let t = match g {
-                    Read::Line(z) => z,
-                    Read::TooLarge => msg!(ServerRunBuildLineSkipped).de(),
+                    Read::Line(z) => {
+                        let z = z.trim_end();
+                        if z.is_empty() {
+                            continue;
+                        }
+                        Msg::raw(z)
+                    }
+                    Read::TooLarge => msg!(ServerRunBuildLineSkipped),
                 };
                 if tx.send(t).is_err() {
                     break;

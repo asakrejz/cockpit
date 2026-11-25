@@ -106,12 +106,9 @@ pub struct RepoCheck {
     /// The repo's own default branch, if known.
     #[serde(default)]
     pub default_branch: Option<String>,
-    /// A sentence in plain text for the assistant.
+    /// A sentence for the assistant.
     #[serde(default)]
-    pub message: String,
-    /// The same as code and parameters, rendered in the chosen language.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub msg: Option<cockpit_i18n::Msg>,
+    pub message: cockpit_i18n::Msg,
 }
 
 /// Body of `POST /api/github/repos/check`.
@@ -145,12 +142,9 @@ pub struct BranchSuggestion {
     /// The file the proposal comes from (`CONTRIBUTING.md`).
     #[serde(default)]
     pub source: Option<String>,
-    /// A sentence in plain text: what was found, or why there is no proposal.
+    /// What was found, or why there is no proposal.
     #[serde(default)]
-    pub message: String,
-    /// The same as code and parameters, rendered in the chosen language.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub msg: Option<cockpit_i18n::Msg>,
+    pub message: cockpit_i18n::Msg,
 }
 
 /// One repo the connected GitHub access can reach (`GET /api/github/repos`).
@@ -206,11 +200,8 @@ pub enum GitHubCause {
 pub struct GitHubCheck {
     pub ok: bool,
     pub cause: GitHubCause,
-    /// A sentence in plain text. Never names the token.
-    pub message: String,
-    /// The same as code and parameters, rendered in the chosen language.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub msg: Option<cockpit_i18n::Msg>,
+    /// A sentence. Never names the token.
+    pub message: cockpit_i18n::Msg,
     /// Login of the key holder.
     #[serde(default)]
     pub user: Option<String>,

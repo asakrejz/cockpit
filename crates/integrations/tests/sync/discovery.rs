@@ -4,6 +4,7 @@
 use super::open_pulls::{any_detail, list, pull, service};
 use super::*;
 use cockpit_core::sync::discovery::QUERIES;
+use cockpit_i18n::Lang;
 use cockpit_integrations::github::PrLimits;
 
 fn hit(repo: &str, n: u32) -> serde_json::Value {
@@ -134,9 +135,11 @@ async fn the_limits_bound_what_the_search_loads() {
     let st = ws.sync.state_of(Source::GitHub).unwrap();
     assert!(st.is_ok());
     assert!(
-        st.warnings.iter().any(|w| w.contains("acme/a")),
+        st.warning_lines(Lang::De)
+            .iter()
+            .any(|w| w.contains("acme/a")),
         "{:?}",
-        st.warnings
+        st.warning_lines(Lang::De)
     );
     assert_eq!(calls(&s, "/repos/acme/c/pulls/4").await, 0);
 }
@@ -168,9 +171,11 @@ async fn a_failed_search_keeps_the_known_pull_requests_and_says_so() {
     assert_eq!(ws.reviews.len(), 1, "the pull request does not vanish");
     let st = ws.sync.state_of(Source::GitHub).unwrap();
     assert!(
-        st.warnings.iter().any(|w| w.contains("Suche")),
+        st.warning_lines(Lang::De)
+            .iter()
+            .any(|w| w.contains("Suche")),
         "{:?}",
-        st.warnings
+        st.warning_lines(Lang::De)
     );
 }
 

@@ -14,6 +14,9 @@
 //! reason line and the time of entries and comments as plain text, me as the name `Du`, nobody as
 //! a German name. It must load and show what it stored; saving it again writes me and nobody as
 //! roles.
+//! `legacy_plain_text_twins_workspace.json` is a state in which every message also carries its German
+//! plain text and in which the run keeps its reason, summary and refusals as plain text. It must
+//! load and show what it stored.
 //! Regenerate `wire_*` with `BLESS=1 cargo test -p cockpit-core --test wire_compat` only on purpose.
 
 use cockpit_core::{
@@ -356,7 +359,7 @@ fn a_state_with_german_strings_in_the_data_still_loads() {
     assert!(unassigned.owner.nobody && unassigned.owner.name.is_empty());
     assert_eq!(unassigned.owner.name_in(Lang::En), "Unassigned");
     assert_eq!(unassigned.owner.name_in(Lang::De), "Nicht zugewiesen");
-    assert_eq!(unassigned.reason_line().de(), "Beobachtet");
+    assert_eq!(unassigned.reason_line().render(Lang::De), "Beobachtet");
     // Search still finds the stored reason line.
     assert!(cockpit_core::search::matches_query(
         unassigned,
@@ -408,6 +411,188 @@ fn new_entries_store_a_message_and_timestamps_not_text() {
     assert!(!saved.contains("\"reason_text\"") && !saved.contains("\"time\""));
     let (again, _) = persist::load_with_revision(&saved).expect("the saved state loads");
     assert_eq!(again, ws);
+}
+
+/// A state saved while every message also carried its German plain text (log entries, messages of
+/// a run, the note and the comments of an entry, the hints of the sync) and while the run kept
+/// its reason, summary and refusals as plain text. It must load, show what it stored (the message
+/// in the reader's language, the plain text where there is no message or its code is gone) and
+/// save again without losing a text.
+#[test]
+fn a_state_with_plain_texts_next_to_its_messages_still_loads() {
+    let text = read("legacy_plain_text_twins_workspace.json");
+    for old in [
+        "\"text\":\"Status von BAU-142 auf „Review“ gesetzt\"",
+        "\"agent_note\":\"Der Agent arbeitet an der Umsetzung\"",
+        "\"ended\":\"Zeitlimit des Containers überschritten\"",
+        "\"summary\":\"Der Branch claude/BAU-142 ist gepusht (2 Dateien).\"",
+        "\"reason\":\"Pfad verboten: tokens.css\"",
+        "\"warnings\":[\"acme/web ist nicht sichtbar\"]",
+        "\"text\":\"Etwas ist passiert\"",
+    ] {
+        assert!(text.contains(old), "the fixture lost {old}");
+    }
+
+    let (ws, revision) = persist::load_with_revision(&text).expect("the old state loads");
+
+    // A log entry with a message reads in either language; one without, or with a code that is
+    // gone, shows its stored text.
+    let first = &ws.log[0];
+    assert_eq!(
+        first.text_in(Lang::De),
+        "Status von BAU-142 auf „Review“ gesetzt"
+    );
+    assert_eq!(
+        first.text_in(Lang::En),
+        "Status of BAU-142 set to \"Review\""
+    );
+    let gone = ws
+        .log
+        .iter()
+        .find(|e| e.text == "Schritt 3 abgeschlossen")
+        .unwrap();
+    assert!(!gone.msg.as_ref().unwrap().is_known());
+    let plain = ws
+        .log
+        .iter()
+        .find(|e| e.text == "Etwas ist passiert")
+        .unwrap();
+    assert!(plain.msg.is_none());
+    for lang in Lang::ALL {
+        assert_eq!(gone.text_in(lang), "Schritt 3 abgeschlossen");
+        assert_eq!(plain.text_in(lang), "Etwas ist passiert");
+    }
+
+    // The messages of a run: the system's in the reader's language, the user's words as written.
+    let run = ws.run("BAU-142").unwrap();
+    assert_eq!(
+        run.messages[0].text_in(Lang::En),
+        "Job for BAU-142 accepted."
+    );
+    assert_eq!(
+        run.messages[0].text_in(Lang::De),
+        "Auftrag für BAU-142 angenommen."
+    );
+    let hint = run.messages.last().unwrap();
+    assert_eq!(hint.text_in(Lang::En), "Bitte auch die Doku prüfen");
+    assert!(
+        run.messages
+            .iter()
+            .any(|m| m.text_in(Lang::En) == "Schritt 3 abgeschlossen")
+    );
+
+    // Reason, summary and refusal of the run were plain text: raw messages, the same everywhere.
+    assert_eq!(
+        run.ended,
+        Some(Msg::raw("Zeitlimit des Containers überschritten"))
+    );
+    assert_eq!(
+        run.summary,
+        Some(Msg::raw(
+            "Der Branch claude/BAU-142 ist gepusht (2 Dateien)."
+        ))
+    );
+    assert_eq!(
+        run.repos[0].reason,
+        Some(Msg::raw("Pfad verboten: tokens.css"))
+    );
+    assert_eq!(ws.run("BAU-138").unwrap().ended, None);
+    assert_eq!(ws.run("BAU-138").unwrap().summary, None);
+
+    // The note of the agent: the message, or the stored text of an entry that has none.
+    let working = ws.item("bau142").unwrap();
+    assert_eq!(
+        working.agent_note_in(Lang::En).as_deref(),
+        Some("The agent is working on the implementation")
+    );
+    assert_eq!(
+        working.agent_note_in(Lang::De).as_deref(),
+        Some("Der Agent arbeitet an der Umsetzung")
+    );
+    let waiting = ws.item("pr87").unwrap();
+    for lang in Lang::ALL {
+        assert_eq!(
+            waiting.agent_note_in(lang).as_deref(),
+            Some("3 Kommentare vom Agenten warten auf deine Freigabe")
+        );
+    }
+
+    // A review comment: the message with the verdict in front, the words stay the text.
+    let comment = waiting.comments.last().unwrap();
+    assert_eq!(
+        comment.text_in(Lang::En),
+        "Review: approved\nSieht gut aus."
+    );
+    assert!(comment.text.contains("Sieht gut aus."));
+
+    // The hints of the sync: the messages in the reader's language, the plain texts of a state
+    // saved earlier where there are no messages.
+    let github = ws.sync.state_of(Source::GitHub).unwrap();
+    assert_eq!(
+        github.warning_lines(Lang::En),
+        ["acme/web ist nicht sichtbar"]
+    );
+    let jira = ws.sync.state_of(Source::Jira).unwrap();
+    assert_eq!(jira.warning_lines(Lang::En), ["Review: approved"]);
+    assert_eq!(jira.warning_lines(Lang::De), ["Review: genehmigt"]);
+
+    // Saving keeps what was stored, and the saved state is stable.
+    let saved = persist::save_with_revision(&ws, revision);
+    for kept in [
+        "\"text\":\"Status von BAU-142 auf „Review“ gesetzt\"",
+        "\"agent_note\":\"Der Agent arbeitet an der Umsetzung\"",
+        "\"warnings\":[\"acme/web ist nicht sichtbar\"]",
+    ] {
+        assert!(saved.contains(kept), "{kept} is lost");
+    }
+    let (again, _) = persist::load_with_revision(&saved).expect("the saved state loads");
+    assert_eq!(again, ws);
+    assert_eq!(persist::save_with_revision(&again, revision), saved);
+}
+
+/// New log entries, messages of a run, notes of the agent and hints of the sync carry the message
+/// and no German plain text next to it.
+#[test]
+fn new_messages_are_stored_without_a_plain_text() {
+    let mut ws = busy_workspace();
+    let saved = persist::save_with_revision(&ws, 1);
+    let (loaded, _) = persist::load_with_revision(&saved).expect("the saved state loads");
+    assert_eq!(loaded, ws);
+    for entry in &ws.log {
+        assert!(entry.text.is_empty() && entry.msg.is_some(), "{entry:?}");
+    }
+    let run = ws.run("BAU-142").unwrap();
+    // A message of the system has its code and no text; the words of the agent stay words.
+    assert!(run.messages.iter().any(|m| m.msg.is_some()));
+    for message in run.messages.iter().filter(|m| m.msg.is_some()) {
+        assert!(message.text.is_empty(), "{message:?}");
+    }
+    let item = ws.item("bau142").unwrap();
+    assert!(item.agent_note.is_none() && item.agent_note_msg.is_some());
+    assert!(!saved.contains("\"agent_note\":\"Der Agent"));
+
+    // The hints of a sync, as messages only.
+    let hint = Msg::raw("Hinweis");
+    ws.sync.sources.push(cockpit_core::SourceState {
+        source: Source::Jira,
+        problem: None,
+        last_ok_ms: Some(1),
+        last_try_ms: 1,
+        since_ms: None,
+        warnings: Vec::new(),
+        warning_msgs: vec![hint.clone()],
+    });
+    let saved = persist::save_with_revision(&ws, 2);
+    assert!(saved.contains("\"warning_msgs\"") && !saved.contains("\"warnings\""));
+    let (loaded, _) = persist::load_with_revision(&saved).expect("the saved state loads");
+    assert_eq!(
+        loaded
+            .sync
+            .state_of(Source::Jira)
+            .unwrap()
+            .warning_lines(Lang::En),
+        ["Hinweis"]
+    );
 }
 
 #[test]

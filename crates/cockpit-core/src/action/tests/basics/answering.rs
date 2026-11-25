@@ -1,10 +1,11 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[test]
 fn answering_continues_the_agent_and_is_logged() {
     let mut w = asking_ws();
     assert_eq!(
-        w.item("bau142").unwrap().agent_note.as_deref(),
+        w.item("bau142").unwrap().agent_note_in(Lang::De).as_deref(),
         Some("Der Agent hat eine Frage an dich")
     );
     let applied = ok(
@@ -26,7 +27,7 @@ fn answering_continues_the_agent_and_is_logged() {
     );
     assert!(w.run("BAU-142").unwrap().is_running());
     assert_eq!(
-        w.item("bau142").unwrap().agent_note.as_deref(),
+        w.item("bau142").unwrap().agent_note_in(Lang::De).as_deref(),
         Some("Der Agent arbeitet an der Umsetzung")
     );
 }
@@ -112,6 +113,6 @@ fn steering_is_acknowledged_when_the_container_delivers_the_hint() {
     assert!(
         run.messages
             .iter()
-            .any(|m| m.text == "Hinweis erhalten: Bitte auch die Doku")
+            .any(|m| m.text_in(Lang::De) == "Hinweis erhalten: Bitte auch die Doku")
     );
 }

@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[test]
 fn snoozing_is_an_action_and_comes_back_by_itself() {
@@ -33,7 +34,7 @@ fn snoozing_is_an_action_and_comes_back_by_itself() {
         1,
     );
     assert_eq!(
-        w.log.last().unwrap().text,
+        w.log.last().unwrap().text_in(Lang::De),
         "#87 zurückgestellt, bis sich etwas ändert"
     );
     ok(

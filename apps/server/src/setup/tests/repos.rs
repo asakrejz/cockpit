@@ -31,7 +31,7 @@ async fn repo_check(app: &Router, repos: &[&str]) -> serde_json::Value {
     .await;
     assert_eq!(status, StatusCode::OK, "{answer}");
     assert!(!answer.contains(TOKEN), "token in the answer: {answer}");
-    serde_json::from_str(&answer).unwrap()
+    crate::german::german_json(&answer)
 }
 
 #[tokio::test]

@@ -38,11 +38,6 @@ fn not_started(cli: &str) -> Msg {
     }
 }
 
-/// The hint as plain German text and as a message.
-fn hint(m: Msg) -> (Option<String>, Option<Msg>) {
-    (Some(m.de()), Some(m))
-}
-
 /// The decision as a pure function: `present(cli)` says whether the program is in the `PATH`,
 /// `running(cli)` whether `<cli> info` succeeds.
 pub fn choose(
@@ -53,10 +48,8 @@ pub fn choose(
 ) -> ContainerStatus {
     if let Some((cli, source)) = chosen(config, env) {
         if !present(&cli) {
-            let (hint, hint_msg) = hint(not_found(&cli));
             return ContainerStatus {
-                hint,
-                hint_msg,
+                hint: Some(not_found(&cli)),
                 runtime: Some(cli),
                 engine_running: false,
                 source: source.into(),
@@ -64,14 +57,8 @@ pub fn choose(
             };
         }
         let engine_running = running(&cli);
-        let (hint, hint_msg) = if engine_running {
-            (None, None)
-        } else {
-            hint(not_started(&cli))
-        };
         return ContainerStatus {
-            hint,
-            hint_msg,
+            hint: (!engine_running).then(|| not_started(&cli)),
             runtime: Some(cli),
             engine_running,
             source: source.into(),
@@ -89,35 +76,26 @@ pub fn choose(
                 engine_running: true,
                 source: "detected".into(),
                 hint: None,
-                hint_msg: None,
                 ..Default::default()
             };
         }
         first.get_or_insert(cli);
     }
     match first {
-        Some(cli) => {
-            let (hint, hint_msg) = hint(not_started(cli));
-            ContainerStatus {
-                runtime: Some(cli.into()),
-                engine_running: false,
-                source: "detected".into(),
-                hint,
-                hint_msg,
-                ..Default::default()
-            }
-        }
-        None => {
-            let (hint, hint_msg) = hint(msg!(ServerRunNoCliAtAll));
-            ContainerStatus {
-                runtime: None,
-                engine_running: false,
-                source: "none".into(),
-                hint,
-                hint_msg,
-                ..Default::default()
-            }
-        }
+        Some(cli) => ContainerStatus {
+            runtime: Some(cli.into()),
+            engine_running: false,
+            source: "detected".into(),
+            hint: Some(not_started(cli)),
+            ..Default::default()
+        },
+        None => ContainerStatus {
+            runtime: None,
+            engine_running: false,
+            source: "none".into(),
+            hint: Some(msg!(ServerRunNoCliAtAll)),
+            ..Default::default()
+        },
     }
 }
 
@@ -204,12 +182,10 @@ pub fn in_container_view(
         SocketState::Missing
     };
     if in_container && !status.engine_running {
-        let (hint, hint_msg) = hint(match socket {
+        status.hint = Some(match socket {
             SocketState::Denied => msg!(ServerRunInContainerSocketDenied),
             _ => msg!(ServerRunInContainerNoSocket),
         });
-        status.hint = hint;
-        status.hint_msg = hint_msg;
     }
     status
 }

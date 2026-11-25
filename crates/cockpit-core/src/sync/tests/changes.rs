@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[test]
 fn external_comment_is_logged_by_the_system_and_notifies() {
@@ -24,7 +25,7 @@ fn external_comment_is_logged_by_the_system_and_notifies() {
     assert_eq!(applied.logged, 1);
     let entry = ws.log.last().unwrap();
     assert_eq!(entry.actor, Actor::System);
-    assert_eq!(entry.text, "Lena hat ABC-1 kommentiert");
+    assert_eq!(entry.text_in(Lang::De), "Lena hat ABC-1 kommentiert");
     assert_eq!(entry.target, Some(Target::Item("abc-1".into())));
     assert!(!ws.item("abc-1").unwrap().read, "new to read");
     // notify works on before/after and sees the mention.

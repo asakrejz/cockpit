@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[tokio::test]
 async fn restart_cleans_orphaned_container_on_and_marks_runs() {
@@ -34,7 +35,12 @@ async fn restart_cleans_orphaned_container_on_and_marks_runs() {
     assert!(calls.contains("rm -f abc123 def456"), "{calls}");
     let run = updated.inner.live.copy().run("BAU-142").unwrap();
     assert!(run.is_idle());
-    assert!(run.ended.unwrap().contains("Server wurde neu gestartet"));
+    assert!(
+        run.ended
+            .unwrap()
+            .render(Lang::De)
+            .contains("Server wurde neu gestartet")
+    );
     // End the old run in the first state.
     w.action(Action::CancelAgent {
         ticket: "BAU-142".into(),
@@ -67,7 +73,9 @@ async fn build_the_images_with_progress_and_error() {
             assert!(b.error.is_none(), "{b:?}");
             assert!(b.present);
             assert!(
-                b.lines.iter().any(|z| z.starts_with("Step 2/5")),
+                b.lines
+                    .iter()
+                    .any(|z| z.render(Lang::De).starts_with("Step 2/5")),
                 "{:?}",
                 b.lines
             );
@@ -106,7 +114,10 @@ async fn build_the_images_with_progress_and_error() {
             .unwrap();
         if !b.running {
             let f = b.error.expect("error");
-            assert!(f.contains("gescheitert") && f.contains("Platz"), "{f}");
+            assert!(
+                f.render(Lang::De).contains("gescheitert") && f.render(Lang::De).contains("Platz"),
+                "{f:?}"
+            );
             break;
         }
         assert!(Instant::now() < end);
@@ -132,7 +143,7 @@ async fn build_without_containerfile_and_without_runtime_says_why() {
         .await
         .unwrap()
         .unwrap_err()
-        .de();
+        .render(Lang::De);
     assert!(e.contains("Containerfile fehlt"), "{e}");
     // Without a container program: new state (the cache applies for 10 seconds).
     let w = welt(true);
@@ -142,7 +153,7 @@ async fn build_without_containerfile_and_without_runtime_says_why() {
         .await
         .unwrap()
         .unwrap_err()
-        .de();
+        .render(Lang::De);
     assert!(e.contains("docker") && e.contains("PATH"), "{e}");
 }
 
@@ -192,7 +203,7 @@ async fn build_refused_without_sources_and_state_after_build() {
         .await
         .unwrap()
         .unwrap_err()
-        .de();
+        .render(Lang::De);
     assert!(e.contains("clis"), "{e}");
     assert!(!w.log("calls.log").contains("build "));
 }

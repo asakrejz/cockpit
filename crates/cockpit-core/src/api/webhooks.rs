@@ -59,8 +59,5 @@ pub struct WebhookTestResponse {
     #[serde(default)]
     pub ok: bool,
     #[serde(default)]
-    pub message: String,
-    /// The same as code and parameters, rendered in the chosen language.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub msg: Option<cockpit_i18n::Msg>,
+    pub message: cockpit_i18n::Msg,
 }

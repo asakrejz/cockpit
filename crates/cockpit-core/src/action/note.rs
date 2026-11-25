@@ -6,20 +6,17 @@ use super::*;
 pub(super) struct Note {
     pub(super) actor: Option<Actor>,
     pub(super) target: Option<Target>,
-    pub(super) text: String,
-    /// The same sentence as code and parameters; the UI renders it in its language.
-    pub(super) msg: Option<cockpit_i18n::Msg>,
+    /// The sentence as code and parameters; the UI renders it in its language.
+    pub(super) msg: cockpit_i18n::Msg,
 }
 
 impl Note {
-    /// An entry as code and parameters (`msg!`). `text` keeps the German rendering next to it,
-    /// for readers that only know plain text.
+    /// An entry as code and parameters (`msg!`).
     pub(super) fn coded(target: Target, msg: cockpit_i18n::Msg) -> Self {
         Self {
             actor: None,
             target: Some(target),
-            text: msg.de(),
-            msg: Some(msg),
+            msg,
         }
     }
 
@@ -28,8 +25,7 @@ impl Note {
         Self {
             actor: None,
             target: None,
-            text: msg.de(),
-            msg: Some(msg),
+            msg,
         }
     }
 

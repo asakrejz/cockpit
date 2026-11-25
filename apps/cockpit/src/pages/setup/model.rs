@@ -146,7 +146,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                 }
                 Ok(l) => list_hint.set(Some(
                     l.hint
-                        .map(|h| server::shown(&h, l.msg.as_ref()))
+                        .map(|h| h.render(lang_untracked()))
                         .unwrap_or_else(|| t!(SetupModelNoModels)),
                 )),
                 Err(e) => list_hint.set(Some(error(e))),
@@ -432,7 +432,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                                     <Status tone=tone>
                                         {if gut { t!(SetupModelSucceeded) } else if p.checked { t!(SetupModelFailed) } else { t!(SetupModelNotChecked) }}
                                     </Status>
-                                    <span class="t-subheadline">{p.hint.unwrap_or_default()}</span>
+                                    <span class="t-subheadline">{p.hint.map(|h| h.render(lang())).unwrap_or_default()}</span>
                                 </HStack>
                             }
                         })

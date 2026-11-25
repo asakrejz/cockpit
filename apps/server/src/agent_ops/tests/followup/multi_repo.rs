@@ -77,7 +77,9 @@ async fn a_changed_and_an_unchanged_repo_push_only_the_changed_one() {
     assert_eq!(run.repos[0].state, RunRepoState::Pushed);
     assert_eq!(run.repos[0].files, ["neu.txt"]);
     assert_eq!(run.repos[1].state, RunRepoState::Unchanged);
-    assert!(run.summary.contains("firma/app") && run.summary.contains("firma/web"));
+    assert!(
+        german(&run.summary).contains("firma/app") && german(&run.summary).contains("firma/web")
+    );
     // Both clones are in the one mount, with the agent's instructions naming both.
     let calls = w.log("calls.log");
     assert!(
@@ -124,14 +126,14 @@ git -C "$clone/firma__web" -c user.name=a -c user.email=a@a.invalid commit -qm A
     assert_eq!(run.repos[0].state, RunRepoState::Pushed);
     assert_eq!(run.repos[1].state, RunRepoState::Refused);
     assert!(
-        run.repos[1].reason.contains("secrets/key.txt"),
+        german(&run.repos[1].reason).contains("secrets/key.txt"),
         "{}",
-        run.repos[1].reason
+        german(&run.repos[1].reason)
     );
     assert!(
-        run.summary.contains("Abgelehnt: firma/web"),
+        german(&run.summary).contains("Abgelehnt: firma/web"),
         "{}",
-        run.summary
+        german(&run.summary)
     );
 }
 

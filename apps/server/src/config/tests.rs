@@ -566,7 +566,7 @@ fn an_invalid_branch_pattern_is_rejected_when_the_config_is_read() {
             continue;
         }
         assert!(
-            matches!(&result, Err(ConfigError::Wert(m)) if m.de().contains("branch_pattern")),
+            matches!(&result, Err(ConfigError::Wert(m)) if m.render(cockpit_i18n::Lang::De).contains("branch_pattern")),
             "{bad}: {result:?}"
         );
     }

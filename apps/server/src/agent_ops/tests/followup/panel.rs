@@ -1,6 +1,7 @@
 //! Review panel: commits and commit diffs come from GitHub on demand, only for known pull requests.
 
 use super::*;
+use cockpit_i18n::Lang;
 
 #[tokio::test]
 async fn commits_and_a_commit_diff_are_read_from_github() {
@@ -62,14 +63,14 @@ async fn an_unknown_pull_request_is_not_asked_at_github() {
         .panel_commits("firma/app", 999)
         .await
         .unwrap_err()
-        .de();
+        .render(Lang::De);
     assert!(e.contains("nicht bekannt"), "{e}");
     let e = w
         .state
         .panel_commits("other/repo", 85)
         .await
         .unwrap_err()
-        .de();
+        .render(Lang::De);
     assert!(e.contains("nicht bekannt"), "{e}");
     assert!(github.received_requests().await.unwrap().is_empty());
 }
@@ -88,6 +89,6 @@ async fn a_github_error_becomes_a_sentence_without_the_token() {
         .panel_commits("firma/app", 85)
         .await
         .unwrap_err()
-        .de();
+        .render(Lang::De);
     assert!(e.contains("404") && !e.contains(GITHUB), "{e}");
 }

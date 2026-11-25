@@ -61,13 +61,7 @@ pub fn merge(local: &Workspace, remote: &Remote, now_ms: u64) -> (Workspace, Vec
             }
             Outcome::Loaded(loaded) => {
                 merge_source(&mut ws, source, loaded, &mut changes);
-                ws.sync.set_state_with(
-                    source,
-                    None,
-                    now_ms,
-                    &loaded.warnings,
-                    &loaded.warning_msgs,
-                );
+                ws.sync.set_state(source, None, now_ms, &loaded.warnings);
                 if before.is_some() {
                     changes.push(Change::SourceRecovered { source });
                 }

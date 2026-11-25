@@ -40,17 +40,13 @@ pub struct Loaded {
     pub projects: Vec<crate::project::ProjectMeta>,
     /// Hints for the state of the source (e.g. skipped pull requests).
     #[serde(default)]
-    pub warnings: Vec<String>,
-    /// The same hints as code and parameters; [`Loaded::warn`] fills both.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub warning_msgs: Vec<cockpit_i18n::Msg>,
+    pub warnings: Vec<cockpit_i18n::Msg>,
 }
 
 impl Loaded {
-    /// Adds a hint: the code and, next to it, the German text.
+    /// Adds a hint.
     pub fn warn(&mut self, msg: cockpit_i18n::Msg) {
-        self.warnings.push(msg.de());
-        self.warning_msgs.push(msg);
+        self.warnings.push(msg);
     }
 }
 

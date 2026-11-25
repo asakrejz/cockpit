@@ -125,7 +125,7 @@ async fn health_reports_the_config_folder() {
     let j = json(body);
     assert_eq!(j["config_files"]["path"], config.display().to_string());
     assert!(j["config_files"]["warnings"].is_array());
-    assert!(j["config_files"]["warning_msgs"].is_array());
+    assert!(j["config_files"].get("warning_msgs").is_none());
     // Without a folder (both overrides set) the field is null.
     let s = state(Arc::new(MemoryStore::new()));
     let (_, body) = hole(router(s, PathBuf::from("/x")), "/api/health").await;

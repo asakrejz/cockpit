@@ -132,7 +132,7 @@ async fn the_test_button_makes_a_signed_round_trip_over_loopback() {
         )
         .await;
         assert_eq!(s, StatusCode::OK);
-        let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+        let v = crate::german::german_json(&text);
         assert_eq!(v["ok"], true, "{source}: {text}");
         assert!(!text.contains(GH_SECRET) && !text.contains(JIRA_SECRET));
         // A second test is not swallowed by the replay check.
@@ -178,7 +178,7 @@ async fn the_test_button_makes_a_signed_round_trip_over_loopback() {
         vec![],
     )
     .await;
-    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let v = crate::german::german_json(&text);
     assert_eq!(v["ok"], false);
     assert!(v["message"].as_str().unwrap().contains("Secret"));
 }
@@ -197,7 +197,7 @@ async fn the_test_button_explains_when_webhooks_are_off() {
         vec![],
     )
     .await;
-    let v: serde_json::Value = serde_json::from_str(&text).unwrap();
+    let v = crate::german::german_json(&text);
     assert_eq!(v["ok"], false);
     assert!(v["message"].as_str().unwrap().contains("aktiviert"));
 }

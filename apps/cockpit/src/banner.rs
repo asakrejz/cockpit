@@ -120,7 +120,7 @@ pub fn ServerBanner() -> impl IntoView {
             {link_banner}
             <For
                 each=sources
-                key=|n| (n.source as u8, n.title.de(), n.detail.de())
+                key=|n| (n.source as u8, format!("{:?}", n.title), format!("{:?}", n.detail))
                 children=move |n| source_banner(store, n, busy)
             />
             <Show when=move || store.notice.get().is_some()>

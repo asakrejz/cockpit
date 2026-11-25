@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 const P: &str = "feature/{ticket}-{slug}";
 
@@ -154,7 +155,10 @@ fn check_refuses_the_base_branch_and_odd_names() {
 #[test]
 fn check_refuses_a_name_outside_the_pattern() {
     let e = check(P, "main", "claude/BAU-1-x").unwrap_err();
-    assert!(e.contains("passt nicht zum Muster"), "{e}");
+    assert!(
+        e.render(Lang::De).contains("passt nicht zum Muster"),
+        "{e:?}"
+    );
 }
 
 #[test]

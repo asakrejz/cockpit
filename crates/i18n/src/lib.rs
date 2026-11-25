@@ -16,7 +16,7 @@ mod msg;
 mod time;
 
 pub use catalog::{placeholders, plural_forms};
-pub use msg::{ArgValue, Msg};
+pub use msg::{ArgValue, Msg, msg_or_text, opt_msg_or_text};
 pub use time::{ago, ago_ms};
 
 include!(concat!(env!("OUT_DIR"), "/keys.rs"));

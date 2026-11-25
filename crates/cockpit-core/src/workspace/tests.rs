@@ -3,6 +3,7 @@ use crate::agent::STEPS;
 use crate::attention::Rule;
 use crate::demo;
 use crate::test_support::{advance, advance_at};
+use cockpit_i18n::Lang;
 
 fn ws() -> Workspace {
     demo::workspace()
@@ -265,7 +266,7 @@ fn sending_a_review_closes_the_inbox_item() {
     );
     let sent = comment.text_msg.as_ref().unwrap();
     assert_eq!(
-        sent.de(),
+        sent.render(Lang::De),
         "Review gesendet: Änderungen · 2 Kommentare\nBitte Fokus prüfen."
     );
     assert_eq!(
@@ -299,7 +300,7 @@ fn own_line_comments_go_out_with_the_review() {
             .text_msg
             .as_ref()
             .unwrap()
-            .de(),
+            .render(Lang::De),
         "Review gesendet: Kommentieren · 1 Kommentar"
     );
     assert!(w.review(87).unwrap().sent);
@@ -361,7 +362,7 @@ fn a_cancelled_agent_leaves_no_traces() {
         (
             item.branch.clone(),
             item.pr.clone(),
-            item.agent_note.clone()
+            item.agent_note_in(Lang::De)
         ),
         (None, None, None)
     );
@@ -390,7 +391,7 @@ fn a_plan_is_shown_before_anything_happens() {
     assert_eq!((item.branch.clone(), item.pr.clone()), (None, None));
     assert_eq!(item.status, ws().item("bau142").unwrap().status);
     assert_eq!(
-        item.agent_note.as_deref(),
+        item.agent_note_in(Lang::De).as_deref(),
         Some("Der Agent wartet auf die Freigabe seines Plans")
     );
     assert!(w.review(92).is_none());

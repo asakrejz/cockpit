@@ -51,7 +51,7 @@ pub fn BranchPatternField(
             hint=t!(SetupBranchHint)
             autocomplete="off"
         />
-        {move || invalid.get().map(|m| view! { <p class="ui-hint" role="alert" style="color: var(--sys-color-red)">{m}</p> })}
+        {move || invalid.get().map(|m| view! { <p class="ui-hint" role="alert" style="color: var(--sys-color-red)">{m.render(lang())}</p> })}
         <HStack spacing="12px">
             <Button
                 variant=ButtonStyle::Borderless
@@ -71,7 +71,7 @@ pub fn BranchPatternField(
                         <div role="status">
                             <p class="ui-hint">
                                 {s.source.as_ref().map(|f| t!(SetupBranchFromFile, file = f) + " ").unwrap_or_default()}
-                                {server::shown(&s.message, s.msg.as_ref())}
+                                {s.message.render(lang())}
                             </p>
                             {proposed
                                 .map(|p| {

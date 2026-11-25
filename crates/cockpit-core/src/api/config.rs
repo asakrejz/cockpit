@@ -175,11 +175,8 @@ pub struct ConfigResponse {
     #[serde(default)]
     pub takes_effect_immediately: bool,
     /// What the user should know.
-    #[serde(default)]
-    pub hint: Option<String>,
-    /// The same as code and parameters, rendered in the chosen language.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub msg: Option<cockpit_i18n::Msg>,
+    pub hint: Option<cockpit_i18n::Msg>,
 }
 
 /// Response to `GET /api/setup`: the current, non-secret values for the assistant.

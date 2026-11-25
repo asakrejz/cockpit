@@ -51,11 +51,8 @@ pub struct CleanupResult {
 pub struct BranchCheck {
     pub branch: String,
     pub allowed: bool,
-    #[serde(default)]
-    pub reason: Option<String>,
-    /// The same as `reason`, as code and parameters.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reason_msg: Option<cockpit_i18n::Msg>,
+    pub reason: Option<cockpit_i18n::Msg>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
