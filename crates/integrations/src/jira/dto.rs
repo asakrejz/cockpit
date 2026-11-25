@@ -176,11 +176,11 @@ pub struct ProjectPage {
     #[serde(default)]
     pub values: Vec<Project>,
     /// If the field is missing, the page counts as the last one.
-    #[serde(default = "ja")]
+    #[serde(default = "default_true")]
     pub is_last: bool,
 }
 
-fn ja() -> bool {
+fn default_true() -> bool {
     true
 }
 

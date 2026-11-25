@@ -100,8 +100,8 @@ async fn a_huge_list_is_capped() {
 
 #[tokio::test]
 async fn a_response_beyond_the_size_limit_is_refused() {
-    let gross = "x".repeat(MAX_RESPONSE + 10);
-    let server = proxy(ResponseTemplate::new(200).set_body_string(gross)).await;
+    let oversized = "x".repeat(MAX_RESPONSE + 10);
+    let server = proxy(ResponseTemplate::new(200).set_body_string(oversized)).await;
     let l = models_load(&target(&server), Some(&Secret::new(KEY))).await;
     assert!(!l.loaded && l.models.is_empty());
     assert!(

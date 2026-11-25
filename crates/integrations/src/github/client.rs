@@ -216,7 +216,7 @@ impl GitHubClient {
         let mut page = 1u32;
         loop {
             let part: Vec<Pull> = self
-                .lies_json(self.get(&format!("/repos/{repo}/pulls")).query(&[
+                .read_json(self.get(&format!("/repos/{repo}/pulls")).query(&[
                     ("state", "open"),
                     ("sort", "updated"),
                     ("direction", "desc"),
@@ -260,7 +260,7 @@ impl GitHubClient {
             .map_err(|e| e.without_key(self.token.expose()))
     }
 
-    pub(super) async fn lies_json<T: DeserializeOwned>(
+    pub(super) async fn read_json<T: DeserializeOwned>(
         &self,
         req: reqwest::RequestBuilder,
     ) -> Result<T, Error> {
@@ -280,7 +280,7 @@ impl GitHubClient {
 
     /// Login of the key holder.
     pub async fn me(&self) -> Result<String, Error> {
-        Ok(self.lies_json::<User>(self.get("/user")).await?.login)
+        Ok(self.read_json::<User>(self.get("/user")).await?.login)
     }
 
     /// Open pull requests for which a review from me is requested or which belong to me.
@@ -312,7 +312,7 @@ impl GitHubClient {
         let mut all = Vec::new();
         for page in 1..=MAX_PAGES {
             let res: SearchResult = self
-                .lies_json(self.get("/search/issues").query(&[
+                .read_json(self.get("/search/issues").query(&[
                     ("q", q),
                     ("sort", "updated"),
                     ("per_page", &per_page.to_string()),
@@ -334,7 +334,7 @@ impl GitHubClient {
     }
 
     pub async fn pull(&self, repo: &str, nr: u32) -> Result<Pull, Error> {
-        self.lies_json(self.get(&format!("/repos/{repo}/pulls/{nr}")))
+        self.read_json(self.get(&format!("/repos/{repo}/pulls/{nr}")))
             .await
     }
 
@@ -351,7 +351,7 @@ impl GitHubClient {
 
     /// One commit with its files and patches (GitHub lists at most 300 files here).
     pub async fn commit(&self, repo: &str, sha: &str) -> Result<CommitDetail, Error> {
-        self.lies_json(self.get(&format!("/repos/{repo}/commits/{sha}")))
+        self.read_json(self.get(&format!("/repos/{repo}/commits/{sha}")))
             .await
     }
 
@@ -373,7 +373,7 @@ impl GitHubClient {
     /// The individual check runs of a commit.
     pub async fn check_runs(&self, repo: &str, sha: &str) -> Result<Vec<CheckRun>, Error> {
         let runs: CheckRuns = self
-            .lies_json(
+            .read_json(
                 self.get(&format!("/repos/{repo}/commits/{sha}/check-runs"))
                     .query(&[("per_page", "100")]),
             )
@@ -383,7 +383,7 @@ impl GitHubClient {
 
     /// The combined commit status of a commit (permission "Commit statuses", read).
     pub async fn commit_status(&self, repo: &str, sha: &str) -> Result<CombinedStatus, Error> {
-        self.lies_json(self.get(&format!("/repos/{repo}/commits/{sha}/status")))
+        self.read_json(self.get(&format!("/repos/{repo}/commits/{sha}/status")))
             .await
     }
 
@@ -457,7 +457,7 @@ impl GitHubClient {
         let mut all = Vec::new();
         for page in 1..=MAX_PAGES {
             let part: Vec<T> = self
-                .lies_json(
+                .read_json(
                     self.get(path)
                         .query(&[("per_page", "100"), ("page", &page.to_string())]),
                 )
@@ -518,7 +518,7 @@ impl GitHubClient {
             .take(followup::MAX_CHECKS)
         {
             let annotations: Vec<Annotation> = self
-                .lies_json(
+                .read_json(
                     self.get(&format!("/repos/{repo}/check-runs/{}/annotations", run.id))
                         .query(&[("per_page", "50")]),
                 )
@@ -540,7 +540,7 @@ impl GitHubClient {
     ) -> Result<Option<PullSummary>, Error> {
         let owner = repo.split('/').next().unwrap_or_default();
         let list: Vec<PullSummary> = self
-            .lies_json(self.get(&format!("/repos/{repo}/pulls")).query(&[
+            .read_json(self.get(&format!("/repos/{repo}/pulls")).query(&[
                 ("head", format!("{owner}:{branch}").as_str()),
                 ("state", "open"),
                 ("per_page", "5"),
@@ -617,9 +617,9 @@ impl GitHubClient {
 
     /// Creates `name` as a ref from the default branch of the repo.
     pub async fn branch_create(&self, repo: &str, name: &str) -> Result<(), Error> {
-        let r: Repo = self.lies_json(self.get(&format!("/repos/{repo}"))).await?;
+        let r: Repo = self.read_json(self.get(&format!("/repos/{repo}"))).await?;
         let r#ref: GitRefResponse = self
-            .lies_json(self.get(&format!("/repos/{repo}/git/ref/heads/{}", r.default_branch)))
+            .read_json(self.get(&format!("/repos/{repo}/git/ref/heads/{}", r.default_branch)))
             .await?;
         self.send(&branch_request(repo, name, &r#ref.object.sha))
             .await
@@ -637,7 +637,7 @@ impl GitHubClient {
     /// Is the branch protected on GitHub? Read-only.
     pub async fn branch_protected(&self, repo: &str, name: &str) -> Result<bool, Error> {
         let info: BranchInfo = self
-            .lies_json(self.get(&format!("/repos/{repo}/branches/{name}")))
+            .read_json(self.get(&format!("/repos/{repo}/branches/{name}")))
             .await?;
         Ok(info.protected)
     }
@@ -645,7 +645,7 @@ impl GitHubClient {
     /// Read-only look at a repo: does it exist, may the key holder see it and push to it?
     /// Changes nothing.
     pub async fn repo_access(&self, repo: &str) -> Result<RepoAccess, Error> {
-        let r: Repo = self.lies_json(self.get(&format!("/repos/{repo}"))).await?;
+        let r: Repo = self.read_json(self.get(&format!("/repos/{repo}"))).await?;
         Ok(RepoAccess {
             default_branch: r.default_branch,
             archived: r.archived,
@@ -660,7 +660,7 @@ impl GitHubClient {
     pub async fn contributing(&self, repo: &str) -> Result<Option<(String, String)>, Error> {
         for path in cockpit_core::branch::GUIDELINE_FILES {
             let file: Result<ContentFile, Error> = self
-                .lies_json(self.get(&format!("/repos/{repo}/contents/{path}")))
+                .read_json(self.get(&format!("/repos/{repo}/contents/{path}")))
                 .await;
             let file = match file {
                 Ok(f) => f,
@@ -695,7 +695,7 @@ impl GitHubClient {
         let mut list = RepoList::default();
         for page in 1..=(MAX_REPOS / 100 + 1) {
             let part: Vec<RepoListEntry> = self
-                .lies_json(self.get("/user/repos").query(&[
+                .read_json(self.get("/user/repos").query(&[
                     ("affiliation", "owner,collaborator,organization_member"),
                     ("sort", "full_name"),
                     ("per_page", "100"),
@@ -716,7 +716,7 @@ impl GitHubClient {
     /// the app in its address (if GitHub tells it) per installation. Read-only.
     pub async fn installations(&self) -> Result<Vec<Option<String>>, Error> {
         let installations: Installations = self
-            .lies_json(
+            .read_json(
                 self.get("/user/installations")
                     .query(&[("per_page", "100")]),
             )
@@ -732,7 +732,7 @@ impl GitHubClient {
     /// (`GET /user/installations`) and their repos. Read-only.
     pub async fn installation_repo_list(&self) -> Result<RepoList, Error> {
         let installations: Installations = self
-            .lies_json(
+            .read_json(
                 self.get("/user/installations")
                     .query(&[("per_page", "100")]),
             )
@@ -741,7 +741,7 @@ impl GitHubClient {
         for i in installations.installations {
             for page in 1..=(MAX_REPOS / 100 + 1) {
                 let part: InstallationRepos = self
-                    .lies_json(
+                    .read_json(
                         self.get(&format!("/user/installations/{}/repositories", i.id))
                             .query(&[("per_page", "100"), ("page", &page.to_string())]),
                     )

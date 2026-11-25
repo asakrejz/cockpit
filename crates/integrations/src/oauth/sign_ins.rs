@@ -11,7 +11,7 @@ pub(super) const MAX_OPEN: usize = 16;
 pub(super) struct Open {
     service: Service,
     verifier: String,
-    ab_ms: u64,
+    created_ms: u64,
 }
 
 /// Why a callback does not match a sign-in.
@@ -45,13 +45,13 @@ impl SignIns {
     /// Starts a sign-in: returns `state` and the PKCE checksum.
     pub fn begin(&mut self, service: Service, now_ms: u64) -> Result<(String, String), Error> {
         self.open
-            .retain(|_, o| now_ms.saturating_sub(o.ab_ms) <= STATE_VALID_MS);
+            .retain(|_, o| now_ms.saturating_sub(o.created_ms) <= STATE_VALID_MS);
         while self.open.len() >= MAX_OPEN {
             // Drop the oldest.
             let oldest = self
                 .open
                 .iter()
-                .min_by_key(|(_, o)| o.ab_ms)
+                .min_by_key(|(_, o)| o.created_ms)
                 .map(|(k, _)| k.clone());
             match oldest {
                 Some(k) => self.open.remove(&k),
@@ -66,7 +66,7 @@ impl SignIns {
             Open {
                 service,
                 verifier,
-                ab_ms: now_ms,
+                created_ms: now_ms,
             },
         );
         Ok((state, challenge))
@@ -80,7 +80,7 @@ impl SignIns {
         now_ms: u64,
     ) -> Result<String, StateError> {
         let o = self.open.remove(state).ok_or(StateError::Unknown)?;
-        if now_ms.saturating_sub(o.ab_ms) > STATE_VALID_MS {
+        if now_ms.saturating_sub(o.created_ms) > STATE_VALID_MS {
             return Err(StateError::Expired);
         }
         if o.service != service {

@@ -71,10 +71,10 @@ pub struct JiraQuery {
 
 /// The query for the sync, from what the app has chosen.
 ///
-/// * Nothing chosen (`chosen` is `None` and the sprint view is „Aktueller Sprint“): as before,
+/// * Nothing chosen (`chosen` is `None` and the sprint view is "Current sprint"): as before,
 ///   [`jql_for`] with the settings file.
 /// * Project chosen, current sprint: [`jql_for_project`].
-/// * Another sprint view („Alle offenen“, „Zuletzt aktualisiert“, „Backlog“): all open tickets
+/// * Another sprint view ("All open", "Recently updated", "Backlog"): all open tickets
 ///   of the project (or of the projects of the settings file; all projects if there are none) –
 ///   whoever they are assigned to. A JQL set by hand is only replaced when a project is chosen.
 ///
@@ -344,7 +344,7 @@ impl JiraClient {
             .map_err(|e| e.without_key(self.token.expose()))
     }
 
-    async fn lies_json<T: DeserializeOwned>(
+    async fn read_json<T: DeserializeOwned>(
         &self,
         req: reqwest::RequestBuilder,
     ) -> Result<T, Error> {
@@ -365,7 +365,7 @@ impl JiraClient {
     /// `accountId` of the key holder.
     pub async fn me(&self) -> Result<String, Error> {
         Ok(self
-            .lies_json::<Myself>(self.get("/rest/api/3/myself"))
+            .read_json::<Myself>(self.get("/rest/api/3/myself"))
             .await?
             .account_id)
     }
@@ -374,7 +374,7 @@ impl JiraClient {
     /// connection test in the setup assistant.
     pub async fn my_name(&self) -> Result<String, Error> {
         Ok(self
-            .lies_json::<Myself>(self.get("/rest/api/3/myself"))
+            .read_json::<Myself>(self.get("/rest/api/3/myself"))
             .await?
             .display_name
             .unwrap_or_default())
@@ -394,7 +394,7 @@ impl JiraClient {
             return Ok(known);
         }
         let fields: Vec<super::dto::FieldInfo> =
-            self.lies_json(self.get("/rest/api/3/field")).await?;
+            self.read_json(self.get("/rest/api/3/field")).await?;
         let is_sprint_type = |f: &super::dto::FieldInfo| {
             f.schema
                 .as_ref()
@@ -425,7 +425,7 @@ impl JiraClient {
             return Ok(known);
         }
         let fields: Vec<super::dto::FieldInfo> =
-            self.lies_json(self.get("/rest/api/3/field")).await?;
+            self.read_json(self.get("/rest/api/3/field")).await?;
         let found = find_team_field(&fields);
         if let Ok(mut k) = self.team_field.lock() {
             *k = Some(found.clone());
@@ -476,7 +476,7 @@ impl JiraClient {
                 question.push(("nextPageToken", t.clone()));
             }
             let res: SearchResult = self
-                .lies_json(self.get("/rest/api/3/search/jql").query(&question))
+                .read_json(self.get("/rest/api/3/search/jql").query(&question))
                 .await?;
             let names = std::sync::Arc::new(res.names);
             all.extend(res.issues.into_iter().map(|mut i| {
@@ -507,7 +507,7 @@ impl JiraClient {
                 ("orderBy", "name".to_string()),
             ];
             let page: ProjectPage = self
-                .lies_json(self.get("/rest/api/3/project/search").query(&question))
+                .read_json(self.get("/rest/api/3/project/search").query(&question))
                 .await?;
             let empty = page.values.is_empty();
             all.extend(page.values);
@@ -539,7 +539,7 @@ impl JiraClient {
             ("maxResults", ASSIGNABLE_MAX.to_string()),
         ];
         let users: Vec<AssignableUser> = self
-            .lies_json(
+            .read_json(
                 self.get("/rest/api/3/user/assignable/search")
                     .query(&question),
             )
@@ -578,7 +578,7 @@ impl JiraClient {
 
     pub async fn comments(&self, key: &str) -> Result<Vec<JiraComment>, Error> {
         let page: CommentPage = self
-            .lies_json(
+            .read_json(
                 self.get(&format!("/rest/api/3/issue/{key}/comment"))
                     .query(&[("orderBy", "created")]),
             )
@@ -611,7 +611,7 @@ impl JiraClient {
     /// Finds the transition that leads to the target status and executes it.
     pub async fn status_set(&self, key: &str, target: TicketStatus) -> Result<(), Error> {
         let list: TransitionList = self
-            .lies_json(self.get(&format!("/rest/api/3/issue/{key}/transitions")))
+            .read_json(self.get(&format!("/rest/api/3/issue/{key}/transitions")))
             .await?;
         let transition = choose_transition(&list.transitions, target).ok_or_else(|| {
             Error::Coded(msg!(

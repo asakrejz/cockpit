@@ -156,10 +156,10 @@ fn all() -> Targets {
     }
 }
 
-fn plan(ws: &Workspace, a: Action, z: &Targets) -> Result<Option<Outbound>, PlanError> {
+fn plan(ws: &Workspace, a: Action, targets: &Targets) -> Result<Option<Outbound>, PlanError> {
     let mut after = ws.clone();
     let _ = after.apply(a.clone(), Actor::User, T);
-    plane(ws, &after, &a, z)
+    plan_call(ws, &after, &a, targets)
 }
 
 #[test]

@@ -1,5 +1,5 @@
 //! The rule behind every outward call: only an action that requires `Actor::User` may become
-//! one. `plane` is the single place where actions turn into calls, so this test walks through
+//! one. `plan_call` is the single place where actions turn into calls, so this test walks through
 //! every action there is.
 
 use super::*;
@@ -79,7 +79,7 @@ fn slot(action: &Action) -> usize {
     }
 }
 
-/// The calls `plane` can produce, by name. Exhaustive, so a new kind of call is noticed here.
+/// The calls `plan_call` can produce, by name. Exhaustive, so a new kind of call is noticed here.
 fn kind(call: &Outbound) -> &'static str {
     match call {
         Outbound::JiraComment { .. } => "JiraComment",

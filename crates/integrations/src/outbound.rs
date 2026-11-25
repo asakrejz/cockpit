@@ -135,7 +135,7 @@ impl std::fmt::Display for PlanError {
 /// Determines the call for an action. `before` is the state before, `after` the state after
 /// a trial application (that is how we know e.g. the name of the new branch). `Ok(None)`:
 /// stays local.
-pub fn plane(
+pub fn plan_call(
     before: &Workspace,
     after: &Workspace,
     action: &Action,

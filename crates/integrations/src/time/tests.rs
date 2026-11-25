@@ -1,16 +1,16 @@
 use super::*;
 
-const NEUJAHR_2024: i64 = 1_704_067_200;
+const NEW_YEAR_2024: i64 = 1_704_067_200;
 
 #[test]
 fn reads_timestamp() {
     assert_eq!(parse_iso("1970-01-01T00:00:00Z"), Some(0));
-    assert_eq!(parse_iso("2024-01-01T00:00:00Z"), Some(NEUJAHR_2024));
+    assert_eq!(parse_iso("2024-01-01T00:00:00Z"), Some(NEW_YEAR_2024));
     assert_eq!(parse_iso("2000-03-01T00:00:00Z"), Some(951_868_800));
     // Leap year: 29 February
     assert_eq!(
         parse_iso("2024-03-01T00:00:00Z"),
-        Some(NEUJAHR_2024 + 60 * 86_400)
+        Some(NEW_YEAR_2024 + 60 * 86_400)
     );
 }
 
@@ -23,7 +23,7 @@ fn reads_timezones_and_fractions() {
 }
 
 #[test]
-fn rejects_nonsense_ab() {
+fn rejects_nonsense_input() {
     assert_eq!(parse_iso("gestern"), None);
     assert_eq!(parse_iso("2024-13-01T00:00:00Z"), None);
     assert_eq!(parse_iso("2024-05-14T09:12:33+2"), None);

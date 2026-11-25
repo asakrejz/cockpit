@@ -3,7 +3,7 @@
 
 use cockpit_core::{Action, Actor, FieldInput, Person, TicketStatus};
 use cockpit_integrations::github::projects::{Assignee, IssueWrite};
-use cockpit_integrations::outbound::{Outbound, PlanError, Targets, plane};
+use cockpit_integrations::outbound::{Outbound, PlanError, Targets, plan_call};
 use serde_json::{Value, json};
 
 use super::projects::{client, count_calls, gql, proj, project_server, svc};
@@ -27,7 +27,7 @@ fn plan(ws: &Workspace, a: Action, t: &Targets) -> Result<Option<Outbound>, Plan
     let mut after = ws.clone();
     // The rules apply first, as in the server.
     after.apply(a.clone(), Actor::User, NOW_MS).unwrap();
-    plane(ws, &after, &a, t)
+    plan_call(ws, &after, &a, t)
 }
 
 fn body_of(r: &wiremock::Request) -> Value {

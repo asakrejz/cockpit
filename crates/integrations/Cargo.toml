@@ -3,7 +3,7 @@ name = "cockpit-integrations"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
-description = "Lesende Clients für GitHub und Jira Cloud und die Abbildung auf cockpit-core"
+description = "Clients for GitHub and Jira Cloud and the mapping of their responses onto cockpit-core"
 
 # Native only (backend) – does not compile for WebAssembly.
 [dependencies]
