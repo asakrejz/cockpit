@@ -361,7 +361,7 @@ never pushes (no publish step; `finish_review_run` only marks the review as look
 (`Pending` / `Unchanged` / `Pushed` / `PrCreated` / `Refused`), the refusal reason and its pull request. `AgentRun::repo`,
 `rules` and `pull_request` describe the primary repo, and `AgentRun::repo_list` gives the list (a run without `repos` is a
 one-entry list). Each repo's branch is named by that repo's own pattern from the same ticket
-and title (`AgentRun::branch_in`). After the container ends, `publish_repos` (`agent_ops/run.rs`) treats every repo on its
+and title (`AgentRun::branch_in`). After the container ends, `publish_repos` (`agent_ops/run/publish.rs`) treats every repo on its
 own with the checks of `agent_git::publish_changes`: branch name against the repo's pattern, history built on the clone's
 start, path rules, new branch, then push. A repo without changes gets nothing (`Unchanged`), a repo that fails a check is
 `Refused` with its reason, the others are pushed anyway; only if nothing was pushed and something was refused (or nothing
