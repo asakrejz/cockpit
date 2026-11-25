@@ -1,5 +1,15 @@
 /* Cockpit: only what the design system does not already provide – and only with tokens. */
 
+/* Fixed sizes of the app, one name each (everything else comes from the tokens). */
+:root {
+  --ck-icon-size: 22px;       /* round reason icon and the checkbox on touch screens */
+  --ck-notice-width: 560px;   /* banners at the top */
+  --ck-toast-width: 420px;    /* notices in the corner */
+  --ck-column-basis: 200px;   /* a column next to a row title that wraps below it when it is narrower */
+  --ck-setup-gap: 28px;       /* between the blocks of the setup assistant */
+  --ck-bullet-indent: calc(var(--ref-space-16) + var(--ref-space-2)); /* marker column of a bullet list */
+}
+
 body { margin: 0; }
 
 .ck-root { min-height: 100vh; min-height: 100dvh; background: var(--sys-color-grouped-background); }
@@ -13,7 +23,7 @@ body { margin: 0; }
 .ck-empty { padding: var(--ref-space-12) calc(var(--ui-pane-pad) - var(--ref-space-8)); }
 
 /* Small colored icon in the inbox row. */
-.ck-reason { width: 22px; height: 22px; border-radius: var(--ref-radius-6); }
+.ck-reason { width: var(--ck-icon-size); height: var(--ck-icon-size); border-radius: var(--ref-radius-6); }
 
 .ck-setup { min-height: 100vh; min-height: 100dvh; padding-block: var(--ref-space-48) calc(var(--ui-nav-space) + var(--ref-space-24)); }
 
@@ -38,13 +48,13 @@ body { margin: 0; }
 .ck-quiet { display: grid; grid-template-columns: 1fr 1fr; align-items: end; gap: var(--ref-space-12); }
 
 /* Notices in the app (toasts). */
-.ck-toasts { position: fixed; z-index: 50; right: var(--ref-space-16); bottom: var(--ref-space-16); display: flex; flex-direction: column; gap: var(--ref-space-8); width: min(420px, calc(100vw - 2 * var(--ref-space-16))); pointer-events: none; }
+.ck-toasts { position: fixed; z-index: 50; right: var(--ref-space-16); bottom: var(--ref-space-16); display: flex; flex-direction: column; gap: var(--ref-space-8); width: min(var(--ck-toast-width), calc(100vw - 2 * var(--ref-space-16))); pointer-events: none; }
 .ck-toast { pointer-events: auto; display: flex; align-items: center; gap: var(--ref-space-12); padding: var(--ref-space-12); border-radius: var(--ref-radius-12); background: var(--sys-color-secondary-background); box-shadow: var(--sys-glass-shadow); }
 .ck-toast__icon { flex: none; display: inline-flex; padding: var(--ref-space-8); border-radius: var(--ref-radius-full); color: var(--sys-color-tint); background: var(--sys-color-quaternary-fill); }
 /* Server mode: notices at the top center (connecting, not reachable, action rejected). */
 .ck-banner-stack { position: fixed; z-index: 50; inset-block-start: var(--ref-space-12); inset-inline: var(--ref-space-12); display: flex; flex-direction: column; align-items: center; gap: var(--ref-space-8); pointer-events: none; }
-.ck-banner { pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--ref-space-8) var(--ref-space-12); max-width: 560px; padding: var(--ref-space-8) var(--ref-space-16); border-radius: var(--ref-radius-12); color: var(--sys-color-label); background: var(--sys-material-thick); box-shadow: 0 0 0 0.5px var(--sys-color-separator), 0 6px 24px rgb(0 0 0 / 0.12); backdrop-filter: blur(20px); }
-.ck-banner[data-kind="notice"] { box-shadow: 0 0 0 1px var(--sys-color-orange), 0 6px 24px rgb(0 0 0 / 0.12); }
+.ck-banner { pointer-events: auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: var(--ref-space-8) var(--ref-space-12); max-width: var(--ck-notice-width); padding: var(--ref-space-8) var(--ref-space-16); border-radius: var(--ref-radius-12); color: var(--sys-color-label); background: var(--sys-material-thick); box-shadow: 0 0 0 0.5px var(--sys-color-separator), var(--ui-shadow-float); backdrop-filter: blur(20px); }
+.ck-banner[data-kind="notice"] { box-shadow: 0 0 0 1px var(--sys-color-orange), var(--ui-shadow-float); }
 
 /* Attention: rules in the sidebar and snoozing in the detail */
 .ck-rule { list-style: none; padding: var(--ref-space-4) var(--ref-space-12); }
@@ -61,6 +71,16 @@ body { margin: 0; }
 /* Usage and limits on the agent run */
 .ck-usage { display: flex; flex-direction: column; gap: var(--ref-space-4); }
 .ck-problem { color: var(--sys-color-red); }
+/* Radio button with its label in one row (default repo of the agent). */
+.ck-radio-row { display: inline-flex; gap: var(--ref-space-6); align-items: center; cursor: pointer; }
+/* A column next to a row title: takes the free width, wraps below the title when it is narrow. */
+.ui-list__row > .ui-vstack.ck-column { flex: 1 1 var(--ck-column-basis); }
+/* Heading text of a step in the setup assistant: paragraphs one below the other. */
+.ck-intro { display: flex; flex-direction: column; gap: var(--ref-space-8); padding-inline: var(--ref-space-4); }
+/* The blocks of the setup assistant. */
+.ck-setup-flow { --spacing: var(--ck-setup-gap); }
+/* Bullet list in a stack: indent for the markers, no outer margin. */
+.ck-bullets { margin: 0; padding-inline-start: var(--ck-bullet-indent); }
 
 /* One repo of the agent in the setup assistant. */
 .ck-agent-repo {
@@ -104,16 +124,16 @@ body { margin: 0; }
 .ck-check { display: inline-flex; gap: var(--ref-space-8); align-items: baseline; cursor: pointer; }
 @media (max-width: 1100px), (pointer: coarse) {
   .ck-check { align-items: center; min-height: var(--sys-size-hit); }
-  .ck-check input { width: 22px; height: 22px; }
+  .ck-check input { width: var(--ck-icon-size); height: var(--ck-icon-size); }
 }
 
 /* Before the first state arrives: loading or "server not reachable" (gate.rs). */
 .ck-gate { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--ref-space-12); min-height: 100dvh; padding: var(--ref-space-20); text-align: center; }
 .ck-gate .ui-skeleton { width: min(480px, 100%); }
 /* Source banners in the notice stack (banner.rs). */
-.ck-banner-stack .ui-banner { pointer-events: auto; width: min(560px, 100%); background: var(--sys-material-thick); backdrop-filter: blur(20px); box-shadow: inset 3px 0 0 var(--sys-color-blue), 0 6px 24px rgb(0 0 0 / 0.12); }
-.ck-banner-stack .ui-banner[data-tone="warning"] { box-shadow: inset 3px 0 0 var(--sys-color-orange), 0 6px 24px rgb(0 0 0 / 0.12); }
-.ck-banner-stack .ui-banner[data-tone="error"] { box-shadow: inset 3px 0 0 var(--sys-color-red), 0 6px 24px rgb(0 0 0 / 0.12); }
+.ck-banner-stack .ui-banner { pointer-events: auto; width: min(var(--ck-notice-width), 100%); background: var(--sys-material-thick); backdrop-filter: blur(20px); box-shadow: inset 3px 0 0 var(--sys-color-blue), var(--ui-shadow-float); }
+.ck-banner-stack .ui-banner[data-tone="warning"] { box-shadow: inset 3px 0 0 var(--sys-color-orange), var(--ui-shadow-float); }
+.ck-banner-stack .ui-banner[data-tone="error"] { box-shadow: inset 3px 0 0 var(--sys-color-red), var(--ui-shadow-float); }
 
 /* Narrow: long page titles break instead of pushing the counter out of the pane. */
 .ui-pane__header h1 { min-width: 0; overflow-wrap: anywhere; }
@@ -124,16 +144,16 @@ body { margin: 0; }
 
 /* Output of the image build: last lines only, an arrow at the top right opens all of it. */
 .ck-log { position: relative; }
-.ck-log__text { min-height: 0; max-height: calc(5 * 20px + 28px); overflow: hidden; padding-right: 48px; }
+.ck-log__text { min-height: 0; max-height: calc(5 * 20px + 28px); overflow: hidden; padding-right: var(--ref-space-48); }
 .ck-log[data-expanded] .ck-log__text { max-height: min(60vh, 420px); overflow: auto; }
-.ck-log__toggle { position: absolute; top: 8px; right: 8px; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--ref-radius-full); background: var(--sys-color-fill); color: var(--sys-color-label); cursor: pointer; }
+.ck-log__toggle { position: absolute; top: var(--ref-space-8); right: var(--ref-space-8); display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: var(--ref-radius-full); background: var(--sys-color-fill); color: var(--sys-color-label); cursor: pointer; }
 .ck-log__toggle:focus-visible { outline: 2px solid var(--sys-color-tint); outline-offset: 2px; }
 .ck-log__toggle svg { transform: rotate(90deg); transition: transform var(--sys-motion-smooth); }
 .ck-log[data-expanded] .ck-log__toggle svg { transform: rotate(-90deg); }
 
 /* Review panel: file tree, files, commits */
 .ck-tree { list-style: none; margin: 0; padding: var(--ref-space-4) 0; border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-grouped-background); max-height: 240px; overflow-y: auto; }
-.ck-tree__row { display: flex; align-items: center; gap: var(--ref-space-8); padding-block: 2px; padding-inline-end: var(--ref-space-12); font-size: 13px; min-height: 26px; }
+.ck-tree__row { display: flex; align-items: center; gap: var(--ref-space-8); padding-block: var(--ref-space-2); padding-inline-end: var(--ref-space-12); font-size: 13px; min-height: 26px; }
 .ck-tree__row > :first-child { flex: 1 1 auto; min-width: 0; }
 .ck-tree__row--dir { color: var(--sys-color-secondary-label); }
 .ck-tree__file { appearance: none; border: 0; background: none; padding: 0; margin: 0; font: inherit; color: inherit; text-align: start; cursor: pointer; border-radius: var(--ref-radius-6); }
@@ -152,7 +172,7 @@ body { margin: 0; }
 .ck-file__viewed { display: inline-flex; align-items: center; gap: var(--ref-space-4); white-space: nowrap; cursor: pointer; }
 .ck-commits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; border-radius: var(--ref-radius-12); background: var(--sys-color-tertiary-grouped-background); overflow: hidden; }
 .ck-commits li + li { border-top: 0.5px solid var(--sys-color-separator); }
-.ck-commit { display: flex; flex-direction: column; gap: 2px; width: 100%; appearance: none; border: 0; background: none; padding: var(--ref-space-12); margin: 0; font: inherit; color: inherit; text-align: start; cursor: pointer; }
+.ck-commit { display: flex; flex-direction: column; gap: var(--ref-space-2); width: 100%; appearance: none; border: 0; background: none; padding: var(--ref-space-12); margin: 0; font: inherit; color: inherit; text-align: start; cursor: pointer; }
 .ck-commit:hover { background: var(--sys-color-quaternary-fill); }
 .ck-commit:focus-visible { outline: none; box-shadow: inset var(--sys-focus-ring); }
 .ck-commit__body { white-space: pre-wrap; }
@@ -185,7 +205,7 @@ body { margin: 0; }
 .ck-chip-x {
   background: none;
   border: 0;
-  padding: 0 0 0 2px;
+  padding: 0 0 0 var(--ref-space-2);
   color: inherit;
   font: inherit;
   cursor: pointer;
@@ -197,10 +217,10 @@ body { margin: 0; }
 .ck-filter-owner { padding-inline: 0; }
 
 /* Reviews list in sections per repo (and per owner when there are many). */
-.ck-section-group, .ck-section { display: flex; flex-direction: column; gap: 2px; }
+.ck-section-group, .ck-section { display: flex; flex-direction: column; gap: var(--ref-space-2); }
 .ck-section-group { gap: var(--ref-space-8); }
 .ck-section-head { display: flex; align-items: center; gap: var(--ref-space-8); width: 100%; padding: var(--ref-space-6) var(--ref-space-8); border: 0; background: none; color: inherit; font: inherit; text-align: start; cursor: pointer; border-radius: var(--ref-radius-8); }
-.ck-section-head:hover { background: var(--sys-color-fill-hover, rgba(127,127,127,.12)); }
+.ck-section-head:hover { background: var(--ui-fill-hover); }
 .ck-section-head__name { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
 .ck-section-head[data-level="owner"] .ck-section-head__name { text-transform: none; font-size: 1.05em; }
 .ck-section-head[data-level="repo"] { padding-inline-start: var(--ref-space-8); }
