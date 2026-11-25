@@ -35,8 +35,24 @@ docker compose up -d
 ```
 
 The same command updates Cockpit. Without compose, `scripts/cockpit-container.sh` does the same with `docker` or
-`podman`. Your configuration and keys live in the `cockpit-config` volume. Update, only the image without a clone, the
-agent socket and the security notes: [docs/container.md](docs/container.md).
+`podman`. Your configuration and keys live in the `cockpit-config` volume. The agent socket, ports and the security notes
+are in [docs/container.md](docs/container.md).
+
+### Only the image
+
+No clone and no compose needed:
+
+```bash
+docker pull ghcr.io/asakrejz/cockpit:latest
+docker run -d --name cockpit --restart unless-stopped -p 127.0.0.1:8787:8787 -v cockpit-config:/app/config -v /var/run/docker.sock:/var/run/docker.sock ghcr.io/asakrejz/cockpit:latest
+```
+
+The last `-v` lets Cockpit start agent containers on your engine; the left side is the socket path (Rancher Desktop:
+`~/.rd/docker.sock`; Podman: `$XDG_RUNTIME_DIR/podman/podman.sock`). **A mounted socket is root-equivalent access to your
+machine, so only use it on a computer you trust.** Leave that line out and Cockpit runs without the agent.
+
+Update: `docker pull ghcr.io/asakrejz/cockpit:latest`, then `docker rm -f cockpit`, then the same `docker run` again (the
+volume keeps your data). More in [docs/container.md](docs/container.md#only-the-image-no-clone-no-compose).
 
 ## Keys
 
