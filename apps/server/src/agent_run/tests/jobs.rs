@@ -54,7 +54,7 @@ fn a_followup_job_carries_its_input_and_still_no_secrets() {
     let run = ws.run("threads-acme~app-85").unwrap();
     // The watcher starts the container for the real follow-up job like for a normal run.
     assert_eq!(
-        plane(&ws, &HashMap::new(), &[]),
+        plan_instructions(&ws, &HashMap::new(), &[]),
         [Instruction::Start(
             "threads-acme~app-85".into(),
             Mode::Implement

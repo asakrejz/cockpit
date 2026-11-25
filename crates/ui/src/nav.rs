@@ -68,7 +68,7 @@ pub fn IosNav(#[prop(into)] title: Signal<String>, children: Children) -> impl I
 pub struct TabItem {
     pub id: &'static str,
     pub label: &'static str,
-    /// SVG-Pfad, siehe [`icons`].
+    /// SVG path, see [`icons`].
     pub icon: &'static str,
 }
 

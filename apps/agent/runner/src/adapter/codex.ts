@@ -134,12 +134,12 @@ export class CodexLines implements Translator {
       }
       case "turn.completed": {
         const u = v.usage ?? {};
-        const ein = Number(u.input_tokens ?? 0) || 0;
-        const aus = Number(u.output_tokens ?? 0) || 0;
-        this.tokensIn += ein;
-        this.tokensOut += aus;
+        const inputTokens = Number(u.input_tokens ?? 0) || 0;
+        const outputTokens = Number(u.output_tokens ?? 0) || 0;
+        this.tokensIn += inputTokens;
+        this.tokensOut += outputTokens;
         this.finished = true;
-        if (ein > 0 || aus > 0) this.sink({ t: "step", title: tx("step_think"), text: "", tokens_in: ein, tokens_out: aus, ms: this.ms() });
+        if (inputTokens > 0 || outputTokens > 0) this.sink({ t: "step", title: tx("step_think"), text: "", tokens_in: inputTokens, tokens_out: outputTokens, ms: this.ms() });
         break;
       }
       case "turn.failed":

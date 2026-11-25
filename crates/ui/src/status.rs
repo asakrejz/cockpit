@@ -44,7 +44,7 @@ impl StatusTone {
     }
 }
 
-/// Status with a colored dot, e.g. "Verbunden".
+/// Status with a colored dot, e.g. "Connected".
 #[component]
 pub fn Status(
     #[prop(into, default = StatusTone::Gray.into())] tone: Signal<StatusTone>,

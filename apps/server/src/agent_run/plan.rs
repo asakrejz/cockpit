@@ -26,7 +26,7 @@ pub enum Instruction {
 
 /// Compares the runs of the workspace with the running containers. Pure: whoever executes them is
 /// the operation. `blocked` are runs that have just failed (no immediate restart).
-pub fn plane(
+pub fn plan_instructions(
     ws: &Workspace,
     running: &HashMap<String, Info>,
     blocked: &[String],

@@ -110,7 +110,7 @@ fn the_sprint_view_keeps_project_tickets_without_an_iteration() {
         hits.iter().any(|i| i.id == "gh-acme-app-31"),
         "no iteration: shown"
     );
-    // In a past iteration the ticket drops out under „Aktueller Sprint“.
+    // In a past iteration the ticket drops out under "Current sprint".
     let issue = w
         .items
         .iter_mut()

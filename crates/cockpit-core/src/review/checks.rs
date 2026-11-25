@@ -23,7 +23,7 @@ impl CheckRun {
         }
     }
 
-    /// `2:05 Min.` or `42 Sek.`; while running `läuft`.
+    /// `2:05 min` or `42 s`; while running `running`.
     pub fn duration_msg(&self) -> cockpit_i18n::Msg {
         use cockpit_i18n::msg;
         if self.status == Checks::Running {

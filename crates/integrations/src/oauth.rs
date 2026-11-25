@@ -104,7 +104,8 @@ const LEAD_S: u64 = 120;
 impl Tokens {
     /// Must it be refreshed before use?
     pub fn needs_refresh(&self, now_s: u64) -> bool {
-        self.expires_in_s.is_some_and(|ab| now_s + LEAD_S >= ab)
+        self.expires_in_s
+            .is_some_and(|expires| now_s + LEAD_S >= expires)
     }
 
     /// Text for the .env file.
@@ -398,7 +399,7 @@ pub fn site_choose(sites: &[Site], requested: Option<&str>) -> Result<Site, Erro
                     ))
                 })
         }
-        ([eine], None) => Ok(eine.clone()),
+        ([only], None) => Ok(only.clone()),
         (_, None) => Err(Error::Coded(msg!(
             IntegrationsOauthManySites,
             sites = names()

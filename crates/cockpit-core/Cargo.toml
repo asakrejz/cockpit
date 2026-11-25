@@ -4,9 +4,9 @@ edition.workspace = true
 version.workspace = true
 license.workspace = true
 
-# Kept lean: pure domain logic that is tested natively and runs in the browser.
-# The only dependencies are `serde` and `serde_json` – only for saving the
-# workspace in the module `persist`. A later backend can use the same crate.
+# Kept lean: pure domain logic that is tested natively and runs in the browser, in the
+# server and in the integrations. The dependencies are `serde` and `serde_json` (saving
+# the workspace in the module `persist`) and `cockpit-i18n` (the message catalogs).
 [dependencies]
 serde = { workspace = true }
 cockpit-i18n = { workspace = true }

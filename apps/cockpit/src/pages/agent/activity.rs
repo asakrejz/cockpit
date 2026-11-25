@@ -1,4 +1,4 @@
-//! The „Aktivität“ pane: conversation, log, changed files and result.
+//! The "Activity" pane: conversation, log, changed files and result.
 
 use cockpit_core::{AgentRun, FileDiff, MessageKind, RunMessage, Speaker};
 use feature_ui::*;
@@ -166,7 +166,7 @@ pub(super) fn result_card(ctx: AgentCtx) -> Option<impl IntoView> {
     })
 }
 
-/// The „Aktivität“ pane.
+/// The "Activity" pane.
 pub(super) fn pane(ctx: AgentCtx) -> impl IntoView {
     let AgentCtx { run, .. } = ctx;
     view! {

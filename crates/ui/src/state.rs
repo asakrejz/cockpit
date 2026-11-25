@@ -103,7 +103,7 @@ pub fn StatusBanner(
     }
 }
 
-/// Placeholder rows while data loads. `label` is read out once ("Lädt …").
+/// Placeholder rows while data loads. `label` is read out once ("Loading …").
 #[component]
 pub fn Skeleton(
     #[prop(default = 3)] rows: usize,

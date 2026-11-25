@@ -127,7 +127,7 @@ async fn pull_requests_without_a_relation_to_me_are_listed_but_stay_quiet() {
         .map(|i| i.key.clone())
         .collect();
     assert_eq!(attention, ["#3"], "{attention:?}");
-    // The start filter „Alle“ lists them all, the filter „Meine“ keeps the quiet list.
+    // The start filter "All" lists them all, the filter "Mine" keeps the quiet list.
     let all = cockpit_core::InboxFilter::default();
     let mine = cockpit_core::InboxFilter {
         ownership: cockpit_core::Ownership::Mine,

@@ -143,7 +143,7 @@ pub(super) fn filter_chips(store: Store) -> impl IntoView {
     }
 }
 
-/// The dialog with all filters. Edits go to a draft; „Anwenden“ applies it, „Zurücksetzen“
+/// The dialog with all filters. Edits go to a draft; "Apply" applies it, "Reset"
 /// sets the draft back to the start values. The attention rules are switches that act at once.
 pub(super) fn filter_dialog(store: Store, open: RwSignal<bool>) -> impl IntoView {
     let draft = RwSignal::new(InboxFilter::default());

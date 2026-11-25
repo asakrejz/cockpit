@@ -4,7 +4,7 @@ use super::*;
 async fn review_comments_run_on_the_same_branch_and_push_normally() {
     let github = MockServer::start().await;
     comments_ok(&github).await;
-    let w = pr_welt(&github);
+    let w = pr_world(&github);
     w.write("scenario-run.sh", &scenario_followup());
     w.action(Action::AddressReviewThreads {
         review: 85.into(),
@@ -90,7 +90,7 @@ async fn failed_checks_go_to_the_agent_with_a_shortened_excerpt() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
         .mount(&github)
         .await;
-    let w = pr_welt(&github);
+    let w = pr_world(&github);
     w.write("scenario-run.sh", &scenario_followup());
     w.action(Action::FixFailedChecks {
         review: 85.into(),
@@ -131,7 +131,7 @@ async fn secrets_in_review_texts_do_not_reach_the_job_file() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
         .mount(&github)
         .await;
-    let w = pr_welt(&github);
+    let w = pr_world(&github);
     w.write("scenario-run.sh", &scenario_followup());
     w.action(Action::AddressReviewThreads {
         review: 85.into(),
@@ -164,7 +164,7 @@ async fn nothing_to_do_is_refused_before_a_container_starts() {
         .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
         .mount(&github)
         .await;
-    let w = pr_welt(&github);
+    let w = pr_world(&github);
     let e = w
         .action(Action::AddressReviewThreads {
             review: 85.into(),
@@ -190,7 +190,7 @@ async fn github_errors_on_the_inputs_are_told_in_plain_words() {
             .respond_with(ResponseTemplate::new(status).set_body_json(json!({"message": "x"})))
             .mount(&github)
             .await;
-        let w = pr_welt(&github);
+        let w = pr_world(&github);
         let e = w
             .action(Action::AddressReviewThreads {
                 review: 85.into(),
@@ -207,7 +207,7 @@ async fn github_errors_on_the_inputs_are_told_in_plain_words() {
 async fn followups_need_the_real_agent_to_be_ready_and_an_agent_branch() {
     // Not set up: the message says what is missing.
     let github = MockServer::start().await;
-    let w = pr_welt(&github);
+    let w = pr_world(&github);
     std::fs::remove_file(w.bin().join("docker")).unwrap();
     let e = w
         .action(Action::FixFailedChecks {
@@ -221,7 +221,7 @@ async fn followups_need_the_real_agent_to_be_ready_and_an_agent_branch() {
         "{e}"
     );
     // A person's branch is refused by the rules of the workspace.
-    let w2 = pr_welt(&github);
+    let w2 = pr_world(&github);
     let mut ws = w2.ws();
     for r in ws.reviews.iter_mut().filter(|r| r.number == 85) {
         r.branch = "feature/x".into();

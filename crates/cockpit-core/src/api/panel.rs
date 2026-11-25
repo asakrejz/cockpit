@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::review::DiffLine;
 
-/// Lines per file in one answer; the rest is fetched per file ("Mehr laden").
+/// Lines per file in one answer; the rest is fetched per file ("Load more").
 pub const PANEL_FILE_LINES: usize = 300;
 /// Upper bound when a single file is asked for in full.
 pub const PANEL_MAX_LINES: usize = 5_000;

@@ -1,16 +1,16 @@
 use super::*;
 
 #[test]
-fn watcher_starts_plan_and_run_je_after_state() {
+fn watcher_starts_plan_and_run_each_after_state() {
     let mut ws = demo::workspace();
-    assert!(plane(&ws, &HashMap::new(), &[]).is_empty());
+    assert!(plan_instructions(&ws, &HashMap::new(), &[]).is_empty());
     start(&mut ws, true);
     assert_eq!(
-        plane(&ws, &HashMap::new(), &[]),
+        plan_instructions(&ws, &HashMap::new(), &[]),
         [Instruction::Start("BAU-142".into(), Mode::Plan)]
     );
     // With a running plan container nothing happens until the plan is there.
-    assert!(plane(&ws, &running(Mode::Plan), &[]).is_empty());
+    assert!(plan_instructions(&ws, &running(Mode::Plan), &[]).is_empty());
     ws.report_agent(
         "BAU-142",
         AgentReport::Plan {
@@ -22,12 +22,12 @@ fn watcher_starts_plan_and_run_je_after_state() {
     )
     .unwrap();
     assert_eq!(
-        plane(&ws, &running(Mode::Plan), &[]),
+        plan_instructions(&ws, &running(Mode::Plan), &[]),
         [Instruction::Stop("BAU-142".into())],
         "a finished plan container is no longer needed"
     );
     assert!(
-        plane(&ws, &HashMap::new(), &[]).is_empty(),
+        plan_instructions(&ws, &HashMap::new(), &[]).is_empty(),
         "wartet auf die Freigabe"
     );
     ws.apply(
@@ -39,18 +39,18 @@ fn watcher_starts_plan_and_run_je_after_state() {
     )
     .unwrap();
     assert_eq!(
-        plane(&ws, &HashMap::new(), &[]),
+        plan_instructions(&ws, &HashMap::new(), &[]),
         [Instruction::Start("BAU-142".into(), Mode::Implement)]
     );
     // A run that has just failed does not restart immediately.
-    assert!(plane(&ws, &HashMap::new(), &["BAU-142".to_string()]).is_empty());
+    assert!(plan_instructions(&ws, &HashMap::new(), &["BAU-142".to_string()]).is_empty());
 }
 
 #[test]
 fn watcher_stops_at_cancel_limit_and_orphaned_containern() {
     let mut ws = demo::workspace();
     start(&mut ws, false);
-    assert!(plane(&ws, &running(Mode::Implement), &[]).is_empty());
+    assert!(plan_instructions(&ws, &running(Mode::Implement), &[]).is_empty());
     let mut stop = ws.clone();
     stop.apply(
         Action::CancelAgent {
@@ -61,7 +61,7 @@ fn watcher_stops_at_cancel_limit_and_orphaned_containern() {
     )
     .unwrap();
     assert_eq!(
-        plane(&stop, &running(Mode::Implement), &[]),
+        plan_instructions(&stop, &running(Mode::Implement), &[]),
         [Instruction::Stop("BAU-142".into())]
     );
     // Limit reached: halted.
@@ -83,13 +83,13 @@ fn watcher_stops_at_cancel_limit_and_orphaned_containern() {
         )
         .unwrap();
     assert_eq!(
-        plane(&limit, &running(Mode::Implement), &[]),
+        plan_instructions(&limit, &running(Mode::Implement), &[]),
         [Instruction::Stop("BAU-142".into())]
     );
     // Container for a run that does not exist.
     let empty = demo::workspace();
     assert_eq!(
-        plane(&empty, &running(Mode::Implement), &[]),
+        plan_instructions(&empty, &running(Mode::Implement), &[]),
         [Instruction::Stop("BAU-142".into())]
     );
 }
@@ -107,7 +107,7 @@ fn watcher_passes_pause_answer_and_hints_further() {
     )
     .unwrap();
     assert_eq!(
-        plane(&ws, &running(Mode::Implement), &[]),
+        plan_instructions(&ws, &running(Mode::Implement), &[]),
         [Instruction::Pause("BAU-142".into())]
     );
     ws.apply(
@@ -121,7 +121,10 @@ fn watcher_passes_pause_answer_and_hints_further() {
     let mut i = info(Mode::Implement);
     i.paused = true;
     let mut m = HashMap::from([("BAU-142".to_string(), i)]);
-    assert_eq!(plane(&ws, &m, &[]), [Instruction::Resume("BAU-142".into())]);
+    assert_eq!(
+        plan_instructions(&ws, &m, &[]),
+        [Instruction::Resume("BAU-142".into())]
+    );
 
     // Question and answer.
     ws.report_agent(
@@ -136,7 +139,7 @@ fn watcher_passes_pause_answer_and_hints_further() {
     m.get_mut("BAU-142").unwrap().paused = false;
     m.get_mut("BAU-142").unwrap().question_open = true;
     assert!(
-        plane(&ws, &m, &[]).is_empty(),
+        plan_instructions(&ws, &m, &[]).is_empty(),
         "as long as it is unanswered"
     );
     ws.apply(
@@ -149,7 +152,7 @@ fn watcher_passes_pause_answer_and_hints_further() {
     )
     .unwrap();
     assert_eq!(
-        plane(&ws, &m, &[]),
+        plan_instructions(&ws, &m, &[]),
         [Instruction::Answer("BAU-142".into(), "der blaue".into())]
     );
     m.get_mut("BAU-142").unwrap().question_open = false;
@@ -165,12 +168,12 @@ fn watcher_passes_pause_answer_and_hints_further() {
     )
     .unwrap();
     assert_eq!(
-        plane(&ws, &m, &[]),
+        plan_instructions(&ws, &m, &[]),
         [Instruction::Hints(
             "BAU-142".into(),
             vec!["Kleine Commits".into()]
         )]
     );
     m.get_mut("BAU-142").unwrap().hints_sent = 1;
-    assert!(plane(&ws, &m, &[]).is_empty());
+    assert!(plan_instructions(&ws, &m, &[]).is_empty());
 }

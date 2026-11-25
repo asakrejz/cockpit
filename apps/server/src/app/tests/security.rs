@@ -1,6 +1,6 @@
 use super::*;
 
-// ---------- Sicherheit ----------
+// ---------- Security ----------
 
 #[tokio::test]
 async fn post_without_json_content_type_is_415() {
@@ -23,7 +23,7 @@ async fn post_without_json_content_type_is_415() {
 async fn post_with_foreign_origin_is_403_and_changes_nothing() {
     let state = state(Arc::new(MemoryStore::new()));
     let app = || router(state.clone(), PathBuf::from("/x"));
-    let before = hole(app(), "/api/workspace").await.1;
+    let before = fetch(app(), "/api/workspace").await.1;
     let req = request("POST", "/api/actions")
         .header("content-type", "application/json")
         .header("origin", "https://evil.example")
@@ -31,7 +31,7 @@ async fn post_with_foreign_origin_is_403_and_changes_nothing() {
         .unwrap();
     let (status, _) = send_request(app(), req).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(hole(app(), "/api/workspace").await.1, before);
+    assert_eq!(fetch(app(), "/api/workspace").await.1, before);
 
     // The same origin works.
     let req = request("POST", "/api/actions")
@@ -43,7 +43,7 @@ async fn post_with_foreign_origin_is_403_and_changes_nothing() {
 }
 
 #[tokio::test]
-async fn foreign_host_is_403_on_allen_api_routes() {
+async fn foreign_host_is_403_on_all_api_routes() {
     for (method, path) in [
         ("GET", "/api/health"),
         ("GET", "/api/workspace"),
@@ -93,7 +93,7 @@ async fn host_is_against_the_configured_port_checked() {
         9000,
     );
     let app = || router(state.clone(), PathBuf::from("/x"));
-    assert_eq!(hole(app(), "/api/health").await.0, StatusCode::FORBIDDEN);
+    assert_eq!(fetch(app(), "/api/health").await.0, StatusCode::FORBIDDEN);
     let req = Request::get("/api/health")
         .header("host", "localhost:9000")
         .extension(ConnectInfo(SocketAddr::from(([127, 0, 0, 1], 1))))

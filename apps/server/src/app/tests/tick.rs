@@ -24,7 +24,7 @@ async fn tick_linked_pull_requests_and_leads_the_status_after() {
     state.inner.live.set_state_for_test(ws);
     let s = state.clone();
     tokio::task::spawn_blocking(move || s.tick()).await.unwrap();
-    let (_, body) = hole(app(), "/api/workspace").await;
+    let (_, body) = fetch(app(), "/api/workspace").await;
     let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();
     assert_eq!(
         ws.review(85).unwrap().ticket_key.as_deref(),
@@ -44,11 +44,11 @@ async fn tick_brings_snoozed_entries_back() {
     let state = state(Arc::new(MemoryStore::new()));
     let app = || router(state.clone(), PathBuf::from("/x"));
     let id = first_id();
-    let bis = now_ms() + 60_000;
+    let until = now_ms() + 60_000;
     let snooze = serde_json::to_string(&ActionRequest {
         action: cockpit_core::Action::Snooze {
             item: id.clone(),
-            until_ms: Some(bis),
+            until_ms: Some(until),
         },
     })
     .unwrap();
@@ -58,17 +58,17 @@ async fn tick_brings_snoozed_entries_back() {
 
     // Before it expires the tick does nothing …
     let s = state.clone();
-    tokio::task::spawn_blocking(move || s.inner.live.tick(&s.inner.db, bis - 1))
+    tokio::task::spawn_blocking(move || s.inner.live.tick(&s.inner.db, until - 1))
         .await
         .unwrap();
     assert_eq!(state.inner.live.revision(), before);
     // … afterwards the entry is back, logged as system.
     let s = state.clone();
-    tokio::task::spawn_blocking(move || s.inner.live.tick(&s.inner.db, bis + 1))
+    tokio::task::spawn_blocking(move || s.inner.live.tick(&s.inner.db, until + 1))
         .await
         .unwrap();
     assert_eq!(state.inner.live.revision(), before + 1);
-    let (_, body) = hole(app(), "/api/workspace").await;
+    let (_, body) = fetch(app(), "/api/workspace").await;
     let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();
     assert!(ws.snoozed.is_empty());
     assert_eq!(ws.log.last().unwrap().actor, Actor::System);

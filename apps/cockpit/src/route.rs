@@ -74,7 +74,7 @@ impl Route {
         Route::InboxItem(Filter::All, id.to_string())
     }
 
-    /// The address of the navigation entry "Aufgaben": it leads to the filter chosen last.
+    /// The address of the navigation entry "Tasks": it leads to the filter chosen last.
     pub const TASKS_HASH: &'static str = "#/tasks";
 
     /// Is this an address that only says "the tasks page" (no bare `#/`, which is the filter

@@ -1,5 +1,5 @@
 //! GitHub Projects through the server: sync, writes that go to GitHub first, the flows with several
-//! calls, and "Projekt anlegen". wiremock only; the answers follow the documented schema.
+//! calls, and "Create a project". wiremock only; the answers follow the documented schema.
 
 use super::*;
 use crate::config::GitHubProjectsConfig;

@@ -14,7 +14,7 @@ async fn check_out_the_container_names_vpn_when_only_the_mac_the_proxy_reached()
         )
         .mount(&proxy)
         .await;
-    let w = welt(true);
+    let w = world(true);
     // The proxy of the test is on the Mac; the "container" does not reach it.
     let e = Settings {
         agent: AgentChoice {
@@ -71,7 +71,7 @@ exit 1
 
 #[tokio::test]
 async fn check_out_the_container_without_image_or_key_calls_nothing_on() {
-    let w = welt(false);
+    let w = world(false);
     let p = w.state.container_check().await;
     assert!(
         !p.checked
@@ -80,7 +80,7 @@ async fn check_out_the_container_without_image_or_key_calls_nothing_on() {
                 .render(Lang::De)
                 .contains("nicht eingerichtet")
     );
-    let w = welt(true);
+    let w = world(true);
     std::fs::write(w.bin().join("no-image"), "").unwrap();
     let p = w.state.container_check().await;
     assert!(!p.checked && p.hint.unwrap().render(Lang::De).contains("Image fehlt"));
@@ -102,7 +102,7 @@ async fn check_out_the_container_for_codex_uses_the_openai_names() {
         )
         .mount(&proxy)
         .await;
-    let w = welt_with(true, Provider::Codex);
+    let w = world_with(true, Provider::Codex);
     let e = Settings {
         agent: AgentChoice {
             provider: Provider::Codex,

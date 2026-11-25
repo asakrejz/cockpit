@@ -25,11 +25,11 @@ fn simple_section() {
 #[test]
 fn several_sections_and_new_file() {
     let patch = "@@ -1,2 +1,3 @@\n x\n+neu\n y\n@@ -20 +21 @@\n-alt\n+neu2";
-    let z = parse_patch(patch);
-    assert_eq!(z.len(), 5);
-    assert_eq!(z[1], line(2, LineKind::Add, "neu"));
-    assert_eq!(z[3], line(20, LineKind::Del, "alt"));
-    assert_eq!(z[4], line(21, LineKind::Add, "neu2"));
+    let lines = parse_patch(patch);
+    assert_eq!(lines.len(), 5);
+    assert_eq!(lines[1], line(2, LineKind::Add, "neu"));
+    assert_eq!(lines[3], line(20, LineKind::Del, "alt"));
+    assert_eq!(lines[4], line(21, LineKind::Add, "neu2"));
 
     let again = "@@ -0,0 +1,2 @@\n+eins\n+zwei";
     assert_eq!(
@@ -45,18 +45,18 @@ fn several_sections_and_new_file() {
 fn content_that_looks_like_a_header_stays_content() {
     // Removed line "-- kommentar" starts with "--"; that is not a header line.
     let patch = "@@ -1,2 +1,1 @@\n--- kommentar\n ende";
-    let z = parse_patch(patch);
-    assert_eq!(z[0], line(1, LineKind::Del, "-- kommentar"));
-    assert_eq!(z[1], line(1, LineKind::Context, "ende"));
+    let lines = parse_patch(patch);
+    assert_eq!(lines[0], line(1, LineKind::Del, "-- kommentar"));
+    assert_eq!(lines[1], line(1, LineKind::Context, "ende"));
 }
 
 #[test]
 fn no_newline_hint_and_empty_context_line() {
     let patch =
         "@@ -1,3 +1,3 @@\n a\n\n-b\n\\ No newline at end of file\n+c\n\\ No newline at end of file";
-    let z = parse_patch(patch);
+    let lines = parse_patch(patch);
     assert_eq!(
-        z,
+        lines,
         vec![
             line(1, LineKind::Context, "a"),
             line(2, LineKind::Context, ""),
@@ -69,9 +69,9 @@ fn no_newline_hint_and_empty_context_line() {
 #[test]
 fn umlauts_and_file_header() {
     let patch = "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-größe\n+Größe";
-    let z = parse_patch(patch);
+    let lines = parse_patch(patch);
     assert_eq!(
-        z,
+        lines,
         vec![
             line(1, LineKind::Del, "größe"),
             line(1, LineKind::Add, "Größe")

@@ -129,7 +129,7 @@ impl Person {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Comment {
     pub author: Person,
-    /// The time of older data as plain German text ("vor 5 Minuten"); new comments carry
+    /// The time of older data as plain German text (such as "five minutes ago"); new comments carry
     /// [`Comment::created_ms`] and leave this empty.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub time: String,

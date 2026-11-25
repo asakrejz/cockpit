@@ -7,7 +7,7 @@ use leptos::prelude::*;
 use super::context::AgentCtx;
 use super::texts as t;
 
-/// The switch „Erledigte anzeigen“ with the number of finished runs. Hidden while there are none.
+/// The switch "Show finished" with the number of finished runs. Hidden while there are none.
 pub(super) fn closed_switch(ctx: AgentCtx, show: RwSignal<bool>) -> impl IntoView {
     let store = ctx.store;
     let count = Memo::new(move |_| {

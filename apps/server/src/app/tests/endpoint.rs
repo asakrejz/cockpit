@@ -20,7 +20,7 @@ async fn check_reports_reachable_key_and_model_under_both_addresses() {
         .set(secrets::AGENT_KEY, &Secret::new("sk-geheim-123456"))
         .unwrap();
     for path in ["/api/agent/check"] {
-        let (status, body) = hole(
+        let (status, body) = fetch(
             with_endpoint(Some(&proxy.uri()), None, secrets.clone()),
             path,
         )
@@ -44,7 +44,7 @@ async fn check_without_key_calls_the_endpoint_not_on() {
         .expect(0)
         .mount(&proxy)
         .await;
-    let (_, body) = hole(
+    let (_, body) = fetch(
         with_endpoint(Some(&proxy.uri()), None, Arc::new(MemoryStore::new())),
         "/api/agent/check",
     )
@@ -59,7 +59,7 @@ async fn check_without_key_calls_the_endpoint_not_on() {
 async fn check_without_setting_and_from_foreign_hosts() {
     let app = router(state(Arc::new(MemoryStore::new())), PathBuf::from("/x"));
     for path in ["/api/agent/check"] {
-        let (status, body) = hole(app.clone(), path).await;
+        let (status, body) = fetch(app.clone(), path).await;
         assert_eq!(status, StatusCode::OK);
         let j = json(&body);
         assert_eq!(j["configured"], false);
@@ -97,7 +97,7 @@ async fn model_list_from_proxy_with_bearer_and_without_the_key() {
     secrets
         .set(secrets::AGENT_KEY, &Secret::new("sk-geheim-123456"))
         .unwrap();
-    let (status, body) = hole(
+    let (status, body) = fetch(
         with_endpoint(Some(&proxy.uri()), None, secrets),
         "/api/agent/models",
     )
@@ -132,7 +132,7 @@ async fn model_list_direct_takes_x_api_key() {
     secrets
         .set(secrets::AGENT_KEY, &Secret::new("sk-ant-geheim"))
         .unwrap();
-    let (_, body) = hole(
+    let (_, body) = fetch(
         with_endpoint(None, Some(&anthropic.uri()), secrets),
         "/api/agent/models",
     )
@@ -158,7 +158,7 @@ async fn model_list_reports_rejected_key_and_missing_key_in_plain_text() {
     secrets
         .set(secrets::AGENT_KEY, &Secret::new("sk-falsch-1"))
         .unwrap();
-    let (_, body) = hole(
+    let (_, body) = fetch(
         with_endpoint(Some(&proxy.uri()), None, secrets),
         "/api/agent/models",
     )
@@ -176,7 +176,7 @@ async fn model_list_reports_rejected_key_and_missing_key_in_plain_text() {
         .expect(0)
         .mount(&still)
         .await;
-    let (_, body) = hole(
+    let (_, body) = fetch(
         with_endpoint(Some(&still.uri()), None, Arc::new(MemoryStore::new())),
         "/api/agent/models",
     )
@@ -189,7 +189,7 @@ async fn health_reports_the_agents_never_secrets() {
     // With the sample data (the tests start with the seed demo) and nothing set up, the agent
     // is not ready and says in plain text what is missing.
     let app = router(state(Arc::new(MemoryStore::new())), PathBuf::from("/x"));
-    let (_, body) = hole(app, "/api/health").await;
+    let (_, body) = fetch(app, "/api/health").await;
     let j = json(&body);
     assert_eq!(j["agent"]["ready"], false);
     assert!(j["agent"]["mode"].is_null());
@@ -203,7 +203,7 @@ async fn health_reports_the_agents_never_secrets() {
         state_with(conn, e, Arc::new(MemoryStore::new())),
         PathBuf::from("/x"),
     );
-    let (_, body) = hole(app, "/api/health").await;
+    let (_, body) = fetch(app, "/api/health").await;
     let j = json(&body);
     assert_eq!(j["agent"]["ready"], false);
     assert_eq!(j["agent"]["image_name"], "localhost/cockpit-agent:local");
@@ -227,7 +227,7 @@ async fn image_build_without_runtime_is_422_with_plain_text() {
         state_with(conn, e, Arc::new(MemoryStore::new())),
         PathBuf::from("/x"),
     );
-    let (status, body) = hole(app.clone(), "/api/agent/image").await;
+    let (status, body) = fetch(app.clone(), "/api/agent/image").await;
     assert_eq!(status, StatusCode::OK);
     let j = json(&body);
     assert_eq!(j["running"], false);

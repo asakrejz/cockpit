@@ -157,7 +157,7 @@ pub struct Item {
     /// [`Item::reason_msg`] and leave this empty.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub reason_text: String,
-    /// The time of older data as plain German text ("vor 5 Minuten"); new entries carry
+    /// The time of older data as plain German text (such as "five minutes ago"); new entries carry
     /// [`Item::updated_ms`] and leave this empty.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub time: String,

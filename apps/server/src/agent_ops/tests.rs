@@ -161,7 +161,7 @@ impl World {
         .unwrap();
     }
     /// Lets the watcher work until `condition` holds (at most 15 seconds).
-    async fn wait(&self, was: &str, condition: impl Fn(&Workspace) -> bool) {
+    async fn wait(&self, what: &str, condition: impl Fn(&Workspace) -> bool) {
         let end = Instant::now() + Duration::from_secs(15);
         loop {
             self.state.watch().await;
@@ -170,7 +170,7 @@ impl World {
             }
             assert!(
                 Instant::now() < end,
-                "Timed out waiting for: {was}\n{:#?}",
+                "Timed out waiting for: {what}\n{:#?}",
                 self.run()
             );
             tokio::time::sleep(Duration::from_millis(40)).await;
@@ -187,12 +187,12 @@ impl World {
 }
 
 /// A world with everything set up. `real = false` leaves out the container part.
-fn welt(set_up: bool) -> World {
-    welt_with(set_up, Provider::ClaudeAgentSdk)
+fn world(set_up: bool) -> World {
+    world_with(set_up, Provider::ClaudeAgentSdk)
 }
 
-/// Like [`welt`], with the tool of the agent chosen.
-fn welt_with(set_up: bool, provider: Provider) -> World {
+/// Like [`world`], with the tool of the agent chosen.
+fn world_with(set_up: bool, provider: Provider) -> World {
     use std::os::unix::fs::PermissionsExt;
     let tmp = tempfile::tempdir().unwrap();
     let bin = tmp.path().join("bin");

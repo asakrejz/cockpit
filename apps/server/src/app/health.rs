@@ -10,7 +10,7 @@ pub struct Connections {
     pub jira: bool,
 }
 
-/// Kind and state of the sign-in per service – for "Mit … anmelden" and "Trennen".
+/// Kind and state of the sign-in per service – for "Sign in with …" and "Disconnect".
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct SignIn {
     pub github: ServiceStatus,

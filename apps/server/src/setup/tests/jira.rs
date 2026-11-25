@@ -100,7 +100,7 @@ async fn deleting_a_key_is_limited_to_tokens_and_client_secrets() {
     assert!(secrets.get("jira").unwrap().is_none());
     // A second time is no error.
     assert_eq!(send_request(&app, delete("jira")).await.0, StatusCode::OK);
-    // A client secret can be forgotten ("Client-ID entfernen"); the model key stays.
+    // A client secret can be forgotten ("Remove client ID"); the model key stays.
     secrets
         .set("atlassian-oauth", &Secret::new("client-secret"))
         .unwrap();

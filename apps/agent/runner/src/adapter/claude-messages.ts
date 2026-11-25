@@ -46,10 +46,10 @@ export function planFromAnswer(text: string): { summary: string; files: string[]
   return { summary: truncate(text.trim(), 600), files: [], steps: [] };
 }
 
-function usageFrom(m: SdkMessage): { ein: number; aus: number } {
+function usageFrom(m: SdkMessage): { inputTokens: number; outputTokens: number } {
   const u = m.message?.usage ?? {};
-  const ein = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
-  return { ein, aus: u.output_tokens ?? 0 };
+  const inputTokens = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0);
+  return { inputTokens, outputTokens: u.output_tokens ?? 0 };
 }
 
 const Writer = new Set(["Write", "Edit", "MultiEdit"]);
@@ -87,7 +87,7 @@ export class ClaudeTranslator {
   handle(m: SdkMessage): void {
     if (m.type === "assistant" && m.message) {
       const id = m.message.id ?? "";
-      const { ein, aus } = id && this.seen.has(id) ? { ein: 0, aus: 0 } : usageFrom(m);
+      const { inputTokens, outputTokens } = id && this.seen.has(id) ? { inputTokens: 0, outputTokens: 0 } : usageFrom(m);
       if (id) this.seen.add(id);
       const now = this.now();
       const ms = Math.max(0, now - this.lastStart);
@@ -96,7 +96,7 @@ export class ClaudeTranslator {
       for (const b of m.message.content ?? []) {
         if (b.type === "tool_use") {
           const { title, text } = describe(String(b.name), b.input ?? {});
-          this.sink({ t: "step", title, text, tokens_in: first ? ein : 0, tokens_out: first ? aus : 0, ms: first ? ms : 0 });
+          this.sink({ t: "step", title, text, tokens_in: first ? inputTokens : 0, tokens_out: first ? outputTokens : 0, ms: first ? ms : 0 });
           first = false;
           if (Writer.has(String(b.name))) {
             const p = String(b.input?.file_path ?? "");
@@ -110,8 +110,8 @@ export class ClaudeTranslator {
           this.endText = String(b.text);
         }
       }
-      if (first && (ein > 0 || aus > 0)) {
-        this.sink({ t: "step", title: tx("step_think"), text: "", tokens_in: ein, tokens_out: aus, ms });
+      if (first && (inputTokens > 0 || outputTokens > 0)) {
+        this.sink({ t: "step", title: tx("step_think"), text: "", tokens_in: inputTokens, tokens_out: outputTokens, ms });
       }
     } else if (m.type === "result") {
       this.finished = true;

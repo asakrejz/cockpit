@@ -2,7 +2,7 @@
 //! per container (`ctr-<name>/work` and `/job`) and implements `create`, `cp` and `start`.
 
 use super::super::copy_io::{open_up, tighten};
-use super::followup::pr_welt;
+use super::followup::pr_world;
 use super::*;
 use cockpit_i18n::Lang;
 use wiremock::MockServer;
@@ -46,7 +46,7 @@ fn calls(w: &World) -> Vec<String> {
 
 #[tokio::test]
 async fn a_run_copies_in_starts_copies_out_and_pushes_from_the_backend() {
-    let w = copy_mode(welt(true));
+    let w = copy_mode(world(true));
     w.write("scenario-run.sh", &scenario_ok());
     w.start(false).await;
     w.wait("Lauf fertig", |ws| {
@@ -69,7 +69,7 @@ async fn a_run_copies_in_starts_copies_out_and_pushes_from_the_backend() {
         .iter()
         .find(|z| z.starts_with("create "))
         .expect("create was called");
-    for muss in [
+    for expected in [
         "-i",
         "--label cockpit.run=BAU-142",
         "--add-host cockpit-host:host-gateway",
@@ -77,7 +77,7 @@ async fn a_run_copies_in_starts_copies_out_and_pushes_from_the_backend() {
         "-e ANTHROPIC_AUTH_TOKEN",
         "localhost/cockpit-agent:local",
     ] {
-        assert!(create.contains(muss), "{muss} is missing: {create}");
+        assert!(create.contains(expected), "{expected} is missing: {create}");
     }
     assert!(
         !create.contains(" -v ") && !create.contains("--rm"),
@@ -116,7 +116,7 @@ async fn a_run_copies_in_starts_copies_out_and_pushes_from_the_backend() {
 
 #[tokio::test]
 async fn plan_and_implementation_both_copy_and_the_plan_is_never_copied_out() {
-    let w = copy_mode(welt(true));
+    let w = copy_mode(world(true));
     w.write(
         "scenario-plan.sh",
         r#"printf '%s\n' '{"t":"plan","summary":"Fokus-Ring ergänzen","files":["neu.txt"],"steps":["Lesen"]}'
@@ -159,7 +159,7 @@ exit 0
 
 #[tokio::test]
 async fn a_halted_run_copies_its_work_out_and_keeps_the_clone() {
-    let w = copy_mode(welt(true));
+    let w = copy_mode(world(true));
     w.write(
         "scenario-run.sh",
         r#"echo halb > "$clone/halb.txt"
@@ -196,7 +196,7 @@ exit 137
 
 #[tokio::test]
 async fn cancelling_removes_the_container_and_the_folder() {
-    let w = copy_mode(welt(true));
+    let w = copy_mode(world(true));
     w.write(
         "scenario-run.sh",
         r#"while [ ! -e "$d/stopped-$name" ]; do sleep 0.05; done
@@ -226,7 +226,7 @@ exit 137
 
 #[tokio::test]
 async fn a_failing_create_is_reported_and_leaves_nothing() {
-    let w = copy_mode(welt(true));
+    let w = copy_mode(world(true));
     w.write("create-error", "");
     w.write("scenario-run.sh", &scenario_ok());
     w.start(false).await;
@@ -250,7 +250,7 @@ async fn a_failing_create_is_reported_and_leaves_nothing() {
 
 #[tokio::test]
 async fn a_failing_copy_in_removes_the_container_again() {
-    let w = copy_mode(welt(true));
+    let w = copy_mode(world(true));
     w.write("cp-error", "");
     w.write("scenario-run.sh", &scenario_ok());
     w.start(false).await;
@@ -277,7 +277,7 @@ async fn a_failing_copy_in_removes_the_container_again() {
 // ---------- several repos ----------
 
 fn two_repos(github: &MockServer) -> World {
-    let w = pr_welt(github);
+    let w = pr_world(github);
     *w.state.inner.agent_repo_config.write().unwrap() = crate::app::RepoConfig {
         repos: vec![
             cockpit_core::AgentRepo::new("firma/app"),
@@ -373,7 +373,7 @@ git -C "$clone/firma__web" -c user.name=a -c user.email=a@a.invalid commit -qm A
 
 #[tokio::test]
 async fn the_check_container_also_runs_without_mounts() {
-    let w = copy_mode(welt(true));
+    let w = copy_mode(world(true));
     w.write(
         "scenario-plan.sh",
         "printf '%s\\n' '{\"t\":\"check\",\"reachable\":true,\"key_ok\":true,\"hint\":\"ok\"}'\nexit 0\n",

@@ -34,7 +34,7 @@ use pages::{
 use route::Route;
 use store::{Store, now_ms};
 
-/// This often the app reads the clock again (snoozes, "vor 5 Min.").
+/// This often the app reads the clock again (snoozes, "5 min ago").
 const CLOCK_TICK: Duration = Duration::from_secs(15);
 
 fn main() {

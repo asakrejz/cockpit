@@ -119,7 +119,7 @@ pub enum RunState {
     Done,
 }
 
-/// How the pull request of a run ended. A run whose pull request is merged or closed is „erledigt“.
+/// How the pull request of a run ended. A run whose pull request is merged or closed is closed.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Closure {
     Merged,

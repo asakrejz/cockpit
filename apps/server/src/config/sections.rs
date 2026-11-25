@@ -86,7 +86,7 @@ pub enum ConfigError {
         file: PathBuf,
     },
     /// A value that is not allowed; the message is shown to people (setup) or logged in English.
-    Wert(cockpit_i18n::Msg),
+    InvalidValue(cockpit_i18n::Msg),
 }
 
 impl ConfigError {
@@ -105,7 +105,7 @@ impl ConfigError {
     /// The error as a message for people, in the language of whoever reads it.
     pub fn msg(&self) -> Msg {
         match self {
-            ConfigError::Wert(m) => m.clone(),
+            ConfigError::InvalidValue(m) => m.clone(),
             ConfigError::UnknownKey { section, key, file } if section.is_empty() => msg!(
                 ServerConfigKeyUnknownTop,
                 key = key,
@@ -132,7 +132,7 @@ impl std::fmt::Display for ConfigError {
             ConfigError::UnknownKey { .. } => {
                 write!(f, "{}", self.msg().render(cockpit_i18n::Lang::En))
             }
-            ConfigError::Wert(m) => {
+            ConfigError::InvalidValue(m) => {
                 write!(f, "Invalid value: {}", m.render(cockpit_i18n::Lang::En))
             }
         }

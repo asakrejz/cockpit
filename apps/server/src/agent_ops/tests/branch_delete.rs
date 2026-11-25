@@ -25,8 +25,8 @@ fn finished_run() -> AgentRun {
 }
 
 /// A world with one finished run whose pull request is #31, GitHub being `github`.
-fn world(github: &MockServer, run: AgentRun) -> World {
-    let w = welt(true);
+fn world_with_run(github: &MockServer, run: AgentRun) -> World {
+    let w = world(true);
     let mut ws = demo::workspace();
     ws.runs = vec![run];
     w.state.inner.live.set_state_for_test(ws);
@@ -103,7 +103,7 @@ async fn a_merged_pull_request_allows_deleting_exactly_its_branch() {
     pull(&github, "closed", true, BRANCH).await;
     repo_and_branch(&github, "main", false).await;
     allow_delete(&github).await;
-    let w = world(&github, finished_run());
+    let w = world_with_run(&github, finished_run());
     assert_eq!(w.run().branch(), BRANCH);
     let check = w.state.branch_check("BAU-142", "").await;
     assert!(check.allowed, "{check:?}");
@@ -120,7 +120,7 @@ async fn a_closed_pull_request_works_too() {
     pull(&github, "closed", false, BRANCH).await;
     repo_and_branch(&github, "main", false).await;
     allow_delete(&github).await;
-    let w = world(&github, finished_run());
+    let w = world_with_run(&github, finished_run());
     assert!(w.state.branch_delete("BAU-142", "").await.is_ok());
 }
 
@@ -130,7 +130,7 @@ async fn an_open_pull_request_keeps_its_branch() {
     pull(&github, "open", false, BRANCH).await;
     repo_and_branch(&github, "main", false).await;
     allow_delete(&github).await;
-    let w = world(&github, finished_run());
+    let w = world_with_run(&github, finished_run());
     assert_refused(&w, &github, "noch offen").await;
 }
 
@@ -140,7 +140,7 @@ async fn a_protected_branch_stays() {
     pull(&github, "closed", true, BRANCH).await;
     repo_and_branch(&github, "main", true).await;
     allow_delete(&github).await;
-    let w = world(&github, finished_run());
+    let w = world_with_run(&github, finished_run());
     assert_refused(&w, &github, "geschützt").await;
 }
 
@@ -150,7 +150,7 @@ async fn the_default_branch_stays() {
     pull(&github, "closed", true, BRANCH).await;
     repo_and_branch(&github, BRANCH, false).await;
     allow_delete(&github).await;
-    let w = world(&github, finished_run());
+    let w = world_with_run(&github, finished_run());
     assert_refused(&w, &github, "Standard-Branch").await;
 }
 
@@ -170,7 +170,7 @@ async fn a_branch_outside_the_pattern_of_the_repo_stays() {
         .await;
     let mut run = finished_run();
     run.target_branch = "feature/BAU-142-x".into();
-    let w = world(&github, run);
+    let w = world_with_run(&github, run);
     assert_refused(&w, &github, "Muster").await;
 }
 
@@ -180,7 +180,7 @@ async fn the_branch_of_another_pull_request_head_stays() {
     pull(&github, "closed", true, "claude/BAU-9-other").await;
     repo_and_branch(&github, "main", false).await;
     allow_delete(&github).await;
-    let w = world(&github, finished_run());
+    let w = world_with_run(&github, finished_run());
     assert_refused(&w, &github, "gehört nicht").await;
 }
 
@@ -197,7 +197,7 @@ async fn a_branch_that_is_already_gone_is_reported() {
         .respond_with(ResponseTemplate::new(404))
         .mount(&github)
         .await;
-    let w = world(&github, finished_run());
+    let w = world_with_run(&github, finished_run());
     assert_refused(&w, &github, "nicht mehr").await;
 }
 
@@ -211,19 +211,19 @@ async fn runs_that_own_no_branch_are_refused_without_asking_github() {
         review: cockpit_core::PrKey::new("firma/app", 31),
     };
     for run in [no_pr, review] {
-        let w = world(&github, run);
+        let w = world_with_run(&github, run);
         let key = w.ws().runs[0].key();
         assert!(!w.state.branch_check(&key, "").await.allowed);
         assert!(w.state.branch_delete(&key, "").await.is_err());
     }
     assert!(github.received_requests().await.unwrap().is_empty());
-    let w = world(&github, finished_run());
+    let w = world_with_run(&github, finished_run());
     assert!(w.state.branch_delete("BAU-999", "").await.is_err());
 }
 
 #[tokio::test]
 async fn without_github_nothing_happens() {
-    let w = welt(true);
+    let w = world(true);
     w.state.inner.live.set_state_for_test({
         let mut ws = demo::workspace();
         ws.runs = vec![finished_run()];
@@ -248,7 +248,7 @@ async fn clone_dir(w: &World) -> PathBuf {
 async fn a_merged_pull_request_marks_the_run_and_removes_its_clone() {
     let github = MockServer::start().await;
     pull(&github, "closed", true, BRANCH).await;
-    let w = world(&github, finished_run());
+    let w = world_with_run(&github, finished_run());
     let dir = clone_dir(&w).await;
     w.state.reconcile_runs().await;
     let run = w.run();
@@ -275,7 +275,7 @@ async fn a_merged_pull_request_marks_the_run_and_removes_its_clone() {
 async fn a_closed_pull_request_marks_the_run_as_closed() {
     let github = MockServer::start().await;
     pull(&github, "closed", false, BRANCH).await;
-    let w = world(&github, finished_run());
+    let w = world_with_run(&github, finished_run());
     w.state.reconcile_runs().await;
     assert_eq!(w.run().closure, Some(Closure::Closed));
 }
@@ -284,7 +284,7 @@ async fn a_closed_pull_request_marks_the_run_as_closed() {
 async fn an_open_pull_request_changes_nothing() {
     let github = MockServer::start().await;
     pull(&github, "open", false, BRANCH).await;
-    let w = world(&github, finished_run());
+    let w = world_with_run(&github, finished_run());
     let dir = clone_dir(&w).await;
     let before = w.ws();
     w.state.reconcile_runs().await;
@@ -299,7 +299,7 @@ async fn a_github_error_changes_nothing() {
         .respond_with(ResponseTemplate::new(500))
         .mount(&github)
         .await;
-    let w = world(&github, finished_run());
+    let w = world_with_run(&github, finished_run());
     let before = w.ws();
     w.state.reconcile_runs().await;
     assert_eq!(w.ws(), before);

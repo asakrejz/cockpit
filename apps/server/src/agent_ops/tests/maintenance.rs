@@ -3,7 +3,7 @@ use cockpit_i18n::Lang;
 
 #[tokio::test]
 async fn restart_cleans_orphaned_container_on_and_marks_runs() {
-    let w = welt(true);
+    let w = world(true);
     w.write(
         "scenario-run.sh",
         "while [ ! -e \"$d/stopped-$name\" ]; do sleep 0.05; done\nexit 137\n",
@@ -52,7 +52,7 @@ async fn restart_cleans_orphaned_container_on_and_marks_runs() {
 
 #[tokio::test]
 async fn build_the_images_with_progress_and_error() {
-    let w = welt(true);
+    let w = world(true);
     w.write(
         "build.out",
         "Step 1/5 : FROM docker.io/library/node:26-trixie-slim\nStep 2/5 : RUN apt-get update\n",
@@ -127,7 +127,7 @@ async fn build_the_images_with_progress_and_error() {
 
 #[tokio::test]
 async fn build_without_containerfile_and_without_runtime_says_why() {
-    let w = welt(true);
+    let w = world(true);
     std::fs::remove_file(
         w.state
             .inner
@@ -146,7 +146,7 @@ async fn build_without_containerfile_and_without_runtime_says_why() {
         .render(Lang::De);
     assert!(e.contains("Containerfile fehlt"), "{e}");
     // Without a container program: new state (the cache applies for 10 seconds).
-    let w = welt(true);
+    let w = world(true);
     std::fs::remove_file(w.bin().join("docker")).unwrap();
     let st = w.state.clone();
     let e = tokio::task::spawn_blocking(move || st.image_build())
@@ -181,7 +181,7 @@ fn build_args_are_plain_cli_flags_for_docker_and_podman() {
 
 #[tokio::test]
 async fn build_refused_without_sources_and_state_after_build() {
-    let w = welt(true);
+    let w = world(true);
     w.write("label.out", "stale\n");
     let st = w.state.clone();
     let before = tokio::task::spawn_blocking(move || st.image_state())

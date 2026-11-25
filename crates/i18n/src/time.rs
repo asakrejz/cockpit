@@ -1,4 +1,4 @@
-//! Relative times: "5 minutes ago" / "vor 5 Minuten".
+//! Relative times ("5 minutes ago"), from the catalog entries `time.*` in the language asked for.
 
 use crate::{Key, Lang, text};
 

@@ -19,9 +19,9 @@ function gitFake(opt: { branch?: string; status?: string } = {}) {
 
 const env = { ANTHROPIC_MODEL: "claude-sonnet-5-5", ANTHROPIC_BASE_URL: "https://litellm.example", ANTHROPIC_AUTH_TOKEN: "streng-geheim" };
 
-function deps(sdk: ReturnType<typeof sdkFake>, s: ReturnType<typeof collector>, g = gitFake(), ein = input()) {
+function deps(sdk: ReturnType<typeof sdkFake>, s: ReturnType<typeof collector>, g = gitFake(), jobInput = input()) {
   let t = 0;
-  return { sdk, sink: s.sink, git: g.git, input: ein, root: "/work", now: () => (t += 1000), env };
+  return { sdk, sink: s.sink, git: g.git, input: jobInput, root: "/work", now: () => (t += 1000), env };
 }
 
 test("implement: steps with usage, files, commit and result", async () => {

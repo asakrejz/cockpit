@@ -315,7 +315,7 @@ fn statuses_of(store: Store, project_id: &str) -> Vec<(String, String)> {
         .collect()
 }
 
-/// The button „Neues Issue“ and its dialog. Shown only when a project is known.
+/// The button "New issue" and its dialog. Shown only when a project is known.
 #[component]
 pub(super) fn NewIssue(store: Store) -> impl IntoView {
     let open = RwSignal::new(false);

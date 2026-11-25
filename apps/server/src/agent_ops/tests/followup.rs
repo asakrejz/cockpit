@@ -18,8 +18,8 @@ mod two_repos;
 const PR_BRANCH: &str = "claude/BAU-127-list-separator";
 
 /// The world plus a pull request #85 on an agent branch that exists in the remote.
-pub(super) fn pr_welt(github: &MockServer) -> World {
-    let w = welt(true);
+pub(super) fn pr_world(github: &MockServer) -> World {
+    let w = world(true);
     // The branch exists in the remote with one commit of the "earlier run".
     let source = w.tmp.path().join("source");
     sh(&source, &["checkout", "--quiet", "-b", PR_BRANCH]);

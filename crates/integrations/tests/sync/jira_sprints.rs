@@ -158,7 +158,7 @@ async fn a_rejected_sprint_query_falls_back_to_all_open_tickets_with_a_hint() {
         st.warning_lines(Lang::De),
         ["Dieses Projekt hat keine Sprints – zeige alle offenen Tickets"]
     );
-    // The sprint filter then falls back to „Alle offenen“, so the ticket is not hidden.
+    // The sprint filter then falls back to "All open", so the ticket is not hidden.
     let shown = ws.inbox(
         cockpit_core::Filter::All,
         cockpit_core::SourceFilter::All,
@@ -194,7 +194,7 @@ async fn no_active_sprint_but_closed_ones_says_so() {
         ws.sync.state_of(Src::Jira).unwrap().warning_lines(Lang::De),
         ["Kein aktiver Sprint – zeige alle offenen Tickets"]
     );
-    // The ticket's sprint is closed: „Aktueller Sprint“ hides it, „Alle offenen“ shows it.
+    // The ticket's sprint is closed: "Current sprint" hides it, "All open" shows it.
     let by = |sprint| cockpit_core::InboxFilter {
         ownership: cockpit_core::Ownership::All,
         sprint,

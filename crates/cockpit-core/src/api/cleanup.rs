@@ -16,7 +16,7 @@ pub struct OrphanContainer {
     pub name: String,
 }
 
-/// What „Aufräumen“ would remove. The image and containers without the run label are never in it.
+/// What "Clean up" would remove. The image and containers without the run label are never in it.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct CleanupPreview {
     pub containers: Vec<OrphanContainer>,

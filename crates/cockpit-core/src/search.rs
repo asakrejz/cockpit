@@ -19,7 +19,7 @@ use serde::{Deserialize, Serialize};
 /// let ws = demo::workspace();
 /// let item = ws.item_by_key("BAU-142").unwrap();
 /// assert!(matches_query(item, "bau-142"));
-/// assert!(!matches_query(item, "gibt-es-nicht"));
+/// assert!(!matches_query(item, "does-not-exist"));
 /// ```
 pub fn matches_query(item: &Item, query: &str) -> bool {
     let query = query.trim().to_lowercase();
@@ -62,7 +62,7 @@ pub struct InboxFilter {
     /// Without regard to case.
     pub label: Option<String>,
     /// Whose entries are listed (decided by `Workspace::inbox`, not by [`InboxFilter::matches`]).
-    /// Stored under its own name, so that the old start value „Meine“ that older states carry
+    /// Stored under its own name, so that the old start value "Mine" that older states carry
     /// is dropped and the new start value „Alle“ applies.
     #[serde(rename = "whose")]
     pub ownership: Ownership,
@@ -185,7 +185,7 @@ impl InboxFilter {
     }
 
     /// Does the entry match the chosen values (everything except the ownership)? `now_ms` is
-    /// the time of day for „zuletzt aktualisiert“.
+    /// the time of day for "Recently updated".
     ///
     /// ```
     /// use cockpit_core::{InboxFilter, SprintView, demo};

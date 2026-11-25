@@ -16,7 +16,7 @@ impl AppState {
             g.retain(|_, t| t.elapsed() < LOCK_AFTER_ERROR);
             (infos, g.keys().cloned().collect::<Vec<_>>())
         };
-        for a in agent_run::plane(&ws, &infos, &blocked) {
+        for a in agent_run::plan_instructions(&ws, &infos, &blocked) {
             match a {
                 Instruction::Start(key, mode) => self.run_start(&key, mode),
                 Instruction::Stop(key) => self.command(&key, RunControl::Stop),

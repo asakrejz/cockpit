@@ -93,7 +93,7 @@ pub async fn post_action(action: Action) -> Result<ActionResponse, CallError> {
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
-/// "Jetzt abgleichen": triggers the sync with Jira and GitHub (`POST /api/sync`).
+/// "Sync now": triggers the sync with Jira and GitHub (`POST /api/sync`).
 pub async fn post_sync() -> Result<SyncResponse, CallError> {
     let request = Request::post("/api/sync")
         .header("Content-Type", "application/json")
@@ -231,7 +231,7 @@ pub struct Services {
     pub jira: ServiceStatus,
 }
 
-/// The part of `GET /api/health` that the page "Einrichten" needs. Never a key:
+/// The part of `GET /api/health` that the page "Setup" needs. Never a key:
 /// the server only reports yes/no.
 #[derive(Clone, Debug, Default, serde::Deserialize)]
 pub struct Health {
@@ -345,7 +345,7 @@ pub async fn fetch_models() -> Result<ModelList, CallError> {
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
-/// State of "Image bauen" (`GET /api/agent/image`).
+/// State of "Build image" (`GET /api/agent/image`).
 pub async fn fetch_image() -> Result<ImageBuild, CallError> {
     let resp = Request::get("/api/agent/image")
         .send()
@@ -359,7 +359,7 @@ pub async fn fetch_image() -> Result<ImageBuild, CallError> {
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
-/// Starts "Image bauen" (`POST /api/agent/image`); the build continues in the server.
+/// Starts "Build image" (`POST /api/agent/image`); the build continues in the server.
 pub async fn post_image_build() -> Result<ImageBuild, CallError> {
     let request = Request::post("/api/agent/image")
         .header("Content-Type", "application/json")
@@ -388,7 +388,7 @@ pub async fn fetch_container_check() -> Result<ContainerCheck, CallError> {
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
-/// "Trennen": revokes the sign-in (`POST /api/oauth/{service}/revoke`). `service`:
+/// "Disconnect": revokes the sign-in (`POST /api/oauth/{service}/revoke`). `service`:
 /// `github` or `atlassian`.
 pub async fn post_revoke(service: &str) -> Result<RevokeResponse, CallError> {
     let request = Request::post(&format!("/api/oauth/{service}/revoke"))
@@ -466,7 +466,7 @@ pub async fn post_jira_check() -> Result<JiraCheck, CallError> {
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
-/// Deletes a token from the .env file (`DELETE /api/secrets/{name}`), "Trennen".
+/// Deletes a token from the .env file (`DELETE /api/secrets/{name}`), "Disconnect".
 pub async fn delete_key(name: &str) -> Result<KeyResponse, CallError> {
     let request = Request::delete(&format!("/api/secrets/{name}"))
         .header("Content-Type", "application/json")
@@ -509,8 +509,8 @@ pub async fn fetch_github_projects() -> Result<cockpit_core::api::ProjectsRespon
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
-/// Creates a GitHub project (`POST /api/github/projects/create`). Only for the click "Projekt
-/// anlegen"; adds things at GitHub, never deletes.
+/// Creates a GitHub project (`POST /api/github/projects/create`). Only for the click "Create
+/// project"; adds things at GitHub, never deletes.
 pub async fn post_project_create(
     request: &cockpit_core::api::CreateProjectRequest,
 ) -> Result<cockpit_core::api::CreateProjectResponse, CallError> {

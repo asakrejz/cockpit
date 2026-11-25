@@ -200,7 +200,7 @@ fn find_section(table: &dyn toml_edit::TableLike, path: &mut Vec<String>, at: us
 pub(super) fn runtime(text: &str) -> Result<String, ConfigError> {
     match text.trim().to_lowercase().as_str() {
         l @ ("docker" | "podman") => Ok(l.to_string()),
-        other => Err(ConfigError::Wert(msg!(
+        other => Err(ConfigError::InvalidValue(msg!(
             ServerConfigRuntimeUnsupported,
             value = other
         ))),
@@ -213,13 +213,13 @@ pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>,
     for r in list {
         let repo = r.repo.trim().to_string();
         if !cockpit_core::repo_name_valid(&repo) {
-            return Err(ConfigError::Wert(msg!(
+            return Err(ConfigError::InvalidValue(msg!(
                 ServerConfigReposRepoForm,
                 repo = &repo
             )));
         }
         if out.iter().any(|o| o.repo == repo) {
-            return Err(ConfigError::Wert(msg!(
+            return Err(ConfigError::InvalidValue(msg!(
                 ServerConfigReposDuplicate,
                 repo = &repo
             )));
@@ -231,7 +231,7 @@ pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>,
             .filter(|b| !b.is_empty())
             .unwrap_or(cockpit_core::repos::DEFAULT_BASE);
         if !crate::agent_git::base_branch_ok(base) {
-            return Err(ConfigError::Wert(msg!(
+            return Err(ConfigError::InvalidValue(msg!(
                 ServerConfigReposBaseBranch,
                 base = base,
                 repo = &repo
@@ -244,12 +244,12 @@ pub(super) fn agent_repos_read(list: &[FileAgentRepo]) -> Result<Vec<AgentRepo>,
             .filter(|p| !p.is_empty())
             .unwrap_or(cockpit_core::branch::DEFAULT_PATTERN);
         cockpit_core::branch::validate(pattern).map_err(|m| {
-            ConfigError::Wert(msg!(ServerConfigReposPattern, repo = &repo, reason = m))
+            ConfigError::InvalidValue(msg!(ServerConfigReposPattern, repo = &repo, reason = m))
         })?;
         let pr_language = match r.pr_language.as_deref().map(str::trim) {
             None | Some("") => cockpit_i18n::Lang::En,
             Some(code) => cockpit_i18n::Lang::from_code(code).ok_or_else(|| {
-                ConfigError::Wert(msg!(
+                ConfigError::InvalidValue(msg!(
                     ServerConfigReposPrLanguage,
                     repo = &repo,
                     value = code

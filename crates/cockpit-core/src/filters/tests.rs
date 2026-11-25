@@ -237,7 +237,7 @@ fn the_sprint_filter_leaves_pull_requests_alone() {
         ticket("BAU-2", Some(SprintState::Active), TicketStatus::Open, 1),
         pull(5, "Colleague", "x", false),
     ]);
-    // Tickets have sprint data (BAU-2), so „Aktueller Sprint“ is strict – pull requests stay.
+    // Tickets have sprint data (BAU-2), so "Current sprint" is strict – pull requests stay.
     assert_eq!(keys(&ws, &all()), ["BAU-2", "#5"]);
 }
 

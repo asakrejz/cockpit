@@ -2,7 +2,7 @@
 //! must be mounted read-only, the container must get no GitHub token, nothing may be pushed, and
 //! the drafts are checked against the diff.
 
-use super::followup::pr_welt;
+use super::followup::pr_world;
 use super::*;
 use cockpit_core::{DiffSide, PrKey};
 use wiremock::MockServer;
@@ -41,7 +41,7 @@ exit 0
 }
 
 fn world(g: &MockServer) -> World {
-    let w = pr_welt(g);
+    let w = pr_world(g);
     // The pull request is on a branch that is not `claude/…`: reviews read any branch.
     let source = w.tmp.path().join("source");
     sh(&source, &["checkout", "--quiet", "-b", "feature/liste"]);

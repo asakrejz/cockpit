@@ -41,7 +41,7 @@ pub(super) async fn agent_models(State(state): State<AppState>) -> Response {
         .into_response()
 }
 
-/// `GET /api/agent/image`: state of "Image bauen" (running, present, last lines, error).
+/// `GET /api/agent/image`: state of "Build image" (running, present, last lines, error).
 pub(super) async fn agent_image_read(State(state): State<AppState>) -> Response {
     match tokio::task::spawn_blocking(move || state.image_state()).await {
         Ok(b) => Json(b).into_response(),
@@ -142,7 +142,7 @@ pub(super) async fn action(State(state): State<AppState>, body: Bytes) -> Respon
     }
 }
 
-/// `POST /api/sync`: "jetzt abgleichen".
+/// `POST /api/sync`: "Sync now".
 pub(super) async fn sync(State(state): State<AppState>) -> Response {
     match state.sync().await {
         Ok(answer) => Json(answer).into_response(),
@@ -198,7 +198,7 @@ pub(super) fn action_error(e: ActionFailure) -> Response {
                 cockpit_i18n::msg!(ServerAgentSaveFailed),
             )
         }
-        ActionFailure::Intern => error_msg(
+        ActionFailure::Internal => error_msg(
             StatusCode::INTERNAL_SERVER_ERROR,
             cockpit_i18n::msg!(ServerAgentInternal),
         ),

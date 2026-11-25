@@ -51,8 +51,8 @@ pub fn TeamPicker() -> impl IntoView {
     }
 }
 
-/// One switch per team the tickets carry, and „Ohne Team einbeziehen“. Edits go to a draft;
-/// „Übernehmen“ applies it.
+/// One switch per team the tickets carry, and "Include tickets without a team". Edits go to a draft;
+/// "Apply" applies it.
 fn team_dialog(store: Store, open: RwSignal<bool>) -> impl IntoView {
     let draft = RwSignal::new(TeamChoice::default());
     Effect::new(move |_| {

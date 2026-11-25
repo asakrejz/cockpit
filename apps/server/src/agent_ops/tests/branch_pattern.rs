@@ -29,7 +29,7 @@ async fn start(w: &World, options: AgentOptions) -> Result<(), String> {
 
 #[tokio::test]
 async fn the_configured_pattern_names_and_pushes_the_branch() {
-    let mut w = welt(true);
+    let mut w = world(true);
     // BAU-142 carries the label "bug", so `{type}` is `fix`.
     w.state = with_repos(
         &w,
@@ -50,7 +50,7 @@ async fn the_configured_pattern_names_and_pushes_the_branch() {
 
 #[tokio::test]
 async fn a_pattern_in_the_request_does_not_count() {
-    let mut w = welt(true);
+    let mut w = world(true);
     w.state = with_repos(
         &w,
         with_pattern("feature/{ticket}-{slug}"),
@@ -75,7 +75,7 @@ async fn a_pattern_in_the_request_does_not_count() {
 
 #[tokio::test]
 async fn a_branch_outside_the_pattern_is_not_pushed() {
-    let mut w = welt(true);
+    let mut w = world(true);
     w.state = with_repos(
         &w,
         with_pattern("feature/{ticket}-{slug}"),
@@ -96,7 +96,7 @@ async fn a_branch_outside_the_pattern_is_not_pushed() {
 
 #[tokio::test]
 async fn an_existing_branch_of_somebody_else_stops_the_run_before_the_container_starts() {
-    let mut w = welt(true);
+    let mut w = world(true);
     w.state = with_repos(
         &w,
         with_pattern("feature/{ticket}-{slug}"),

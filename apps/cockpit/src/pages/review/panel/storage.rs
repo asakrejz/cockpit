@@ -1,4 +1,4 @@
-//! „Angesehen“ is kept in the browser, per pull request. It is a convenience only: if the
+//! "Viewed" is kept in the browser, per pull request. It is a convenience only: if the
 //! storage is blocked or empty, nothing is marked.
 
 use cockpit_core::{PrKey, Viewed};

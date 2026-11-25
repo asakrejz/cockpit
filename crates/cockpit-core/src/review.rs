@@ -138,7 +138,7 @@ impl DiffSide {
 pub struct Suggestion {
     #[serde(default)]
     pub id: String,
-    /// File and line, e.g. `components.css · Zeile 417`.
+    /// File and line, e.g. `components.css · line 417`.
     #[serde(default)]
     pub location: String,
     pub level: Level,
@@ -371,7 +371,7 @@ impl Review {
         self.count(None)
     }
 
-    /// `1 freigegeben · 0 abgelehnt · 2 offen`
+    /// `1 approved · 0 declined · 2 open`
     pub fn summary_msg(&self) -> cockpit_i18n::Msg {
         cockpit_i18n::msg!(
             CoreReviewSummary,

@@ -1,4 +1,4 @@
-//! „Pull Request anlegen“ for a finished run: first a preview with editable title and text,
+//! "Create pull request" for a finished run: first a preview with editable title and text,
 //! then – only on your click – the backend creates the pull request on GitHub (or links the one that
 //! already exists for the branch). Nothing happens without the click.
 

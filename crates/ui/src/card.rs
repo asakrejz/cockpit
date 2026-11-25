@@ -104,7 +104,7 @@ pub fn Media(
     /// Alternative text. Required for real images.
     #[prop(optional, into)]
     alt: String,
-    /// Text in the placeholder, e.g. `"[BILD]"`.
+    /// Text in the placeholder, e.g. `"[IMAGE]"`.
     #[prop(default = "[BILD]".into(), into)]
     placeholder: String,
     /// Own width, e.g. `"120px"` (default: full width).

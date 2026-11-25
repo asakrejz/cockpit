@@ -50,15 +50,15 @@ export interface Dependencies {
 export class Queue<T> {
   private buffer: T[] = [];
   private waiting: Array<(w: IteratorResult<T>) => void> = [];
-  private zu = false;
+  private closed = false;
   push(w: T): void {
-    if (this.zu) return;
+    if (this.closed) return;
     const e = this.waiting.shift();
     if (e) e({ value: w, done: false });
     else this.buffer.push(w);
   }
   close(): void {
-    this.zu = true;
+    this.closed = true;
     for (const e of this.waiting.splice(0)) e({ value: undefined as never, done: true });
   }
   [Symbol.asyncIterator](): AsyncIterator<T> {
@@ -66,7 +66,7 @@ export class Queue<T> {
       next: () => {
         const w = this.buffer.shift();
         if (w !== undefined) return Promise.resolve({ value: w, done: false });
-        if (this.zu) return Promise.resolve({ value: undefined as never, done: true });
+        if (this.closed) return Promise.resolve({ value: undefined as never, done: true });
         return new Promise((ok) => this.waiting.push(ok));
       },
     };

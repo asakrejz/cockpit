@@ -209,7 +209,7 @@ pub fn pull_to_review(pull: &Pull, files: &[PullFile], checks: Checks) -> Review
 }
 
 /// Comments of the conversation and on diff lines, sorted by time. Comments on lines
-/// start with `file · Zeile n`. `me` is the GitHub login of the user.
+/// start with `file · line n`. `me` is the GitHub login of the user.
 pub fn comments_to_core(
     issue: &[IssueComment],
     review: &[ReviewComment],
@@ -226,22 +226,22 @@ pub fn mention_for(text: &str, me: &str) -> String {
     let lower = text.to_lowercase();
     let needle = format!("@{}", me.to_lowercase());
     let mut out = String::new();
-    let mut ab = 0;
+    let mut copied_to = 0;
     for (pos, _) in lower.match_indices(&needle) {
         let end = pos + needle.len();
         let after = lower[end..].chars().next();
         // Whole names only: `@octocat-bot` is not `@octocat`.
-        if pos < ab || after.is_some_and(|c| c.is_alphanumeric() || c == '-' || c == '_') {
+        if pos < copied_to || after.is_some_and(|c| c.is_alphanumeric() || c == '-' || c == '_') {
             continue;
         }
         if !text.is_char_boundary(pos) || !text.is_char_boundary(end) {
             continue;
         }
-        out.push_str(&text[ab..pos]);
+        out.push_str(&text[copied_to..pos]);
         out.push_str(&format!("@{}", cockpit_core::ME_MARK));
-        ab = end;
+        copied_to = end;
     }
-    out.push_str(&text[ab..]);
+    out.push_str(&text[copied_to..]);
     out
 }
 

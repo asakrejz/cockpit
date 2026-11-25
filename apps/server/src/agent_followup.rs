@@ -219,7 +219,7 @@ impl AppState {
             ..
         } = action
         else {
-            return Err(ActionFailure::Intern);
+            return Err(ActionFailure::Internal);
         };
         let _lock = self.inner.lock.lock().await;
         // Trial on a copy: all rules apply before GitHub is asked. (The answer of the browser for
@@ -248,11 +248,11 @@ impl AppState {
             .runs
             .iter()
             .find(|r| r.key() == run)
-            .ok_or(ActionFailure::Intern)
+            .ok_or(ActionFailure::Internal)
             .and_then(|r| self.run_repo_of(r, &in_repo).map_err(ActionFailure::Plan))?;
         let draft = before
             .pull_request_draft(&run, &repo)
-            .ok_or(ActionFailure::Intern)?;
+            .ok_or(ActionFailure::Internal)?;
         let client = self
             .github_client_async()
             .await
@@ -295,7 +295,7 @@ impl AppState {
                 Err(e) => return Err(service(e)),
             }
         }
-        let pull = found.ok_or(ActionFailure::Intern)?;
+        let pull = found.ok_or(ActionFailure::Internal)?;
         let applied = Action::CreatePullRequest {
             run,
             title,

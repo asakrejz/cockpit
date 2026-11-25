@@ -34,7 +34,7 @@ async fn send_request(app: Router, req: Request<Body>) -> (StatusCode, String) {
     (status, String::from_utf8_lossy(&body).into_owned())
 }
 
-async fn hole(app: Router, path: &str) -> (StatusCode, String) {
+async fn fetch(app: Router, path: &str) -> (StatusCode, String) {
     send_request(app, request("GET", path).body(Body::empty()).unwrap()).await
 }
 
@@ -104,7 +104,7 @@ fn empty() -> Settings {
 
 async fn state_from(state: AppState) -> (cockpit_core::Workspace, u64) {
     let app = router(state, PathBuf::from("/x"));
-    let (status, body) = hole(app, "/api/workspace").await;
+    let (status, body) = fetch(app, "/api/workspace").await;
     assert_eq!(status, StatusCode::OK);
     cockpit_core::persist::load_with_revision(&body).unwrap()
 }

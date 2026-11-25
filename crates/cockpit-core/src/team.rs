@@ -61,9 +61,9 @@ pub struct Member {
     pub github: Option<String>,
     /// Where the member's open entries come from.
     pub sides: Vec<Side>,
-    /// Tickets in status „Offen“.
+    /// Tickets in status "Open".
     pub open: usize,
-    /// Tickets in status „In Arbeit“.
+    /// Tickets in status "In progress".
     pub in_progress: usize,
     /// Tickets in status „Review“.
     pub review: usize,

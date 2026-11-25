@@ -2,10 +2,10 @@ use super::*;
 
 // ---------- Two repos with the same pull request number ----------
 
-/// `pr_welt` plus a second repo `firma/web` that also has a pull request #85 (same branch name,
+/// `pr_world` plus a second repo `firma/web` that also has a pull request #85 (same branch name,
 /// own comments) and is configured for the agent. The default repo stays `firma/app`.
-fn two_repo_welt(github: &MockServer) -> World {
-    let w = pr_welt(github);
+fn two_repo_world(github: &MockServer) -> World {
+    let w = pr_world(github);
     let source = w.tmp.path().join("source");
     let web = w.tmp.path().join("git/firma/web.git");
     sh(
@@ -53,7 +53,7 @@ async fn a_followup_reads_and_pushes_in_the_repo_of_its_pull_request() {
     let github = MockServer::start().await;
     comments_of(&github, "firma/app", "Nur in app").await;
     comments_of(&github, "firma/web", "Nur in web").await;
-    let w = two_repo_welt(&github);
+    let w = two_repo_world(&github);
     w.write("scenario-run.sh", &scenario_followup());
     w.action(Action::AddressReviewThreads {
         review: cockpit_core::PrKey::new("firma/web", 85),
@@ -116,7 +116,7 @@ async fn the_first_use_of_a_repo_stores_its_settings_from_github() {
         })))
         .mount(&github)
         .await;
-    let w = two_repo_welt(&github);
+    let w = two_repo_world(&github);
     *w.state.inner.agent_repo_config.write().unwrap() = crate::app::RepoConfig {
         repos: vec![cockpit_core::AgentRepo::new("firma/app")],
         default: Some("firma/app".into()),
@@ -155,7 +155,7 @@ async fn the_pull_request_goes_into_the_repo_the_run_worked_in() {
         .expect(1)
         .mount(&github)
         .await;
-    let w = two_repo_welt(&github);
+    let w = two_repo_world(&github);
     w.state.inner.live.set_state_for_test(demo::workspace());
     w.write("scenario-run.sh", &scenario_ok());
     w.action(Action::StartAgent {

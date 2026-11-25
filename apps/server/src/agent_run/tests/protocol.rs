@@ -80,7 +80,7 @@ fn command_line_without_secrets_and_with_the_shared_switches() {
     };
     let a = run_args(&b);
     let text = a.join(" ");
-    for muss in [
+    for expected in [
         "run --rm -i",
         "--label cockpit.run=BAU-142",
         "--add-host cockpit-host:host-gateway",
@@ -88,7 +88,7 @@ fn command_line_without_secrets_and_with_the_shared_switches() {
         "-e COCKPIT_PROVIDER -e ANTHROPIC_BASE_URL -e ANTHROPIC_AUTH_TOKEN -e ANTHROPIC_MODEL -e ANTHROPIC_API_KEY",
         "--cap-drop ALL",
     ] {
-        assert!(text.contains(muss), "{muss} is missing in {text}");
+        assert!(text.contains(expected), "{expected} is missing in {text}");
     }
     assert_eq!(a.last().unwrap(), IMAGE);
     // Fully named image, no SELinux addition, no --user (it is in the Containerfile).
@@ -143,12 +143,12 @@ fn copy_strategy_creates_without_mounts_and_starts_attached() {
         text.starts_with("create -i --name cockpit-run-BAU-142-1"),
         "{text}"
     );
-    for muss in [
+    for expected in [
         "--label cockpit.run=BAU-142",
         "--cap-drop ALL",
         "-e ANTHROPIC_AUTH_TOKEN",
     ] {
-        assert!(text.contains(muss), "{muss}: {text}");
+        assert!(text.contains(expected), "{expected}: {text}");
     }
     // No mount (nothing of the Cockpit container's paths reaches the engine), no --rm (copied out first).
     assert!(!text.contains(" -v ") && !text.contains("--rm") && !text.contains("/data/"));
@@ -243,7 +243,7 @@ fn every_tool_gets_its_adapter_and_the_names_of_its_endpoint_family() {
 
 #[test]
 fn proxy_on_the_machine_is_called_in_container_cockpit_host() {
-    for (ein, aus) in [
+    for (input, expected) in [
         ("http://localhost:4000", "http://cockpit-host:4000"),
         ("http://127.0.0.1:4000/", "http://cockpit-host:4000"),
         ("https://localhost/v1", "https://cockpit-host/v1"),
@@ -255,7 +255,7 @@ fn proxy_on_the_machine_is_called_in_container_cockpit_host() {
         ),
         ("https://localhost.example", "https://localhost.example"),
     ] {
-        assert_eq!(for_container(ein), aus, "{ein}");
+        assert_eq!(for_container(input), expected, "{input}");
     }
 }
 

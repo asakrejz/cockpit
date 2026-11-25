@@ -4,7 +4,7 @@
 //! * `PUT /api/config`: writes client IDs, Jira, repos as well as agent provider and endpoint to `config.toml`
 //!   (atomically, comments and other values stay) and applies them without restart
 //! * `PUT /api/secrets/{name}`: stores a key in the .env file; `DELETE` deletes a
-//!   token (`jira`, `github`) again ("Trennen")
+//!   token (`jira`, `github`) again ("Disconnect")
 //! * `POST /api/jira/check`: connection test for Jira via API token (read only)
 //! * `GET /api/github/repos`: the repos the GitHub access can reach (read only)
 //! * `POST /api/github/branch-suggestion`: a branch pattern proposed from the repo's CONTRIBUTING.md (read only)
@@ -76,7 +76,7 @@ impl AppState {
                 msg!(ServerSetupInternalError),
             )
         })?;
-        let alt = match std::fs::read_to_string(&path) {
+        let old = match std::fs::read_to_string(&path) {
             Ok(t) => t,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
             Err(e) => {
@@ -91,9 +91,9 @@ impl AppState {
             }
         };
         let (updated, config) =
-            change(&alt, a).map_err(|m| (StatusCode::UNPROCESSABLE_ENTITY, m))?;
+            change(&old, a).map_err(|m| (StatusCode::UNPROCESSABLE_ENTITY, m))?;
         let before = self.sources();
-        if updated != alt {
+        if updated != old {
             atomic_write(&path, &updated).map_err(|e| {
                 tracing::warn!("config.toml not written: {e}");
                 (
@@ -110,14 +110,14 @@ impl AppState {
         tracing::info!("config.toml updated and applied");
 
         // Another app means: the old tokens belong to the old app.
-        let other_app = |alt: Option<&String>, updated: Option<&String>| {
-            alt.is_some() && updated.is_some() && alt != updated
+        let other_app = |old: Option<&String>, updated: Option<&String>| {
+            old.is_some() && updated.is_some() && old != updated
         };
-        let id_alt_g = before.github_oauth.as_ref().map(|o| &o.client_id);
+        let id_old_g = before.github_oauth.as_ref().map(|o| &o.client_id);
         let id_new_g = config.github_oauth.as_ref().map(|o| &o.client_id);
-        let id_alt_a = before.atlassian.as_ref().map(|o| &o.client_id);
+        let id_old_a = before.atlassian.as_ref().map(|o| &o.client_id);
         let id_new_a = config.atlassian.as_ref().map(|o| &o.client_id);
-        let hint = (other_app(id_alt_g, id_new_g) || other_app(id_alt_a, id_new_a))
+        let hint = (other_app(id_old_g, id_new_g) || other_app(id_old_a, id_new_a))
             .then(|| msg!(ServerSetupClientIdChanged));
         Ok(ConfigResponse {
             stored: true,
@@ -267,7 +267,7 @@ pub async fn key(
     }
 }
 
-/// `DELETE /api/secrets/{name}`: deletes a token from the .env file ("Trennen"). Only the tokens
+/// `DELETE /api/secrets/{name}`: deletes a token from the .env file ("Disconnect"). Only the tokens
 /// `jira` and `github` are allowed; a key that does not exist is no error.
 pub async fn key_delete(State(state): State<AppState>, UrlPath(name): UrlPath<String>) -> Response {
     if !key_deletable(&name) {

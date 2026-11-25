@@ -59,7 +59,7 @@ fn sources_and_interval() {
         assert!(
             matches!(
                 Config::parse(Some(broken), no_env),
-                Err(ConfigError::Wert(_))
+                Err(ConfigError::InvalidValue(_))
             ),
             "{broken}"
         );
@@ -83,7 +83,7 @@ fn errors_are_understandable() {
     let env_broken = |k: &str| (k == "COCKPIT_PORT").then(|| "abc".to_string());
     assert!(matches!(
         Config::parse(None, env_broken),
-        Err(ConfigError::Wert(_))
+        Err(ConfigError::InvalidValue(_))
     ));
     assert!(matches!(
         Config::parse(Some("port = "), no_env),
@@ -96,7 +96,7 @@ fn errors_are_understandable() {
     ));
     assert!(matches!(
         Config::parse(Some("port = 0"), no_env),
-        Err(ConfigError::Wert(_))
+        Err(ConfigError::InvalidValue(_))
     ));
     // Jira needs address and email.
     assert!(Config::parse(Some("[jira]\nsite = \"https://x\""), no_env).is_err());
@@ -138,7 +138,7 @@ fn oauth_sections() {
     ] {
         assert!(matches!(
             Config::parse(Some(broken), no_env),
-            Err(ConfigError::Wert(_))
+            Err(ConfigError::InvalidValue(_))
         ));
     }
     // Typos in the section stand out (secrets do not belong in the file).
@@ -169,7 +169,7 @@ fn seed_is_by_default_empty() {
     let env = |k: &str| (k == "COCKPIT_SEED").then(|| "viel".to_string());
     assert!(matches!(
         Config::parse(None, env),
-        Err(ConfigError::Wert(_))
+        Err(ConfigError::InvalidValue(_))
     ));
     assert!(Config::parse(Some("seed = \"viel\""), no_env).is_err());
 }
@@ -192,7 +192,7 @@ fn repo_and_dir_the_agents() {
         assert!(
             matches!(
                 Config::parse(Some(&format!("[agent]\n{broken}")), no_env),
-                Err(ConfigError::Wert(_))
+                Err(ConfigError::InvalidValue(_))
             ),
             "{broken}"
         );
@@ -236,7 +236,7 @@ fn endpoint_and_container() {
     );
     assert!(matches!(
         Config::parse(None, io("mount")),
-        Err(ConfigError::Wert(_))
+        Err(ConfigError::InvalidValue(_))
     ));
     for broken in [
         "[agent.endpoint]\nurl = \"localhost:4000\"",
@@ -248,7 +248,7 @@ fn endpoint_and_container() {
         assert!(
             matches!(
                 Config::parse(Some(broken), no_env),
-                Err(ConfigError::Wert(_))
+                Err(ConfigError::InvalidValue(_))
             ),
             "{broken}"
         );
@@ -407,7 +407,7 @@ fn removed_environment_spellings_are_not_read() {
     let env = |k: &str| (k == "COCKPIT_SEED").then(|| "leer".to_string());
     assert!(matches!(
         Config::parse(None, env),
-        Err(ConfigError::Wert(_))
+        Err(ConfigError::InvalidValue(_))
     ));
     let env = |k: &str| (k == "COCKPIT_GIT_BASE").then(|| "http://git.example/".to_string());
     assert_eq!(
@@ -465,7 +465,7 @@ fn environment_addresses_are_checked_with_catalog_messages() {
         ("COCKPIT_PUBLIC_PORT", "0", "COCKPIT_PUBLIC_PORT=0"),
     ] {
         let env = |k: &str| (k == name).then(|| value.to_string());
-        let Err(ConfigError::Wert(m)) = Config::parse(None, env) else {
+        let Err(ConfigError::InvalidValue(m)) = Config::parse(None, env) else {
             panic!("{name}={value} must be refused");
         };
         assert_ne!(m.code, "common.raw", "{name} has a catalog key");
@@ -566,7 +566,7 @@ fn an_invalid_branch_pattern_is_rejected_when_the_config_is_read() {
             continue;
         }
         assert!(
-            matches!(&result, Err(ConfigError::Wert(m)) if m.render(cockpit_i18n::Lang::De).contains("branch_pattern")),
+            matches!(&result, Err(ConfigError::InvalidValue(m)) if m.render(cockpit_i18n::Lang::De).contains("branch_pattern")),
             "{bad}: {result:?}"
         );
     }
@@ -595,7 +595,7 @@ fn broken_agent_repos_are_rejected_with_a_reason() {
         assert!(
             matches!(
                 Config::parse(Some(broken), no_env),
-                Err(ConfigError::Wert(_) | ConfigError::UnknownKey { .. })
+                Err(ConfigError::InvalidValue(_) | ConfigError::UnknownKey { .. })
             ),
             "{broken}"
         );
@@ -702,7 +702,7 @@ fn the_pull_request_language_is_english_unless_a_repo_says_german() {
     let bad = "[[agent.repos]]\nrepo = \"a/b\"\npr_language = \"fr\"";
     assert!(matches!(
         Config::parse(Some(bad), no_env),
-        Err(ConfigError::Wert(_))
+        Err(ConfigError::InvalidValue(_))
     ));
 }
 

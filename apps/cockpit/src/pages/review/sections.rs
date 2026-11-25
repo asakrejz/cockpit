@@ -191,7 +191,7 @@ pub(super) fn list(
         .collect_view()
 }
 
-/// Opens what hides the open pull request (a deep link or "Zum Eintrag" must show it), and
+/// Opens what hides the open pull request (a deep link or "Go to entry" must show it), and
 /// scrolls its entry into view (and focuses it after a move by keyboard).
 pub(super) fn reveal(store: Store, collapsed: RwSignal<Vec<String>>, current: Option<PrKey>) {
     let Some(current) = current else { return };

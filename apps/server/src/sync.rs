@@ -15,7 +15,7 @@ use cockpit_i18n::{Msg, msg};
 use cockpit_integrations::github::{GitHubClient, PrLimits};
 use cockpit_integrations::jira::{JiraClient, jql_for_selection};
 use cockpit_integrations::oauth::{Endpoints, Service};
-use cockpit_integrations::outbound::plane;
+use cockpit_integrations::outbound::plan_call;
 use cockpit_integrations::{GitHubService, JiraService, Services};
 
 use cockpit_core::{AuthChoice, AuthKind};
@@ -108,7 +108,7 @@ pub enum ActionFailure {
     /// The service rejected the call or was not reachable. Nothing was changed.
     Service(Msg),
     Save(String),
-    Intern,
+    Internal,
 }
 
 impl AppState {
@@ -246,7 +246,7 @@ impl AppState {
         let s = self.clone();
         let client = tokio::task::spawn_blocking(move || s.jira_client())
             .await
-            .map_err(|_| ActionFailure::Intern)?;
+            .map_err(|_| ActionFailure::Internal)?;
         let Some(client) = client else {
             return Ok(JiraProjectsResponse::default());
         };
@@ -282,7 +282,7 @@ impl AppState {
         let s = self.clone();
         let client = tokio::task::spawn_blocking(move || s.jira_client())
             .await
-            .map_err(|_| ActionFailure::Intern)?;
+            .map_err(|_| ActionFailure::Internal)?;
         let Some(client) = client else {
             return Ok(AssignableResponse::default());
         };
@@ -312,7 +312,7 @@ impl AppState {
         let s = self.clone();
         let credentials = tokio::task::spawn_blocking(move || s.github_credentials())
             .await
-            .map_err(|_| ActionFailure::Intern)?;
+            .map_err(|_| ActionFailure::Internal)?;
         let Some((token, app)) = credentials else {
             return Ok(AssignableResponse::default());
         };
@@ -376,7 +376,7 @@ impl AppState {
         let a = action.clone();
         let lock = tokio::task::spawn_blocking(move || s.agent_lock(&a))
             .await
-            .map_err(|_| ActionFailure::Intern)?;
+            .map_err(|_| ActionFailure::Internal)?;
         if let Some(m) = lock {
             return Err(ActionFailure::Plan(m));
         }
@@ -406,7 +406,7 @@ impl AppState {
         let services = self.services().await;
         if !services.is_empty() {
             let targets = services.targets(self.agent_repos().default);
-            match plane(&before, &afterwards, &action, &targets) {
+            match plan_call(&before, &afterwards, &action, &targets) {
                 Err(e) => return Err(ActionFailure::Plan(e.0)),
                 Ok(None) => {}
                 Ok(Some(call)) => {
@@ -515,7 +515,7 @@ impl AppState {
                 Err(LiveError::Save(m)) => Err(ActionFailure::Save(m)),
             };
         }
-        Err(ActionFailure::Intern)
+        Err(ActionFailure::Internal)
     }
 }
 

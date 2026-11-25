@@ -6,7 +6,7 @@ use leptos::prelude::*;
 use super::context::{AgentCtx, OptionSignals};
 use super::repo_choice::repo_choice;
 
-/// The „Auftrag“ section: hint, repo and the switches before the start.
+/// The "Job" section: hint, repo and the switches before the start.
 pub(super) fn job(ctx: AgentCtx) -> impl IntoView {
     let AgentCtx {
         base_branch,

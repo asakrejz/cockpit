@@ -1,5 +1,5 @@
-//! „Aufräumen“: first a preview of what no working run needs any more, then – only after the
-//! click on „Jetzt entfernen“ – the removal of exactly what the preview showed.
+//! "Clean up": first a preview of what no working run needs any more, then – only after the
+//! click on "Remove now" – the removal of exactly what the preview showed.
 
 use cockpit_core::api::{CleanupPreview, CleanupRequest};
 use feature_ui::*;

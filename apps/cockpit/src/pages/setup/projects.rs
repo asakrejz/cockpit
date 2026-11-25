@@ -20,7 +20,7 @@ fn kind_label(kind: TokenKind) -> String {
     }
 }
 
-/// "Projekt anlegen" for one repo that has no linked project. Nothing is created before the click.
+/// "Create a project" for one repo that has no linked project. Nothing is created before the click.
 #[component]
 fn CreateProject(
     ctx: Context,

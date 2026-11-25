@@ -83,7 +83,7 @@ impl Workspace {
 
     /// Assigns a ticket to someone. Who owns it also decides whether it appears under „Ich“ or „Team“. A ticket
     /// that newly lands with you counts as unread again and triggers the rule
-    /// „Zugewiesen“; if it goes to someone else, it ends.
+    /// "Assigned"; if it goes to someone else, it ends.
     pub fn assign(&mut self, id: &str, person: &Person, now_ms: u64) -> bool {
         let me = Person::me();
         let Some(item) = self.item_mut(id).filter(|i| i.is_ticket()) else {
@@ -134,7 +134,7 @@ impl Workspace {
             .collect()
     }
 
-    /// What the „Entwicklung“ section of a ticket lists: every linked pull request with its
+    /// What the "Development" section of a ticket lists: every linked pull request with its
     /// head branch, plus the ticket's own copy of a pull request whose review is not loaded.
     pub fn linked_prs(&self, ticket_id: &str) -> Vec<LinkedPr> {
         let mut list: Vec<LinkedPr> = self

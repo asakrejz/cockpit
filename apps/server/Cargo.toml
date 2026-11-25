@@ -3,7 +3,7 @@ name = "cockpit-server"
 edition.workspace = true
 version.workspace = true
 license.workspace = true
-description = "Lokales Backend des Cockpits: liefert die App aus, hält Daten und Schlüssel"
+description = "Local backend of Cockpit: serves the app and keeps the data and keys"
 
 # Native only – does not compile for WebAssembly.
 [[bin]]

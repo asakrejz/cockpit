@@ -253,7 +253,7 @@ pub enum Action {
         report: AgentReport,
     },
     /// The pull request of the run is merged or closed (seen by the backend): the run is
-    /// „erledigt“. Only the system triggers it.
+    /// closed. Only the system triggers it.
     CloseAgentRun {
         run: String,
         closure: Closure,
@@ -348,7 +348,7 @@ impl Action {
     /// trigger (the user in the browser, the ticks of the server).
     ///
     /// * `Some(Actor::User)`: everything that reaches Jira or GitHub (every action that
-    ///   `cockpit_integrations::outbound::plane` can turn into a call, and the pull request and
+    ///   `cockpit_integrations::outbound::plan_call` can turn into a call, and the pull request and
     ///   project flows of the server), merging, the follow-up jobs of the real agent and removing
     ///   runs. Neither the agent nor the system may do those.
     /// * `Some(Actor::System)`: only the backend itself (the sync, closing a finished run).

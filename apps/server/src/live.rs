@@ -15,7 +15,7 @@ use crate::config::Seed;
 use crate::db;
 
 /// This many events a slow connection buffers before it has to reload.
-const PUFFER: usize = 64;
+const BUFFER: usize = 64;
 
 pub struct Live {
     snapshot: Mutex<Snapshot>,
@@ -119,7 +119,7 @@ impl Live {
         };
         Self {
             snapshot: Mutex::new(Snapshot { ws, revision }),
-            tx: broadcast::channel(PUFFER).0,
+            tx: broadcast::channel(BUFFER).0,
             protected,
         }
     }

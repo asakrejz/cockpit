@@ -61,7 +61,7 @@ impl Usage {
         self.millis = self.millis.saturating_add(other.millis);
     }
 
-    /// `12.400 Token ein · 1.200 aus · 25 ct · 25 s`
+    /// `12.400 tokens in · 1.200 out · 0,25 € · 25 s` (catalog entry `core_usage.line`).
     pub fn line_msg(&self) -> Msg {
         msg!(
             CoreUsageLine,

@@ -13,13 +13,13 @@ async fn state_survives_the_restart() {
         let app = router(state.clone(), PathBuf::from("/x"));
         let (status, _) = send(app.clone(), &mark_done(&id)).await;
         assert_eq!(status, StatusCode::OK);
-        hole(app, "/api/workspace").await.1
+        fetch(app, "/api/workspace").await.1
     };
 
     // New process: same file, fresh state.
     let state = AppState::new(db::open(&file).unwrap(), Arc::new(MemoryStore::new()));
     let app = router(state, PathBuf::from("/x"));
-    let (_, after_restart) = hole(app.clone(), "/api/workspace").await;
+    let (_, after_restart) = fetch(app.clone(), "/api/workspace").await;
     assert_eq!(after_restart, after_action);
     let (ws, revision) = cockpit_core::persist::load_with_revision(&after_restart).unwrap();
     assert_eq!(revision, 1);
@@ -39,7 +39,7 @@ async fn unreadable_stored_state_falls_on_demo_back() {
     db::workspace_save(&conn, 7, "{kaputt").unwrap();
     let state = AppState::new(conn, Arc::new(MemoryStore::new()));
     let app = router(state, PathBuf::from("/x"));
-    let (_, body) = hole(app, "/api/workspace").await;
+    let (_, body) = fetch(app, "/api/workspace").await;
     let (ws, revision) = cockpit_core::persist::load_with_revision(&body).unwrap();
     assert_eq!(ws, cockpit_core::demo::seed());
     assert_eq!(revision, 0);
@@ -60,7 +60,7 @@ fn kept_rows(state: &AppState) -> Vec<(i64, Vec<u8>, String)> {
 }
 
 async fn health_of(app: &Router) -> serde_json::Value {
-    let (status, body) = hole(app.clone(), "/api/health").await;
+    let (status, body) = fetch(app.clone(), "/api/health").await;
     assert_eq!(status, StatusCode::OK, "{body}");
     serde_json::from_str(&body).unwrap()
 }

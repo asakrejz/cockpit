@@ -78,10 +78,10 @@ fn name(source: Source) -> &'static str {
     }
 }
 
-fn stand(st: &SourceState, now_ms: u64) -> Msg {
+fn last_state(st: &SourceState, now_ms: u64) -> Msg {
     match st.last_ok_ms {
-        Some(t) => msg!(CoreNoticeStandAt, when = ago_msg(t, now_ms)),
-        None => msg!(CoreNoticeStandNone),
+        Some(t) => msg!(CoreNoticeLastStateAt, when = ago_msg(t, now_ms)),
+        None => msg!(CoreNoticeLastStateNone),
     }
 }
 
@@ -89,19 +89,19 @@ fn stand(st: &SourceState, now_ms: u64) -> Msg {
 pub fn source_notice(st: &SourceState, now_ms: u64) -> Option<SourceNotice> {
     let problem = st.problem.as_ref()?;
     let source = name(st.source);
-    let stand = stand(st, now_ms);
+    let last_state = last_state(st, now_ms);
     let (tone, title, detail, action, retry_at_ms) = match problem {
         Problem::Unauthorized => (
             NoticeTone::Error,
             msg!(CoreNoticeTitleUnauthorized, source = source),
-            msg!(CoreNoticeDetailUnauthorized, stand = stand),
+            msg!(CoreNoticeDetailUnauthorized, last_state = last_state),
             NoticeAction::OpenSetup,
             None,
         ),
         Problem::NoPermission => (
             NoticeTone::Error,
             msg!(CoreNoticeTitleNoPermission, source = source),
-            msg!(CoreNoticeDetailNoPermission, stand = stand),
+            msg!(CoreNoticeDetailNoPermission, last_state = last_state),
             NoticeAction::OpenSetup,
             None,
         ),
@@ -111,7 +111,7 @@ pub fn source_notice(st: &SourceState, now_ms: u64) -> Option<SourceNotice> {
             msg!(
                 CoreNoticeDetailMissingRight,
                 right = right.msg(*kind),
-                stand = stand
+                last_state = last_state
             ),
             NoticeAction::OpenSetup,
             None,
@@ -122,7 +122,7 @@ pub fn source_notice(st: &SourceState, now_ms: u64) -> Option<SourceNotice> {
             msg!(
                 CoreNoticeDetailPaused,
                 wait = wait_msg(*t, now_ms),
-                stand = stand
+                last_state = last_state
             ),
             NoticeAction::Wait,
             Some(*t),
@@ -130,21 +130,25 @@ pub fn source_notice(st: &SourceState, now_ms: u64) -> Option<SourceNotice> {
         Problem::RateLimited { .. } => (
             NoticeTone::Info,
             msg!(CoreNoticeTitleQuota, source = source),
-            msg!(CoreNoticeDetailQuota, stand = stand),
+            msg!(CoreNoticeDetailQuota, last_state = last_state),
             NoticeAction::RetryNow,
             None,
         ),
         Problem::Offline => (
             NoticeTone::Warning,
             msg!(CoreNoticeTitleOffline, source = source),
-            msg!(CoreNoticeDetailOffline, stand = stand),
+            msg!(CoreNoticeDetailOffline, last_state = last_state),
             NoticeAction::RetryNow,
             None,
         ),
         Problem::Other(m) => (
             NoticeTone::Warning,
             msg!(CoreNoticeTitleFailed, source = source),
-            msg!(CoreNoticeDetailFailed, message = m.clone(), stand = stand),
+            msg!(
+                CoreNoticeDetailFailed,
+                message = m.clone(),
+                last_state = last_state
+            ),
             NoticeAction::RetryNow,
             None,
         ),

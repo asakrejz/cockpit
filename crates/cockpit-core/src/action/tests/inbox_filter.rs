@@ -60,7 +60,7 @@ fn the_filter_survives_saving_and_old_data_without_it_loads() {
     let partial = loaded(&json.to_string()).unwrap();
     assert_eq!(partial.inbox_filter.ownership, Ownership::Mine);
     assert!(partial.inbox_filter.hide_done);
-    // The old start value „Meine“ (stored as `ownership`) is not carried over: the start
+    // The old start value "Mine" (stored as `ownership`) is not carried over: the start
     // value is „Alle“ now, so colleagues' tickets show up.
     json["workspace"]["inbox_filter"] = serde_json::json!({ "ownership": "Mine" });
     let older = loaded(&json.to_string()).unwrap();

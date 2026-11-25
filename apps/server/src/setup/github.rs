@@ -367,7 +367,7 @@ pub async fn projects_list(State(state): State<AppState>) -> Response {
 
 impl AppState {
     /// Creates a GitHub project for `owner`, links it to `repo` and makes sure it has the status
-    /// field with Todo, In Progress, In Review and Done. Only for the click "Projekt anlegen";
+    /// field with Todo, In Progress, In Review and Done. Only for the click "Create a project";
     /// adds things at GitHub and never deletes anything.
     pub async fn github_project_create(
         &self,

@@ -21,10 +21,10 @@ export function globFits(pattern: string, path: string): boolean {
   if (!m.includes("/")) m = `**/${m}`;
   const segments = m.split("/");
   const parts = trimmed(path).split("/");
-  const name = (mu: string, n: string): boolean => {
+  const name = (glob: string, n: string): boolean => {
     // The `u` flag makes `?` one character (code point), as in Rust, not one UTF-16 unit.
     const re = new RegExp(
-      `^${mu.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]")}$`,
+      `^${glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]")}$`,
       "u",
     );
     return re.test(n);

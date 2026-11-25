@@ -151,7 +151,7 @@ pub fn ReviewPage(number: Option<PrKey>) -> impl IntoView {
     }
 }
 
-/// `#87 Titel`, with several repos `repo#87 Titel`.
+/// `#87 Title`, with several repos `repo#87 Title`.
 fn review_label(r: &Review, multi_repo: bool) -> String {
     if multi_repo && !r.repo.is_empty() {
         format!("{}#{} {}", r.repo, r.number, r.title)
