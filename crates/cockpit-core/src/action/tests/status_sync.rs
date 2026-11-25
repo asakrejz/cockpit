@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 // ---------- Status follows the pull request ----------
 
@@ -28,7 +29,7 @@ fn the_status_follows_the_pull_request() {
     let entry = w.log.last().unwrap();
     assert_eq!(entry.actor, Actor::System);
     assert_eq!(
-        entry.text,
+        entry.text_in(Lang::De),
         "Status von BAU-150 automatisch auf „In Arbeit“ gesetzt – acme/app#85 ist noch in Arbeit"
     );
 
@@ -38,7 +39,7 @@ fn the_status_follows_the_pull_request() {
     assert_eq!(status(&w, "bau150"), TicketStatus::Review);
     let entry = w.log.last().unwrap();
     assert_eq!(
-        (entry.actor, entry.text.as_str()),
+        (entry.actor, entry.text_in(Lang::De).as_str()),
         (
             Actor::System,
             "Status von BAU-150 automatisch auf „Review“ gesetzt – für acme/app#85 ist ein Review angefragt"
@@ -76,7 +77,11 @@ fn merging_finishes_the_linked_ticket_through_the_same_path() {
     assert!(ticket.read && ticket.agent_note.is_none());
     let entry = w.log.last().unwrap();
     assert_eq!(entry.actor, Actor::System);
-    assert!(entry.text.ends_with("– acme/app#91 ist gemergt"));
+    assert!(
+        entry
+            .text_in(Lang::De)
+            .ends_with("– acme/app#91 ist gemergt")
+    );
 }
 
 #[test]

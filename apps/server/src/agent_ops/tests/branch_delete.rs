@@ -4,6 +4,7 @@
 use super::*;
 use crate::config::GitHubConfig;
 use cockpit_core::{AgentRun, Closure, PullRequestRef, RunState};
+use cockpit_i18n::Lang;
 use serde_json::json;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -91,7 +92,7 @@ async fn assert_refused(w: &World, github: &MockServer, part: &str) {
     let check = w.state.branch_check("BAU-142", "").await;
     assert!(!check.allowed, "{check:?}");
     let reason = check.reason.unwrap_or_default();
-    assert!(reason.contains(part), "{reason}");
+    assert!(reason.render(Lang::De).contains(part), "{reason:?}");
     assert!(w.state.branch_delete("BAU-142", "").await.is_err());
     assert_eq!(deletes(github).await, Vec::<String>::new());
 }
@@ -255,7 +256,11 @@ async fn a_merged_pull_request_marks_the_run_and_removes_its_clone() {
     assert!(!dir.exists(), "the clone goes away");
     let entry = w.ws().log.last().cloned().unwrap();
     assert_eq!(entry.actor, Actor::System);
-    assert!(entry.text.contains("gemergt"), "{}", entry.text);
+    assert!(
+        entry.text_in(Lang::De).contains("gemergt"),
+        "{:?}",
+        entry.text
+    );
     // Asked once, then never again.
     let asked = github.received_requests().await.unwrap().len();
     w.state.reconcile_runs().await;

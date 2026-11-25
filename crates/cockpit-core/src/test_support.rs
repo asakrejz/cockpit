@@ -45,7 +45,7 @@ pub(crate) fn advance_at(w: &mut Workspace, at_ms: u64) {
                 Action::ReportAgent {
                     run: key,
                     report: AgentReport::Done {
-                        summary: "Done".into(),
+                        summary: cockpit_i18n::Msg::raw("Done"),
                     },
                 },
                 Actor::Agent,
@@ -86,9 +86,9 @@ pub(crate) fn loaded(text: &str) -> Result<Workspace, LoadError> {
     persist::load_with_revision(text).map(|(w, _)| w)
 }
 
-/// The text of the first log entry that an applied action added (empty if it added none).
-pub(crate) fn first_text<'a>(w: &'a Workspace, applied: &Applied) -> &'a str {
+/// The German text of the first log entry that an applied action added (empty if it added none).
+pub(crate) fn first_text(w: &Workspace, applied: &Applied) -> String {
     w.log
         .get(w.log.len() - applied.logged)
-        .map_or("", |entry| entry.text.as_str())
+        .map_or(String::new(), |entry| entry.text_in(cockpit_i18n::Lang::De))
 }

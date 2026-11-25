@@ -41,7 +41,7 @@ pub struct AgentPlan {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum AgentReport {
     /// The container is running. `detail` is a sentence for the history (runtime, mode).
-    Started { detail: String },
+    Started { detail: Msg },
     /// The plan is ready (only while the run waits for approval).
     Plan {
         summary: String,
@@ -84,9 +84,9 @@ pub enum AgentReport {
     /// `Done` (or `Failed`); one refused repo does not stop the others.
     Repos { repos: Vec<RepoResult> },
     /// Done: the branch is pushed.
-    Done { summary: String },
-    /// The run ended without result (error, timeout, restart). `reason` in plain text.
-    Failed { reason: String },
+    Done { summary: Msg },
+    /// The run ended without result (error, timeout, restart).
+    Failed { reason: Msg },
 }
 
 /// What a report of the agent has effected; the workspace books and logs it.
@@ -134,11 +134,13 @@ pub struct RunMessage {
     pub kind: MessageKind,
     /// Number of completed steps at the time the message arose.
     pub step: usize,
-    /// The text; German for coded messages (readers that only know plain text), the original
-    /// words for what the user or the agent wrote.
+    /// The words the user or the agent wrote; German text of an old message of the system.
+    /// Empty for a message of the system, which carries `msg`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub text: String,
     /// The message as code and parameters, for texts the system wrote. Shown in the language of
-    /// the interface; without it `text` is shown as it is.
+    /// the interface; without it, or with a code this build no longer knows, `text` is shown as
+    /// it is.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub msg: Option<Msg>,
 }
@@ -155,17 +157,11 @@ impl RunMessage {
 /// What the agent intends to do. Derived from ticket, hints and files.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Plan {
-    /// German text of `summary_msg`.
-    pub summary: String,
+    pub summary: Msg,
     pub files: Vec<String>,
-    /// German texts of `steps_msg`.
-    pub steps: Vec<String>,
-    /// The rules of the repo that apply to this run (one line per rule), in German.
-    pub rules: Vec<String>,
-    /// The summary as code and parameters (the UI renders it in its language).
-    pub summary_msg: Msg,
-    pub steps_msg: Vec<Msg>,
-    pub rules_msg: Vec<Msg>,
+    pub steps: Vec<Msg>,
+    /// The rules of the repo that apply to this run (one line per rule).
+    pub rules: Vec<Msg>,
     /// Files of the plan that violate the path rules. As long as there are any, the
     /// plan cannot be approved.
     pub violations: Vec<PathViolation>,
@@ -180,12 +176,8 @@ pub enum StepState {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Step {
-    /// German text of `title_msg`.
-    pub title: String,
-    /// German text of `text_msg`.
-    pub text: String,
-    pub title_msg: Msg,
-    pub text_msg: Msg,
+    pub title: Msg,
+    pub text: Msg,
     pub state: StepState,
     /// Consumption of the step once it is completed.
     pub usage: Option<Usage>,
@@ -194,10 +186,8 @@ pub struct Step {
 impl Step {
     pub(super) fn new(title: Msg, text: Msg, state: StepState, usage: Option<Usage>) -> Self {
         Self {
-            title: title.de(),
-            text: text.de(),
-            title_msg: title,
-            text_msg: text,
+            title,
+            text,
             state,
             usage,
         }
@@ -213,13 +203,10 @@ impl Plan {
         violations: Vec<PathViolation>,
     ) -> Self {
         Self {
-            summary: summary.de(),
+            summary,
             files,
-            steps: steps.iter().map(Msg::de).collect(),
-            rules: rules.iter().map(Msg::de).collect(),
-            summary_msg: summary,
-            steps_msg: steps,
-            rules_msg: rules,
+            steps,
+            rules,
             violations,
         }
     }

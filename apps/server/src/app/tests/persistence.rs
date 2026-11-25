@@ -62,7 +62,7 @@ fn kept_rows(state: &AppState) -> Vec<(i64, Vec<u8>, String)> {
 async fn health_of(app: &Router) -> serde_json::Value {
     let (status, body) = hole(app.clone(), "/api/health").await;
     assert_eq!(status, StatusCode::OK, "{body}");
-    json(&body)
+    serde_json::from_str(&body).unwrap()
 }
 
 fn stored_text(state: &AppState) -> Option<String> {

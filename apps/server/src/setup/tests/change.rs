@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[test]
 fn change_keeps_comments_and_other_values() {
@@ -252,7 +253,7 @@ fn change_rejects_a_default_outside_the_list() {
     assert!(
         change("", &outside)
             .unwrap_err()
-            .de()
+            .render(Lang::De)
             .contains("Standard-Repo")
     );
 }

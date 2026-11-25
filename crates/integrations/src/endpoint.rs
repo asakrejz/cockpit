@@ -223,42 +223,14 @@ async fn fetch(target: &Target, key: Option<&Secret>) -> Result<Vec<String>, Fai
     ))
 }
 
-/// An answer that carries only a hint (German text and code).
-trait Hinted {
-    fn with(msg: Msg) -> Self;
-}
-
-impl Hinted for EndpointCheck {
-    fn with(msg: Msg) -> Self {
-        EndpointCheck {
-            hint: Some(msg.de()),
-            msg: Some(msg),
-            ..Default::default()
-        }
-    }
-}
-
-impl Hinted for ModelList {
-    fn with(msg: Msg) -> Self {
-        ModelList {
-            hint: Some(msg.de()),
-            msg: Some(msg),
-            ..Default::default()
-        }
-    }
-}
-
-fn hinted<T: Hinted>(msg: Msg) -> T {
-    T::with(msg)
-}
-
 /// The endpoint's model IDs for the drop-down. Without a key nothing is called.
 pub async fn models_load(target: &Target, key: Option<&Secret>) -> ModelList {
     match fetch(target, key).await {
         Ok(models) if models.is_empty() => ModelList {
             reachable: true,
             key_ok: true,
-            ..hinted(msg!(IntegrationsEndpointNoModels, who = target.who()))
+            hint: Some(msg!(IntegrationsEndpointNoModels, who = target.who())),
+            ..Default::default()
         },
         Ok(models) => ModelList {
             loaded: true,
@@ -266,18 +238,17 @@ pub async fn models_load(target: &Target, key: Option<&Secret>) -> ModelList {
             key_ok: true,
             models,
             hint: None,
-            msg: None,
         },
         Err(m) => ModelList {
             reachable: m.reachable(),
-            ..hinted(m.msg(target))
+            hint: Some(m.msg(target)),
+            ..Default::default()
         },
     }
 }
 
 fn set_hint(mut check: EndpointCheck, msg: Msg) -> EndpointCheck {
-    check.hint = Some(msg.de());
-    check.msg = Some(msg);
+    check.hint = Some(msg);
     check
 }
 

@@ -154,9 +154,7 @@ impl AppState {
 
     /// The finished real run behind `key`, or the sentence why there is no pull request to create.
     fn pull_request_run(&self, ws: &Workspace, key: &str, repo: &str) -> Result<(), Msg> {
-        // The text comes from `cockpit-core` and has no code yet.
-        ws.check_pull_request(key, repo)
-            .map_err(|e| Msg::raw(e.message()))
+        ws.check_pull_request(key, repo).map_err(|e| e.msg())
     }
 
     /// `GET /api/agent/pull-request?run=<key>`: title, text and branches as they would be created,

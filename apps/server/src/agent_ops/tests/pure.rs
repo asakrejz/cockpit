@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 // ---------- pure parts ----------
 
@@ -18,22 +19,22 @@ fn hint_to_reachability_out_the_container() {
         false,
         raw("Der Container erreicht den Proxy nicht (ENOTFOUND)."),
     )
-    .de();
+    .render(Lang::De);
     assert!(h.contains("Dein Mac erreicht den Proxy, der Container aber nicht"));
     assert!(h.contains("VPN") && h.contains("ENOTFOUND") && h.contains("Podman"));
     assert!(
         check_hint(false, false, false, raw("x"))
-            .de()
+            .render(Lang::De)
             .contains("Weder dein Mac noch der Container")
     );
     assert!(
         check_hint(true, true, false, raw("Status 401"))
-            .de()
+            .render(Lang::De)
             .contains("Key wird abgelehnt")
     );
     assert!(
         check_hint(true, true, true, raw(""))
-            .de()
+            .render(Lang::De)
             .contains("auch aus dem Container erreichbar")
     );
 }
@@ -44,13 +45,13 @@ fn advice_at_build() {
     assert!(
         build_hint(&z("write: no space left on device"))
             .unwrap()
-            .de()
+            .render(Lang::De)
             .contains("Platz")
     );
     assert!(
         build_hint(&z("dial tcp: lookup registry-1.docker.io: no such host"))
             .unwrap()
-            .de()
+            .render(Lang::De)
             .contains("Netz")
     );
     assert!(build_hint(&z("etwas ganz anderes")).is_none());

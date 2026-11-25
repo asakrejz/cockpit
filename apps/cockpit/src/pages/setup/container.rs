@@ -76,7 +76,11 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
     let has_log =
         Memo::new(move |_| build.with(|b| b.as_ref().is_some_and(|b| !b.lines.is_empty())));
     let log_lines = Signal::derive(move || {
-        build.with(|b| b.as_ref().map(|b| b.lines.clone()).unwrap_or_default())
+        build.with(|b| {
+            b.as_ref()
+                .map(|b| b.lines.iter().map(|m| m.render(lang())).collect())
+                .unwrap_or_default()
+        })
     });
     Effect::new(move |_| {
         let failed = build.with(|b| b.as_ref().is_some_and(|b| b.error.is_some()));
@@ -142,7 +146,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                     {move || {
                         status()
                             .and_then(|s| s.hint)
-                            .map(|h| view! { <p class="ui-hint" role="status">{h}</p> })
+                            .map(|h| view! { <p class="ui-hint" role="status">{h.render(lang())}</p> })
                     }}
                     <HStack spacing="12px">
                         <Button on_click=move |_| ctx.reload()>{t!(SetupContainerRecheck)}</Button>
@@ -201,7 +205,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                                     (image_state() == ImageState::Unknown)
                                         .then(image_hint)
                                         .flatten()
-                                        .map(|m| view! { <p class="ui-hint" role="status">{m}</p> })
+                                        .map(|m| view! { <p class="ui-hint" role="status">{m.render(lang())}</p> })
                                 }}
                                 {move || {
                                     build_error
@@ -211,7 +215,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                                 {move || {
                                     build.get()
                                         .and_then(|b| b.error)
-                                        .map(|m| view! { <p class="ui-hint" role="alert">{m}</p> })
+                                        .map(|m| view! { <p class="ui-hint" role="alert">{m.render(lang())}</p> })
                                 }}
                                 {move || {
                                     has_log

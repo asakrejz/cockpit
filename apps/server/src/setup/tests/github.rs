@@ -43,7 +43,17 @@ async fn list(app: &Router) -> (StatusCode, serde_json::Value) {
     )
     .await;
     assert!(!body.contains(TOKEN), "token in the answer: {body}");
-    (status, serde_json::from_str(&body).unwrap_or_default())
+    (status, german_or_default(&body))
+}
+
+/// The JSON of an answer with its messages in German; `null` if it is no JSON.
+fn german_or_default(body: &str) -> serde_json::Value {
+    serde_json::from_str(body)
+        .map(|mut v| {
+            crate::german::german_value(&mut v);
+            v
+        })
+        .unwrap_or_default()
 }
 
 async fn test_connection(app: &Router, repos: &[&str]) -> serde_json::Value {
@@ -57,7 +67,7 @@ async fn test_connection(app: &Router, repos: &[&str]) -> serde_json::Value {
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(!body.contains(TOKEN), "token in the answer: {body}");
-    serde_json::from_str(&body).unwrap()
+    crate::german::german_json(&body)
 }
 
 fn entry(name: &str) -> serde_json::Value {
@@ -155,7 +165,10 @@ async fn the_list_names_the_problem_in_plain_text() {
         )
         .await;
         assert_eq!(s, status, "{code}: {body}");
-        assert!(body.contains(word), "{code}: {body}");
+        assert!(
+            crate::german::german(&body).contains(word),
+            "{code}: {body}"
+        );
         assert!(!body.contains(TOKEN), "{code}: {body}");
     }
 }
@@ -171,7 +184,10 @@ async fn the_list_without_a_connection_says_so() {
     )
     .await;
     assert_eq!(status, StatusCode::CONFLICT);
-    assert!(body.contains("noch nicht verbunden"), "{body}");
+    assert!(
+        crate::german::german(&body).contains("noch nicht verbunden"),
+        "{body}"
+    );
 }
 
 #[tokio::test]
@@ -263,7 +279,7 @@ async fn suggest(app: &Router, repo: &str) -> (StatusCode, serde_json::Value) {
     )
     .await;
     assert!(!body.contains(TOKEN), "token in the answer: {body}");
-    (status, serde_json::from_str(&body).unwrap_or_default())
+    (status, german_or_default(&body))
 }
 
 #[tokio::test]
@@ -344,7 +360,7 @@ async fn projects(app: &Router) -> serde_json::Value {
     .await;
     assert_eq!(status, StatusCode::OK, "{body}");
     assert!(!body.contains(TOKEN), "token in the answer: {body}");
-    serde_json::from_str(&body).unwrap()
+    crate::german::german_json(&body)
 }
 
 #[tokio::test]
@@ -412,10 +428,7 @@ async fn a_refused_project_list_names_the_missing_right_for_a_fine_grained_token
         .await;
     let v = projects(&gh_app(&gh.uri(), Some("github_pat_11AAA"), None)).await;
     assert_eq!(v["rights"]["kind"], "fine_grained");
-    let problem = v["problem"].to_string();
-    assert!(
-        problem.contains("CoreRightMissing") || problem.contains("core_right.missing"),
-        "{problem}"
-    );
+    let problem = v["problem"].as_str().unwrap_or_default();
+    assert!(problem.contains("fehlt ein Recht"), "{problem}");
     assert!(v["projects"].as_array().unwrap().is_empty());
 }

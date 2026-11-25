@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[tokio::test]
 async fn jira_is_read_page_by_page() {
@@ -47,11 +48,13 @@ async fn jira_in_project_mode() {
     }
     let (ws, _) = sync(&d, &Workspace::default(), NOW_MS).await;
     let mine = ws.item_by_key("BAU-142").unwrap();
-    assert_eq!(mine.reason_line().de(), "Dir zugewiesen");
+    assert_eq!(mine.reason_line().render(Lang::De), "Dir zugewiesen");
     let other: Vec<_> = ws.items.iter().filter(|i| i.key != "BAU-142").collect();
     assert!(!other.is_empty());
     assert!(
-        other.iter().all(|i| i.reason_line().de() == "Im Projekt"),
+        other
+            .iter()
+            .all(|i| i.reason_line().render(Lang::De) == "Im Projekt"),
         "{other:?}"
     );
 }

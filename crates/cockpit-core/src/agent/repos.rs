@@ -47,9 +47,13 @@ pub struct RunRepo {
     pub files: Vec<String>,
     #[serde(default)]
     pub state: RunRepoState,
-    /// Why the repo was refused (plain text). Empty otherwise.
-    #[serde(default)]
-    pub reason: String,
+    /// Why the repo was refused; `None` otherwise.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "cockpit_i18n::opt_msg_or_text"
+    )]
+    pub reason: Option<cockpit_i18n::Msg>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pull_request: Option<PullRequestRef>,
 }
@@ -61,8 +65,8 @@ pub struct RepoResult {
     pub state: RunRepoState,
     #[serde(default)]
     pub files: Vec<String>,
-    #[serde(default)]
-    pub reason: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<cockpit_i18n::Msg>,
 }
 
 /// The folder name of a repo in the container: `/work/<owner>__<name>`.
@@ -131,7 +135,7 @@ pub enum Judgement {
     /// No repo has changes.
     NothingChanged,
     /// Nothing was pushed and at least one repo was refused: the first reason.
-    AllRefused { reason: String },
+    AllRefused { reason: cockpit_i18n::Msg },
 }
 
 /// Weighs the results of all repos: one refused repo does not block the others.
@@ -144,13 +148,16 @@ pub fn judge(results: &[RepoResult]) -> Judgement {
         return Judgement::Done { pushed };
     }
     match results.iter().find(|r| r.state == RunRepoState::Refused) {
-        Some(r) => Judgement::AllRefused {
-            reason: if results.len() > 1 {
-                format!("{}: {}", r.repo, r.reason)
-            } else {
-                r.reason.clone()
-            },
-        },
+        Some(r) => {
+            let reason = r.reason.clone().unwrap_or_default();
+            Judgement::AllRefused {
+                reason: if results.len() > 1 {
+                    msg!(CoreReposRefusedOf, repo = &r.repo, reason = reason)
+                } else {
+                    reason
+                },
+            }
+        }
         None => Judgement::NothingChanged,
     }
 }
@@ -280,9 +287,9 @@ mod tests {
                 Vec::new()
             },
             reason: if state == RunRepoState::Refused {
-                "path forbidden".into()
+                Some(cockpit_i18n::Msg::raw("path forbidden"))
             } else {
-                String::new()
+                None
             },
         }
     }
@@ -318,14 +325,18 @@ mod tests {
         assert_eq!(
             judge(&refused),
             Judgement::AllRefused {
-                reason: "acme/web: path forbidden".into()
+                reason: msg!(
+                    CoreReposRefusedOf,
+                    repo = "acme/web",
+                    reason = cockpit_i18n::Msg::raw("path forbidden")
+                )
             }
         );
         // A single repo keeps its plain reason.
         assert_eq!(
             judge(&[result("acme/app", RunRepoState::Refused)]),
             Judgement::AllRefused {
-                reason: "path forbidden".into()
+                reason: cockpit_i18n::Msg::raw("path forbidden")
             }
         );
         assert_eq!(judge(&[]), Judgement::NothingChanged);
@@ -341,7 +352,10 @@ mod tests {
         ]);
         assert_eq!(run.repos[0].state, RunRepoState::Pushed);
         assert_eq!(run.repos[1].state, RunRepoState::Refused);
-        assert_eq!(run.repos[1].reason, "path forbidden");
+        assert_eq!(
+            run.repos[1].reason,
+            Some(cockpit_i18n::Msg::raw("path forbidden"))
+        );
         assert_eq!(run.files, ["acme/app/a.txt"]);
         assert_eq!(
             run.repos.len(),

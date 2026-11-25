@@ -333,7 +333,7 @@ fn the_pull_request_text_of_an_issue_closes_it() {
     let mut w = Workspace::default();
     let mut run = AgentRun::new("acme/app#31", "Fokusring");
     run.repo = "acme/app".into();
-    run.summary = "Ring added".into();
+    run.summary = Some(cockpit_i18n::Msg::raw("Ring added"));
     w.runs.push(run);
     let draft = w.pull_request_draft("acme/app#31", "acme/app").unwrap();
     assert!(

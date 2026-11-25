@@ -2,6 +2,7 @@
 
 use super::*;
 use crate::ReviewFilter;
+use cockpit_i18n::Lang;
 
 fn narrowed() -> ReviewFilter {
     ReviewFilter {
@@ -16,7 +17,7 @@ fn applying_the_review_filter_is_stored_and_logged() {
     assert!(w.review_filter.is_default());
     ok(&mut w, Action::SetReviewFilter { filter: narrowed() }, 1);
     assert_eq!(w.review_filter, narrowed());
-    assert_eq!(w.log.last().unwrap().text, "Filter angewendet");
+    assert_eq!(w.log.last().unwrap().text_in(Lang::De), "Filter angewendet");
     fails(
         &mut w,
         Action::SetReviewFilter { filter: narrowed() },
@@ -30,5 +31,8 @@ fn applying_the_review_filter_is_stored_and_logged() {
         1,
     );
     assert!(w.review_filter.is_default());
-    assert_eq!(w.log.last().unwrap().text, "Filter zurückgesetzt");
+    assert_eq!(
+        w.log.last().unwrap().text_in(Lang::De),
+        "Filter zurückgesetzt"
+    );
 }

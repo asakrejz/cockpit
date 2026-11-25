@@ -39,11 +39,6 @@ impl CheckRun {
         }
     }
 
-    /// [`CheckRun::duration_msg`] in German.
-    pub fn duration_label(&self) -> String {
-        self.duration_msg().de()
-    }
-
     /// Only a red check can be restarted. It then runs again; the next sync brings its result
     /// and its output.
     pub(super) fn restart(&mut self) -> bool {

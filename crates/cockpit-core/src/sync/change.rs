@@ -98,11 +98,6 @@ impl Change {
         }
     }
 
-    /// Short German sentence for the log (for readers without a language).
-    pub fn text(&self) -> String {
-        self.msg().de()
-    }
-
     pub fn target(&self) -> Option<Target> {
         match self {
             Change::ItemAdded { id, .. }

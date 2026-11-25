@@ -89,16 +89,6 @@ impl Rule {
             Rule::Assigned => msg!(InboxFiltersRuleAssignedHint),
         }
     }
-
-    /// The name in German (for log lines that are kept as plain text).
-    pub fn label(self) -> String {
-        self.msg().de()
-    }
-
-    /// Explanation in German.
-    pub fn describe(self) -> String {
-        self.describe_msg().de()
-    }
 }
 
 /// Which rules are switched on. By default everything is on.

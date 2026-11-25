@@ -1,6 +1,7 @@
 //! Jira: mapping and client against replayed responses (`tests/fixtures`).
 
 use cockpit_core::{Kind, ReasonKind, Scope, Source, TicketStatus};
+use cockpit_i18n::Lang;
 use cockpit_integrations::jira::{
     ASSIGNED_OR_WATCHED_JQL, JiraClient, comments_to_core, dto::*, issue_to_item, jql_for_project,
 };
@@ -44,7 +45,7 @@ fn assigned_issue() {
     // The time is a timestamp the interface renders ("4 hours ago"), not a text.
     assert_eq!(item.updated_ms, ms("2024-05-14T09:12:33.456+0200"));
     assert!(item.time.is_empty() && item.reason_text.is_empty());
-    assert_eq!(item.reason_line().de(), "Dir zugewiesen");
+    assert_eq!(item.reason_line().render(Lang::De), "Dir zugewiesen");
     assert_eq!(
         item.reason_line().render(cockpit_i18n::Lang::En),
         "Assigned to you"
@@ -69,7 +70,7 @@ fn watched_issue_in_review() {
     assert_eq!(item.owner.initials, "TL");
     assert_eq!(item.description, "");
     assert_eq!(item.updated_ms, ms("2024-05-10T08:00:00.000+0200"));
-    assert_eq!(item.reason_line().de(), "Beobachtet");
+    assert_eq!(item.reason_line().render(Lang::De), "Beobachtet");
 }
 
 #[test]

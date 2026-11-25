@@ -407,7 +407,7 @@ impl AppState {
         if !services.is_empty() {
             let targets = services.targets(self.agent_repos().default);
             match plane(&before, &afterwards, &action, &targets) {
-                Err(e) => return Err(ActionFailure::Plan(e.1)),
+                Err(e) => return Err(ActionFailure::Plan(e.0)),
                 Ok(None) => {}
                 Ok(Some(call)) => {
                     services.execute(&call).await.map_err(|e| {

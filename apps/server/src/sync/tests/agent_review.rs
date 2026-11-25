@@ -64,7 +64,7 @@ async fn only_approved_drafts_go_out_in_one_review_with_event_comment() {
     assert!(report(
         &state,
         AgentReport::Started {
-            detail: "docker".into()
+            detail: cockpit_i18n::Msg::raw("docker")
         }
     ));
     assert!(report(
@@ -83,7 +83,7 @@ async fn only_approved_drafts_go_out_in_one_review_with_event_comment() {
     assert!(report(
         &state,
         AgentReport::Done {
-            summary: "2 Kommentare als Entwurf vorbereitet.".into()
+            summary: cockpit_i18n::Msg::raw("2 Kommentare als Entwurf vorbereitet.")
         }
     ));
 

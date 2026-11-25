@@ -91,11 +91,8 @@ pub struct ContainerStatus {
     #[serde(default)]
     pub source: String,
     /// What to do if it does not work.
-    #[serde(default)]
-    pub hint: Option<String>,
-    /// The same as `hint`, as code and parameters (the UI shows it in its language).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hint_msg: Option<cockpit_i18n::Msg>,
+    pub hint: Option<cockpit_i18n::Msg>,
     /// Cockpit runs inside its own container image (`COCKPIT_IN_CONTAINER`, `/.dockerenv`, `/run/.containerenv`).
     #[serde(default)]
     pub in_container: bool,
@@ -129,12 +126,9 @@ pub struct AgentStatus {
     /// Whether the image matches the sources of this Cockpit version (fingerprint).
     #[serde(default)]
     pub image_state: ImageState,
-    /// Plain-text reason when `image_state` is `unknown`.
-    #[serde(default)]
-    pub image_hint: Option<String>,
-    /// The same as `image_hint`, as code and parameters.
+    /// Why, when `image_state` is `unknown`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub image_hint_msg: Option<cockpit_i18n::Msg>,
+    pub image_hint: Option<cockpit_i18n::Msg>,
     /// Name of the image, always the same: `localhost/cockpit-agent:local`.
     #[serde(default)]
     pub image_name: String,
@@ -145,12 +139,9 @@ pub struct AgentStatus {
     /// preselects the default repo, which the backend uses for a start without a choice.
     #[serde(default)]
     pub repos: AgentRepos,
-    /// What is still missing, one sentence per entry in plain text with the place in the assistant.
+    /// What is still missing, one sentence per entry with the place in the assistant.
     #[serde(default)]
-    pub missing: Vec<String>,
-    /// The same as `missing`, as code and parameters.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub missing_msgs: Vec<cockpit_i18n::Msg>,
+    pub missing: Vec<cockpit_i18n::Msg>,
 }
 
 /// How the agent image compares with the sources of this Cockpit version.
@@ -183,15 +174,12 @@ pub struct ImageBuild {
     /// Whether the image is current (see [`ImageState`]).
     #[serde(default)]
     pub state: ImageState,
-    /// Why the last build failed, in plain text.
-    #[serde(default)]
-    pub error: Option<String>,
-    /// The same as `error`, as code and parameters.
+    /// Why the last build failed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub error_msg: Option<cockpit_i18n::Msg>,
-    /// The last lines of the build output.
+    pub error: Option<cockpit_i18n::Msg>,
+    /// The last lines of the build output (the words of the tool as they are).
     #[serde(default)]
-    pub lines: Vec<String>,
+    pub lines: Vec<cockpit_i18n::Msg>,
 }
 
 /// Response to `GET /api/agent/check/container`: does a container reach the endpoint?
@@ -210,11 +198,8 @@ pub struct ContainerCheck {
     #[serde(default)]
     pub key_ok: bool,
     /// What to do next or what the cause was.
-    #[serde(default)]
-    pub hint: Option<String>,
-    /// The same as `hint`, as code and parameters.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub hint_msg: Option<cockpit_i18n::Msg>,
+    pub hint: Option<cockpit_i18n::Msg>,
 }
 
 /// Response to `GET /api/agent/check`: what the connection test found. Never contains the key.
@@ -233,11 +218,8 @@ pub struct EndpointCheck {
     #[serde(default)]
     pub model_present: bool,
     /// What to do next or what the cause was.
-    #[serde(default)]
-    pub hint: Option<String>,
-    /// The same as code and parameters, rendered in the chosen language.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub msg: Option<cockpit_i18n::Msg>,
+    pub hint: Option<cockpit_i18n::Msg>,
 }
 
 /// Response to `GET /api/agent/models`: the model IDs of the endpoint (IDs only, Claude models
@@ -253,12 +235,9 @@ pub struct ModelList {
     pub key_ok: bool,
     #[serde(default)]
     pub models: Vec<String>,
-    /// Plain text if something did not work.
-    #[serde(default)]
-    pub hint: Option<String>,
-    /// The same as code and parameters, rendered in the chosen language.
+    /// What did not work, if something did not.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub msg: Option<cockpit_i18n::Msg>,
+    pub hint: Option<cockpit_i18n::Msg>,
 }
 
 /// The list delivers at most this many model IDs.

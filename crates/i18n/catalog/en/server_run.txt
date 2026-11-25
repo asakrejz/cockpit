@@ -75,6 +75,7 @@ server_run.plan_got_result = The container reported a result instead of a plan.
 server_run.branch_mismatch = The container reports the branch "{got}", but "{expected}" was expected. Nothing is pushed.
 server_run.done_pushed.one = {text} Branch {branch} is pushed ({n} file).
 server_run.done_pushed.other = {text} Branch {branch} is pushed ({n} files).
+server_run.done_summary = {text}\n{repos}
 server_run.restart_lost = The server was restarted and the container was lost. Start the run again if needed.
 server_run.git_not_started = git cannot be started: {error}. Is Git installed?
 server_run.git_no_message = without an error message

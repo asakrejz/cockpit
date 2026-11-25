@@ -1,5 +1,6 @@
 use super::LineKind::{Add, Context, Del};
 use super::*;
+use cockpit_i18n::Lang;
 
 fn review() -> Review {
     Review {
@@ -7,7 +8,6 @@ fn review() -> Review {
         number: 1,
         title: "Titel".into(),
         description: String::new(),
-        description_msg: None,
         author: Person::new("Jonas", "JB"),
         branch: "feature/x".into(),
         base: "main".into(),
@@ -48,7 +48,10 @@ fn nothing_is_sent_while_a_suggestion_is_undecided() {
     assert!(!r.can_send());
     assert_eq!(r.send(), Err(SendError::Undecided(1)));
     assert!(!r.sent);
-    assert_eq!(r.summary(), "1 freigegeben · 0 abgelehnt · 1 offen");
+    assert_eq!(
+        r.summary_msg().render(Lang::De),
+        "1 freigegeben · 0 abgelehnt · 1 offen"
+    );
 }
 
 #[test]
@@ -56,9 +59,12 @@ fn only_approved_comments_are_sent() {
     let mut r = review();
     r.decide("a", Some(Decision::Approved));
     r.decide("b", Some(Decision::Declined));
-    assert_eq!(r.send_label(), "Review absenden · 1 Kommentar");
+    assert_eq!(
+        r.send_label_msg().render(Lang::De),
+        "Review absenden · 1 Kommentar"
+    );
     assert_eq!(r.send(), Ok(vec!["Erster".to_string()]));
-    assert_eq!(r.send_label(), "Gesendet");
+    assert_eq!(r.send_label_msg().render(Lang::De), "Gesendet");
     assert_eq!(r.send(), Err(SendError::AlreadySent));
 }
 
@@ -66,7 +72,10 @@ fn only_approved_comments_are_sent() {
 fn a_review_without_suggestions_can_be_sent() {
     let mut r = review();
     r.suggestions.clear();
-    assert_eq!(r.send_label(), "Review absenden · 0 Kommentare");
+    assert_eq!(
+        r.send_label_msg().render(Lang::De),
+        "Review absenden · 0 Kommentare"
+    );
     assert_eq!(r.send(), Ok(vec![]));
 }
 
@@ -102,7 +111,7 @@ fn verdict_ids() {
     for id in Verdict::IDS {
         let v = Verdict::from_id(id).unwrap();
         assert_eq!(v.id(), *id);
-        assert!(!v.label().is_empty());
+        assert!(!v.label_msg().render(Lang::De).is_empty());
     }
 }
 
@@ -156,17 +165,23 @@ fn own_comments_are_sent_and_counted_without_approval() {
     let mut r = review();
     r.add_line_comment("a.css", 2, "Eigener", None);
     assert_eq!(r.comment_count(), 1);
-    assert_eq!(r.send_label(), "Review absenden · 1 Kommentar");
+    assert_eq!(
+        r.send_label_msg().render(Lang::De),
+        "Review absenden · 1 Kommentar"
+    );
     // The rule stays: first decide on all suggestions.
     assert_eq!(r.send(), Err(SendError::Undecided(2)));
     r.decide("a", Some(Decision::Approved));
     r.decide("b", Some(Decision::Declined));
-    assert_eq!(r.send_label(), "Review absenden · 2 Kommentare");
+    assert_eq!(
+        r.send_label_msg().render(Lang::De),
+        "Review absenden · 2 Kommentare"
+    );
     assert_eq!(
         r.send(),
         Ok(vec!["Erster".to_string(), "Eigener".to_string()])
     );
-    assert_eq!(r.send_label(), "Gesendet");
+    assert_eq!(r.send_label_msg().render(Lang::De), "Gesendet");
 }
 
 #[test]
@@ -294,8 +309,8 @@ fn the_overall_state_follows_the_single_checks() {
     let mut r = review();
     with_checks(&mut r);
     assert_eq!(r.checks, Checks::Failed);
-    assert_eq!(r.check_runs[0].duration_label(), "1:35 Min.");
-    assert_eq!(r.check_runs[1].duration_label(), "12 Sek.");
+    assert_eq!(r.check_runs[0].duration_msg().render(Lang::De), "1:35 Min.");
+    assert_eq!(r.check_runs[1].duration_msg().render(Lang::De), "12 Sek.");
 }
 
 #[test]
@@ -307,7 +322,7 @@ fn only_a_failed_check_can_be_restarted() {
     assert!(r.restart_check("Tests"));
     assert!(!r.restart_check("Tests"), "already running");
     assert_eq!(r.check_runs[2].status, Checks::Running);
-    assert_eq!(r.check_runs[2].duration_label(), "läuft");
+    assert_eq!(r.check_runs[2].duration_msg().render(Lang::De), "läuft");
     // Lint is still red, so the overall state stays red.
     assert_eq!(r.checks, Checks::Failed);
 }
@@ -377,7 +392,7 @@ fn every_blocker_has_a_german_reason() {
         ReviewNotSent,
         ChangesRequested,
     ] {
-        assert!(b.reason().ends_with('.'), "{b:?}");
+        assert!(b.reason_msg().render(Lang::De).ends_with('.'), "{b:?}");
     }
 }
 

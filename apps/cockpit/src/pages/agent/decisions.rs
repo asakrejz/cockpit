@@ -160,7 +160,7 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
                 }}
             </p>
             <SuggestionCard state=SuggestionState::Pending>
-                <p class="t-subheadline">{plan.summary_msg.render(lang())}</p>
+                <p class="t-subheadline">{plan.summary.render(lang())}</p>
                 <p class="t-footnote t-secondary">{t!(AgentDecisionsFiles)}</p>
                 <ul class="ck-plan">
                     {plan
@@ -172,7 +172,7 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
                 <p class="t-footnote t-secondary">{t!(AgentDecisionsSteps)}</p>
                 <ol class="ck-plan">
                     {plan
-                        .steps_msg
+                        .steps
                         .iter()
                         .map(|s| view! { <li class="t-subheadline">{s.render(lang())}</li> })
                         .collect_view()}
@@ -183,7 +183,7 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
                             <p class="t-footnote t-secondary">{t!(AgentDecisionsRulesApply)}</p>
                             <ul class="ck-plan" aria-label=t!(AgentDecisionsRulesApply)>
                                 {plan
-                                    .rules_msg
+                                    .rules
                                     .iter()
                                     .map(|r| view! { <li class="t-subheadline">{r.render(lang())}</li> })
                                     .collect_view()}

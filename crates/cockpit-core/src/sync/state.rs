@@ -54,11 +54,6 @@ impl Problem {
             Problem::Other(m) => m.clone(),
         }
     }
-
-    /// The German text, for readers without a language.
-    pub fn text(&self) -> String {
-        self.msg().de()
-    }
 }
 
 /// How the sync of a source stands. If the source is missing from the list, it is off.
@@ -78,10 +73,12 @@ pub struct SourceState {
     /// Stays while the same kind of problem repeats, so "seit 10 Min." is stable.
     #[serde(default)]
     pub since_ms: Option<u64>,
-    /// Hints from the last successful fetch.
-    #[serde(default)]
+    /// Hints from the last successful fetch as plain German text; only a state saved earlier
+    /// holds them, new ones are in [`SourceState::warning_msgs`].
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
-    /// The same hints as code and parameters (shown in the current language); empty for old data.
+    /// Hints from the last successful fetch as code and parameters (shown in the reader's
+    /// language).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warning_msgs: Vec<cockpit_i18n::Msg>,
 }
@@ -89,6 +86,16 @@ pub struct SourceState {
 impl SourceState {
     pub fn is_ok(&self) -> bool {
         self.problem.is_none()
+    }
+
+    /// The hints of the last successful fetch in `lang`: their messages; for a state saved
+    /// earlier, which only has the plain texts, those.
+    pub fn warning_lines(&self, lang: cockpit_i18n::Lang) -> Vec<String> {
+        if self.warning_msgs.is_empty() {
+            self.warnings.clone()
+        } else {
+            self.warning_msgs.iter().map(|m| m.render(lang)).collect()
+        }
     }
 
     /// Short state statement for the UI and `/api/health`.
@@ -156,19 +163,7 @@ impl SyncState {
         source: Source,
         problem: Option<Problem>,
         now_ms: u64,
-        warn: &[String],
-    ) {
-        self.set_state_with(source, problem, now_ms, warn, &[]);
-    }
-
-    /// Like [`SyncState::set_state`], with the hints also as code and parameters.
-    pub(crate) fn set_state_with(
-        &mut self,
-        source: Source,
-        problem: Option<Problem>,
-        now_ms: u64,
-        warn: &[String],
-        warn_msgs: &[cockpit_i18n::Msg],
+        warnings: &[cockpit_i18n::Msg],
     ) {
         let entry = match self.sources.iter().position(|s| s.source == source) {
             Some(i) => &mut self.sources[i],
@@ -188,8 +183,8 @@ impl SyncState {
         entry.last_try_ms = now_ms;
         if problem.is_none() {
             entry.last_ok_ms = Some(now_ms);
-            entry.warnings = warn.iter().take(MAX_WARNINGS).cloned().collect();
-            entry.warning_msgs = warn_msgs.iter().take(MAX_WARNINGS).cloned().collect();
+            entry.warnings.clear();
+            entry.warning_msgs = warnings.iter().take(MAX_WARNINGS).cloned().collect();
         }
         entry.since_ms = match (&problem, &entry.problem) {
             (None, _) => None,

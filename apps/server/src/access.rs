@@ -144,7 +144,7 @@ pub async fn protect(State(access): State<Access>, request: Request, next: Next)
         access.container,
     ) {
         Ok(()) => next.run(request).await,
-        Err((status, message)) => (status, Json(ErrorBody::coded(message))).into_response(),
+        Err((status, message)) => (status, Json(ErrorBody::new(message))).into_response(),
     }
 }
 

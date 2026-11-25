@@ -79,11 +79,6 @@ impl Level {
             Level::Important => cockpit_i18n::msg!(CoreReviewLevelImportant),
         }
     }
-
-    /// [`Level::label_msg`] in German.
-    pub fn label(self) -> String {
-        self.label_msg().de()
-    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -278,11 +273,6 @@ impl Verdict {
         }
     }
 
-    /// [`Verdict::label_msg`] in German.
-    pub fn label(self) -> String {
-        self.label_msg().de()
-    }
-
     pub fn from_id(id: &str) -> Option<Verdict> {
         [Verdict::Comment, Verdict::Approve, Verdict::RequestChanges]
             .into_iter()
@@ -309,9 +299,6 @@ pub struct Review {
     pub title: String,
     #[serde(default)]
     pub description: String,
-    /// The description as code and parameters (pull requests the agent opens); `None` = only the text.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub description_msg: Option<cockpit_i18n::Msg>,
     pub author: Person,
     #[serde(default)]
     pub branch: String,
@@ -392,11 +379,6 @@ impl Review {
             declined = self.declined(),
             open = self.undecided()
         )
-    }
-
-    /// [`Review::summary_msg`] in German.
-    pub fn summary(&self) -> String {
-        self.summary_msg().de()
     }
 
     fn suggestion_mut(&mut self, id: &str) -> Option<&mut Suggestion> {

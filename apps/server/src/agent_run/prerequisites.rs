@@ -97,12 +97,10 @@ pub fn status(v: &Prerequisites) -> AgentStatus {
         ready: missing.is_empty(),
         image: v.image != ImageState::Missing,
         image_state: v.image,
-        image_hint: v.image_hint.as_ref().map(Msg::de),
-        image_hint_msg: v.image_hint.clone(),
+        image_hint: v.image_hint.clone(),
         image_name: IMAGE.into(),
         repo: None,
         repos: AgentRepos::default(),
-        missing: missing.iter().map(Msg::de).collect(),
-        missing_msgs: missing,
+        missing,
     }
 }

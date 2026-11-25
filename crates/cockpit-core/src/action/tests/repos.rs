@@ -5,6 +5,7 @@ use crate::agent::FollowupTask;
 use crate::demo::DEMO_REPO;
 use crate::demo::DEMO_REPO_TOKENS;
 use crate::model::PrKey;
+use cockpit_i18n::Lang;
 
 /// The demo plus `#87` in the second repo.
 fn two() -> Workspace {
@@ -71,9 +72,9 @@ fn the_log_names_the_repo_and_points_at_the_right_review() {
     let entry = w.log.last().unwrap();
     assert_eq!(entry.target, Some(Target::Review(second())));
     assert!(
-        entry.text.contains("acme/design-tokens#87"),
+        entry.text_in(Lang::De).contains("acme/design-tokens#87"),
         "{}",
-        entry.text
+        entry.text_in(Lang::De)
     );
 }
 

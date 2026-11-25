@@ -1,5 +1,6 @@
 use super::*;
 use crate::api::KeyResponse;
+use cockpit_i18n::Lang;
 use cockpit_i18n::Msg;
 
 #[test]
@@ -93,12 +94,16 @@ fn keys_are_trimmed_and_checked_without_echo() {
     assert_eq!(key_verify("  test-wert-123\n").unwrap(), "test-wert-123");
     for bad in ["", "   ", "a\nb", "a\u{0}b"] {
         let error = key_verify(bad).unwrap_err();
-        assert!(!error.de().contains('\u{0}'));
+        assert!(!error.render(Lang::De).contains('\u{0}'));
     }
     let long = "x".repeat(MAX_KEYS + 1);
     assert!(key_verify(&long).is_err());
     let msg = key_verify("geheim\nzwei").unwrap_err();
-    assert!(!msg.de().contains("geheim"), "{}", msg.de());
+    assert!(
+        !msg.render(Lang::De).contains("geheim"),
+        "{}",
+        msg.render(Lang::De)
+    );
 }
 
 #[test]
@@ -242,7 +247,7 @@ fn summary_explains_in_plain_words() {
     let z = summary(&s);
     assert_eq!(z[3].tone, Tone::Problem);
     assert_eq!(z[3].step, Step::GitHub);
-    assert!(z[3].text.de().contains("Client-Secret"));
+    assert!(z[3].text.render(Lang::De).contains("Client-Secret"));
 
     // Both there, only signing in missing: open with instructions.
     s.setup.keys = vec![KeyResponse {
@@ -251,7 +256,7 @@ fn summary_explains_in_plain_words() {
     }];
     let z = summary(&s);
     assert_eq!(z[3].tone, Tone::Open);
-    assert!(z[3].text.de().contains("Mit GitHub anmelden"));
+    assert!(z[3].text.render(Lang::De).contains("Mit GitHub anmelden"));
 
     // Signed in is enough: without any repo the pull requests are found by search.
     s.github = oauth(true);
@@ -275,7 +280,7 @@ fn container_and_model_lines() {
     s.endpoint.configured = true;
     assert_eq!(summary(&s)[4].tone, Tone::Problem);
     s.endpoint.key = true;
-    assert!(summary(&s)[4].text.de().contains("Modellname"));
+    assert!(summary(&s)[4].text.render(Lang::De).contains("Modellname"));
     s.endpoint.model = Some("m".into());
     assert_eq!(summary(&s)[4].tone, Tone::Open);
     s.check = Some(EndpointCheck {
@@ -284,7 +289,6 @@ fn container_and_model_lines() {
         key_ok: true,
         model_present: true,
         hint: None,
-        msg: None,
     });
     assert_eq!(summary(&s)[4].tone, Tone::Good);
 }
@@ -295,11 +299,21 @@ fn test_result_tells_where_it_failed() {
         configured: true,
         ..Default::default()
     };
-    assert!(check_plain_text(&p).1.de().contains("antwortet nicht"));
+    assert!(
+        check_plain_text(&p)
+            .1
+            .render(Lang::De)
+            .contains("antwortet nicht")
+    );
     p.reachable = true;
-    assert!(check_plain_text(&p).1.de().contains("Key"));
+    assert!(check_plain_text(&p).1.render(Lang::De).contains("Key"));
     p.key_ok = true;
-    assert!(check_plain_text(&p).1.de().contains("Modellnamen"));
+    assert!(
+        check_plain_text(&p)
+            .1
+            .render(Lang::De)
+            .contains("Modellnamen")
+    );
     p.model_present = true;
     assert_eq!(check_plain_text(&p).0, Tone::Good);
     assert_eq!(check_plain_text(&EndpointCheck::default()).0, Tone::Open);
@@ -312,7 +326,7 @@ fn summary_asks_for_the_image_when_the_agent_needs_it() {
     s.container.engine_running = true;
     let z = &summary(&s)[0];
     assert_eq!(z.tone, Tone::Open);
-    assert!(z.text.de().contains("Image bauen"));
+    assert!(z.text.render(Lang::De).contains("Image bauen"));
     s.agent.image = true;
     assert_eq!(summary(&s)[0].tone, Tone::Good);
 }
@@ -329,17 +343,19 @@ fn endpoint_kinds_roundtrip_and_follow_the_url() {
     assert!(
         !EndpointKind::Direct
             .explanation(Provider::ClaudeCode)
-            .de()
+            .render(Lang::De)
             .contains("LiteLLM")
     );
     assert!(
         EndpointKind::Direct
             .explanation(Provider::Codex)
-            .de()
+            .render(Lang::De)
             .contains("OpenAI")
     );
     assert_eq!(
-        EndpointKind::Direct.key_label(Provider::Codex).de(),
+        EndpointKind::Direct
+            .key_label(Provider::Codex)
+            .render(Lang::De),
         "OpenAI-API-Key"
     );
 }
@@ -358,7 +374,7 @@ fn model_choice_keeps_an_unknown_saved_model_visible() {
     assert!(
         model_hint(&list, "alt-modell")
             .unwrap()
-            .de()
+            .render(Lang::De)
             .contains("alt-modell")
     );
 
@@ -384,12 +400,16 @@ fn hand_typed_model_names_are_checked() {
 #[test]
 fn the_summary_names_the_chosen_tool() {
     let mut s = Snapshot::default();
-    assert!(!summary(&s)[4].text.de().contains("Codex"));
+    assert!(!summary(&s)[4].text.render(Lang::De).contains("Codex"));
     s.endpoint.provider = Provider::Codex;
     s.endpoint.configured = true;
     let z = &summary(&s)[4];
     assert_eq!(z.tone, Tone::Problem);
-    assert!(z.text.de().starts_with("Codex: "), "{}", z.text.de());
+    assert!(
+        z.text.render(Lang::De).starts_with("Codex: "),
+        "{}",
+        z.text.render(Lang::De)
+    );
 }
 
 #[test]
@@ -404,15 +424,24 @@ fn jira_line_names_the_kind_of_login() {
         ..Default::default()
     };
     let z = &summary(&s)[2];
-    assert_eq!((z.tone, z.name.de()), (Tone::Good, "Jira".to_string()));
-    assert!(z.text.de().contains("mit API-Token"), "{}", z.text.de());
+    assert_eq!(
+        (z.tone, z.name.render(Lang::De)),
+        (Tone::Good, "Jira".to_string())
+    );
+    assert!(
+        z.text.render(Lang::De).contains("mit API-Token"),
+        "{}",
+        z.text.render(Lang::De)
+    );
     s.jira = oauth(true);
     let z = &summary(&s)[2];
     assert_eq!(z.tone, Tone::Good);
     assert!(
-        z.text.de().contains("über Atlassian angemeldet"),
+        z.text
+            .render(Lang::De)
+            .contains("über Atlassian angemeldet"),
         "{}",
-        z.text.de()
+        z.text.render(Lang::De)
     );
 }
 
@@ -421,23 +450,27 @@ fn jira_line_says_what_the_token_way_lacks() {
     let mut s = Snapshot::default();
     let z = &summary(&s)[2];
     assert_eq!(z.tone, Tone::Open);
-    assert!(z.text.de().contains("API-Token"));
+    assert!(z.text.render(Lang::De).contains("API-Token"));
     s.setup.jira_site = "https://firma.atlassian.net".into();
     let z = &summary(&s)[2];
     assert!(
-        z.text.de().contains("E-Mail-Adresse, Token"),
+        z.text.render(Lang::De).contains("E-Mail-Adresse, Token"),
         "{}",
-        z.text.de()
+        z.text.render(Lang::De)
     );
     s.setup.jira_email = "a@b.de".into();
     let z = &summary(&s)[2];
-    assert!(z.text.de().ends_with(": Token."), "{}", z.text.de());
+    assert!(
+        z.text.render(Lang::De).ends_with(": Token."),
+        "{}",
+        z.text.render(Lang::De)
+    );
     // The way via the app is kept.
     let mut o = Snapshot::default();
     o.setup.atlassian_client_id = Some("id".into());
     let z = &summary(&o)[2];
     assert_eq!(z.tone, Tone::Problem);
-    assert!(z.text.de().contains("Client-Secret"));
+    assert!(z.text.render(Lang::De).contains("Client-Secret"));
 }
 
 #[test]
@@ -466,18 +499,18 @@ fn jira_test_texts_never_mention_a_token_value() {
         JiraCause::Reachable,
         JiraCause::Other,
     ] {
-        let t = jira_check_text(u, Some("Ada")).de();
+        let t = jira_check_text(u, Some("Ada")).render(Lang::De);
         assert!(!t.is_empty());
         assert!(!t.contains("test-wert"));
     }
     assert!(
         jira_check_text(JiraCause::Ok, Some("Ada"))
-            .de()
+            .render(Lang::De)
             .contains("kennt dich: Ada")
     );
     assert!(
         jira_check_text(JiraCause::Ok, None)
-            .de()
+            .render(Lang::De)
             .ends_with("kennt dich.")
     );
 }
@@ -511,7 +544,11 @@ fn branch_pattern_defaults_and_is_validated() {
     assert_eq!(a.repos[1].branch_pattern, "feature/{ticket}-{slug}");
     for bad in ["main", "feature/{slug}", "{x}/{ticket}", "a b/{ticket}"] {
         let e = agent_repos_read(&[row_with("a/b", bad)], "").unwrap_err();
-        assert!(e.de().starts_with("a/b:"), "{}", e.de());
+        assert!(
+            e.render(Lang::De).starts_with("a/b:"),
+            "{}",
+            e.render(Lang::De)
+        );
     }
 }
 
@@ -547,7 +584,7 @@ fn agent_repos_rows_with_mistakes_say_what_is_wrong() {
         (vec![row("a/b", "")], "a/c", "Standard-Repo"),
     ] {
         let e = agent_repos_read(&rows, default).unwrap_err();
-        assert!(e.de().contains(part), "{}", e.de());
+        assert!(e.render(Lang::De).contains(part), "{}", e.render(Lang::De));
     }
 }
 
@@ -588,11 +625,11 @@ fn webhook_texts() {
     );
     assert!(
         webhook_received_text(None, None, 5)
-            .de()
+            .render(Lang::De)
             .starts_with("Noch nichts")
     );
     assert_eq!(
-        webhook_received_text(Some(0), Some("check_run"), 180_000).de(),
+        webhook_received_text(Some(0), Some("check_run"), 180_000).render(Lang::De),
         "Zuletzt empfangen vor 3 Minuten (check_run)."
     );
 }
@@ -615,16 +652,16 @@ fn github_texts_never_name_a_token_and_the_ok_names_the_user() {
         GitHubCause::Network,
         GitHubCause::Other,
     ] {
-        let t = github_check_text(c, Some("ada")).de();
+        let t = github_check_text(c, Some("ada")).render(Lang::De);
         assert!(!t.is_empty() && !t.contains("ghp_"), "{c:?}");
     }
     assert!(
         github_check_text(GitHubCause::Ok, Some("ada"))
-            .de()
+            .render(Lang::De)
             .contains("als ada")
     );
     assert_eq!(
-        github_check_text(GitHubCause::Ok, None).de(),
+        github_check_text(GitHubCause::Ok, None).render(Lang::De),
         "GitHub antwortet."
     );
 }
@@ -673,7 +710,7 @@ fn a_repo_page_keeps_the_order_and_says_what_it_left_out() {
 
 #[test]
 fn the_repo_summary_says_found_selected_and_the_search() {
-    let de = |f, sh, sel, tr| repo_summary(f, sh, sel, tr).de();
+    let de = |f, sh, sel, tr| repo_summary(f, sh, sel, tr).render(Lang::De);
     assert_eq!(de(23, 23, 2, false), "Gefunden: 23. Ausgewählt: 2.");
     assert_eq!(
         de(23, 4, 2, false),
@@ -760,7 +797,11 @@ fn github_summary_says_when_repos_are_hidden_or_the_sign_in_ran_out() {
     s.github_access = Some(sight(RepoVisibility::NotVisible));
     let z = &summary(&s)[3];
     assert_eq!(z.tone, Tone::Problem);
-    assert!(z.text.de().contains("acme/app"), "{}", z.text.de());
+    assert!(
+        z.text.render(Lang::De).contains("acme/app"),
+        "{}",
+        z.text.render(Lang::De)
+    );
     // An expired sign-in without a token is not "not set up".
     let mut s = Snapshot {
         github: ServiceStatus {
@@ -772,7 +813,11 @@ fn github_summary_says_when_repos_are_hidden_or_the_sign_in_ran_out() {
     s.setup.github_client_id = Some("Iv1.dummy".into());
     let z = &summary(&s)[3];
     assert_eq!(z.tone, Tone::Problem);
-    assert!(z.text.de().contains("abgelaufen"), "{}", z.text.de());
+    assert!(
+        z.text.render(Lang::De).contains("abgelaufen"),
+        "{}",
+        z.text.render(Lang::De)
+    );
 }
 
 #[test]
@@ -816,7 +861,12 @@ fn the_summary_reflects_only_the_chosen_ticket_source() {
     // The source line names the choice.
     let mut s = Snapshot::default();
     s.setup.github_projects.tickets_from = crate::TicketsFrom::GitHubProjects;
-    assert!(summary(&s)[1].text.de().starts_with("GitHub Projects"));
+    assert!(
+        summary(&s)[1]
+            .text
+            .render(Lang::De)
+            .starts_with("GitHub Projects")
+    );
     assert!(
         summary(&s)[1]
             .text

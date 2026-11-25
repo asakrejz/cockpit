@@ -1,6 +1,6 @@
 //! The small words the log sentences and refusals are built from, as messages: statuses,
-//! priorities, reasons and so on. They read the same in the German text of an old reader and in the
-//! language of the UI.
+//! priorities, reasons and so on. They are nested into the sentences and read in the language of
+//! the UI.
 //! (A text from outside goes through `Msg::raw`, which is the catalog key `CommonRaw`.)
 
 use cockpit_i18n::{ArgValue, Msg, msg};
@@ -197,7 +197,7 @@ pub(crate) fn blocker(b: MergeBlocker) -> Msg {
     }
 }
 
-/// Short name of a run for log sentences (what `AgentRun::label` says in German).
+/// Short name of a run for log sentences (what `AgentRun::label_msg` says).
 pub(crate) fn run_label(run: &AgentRun) -> Msg {
     match &run.kind {
         RunKind::Implement => Msg::raw(run.ticket_key.clone()),

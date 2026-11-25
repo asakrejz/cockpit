@@ -1,5 +1,6 @@
 use super::*;
 use crate::agent::Closure;
+use cockpit_i18n::Lang;
 
 fn facts() -> DeleteFacts<'static> {
     DeleteFacts {
@@ -31,7 +32,7 @@ fn an_open_pull_request_keeps_its_branch() {
         ..facts()
     })
     .unwrap_err();
-    assert!(e.contains("noch offen"), "{e}");
+    assert!(e.render(Lang::De).contains("noch offen"), "{e:?}");
 }
 
 #[test]
@@ -56,12 +57,22 @@ fn base_default_and_protected_branches_stay() {
         default_branch: "claude/BAU-1-x",
         ..facts()
     };
-    assert!(deletable(&f).unwrap_err().contains("Standard-Branch"));
+    assert!(
+        deletable(&f)
+            .unwrap_err()
+            .render(Lang::De)
+            .contains("Standard-Branch")
+    );
     let f = DeleteFacts {
         protected: true,
         ..facts()
     };
-    assert!(deletable(&f).unwrap_err().contains("geschützt"));
+    assert!(
+        deletable(&f)
+            .unwrap_err()
+            .render(Lang::De)
+            .contains("geschützt")
+    );
 }
 
 #[test]
@@ -72,7 +83,12 @@ fn a_name_outside_the_pattern_stays() {
         run_branch: "feature/BAU-1-x",
         ..facts()
     };
-    assert!(deletable(&f).unwrap_err().contains("Muster"));
+    assert!(
+        deletable(&f)
+            .unwrap_err()
+            .render(Lang::De)
+            .contains("Muster")
+    );
 }
 
 #[test]
@@ -81,7 +97,12 @@ fn only_the_branch_of_the_run_and_its_pull_request() {
         pull_head: "claude/BAU-2-y",
         ..facts()
     };
-    assert!(deletable(&f).unwrap_err().contains("gehört nicht"));
+    assert!(
+        deletable(&f)
+            .unwrap_err()
+            .render(Lang::De)
+            .contains("gehört nicht")
+    );
     let f = DeleteFacts {
         run_branch: "claude/BAU-2-y",
         ..facts()

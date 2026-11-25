@@ -8,11 +8,9 @@ use super::*;
 pub(super) async fn endpoint_check(State(state): State<AppState>) -> Response {
     let choice = state.agent_choice();
     let Some(e) = choice.endpoint.clone() else {
-        let not_set_up = cockpit_i18n::msg!(ServerMiscEndpointNotSetUp);
         // Without an entry there is nothing to check (not even "direct": first the person chooses a model).
         return Json(cockpit_core::api::EndpointCheck {
-            hint: Some(not_set_up.de()),
-            msg: Some(not_set_up),
+            hint: Some(cockpit_i18n::msg!(ServerMiscEndpointNotSetUp)),
             ..Default::default()
         })
         .into_response();
@@ -86,20 +84,16 @@ pub(super) async fn pull_request_preview(
     }
 }
 
-pub(super) async fn api_unknown() -> (StatusCode, Json<serde_json::Value>) {
-    let msg = cockpit_i18n::msg!(ServerMiscUnknownAddress);
+pub(super) async fn api_unknown() -> (StatusCode, Json<ErrorBody>) {
     (
         StatusCode::NOT_FOUND,
-        Json(serde_json::json!({
-            "error": msg.de(),
-            "msg": msg,
-        })),
+        Json(ErrorBody::new(cockpit_i18n::msg!(ServerMiscUnknownAddress))),
     )
 }
 
-/// Like [`error`], with the message as code and parameters (the UI shows it in its language).
+/// An error answer with the message as code and parameters (the UI shows it in its language).
 pub(crate) fn error_msg(status: StatusCode, msg: cockpit_i18n::Msg) -> Response {
-    (status, Json(ErrorBody::coded(msg))).into_response()
+    (status, Json(ErrorBody::new(msg))).into_response()
 }
 
 /// `GET /api/workspace`: the current state, shape of `cockpit_core::persist` plus `revision`.

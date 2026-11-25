@@ -1,5 +1,6 @@
 use super::*;
 use crate::agent::{FollowupTask, PullRequestRef};
+use cockpit_i18n::Lang;
 
 /// Review #85 on an agent branch with a red check.
 fn ws85() -> Workspace {
@@ -30,7 +31,7 @@ fn done_ws() -> Workspace {
         &mut w,
         "BAU-142",
         AgentReport::Started {
-            detail: "docker".into(),
+            detail: cockpit_i18n::Msg::raw("docker"),
         },
     )
     .unwrap();
@@ -50,7 +51,7 @@ fn done_ws() -> Workspace {
                 repo: crate::demo::DEMO_REPO.into(),
                 state: crate::agent::RunRepoState::Pushed,
                 files: vec!["src/ring.rs".into()],
-                reason: String::new(),
+                reason: None,
             }],
         },
     )
@@ -59,7 +60,7 @@ fn done_ws() -> Workspace {
         &mut w,
         "BAU-142",
         AgentReport::Done {
-            summary: "Fokus-Ring ergänzt.".into(),
+            summary: cockpit_i18n::Msg::raw("Fokus-Ring ergänzt."),
         },
     )
     .unwrap();
@@ -240,7 +241,7 @@ fn a_real_followup_finishes_with_a_note_and_no_new_branch_on_a_ticket() {
         &mut w,
         "threads-acme~app-85",
         AgentReport::Started {
-            detail: "docker".into(),
+            detail: cockpit_i18n::Msg::raw("docker"),
         },
     )
     .unwrap();
@@ -248,7 +249,7 @@ fn a_real_followup_finishes_with_a_note_and_no_new_branch_on_a_ticket() {
         &mut w,
         "threads-acme~app-85",
         AgentReport::Done {
-            summary: "Zwei Kommentare umgesetzt.".into(),
+            summary: cockpit_i18n::Msg::raw("Zwei Kommentare umgesetzt."),
         },
     )
     .unwrap();
@@ -263,7 +264,12 @@ fn a_real_followup_finishes_with_a_note_and_no_new_branch_on_a_ticket() {
         .iter()
         .find(|i| i.pr.as_ref().is_some_and(|p| p.number == 85))
         .unwrap();
-    assert!(item.agent_note.as_deref().unwrap().contains("gepusht"));
+    assert!(
+        item.agent_note_in(Lang::De)
+            .as_deref()
+            .unwrap()
+            .contains("gepusht")
+    );
     // Afterwards the next job may start.
     ok(
         &mut w,
@@ -312,7 +318,7 @@ fn creating_the_pull_request_is_booked_once() {
     let last = w.log.last().unwrap();
     assert_eq!(last.actor, Actor::User);
     assert_eq!(last.target, Some(Target::Run("BAU-142".into())));
-    assert!(last.text.contains("#130") && last.text.contains("angelegt"));
+    assert!(last.text_in(Lang::De).contains("#130") && last.text_in(Lang::De).contains("angelegt"));
     let run = w.run("BAU-142").unwrap();
     assert_eq!(run.pr_number, Some(130));
     assert_eq!(run.pull_request.as_ref().unwrap().number, 130);
@@ -330,7 +336,7 @@ fn an_existing_pull_request_is_linked_not_created() {
     let mut w = done_ws();
     create(&mut w, pull(77, true)).unwrap();
     let last = w.log.last().unwrap();
-    assert!(last.text.contains("#77") && last.text.contains("schon"));
+    assert!(last.text_in(Lang::De).contains("#77") && last.text_in(Lang::De).contains("schon"));
     assert!(w.run("BAU-142").unwrap().pull_request.unwrap().existed);
 }
 

@@ -115,7 +115,7 @@ pub fn OAuthCard(
         spawn_local(async move {
             match server::post_revoke(service.id()).await {
                 Ok(answer) => {
-                    let mut hint = answer.hint.map(|h| server::shown(&h, answer.msg.as_ref()));
+                    let mut hint = answer.hint.map(|h| h.render(lang_untracked()));
                     if forget_too {
                         match forget_client(service).await {
                             Ok(()) => {

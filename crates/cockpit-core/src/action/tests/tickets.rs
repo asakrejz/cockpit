@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[test]
 fn editing_a_ticket_changes_title_and_description() {
@@ -112,7 +113,7 @@ fn assigning_to_me_triggers_the_assigned_rule() {
     assert!(!item.read, "newly assigned means unread again");
     let hits = w.hits(item, T);
     assert_eq!(
-        hits.first().map(|h| (h.rule, h.text.de())),
+        hits.first().map(|h| (h.rule, h.text.render(Lang::De))),
         Some((Rule::Assigned, "Dir zugewiesen".to_string()))
     );
     assert!(

@@ -14,7 +14,7 @@ async fn atlassian_a_site_is_automatic_chosen() {
         ort.starts_with("http://127.0.0.1:8787/?oauth=ok&service=atlassian"),
         "{ort}"
     );
-    assert!(param(&ort, "message").contains("firma"));
+    assert!(message(&ort).contains("firma"));
     assert_eq!(
         p.state.atlassian_site(),
         Some(("cloud-1".into(), "firma".into()))
@@ -48,7 +48,7 @@ async fn atlassian_several_sites_need_a_choice() {
     let p = snapshot(&server, None, true);
     let ort = atlassian_sign_in(&p).await;
     assert!(ort.contains("oauth=error"), "{ort}");
-    let message = param(&ort, "message");
+    let message = message(&ort);
     assert!(
         message.contains("firma") && message.contains("privat"),
         "{message}"

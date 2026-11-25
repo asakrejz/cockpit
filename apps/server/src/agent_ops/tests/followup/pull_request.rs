@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 // ---------- Pull request ----------
 
@@ -83,7 +84,7 @@ async fn the_pull_request_is_created_only_on_the_action_and_with_the_edited_text
     assert_eq!(run.pr_number, Some(31));
     let entry = w.ws().log.last().cloned().unwrap();
     assert_eq!(entry.actor, Actor::User);
-    assert!(entry.text.contains("#31"));
+    assert!(entry.text_in(Lang::De).contains("#31"));
     // Nothing else was called: no merge, no review request, no PATCH.
     let others: Vec<String> = github
         .received_requests()
@@ -121,7 +122,14 @@ async fn an_existing_pull_request_is_linked_instead_of_duplicated() {
     w.action(create("BAU-142: x")).await.unwrap();
     let pull = w.run().pull_request.unwrap();
     assert_eq!((pull.number, pull.existed), (12, true));
-    assert!(w.ws().log.last().unwrap().text.contains("schon"));
+    assert!(
+        w.ws()
+            .log
+            .last()
+            .unwrap()
+            .text_in(Lang::De)
+            .contains("schon")
+    );
 }
 
 #[tokio::test]

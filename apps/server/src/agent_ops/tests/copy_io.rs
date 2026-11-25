@@ -4,6 +4,7 @@
 use super::super::copy_io::{open_up, tighten};
 use super::followup::pr_welt;
 use super::*;
+use cockpit_i18n::Lang;
 use wiremock::MockServer;
 
 /// The same world, but with `COCKPIT_AGENT_IO=copy`.
@@ -55,7 +56,11 @@ async fn a_run_copies_in_starts_copies_out_and_pushes_from_the_backend() {
     w.wait_for_end().await;
     let run = w.run();
     assert_eq!(run.files, ["neu.txt"]);
-    assert!(run.summary.contains("gepusht"), "{}", run.summary);
+    assert!(
+        german(&run.summary).contains("gepusht"),
+        "{:?}",
+        run.summary
+    );
     assert_eq!(w.branches(), [BRANCH, "main"]);
 
     let all = calls(&w);
@@ -234,7 +239,7 @@ async fn a_failing_create_is_reported_and_leaves_nothing() {
     assert!(
         run.messages
             .iter()
-            .any(|m| m.text.contains("no such image")),
+            .any(|m| m.text_in(Lang::De).contains("no such image")),
         "{:?}",
         run.messages
     );
@@ -258,7 +263,8 @@ async fn a_failing_copy_in_removes_the_container_again() {
     assert!(
         run.messages
             .iter()
-            .any(|m| m.text.contains("kopieren") && m.text.contains("No such container")),
+            .any(|m| m.text_in(Lang::De).contains("kopieren")
+                && m.text_in(Lang::De).contains("No such container")),
         "{:?}",
         run.messages
     );

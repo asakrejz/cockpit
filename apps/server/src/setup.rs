@@ -122,8 +122,7 @@ impl AppState {
         Ok(ConfigResponse {
             stored: true,
             takes_effect_immediately: true,
-            hint: hint.as_ref().map(Msg::de),
-            msg: hint,
+            hint,
         })
     }
 

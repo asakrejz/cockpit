@@ -62,7 +62,7 @@ fn working_and_waiting_runs_cannot_be_removed() {
         fails(
             &mut w,
             Action::RemoveAgentRun { run: "A-1".into() },
-            ActionError::RunStillActive("A-1".into()),
+            ActionError::RunStillActive(cockpit_i18n::Msg::raw("A-1")),
         );
         assert_eq!(w.runs.len(), 1, "{state:?}");
     }

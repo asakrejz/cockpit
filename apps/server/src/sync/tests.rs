@@ -1,3 +1,4 @@
+use cockpit_i18n::Lang;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -64,7 +65,15 @@ async fn sync(state: &AppState) -> (StatusCode, serde_json::Value) {
         .body(Body::empty())
         .unwrap();
     let (s, b) = send_request(state, req).await;
-    (s, serde_json::from_str(&b).unwrap_or(json!({"roh": b})))
+    (
+        s,
+        serde_json::from_str(&b)
+            .map(|mut v| {
+                crate::german::german_value(&mut v);
+                v
+            })
+            .unwrap_or(json!({"roh": b})),
+    )
 }
 
 async fn action(state: &AppState, action: serde_json::Value) -> (StatusCode, String) {
@@ -85,7 +94,7 @@ async fn snapshot(state: &AppState) -> (Workspace, u64) {
 
 async fn health(state: &AppState) -> serde_json::Value {
     let req = request("GET", "/api/health").body(Body::empty()).unwrap();
-    serde_json::from_str(&send_request(state, req).await.1).unwrap()
+    crate::german::german_json(&send_request(state, req).await.1)
 }
 
 fn ok(v: serde_json::Value) -> ResponseTemplate {
@@ -240,7 +249,7 @@ async fn chosen_project_determines_the_query() {
     let item = ws
         .item_by_key("WEB-7")
         .expect("ticket from the selected project");
-    assert_eq!(item.reason_line().de(), "Im Projekt");
+    assert_eq!(item.reason_line().render(Lang::De), "Im Projekt");
     assert_eq!(ws.jira_project.as_deref(), Some("WEB"));
 }
 
@@ -429,10 +438,10 @@ async fn fails_the_call_missing_changes_itself_nothing() {
     let (status, body) = action(&state, json!({"Reply": {"item": "gh-a-x-7", "text": "Hi"}})).await;
     assert_eq!(status, StatusCode::BAD_GATEWAY);
     assert!(
-        body.contains("GitHub hat die Aktion nicht ausgeführt"),
+        crate::german::german(&body).contains("GitHub hat die Aktion nicht ausgeführt"),
         "{body}"
     );
-    assert!(body.contains("Es wurde nichts geändert"));
+    assert!(crate::german::german(&body).contains("Es wurde nichts geändert"));
     assert!(!body.contains(TOKEN), "the key never shows up: {body}");
     let (afterwards, rev2) = snapshot(&state).await;
     assert_eq!((before, rev), (afterwards, rev2));
@@ -472,7 +481,7 @@ async fn rules_apply_before_the_call() {
     )
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
-    assert!(body.contains("Mergen geht noch nicht"));
+    assert!(crate::german::german(&body).contains("Mergen geht noch nicht"));
     // The sync is a matter of the system, not of the interface.
     let (status, _) = action(&state, json!({"SyncRemote": {"remote": {}}})).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);

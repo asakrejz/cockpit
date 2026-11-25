@@ -1,6 +1,6 @@
 //! Safety net around the `.env` file. The risk of keeping credentials in a file in the repo is
 //! accepted, so it is kept small: the file must not be tracked by Git, must be covered by
-//! `.gitignore` and must not be readable by others. Warnings are plain German text for the user.
+//! `.gitignore` and must not be readable by others. The warnings are messages for the user.
 //!
 //! Git is asked through the `git` program; without it (or outside a repository) the checks are
 //! skipped silently. Nothing here reads the file's content.
@@ -18,10 +18,8 @@ const CACHE_TTL: Duration = Duration::from_secs(15);
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct EnvFileStatus {
     pub path: String,
-    /// German text of the warnings (for readers that only know plain text).
-    pub warnings: Vec<String>,
-    /// The same warnings as code and parameters; the interface shows them in its language.
-    pub warning_msgs: Vec<Msg>,
+    /// The warnings as code and parameters; the interface shows them in its language.
+    pub warnings: Vec<Msg>,
 }
 
 /// Checks the file without changing anything (cached for a few seconds).
@@ -34,27 +32,20 @@ pub fn status(path: &Path) -> EnvFileStatus {
     {
         return status_of(path, w.clone());
     }
-    let warnings = check_msgs(path);
+    let warnings = check(path);
     *cache = Some((path.to_path_buf(), Instant::now(), warnings.clone()));
     status_of(path, warnings)
 }
 
-fn status_of(path: &Path, warning_msgs: Vec<Msg>) -> EnvFileStatus {
+fn status_of(path: &Path, warnings: Vec<Msg>) -> EnvFileStatus {
     EnvFileStatus {
         path: path.display().to_string(),
-        warnings: warning_msgs.iter().map(Msg::de).collect(),
-        warning_msgs,
+        warnings,
     }
 }
 
-/// All warnings for the file at `path` in German; changes nothing.
-#[cfg(test)]
-pub fn check(path: &Path) -> Vec<String> {
-    check_msgs(path).iter().map(Msg::de).collect()
-}
-
 /// All warnings for the file at `path` as messages; changes nothing.
-pub fn check_msgs(path: &Path) -> Vec<Msg> {
+pub fn check(path: &Path) -> Vec<Msg> {
     let mut warnings = Vec::new();
     if let Some(mode) = loose_mode(path) {
         warnings.push(msg!(
@@ -157,11 +148,6 @@ impl Finding {
             ),
         }
     }
-}
-
-#[cfg(test)]
-fn git_warnings(path: &Path) -> Vec<String> {
-    git_messages(path).iter().map(Msg::de).collect()
 }
 
 fn git_messages(path: &Path) -> Vec<Msg> {

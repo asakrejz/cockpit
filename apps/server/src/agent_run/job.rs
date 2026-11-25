@@ -42,14 +42,15 @@ pub fn job_json(
     let item = ws.item_by_key(&run.ticket_key);
     let comments: Vec<String> = item
         .map(|i| {
+            let lang = ws.language.unwrap_or_default();
             i.comments
                 .iter()
                 .rev()
                 .take(10)
                 .rev()
                 .map(|c| {
-                    let name = c.author.name_in(ws.language.unwrap_or_default());
-                    truncate(&format!("{name}: {}", c.text), 800)
+                    let name = c.author.name_in(lang);
+                    truncate(&format!("{name}: {}", c.text_in(lang)), 800)
                 })
                 .collect()
         })

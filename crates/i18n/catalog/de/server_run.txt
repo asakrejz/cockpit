@@ -75,6 +75,7 @@ server_run.plan_got_result = Der Container hat statt eines Plans ein Ergebnis ge
 server_run.branch_mismatch = Der Container meldet den Branch „{got}“, erwartet war „{expected}“. Es wird nichts gepusht.
 server_run.done_pushed.one = {text} Branch {branch} ist gepusht ({n} Datei).
 server_run.done_pushed.other = {text} Branch {branch} ist gepusht ({n} Dateien).
+server_run.done_summary = {text}\n{repos}
 server_run.restart_lost = Der Server wurde neu gestartet, dabei ging der Container verloren. Starte den Lauf bei Bedarf neu.
 server_run.git_not_started = git lässt sich nicht starten: {error}. Ist Git installiert?
 server_run.git_no_message = ohne Fehlermeldung

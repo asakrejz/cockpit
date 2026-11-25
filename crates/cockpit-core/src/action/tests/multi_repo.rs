@@ -23,9 +23,9 @@ fn result(repo: &str, state: RunRepoState) -> RepoResult {
         state,
         files: vec!["src/a.rs".into()],
         reason: if state == RunRepoState::Refused {
-            "forbidden path".into()
+            Some(cockpit_i18n::Msg::raw("forbidden path"))
         } else {
-            String::new()
+            None
         },
     }
 }
@@ -45,7 +45,7 @@ fn done() -> Workspace {
         &mut w,
         "BAU-142",
         AgentReport::Started {
-            detail: "docker".into(),
+            detail: cockpit_i18n::Msg::raw("docker"),
         },
     )
     .unwrap();
@@ -65,7 +65,7 @@ fn done() -> Workspace {
         &mut w,
         "BAU-142",
         AgentReport::Done {
-            summary: "Done.".into(),
+            summary: cockpit_i18n::Msg::raw("Done."),
         },
     )
     .unwrap();
@@ -152,7 +152,7 @@ fn the_pull_request_text_links_the_sibling_pull_requests() {
         &mut w,
         "BAU-142",
         AgentReport::Started {
-            detail: "docker".into(),
+            detail: cockpit_i18n::Msg::raw("docker"),
         },
     )
     .unwrap();
@@ -171,7 +171,7 @@ fn the_pull_request_text_links_the_sibling_pull_requests() {
         &mut w,
         "BAU-142",
         AgentReport::Done {
-            summary: "Done.".into(),
+            summary: cockpit_i18n::Msg::raw("Done."),
         },
     )
     .unwrap();

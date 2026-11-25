@@ -229,7 +229,8 @@ async fn invalid_inputs_change_nothing_and_say_why() {
     .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     assert!(
-        body.contains("kein-repo") && body.contains("firma/app"),
+        crate::german::german(&body).contains("kein-repo")
+            && crate::german::german(&body).contains("firma/app"),
         "{body}"
     );
     assert_eq!(std::fs::read_to_string(&p.path).unwrap(), WITH_COMMENTS);

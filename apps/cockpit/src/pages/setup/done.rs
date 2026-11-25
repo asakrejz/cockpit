@@ -150,12 +150,12 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                                 {t!(SetupDoneEnvFile)} " "
                                 <code>{datei.path}</code>
                             </p>
-                            {server::shown_list(&datei.warnings, &datei.warning_msgs)
-                                .into_iter()
+                            {datei.warnings
+                                .iter()
                                 .map(|w| {
                                     view! {
                                         <p class="t-footnote" role="alert" style="padding-inline: 4px; color: var(--red, #c00)">
-                                            {w}
+                                            {w.render(lang())}
                                         </p>
                                     }
                                 })
@@ -174,12 +174,12 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                                 {t!(SetupDoneConfigFiles)} " "
                                 <code>{ordner.path}</code>
                             </p>
-                            {server::shown_list(&ordner.warnings, &ordner.warning_msgs)
-                                .into_iter()
+                            {ordner.warnings
+                                .iter()
                                 .map(|w| {
                                     view! {
                                         <p class="t-footnote" role="alert" style="padding-inline: 4px; color: var(--red, #c00)">
-                                            {w}
+                                            {w.render(lang())}
                                         </p>
                                     }
                                 })

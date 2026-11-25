@@ -83,7 +83,7 @@ fn a_followup_counts_for_the_team_and_nobody_but_you_merges() {
         &mut w,
         "threads-acme~app-91",
         AgentReport::Started {
-            detail: "docker".into(),
+            detail: cockpit_i18n::Msg::raw("docker"),
         },
     )
     .unwrap();

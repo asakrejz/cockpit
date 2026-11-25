@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[test]
 fn feature_prefix_with_a_ticket() {
@@ -16,7 +17,7 @@ fn feature_and_fix_become_the_type_placeholder() {
 fn bugfix_is_not_mistaken_for_fix() {
     let s = suggest("Use feature/x and bugfix/y").unwrap();
     assert_eq!(s.pattern, "feature/{ticket}-{slug}");
-    assert!(s.reason.contains("bugfix/"));
+    assert!(s.reason.render(Lang::De).contains("bugfix/"));
 }
 
 #[test]

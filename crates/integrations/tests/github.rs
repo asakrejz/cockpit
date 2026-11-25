@@ -2,6 +2,7 @@
 //! No network access; the client talks to a local mock server.
 
 use cockpit_core::{Checks, LineKind, ReasonKind, Scope, Source, TicketStatus};
+use cockpit_i18n::Lang;
 use cockpit_integrations::github::{
     GitHubClient, Relation, aggregate_checks, comments_to_core, dto::*, file_to_diff, pull_to_item,
     pull_to_review,
@@ -69,7 +70,7 @@ fn pull_becomes_an_item_with_review_request() {
     assert_eq!(item.owner.initials, "TL");
     assert_eq!(item.updated_ms, ms("2024-05-14T10:00:00Z"));
     assert!(item.time.is_empty() && item.reason_text.is_empty());
-    assert_eq!(item.reason_line().de(), "Review angefragt");
+    assert_eq!(item.reason_line().render(Lang::De), "Review angefragt");
     assert_eq!(
         item.reason_line().render(cockpit_i18n::Lang::En),
         "Review requested"

@@ -114,7 +114,7 @@ enum End {
     /// Ended without changing the run (cancelled, halted).
     Quiet,
     Error(Msg),
-    Done(String),
+    Done(Msg),
 }
 
 impl AppState {
@@ -151,7 +151,7 @@ impl AppState {
     fn access(&self) -> Result<Access, Vec<Msg>> {
         let st = self.agent_status();
         if !st.ready {
-            return Err(st.missing_msgs);
+            return Err(st.missing);
         }
         let container = self.container_status();
         let choice = self.agent_choice();
@@ -287,7 +287,7 @@ impl AppState {
 fn cannot_start(st: &AgentStatus) -> Msg {
     msg!(
         ServerAgentCannotStart,
-        missing = ArgValue::joined(st.missing_msgs.clone(), " ")
+        missing = ArgValue::joined(st.missing.clone(), " ")
     )
 }
 

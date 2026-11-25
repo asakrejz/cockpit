@@ -62,11 +62,6 @@ impl MergeBlocker {
             MergeBlocker::ChangesRequested => msg!(CoreReviewBlockerChanges),
         }
     }
-
-    /// [`MergeBlocker::reason_msg`] in German.
-    pub fn reason(self) -> String {
-        self.reason_msg().de()
-    }
 }
 
 /// The conditions for merging as a pure function: checks green, review sent and

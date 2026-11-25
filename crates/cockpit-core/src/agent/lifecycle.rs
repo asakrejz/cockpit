@@ -24,7 +24,7 @@ impl AgentRun {
         self.agent_plan = None;
         self.ended = None;
         self.closure = None;
-        self.summary.clear();
+        self.summary = None;
         self.clear_usage();
         self.clear_conversation();
         self.say_msg(
@@ -76,7 +76,7 @@ impl AgentRun {
             from,
             kind,
             step,
-            text: msg.de(),
+            text: String::new(),
             msg: Some(msg),
         });
     }
@@ -89,7 +89,7 @@ impl AgentRun {
         self.plan_notes.clear();
         self.planned = false;
         self.agent_plan = None;
-        self.summary.clear();
+        self.summary = None;
         self.clear_usage();
         self.clear_conversation();
     }

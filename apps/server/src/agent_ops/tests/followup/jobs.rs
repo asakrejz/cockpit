@@ -56,7 +56,7 @@ async fn review_comments_run_on_the_same_branch_and_push_normally() {
         .into_iter()
         .find(|r| r.key() == "threads-firma~app-85")
         .unwrap();
-    assert!(run.summary.contains("Einzug angepasst."));
+    assert!(german(&run.summary).contains("Einzug angepasst."));
     assert!(run.usage().input_tokens >= 100);
     assert_eq!(run.branch(), PR_BRANCH);
     assert!(w.ws().log.iter().all(|e| !e.text.contains(GITHUB)));

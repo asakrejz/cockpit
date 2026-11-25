@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[tokio::test]
 async fn revoke_github_calls_the_service_and_deletes() {
@@ -51,7 +52,7 @@ async fn revoke_disconnects_also_when_the_service_fails() {
     .await;
     let a = p.state.oauth_revoke(Service::GitHub).await.unwrap();
     assert!(a.disconnected && !a.at_service);
-    assert!(a.hint.unwrap().contains("nicht bestätigt"));
+    assert!(a.hint.unwrap().render(Lang::De).contains("nicht bestätigt"));
     assert!(!p.secrets.has(secrets::GITHUB_OAUTH_TOKENS).unwrap());
 }
 
@@ -69,7 +70,12 @@ async fn revoke_atlassian_deletes_tokens_and_site() {
     assert_eq!(status, StatusCode::OK);
     let a: RevokeResponse = serde_json::from_str(&body).unwrap();
     assert!(a.disconnected && !a.at_service);
-    assert!(a.hint.unwrap().contains("id.atlassian.com"));
+    assert!(
+        a.hint
+            .unwrap()
+            .render(Lang::De)
+            .contains("id.atlassian.com")
+    );
     assert!(!p.secrets.has(secrets::ATLASSIAN_OAUTH_TOKENS).unwrap());
     assert_eq!(p.state.atlassian_site(), None);
     // Revoking without sign-in is no error.

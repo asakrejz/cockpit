@@ -107,12 +107,20 @@ pub struct AgentRun {
     /// The plan from the container. As long as it is missing, the agent is still working on it.
     #[serde(default)]
     pub agent_plan: Option<AgentPlan>,
-    /// Why the last run ended without result (plain text); empty as long as everything went well.
-    #[serde(default)]
-    pub ended: Option<String>,
+    /// Why the last run ended without result; `None` as long as everything went well.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "cockpit_i18n::opt_msg_or_text"
+    )]
+    pub ended: Option<Msg>,
     /// The agent's result, when it is done.
-    #[serde(default)]
-    pub summary: String,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "cockpit_i18n::opt_msg_or_text"
+    )]
+    pub summary: Option<Msg>,
     /// The pull request that was created (or found) for the branch of this run, after you
     /// approved it. `None` until then.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -149,7 +157,7 @@ impl AgentRun {
             extra_minutes: 0,
             agent_plan: None,
             ended: None,
-            summary: String::new(),
+            summary: None,
             pull_request: None,
             closure: None,
         }
@@ -203,11 +211,6 @@ impl AgentRun {
                 msg!(CoreAgentLabelReview, review = review.to_string())
             }
         }
-    }
-
-    /// [`AgentRun::label_msg`] in German (plain-text readers, tests).
-    pub fn label(&self) -> String {
-        self.label_msg().de()
     }
 
     /// The pull request that decides when the run is „erledigt“: the one that was created or

@@ -163,7 +163,7 @@ fn messages_render_in_both_languages_and_nest() {
     let outer = msg!(TimeAgoDays, n = ArgValue::from(inner.clone()));
     assert_eq!(inner.render(Lang::En), "5 minutes ago");
     assert_eq!(inner.render(Lang::De), "vor 5 Minuten");
-    assert_eq!(inner.de(), "vor 5 Minuten");
+    assert_eq!(inner.render(Lang::De), "vor 5 Minuten");
     // The nested text is filled into the outer one in the same language.
     assert_eq!(outer.render(Lang::De), "vor vor 5 Minuten Tagen");
     let joined = ArgValue::joined([inner.clone(), inner.clone()], "; ");
@@ -205,4 +205,31 @@ fn a_stored_message_whose_code_is_gone_shows_its_stored_text() {
     let known = msg!(TimeAgoMinutes, n = 2);
     assert!(known.is_known());
     assert_eq!(known.render_or(Lang::En, stored), known.render(Lang::En));
+}
+
+#[test]
+fn a_stored_text_reads_as_a_raw_message() {
+    #[derive(serde::Deserialize)]
+    struct Stored {
+        #[serde(deserialize_with = "crate::msg_or_text")]
+        line: Msg,
+        #[serde(default, deserialize_with = "crate::opt_msg_or_text")]
+        reason: Option<Msg>,
+    }
+    let text: Stored = serde_json::from_str(r#"{"line":"Alter Satz","reason":"Grund"}"#).unwrap();
+    for lang in Lang::ALL {
+        assert_eq!(text.line.render(lang), "Alter Satz");
+        assert_eq!(text.reason.as_ref().unwrap().render(lang), "Grund");
+    }
+    let coded: Stored = serde_json::from_str(
+        r#"{"line":{"code":"time.ago_minutes","args":[["n","2"]]},"reason":null}"#,
+    )
+    .unwrap();
+    assert_eq!(coded.line.code, "time.ago_minutes");
+    assert_eq!(coded.reason, None);
+    // An empty text and a missing field are no reason.
+    let empty: Stored = serde_json::from_str(r#"{"line":"x","reason":""}"#).unwrap();
+    assert_eq!(empty.reason, None);
+    let missing: Stored = serde_json::from_str(r#"{"line":"x"}"#).unwrap();
+    assert_eq!(missing.reason, None);
 }

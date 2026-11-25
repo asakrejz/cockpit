@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 fn real_run() -> AgentRun {
     let mut r = run();
@@ -8,7 +9,7 @@ fn real_run() -> AgentRun {
     });
     r.report(
         AgentReport::Started {
-            detail: "Container gestartet".into(),
+            detail: cockpit_i18n::Msg::raw("Container gestartet"),
         },
         &AgentLimits::unlimited(),
         0,
@@ -54,7 +55,7 @@ fn a_followup_keeps_the_files_of_its_comments_when_the_container_starts() {
     r.start(AgentOptions::default());
     r.report(
         AgentReport::Started {
-            detail: "Container gestartet".into(),
+            detail: cockpit_i18n::Msg::raw("Container gestartet"),
         },
         &AgentLimits::unlimited(),
         0,
@@ -91,7 +92,7 @@ fn the_budget_stops_a_real_run_with_a_plain_message() {
         r.messages
             .last()
             .unwrap()
-            .text
+            .text_in(Lang::De)
             .starts_with("Angehalten: Budget pro Lauf erreicht")
     );
 }
@@ -148,7 +149,7 @@ fn done_finishes_and_failed_resets_with_the_reason() {
     let e = r
         .report(
             AgentReport::Done {
-                summary: "Fertig".into(),
+                summary: cockpit_i18n::Msg::raw("Fertig"),
             },
             &limits,
             0,
@@ -160,15 +161,21 @@ fn done_finishes_and_failed_resets_with_the_reason() {
     let e = r
         .report(
             AgentReport::Failed {
-                reason: "Der Container endete mit Code 1".into(),
+                reason: cockpit_i18n::Msg::raw("Der Container endete mit Code 1"),
             },
             &limits,
             0,
         )
         .unwrap();
     assert!(e.failed && r.is_idle());
-    assert_eq!(r.ended.as_deref(), Some("Der Container endete mit Code 1"));
-    assert!(r.log().contains("Der Container endete mit Code 1"));
+    assert_eq!(
+        r.ended,
+        Some(cockpit_i18n::Msg::raw("Der Container endete mit Code 1"))
+    );
+    assert!(
+        r.log_in(Lang::De)
+            .contains("Der Container endete mit Code 1")
+    );
     // A new start clears the reason.
     r.start(AgentOptions::default());
     assert_eq!(r.ended, None);
@@ -192,7 +199,7 @@ fn the_plan_comes_from_the_agent_and_cannot_be_approved_before() {
     r.start(AgentOptions::default());
     r.report(
         AgentReport::Started {
-            detail: "Plan-Lauf".into(),
+            detail: cockpit_i18n::Msg::raw("Plan-Lauf"),
         },
         &limits,
         0,
@@ -209,7 +216,7 @@ fn the_plan_comes_from_the_agent_and_cannot_be_approved_before() {
         0,
     );
     let plan = r.plan().unwrap();
-    assert_eq!(plan.summary, "Fokus-Ring ergänzen");
+    assert_eq!(plan.summary.render(Lang::De), "Fokus-Ring ergänzen");
     assert_eq!(r.files, ["src/toggle.rs"]);
     assert!(!r.is_drafting());
     // A note demands a new plan.

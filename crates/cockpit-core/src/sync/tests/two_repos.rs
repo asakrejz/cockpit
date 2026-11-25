@@ -31,7 +31,6 @@ fn two_repos(title_b: &str) -> Remote {
                 prs: vec![la, lb],
                 projects: Vec::new(),
                 warnings: Vec::new(),
-                warning_msgs: Vec::new(),
             }),
         }],
     }

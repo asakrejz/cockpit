@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_i18n::Lang;
 
 #[tokio::test]
 async fn without_setup_starts_no_run_and_the_message_says_where() {
@@ -9,7 +10,12 @@ async fn without_setup_starts_no_run_and_the_message_says_where() {
         .await
         .unwrap();
     assert!(!status.ready);
-    let text = status.missing.join(" ");
+    let text = status
+        .missing
+        .iter()
+        .map(|m| m.render(Lang::De))
+        .collect::<Vec<_>>()
+        .join(" ");
     assert!(
         text.contains("Einrichten")
             && text.contains("Container")
@@ -41,7 +47,7 @@ async fn missing_image_is_reported() {
         .unwrap();
     assert!(!status.ready && !status.image);
     assert!(
-        status.missing[0].contains("Image bauen"),
+        status.missing[0].render(Lang::De).contains("Image bauen"),
         "{:?}",
         status.missing
     );
@@ -60,9 +66,10 @@ async fn a_run_from_the_approval_until_to_push() {
 
     let run = w.run();
     assert!(
-        run.summary.contains("Branch claude/BAU-142") && run.summary.contains("gepusht"),
+        german(&run.summary).contains("Branch claude/BAU-142")
+            && german(&run.summary).contains("gepusht"),
         "{}",
-        run.summary
+        german(&run.summary)
     );
     assert_eq!(run.files, ["neu.txt"]);
     // Usage from the run, with the prices from the settings.
@@ -78,7 +85,7 @@ async fn a_run_from_the_approval_until_to_push() {
         .ws()
         .log_entries(Some(Actor::Agent))
         .iter()
-        .map(|e| e.text.clone())
+        .map(|e| e.text_in(Lang::De))
         .collect();
     assert!(
         agent_entries
@@ -199,7 +206,11 @@ fn direct_at_provider_needs_only_key_and_model() {
     let state = with_choice(&w, AgentChoice::default());
     let st = state.agent_status();
     assert!(!st.ready);
-    assert!(st.missing.iter().any(|f| f.contains("der Modellname")));
+    assert!(
+        st.missing
+            .iter()
+            .any(|f| f.render(Lang::De).contains("der Modellname"))
+    );
 }
 
 // ---------- Several repos ----------
@@ -406,7 +417,7 @@ async fn image_states_missing_outdated_current_unknown() {
     assert_eq!(s, ImageState::Outdated);
     assert!(!status.ready && status.image);
     assert!(
-        status.missing[0].contains("veraltet"),
+        status.missing[0].render(Lang::De).contains("veraltet"),
         "{:?}",
         status.missing
     );
@@ -448,12 +459,12 @@ async fn image_states_missing_outdated_current_unknown() {
     assert!(
         status
             .image_hint
-            .as_deref()
-            .is_some_and(|h| h.contains("runner")),
+            .as_ref()
+            .is_some_and(|h| h.render(Lang::De).contains("runner")),
         "{status:?}"
     );
     assert!(
-        status.missing[0].contains("nicht prüfen"),
+        status.missing[0].render(Lang::De).contains("nicht prüfen"),
         "{:?}",
         status.missing
     );

@@ -34,9 +34,4 @@ impl AgentRun {
             .collect::<Vec<_>>()
             .join("\n")
     }
-
-    /// The log in German (plain-text readers, tests).
-    pub fn log(&self) -> String {
-        self.log_in(Lang::De)
-    }
 }

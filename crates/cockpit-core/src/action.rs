@@ -467,13 +467,7 @@ impl Workspace {
         let notes = self.perform(action, at_ms)?;
         let logged = notes.len();
         for note in notes {
-            self.push_log(
-                at_ms,
-                note.actor.unwrap_or(actor),
-                note.target,
-                note.text,
-                note.msg,
-            );
+            self.push_log(at_ms, note.actor.unwrap_or(actor), note.target, note.msg);
         }
         Ok(Applied { logged })
     }
@@ -483,8 +477,7 @@ impl Workspace {
         at_ms: u64,
         actor: Actor,
         target: Option<Target>,
-        text: String,
-        msg: Option<cockpit_i18n::Msg>,
+        msg: cockpit_i18n::Msg,
     ) {
         let id = self.log.last().map_or(1, |e| e.id + 1);
         self.log.push(LogEntry {
@@ -492,8 +485,8 @@ impl Workspace {
             at_ms,
             actor,
             target,
-            text,
-            msg,
+            text: String::new(),
+            msg: Some(msg),
         });
         if self.log.len() > MAX_LOG {
             let excess = self.log.len() - MAX_LOG;
