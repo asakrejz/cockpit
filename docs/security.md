@@ -60,7 +60,7 @@ environment (never in `config.toml`). With a non-loopback `COCKPIT_BIND` the ser
 - With port publishing the peer is the gateway of the container network, not loopback. In this mode the peer check
   therefore accepts loopback and private addresses (`10/8`, `172.16/12`, `192.168/16`, link-local, IPv6 unique-local)
   and rejects public ones. Any other container on the same container network could therefore call `/api` as well.
-- The **`Host` check is unchanged** (`127.0.0.1:<port>` or `localhost:<port>`, against DNS rebinding), as are the
+- The **`Host` check still applies** (`127.0.0.1:<port>` or `localhost:<port>`, against DNS rebinding), as do the
   `Origin` and JSON content-type rules for writing requests. If the published host port differs from the container
   port, `COCKPIT_PUBLIC_PORT` adds that port to the accepted ones (environment only).
 - The webhook routes keep requiring a loopback peer, so they do not work through a published container port.

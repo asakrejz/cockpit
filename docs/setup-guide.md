@@ -212,7 +212,7 @@ setup:
    VPN first and restart Rancher Desktop or the Podman machine.
 4. **Connect GitHub:** that is all the setup needs from GitHub – **no repos are assigned here**. The agent clones through
    the backend, and you choose one or several repos when you start the agent on a ticket (see
-   [using-cockpit.md](using-cockpit.md#choosing-the-repo-at-the-start)).
+   [using-cockpit.md](using-cockpit.md#agent-runs)).
 
 If something is not set up, no run starts; the message says in plain language what is missing and where in the assistant to
 fix it.
