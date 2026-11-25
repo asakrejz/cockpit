@@ -6,9 +6,9 @@
 //! * [`Outbound::route`] names the service that sends the call. `Services::execute` picks its
 //!   client, and the client's `execute` is the only way out: it matches every [`Outbound`] variant
 //!   (no catch-all arm), so a new variant does not compile until it says how it is sent.
-//! * The requests themselves are built by the `*_request` functions in the `outbound` module. A call that
-//!   takes several requests (Jira transition, branch, re-run check) is a flow of the client; its pure
-//!   parts (selection, bodies) live there too.
+//! * A call of one request is built by a `*_request` function (`outbound/request.rs`). A call of
+//!   several requests (Jira transition, branch, re-run check) is a flow of the client; the pure parts
+//!   of it (choosing the transition, the bodies) are built there as well.
 //!
 //! Only an action that requires `Actor::User` (`Action::required_actor`) can become a call here.
 //! `Workspace::apply` checks that and the other rules (e.g. „only you may merge“) **before** the call;
