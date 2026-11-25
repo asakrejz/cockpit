@@ -167,7 +167,7 @@ fn is_open(item: &Item) -> bool {
 
 /// Does the entry belong to the overview right now: not done, in the chosen team, and from the
 /// chosen source?
-fn shown(ws: &Workspace, item: &Item) -> bool {
+fn in_overview(ws: &Workspace, item: &Item) -> bool {
     is_open(item) && ws.team_visible(item) && ws.people_source.allows(item.source)
 }
 
@@ -210,7 +210,7 @@ fn identity(ws: &Workspace, owner: &Person, side: Side) -> (String, Option<Strin
 pub fn members(ws: &Workspace) -> Vec<Member> {
     let mut list = vec![Member::new(Person::me()), Member::new(Person::agent())];
 
-    for item in ws.items.iter().filter(|i| shown(ws, i)) {
+    for item in ws.items.iter().filter(|i| in_overview(ws, i)) {
         let side = Side::of(item.source);
         let i = if item.owner == Person::me() {
             0
@@ -252,7 +252,10 @@ pub fn members(ws: &Workspace) -> Vec<Member> {
     // a finished one waiting for review.
     let mut active_ids: Vec<String> = Vec::new();
     for run in &ws.runs {
-        let Some(item) = ws.item_of_run(&run.ticket_key).filter(|i| shown(ws, i)) else {
+        let Some(item) = ws
+            .item_of_run(&run.ticket_key)
+            .filter(|i| in_overview(ws, i))
+        else {
             continue;
         };
         let seen = agent.item_ids.contains(&item.id);
@@ -494,7 +497,7 @@ pub fn stuck(ws: &Workspace) -> Vec<Stuck> {
     let mut list: Vec<Stuck> = ws
         .items
         .iter()
-        .filter(|i| shown(ws, i))
+        .filter(|i| in_overview(ws, i))
         .filter_map(|item| {
             let (kind, who, reason) = classify(ws, item)?;
             // The key of the run that waits (for follow-up jobs not the one of the entry).
