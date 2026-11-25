@@ -27,7 +27,7 @@ struct Row {
     /// Language code of the pull request text (`en` or `de`).
     pr_language: RwSignal<&'static str>,
     /// Does the sync load all open pull requests of this repo? Kept as stored; a repo added here
-    /// is not watched (that is the list "Repos beobachten").
+    /// is not watched (that is the list "Watch repos").
     watch: bool,
 }
 

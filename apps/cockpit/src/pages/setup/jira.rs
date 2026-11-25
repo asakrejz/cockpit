@@ -376,7 +376,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
 
     // If saving fails, the test does not run: release the button again.
     Effect::new(move |_| {
-        if back.with(|r| r.as_ref().is_some_and(|(gut, _)| !gut)) {
+        if back.with(|r| r.as_ref().is_some_and(|(ok, _)| !ok)) {
             running.set(false);
         }
     });
@@ -528,7 +528,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
     }
 }
 
-/// After the test: the Jira projects to choose from ("Alle Projekte" is possible). Chosen as in
+/// After the test: the Jira projects to choose from ("All projects" is possible). Chosen as in
 /// the inbox with `Action::SelectJiraProject`; the list is only read.
 #[component]
 fn JiraProjectChoice(ctx: Context) -> impl IntoView {

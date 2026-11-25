@@ -1,4 +1,4 @@
-//! The review panel: tabs „Dateien“ (tree, diffs, „Angesehen“) and „Commits“ (list, diff of one
+//! The review panel: tabs "Files" (tree, diffs, "Viewed") and "Commits" (list, diff of one
 //! commit). The state lives in [`PanelUi`], created once per page so that it survives every
 //! update of the workspace.
 
@@ -31,7 +31,7 @@ pub(super) struct PanelUi {
     pub viewed: RwSignal<Viewed>,
     /// Files opened or closed by hand (the default: open, but closed once viewed).
     pub open: RwSignal<Vec<(String, bool)>>,
-    /// Files whose whole diff is shown („Mehr anzeigen“).
+    /// Files whose whole diff is shown ("Show more").
     pub more: RwSignal<Vec<String>>,
     pub commits: RwSignal<Load<PanelCommits>>,
     /// The commit whose diff is shown.

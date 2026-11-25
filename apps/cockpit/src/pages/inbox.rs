@@ -324,7 +324,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
     }
 }
 
-/// „Durch Filter ausgeblendet“ with the button that resets the filters.
+/// "Hidden by a filter" with the button that resets the filters.
 fn hidden_note(reset: impl Fn(ev::MouseEvent) + Send + Sync + 'static) -> impl IntoView {
     view! {
         <div class="ck-hidden-note" role="status">
@@ -338,7 +338,7 @@ fn hidden_note(reset: impl Fn(ev::MouseEvent) + Send + Sync + 'static) -> impl I
 }
 
 /// The entry with the reason the rules deliver: the most important hit determines icon,
-/// color and sentence in the row. In "Zurückgestellt" the time until when is shown instead.
+/// color and sentence in the row. In "Snoozed" the time until when is shown instead.
 fn with_reason(w: &cockpit_core::Workspace, item: &Item, filter: Filter, now: u64) -> Item {
     let mut item = item.clone();
     if let Some(hit) = w.hits(&item, now).into_iter().next() {
@@ -355,7 +355,7 @@ fn with_reason(w: &cockpit_core::Workspace, item: &Item, filter: Filter, now: u6
     item
 }
 
-/// "Zurückgestellt bis Do., 12.11., 08:00" or "… bis sich etwas ändert".
+/// "Snoozed until Thu, 12 Nov, 08:00" or "Snoozed until something changes".
 fn snooze_msg(until_ms: Option<u64>) -> cockpit_i18n::Msg {
     match until_ms {
         Some(ms) => cockpit_i18n::msg!(InboxSnoozedUntil, time = format_time(ms)),

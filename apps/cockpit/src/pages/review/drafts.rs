@@ -2,8 +2,8 @@ use super::*;
 
 use cockpit_core::DiffSide;
 
-/// Where a suggestion sits, in words: `datei · Zeile 4`, `datei · Zeilen 2–4` or, on the removed
-/// side, `datei · Zeile 4 (alte Zeile)`. Without a structured position the stored text.
+/// Where a suggestion sits, in words: `file · line 4`, `file · lines 2–4` or, on the removed
+/// side, `file · line 4 (old line)`. Without a structured position the stored text.
 pub(super) fn location_label(s: &Suggestion) -> String {
     if s.path.is_empty() || s.line == 0 {
         return s.location.clone();

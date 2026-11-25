@@ -64,13 +64,13 @@ pub fn Message(feedback: Feedback) -> impl IntoView {
         {move || {
             feedback
                 .get()
-                .map(|(gut, text)| {
+                .map(|(ok, text)| {
                     let link = step_link(&text);
                     view! {
                         <p
                             class="ui-hint"
-                            class:ck-problem=!gut
-                            role=if gut { "status" } else { "alert" }
+                            class:ck-problem=!ok
+                            role=if ok { "status" } else { "alert" }
                         >
                             {text}
                             {link}
@@ -250,7 +250,7 @@ fn copy(text: &str) -> bool {
         .is_some_and(|f| f.call1(&clipboard, &text.into()).is_ok())
 }
 
-/// A value to type off or copy, with a "Kopieren" button.
+/// A value to type off or copy, with a "Copy" button.
 #[component]
 pub fn CopyField(
     store: Store,

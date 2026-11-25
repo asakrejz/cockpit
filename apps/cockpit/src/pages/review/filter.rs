@@ -64,7 +64,7 @@ pub(super) fn filter_summary(store: Store) -> impl IntoView {
     }
 }
 
-/// The dialog. Edits go to a draft; "Anwenden" applies and stores it.
+/// The dialog. Edits go to a draft; "Apply" applies and stores it.
 pub(super) fn filter_dialog(store: Store, open: RwSignal<bool>) -> impl IntoView {
     let draft = RwSignal::new(ReviewFilter::default());
     let query = RwSignal::new(String::new());

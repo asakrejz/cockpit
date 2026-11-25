@@ -16,13 +16,13 @@ use crate::view::setup_tone;
 /// OAuth: revokes the sign-in); the settings stay, the way back is the step "Jira".
 #[component]
 fn JiraActions(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
-    let art = move || {
+    let kind = move || {
         ctx.store
             .health
             .with(|h| h.as_ref().map(|h| h.sign_in.jira.kind))
     };
     let disconnect = move |_| {
-        let oauth = art() == Some(AuthKind::OAuth);
+        let oauth = kind() == Some(AuthKind::OAuth);
         spawn_local(async move {
             let result = if oauth {
                 server::post_revoke("atlassian").await.map(|_| ())
@@ -38,7 +38,7 @@ fn JiraActions(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
     };
     view! {
         {move || {
-            (art() == Some(AuthKind::Token))
+            (kind() == Some(AuthKind::Token))
                 .then(|| {
                     view! {
                         <Button
@@ -144,13 +144,13 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                     .health
                     .get()
                     .and_then(|h| h.env_file)
-                    .map(|datei| {
+                    .map(|file| {
                         view! {
                             <p class="t-footnote t-secondary ui-px-4">
                                 {t!(SetupDoneEnvFile)} " "
-                                <code>{datei.path}</code>
+                                <code>{file.path}</code>
                             </p>
-                            {datei.warnings
+                            {file.warnings
                                 .iter()
                                 .map(|w| {
                                     view! {
@@ -168,13 +168,13 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                     .health
                     .get()
                     .and_then(|h| h.config_files)
-                    .map(|ordner| {
+                    .map(|folder| {
                         view! {
                             <p class="t-footnote t-secondary ui-px-4">
                                 {t!(SetupDoneConfigFiles)} " "
-                                <code>{ordner.path}</code>
+                                <code>{folder.path}</code>
                             </p>
-                            {ordner.warnings
+                            {folder.warnings
                                 .iter()
                                 .map(|w| {
                                     view! {

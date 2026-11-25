@@ -1,4 +1,4 @@
-//! State of the sync with Jira and GitHub per source, plus "Jetzt abgleichen".
+//! State of the sync with Jira and GitHub per source, plus "Sync now".
 //! The data is in the workspace (`sync`), the sync runs in the
 //! backend. No key is here.
 
@@ -35,7 +35,7 @@ fn subtitle(state: &SourceState, now: u64) -> String {
     }
 }
 
-/// "Jetzt abgleichen": asks the server to sync now and reports the outcome as a notice.
+/// "Sync now": asks the server to sync now and reports the outcome as a notice.
 pub fn sync_now(store: Store, busy: RwSignal<bool>) {
     busy.set(true);
     spawn_local(async move {

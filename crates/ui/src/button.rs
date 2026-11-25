@@ -120,8 +120,8 @@ impl ButtonShape {
 ///
 /// ```ignore
 /// view! {
-///     <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large>"Weiter"</Button>
-///     <Button shape=ButtonShape::Circle aria_label="Hinzufügen"><Icon path=icons::PLUS /></Button>
+///     <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large>"Next"</Button>
+///     <Button shape=ButtonShape::Circle aria_label="Add"><Icon path=icons::PLUS /></Button>
 /// }
 /// ```
 #[component]

@@ -88,7 +88,7 @@ pub enum TextWeight {
 /// Text with a text style from the design.
 ///
 /// ```ignore
-/// view! { <Text variant=TextStyle::Title1 weight=TextWeight::Bold tag=TextTag::H2>"Titel"</Text> }
+/// view! { <Text variant=TextStyle::Title1 weight=TextWeight::Bold tag=TextTag::H2>"Title"</Text> }
 /// ```
 #[component]
 pub fn Text(

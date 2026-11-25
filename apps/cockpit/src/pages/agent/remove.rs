@@ -1,4 +1,4 @@
-//! „Entfernen“ and „Alle beendeten entfernen“: take runs in a final state out of the local list.
+//! "Remove" and "Remove all finished": take runs in a final state out of the local list.
 //! Only the list of this computer changes – never a branch or pull request on GitHub. Runs that
 //! work or wait cannot be removed; the page says they have to be cancelled first.
 
@@ -9,7 +9,7 @@ use leptos::prelude::*;
 use super::context::AgentCtx;
 use super::texts as t;
 
-/// The button „Entfernen“ of the shown run (with a confirmation), or – for a run that still
+/// The button "Remove" of the shown run (with a confirmation), or – for a run that still
 /// works or waits – the hint that it has to be cancelled first. Nothing for a run that has not
 /// started yet.
 #[component]
@@ -68,7 +68,7 @@ pub(super) fn RemoveRun(ctx: AgentCtx) -> impl IntoView {
     }
 }
 
-/// „Alle beendeten entfernen (n)“ in the list of runs. Hidden while nothing can be removed.
+/// "Remove all finished (n)" in the list of runs. Hidden while nothing can be removed.
 #[component]
 pub(super) fn RemoveFinished(ctx: AgentCtx) -> impl IntoView {
     let store = ctx.store;

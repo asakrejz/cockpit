@@ -1,6 +1,6 @@
 use super::*;
 
-/// Every page of the former sidebar is reachable: in the pill or behind "Mehr".
+/// Every page of the former sidebar is reachable: in the pill or behind "More".
 #[test]
 fn every_former_sidebar_target_is_in_the_pill_or_in_more() {
     let labels: Vec<Key> = TARGETS.iter().map(|t| t.label).collect();
@@ -57,14 +57,14 @@ fn the_pill_keeps_the_four_main_targets() {
 
 #[test]
 fn the_capsule_slides_to_the_slot_of_the_current_page() {
-    // Every filter and every entry of the inbox page lights the one "Aufgaben" slot.
+    // Every filter and every entry of the inbox page lights the one "Tasks" slot.
     for filter in [Filter::All, Filter::Mine, Filter::Team, Filter::Snoozed] {
         assert_eq!(active_slot(&Route::Inbox(filter)), Some(0));
         assert_eq!(active_slot(&Route::InboxItem(filter, "a".into())), Some(0));
     }
     assert_eq!(active_slot(&Route::Review(None)), Some(1));
     assert_eq!(active_slot(&Route::Agent(Some("BAU-1".into()))), Some(2));
-    // Everything behind "Mehr" lights the last slot.
+    // Everything behind "More" lights the last slot.
     assert_eq!(active_slot(&Route::Overview), Some(3));
     assert_eq!(active_slot(&Route::OverviewMember("Ada".into())), Some(3));
     assert_eq!(active_slot(&Route::Setup), Some(4));

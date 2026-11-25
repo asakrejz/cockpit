@@ -38,7 +38,7 @@ pub(super) fn row(store: Store, item: Item, selected: bool, filter: Filter) -> i
     }
 }
 
-/// Icon at the start of a row in the section "Entwicklung".
+/// Icon at the start of a row in the section "Development".
 pub(super) fn row_icon(path: &'static str) -> impl IntoView {
     view! {
         <span class="ui-icon-muted ui-flex-none">

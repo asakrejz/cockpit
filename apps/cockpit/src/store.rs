@@ -174,7 +174,7 @@ impl Store {
         );
     }
 
-    /// Connects to the server: loads the state and listens for changes. Also for "Erneut versuchen".
+    /// Connects to the server: loads the state and listens for changes. Also for "Try again".
     pub fn connect(&self) {
         let store = *self;
         store.link.set(Link::Connecting);

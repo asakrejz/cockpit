@@ -1,4 +1,4 @@
-//! „Aufräumen“ and „Branch löschen“ (`/api/agent/cleanup`, `/api/agent/branch`).
+//! "Clean up" and "Delete branch" (`/api/agent/cleanup`, `/api/agent/branch`).
 
 use cockpit_core::api::{
     BranchCheck, BranchDeleteRequest, BranchDeleted, CleanupPreview, CleanupRequest, CleanupResult,
@@ -11,7 +11,7 @@ fn unreadable() -> CallError {
     CallError::Rejected(feature_ui::t!(ServerGarbled))
 }
 
-/// What „Aufräumen“ would remove (`GET /api/agent/cleanup`). Removes nothing.
+/// What "Clean up" would remove (`GET /api/agent/cleanup`). Removes nothing.
 pub async fn fetch_cleanup_preview() -> Result<CleanupPreview, CallError> {
     let resp = Request::get("/api/agent/cleanup")
         .send()

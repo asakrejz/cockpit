@@ -33,7 +33,7 @@ pub enum SplitLayout {
 pub fn SplitView(
     #[prop(optional)] layout: SplitLayout,
     #[prop(optional, into)] level: Option<Signal<StackLevel>>,
-    /// Name of the list level, the tooltip of the back button ("Posteingang").
+    /// Name of the list level, the tooltip of the back button ("Inbox").
     #[prop(optional, into)]
     back_label: Option<String>,
     /// Address of the list level.
@@ -133,7 +133,7 @@ pub fn SidebarItem(
     #[prop(optional)]
     icon: Option<&'static str>,
     #[prop(into, default = false.into())] current: Signal<bool>,
-    /// Short text on the right, e.g. `"3"` or `"2 aktiv"`.
+    /// Short text on the right, e.g. `"3"` or `"2 active"`.
     #[prop(optional, into)]
     count: Option<Signal<String>>,
     /// Any content on the right (e.g. a `Status`). Takes precedence over `count`.
@@ -180,7 +180,7 @@ pub fn SidebarItem(
 #[component]
 pub fn BottomNav(
     #[prop(into)] label: String,
-    /// Label of the button that opens the sheet, e.g. "Mehr".
+    /// Label of the button that opens the sheet, e.g. "More".
     #[prop(into)]
     more_label: String,
     /// Title of the sheet.
@@ -366,7 +366,7 @@ pub fn BottomNav(
     }
 }
 
-/// Small counter on an icon of the [`BottomNav`]. Invisible at 0; reads as "N neu" to screen readers.
+/// Small counter on an icon of the [`BottomNav`]. Invisible at 0; reads as "N new" to screen readers.
 #[component]
 fn BottomNavBadge(#[prop(into)] count: Signal<usize>) -> impl IntoView {
     let shown = move || count.get() > 0;

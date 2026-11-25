@@ -272,7 +272,7 @@ a.ui-list__row:focus-visible, button.ui-list__row:focus-visible { outline: none;
 .ui-inbox-row:focus-visible { outline: none; box-shadow: inset var(--sys-focus-ring); }
 li + li > .ui-inbox-row::before { content: ""; position: absolute; top: 0; right: 0; left: 32px; height: 0.5px; background: var(--sys-color-separator); }
 
-/* ---------- Kommentar · Textarea ---------- */
+/* ---------- Comment · Textarea ---------- */
 .ui-comment { display: flex; align-items: flex-start; gap: 10px; }
 .ui-comment__bubble { min-width: 0; padding: 10px 14px; border-radius: 18px; background: var(--sys-color-tertiary-fill); }
 .ui-comment[data-own] { flex-direction: row-reverse; }
@@ -288,12 +288,12 @@ li + li > .ui-inbox-row::before { content: ""; position: absolute; top: 0; right
 .ui-diff__line[data-kind="add"] { background: color-mix(in oklab, var(--sys-color-green) 18%, transparent); }
 .ui-diff__line[data-kind="del"] { background: color-mix(in oklab, var(--sys-color-red) 16%, transparent); }
 
-/* ---------- Agent-Vorschlag ---------- */
+/* ---------- Agent suggestion ---------- */
 .ui-suggestion { display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: var(--ref-radius-20); background: var(--sys-color-tertiary-grouped-background); transition: background-color var(--sys-motion-smooth), opacity var(--sys-motion-smooth); }
 .ui-suggestion[data-state="approved"] { background: color-mix(in oklab, var(--sys-color-green) 14%, transparent); }
 .ui-suggestion[data-state="declined"] { opacity: 0.55; }
 
-/* ---------- Timeline (Agent-Lauf) ---------- */
+/* ---------- Timeline (agent run) ---------- */
 .ui-timeline { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .ui-timeline__step { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; padding-bottom: 22px; }
 .ui-timeline__step::before { content: ""; position: absolute; left: 15.5px; top: 36px; bottom: 4px; width: 1px; background: var(--sys-color-separator); }

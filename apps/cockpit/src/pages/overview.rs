@@ -432,7 +432,7 @@ fn person_items(store: Store, member: Option<Member>, all: Vec<Member>) -> impl 
     }
 }
 
-/// „Ist dieselbe Person wie …“: link a Jira person to a GitHub user (or the other way round), or
+/// "Is the same person as …": link a Jira person to a GitHub user (or the other way round), or
 /// remove the link. Nothing is guessed; the link is `Action::LinkPeople`.
 fn link_section(store: Store, m: Member) -> impl IntoView {
     if m.is_linked() {

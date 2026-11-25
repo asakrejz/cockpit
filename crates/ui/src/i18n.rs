@@ -56,7 +56,7 @@ pub fn tr(key: Key, args: &[Arg]) -> String {
     cockpit_i18n::text(lang(), key, args)
 }
 
-/// How long ago `then_ms` is, in the current language ("5 minutes ago" / "vor 5 Minuten").
+/// How long ago `then_ms` is, in the current language ("5 minutes ago").
 pub fn ago(then_ms: u64, now_ms: u64) -> String {
     cockpit_i18n::ago_ms(lang(), then_ms, now_ms)
 }

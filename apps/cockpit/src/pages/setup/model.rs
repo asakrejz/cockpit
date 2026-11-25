@@ -54,7 +54,7 @@ fn kind_key_label(kind: EndpointKind, tool: Provider) -> String {
 #[component]
 pub fn ModelStep(ctx: Context) -> impl IntoView {
     let provider = RwSignal::new(Provider::default());
-    let art = RwSignal::new(EndpointKind::Direct);
+    let endpoint_kind = RwSignal::new(EndpointKind::Direct);
     let url = RwSignal::new(String::new());
     let model = RwSignal::new(String::new());
     let from_hand = RwSignal::new(String::new());
@@ -69,7 +69,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
             return;
         }
         let address = e.endpoint_url.unwrap_or_default();
-        art.set(EndpointKind::from_url(&address));
+        endpoint_kind.set(EndpointKind::from_url(&address));
         url.set(address);
         model.set(e.endpoint_model.unwrap_or_default());
         provider.set(e.provider);
@@ -90,7 +90,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
     let input = move |model: Option<String>| EndpointInput {
         provider: Some(provider.get_untracked()),
         // Directly at Anthropic: no address.
-        url: Some(if art.get_untracked().needs_address() {
+        url: Some(if endpoint_kind.get_untracked().needs_address() {
             url.get_untracked()
         } else {
             String::new()
@@ -119,7 +119,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
         }
         Err(m) => back.set(Some((false, m))),
     };
-    // "Modelle laden": first save tool and address (the server asks the saved
+    // "Load models": first save tool and address (the server asks the saved
     // endpoint with the key from the .env file), then fetch the list.
     let load_models = move |_| {
         list_loads.set(true);
@@ -255,24 +255,24 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                 <Select
                     label=t!(SetupModelKindLabel)
                     options=kind_options
-                    value=Signal::derive(move || art.get().id().to_string())
+                    value=Signal::derive(move || endpoint_kind.get().id().to_string())
                     on_change=Callback::new(move |v: String| {
                         if let Some(a) = EndpointKind::from_id(&v) {
                             touched.set(true);
-                            art.set(a);
+                            endpoint_kind.set(a);
                         }
                     })
                 />
-                <p class="t-footnote t-secondary">{move || kind_explanation(art.get(), provider.get())}</p>
+                <p class="t-footnote t-secondary">{move || kind_explanation(endpoint_kind.get(), provider.get())}</p>
                 {move || {
-                    art.get()
+                    endpoint_kind.get()
                         .needs_address()
                         .then(|| {
                             view! {
                                 <TextField
                                     label=t!(SetupModelAddressLabel)
                                     value=url
-                                    placeholder=kind_placeholder(art.get())
+                                    placeholder=kind_placeholder(endpoint_kind.get())
                                     hint=t!(SetupModelAddressHint)
                                     autocomplete="off"
                                 />
@@ -286,7 +286,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         <KeyField
                             ctx=ctx
                             name="agent-key"
-                            label=kind_key_label(art.get(), provider.get())
+                            label=kind_key_label(endpoint_kind.get(), provider.get())
                             hint=t!(SetupModelKeyHint)
                         />
                     }
@@ -301,7 +301,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                         variant=ButtonStyle::GlassProminent
                         disabled=Signal::derive(move || {
                             list_loads.get() || !key_set()
-                                || (art.get().needs_address() && url.with(|u| u.trim().is_empty()))
+                                || (endpoint_kind.get().needs_address() && url.with(|u| u.trim().is_empty()))
                         })
                         on_click=load_models
                     >
@@ -385,12 +385,12 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                     ctx.check
                         .get()
                         .map(|p| {
-                            let (ton, text) = check_plain_text(&p);
+                            let (check_tone, text) = check_plain_text(&p);
                             let text = text.render(lang());
-                            let tone = setup_tone(ton);
+                            let tone = setup_tone(check_tone);
                             view! {
                                 <HStack class="ui-gap-8">
-                                    <Status tone=tone>{if ton == Tone::Good { t!(SetupModelSucceeded) } else { t!(SetupModelFailed) }}</Status>
+                                    <Status tone=tone>{if check_tone == Tone::Good { t!(SetupModelSucceeded) } else { t!(SetupModelFailed) }}</Status>
                                     <span class="t-subheadline">{text}</span>
                                 </HStack>
                             }
@@ -419,8 +419,8 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                     ctx.container_check
                         .get()
                         .map(|p| {
-                            let gut = p.checked && p.container_reached && p.key_ok;
-                            let tone = if gut {
+                            let healthy = p.checked && p.container_reached && p.key_ok;
+                            let tone = if healthy {
                                 StatusTone::Green
                             } else if p.checked {
                                 StatusTone::Red
@@ -430,7 +430,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                             view! {
                                 <HStack class="ui-gap-8">
                                     <Status tone=tone>
-                                        {if gut { t!(SetupModelSucceeded) } else if p.checked { t!(SetupModelFailed) } else { t!(SetupModelNotChecked) }}
+                                        {if healthy { t!(SetupModelSucceeded) } else if p.checked { t!(SetupModelFailed) } else { t!(SetupModelNotChecked) }}
                                     </Status>
                                     <span class="t-subheadline">{p.hint.map(|h| h.render(lang())).unwrap_or_default()}</span>
                                 </HStack>

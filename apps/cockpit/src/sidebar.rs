@@ -18,12 +18,12 @@ use crate::{
 enum Slot {
     /// In the pill.
     Bar,
-    /// In the sheet behind "Mehr".
+    /// In the sheet behind "More".
     More,
 }
 
-/// One page of the navigation. "Aufgaben" stands for the whole inbox page: its filters
-/// (Alle, Ich, Team, Zurückgestellt) are switched on the page itself.
+/// One page of the navigation. "Tasks" stands for the whole inbox page: its filters
+/// (All, Me, Team, Snoozed) are switched on the page itself.
 struct Target {
     route: fn() -> Route,
     label: Key,
@@ -94,7 +94,7 @@ const TARGETS: [Target; 8] = [
 ];
 
 impl Target {
-    /// Where the entry leads. "Aufgaben" leads to the filter chosen last.
+    /// Where the entry leads. "Tasks" leads to the filter chosen last.
     fn href(&self) -> String {
         match (self.route)() {
             Route::Inbox(_) => Route::TASKS_HASH.to_string(),
@@ -200,7 +200,7 @@ pub fn Connections() -> impl IntoView {
     }
 }
 
-/// Sections that the current page adds to the "Mehr" sheet (under the targets, above the
+/// Sections that the current page adds to the "More" sheet (under the targets, above the
 /// connections). Provided by the app shell.
 #[derive(Clone, Copy)]
 pub struct PageMenu(RwSignal<Option<ViewFn>>);
@@ -211,7 +211,7 @@ impl PageMenu {
     }
 }
 
-/// Which slot of the pill the route belongs to: the index in the bar, "Mehr" (after the bar
+/// Which slot of the pill the route belongs to: the index in the bar, "More" (after the bar
 /// targets) for the targets in the sheet, `None` for a page that is no target.
 fn active_slot(route: &Route) -> Option<usize> {
     let bar = TARGETS.iter().filter(|t| t.slot == Slot::Bar);
@@ -227,7 +227,7 @@ fn active_slot(route: &Route) -> Option<usize> {
         .then_some(bar_len)
 }
 
-/// The navigation pill with the "Mehr" sheet.
+/// The navigation pill with the "More" sheet.
 #[component]
 pub fn AppNav() -> impl IntoView {
     let store = use_store();

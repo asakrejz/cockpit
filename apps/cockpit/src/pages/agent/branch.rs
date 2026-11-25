@@ -1,4 +1,4 @@
-//! „Branch löschen“ for a finished run whose pull request is merged or closed. The button is
+//! "Delete branch" for a finished run whose pull request is merged or closed. The button is
 //! only ever pressed by you; the backend checks everything again before it deletes exactly this
 //! one branch. While a rule says no, the button is off and the reason stands next to it.
 

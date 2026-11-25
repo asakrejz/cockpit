@@ -1,4 +1,4 @@
-//! Tab „Dateien“: file tree with counts, one collapsible diff per file, „Angesehen“.
+//! Tab "Files": file tree with counts, one collapsible diff per file, "Viewed".
 
 use cockpit_core::{TreeRow, file_tree};
 use web_sys::{ScrollIntoViewOptions, ScrollLogicalPosition};

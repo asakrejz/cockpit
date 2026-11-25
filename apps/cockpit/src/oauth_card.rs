@@ -1,6 +1,6 @@
 //! Sign-in via OAuth on the page "Setup": sign in and disconnect.
 //! The logic is in the backend; here is only the wiring. The browser
-//! sees neither tokens nor secrets: "Anmelden" is a navigation to `/api/oauth/…/start`.
+//! sees neither tokens nor secrets: "Sign in with …" is a navigation to `/api/oauth/…/start`.
 
 use cockpit_core::api::{ClientInput, ConfigChange};
 use cockpit_core::{AuthKind, ServiceStatus};
