@@ -18,12 +18,8 @@
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-use cockpit_core::RepoRules;
-use cockpit_i18n::{ArgValue, Msg, msg};
+use cockpit_i18n::{Msg, msg};
 use cockpit_integrations::Secret;
-
-/// This many changed files the backend lets through.
-const MAX_FILES: usize = 500;
 
 /// A base branch to branch off: inconspicuous characters, no leading `-` (no option for `git`).
 pub fn base_branch_ok(branch: &str) -> bool {
@@ -180,6 +176,28 @@ fn git(
     })
 }
 
+/// A new branch must not exist on the remote: an existing one is somebody else's work (or
+/// protected), and the agent never pushes onto it.
+fn branch_is_new(url: &str, token: Option<&Secret>, branch: &str) -> Result<(), Msg> {
+    let out = git(
+        &[
+            "ls-remote",
+            "--heads",
+            "--",
+            url,
+            &format!("refs/heads/{branch}"),
+        ],
+        None,
+        url,
+        token,
+    )?;
+    if out.trim().is_empty() {
+        Ok(())
+    } else {
+        Err(msg!(ServerRunBranchExists, branch = branch))
+    }
+}
+
 /// Opens permissions in the clone so that the user in the container (different id, with Podman rootless
 /// a different mapping) can write and the backend can delete afterwards. The folder is in a
 /// directory that belongs only to the user.
@@ -209,305 +227,11 @@ pub fn permissions_open(dir: &Path) {
 #[cfg(not(unix))]
 pub fn permissions_open(_dir: &Path) {}
 
-/// Clones `url` to `target`, creates the branch and returns the state from which it starts.
-/// The remote is removed afterwards: there is no address and no token in the clone.
-pub fn clone(
-    url: &str,
-    target: &Path,
-    token: Option<&Secret>,
-    rule: &BranchRule,
-) -> Result<String, Msg> {
-    let (base_branch, branch) = (rule.base, rule.branch);
-    rule.check()?;
-    if rule.existing {
-        return Err(msg!(ServerRunNewRunNewBranch));
-    }
-    if !base_branch_ok(base_branch) {
-        return Err(msg!(ServerRunBaseBranchInvalid, branch = base_branch));
-    }
-    branch_is_new(url, token, branch)?;
-    let z = target.to_string_lossy().into_owned();
-    git(
-        &[
-            "clone",
-            "--quiet",
-            "--no-tags",
-            "--depth",
-            "50",
-            "--single-branch",
-            "--branch",
-            base_branch,
-            "--",
-            url,
-            &z,
-        ],
-        None,
-        url,
-        token,
-    )?;
-    git(
-        &["switch", "--quiet", "-c", branch],
-        Some(target),
-        url,
-        None,
-    )?;
-    let base = git(&["rev-parse", "HEAD"], Some(target), url, None)?
-        .trim()
-        .to_string();
-    git(&["remote", "remove", "origin"], Some(target), url, None)?;
-    permissions_open(target);
-    Ok(base)
-}
+mod clone;
+pub use clone::*;
 
-/// The contribution guidelines in a clone (`CONTRIBUTING.md` and the two other usual places), as
-/// the path inside the repo. Only regular files count. The job file names it so the runner can
-/// tell the agent to follow the commit conventions in it.
-pub fn guideline_file(clone: &Path) -> Option<&'static str> {
-    cockpit_core::branch::GUIDELINE_FILES
-        .into_iter()
-        .find(|f| std::fs::symlink_metadata(clone.join(f)).is_ok_and(|m| m.file_type().is_file()))
-}
-
-/// A new branch must not exist on the remote: an existing one is somebody else's work (or
-/// protected), and the agent never pushes onto it.
-fn branch_is_new(url: &str, token: Option<&Secret>, branch: &str) -> Result<(), Msg> {
-    let out = git(
-        &[
-            "ls-remote",
-            "--heads",
-            "--",
-            url,
-            &format!("refs/heads/{branch}"),
-        ],
-        None,
-        url,
-        token,
-    )?;
-    if out.trim().is_empty() {
-        Ok(())
-    } else {
-        Err(msg!(ServerRunBranchExists, branch = branch))
-    }
-}
-
-/// Clones the **existing** branch `branch` (the branch of a pull request) for a follow-up
-/// job and returns the commit it stands on. New commits of the agent build on it; the backend
-/// pushes them as a normal push (never a force-push). Like [`clone`], the clone has no remote and
-/// no token afterwards.
-pub fn clone_branch(
-    url: &str,
-    target: &Path,
-    token: Option<&Secret>,
-    rule: &BranchRule,
-) -> Result<String, Msg> {
-    let branch = rule.branch;
-    rule.check()?;
-    if !rule.existing {
-        return Err(msg!(ServerRunFollowupOnPrBranch));
-    }
-    clone_existing(url, target, token, branch)
-}
-
-/// Clones the branch of any pull request for a **read-only** review run. The agent never pushes
-/// from this clone; it is mounted read-only into the container. Otherwise like [`clone_branch`].
-pub fn clone_for_review(
-    url: &str,
-    target: &Path,
-    token: Option<&Secret>,
-    branch: &str,
-) -> Result<String, Msg> {
-    if !review_branch_ok(branch) {
-        return Err(msg!(ServerRunBranchNotAllowed, branch = branch));
-    }
-    clone_existing(url, target, token, branch)
-}
-
-fn clone_existing(
-    url: &str,
-    target: &Path,
-    token: Option<&Secret>,
-    branch: &str,
-) -> Result<String, Msg> {
-    let z = target.to_string_lossy().into_owned();
-    git(
-        &[
-            "clone",
-            "--quiet",
-            "--no-tags",
-            "--depth",
-            "50",
-            "--single-branch",
-            "--branch",
-            branch,
-            "--",
-            url,
-            &z,
-        ],
-        None,
-        url,
-        token,
-    )?;
-    let base = git(&["rev-parse", "HEAD"], Some(target), url, None)?
-        .trim()
-        .to_string();
-    git(&["remote", "remove", "origin"], Some(target), url, None)?;
-    permissions_open(target);
-    Ok(base)
-}
-
-/// What was pushed after the check.
-#[derive(Debug, PartialEq, Eq)]
-pub struct Pushed {
-    pub commit: String,
-    pub files: Vec<String>,
-}
-
-/// Checks the branch from the clone and pushes it. See the module docs for the order and why
-/// nothing is ever worked on in the clone itself. `export` is an empty folder for the bare repo.
-/// A branch without new commits or changes is an error here (a run in one repo has nothing to
-/// show then); a run in several repos uses [`publish_changes`], where that is a normal result.
-pub fn publish(
-    clone: &Path,
-    export: &Path,
-    base_sha: &str,
-    url: &str,
-    token: Option<&Secret>,
-    rules: &RepoRules,
-    rule: &BranchRule,
-) -> Result<Pushed, Msg> {
-    match publish_inner(clone, export, base_sha, url, token, rules, rule)? {
-        Published::Pushed(p) => Ok(p),
-        Published::NoCommit => Err(msg!(ServerRunNothingCommitted)),
-        Published::NoChange => Err(msg!(ServerRunNothingChanged)),
-    }
-}
-
-/// What a repo of a run in several repos came to.
-#[derive(Debug, PartialEq, Eq)]
-pub enum Outcome {
-    /// The agent left this repo as it was: nothing is pushed.
-    Unchanged,
-    Pushed(Pushed),
-}
-
-/// Like [`publish`], but "nothing changed" is [`Outcome::Unchanged`], not an error. Every check
-/// (branch name, history, path rules, new branch) still applies before anything is pushed.
-pub fn publish_changes(
-    clone: &Path,
-    export: &Path,
-    base_sha: &str,
-    url: &str,
-    token: Option<&Secret>,
-    rules: &RepoRules,
-    rule: &BranchRule,
-) -> Result<Outcome, Msg> {
-    Ok(
-        match publish_inner(clone, export, base_sha, url, token, rules, rule)? {
-            Published::Pushed(p) => Outcome::Pushed(p),
-            Published::NoCommit | Published::NoChange => Outcome::Unchanged,
-        },
-    )
-}
-
-/// Result of the checks before a push.
-enum Published {
-    Pushed(Pushed),
-    NoCommit,
-    NoChange,
-}
-
-fn publish_inner(
-    clone: &Path,
-    export: &Path,
-    base_sha: &str,
-    url: &str,
-    token: Option<&Secret>,
-    rules: &RepoRules,
-    rule: &BranchRule,
-) -> Result<Published, Msg> {
-    let branch = rule.branch;
-    rule.check()?;
-    if base_sha.len() < 7 || !base_sha.chars().all(|c| c.is_ascii_hexdigit()) {
-        return Err(msg!(ServerRunStartUnknown));
-    }
-    let e = export.to_string_lossy().into_owned();
-    git(&["init", "--quiet", "--bare", &e], None, "", None)?;
-    let k = clone.to_string_lossy().into_owned();
-    let spec = format!("+refs/heads/{branch}:refs/heads/{branch}");
-    git(
-        &["fetch", "--quiet", "--no-tags", "--", &k, &spec],
-        Some(export),
-        "",
-        None,
-    )
-    .map_err(|m| msg!(ServerRunBranchMissingInClone, branch = branch, error = m))?;
-    let ref_ = format!("refs/heads/{branch}");
-    let commit = git(&["rev-parse", "--verify", &ref_], Some(export), "", None)?
-        .trim()
-        .to_string();
-    // The branch must build on the starting state (no rewritten history, no foreign one).
-    git(
-        &["merge-base", "--is-ancestor", base_sha, &commit],
-        Some(export),
-        "",
-        None,
-    )
-    .map_err(|_| msg!(ServerRunBranchNotBuiltOn))?;
-    let count = git(
-        &["rev-list", "--count", &format!("{base_sha}..{commit}")],
-        Some(export),
-        "",
-        None,
-    )?;
-    if count.trim() == "0" {
-        return Ok(Published::NoCommit);
-    }
-    let names = git(
-        &[
-            "diff",
-            "--name-only",
-            "--no-renames",
-            "-z",
-            base_sha,
-            &commit,
-        ],
-        Some(export),
-        "",
-        None,
-    )?;
-    let files: Vec<String> = names
-        .split('\0')
-        .filter(|n| !n.is_empty())
-        .map(str::to_string)
-        .collect();
-    if files.is_empty() {
-        return Ok(Published::NoChange);
-    }
-    if files.len() > MAX_FILES {
-        return Err(msg!(
-            ServerRunTooManyFiles,
-            n = files.len(),
-            max = MAX_FILES
-        ));
-    }
-    let violations = rules.violations(&files);
-    if !violations.is_empty() {
-        let reasons = ArgValue::joined(violations.iter().map(|v| v.reason_msg()), "; ");
-        return Err(msg!(ServerRunRulesViolated, reasons = reasons));
-    }
-    if !rule.existing {
-        // Somebody may have created the branch while the agent worked.
-        branch_is_new(url, token, branch)?;
-    }
-    git(
-        &["push", "--quiet", "--", url, &format!("{ref_}:{ref_}")],
-        Some(export),
-        url,
-        token,
-    )
-    .map_err(|m| msg!(ServerRunPushFailed, branch = branch, error = m))?;
-    Ok(Published::Pushed(Pushed { commit, files }))
-}
+mod publish;
+pub use publish::*;
 
 #[cfg(test)]
 mod tests;
