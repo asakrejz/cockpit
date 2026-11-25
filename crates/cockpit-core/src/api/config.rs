@@ -104,7 +104,7 @@ pub struct ProjectsResponse {
 }
 
 /// Body of `POST /api/github/projects/create`: a new project for `owner` (the user or an
-/// organization), optionally linked to `repo`. Only sent when the user clicks "Projekt anlegen".
+/// organization), optionally linked to `repo`. Only sent when the user clicks "Create a project".
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct CreateProjectRequest {
     pub owner: String,

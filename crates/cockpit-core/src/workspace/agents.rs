@@ -110,7 +110,7 @@ impl Workspace {
     }
 
     /// Cancels a waiting or running agent.
-    /// The pull request of the run is merged or closed: the run becomes „erledigt“. `None` if
+    /// The pull request of the run is merged or closed: the run becomes closed. `None` if
     /// the run does not wait for this (unknown, working, or already done with).
     pub fn close_run(&mut self, key: &str, closure: Closure) -> Option<cockpit_i18n::Msg> {
         let run = self.runs.iter_mut().find(|r| r.key() == key)?;
@@ -169,7 +169,7 @@ impl Workspace {
         self.drop_idle_followups();
     }
 
-    /// Approves the plan: the agent gets going, the ticket goes to „In Arbeit“.
+    /// Approves the plan: the agent gets going, the ticket goes to "In progress".
     pub fn approve_plan(&mut self, ticket_key: &str) -> bool {
         let followup = self
             .runs

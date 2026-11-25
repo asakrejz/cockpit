@@ -110,7 +110,7 @@ fn the_inbox_follows_the_rules() {
         ["bau142", "pr87", "bau138", "bau150", "doc7", "pr12"]
     );
     assert_eq!(ids(w.attention(Filter::Team, NOW)), ["pr87"]);
-    // Rule off: the hits behind it disappear – bau150 stays because of „Zugewiesen“.
+    // Rule off: the hits behind it disappear – bau150 stays because of "Assigned".
     w.set_rule(Rule::ReviewRequested, false);
     assert_eq!(ids(w.attention(Filter::Team, NOW)), Vec::<&str>::new());
     w.set_rule(Rule::Overdue, false);

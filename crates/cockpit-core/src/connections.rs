@@ -75,7 +75,7 @@ pub struct ServiceStatus {
     #[serde(default)]
     pub kind: AuthKind,
     /// The OAuth app is set up in `config.toml` and its secret is in the .env file:
-    /// „Mit … anmelden“ is possible.
+    /// "Sign in with …" is possible.
     #[serde(default)]
     pub oauth_possible: bool,
     /// For Atlassian: the chosen site.

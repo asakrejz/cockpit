@@ -88,7 +88,7 @@ fn merging_finishes_the_linked_ticket_through_the_same_path() {
 fn a_status_set_by_hand_stays_until_the_pull_request_moves() {
     let mut w = ws();
     link(&mut w, "bau150", 85, 2);
-    // Back to „Offen“ by hand: the automation does not overrule that.
+    // Back to "Open" by hand: the automation does not overrule that.
     ok(
         &mut w,
         Action::SetStatus {

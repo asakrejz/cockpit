@@ -125,7 +125,7 @@ pub struct AgentRun {
     /// approved it. `None` until then.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pull_request: Option<PullRequestRef>,
-    /// The pull request of the run is merged or closed: the run is „erledigt“. Old states have none.
+    /// The pull request of the run is merged or closed: the run is closed. Old states have none.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub closure: Option<Closure>,
 }
@@ -213,7 +213,7 @@ impl AgentRun {
         }
     }
 
-    /// The pull request that decides when the run is „erledigt“: the one that was created or
+    /// The pull request that decides when the run is closed: the one that was created or
     /// found for an implementation, the one a follow-up job works on. `None` while there is none
     /// or the repo is unknown (old states).
     pub fn related_pr(&self) -> Option<PrKey> {
@@ -231,7 +231,7 @@ impl AgentRun {
         }
     }
 
-    /// The pull request to ask GitHub about: the run is not yet „erledigt“ and does not work
+    /// The pull request to ask GitHub about: the run is not yet closed and does not work
     /// right now (done, ready, paused or halted).
     pub fn pr_to_watch(&self) -> Option<PrKey> {
         let quiet = self.is_done() || self.is_idle() || self.is_paused() || self.is_stopped();
@@ -241,12 +241,12 @@ impl AgentRun {
         self.related_pr()
     }
 
-    /// The run is „erledigt“ (its pull request is merged or closed).
+    /// The run is closed (its pull request is merged or closed).
     pub fn is_closed(&self) -> bool {
         self.closure.is_some()
     }
 
-    /// Marks the run as „erledigt“. A paused or halted run is ended first. `false` if the run is
+    /// Marks the run as closed. A paused or halted run is ended first. `false` if the run is
     /// not waiting for this (see [`AgentRun::pr_to_watch`]).
     pub fn close(&mut self, closure: Closure) -> bool {
         if self.pr_to_watch().is_none() {

@@ -273,7 +273,7 @@ impl Workspace {
     ///
     /// The rules count: an entry is only in if at least one
     /// switched-on rule applies and it is not snoozed. The filter
-    /// „Zurückgestellt“ shows the snoozed entries instead.
+    /// "Snoozed" shows the snoozed entries instead.
     pub fn search(
         &self,
         filter: Filter,
@@ -291,10 +291,10 @@ impl Workspace {
     /// Inbox entries for the filter dialog: like [`Workspace::search`], then narrowed by the
     /// [`InboxFilter`].
     ///
-    /// With the ownership „Meine“ the list is the attention list as before. With „Alle“ the
+    /// With the ownership "Mine" the list is the attention list as before. With "All" the
     /// entries of colleagues (pull requests and tickets without a reason for attention) are
     /// listed too – they never raise attention or notifications themselves. The sprint
-    /// „Aktueller Sprint“ falls back to „Alle offenen“ as long as no ticket carries sprint data
+    /// "Current sprint" falls back to "All open" as long as no ticket carries sprint data
     /// (a project without sprints).
     pub fn inbox(
         &self,
@@ -319,8 +319,8 @@ impl Workspace {
         by.apply(base, now_ms)
     }
 
-    /// The filter as it acts on this workspace: „Aktueller Sprint“ without any sprint data in
-    /// the tickets counts as „Alle offenen“.
+    /// The filter as it acts on this workspace: "Current sprint" without any sprint data in
+    /// the tickets counts as "All open".
     pub fn effective_filter(&self, by: &InboxFilter) -> InboxFilter {
         let mut by = by.clone();
         if by.sprint == SprintView::Current && !self.has_sprint_data() {
@@ -404,7 +404,7 @@ impl Workspace {
             .count()
     }
 
-    /// The badge of the merged "Aufgaben" entry: what "Ich" showed plus what the former
+    /// The badge of the merged "Tasks" entry: what "Me" showed plus what the former
     /// "Inbox" (all attention) showed, every entry counted once. Since "Ich" is a subset of
     /// "Alle", this is the unread number of the union of both lists.
     pub fn tasks_unread(&self, now_ms: u64) -> usize {
@@ -484,7 +484,7 @@ impl Workspace {
             .is_none_or(Item::is_mine)
     }
 
-    /// The reviews for the page „Pull Requests“: with `ownership` „Meine“ only those that
+    /// The reviews for the page "Pull requests": with `ownership` "Mine" only those that
     /// concern me, with „Alle“ all open pull requests of the repos. `keep` stays in the list in
     /// any case (the review that is open right now).
     pub fn reviews_for(&self, ownership: Ownership, keep: Option<&PrKey>) -> Vec<&Review> {

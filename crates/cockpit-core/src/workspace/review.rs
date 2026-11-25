@@ -166,7 +166,7 @@ impl Workspace {
         blockers
     }
 
-    /// Merges the pull request. The inbox entry shows „Gemergt“. The linked ticket
+    /// Merges the pull request. The inbox entry shows "Merged". The linked ticket
     /// follows via [`Workspace::follow_status`] (if that is switched on); returns its
     /// status change.
     pub fn merge_pr(

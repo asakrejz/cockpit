@@ -12,7 +12,7 @@
 //! them.
 
 /// Whose entries are listed. „Alle“ (the start value) lists the entries of colleagues too,
-/// without attention; „Meine“ keeps only what needs your attention.
+/// without attention; "Mine" keeps only what needs your attention.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Ownership {
     Mine,
@@ -79,7 +79,7 @@ impl SprintView {
     }
 }
 
-/// „Zuletzt aktualisiert“ means this many days.
+/// "Recently updated" means this many days.
 pub const RECENT_DAYS: u64 = 14;
 
 /// The value of the project filter for pull requests without a ticket key.

@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use super::FileDiff;
 
-/// Diff lines shown per file before „Mehr anzeigen“.
+/// Diff lines shown per file before "Show more".
 pub const SHOWN_LINES: usize = 300;
 
 /// A row of the tree: a folder or a file.

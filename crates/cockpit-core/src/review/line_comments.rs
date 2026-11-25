@@ -105,7 +105,7 @@ impl Review {
             .collect()
     }
 
-    /// File and line number of a comment, e.g. `a.css · Zeile 3`.
+    /// File and line number of a comment, e.g. `a.css · line 3`.
     pub fn line_location(&self, comment: &LineComment) -> Option<String> {
         let file = self.files.iter().find(|f| f.name == comment.file)?;
         let line = file.lines.get(comment.line)?;
