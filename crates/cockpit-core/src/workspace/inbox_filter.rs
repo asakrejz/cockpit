@@ -1,8 +1,12 @@
-//! The chosen inbox filters of the workspace: choices of the person filter, the list of active
-//! filters (for the badge and the chips) and the change itself.
+//! The chosen inbox filters of the workspace: the choices of every filter, the list of active
+//! filters (for the badge and the chips), the filter as it acts on this workspace and the change
+//! itself.
 
 use super::*;
-use crate::filters::{ASSIGNED_TO_ME, ActiveFilter, JIRA_PROJECT_FILTER, UNASSIGNED, filter_def};
+use crate::filters::{
+    ASSIGNED_TO_ME, ActiveFilter, Choices, JIRA_PROJECT_FILTER, NO_TICKET, SprintView, UNASSIGNED,
+    filter_def,
+};
 
 impl Workspace {
     /// The choices of the person filter: me, nobody, then the people of the entries. The first two
@@ -114,5 +118,61 @@ impl Workspace {
             });
         }
         out
+    }
+
+    /// The filter as it acts on this workspace: "Current sprint" without any sprint data in
+    /// the tickets counts as "All open".
+    pub fn effective_filter(&self, by: &InboxFilter) -> InboxFilter {
+        let mut by = by.clone();
+        if by.sprint == SprintView::Current && !self.has_sprint_data() {
+            by.sprint = SprintView::AllOpen;
+        }
+        by
+    }
+
+    /// Does any ticket carry a sprint?
+    pub fn has_sprint_data(&self) -> bool {
+        self.items
+            .iter()
+            .any(|i| i.is_ticket() && i.sprint.is_some())
+    }
+
+    /// The choices of a filter with [`Choices::FromData`], as `(value, label)` in display order.
+    /// For filters with fixed choices (and unknown IDs) the fixed list.
+    pub fn filter_choices(&self, id: &str) -> Vec<(String, String)> {
+        let same = |v: String| (v.clone(), v);
+        match id {
+            "repo" => self.item_repos().into_iter().map(same).collect(),
+            "person" => self.person_choices(),
+            "reporter" => self.reporter_choices(),
+            "type" => self.type_choices(),
+            "label" => self.labels().into_iter().map(same).collect(),
+            "project" => {
+                let mut list: Vec<String> = self
+                    .items
+                    .iter()
+                    .filter_map(Item::ticket_project)
+                    .chain(self.jira_project.clone())
+                    .collect();
+                list.sort();
+                list.dedup();
+                let mut out: Vec<(String, String)> = list.into_iter().map(same).collect();
+                if self
+                    .items
+                    .iter()
+                    .any(|i| i.kind == Kind::PullRequest && i.ticket_project().is_none())
+                {
+                    out.push((NO_TICKET.into(), NO_TICKET.into()));
+                }
+                out
+            }
+            other => match crate::filters::filter_def(other).map(|d| d.choices) {
+                Some(Choices::Fixed(list)) => list
+                    .iter()
+                    .map(|v| (v.to_string(), v.to_string()))
+                    .collect(),
+                _ => Vec::new(),
+            },
+        }
     }
 }

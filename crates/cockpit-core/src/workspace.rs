@@ -10,9 +10,9 @@ use crate::agent::{
     AgentOptions, AgentReport, AgentRun, Closure, FollowupTask, PullRequestRef, ReportEffect,
     RunKind,
 };
-use crate::attention::{self, Hit, Rule, Rules, Snooze};
+use crate::attention::{Rules, Snooze};
 use crate::filters::InboxFilter;
-use crate::filters::{Choices, NO_TICKET, Ownership, SprintView};
+use crate::filters::Ownership;
 use crate::model::*;
 use crate::notify::NotifySettings;
 use crate::review::{Decision, MergeBlocker, MergeMethod, Review, SendError, Verdict};
@@ -261,219 +261,6 @@ impl Workspace {
         true
     }
 
-    /// Inbox entries for a filter, in display order.
-    pub fn visible(&self, filter: Filter) -> Vec<&Item> {
-        self.items
-            .iter()
-            .filter(|i| filter.matches(i.scope))
-            .collect()
-    }
-
-    /// Inbox entries by owner, source and search text.
-    ///
-    /// The rules count: an entry is only in if at least one
-    /// switched-on rule applies and it is not snoozed. The filter
-    /// "Snoozed" shows the snoozed entries instead.
-    pub fn search(
-        &self,
-        filter: Filter,
-        source: SourceFilter,
-        query: &str,
-        now_ms: u64,
-    ) -> Vec<&Item> {
-        self.attention(filter, now_ms)
-            .into_iter()
-            .filter(|i| source.matches(i.source) && crate::search::matches_query(i, query))
-            .filter(|i| self.in_project(i))
-            .collect()
-    }
-
-    /// Inbox entries for the filter dialog: like [`Workspace::search`], then narrowed by the
-    /// [`InboxFilter`].
-    ///
-    /// With the ownership "Mine" the list is the attention list as before. With "All" the
-    /// entries of colleagues (pull requests and tickets without a reason for attention) are
-    /// listed too – they never raise attention or notifications themselves. The sprint
-    /// "Current sprint" falls back to "All open" as long as no ticket carries sprint data
-    /// (a project without sprints).
-    pub fn inbox(
-        &self,
-        filter: Filter,
-        source: SourceFilter,
-        query: &str,
-        now_ms: u64,
-        by: &InboxFilter,
-    ) -> Vec<&Item> {
-        let by = self.effective_filter(by);
-        let base: Vec<&Item> = match by.ownership {
-            Ownership::All if filter != Filter::Snoozed => self
-                .visible(filter)
-                .into_iter()
-                .filter(|i| !self.is_snoozed(&i.id, now_ms))
-                .filter(|i| source.matches(i.source) && crate::search::matches_query(i, query))
-                .filter(|i| self.in_project(i))
-                .collect(),
-            _ => self.search(filter, source, query, now_ms),
-        };
-        let base = base.into_iter().filter(|i| self.team_visible(i)).collect();
-        by.apply(base, now_ms)
-    }
-
-    /// The filter as it acts on this workspace: "Current sprint" without any sprint data in
-    /// the tickets counts as "All open".
-    pub fn effective_filter(&self, by: &InboxFilter) -> InboxFilter {
-        let mut by = by.clone();
-        if by.sprint == SprintView::Current && !self.has_sprint_data() {
-            by.sprint = SprintView::AllOpen;
-        }
-        by
-    }
-
-    /// Does any ticket carry a sprint?
-    pub fn has_sprint_data(&self) -> bool {
-        self.items
-            .iter()
-            .any(|i| i.is_ticket() && i.sprint.is_some())
-    }
-
-    /// The choices of a filter with [`Choices::FromData`], as `(value, label)` in display order.
-    /// For filters with fixed choices (and unknown IDs) the fixed list.
-    pub fn filter_choices(&self, id: &str) -> Vec<(String, String)> {
-        let same = |v: String| (v.clone(), v);
-        match id {
-            "repo" => self.item_repos().into_iter().map(same).collect(),
-            "person" => self.person_choices(),
-            "reporter" => self.reporter_choices(),
-            "type" => self.type_choices(),
-            "label" => self.labels().into_iter().map(same).collect(),
-            "project" => {
-                let mut list: Vec<String> = self
-                    .items
-                    .iter()
-                    .filter_map(Item::ticket_project)
-                    .chain(self.jira_project.clone())
-                    .collect();
-                list.sort();
-                list.dedup();
-                let mut out: Vec<(String, String)> = list.into_iter().map(same).collect();
-                if self
-                    .items
-                    .iter()
-                    .any(|i| i.kind == Kind::PullRequest && i.ticket_project().is_none())
-                {
-                    out.push((NO_TICKET.into(), NO_TICKET.into()));
-                }
-                out
-            }
-            other => match crate::filters::filter_def(other).map(|d| d.choices) {
-                Some(Choices::Fixed(list)) => list
-                    .iter()
-                    .map(|v| (v.to_string(), v.to_string()))
-                    .collect(),
-                _ => Vec::new(),
-            },
-        }
-    }
-
-    /// Entries that need attention for this filter (or, for
-    /// [`Filter::Snoozed`], are currently snoozed), in display order.
-    pub fn attention(&self, filter: Filter, now_ms: u64) -> Vec<&Item> {
-        self.visible(filter)
-            .into_iter()
-            .filter(|i| match filter {
-                Filter::Snoozed => self.is_snoozed(&i.id, now_ms),
-                _ => !self.is_snoozed(&i.id, now_ms) && self.needs_attention(i, now_ms),
-            })
-            .collect()
-    }
-
-    /// Hits of the switched-on rules for an entry, most important first.
-    pub fn hits(&self, item: &Item, now_ms: u64) -> Vec<Hit> {
-        attention::hits(item, &self.rules, now_ms)
-    }
-
-    pub fn needs_attention(&self, item: &Item, now_ms: u64) -> bool {
-        !self.hits(item, now_ms).is_empty()
-    }
-
-    /// Entries that still need attention. For [`Filter::Snoozed`]: how many are snoozed.
-    pub fn unread(&self, filter: Filter, now_ms: u64) -> usize {
-        self.attention(filter, now_ms)
-            .iter()
-            .filter(|i| filter == Filter::Snoozed || !i.read)
-            .count()
-    }
-
-    /// The badge of the merged "Tasks" entry: what "Me" showed plus what the former
-    /// "Inbox" (all attention) showed, every entry counted once. Since "Ich" is a subset of
-    /// "Alle", this is the unread number of the union of both lists.
-    pub fn tasks_unread(&self, now_ms: u64) -> usize {
-        let mut ids: Vec<&str> = [Filter::Mine, Filter::All]
-            .into_iter()
-            .flat_map(|f| self.attention(f, now_ms))
-            .filter(|i| !i.read)
-            .map(|i| i.id.as_str())
-            .collect();
-        ids.sort_unstable();
-        ids.dedup();
-        ids.len()
-    }
-
-    pub fn snooze_of(&self, id: &str) -> Option<&Snooze> {
-        self.snoozed.iter().find(|s| s.item == id)
-    }
-
-    /// Is the entry currently snoozed?
-    pub fn is_snoozed(&self, id: &str, now_ms: u64) -> bool {
-        match (self.snooze_of(id), self.item(id)) {
-            (Some(snooze), Some(item)) => snooze.holds(item, now_ms),
-            _ => false,
-        }
-    }
-
-    /// IDs of the entries whose snooze has expired or been lifted by a change
-    /// (and which `wake` therefore still has to remove).
-    pub fn expired_snoozes(&self, now_ms: u64) -> Vec<String> {
-        self.snoozed
-            .iter()
-            .filter(|s| !self.is_snoozed(&s.item, now_ms))
-            .map(|s| s.item.clone())
-            .collect()
-    }
-
-    /// Snoozes an entry (`until_ms`: until then; `None`: until something changes).
-    /// An earlier snooze is replaced.
-    pub fn snooze(&mut self, id: &str, until_ms: Option<u64>) -> bool {
-        let Some(item) = self.item(id) else {
-            return false;
-        };
-        let snooze = Snooze::new(item, until_ms);
-        self.snoozed.retain(|s| s.item != id);
-        self.snoozed.push(snooze);
-        true
-    }
-
-    /// Brings an entry back. `false` if it was not snoozed.
-    pub fn unsnooze(&mut self, id: &str) -> bool {
-        let before = self.snoozed.len();
-        self.snoozed.retain(|s| s.item != id);
-        self.snoozed.len() != before
-    }
-
-    /// Removes expired snoozes. Returns the IDs of the entries that came back.
-    pub fn wake(&mut self, now_ms: u64) -> Vec<String> {
-        let back = self.expired_snoozes(now_ms);
-        self.snoozed.retain(|s| !back.contains(&s.item));
-        back
-    }
-
-    /// Switches a rule on or off. `false` if nothing changes.
-    pub fn set_rule(&mut self, rule: Rule, enabled: bool) -> bool {
-        self.rules.set(rule, enabled)
-    }
-
-    /// The review of a pull request. A plain number (no repo) finds the first review with
-    /// that number; use a full [`PrKey`] wherever two repos can be involved.
     /// Does the pull request of this review concern me (author, requested reviewer or assignee)?
     /// A review without an inbox entry counts as mine: nothing says it belongs to a colleague.
     pub fn review_is_mine(&self, review: &Review) -> bool {
@@ -498,6 +285,8 @@ impl Workspace {
             .collect()
     }
 
+    /// The review of a pull request. A plain number (no repo) finds the first review with
+    /// that number; use a full [`PrKey`] wherever two repos can be involved.
     pub fn review(&self, key: impl Into<PrKey>) -> Option<&Review> {
         let key = key.into();
         self.reviews.iter().find(|r| key.matches(&r.repo, r.number))
@@ -535,11 +324,14 @@ impl Workspace {
 }
 
 mod agents;
-pub use agents::PullRequestDraft;
 mod followups;
+mod inbox;
 mod inbox_filter;
 mod limits;
+pub use pull_request::PullRequestDraft;
+mod pull_request;
 mod review;
+mod snooze;
 #[cfg(test)]
 mod tests;
 mod tickets;
