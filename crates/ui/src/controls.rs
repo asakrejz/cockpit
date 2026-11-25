@@ -68,23 +68,19 @@ pub fn SegmentedPicker(
     #[prop(optional)]
     stretch: bool,
 ) -> impl IntoView {
-    let (group_css, button_css) = if stretch {
-        (
-            "align-self: stretch",
-            Some("flex: 1 1 0; padding-inline: 8px"),
-        )
+    let class = if stretch {
+        "ui-segmented ui-segmented--fill"
     } else {
-        ("align-self: flex-start", None)
+        "ui-segmented ui-self-start"
     };
     view! {
-        <div class="ui-segmented" role="group" aria-label=aria_label style=group_css>
+        <div class=class role="group" aria-label=aria_label>
             {options
                 .iter()
                 .map(|&(id, label)| {
                     view! {
                         <button
                             type="button"
-                            style=button_css
                             aria-pressed=move || (value.get() == id).to_string()
                             on:click=move |_| on_change.run(id)
                         >

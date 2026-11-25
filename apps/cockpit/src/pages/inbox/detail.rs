@@ -115,7 +115,7 @@ pub(super) fn detail(
     let edit_form = is_ticket.then(|| {
         view! {
             <Show when=move || edit.on.get()>
-                <div class="ck-edit ui-vstack" style="--spacing: 12px">
+                <div class="ck-edit ui-vstack ui-gap-12">
                     <TextField
                         label=t!(InboxDetailTitle)
                         value=edit.title
@@ -123,7 +123,7 @@ pub(super) fn detail(
                         error=Signal::derive(move || edit.title.get().trim().is_empty())
                     />
                     <Textarea value=edit.description label=t!(InboxDetailDescription) />
-                    <div class="ui-hstack" style="--spacing: 8px; justify-content: flex-end">
+                    <div class="ui-hstack ui-gap-8 ui-justify-end">
                         <Button on_click=cancel>{t!(InboxDetailCancel)}</Button>
                         <Button
                             variant=ButtonStyle::BorderedProminent
@@ -143,7 +143,7 @@ pub(super) fn detail(
         view! {
             <ListSection header=t!(InboxDetailTicket) nested=true>
                 <li>
-                    <div class="ui-list__row" style="flex-wrap: wrap">
+                    <div class="ui-list__row ui-flex-wrap">
                         <span class="ui-list__title">{t!(InboxDetailPriority)}</span>
                         <Picker
                             options=labels::options(Priority::IDS, Priority::from_id, labels::priority)
@@ -161,7 +161,7 @@ pub(super) fn detail(
                     </div>
                 </li>
                 <li>
-                    <div class="ui-list__row" style="flex-wrap: wrap">
+                    <div class="ui-list__row ui-flex-wrap">
                         <span class="ui-list__title">{t!(InboxDetailAssignedTo)}</span>
                         <AssigneeField store=store item=id.get_value() key=ticket_key />
                     </div>
@@ -182,7 +182,7 @@ pub(super) fn detail(
         .map(|(ticket_id, key, title)| {
             view! {
                 <li>
-                    <div class="ui-list__row" style="flex-wrap: wrap">
+                    <div class="ui-list__row ui-flex-wrap">
                         {row_icon(icons::GIT_PR)} <span class="ui-list__title">{t!(InboxDetailTicket)}</span>
                         <span class="ui-list__detail ck-ellipsis">{t!(InboxDetailKeyTitle, key = key, title = title)}</span>
                         <Button
@@ -245,7 +245,7 @@ pub(super) fn detail(
             let branch = (!linked.branch.is_empty()).then(|| view! { <Chip>{linked.branch.clone()}</Chip> });
             view! {
                 <li>
-                    <div class="ui-list__row" style="flex-wrap: wrap" data-linked-pr=key>
+                    <div class="ui-list__row ui-flex-wrap" data-linked-pr=key>
                         {row_icon(icons::GIT_PR)} <span class="ui-list__title">{t!(InboxDetailPullRequest)}</span>
                         <span class="ui-list__detail">{link}</span>
                         {branch}
@@ -277,7 +277,7 @@ pub(super) fn detail(
     let snoozed = store.ws.with_untracked(|w| w.snooze_of(&item.id).cloned());
     let snooze_row = match snoozed {
         Some(snooze) => view! {
-            <div class="ck-snooze ui-hstack" style="--spacing: 10px; justify-content: space-between">
+            <div class="ck-snooze ui-hstack ui-gap-10 ui-justify-between">
                 <span class="t-subheadline t-secondary">{snooze_text(snooze.until_ms)}</span>
                 <Button
                     size=ControlSize::Small
@@ -291,7 +291,7 @@ pub(super) fn detail(
         }
         .into_any(),
         None => view! {
-            <div class="ck-snooze ui-hstack" style="--spacing: 8px" role="group" aria-label=t!(InboxDetailSnoozeGroup)>
+            <div class="ck-snooze ui-hstack ui-gap-8" role="group" aria-label=t!(InboxDetailSnoozeGroup)>
                 <span class="t-subheadline t-secondary">{t!(InboxDetailSnoozeLabel)}</span>
                 {SnoozeChoice::ALL
                     .into_iter()
@@ -329,16 +329,16 @@ pub(super) fn detail(
     let agent_note = item.agent_note_in(lang());
     view! {
         <PaneHeader>
-            <div class="ui-hstack" style="--spacing: 10px">
+            <div class="ui-hstack ui-gap-10">
                 <Badge variant=BadgeVariant::Neutral>{source}</Badge>
                 {key_link}
                 <span class="ui-spacer"></span>
-                <span class="ui-hstack" style="--spacing: 8px; flex-wrap: nowrap">
+                <span class="ui-hstack ui-gap-8 ui-flex-nowrap">
                     <Avatar initials=item.owner.initials_in(lang()) />
                     <span class="t-subheadline">{item.owner.name_in(lang())}</span>
                 </span>
             </div>
-            <div class="ui-hstack" style="justify-content: space-between; align-items: flex-start">
+            <div class="ui-hstack ui-justify-between ui-items-start">
                 <h2 class="t-title1 t-bold">{item.title.clone()}</h2>
                 {edit_button}
             </div>
@@ -366,7 +366,7 @@ pub(super) fn detail(
             <List>
                 <ListSection header=t!(InboxDetailDevelopment) nested=true>
                     <li>
-                        <div class="ui-list__row" style="flex-wrap: wrap">
+                        <div class="ui-list__row ui-flex-wrap">
                             {row_icon(icons::GIT_BRANCH)} <span class="ui-list__title">{t!(InboxDetailBranch)}</span> {branch}
                         </div>
                     </li>
@@ -375,7 +375,7 @@ pub(super) fn detail(
                         .then(|| {
                             view! {
                                 <li>
-                                    <div class="ui-list__row" style="flex-wrap: wrap">
+                                    <div class="ui-list__row ui-flex-wrap">
                                         {row_icon(icons::GIT_PR)} <span class="ui-list__title">{t!(InboxDetailPullRequest)}</span>
                                         <span class="ui-list__detail">{pr_text}</span>
                                         {(!is_ticket)
@@ -403,7 +403,7 @@ pub(super) fn detail(
                 </ListSection>
             </List>
 
-            <div class="ui-hstack" style="--spacing: 10px">
+            <div class="ui-hstack ui-gap-10">
                 {primary}
                 <Button
                     size=ControlSize::Large
@@ -420,9 +420,9 @@ pub(super) fn detail(
 
             <div class="ui-list__section">
                 <p class="ui-list__header">{t!(InboxDetailComments)}</p>
-                <div class="ui-vstack" style="--spacing: 12px">
+                <div class="ui-vstack ui-gap-12">
                     {comments}
-                    <div class="ui-vstack" style="--spacing: 8px">
+                    <div class="ui-vstack ui-gap-8">
                         <div class="ck-reply">
                             <Textarea
                                 value=draft
@@ -430,7 +430,7 @@ pub(super) fn detail(
                                 placeholder=if is_ticket { t!(InboxDetailReplyTicket) } else { t!(InboxDetailReplyPr) }
                             />
                         </div>
-                        <div class="ui-hstack" style="justify-content: space-between">
+                        <div class="ui-hstack ui-justify-between">
                             <span class="t-footnote t-secondary">
                                 {t!(InboxDetailPostedIn, source = source)}
                             </span>

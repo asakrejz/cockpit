@@ -169,19 +169,19 @@ fn segmented(
     aria_label: String,
     stretch: bool,
 ) -> impl IntoView {
-    let align = if stretch { "stretch" } else { "flex-start" };
-    let flex = stretch.then_some("1 1 0");
-    let pad = stretch.then_some("8px");
+    let class = if stretch {
+        "ui-segmented ui-segmented--fill"
+    } else {
+        "ui-segmented ui-self-start"
+    };
     view! {
-        <div class="ui-segmented" role="group" aria-label=aria_label style:align-self=align>
+        <div class=class role="group" aria-label=aria_label>
             {options
                 .into_iter()
                 .map(|(id, label)| {
                     view! {
                         <button
                             type="button"
-                            style:flex=flex
-                            style:padding-inline=pad
                             aria-pressed=move || (value() == id).to_string()
                             on:click=move |_| on_change(id)
                         >

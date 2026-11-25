@@ -12,7 +12,7 @@ pub fn Picker(
     #[prop(into)] aria_label: String,
 ) -> impl IntoView {
     view! {
-        <div class="ui-segmented" role="group" aria-label=aria_label style="align-self: flex-start">
+        <div class="ui-segmented ui-self-start" role="group" aria-label=aria_label>
             {options
                 .into_iter()
                 .map(|(id, label)| {

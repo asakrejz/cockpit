@@ -33,8 +33,14 @@ pub fn Card(
 
 /// Inner padding of a card (below the image).
 #[component]
-pub fn CardBody(#[prop(optional, into)] css: Option<String>, children: Children) -> impl IntoView {
-    view! { <div class="ui-card__body" style=css>{children()}</div> }
+pub fn CardBody(
+    #[prop(optional, into)] css: Option<String>,
+    /// Utility classes from `extras.css`, e.g. `"ui-card__body--loose"`.
+    #[prop(optional, into)]
+    class: Option<String>,
+    children: Children,
+) -> impl IntoView {
+    view! { <div class=crate::layout::classes("ui-card__body", class) style=css>{children()}</div> }
 }
 
 /// Footer of a card (name, meta, actions): pinned to the bottom right, whatever the text length.

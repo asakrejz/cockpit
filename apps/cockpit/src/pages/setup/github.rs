@@ -288,7 +288,7 @@ fn AppWay(ctx: Context) -> impl IntoView {
                 autocomplete="off"
                 hint=t!(SetupGithubSecretHint)
             />
-            <HStack spacing="12px">
+            <HStack class="ui-gap-12">
                 <Button
                     variant=ButtonStyle::GlassProminent
                     disabled=Signal::derive(move || running.get())
@@ -360,7 +360,7 @@ fn ConnectionCheck(ctx: Context) -> impl IntoView {
             <p class="t-subheadline t-secondary">
                 {t!(SetupGithubCheckText)}
             </p>
-            <HStack spacing="12px">
+            <HStack class="ui-gap-12">
                 <Button on_click=go disabled=Signal::derive(move || running.get())>
                     {move || if running.get() { t!(SetupGithubChecking) } else { t!(SetupGithubCheckButton) }}
                 </Button>
@@ -372,7 +372,7 @@ fn ConnectionCheck(ctx: Context) -> impl IntoView {
                     .map(|a| {
                         let tone = a.ok;
                         view! {
-                            <p class="ui-hint" role="status" style=(!tone).then_some("color: var(--sys-color-red)")>
+                            <p class="ui-hint" class:ck-problem=!tone role="status">
                                 {a.message.render(lang())}
                             </p>
                             <ul class="ui-checklist">
@@ -425,7 +425,7 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
     let settings_opened = RwSignal::new(false);
 
     view! {
-        <VStack spacing="12px">
+        <VStack class="ui-gap-12">
             <Intro title=t!(SetupGithubTitle)>
                 <p>{t!(SetupGithubIntro)}</p>
             </Intro>
@@ -445,12 +445,12 @@ pub fn GitHubStep(ctx: Context) -> impl IntoView {
             <UnusedSignInNote status=status />
             <p class="t-footnote t-secondary">{t!(SetupGithubTokenIfNoApp)}</p>
             <div hidden=move || method.get() != AuthKind::Token>
-                <VStack spacing="12px">
+                <VStack class="ui-gap-12">
                     <TokenWay ctx=ctx />
                 </VStack>
             </div>
             <div hidden=move || method.get() != AuthKind::OAuth>
-                <VStack spacing="12px">
+                <VStack class="ui-gap-12">
                     <AppWay ctx=ctx />
                 </VStack>
             </div>

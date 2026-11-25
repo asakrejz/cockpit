@@ -21,7 +21,7 @@ pub fn Toasts() -> impl IntoView {
                             <span class="ck-toast__icon" aria-hidden="true">
                                 <Icon path=view::notify_icon(event.reason) size=18 />
                             </span>
-                            <div class="ui-vstack" style="--spacing: 2px; min-width: 0; flex: 1 1 auto">
+                            <div class="ui-vstack ui-gap-2 ui-grow">
                                 <p class="t-headline">{move || title.render(lang())}</p>
                                 <p class="t-subheadline t-secondary">{move || text.render(lang())}</p>
                             </div>

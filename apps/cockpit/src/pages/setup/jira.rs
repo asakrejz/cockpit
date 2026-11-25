@@ -66,7 +66,7 @@ pub fn JiraStep(ctx: Context) -> impl IntoView {
     // Both ways stay in the page (only hidden), so what was typed in one is still there after
     // switching back and forth.
     view! {
-        <VStack spacing="12px">
+        <VStack class="ui-gap-12">
             <Intro title=t!(SetupJiraTitle)>
                 <p>{t!(SetupJiraIntro)}</p>
                 <p>
@@ -90,7 +90,7 @@ pub fn JiraStep(ctx: Context) -> impl IntoView {
             />
             <UnusedSignInNote status=status />
             <div hidden=move || method.get() != AuthKind::Token>
-                <VStack spacing="12px">
+                <VStack class="ui-gap-12">
                     <JiraToken ctx=ctx result=result />
                     {move || {
                         (result.with(|e| e.as_ref().is_some_and(|e| e.ok)) || per_token())
@@ -99,7 +99,7 @@ pub fn JiraStep(ctx: Context) -> impl IntoView {
                 </VStack>
             </div>
             <div hidden=move || method.get() != AuthKind::OAuth>
-                <VStack spacing="12px">
+                <VStack class="ui-gap-12">
                     <Intro title=t!(SetupJiraOauthTitle)>
                         <p>{t!(SetupJiraOauthIntro)}</p>
                     </Intro>
@@ -261,7 +261,7 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                 hint=t!(SetupJiraClientIdHint)
                 autocomplete="off"
             />
-            <HStack spacing="12px" css="flex-wrap:wrap">
+            <HStack class="ui-gap-12">
                 <Button variant=ButtonStyle::GlassProminent on_click=id_save>
                     {t!(SetupJiraClientIdSave)}
                 </Button>
@@ -298,7 +298,7 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                         view! {
                             <div class="ui-hint" role="alertdialog" aria-label=t!(SetupJiraClientIdRemove)>
                                 <p>{t!(SetupJiraRemoveConfirm)}</p>
-                                <HStack spacing="12px" css="margin-top: 8px">
+                                <HStack class="ui-gap-12 ui-mt-8">
                                     <Button destructive=true disabled=removing on_click=remove>
                                         {t!(SetupJiraRemoveYes)}
                                     </Button>
@@ -325,7 +325,7 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                 hint=t!(SetupJiraSiteHint)
                 autocomplete="off"
             />
-            <HStack spacing="12px">
+            <HStack class="ui-gap-12">
                 <Button
                     on_click=site_save
                     disabled=Signal::derive(move || !id_stored.get())
@@ -342,7 +342,7 @@ fn JiraOauth(ctx: Context) -> impl IntoView {
                 hint=t!(SetupJiraProjectsHint)
                 autocomplete="off"
             />
-            <HStack spacing="12px">
+            <HStack class="ui-gap-12">
                 <Button on_click=projects_save>{t!(SetupJiraProjectsSave)}</Button>
             </HStack>
             <Message feedback=back_projects />
@@ -454,7 +454,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                 }
                 Ok(_) => ().into_any(),
                 Err(m) => {
-                    view! { <p class="ui-hint" role="alert" style="color: var(--sys-color-red)">{m.render(lang())}</p> }
+                    view! { <p class="ui-hint ck-problem" role="alert">{m.render(lang())}</p> }
                         .into_any()
                 }
             }}
@@ -472,7 +472,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
             <ol class="ui-instructions">
                 <li>
                     {t!(SetupJiraTokenStep1)}
-                    <HStack spacing="12px" css="margin-top: 8px">
+                    <HStack class="ui-gap-12 ui-mt-8">
                         <ExternButton href=JIRA_TOKEN_PAGE>{t!(SetupJiraTokenPage)}</ExternButton>
                     </HStack>
                 </li>
@@ -495,7 +495,7 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
             <p class="t-subheadline t-secondary">
                 {t!(SetupJiraCheckText)}
             </p>
-            <HStack spacing="12px">
+            <HStack class="ui-gap-12">
                 <Button
                     variant=ButtonStyle::GlassProminent
                     disabled=running
@@ -515,8 +515,8 @@ fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> impl IntoView
                         view! {
                             <p
                                 class="ui-hint"
+                                class:ck-problem=!p.ok
                                 role=if p.ok { "status" } else { "alert" }
-                                style=(!p.ok).then_some("color: var(--sys-color-red)")
                             >
                                 {if p.ok { "✓ " } else { "" }}
                                 {p.message.render(lang())}

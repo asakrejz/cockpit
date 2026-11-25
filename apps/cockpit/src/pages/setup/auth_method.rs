@@ -43,14 +43,13 @@ pub fn AuthMethodPicker(
         }
     });
     view! {
-        <div class="ui-segmented" role="group" aria-label=aria_label style="align-self: stretch">
+        <div class="ui-segmented ui-segmented--fill" role="group" aria-label=aria_label>
             {options()
                 .into_iter()
                 .map(|(id, label)| {
                     view! {
                         <button
                             type="button"
-                            style="flex: 1 1 0; padding-inline: 8px"
                             aria-pressed=move || (value.get() == id).to_string()
                             on:click=move |_| on_change.run(id)
                         >

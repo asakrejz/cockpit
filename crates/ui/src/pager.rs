@@ -47,7 +47,7 @@ pub fn Pager(
                             .collect_view()}
                     </div>
                 </div>
-                <div style="align-self: center; justify-self: start; margin-left: 16px">
+                <div class="ui-pager__prev">
                     <Button
                         variant=ButtonStyle::Glass
                         shape=ButtonShape::Circle
@@ -59,7 +59,7 @@ pub fn Pager(
                         <Icon path=icons::CHEVRON_LEFT size=20 stroke=2.4 />
                     </Button>
                 </div>
-                <div style="align-self: center; justify-self: end; margin-right: 16px">
+                <div class="ui-pager__next">
                     <Button
                         variant=ButtonStyle::Glass
                         shape=ButtonShape::Circle

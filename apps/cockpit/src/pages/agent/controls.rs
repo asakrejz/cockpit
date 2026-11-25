@@ -29,7 +29,7 @@ pub(super) fn controls(ctx: AgentCtx) -> impl IntoView {
     let resume = move |_| ctx.resume();
     let to_ticket = move |_| ctx.to_ticket();
     view! {
-        <div class="ui-hstack" style="--spacing: 10px">
+        <div class="ui-hstack ui-gap-10">
             <Show when=move || idle.get() && !followup.get()>
                 <Button
                     variant=ButtonStyle::GlassProminent

@@ -48,7 +48,7 @@ pub(super) fn header(ctx: AgentCtx) -> impl IntoView {
     } = ctx;
     view! {
         <PaneHeader>
-            <div class="ui-hstack" style="--spacing: 10px">
+            <div class="ui-hstack ui-gap-10">
                 <Badge variant=BadgeVariant::Neutral>
                     {move || if followup.get() { "GitHub" } else { "Jira" }}
                 </Badge>

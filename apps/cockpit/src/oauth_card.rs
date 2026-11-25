@@ -15,9 +15,6 @@ use crate::view::setup_tone;
 /// Brand name (not translated).
 const ATLASSIAN: &str = "Atlassian";
 
-/// Layout of the "forget" row.
-const ALIGN_CENTER: &str = "align-items:center";
-
 /// Which service: address in the backend, name, command for the client secret.
 #[derive(Clone, Copy)]
 pub enum Service {
@@ -151,12 +148,12 @@ pub fn OAuthCard(
                     let hint = t!(OauthNeedClient);
                     view! {
                         <Card>
-                            <CardBody css="gap: 12px">
-                                <HStack css="justify-content: space-between">
+                            <CardBody class="ui-card__body--loose">
+                                <HStack class="ui-justify-between">
                                     <span class="t-headline">{t!(OauthSignInTo, service = service.name())}</span>
                                     <Status tone=setup_tone(tone)>{text.render(lang())}</Status>
                                 </HStack>
-                                <HStack spacing="12px">
+                                <HStack class="ui-gap-12">
                                     {(!oauth)
                                         .then(|| {
                                             view! {
@@ -180,7 +177,7 @@ pub fn OAuthCard(
                                 {oauth
                                     .then(|| {
                                         view! {
-                                            <HStack spacing="8px" css=ALIGN_CENTER>
+                                            <HStack class="ui-gap-8">
                                                 <Toggle
                                                     checked=forget
                                                     aria_label=t!(OauthForget)

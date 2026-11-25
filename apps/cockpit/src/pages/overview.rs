@@ -105,7 +105,7 @@ fn source_picker(store: Store) -> impl IntoView {
         PeopleSource::GitHub => t!(OverviewSourceGithub),
     };
     view! {
-        <div class="ui-segmented" role="group" aria-label=t!(OverviewSourceLabel) style="align-self: flex-start">
+        <div class="ui-segmented ui-self-start" role="group" aria-label=t!(OverviewSourceLabel)>
             {PeopleSource::ALL
                 .into_iter()
                 .map(|source| {
@@ -212,7 +212,7 @@ pub fn OverviewPage() -> impl IntoView {
 
             <Pane label=t!(OverviewDetails)>
                 <PaneHeader>
-                    <div class="ui-hstack" style="justify-content: space-between; flex-wrap: nowrap">
+                    <div class="ui-hstack ui-justify-between ui-flex-nowrap">
                         <h2 class="t-title1 t-bold">{t!(OverviewStuck)}</h2>
                         <Badge variant=BadgeVariant::Count>{move || stuck_shown.get().len().to_string()}</Badge>
                     </div>
@@ -254,9 +254,9 @@ fn member_row(m: Member, selected: bool) -> impl IntoView {
             navigate(&Route::OverviewMember(key.clone()));
         }>
             {person_avatar(&m.person)}
-            <span class="ui-vstack" style="--spacing: 6px; flex: 1 1 auto; min-width: 0">
-                <span class="ui-hstack" style="--spacing: 8px; flex-wrap: nowrap">
-                    <span class="t-headline ck-ellipsis" style="flex: 1 1 auto">{m.person.name_in(lang())}</span>
+            <span class="ui-vstack ui-gap-6 ui-grow">
+                <span class="ui-hstack ui-gap-8 ui-flex-nowrap">
+                    <span class="t-headline ck-ellipsis ui-grow">{m.person.name_in(lang())}</span>
                     <Badge variant=BadgeVariant::Neutral>{total.to_string()}</Badge>
                 </span>
                 {m
@@ -277,9 +277,9 @@ fn member_row(m: Member, selected: bool) -> impl IntoView {
 fn everyone_row(total: usize, selected: bool) -> impl IntoView {
     view! {
         <InboxRow selected=selected on_select=move |_| navigate(&Route::OverviewAll)>
-            <span class="ui-vstack" style="--spacing: 6px; flex: 1 1 auto; min-width: 0">
-                <span class="ui-hstack" style="--spacing: 8px; flex-wrap: nowrap">
-                    <span class="t-headline ck-ellipsis" style="flex: 1 1 auto">{t!(OverviewEveryone)}</span>
+            <span class="ui-vstack ui-gap-6 ui-grow">
+                <span class="ui-hstack ui-gap-8 ui-flex-nowrap">
+                    <span class="t-headline ck-ellipsis ui-grow">{t!(OverviewEveryone)}</span>
                     <Badge variant=BadgeVariant::Neutral>{total.to_string()}</Badge>
                 </span>
                 <span class="t-subheadline t-secondary">{t!(OverviewEveryoneSummary)}</span>
@@ -313,14 +313,14 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
             >
                 <Icon path=kind_icon(s.kind) size=13 stroke=2.4 />
             </span>
-            <div class="ui-vstack" style="--spacing: 6px; min-width: 0">
-                <div class="ui-hstack" style="--spacing: 6px">
+            <div class="ui-vstack ui-gap-6">
+                <div class="ui-hstack ui-gap-6">
                     <Badge variant=BadgeVariant::Neutral>{kind_label(s.kind)}</Badge>
                     <span class="t-footnote t-mono t-secondary">{s.key}</span>
                 </div>
                 <p class="t-headline">{s.title}</p>
                 <p class="t-subheadline t-secondary">{move || s.reason.render(lang())}</p>
-                <div class="ui-hstack" style="--spacing: 8px">
+                <div class="ui-hstack ui-gap-8">
                     <Button size=ControlSize::Small on_click=move |_| store.open_item(&id)>
                         {t!(OverviewToEntry)}
                     </Button>
@@ -362,7 +362,7 @@ fn stuck_row(store: Store, s: Stuck) -> impl IntoView {
                             }
                         })}
                     <span class="ui-spacer"></span>
-                    <span class="ui-hstack t-footnote t-secondary" style="--spacing: 6px">
+                    <span class="ui-hstack t-footnote t-secondary ui-gap-6">
                         {t!(OverviewWaitingOn)} {person_avatar(&s.who)}
                         <span>{s.who.name_in(lang())}</span>
                     </span>
@@ -401,13 +401,13 @@ fn person_items(store: Store, member: Option<Member>, all: Vec<Member>) -> impl 
                         let state = state_text(&item);
                         view! {
                             <li class="ck-stuck">
-                                <div class="ui-vstack" style="--spacing: 6px; min-width: 0; flex: 1 1 auto">
-                                    <div class="ui-hstack" style="--spacing: 6px">
+                                <div class="ui-vstack ui-gap-6 ui-grow">
+                                    <div class="ui-hstack ui-gap-6">
                                         <Badge variant=BadgeVariant::Neutral>{item.source.label()}</Badge>
                                         <span class="t-footnote t-mono t-secondary">{item.key.clone()}</span>
                                     </div>
                                     <p class="t-headline">{item.title.clone()}</p>
-                                    <div class="ui-hstack" style="--spacing: 8px">
+                                    <div class="ui-hstack ui-gap-8">
                                         <Status tone=view::tone(tone)>{state}</Status>
                                         <span class="ui-spacer"></span>
                                         <Button size=ControlSize::Small on_click=move |_| store.open_item(&id)>
@@ -424,7 +424,7 @@ fn person_items(store: Store, member: Option<Member>, all: Vec<Member>) -> impl 
         .into_any()
     };
     view! {
-        <section class="ui-vstack" style="--spacing: 12px" aria-label=heading>
+        <section class="ui-vstack ui-gap-12" aria-label=heading>
             <h3 class="ui-list__header">{heading.clone()}</h3>
             {link}
             {body}
@@ -439,7 +439,7 @@ fn link_section(store: Store, m: Member) -> impl IntoView {
         let jira = m.person.name.clone();
         let github = m.github.clone().unwrap_or_default();
         return view! {
-            <div class="ui-vstack" style="--spacing: 8px">
+            <div class="ui-vstack ui-gap-8">
                 <p class="t-subheadline t-secondary">{t!(OverviewLinkedWith, name = github)}</p>
                 <div>
                     <Button
@@ -492,7 +492,7 @@ fn link_section(store: Store, m: Member) -> impl IntoView {
         Side::GitHub => t!(OverviewLinkHintGithub),
     };
     view! {
-        <div class="ui-vstack" style="--spacing: 8px">
+        <div class="ui-vstack ui-gap-8">
             <h4 class="t-headline">{t!(OverviewLinkTitle)}</h4>
             <p class="t-footnote t-secondary">{hint}</p>
             <Combobox

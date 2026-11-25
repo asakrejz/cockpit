@@ -128,7 +128,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
     });
 
     view! {
-        <VStack spacing="12px">
+        <VStack class="ui-gap-12">
             <Intro title=t!(SetupContainerIntroTitle)>
                 <p>
                     {t!(SetupContainerIntro1)}
@@ -138,8 +138,8 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                 </p>
             </Intro>
             <Card>
-                <CardBody css="gap: 12px">
-                    <HStack css="justify-content: space-between">
+                <CardBody class="ui-card__body--loose">
+                    <HStack class="ui-justify-between">
                         <span class="t-headline">{t!(SetupContainerStateTitle)}</span>
                         <Status tone=Signal::derive(tone)>{text}</Status>
                     </HStack>
@@ -148,7 +148,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                             .and_then(|s| s.hint)
                             .map(|h| view! { <p class="ui-hint" role="status">{h.render(lang())}</p> })
                     }}
-                    <HStack spacing="12px">
+                    <HStack class="ui-gap-12">
                         <Button on_click=move |_| ctx.reload()>{t!(SetupContainerRecheck)}</Button>
                     </HStack>
                 </CardBody>
@@ -162,7 +162,7 @@ pub fn ContainerStep(ctx: Context) -> impl IntoView {
                                 <p class="t-subheadline t-secondary">
                                     {t!(SetupContainerImageText)}
                                 </p>
-                                <HStack spacing="12px">
+                                <HStack class="ui-gap-12">
                                     <Status tone=Signal::derive(move || {
                                         if image_state() == ImageState::Current {
                                             StatusTone::Green

@@ -36,7 +36,7 @@ pub fn TeamPicker() -> impl IntoView {
     let hint = move || !store.ws.with(|w| w.team_choice.is_active());
     view! {
         <Show when=has_teams>
-            <div class="ui-vstack" style="--spacing: 6px">
+            <div class="ui-vstack ui-gap-6">
                 <div>
                     <Button on_click=move |_| open.set(true) aria_label=t!(OverviewTeamButtonOpen)>
                         {move || label.get()}

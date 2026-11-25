@@ -54,7 +54,7 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
             };
             let key = run.key();
             view! {
-                <div class="ui-hstack" style="--spacing: 8px">
+                <div class="ui-hstack ui-gap-8">
                     <Status tone=tone>{label}</Status>
                     <span class="t-footnote t-secondary">{run.label_msg().render(lang())}</span>
                     <span class="ui-spacer"></span>
@@ -67,7 +67,7 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
             .map(|run| {
                 let key = run.key();
                 view! {
-                    <div class="ui-hstack" style="--spacing: 8px">
+                    <div class="ui-hstack ui-gap-8">
                         <Status tone=StatusTone::Green>{t!(ReviewDone)}</Status>
                         <span class="t-footnote t-secondary">{run.label_msg().render(lang())}</span>
                         <span class="ui-spacer"></span>
@@ -110,7 +110,7 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
             }
         };
         Some(view! {
-            <div class="ui-vstack" style="--spacing: 10px" role="region" aria-label=t!(ReviewFollowupsRegion)>
+            <div class="ui-vstack ui-gap-10" role="region" aria-label=t!(ReviewFollowupsRegion)>
                 <h3 class="t-headline">{t!(ReviewFollowupsTitle)}</h3>
                 {state}
                 {finished}
@@ -120,7 +120,7 @@ pub(super) fn followup_section(store: Store, r: &Review) -> impl IntoView + use<
                             <p class="t-footnote t-secondary">
                                 {t!(ReviewFollowupsIntro)}
                             </p>
-                            <div class="ui-hstack" style="--spacing: 8px; flex-wrap: wrap">
+                            <div class="ui-hstack ui-gap-8">
                                 <Button
                                     variant=ButtonStyle::BorderedProminent
                                     size=ControlSize::Large

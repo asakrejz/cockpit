@@ -23,7 +23,7 @@ pub(super) fn suggestion_editor(
 ) -> impl IntoView {
     let original = StoredValue::new(original);
     view! {
-        <div class="ui-hstack" style="--spacing: 8px">
+        <div class="ui-hstack ui-gap-8">
             <Button
                 variant=ButtonStyle::Borderless
                 size=ControlSize::Small
@@ -92,7 +92,7 @@ pub(super) fn line_notes(
                             view! {
                                 <Textarea value=ui.edit_text label=t!(ReviewEditComment) min_height="64px" />
                                 {suggestion_editor(ui.edit_suggest, ui.edit_code, original.clone())}
-                                <div class="ui-hstack" style="--spacing: 8px">
+                                <div class="ui-hstack ui-gap-8">
                                     <Button
                                         variant=ButtonStyle::BorderedProminent
                                         size=ControlSize::Small
@@ -132,7 +132,7 @@ pub(super) fn line_notes(
                                 .into_any()
                         } else {
                             view! {
-                                <span class="ui-hstack t-footnote t-secondary" style="--spacing: 8px">
+                                <span class="ui-hstack t-footnote t-secondary ui-gap-8">
                                     {label.clone()}
                                 </span>
                                 {(!text.with_value(String::is_empty))
@@ -141,7 +141,7 @@ pub(super) fn line_notes(
                                 {(!sent && own)
                                     .then(|| {
                                         view! {
-                                            <div class="ui-hstack" style="--spacing: 8px">
+                                            <div class="ui-hstack ui-gap-8">
                                                 <Button
                                                     variant=ButtonStyle::Borderless
                                                     size=ControlSize::Small
@@ -197,7 +197,7 @@ pub(super) fn line_notes(
                         min_height="64px"
                     />
                     {suggestion_editor(ui.suggest, ui.code, original.get_value())}
-                    <div class="ui-hstack" style="--spacing: 8px">
+                    <div class="ui-hstack ui-gap-8">
                         <Button
                             variant=ButtonStyle::BorderedProminent
                             size=ControlSize::Small
@@ -276,7 +276,7 @@ pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi, panel: PanelUi) -> 
     view! {
         <Pane label=t!(ReviewPane)>
             <PaneHeader>
-                <div class="ui-hstack" style="--spacing: 10px">
+                <div class="ui-hstack ui-gap-10">
                     <Badge variant=BadgeVariant::Neutral>"GitHub"</Badge>
                     <span class="t-subheadline t-mono t-secondary">{r.key().to_string()}</span>
                     <Status tone=view::tone(r.checks.tone())>{checks_label(r.checks)}</Status>
@@ -288,18 +288,18 @@ pub(super) fn diff_pane(store: Store, r: Review, ui: LineUi, panel: PanelUi) -> 
                             }
                         })}
                     <span class="ui-spacer"></span>
-                    <span class="ui-hstack" style="--spacing: 8px; flex-wrap: nowrap">
+                    <span class="ui-hstack ui-gap-8 ui-flex-nowrap">
                         <Avatar initials=r.author.initials_in(lang()) agent=r.author.is_agent() />
                         <span class="t-subheadline">{r.author.name_in(lang())}</span>
                     </span>
                 </div>
                 <h1 class="t-title1 t-bold">{r.title.clone()}</h1>
-                <div class="ui-hstack" style="--spacing: 8px">
+                <div class="ui-hstack ui-gap-8">
                     <Chip>
                         <Icon path=icons::GIT_BRANCH size=13 stroke=2.2 />
                         {r.branch.clone()}
                     </Chip>
-                    <span style="display: inline-flex; color: var(--sys-color-secondary-label)">
+                    <span class="ui-icon-muted">
                         <Icon path=icons::ARROW_RIGHT size=14 stroke=2.4 />
                     </span>
                     <Chip>{r.base.clone()}</Chip>

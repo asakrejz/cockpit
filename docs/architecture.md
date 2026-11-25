@@ -464,9 +464,12 @@ The interface is available in German and English and switches at once, without a
 ## Layout and navigation
 
 The interface works from 320 px width up to 2560 px and beyond. The CSS lives in `crates/ui/extras.css` (building
-blocks) and `apps/cockpit/style.css` (Cockpit specifics), only with existing tokens (the few new ones, `--ui-pill-*`
-and `--ui-nav-space`, are defined in `extras.css`; `tokens.css` is untouched). The `viewport` meta tag is set and fixed
-elements respect `env(safe-area-inset-*)`.
+blocks) and `apps/cockpit/style.css` (Cockpit specifics), only with existing tokens (the few new ones, `--ui-*` such
+as `--ui-pill-*`, `--ui-nav-space`, `--ui-overlay` and `--ui-shadow-float`, are defined in `extras.css`; `tokens.css` is
+untouched; fixed sizes of Cockpit are named properties `--ck-*` at the top of `style.css`). Markup carries no `style`
+attribute for a static value: it uses the utility classes of `extras.css` (`ui-gap-8`, `ui-justify-between`, …, see
+[components.md](components.md#component-library-feature-ui)); a `style` stays only where the value is computed at run
+time. The `viewport` meta tag is set and fixed elements respect `env(safe-area-inset-*)`.
 
 **Shell.** From 768 px on the shell is exactly the viewport (`100dvh`, `overflow: hidden`, no page scroll). The columns of
 `SplitView` are grid tracks of equal height; each pane scrolls on its own (`min-height: 0`, `overflow-y: auto`,

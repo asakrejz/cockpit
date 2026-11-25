@@ -33,7 +33,7 @@ pub fn ListSection(
             <ul
                 class="ui-list__group"
                 data-icons=icons.then_some("")
-                style=nested.then_some("background: var(--sys-color-tertiary-grouped-background)")
+                data-nested=nested.then_some("")
             >
                 {children()}
             </ul>
@@ -96,15 +96,15 @@ pub fn ListRow(
             })}
     };
 
-    let wrap_css = wrap.then_some("flex-wrap: wrap");
     let row = match (href, toggle_row) {
         (Some(href), _) => {
-            view! { <a class="ui-list__row" href=href style=wrap_css>{body}</a> }.into_any()
+            view! { <a class="ui-list__row" class:ui-flex-wrap=wrap href=href>{body}</a> }
+                .into_any()
         }
-        (None, true) => {
-            view! { <label class="ui-list__row" style="cursor: pointer">{body}</label> }.into_any()
+        (None, true) => view! { <label class="ui-list__row">{body}</label> }.into_any(),
+        (None, false) => {
+            view! { <div class="ui-list__row" class:ui-flex-wrap=wrap>{body}</div> }.into_any()
         }
-        (None, false) => view! { <div class="ui-list__row" style=wrap_css>{body}</div> }.into_any(),
     };
     view! { <li>{row}</li> }
 }
@@ -119,12 +119,9 @@ pub fn ListButtonRow(
     view! {
         <li>
             <button
-                class="ui-list__row"
+                class="ui-list__row ui-justify-center"
                 type="button"
-                style=format!(
-                    "justify-content: center;{}",
-                    if destructive { " color: var(--sys-color-red)" } else { "" },
-                )
+                data-role=destructive.then_some("destructive")
                 on:click=move |ev| {
                     if let Some(cb) = on_click {
                         cb.run(ev);

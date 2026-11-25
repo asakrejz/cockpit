@@ -84,7 +84,7 @@ fn SourceSection(
             <ol class="ui-instructions">
                 <li>
                     {t!(SetupLiveSourceSecretBefore)} " " {source_name} " " {t!(SetupLiveSourceSecretAfter)}
-                    <HStack spacing="12px" css="margin-top: 8px; flex-wrap: wrap">
+                    <HStack class="ui-gap-12 ui-mt-8">
                         <Button
                             variant=ButtonStyle::GlassProminent
                             disabled=Signal::derive(move || busy.get())
@@ -115,7 +115,7 @@ fn SourceSection(
                             .get()
                             .map(|s| {
                                 view! {
-                                    <div style="margin-top: 8px">
+                                    <div class="ui-mt-8">
                                         <CopyField store=ctx.store label=t!(SetupLiveSecretLabel) text=Signal::derive(move || s.clone()) />
                                         <p class="ui-hint" role="status">
                                             {t!(SetupLiveSecretNote)}
@@ -134,7 +134,7 @@ fn SourceSection(
                     <CopyField store=ctx.store label=t!(SetupLiveAddress) text=target />
                 </li>
             </ol>
-            <HStack spacing="12px" css="flex-wrap:wrap">
+            <HStack class="ui-gap-12">
                 <Button disabled=Signal::derive(move || busy.get()) on_click=test>
                     {t!(SetupLiveTestLocal)}
                 </Button>
@@ -199,7 +199,7 @@ pub fn LiveStep(ctx: Context) -> impl IntoView {
     let ngrok = command(&["ngrok", "http", &format!("127.0.0.1:{port}")]);
 
     view! {
-        <VStack spacing="12px">
+        <VStack class="ui-gap-12">
             <Intro title=t!(SetupLiveTitle)>
                 <p>
                     {t!(SetupLiveIntro1)}
@@ -224,7 +224,7 @@ pub fn LiveStep(ctx: Context) -> impl IntoView {
                     hint=t!(SetupLivePublicUrlHint)
                     autocomplete="off"
                 />
-                <HStack spacing="12px">
+                <HStack class="ui-gap-12">
                     <Button variant=ButtonStyle::GlassProminent on_click=save>
                         {t!(SetupLiveSave)}
                     </Button>
@@ -294,7 +294,7 @@ pub fn LiveStep(ctx: Context) -> impl IntoView {
                     </ul>
                 </li>
             </SourceSection>
-            <p class="t-footnote t-secondary" style="padding-inline: 4px">
+            <p class="t-footnote t-secondary ui-px-4">
                 {t!(SetupLiveFootnote)}
             </p>
         </VStack>

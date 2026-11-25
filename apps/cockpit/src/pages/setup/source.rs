@@ -46,7 +46,6 @@ pub fn SourceStep(ctx: Context) -> impl IntoView {
             view! {
                 <button
                     type="button"
-                    style="flex: 1 1 0; padding-inline: 8px"
                     aria-pressed=move || (current.get() == from).to_string()
                     on:click=move |_| choose(from)
                 >
@@ -56,16 +55,15 @@ pub fn SourceStep(ctx: Context) -> impl IntoView {
         })
         .collect_view();
     view! {
-        <VStack spacing="20px">
+        <VStack class="ui-gap-20">
             <Intro title=t!(SetupProjectsSourceTitle)>
                 <p>{t!(SetupProjectsSourceIntro)}</p>
             </Intro>
             <Section title=t!(SetupProjectsFromLabel)>
                 <div
-                    class="ui-segmented"
+                    class="ui-segmented ui-segmented--fill"
                     role="group"
                     aria-label=t!(SetupProjectsFromLabel)
-                    style="align-self: stretch"
                 >
                     {main_buttons}
                 </div>

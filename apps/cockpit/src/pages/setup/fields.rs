@@ -69,8 +69,8 @@ pub fn Message(feedback: Feedback) -> impl IntoView {
                     view! {
                         <p
                             class="ui-hint"
+                            class:ck-problem=!gut
                             role=if gut { "status" } else { "alert" }
-                            style=(!gut).then_some("color: var(--sys-color-red)")
                         >
                             {text}
                             {link}
@@ -209,7 +209,7 @@ pub fn KeyField(
     };
 
     view! {
-        <VStack spacing="8px">
+        <VStack class="ui-gap-8">
             <TextField
                 label=label
                 value=value
@@ -217,7 +217,7 @@ pub fn KeyField(
                 autocomplete="off"
                 hint=hint.unwrap_or_else(|| t!(SetupFieldsKeyHint))
             />
-            <HStack spacing="12px">
+            <HStack class="ui-gap-12">
                 <Button
                     variant=ButtonStyle::GlassProminent
                     disabled=Signal::derive(move || running.get() || value.with(|w| w.trim().is_empty()))
@@ -289,7 +289,7 @@ pub fn Intro(#[prop(into)] title: String, children: Children) -> impl IntoView {
     view! {
         <div class="ui-list__section">
             <p class="ui-list__header" data-prominent="">{title}</p>
-            <div class="t-subheadline t-secondary" style="padding-inline: 4px; display: flex; flex-direction: column; gap: 8px">
+            <div class="t-subheadline t-secondary ck-intro">
                 {children()}
             </div>
         </div>
@@ -301,7 +301,7 @@ pub fn Intro(#[prop(into)] title: String, children: Children) -> impl IntoView {
 pub fn Section(#[prop(into)] title: String, children: Children) -> impl IntoView {
     view! {
         <Card>
-            <CardBody css="gap: 12px">
+            <CardBody class="ui-card__body--loose">
                 <span class="t-headline">{title}</span>
                 {children()}
             </CardBody>

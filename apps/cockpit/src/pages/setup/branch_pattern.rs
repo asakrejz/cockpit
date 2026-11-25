@@ -51,8 +51,8 @@ pub fn BranchPatternField(
             hint=t!(SetupBranchHint)
             autocomplete="off"
         />
-        {move || invalid.get().map(|m| view! { <p class="ui-hint" role="alert" style="color: var(--sys-color-red)">{m.render(lang())}</p> })}
-        <HStack spacing="12px">
+        {move || invalid.get().map(|m| view! { <p class="ui-hint ck-problem" role="alert">{m.render(lang())}</p> })}
+        <HStack class="ui-gap-12">
             <Button
                 variant=ButtonStyle::Borderless
                 on_click=propose
@@ -61,7 +61,7 @@ pub fn BranchPatternField(
                 {move || if loading.get() { t!(SetupBranchReading) } else { t!(SetupBranchPropose) }}
             </Button>
         </HStack>
-        {move || problem.get().map(|m| view! { <p class="ui-hint" role="alert" style="color: var(--sys-color-red)">{m}</p> })}
+        {move || problem.get().map(|m| view! { <p class="ui-hint ck-problem" role="alert">{m}</p> })}
         {move || {
             suggestion
                 .get()
@@ -80,7 +80,7 @@ pub fn BranchPatternField(
                                         <p class="ui-hint">
                                             {t!(SetupBranchSuggestion)} " " <code>{p}</code>
                                         </p>
-                                        <HStack spacing="12px">
+                                        <HStack class="ui-gap-12">
                                             <Button on_click=move |_| {
                                                 pattern.set(take.clone());
                                                 suggestion.set(None);

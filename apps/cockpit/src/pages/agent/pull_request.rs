@@ -102,7 +102,7 @@ fn RepoPullRequest(run: Memo<Option<AgentRun>>, repo: String) -> impl IntoView {
                 view! {
                     <div class="ui-list__section" role="region" aria-label=heading.clone()>
                         <p class="ui-list__header">{heading.clone()}</p>
-                        <div class="ui-hstack" style="--spacing: 8px">
+                        <div class="ui-hstack ui-gap-8">
                             <Status tone=StatusTone::Green>{t!(AgentPullRequestNumber, number = number)}</Status>
                             <span class="t-footnote t-secondary">
                                 {if p.existed {
@@ -112,7 +112,7 @@ fn RepoPullRequest(run: Memo<Option<AgentRun>>, repo: String) -> impl IntoView {
                                 }}
                             </span>
                         </div>
-                        <div class="ui-hstack" style="--spacing: 12px; flex-wrap: wrap">
+                        <div class="ui-hstack ui-gap-12">
                             {(!p.url.is_empty())
                                 .then(|| {
                                     view! {
@@ -144,11 +144,11 @@ fn RepoPullRequest(run: Memo<Option<AgentRun>>, repo: String) -> impl IntoView {
             };
             match existing {
                 Some(e) => view! {
-                    <div class="ui-vstack" style="--spacing: 10px">
+                    <div class="ui-vstack ui-gap-10">
                         <p class="t-subheadline">
                             {t!(AgentPullRequestExisting, number = e.number)}
                         </p>
-                        <div class="ui-hstack" style="--spacing: 8px; flex-wrap: wrap">
+                        <div class="ui-hstack ui-gap-8">
                             <Button
                                 variant=ButtonStyle::GlassProminent
                                 size=ControlSize::Large
@@ -165,14 +165,14 @@ fn RepoPullRequest(run: Memo<Option<AgentRun>>, repo: String) -> impl IntoView {
                 }
                 .into_any(),
                 None => view! {
-                    <div class="ui-vstack" style="--spacing: 10px">
-                        <p class="t-footnote t-secondary" style="overflow-wrap: anywhere">{route}</p>
+                    <div class="ui-vstack ui-gap-10">
+                        <p class="t-footnote t-secondary ui-text-break">{route}</p>
                         <TextField label=t!(AgentPullRequestTitleLabel) value=title />
                         <Textarea value=body label=t!(AgentPullRequestBodyLabel) min_height="160px" />
                         <p class="t-footnote t-secondary">
                             {t!(AgentPullRequestPreviewNote)}
                         </p>
-                        <div class="ui-hstack" style="--spacing: 8px; flex-wrap: wrap">
+                        <div class="ui-hstack ui-gap-8">
                             <Button
                                 variant=ButtonStyle::GlassProminent
                                 size=ControlSize::Large

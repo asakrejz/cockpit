@@ -220,7 +220,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
     });
 
     view! {
-        <VStack spacing="12px">
+        <VStack class="ui-gap-12">
             <Intro title=t!(SetupModelTitle)>
                 <p>{t!(SetupModelIntro)}</p>
                 <p>
@@ -296,7 +296,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                 <p class="t-subheadline t-secondary">
                     {t!(SetupModelListText)}
                 </p>
-                <HStack spacing="12px">
+                <HStack class="ui-gap-12">
                     <Button
                         variant=ButtonStyle::GlassProminent
                         disabled=Signal::derive(move || {
@@ -346,7 +346,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                     hint=t!(SetupModelHandHint)
                     autocomplete="off"
                 />
-                <HStack spacing="12px">
+                <HStack class="ui-gap-12">
                     <Button variant=ButtonStyle::GlassProminent on_click=save>
                         {t!(SetupModelSave)}
                     </Button>
@@ -357,7 +357,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                 <p class="t-subheadline t-secondary">
                     {t!(SetupModelTestText)}
                 </p>
-                <HStack spacing="12px">
+                <HStack class="ui-gap-12">
                     <Button
                         variant=ButtonStyle::GlassProminent
                         disabled=Signal::derive(move || test_running.get() || !ready())
@@ -389,7 +389,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                             let text = text.render(lang());
                             let tone = setup_tone(ton);
                             view! {
-                                <HStack spacing="8px">
+                                <HStack class="ui-gap-8">
                                     <Status tone=tone>{if ton == Tone::Good { t!(SetupModelSucceeded) } else { t!(SetupModelFailed) }}</Status>
                                     <span class="t-subheadline">{text}</span>
                                 </HStack>
@@ -401,7 +401,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                 <p class="t-subheadline t-secondary">
                     {t!(SetupModelContainerText)}
                 </p>
-                <HStack spacing="12px">
+                <HStack class="ui-gap-12">
                     <Button
                         variant=ButtonStyle::GlassProminent
                         disabled=Signal::derive(move || c_running.get() || !ready())
@@ -428,7 +428,7 @@ pub fn ModelStep(ctx: Context) -> impl IntoView {
                                 StatusTone::Gray
                             };
                             view! {
-                                <HStack spacing="8px">
+                                <HStack class="ui-gap-8">
                                     <Status tone=tone>
                                         {if gut { t!(SetupModelSucceeded) } else if p.checked { t!(SetupModelFailed) } else { t!(SetupModelNotChecked) }}
                                     </Status>

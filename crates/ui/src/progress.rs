@@ -39,7 +39,7 @@ pub fn TimelineStep(
             <span class="ui-timeline__icon" aria-hidden="true">
                 {move || if state.get() == StepState::Done { "✓".to_string() } else { number.to_string() }}
             </span>
-            <div class="ui-vstack" style="--spacing: 2px; padding-top: 5px">
+            <div class="ui-vstack ui-gap-2 ui-timeline__text">
                 <span class="t-headline">{move || title.get()}</span>
                 <span class="t-subheadline t-secondary">{move || text.get()}</span>
             </div>

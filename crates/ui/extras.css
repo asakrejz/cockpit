@@ -19,7 +19,7 @@
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  background: var(--sys-color-overlay, rgb(0 0 0 / 0.35));
+  background: var(--ui-overlay);
 }
 
 /* The carousel hides pages outside the visible area from keyboard/screen reader. */
@@ -260,6 +260,16 @@
   .ui-splitview[data-level="list"] > .ui-pane:nth-of-type(1)::after { content: ""; display: block; flex: none; height: var(--ui-nav-space); }
 }
 
+/* Own tokens (tokens.css stays as it is): scrim behind sheets and dialogs, hover fill, shadows of floating
+   surfaces and the width of a dialog. They have the same value in light and dark, so every theme looks as before. */
+:root, [data-theme] {
+  --ui-overlay: rgb(0 0 0 / 0.35);
+  --ui-fill-hover: rgb(127 127 127 / 0.12);
+  --ui-shadow-float: 0 6px 24px rgb(0 0 0 / 0.12);
+  --ui-shadow-sheet: 0 -8px 40px rgb(0 0 0 / 0.18);
+  --ui-dialog-width: 560px;
+}
+
 /* One inner padding for every pane: header, body, empty states (also a body without header). */
 :root, [data-theme] { --ui-pane-pad: var(--ref-space-20); --ui-card-gap: var(--ref-space-12); }
 @media (max-width: 1100px) { :root, [data-theme] { --ui-pane-pad: var(--ref-space-16); } }
@@ -397,7 +407,7 @@
   padding: 0 4px;
   border-radius: var(--ref-radius-full);
   background: var(--sys-color-red);
-  color: #fff;
+  color: var(--ref-white);
   font: var(--sys-type-caption2);
   font-weight: 600;
   line-height: 16px;
@@ -413,7 +423,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  background: rgb(0 0 0 / 0.35);
+  background: var(--ui-overlay);
   overscroll-behavior: contain;
 }
 .ui-bottomnav-overlay[hidden] { display: none; }
@@ -634,7 +644,7 @@ body.ui-scroll-locked { overflow: hidden; }
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  background: var(--sys-color-overlay, rgb(0 0 0 / 0.35));
+  background: var(--ui-overlay);
 }
 .ui-dialog {
   box-sizing: border-box;
@@ -646,7 +656,7 @@ body.ui-scroll-locked { overflow: hidden; }
   border-radius: var(--sys-radius-sheet) var(--sys-radius-sheet) 0 0;
   background: var(--sys-color-secondary-grouped-background);
   color: var(--sys-color-label);
-  box-shadow: 0 -8px 40px rgb(0 0 0 / 0.18);
+  box-shadow: var(--ui-shadow-sheet);
 }
 .ui-dialog__grabber {
   flex: none;
@@ -680,7 +690,7 @@ body.ui-scroll-locked { overflow: hidden; }
 @media (min-width: 768px) {
   .ui-dialog-overlay { align-items: center; }
   .ui-dialog {
-    width: min(560px, calc(100vw - 2 * var(--ref-space-24)));
+    width: min(var(--ui-dialog-width), calc(100vw - 2 * var(--ref-space-24)));
     max-height: 80dvh;
     padding-top: var(--ui-pane-pad);
     border-radius: var(--sys-radius-sheet);
@@ -916,3 +926,61 @@ body.ui-scroll-locked { overflow: hidden; }
 .ui-inbox-row > .ui-vstack, .ui-inbox-row > span:last-child { align-self: stretch; }
 .ui-inbox-row > .ui-vstack > :last-child { margin-block-start: auto; }
 .ui-list__row > .ui-vstack { flex: 1 1 auto; align-self: stretch; }
+
+/* ---------------------------------------------------------------------
+   Parts of the building blocks that used to be set inline: they are classes now, so a block looks the
+   same everywhere and the tokens apply.
+   --------------------------------------------------------------------- */
+.ui-card__body--loose { gap: var(--ref-space-12); }
+.ui-segmented--fill { align-self: stretch; }
+.ui-segmented--fill button { flex: 1 1 0; padding-inline: var(--ref-space-8); }
+.ui-list__row[data-role="destructive"] { color: var(--sys-color-destructive); }
+label.ui-list__row { cursor: pointer; }
+.ui-list__group[data-nested] { background: var(--sys-color-tertiary-grouped-background); }
+.ui-unread { margin-top: var(--ref-space-6); }
+.ui-iosnav { padding: 0 0 var(--ref-space-8); }
+.ui-footer__bar { justify-content: space-between; padding-top: var(--ref-space-20); }
+.ui-sheet__bar { justify-content: space-between; flex-wrap: nowrap; margin-bottom: var(--ref-space-16); }
+/* The text of a step starts level with the middle of its 32 px icon (one 22 px line). */
+.ui-timeline__text { padding-top: 5px; }
+.ui-pager__prev { align-self: center; justify-self: start; margin-left: var(--ref-space-16); }
+.ui-pager__next { align-self: center; justify-self: end; margin-right: var(--ref-space-16); }
+
+/* ---------------------------------------------------------------------
+   Utility classes: one concern each, tokens only. They replace inline `style` attributes, so they come
+   last and set the same property the attribute set. A value that is computed at run time (a width from
+   data, a colour per row) stays inline as a `style` with a custom property.
+   --------------------------------------------------------------------- */
+/* Gap of a stack or grid (`--spacing`, read by .ui-vstack, .ui-hstack and .ui-grid). */
+.ui-gap-0 { --spacing: var(--ref-space-0); }
+.ui-gap-2 { --spacing: var(--ref-space-2); }
+.ui-gap-4 { --spacing: var(--ref-space-4); }
+.ui-gap-6 { --spacing: var(--ref-space-6); }
+.ui-gap-8 { --spacing: var(--ref-space-8); }
+.ui-gap-10 { --spacing: var(--ref-space-10); }
+.ui-gap-12 { --spacing: var(--ref-space-12); }
+.ui-gap-16 { --spacing: var(--ref-space-16); }
+.ui-gap-20 { --spacing: var(--ref-space-20); }
+/* Flex children and containers. */
+.ui-grow { flex: 1 1 auto; min-width: 0; }
+.ui-flex-none { flex: none; }
+.ui-flex-wrap { flex-wrap: wrap; }
+.ui-flex-nowrap { flex-wrap: nowrap; }
+.ui-justify-between { justify-content: space-between; }
+.ui-justify-end { justify-content: flex-end; }
+.ui-justify-center { justify-content: center; }
+.ui-items-start { align-items: flex-start; }
+.ui-self-start { align-self: flex-start; }
+.ui-max-full { max-width: 100%; }
+/* Space around a box. */
+.ui-px-4 { padding-inline: var(--ref-space-4); }
+.ui-py-8 { padding-block: var(--ref-space-8); }
+.ui-mt-8 { margin-top: var(--ref-space-8); }
+/* Text. */
+.ui-text-nowrap { white-space: nowrap; }
+.ui-text-pre-line { white-space: pre-line; }
+.ui-text-center { text-align: center; }
+.ui-text-break { overflow-wrap: anywhere; }
+/* An icon in its own span, in the colour of its role. */
+.ui-icon-tint { display: inline-flex; color: var(--sys-color-tint); }
+.ui-icon-muted { display: inline-flex; color: var(--sys-color-secondary-label); }

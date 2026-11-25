@@ -96,13 +96,13 @@ fn link(store: Store, target: Option<Target>) -> AnyView {
 fn entry_row(store: Store, e: LogEntry) -> impl IntoView {
     view! {
         <li class="ck-stuck">
-            <div class="ui-vstack" style="--spacing: 6px; min-width: 0; flex: 1 1 auto">
-                <div class="ui-hstack" style="--spacing: 6px">
+            <div class="ui-vstack ui-gap-6 ui-grow">
+                <div class="ui-hstack ui-gap-6">
                     <Badge variant=badge(e.actor)>{actor_label(e.actor)}</Badge>
                     <span class="t-footnote t-secondary">{when(e.at_ms)}</span>
                 </div>
                 <p class="t-headline">{e.text_in(lang())}</p>
-                <div class="ui-hstack" style="--spacing: 8px">{link(store, e.target)}</div>
+                <div class="ui-hstack ui-gap-8">{link(store, e.target)}</div>
             </div>
         </li>
     }
@@ -145,7 +145,7 @@ pub fn LogPage() -> impl IntoView {
 
             <Pane label=t!(LogTitle)>
                 <PaneHeader>
-                    <div class="ui-hstack" style="justify-content: space-between; flex-wrap: nowrap">
+                    <div class="ui-hstack ui-justify-between ui-flex-nowrap">
                         <h1 class="t-large-title t-bold">{t!(LogTitle)}</h1>
                         <Badge variant=BadgeVariant::Count>{move || entries.get().len().to_string()}</Badge>
                     </div>

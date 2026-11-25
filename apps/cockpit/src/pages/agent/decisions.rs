@@ -25,7 +25,7 @@ pub(super) fn stopped_card(ctx: AgentCtx) -> Option<impl IntoView> {
             <SuggestionCard state=SuggestionState::Pending>
                 <p class="t-headline">{super::labels::stop_label(reason)}</p>
                 <p class="t-subheadline t-secondary">{detail}</p>
-                <div class="ui-hstack" style="--spacing: 8px; flex-wrap: wrap">
+                <div class="ui-hstack ui-gap-8">
                     {options
                         .into_iter()
                         .map(|extra| {
@@ -70,7 +70,7 @@ pub(super) fn question(ctx: AgentCtx) -> Option<impl IntoView> {
             <p class="ui-list__header">{t!(AgentDecisionsQuestionHeader)}</p>
             <SuggestionCard state=SuggestionState::Pending>
                 <p class="t-headline">{question.text.clone()}</p>
-                <div class="ui-hstack" style="--spacing: 8px">
+                <div class="ui-hstack ui-gap-8">
                     {question
                         .suggestions
                         .iter()
@@ -86,7 +86,7 @@ pub(super) fn question(ctx: AgentCtx) -> Option<impl IntoView> {
                         .collect_view()}
                 </div>
             </SuggestionCard>
-            <div class="ui-vstack" style="--spacing: 10px">
+            <div class="ui-vstack ui-gap-10">
                 <Textarea
                     value=answer
                     label=t!(AgentDecisionsYourAnswer)
@@ -120,7 +120,7 @@ pub(super) fn steer_card(ctx: AgentCtx) -> impl IntoView {
         <Show when=move || working.get()>
             <div class="ui-list__section" role="region" aria-label=t!(AgentDecisionsSteerLabel)>
                 <p class="ui-list__header">{t!(AgentDecisionsSteerHeader)}</p>
-                <div class="ui-vstack" style="--spacing: 10px">
+                <div class="ui-vstack ui-gap-10">
                     <Textarea
                         value=steer
                         label=t!(AgentDecisionsSteerField)
@@ -212,7 +212,7 @@ pub(super) fn plan_card(ctx: AgentCtx) -> Option<impl IntoView> {
                     })}
             </SuggestionCard>
             <Show when=move || awaiting.get()>
-                <div class="ui-vstack" style="--spacing: 10px">
+                <div class="ui-vstack ui-gap-10">
                     <Textarea
                         value=note
                         label=t!(AgentDecisionsNoteLabel)

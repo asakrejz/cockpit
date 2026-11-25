@@ -70,7 +70,7 @@ pub(super) fn draft_notes(store: Store, r: &Review, file: &str, index: usize) ->
             let rows = code_rows(r, s);
             let controls = match s.decision {
                 None => view! {
-                    <div class="ui-hstack" style="--spacing: 8px">
+                    <div class="ui-hstack ui-gap-8">
                         <Button
                             variant=ButtonStyle::BorderedProminent
                             size=ControlSize::Small
@@ -90,7 +90,7 @@ pub(super) fn draft_notes(store: Store, r: &Review, file: &str, index: usize) ->
                         Decision::Declined => (t!(ReviewDraftsDeclined), StatusTone::Gray),
                     };
                     view! {
-                        <div class="ui-hstack" style="justify-content: space-between">
+                        <div class="ui-hstack ui-justify-between">
                             <Status tone=tone>{label}</Status>
                             <Button variant=ButtonStyle::Borderless size=ControlSize::Small on_click=decide(None)>
                                 {t!(ReviewUndo)}
@@ -102,7 +102,7 @@ pub(super) fn draft_notes(store: Store, r: &Review, file: &str, index: usize) ->
             };
             view! {
                 <div class="ui-diff__note" role="group" aria-label=t!(ReviewDraftsGroup)>
-                    <span class="ui-hstack t-footnote t-secondary" style="--spacing: 8px">
+                    <span class="ui-hstack t-footnote t-secondary ui-gap-8">
                         {t!(ReviewDraftsNote)}
                     </span>
                     <Markdown text=s.text.clone() class="t-subheadline" />

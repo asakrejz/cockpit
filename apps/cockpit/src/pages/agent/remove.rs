@@ -52,7 +52,7 @@ pub(super) fn RemoveRun(ctx: AgentCtx) -> impl IntoView {
     };
     move || match state.get() {
         Some(true) => view! {
-            <div class="ui-hstack" style="--spacing: 12px; flex-wrap: wrap">
+            <div class="ui-hstack ui-gap-12">
                 <Button on_click=move |_| open.set(true)>{t::remove_button()}</Button>
             </div>
             <Dialog open=open title=t::remove_title() footer=footer>

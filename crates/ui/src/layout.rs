@@ -6,19 +6,30 @@ fn style_of(parts: &[Option<String>]) -> Option<String> {
     (!joined.is_empty()).then_some(joined)
 }
 
+/// `base` plus the extra classes of a caller (utility classes such as `ui-gap-12`, see `extras.css`).
+pub(crate) fn classes(base: &str, extra: Option<String>) -> String {
+    match extra {
+        Some(extra) if !extra.is_empty() => format!("{base} {extra}"),
+        _ => base.to_string(),
+    }
+}
+
 /// Vertikaler Stapel (`VStack`).
 #[component]
 pub fn VStack(
-    /// Abstand, z. B. `"12px"` (Standard: `--sys-space-stack`).
+    /// Abstand, z. B. `"12px"` (Standard: `--sys-space-stack`). Prefer `class="ui-gap-12"`.
     #[prop(optional, into)]
     spacing: Option<String>,
-    /// Additional CSS, e.g. `"align-items:center"`.
+    /// Additional CSS, e.g. `"align-items:center"`. Prefer a utility class.
     #[prop(optional, into)]
     css: Option<String>,
+    /// Utility classes from `extras.css`, e.g. `"ui-gap-12 ui-self-start"`.
+    #[prop(optional, into)]
+    class: Option<String>,
     children: Children,
 ) -> impl IntoView {
     let style = style_of(&[spacing.map(|s| format!("--spacing:{s}")), css]);
-    view! { <div class="ui-vstack" style=style>{children()}</div> }
+    view! { <div class=classes("ui-vstack", class) style=style>{children()}</div> }
 }
 
 /// Horizontal stack (`HStack`), wraps when there is not enough room.
@@ -26,10 +37,13 @@ pub fn VStack(
 pub fn HStack(
     #[prop(optional, into)] spacing: Option<String>,
     #[prop(optional, into)] css: Option<String>,
+    /// Utility classes from `extras.css`, e.g. `"ui-gap-8 ui-justify-between"`.
+    #[prop(optional, into)]
+    class: Option<String>,
     children: Children,
 ) -> impl IntoView {
     let style = style_of(&[spacing.map(|s| format!("--spacing:{s}")), css]);
-    view! { <div class="ui-hstack" style=style>{children()}</div> }
+    view! { <div class=classes("ui-hstack", class) style=style>{children()}</div> }
 }
 
 /// Layers on top of each other (`ZStack`) – children share one grid cell.

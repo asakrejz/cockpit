@@ -61,7 +61,7 @@ pub(super) fn panel_body(store: Store, r: Review, lines: LineUi, ui: PanelUi) ->
     let on_change = Callback::new(move |id: &'static str| ui.tab.set(id));
     let r = StoredValue::new(r);
     view! {
-        <div class="ui-vstack" style="--spacing: 12px">
+        <div class="ui-vstack ui-gap-12">
             {segmented(
                 vec![("files", t!(ReviewPanelTabFiles)), ("commits", t!(ReviewPanelTabCommits))],
                 move || ui.tab.get(),
@@ -97,7 +97,7 @@ pub(super) fn set_open(ui: PanelUi, name: &str, open: bool) {
 /// Message for a failed load, with a retry button.
 pub(super) fn failure(message: String, retry: impl Fn() + Send + Sync + 'static) -> AnyView {
     view! {
-        <div class="ui-vstack" style="--spacing: 8px; align-items: flex-start">
+        <div class="ui-vstack ui-gap-8 ui-items-start">
             <p class="t-subheadline ck-problem">{message}</p>
             <Button size=ControlSize::Small on_click=move |_| retry()>
                 {t!(ReviewPanelRetry)}
