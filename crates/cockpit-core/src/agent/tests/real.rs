@@ -172,7 +172,10 @@ fn done_finishes_and_failed_resets_with_the_reason() {
         r.ended,
         Some(cockpit_i18n::Msg::raw("Der Container endete mit Code 1"))
     );
-    assert!(r.log().contains("Der Container endete mit Code 1"));
+    assert!(
+        r.log_in(Lang::De)
+            .contains("Der Container endete mit Code 1")
+    );
     // A new start clears the reason.
     r.start(AgentOptions::default());
     assert_eq!(r.ended, None);

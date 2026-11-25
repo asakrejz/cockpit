@@ -152,7 +152,7 @@ exit 1
     let run = w.run();
     assert!(run.is_idle());
     assert_eq!(german(&run.ended), "Das SDK meldet: Verbindung abgewiesen");
-    assert!(run.log().contains("Verbindung abgewiesen"));
+    assert!(run.log_in(Lang::De).contains("Verbindung abgewiesen"));
     assert!(!w.state.agent_dir().join("runs/BAU-142").exists());
 
     // The container dies without a message; its error output contains a secret.

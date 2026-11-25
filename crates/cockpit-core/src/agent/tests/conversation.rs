@@ -24,10 +24,10 @@ fn the_agent_asks_a_question_and_waits() {
     assert_eq!(steps[2].state, StepState::Active);
     assert!(steps[3..].iter().all(|s| s.state == StepState::Pending));
     assert!(
-        r.log()
+        r.log_in(Lang::De)
             .contains("› Agent: Remove the old style or mark it as deprecated?"),
         "{}",
-        r.log()
+        r.log_in(Lang::De)
     );
 }
 
@@ -44,7 +44,7 @@ fn an_answer_continues_the_run_and_stays_in_the_history() {
         (last.from, last.kind, last.text_in(Lang::De).as_str()),
         (Speaker::User, MessageKind::Answer, "Mark it as deprecated")
     );
-    assert!(r.log().contains("› Du: Mark it as deprecated"));
+    assert!(r.log_in(Lang::De).contains("› Du: Mark it as deprecated"));
     work(&mut r);
     finish(&mut r);
     assert!(r.is_done());
@@ -90,7 +90,7 @@ fn a_hint_is_acknowledged_when_the_container_got_it() {
         (Speaker::Agent, "Hinweis erhalten: Auch den Slider prüfen")
     );
     assert!(
-        r.log()
+        r.log_in(Lang::De)
             .contains("› Agent: Hinweis erhalten: Auch den Slider prüfen")
     );
 }
@@ -130,7 +130,7 @@ fn pause_and_resume() {
     assert_eq!(r.completed, 1);
     assert_eq!(r.steps()[1].state, StepState::Active);
     assert!(r.steps()[1].text.render(Lang::De).starts_with("Pausiert"));
-    assert!(r.log().contains("Lauf pausiert."));
+    assert!(r.log_in(Lang::De).contains("Lauf pausiert."));
     // Hints can also be sent while paused and wait until resume.
     assert!(r.steer("Während der Pause"));
     assert_eq!(r.pending_hints.len(), 1);
