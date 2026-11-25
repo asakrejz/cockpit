@@ -399,7 +399,7 @@ pub fn site_choose(sites: &[Site], requested: Option<&str>) -> Result<Site, Erro
                     ))
                 })
         }
-        ([eine], None) => Ok(eine.clone()),
+        ([only], None) => Ok(only.clone()),
         (_, None) => Err(Error::Coded(msg!(
             IntegrationsOauthManySites,
             sites = names()
