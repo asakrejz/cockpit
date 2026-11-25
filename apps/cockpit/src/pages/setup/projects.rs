@@ -81,7 +81,7 @@ fn CreateProject(
         });
     };
     view! {
-        <VStack spacing="8px">
+        <VStack class="ui-gap-8">
             <p class="t-footnote t-secondary">{t!(SetupProjectsCreateIntro, repo = repo.get_value())}</p>
             <Select
                 options=options
@@ -90,7 +90,7 @@ fn CreateProject(
                 on_change=move |v: String| owner.set(v)
             />
             <TextField label=t!(SetupProjectsCreateName) value=title />
-            <HStack spacing="12px">
+            <HStack class="ui-gap-12">
                 <Button
                     variant=ButtonStyle::GlassProminent
                     disabled=Signal::derive(move || {
@@ -197,7 +197,7 @@ pub fn ProjectsStep(ctx: Context) -> impl IntoView {
     };
 
     view! {
-        <VStack spacing="20px">
+        <VStack class="ui-gap-20">
             <Intro title=t!(SetupProjectsTitle)>
                 <p>{t!(SetupProjectsIntro)}</p>
             </Intro>
@@ -213,7 +213,7 @@ pub fn ProjectsStep(ctx: Context) -> impl IntoView {
                 }
             >
                 <Section title=t!(SetupProjectsListLabel)>
-                    <HStack spacing="12px">
+                    <HStack class="ui-gap-12">
                         <Button on_click=move |_| load() disabled=Signal::derive(move || loading.get())>
                             {move || {
                                 if loading.get() {
@@ -232,7 +232,7 @@ pub fn ProjectsStep(ctx: Context) -> impl IntoView {
                             .and_then(|l| l.problem)
                             .map(|m| {
                                 view! {
-                                    <p class="ui-hint" role="alert" style="color: var(--sys-color-red)">
+                                    <p class="ui-hint ck-problem" role="alert">
                                         {t!(SetupProjectsProblem, text = m.render(lang()))}
                                     </p>
                                 }
@@ -289,7 +289,7 @@ pub fn ProjectsStep(ctx: Context) -> impl IntoView {
                         hint=t!(SetupProjectsManualHint)
                         autocomplete="off"
                     />
-                    <HStack spacing="12px">
+                    <HStack class="ui-gap-12">
                         <Button on_click=add_manual>{t!(SetupProjectsAdd)}</Button>
                     </HStack>
                     <Message feedback=manual_feedback />
@@ -327,7 +327,7 @@ pub fn ProjectsStep(ctx: Context) -> impl IntoView {
                         hint=t!(SetupProjectsTeamHint)
                         autocomplete="off"
                     />
-                    <HStack spacing="12px">
+                    <HStack class="ui-gap-12">
                         <Button variant=ButtonStyle::GlassProminent on_click=save>
                             {t!(SetupProjectsSave)}
                         </Button>

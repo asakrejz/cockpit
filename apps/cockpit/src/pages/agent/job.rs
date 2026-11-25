@@ -29,7 +29,7 @@ pub(super) fn job(ctx: AgentCtx) -> impl IntoView {
         <Show when=move || !followup.get()>
         <div class="ui-list__section">
             <p class="ui-list__header">{t!(AgentJobJob)}</p>
-            <div class="ui-vstack" style="--spacing: 10px">
+            <div class="ui-vstack ui-gap-10">
                 <Textarea
                     value=hint
                     label=t!(AgentJobHintLabel)

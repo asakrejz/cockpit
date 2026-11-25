@@ -35,12 +35,12 @@ pub(super) fn checks_section(store: Store, r: &Review, panel: Panel) -> impl Int
             let open = move || panel.open_check.get().is_some_and(|n| n == name.get_value());
             let restartable = c.status == Checks::Failed && !merged;
             view! {
-                <div class="ui-vstack" style="--spacing: 8px" role="group" aria-label=c.name.clone()>
-                    <div class="ui-hstack" style="--spacing: 8px; justify-content: space-between">
+                <div class="ui-vstack ui-gap-8" role="group" aria-label=c.name.clone()>
+                    <div class="ui-hstack ui-gap-8 ui-justify-between">
                         <span class="t-subheadline t-semibold">{c.name.clone()}</span>
                         <span class="t-footnote t-secondary t-mono">{c.duration_msg().render(lang())}</span>
                     </div>
-                    <div class="ui-hstack" style="--spacing: 8px">
+                    <div class="ui-hstack ui-gap-8">
                         <Status tone=tone>{label}</Status>
                         <span class="ui-spacer"></span>
                         <Button
@@ -78,7 +78,7 @@ pub(super) fn checks_section(store: Store, r: &Review, panel: Panel) -> impl Int
     let empty = r.check_runs.is_empty();
     let unknown = r.checks == Checks::Unknown;
     view! {
-        <div class="ui-vstack" style="--spacing: 10px">
+        <div class="ui-vstack ui-gap-10">
             <h3 class="t-headline">{t!(ReviewChecksTitle)}</h3>
             {empty
                 .then(|| {

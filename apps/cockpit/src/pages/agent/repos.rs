@@ -31,7 +31,7 @@ pub(super) fn RunRepos(run: Memo<Option<AgentRun>>) -> impl IntoView {
                 let state = e.state_msg().render(lang);
                 let reason = (!e.reason.is_empty()).then(|| e.reason.clone());
                 view! {
-                    <li class="ui-list__row" style="flex-wrap: wrap">
+                    <li class="ui-list__row ui-flex-wrap">
                         <span class="ui-list__title t-mono">{e.repo.clone()}</span>
                         <Status tone=tone(e.state)>{state}</Status>
                         {shown.map(|b| view! { <span class="t-footnote t-secondary t-mono">{b}</span> })}

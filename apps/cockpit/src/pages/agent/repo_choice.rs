@@ -106,7 +106,7 @@ pub(super) fn repo_choice(ctx: AgentCtx) -> impl IntoView {
         <div class="ck-repo-choice">
             <span class="t-subheadline">{t!(AgentJobRepo)}</span>
             <Show when=move || !repo.get().is_empty()>
-                <p role="status" class="ui-hstack" style="--spacing: 6px; flex-wrap: wrap">
+                <p role="status" class="ui-hstack ui-gap-6">
                     <For each=move || selected.get() key=|r| r.clone() let:name>
                         {
                             let remove = name.clone();
@@ -168,7 +168,7 @@ pub(super) fn repo_choice(ctx: AgentCtx) -> impl IntoView {
                         .map(|name| {
                             let label = t!(AgentJobRepoManual, repo = name.clone());
                             view! {
-                                <HStack spacing="12px">
+                                <HStack class="ui-gap-12">
                                     <Button on_click=move |_| pick(name.clone())>{label}</Button>
                                 </HStack>
                             }

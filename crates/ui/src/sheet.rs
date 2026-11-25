@@ -19,10 +19,7 @@ pub fn Sheet(
             <div class="ui-sheet-overlay">
                 <div class="ui-sheet" data-detent="floating" role="dialog" aria-label=title.get_value()>
                     <div class="ui-sheet__grabber"></div>
-                    <div
-                        class="ui-hstack"
-                        style="justify-content: space-between; flex-wrap: nowrap; margin-bottom: 16px"
-                    >
+                    <div class="ui-hstack ui-sheet__bar">
                         <Button
                             variant=ButtonStyle::Glass
                             shape=ButtonShape::Circle

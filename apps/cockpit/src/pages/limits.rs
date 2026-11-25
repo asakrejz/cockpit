@@ -159,7 +159,7 @@ fn Limits() -> impl IntoView {
                 error=invalid(bad_minutes, minutes)
             />
         </div>
-        <p class="t-subheadline t-bold" style="padding-inline: 4px">{t!(LimitsPrices)}</p>
+        <p class="t-subheadline t-bold ui-px-4">{t!(LimitsPrices)}</p>
         <div class="ck-quiet">
             <TextField
                 label=t!(LimitsPriceIn)
@@ -235,7 +235,7 @@ fn Rules(repo: String) -> impl IntoView {
             </ListSection>
         </List>
         <div class="ck-rules">
-            <div class="ui-vstack" style="--spacing: 6px">
+            <div class="ui-vstack ui-gap-6">
                 <p class="t-subheadline t-bold">{t!(LimitsAllowedTitle)}</p>
                 <Textarea
                     value=allowed
@@ -244,7 +244,7 @@ fn Rules(repo: String) -> impl IntoView {
                     min_height="88px"
                 />
             </div>
-            <div class="ui-vstack" style="--spacing: 6px">
+            <div class="ui-vstack ui-gap-6">
                 <p class="t-subheadline t-bold">{t!(LimitsForbiddenTitle)}</p>
                 <Textarea
                     value=forbidden
@@ -253,7 +253,7 @@ fn Rules(repo: String) -> impl IntoView {
                     min_height="88px"
                 />
             </div>
-            <div class="ui-vstack" style="--spacing: 6px">
+            <div class="ui-vstack ui-gap-6">
                 <p class="t-subheadline t-bold">{t!(LimitsTestsTitle)}</p>
                 <Textarea
                     value=tests
@@ -262,7 +262,7 @@ fn Rules(repo: String) -> impl IntoView {
                     min_height="88px"
                 />
             </div>
-            <div class="ui-vstack" style="--spacing: 6px">
+            <div class="ui-vstack ui-gap-6">
                 <p class="t-subheadline t-bold">{t!(LimitsInstructionsTitle)}</p>
                 <Textarea
                     value=instructions

@@ -36,9 +36,9 @@ pub fn Footer(
                         })
                         .collect_view()}
                 </div>
-                <div class="ui-hstack" style="justify-content: space-between; padding-top: 20px">
+                <div class="ui-hstack ui-footer__bar">
                     <span>{copyright}</span>
-                    <div class="ui-hstack" style="--spacing: 16px">
+                    <div class="ui-hstack ui-gap-16">
                         {legal.into_iter().map(|l| view! { <a href="#">{l}</a> }).collect_view()}
                     </div>
                 </div>

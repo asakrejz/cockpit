@@ -137,7 +137,7 @@ fn commit_head(sha: &str, ui: PanelUi) -> AnyView {
     });
     let short = short_sha(sha).to_string();
     view! {
-        <div class="ui-vstack" style="--spacing: 8px; align-items: flex-start">
+        <div class="ui-vstack ui-gap-8 ui-items-start">
             <Button
                 size=ControlSize::Small
                 on_click=move |_| {
@@ -193,7 +193,7 @@ fn commit_view(repo: String, number: u32, sha: String, ui: PanelUi) -> AnyView {
         }
     };
     view! {
-        <div class="ui-vstack" style="--spacing: 12px">
+        <div class="ui-vstack ui-gap-12">
             {head}
             {body}
         </div>

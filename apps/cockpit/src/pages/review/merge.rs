@@ -5,7 +5,7 @@ pub(super) fn merge_section(store: Store, r: &Review, panel: Panel) -> AnyView {
     let number = StoredValue::new(r.key());
     if let Some(method) = r.merged {
         return view! {
-            <div class="ui-vstack" style="--spacing: 10px">
+            <div class="ui-vstack ui-gap-10">
                 <h3 class="t-headline">{t!(ReviewMergeTitle)}</h3>
                 <Status tone=StatusTone::Indigo>{t!(ReviewMerged, method = method.label())}</Status>
             </div>
@@ -31,7 +31,7 @@ pub(super) fn merge_section(store: Store, r: &Review, panel: Panel) -> AnyView {
         });
     };
     view! {
-        <div class="ui-vstack" style="--spacing: 10px">
+        <div class="ui-vstack ui-gap-10">
             <h3 class="t-headline">{t!(ReviewMergeTitle)}</h3>
             {segmented(
                 MergeMethod::OPTIONS.iter().map(|(id, label)| (*id, label.to_string())).collect(),
@@ -46,7 +46,7 @@ pub(super) fn merge_section(store: Store, r: &Review, panel: Panel) -> AnyView {
             {(!can_merge)
                 .then(|| {
                     view! {
-                        <ul class="ui-vstack" style="--spacing: 4px; margin: 0; padding-inline-start: 18px">
+                        <ul class="ui-vstack ui-gap-4 ck-bullets">
                             {reasons}
                         </ul>
                     }

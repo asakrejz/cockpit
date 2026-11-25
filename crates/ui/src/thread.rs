@@ -51,7 +51,7 @@ pub fn CommentBubble(
                 {match rich {
                     doc if !doc.is_empty() => view! { <RichText doc=doc /> }.into_any(),
                     _ if markdown => view! { <crate::Markdown text=text /> }.into_any(),
-                    _ => view! { <p class="t-body" style="white-space: pre-line">{text}</p> }.into_any(),
+                    _ => view! { <p class="t-body ui-text-pre-line">{text}</p> }.into_any(),
                 }}
             </div>
         </div>

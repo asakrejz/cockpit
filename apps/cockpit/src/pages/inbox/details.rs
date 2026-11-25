@@ -76,7 +76,7 @@ fn field_name(f: &DetailField) -> String {
 fn field_value(v: &DetailValue) -> AnyView {
     match v {
         DetailValue::Text(t) => {
-            view! { <span style="white-space: pre-line">{t.clone()}</span> }.into_any()
+            view! { <span class="ui-text-pre-line">{t.clone()}</span> }.into_any()
         }
         DetailValue::Date(d) => view! { <time>{d.clone()}</time> }.into_any(),
         DetailValue::List(items) => {

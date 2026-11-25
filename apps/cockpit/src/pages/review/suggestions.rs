@@ -73,9 +73,9 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
     view! {
         <Pane label=t!(ReviewSuggestionsPane)>
             <PaneHeader>
-                <div class="ui-hstack" style="--spacing: 10px; flex-wrap: nowrap">
+                <div class="ui-hstack ui-gap-10 ui-flex-nowrap">
                     <Avatar agent=true large=true />
-                    <div class="ui-vstack" style="--spacing: 0">
+                    <div class="ui-vstack ui-gap-0">
                         <h2 class="t-title3 t-bold">{t!(ReviewSuggestionsPane)}</h2>
                         <span class="t-footnote t-secondary">{summary}</span>
                     </div>
@@ -84,7 +84,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
             </PaneHeader>
 
             <PaneBody>
-                <div class="ui-vstack" style="--spacing: 6px">
+                <div class="ui-vstack ui-gap-6">
                     {segmented(
                         vec![
                             ("auto", t!(ReviewSuggestionsLangAuto)),
@@ -96,7 +96,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                         t!(ReviewSuggestionsLangLabel),
                         false,
                     )}
-                    <span class="t-footnote t-secondary" style="padding-inline: 4px">
+                    <span class="t-footnote t-secondary ui-px-4">
                         {move || match panel.review_language.get() {
                             Some(l) => t!(ReviewSuggestionsLangNote, lang = lang_name(l), why = lang_why(LangSource::Chosen)),
                             None => t!(ReviewSuggestionsLangAutoHint),
@@ -124,7 +124,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                         let state = if run.is_active() {
                             let key = run.key();
                             view! {
-                                <div class="ui-hstack" style="--spacing: 8px">
+                                <div class="ui-hstack ui-gap-8">
                                     <Status tone=StatusTone::Blue>{t!(ReviewStateWorking)}</Status>
                                     <span class="ui-spacer"></span>
                                     <a class="ui-link t-footnote" href=Route::Agent(Some(key)).hash()>{t!(ReviewRunView)}</a>
@@ -148,8 +148,8 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                     .then(|| {
                         let text = StoredValue::new(summary_text.clone());
                         view! {
-                            <div class="ui-vstack" style="--spacing: 8px" role="region" aria-label=t!(ReviewSuggestionsSummaryRegion)>
-                                <span class="t-footnote t-secondary" style="padding-inline: 4px">
+                            <div class="ui-vstack ui-gap-8" role="region" aria-label=t!(ReviewSuggestionsSummaryRegion)>
+                                <span class="t-footnote t-secondary ui-px-4">
                                     {t!(ReviewSuggestionsSummaryNote)}
                                 </span>
                                 <Markdown text=text.get_value() class="t-subheadline" />
@@ -170,12 +170,12 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                             </div>
                         }
                     })}
-                <div class="ui-vstack" style="--spacing: 10px">
+                <div class="ui-vstack ui-gap-10">
                     {suggestions}
                 </div>
 
-                <div class="ui-vstack" style="--spacing: 8px">
-                    <span class="t-footnote t-secondary" style="padding-inline: 4px">
+                <div class="ui-vstack ui-gap-8">
+                    <span class="t-footnote t-secondary ui-px-4">
                         {t!(ReviewSuggestionsOwnNote)}
                     </span>
                     <Textarea
@@ -186,7 +186,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                     />
                 </div>
 
-                <div class="ui-vstack" style="--spacing: 12px">
+                <div class="ui-vstack ui-gap-12">
                     {segmented(
                         vec![
                             ("comment", t!(ReviewSuggestionsVerdictComment)),
@@ -213,7 +213,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                     {(undecided > 0)
                         .then(|| {
                             view! {
-                                <p class="t-footnote t-secondary" style="text-align: center">
+                                <p class="t-footnote t-secondary ui-text-center">
                                     {t!(ReviewSuggestionsDecideFirst)}
                                 </p>
                             }
@@ -221,7 +221,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
                     {sent
                         .then(|| {
                             view! {
-                                <div class="ui-hstack" style="justify-content: center">
+                                <div class="ui-hstack ui-justify-center">
                                     <Status tone=StatusTone::Green>{t!(ReviewSuggestionsReviewSent)}</Status>
                                 </div>
                             }
@@ -299,7 +299,7 @@ pub(super) fn suggestion(
     let editor = move || {
         view! {
             <Textarea value=panel.edit_text label=t!(ReviewEditComment) min_height="72px" />
-            <div class="ui-hstack" style="--spacing: 8px">
+            <div class="ui-hstack ui-gap-8">
                 <Button
                     variant=ButtonStyle::BorderedProminent
                     size=ControlSize::Small
@@ -330,7 +330,7 @@ pub(super) fn suggestion(
     let actions = move || {
         match s.decision {
         None => view! {
-            <div class="ui-hstack" style="--spacing: 8px">
+            <div class="ui-hstack ui-gap-8">
                 <Button
                     variant=ButtonStyle::BorderedProminent
                     size=ControlSize::Small
@@ -360,7 +360,7 @@ pub(super) fn suggestion(
                 Decision::Declined => (t!(ReviewSuggestionsDeclined), StatusTone::Gray),
             };
             view! {
-                <div class="ui-hstack" style="justify-content: space-between">
+                <div class="ui-hstack ui-justify-between">
                     <Status tone=tone>{label}</Status>
                     <Button variant=ButtonStyle::Borderless size=ControlSize::Small on_click=decide(None)>
                         {t!(ReviewUndo)}
@@ -374,7 +374,7 @@ pub(super) fn suggestion(
 
     view! {
         <SuggestionCard state=state>
-            <div class="ui-hstack" style="--spacing: 8px">
+            <div class="ui-hstack ui-gap-8">
                 <span class="t-footnote t-mono t-secondary">{location_label(&s)}</span>
                 <span class="ui-spacer"></span>
                 <Badge variant=badge>{level_label(s.level)}</Badge>

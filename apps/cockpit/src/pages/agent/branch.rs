@@ -114,7 +114,7 @@ fn RepoBranchPanel(run: Memo<Option<AgentRun>>, repo: String) -> impl IntoView {
                 <div class="ui-list__section" role="region" aria-label=t::branch_title()>
                     <p class="ui-list__header">{t::branch_title()}</p>
                     <p class="t-subheadline t-mono">{branch}</p>
-                    <div class="ui-hstack" style="--spacing: 12px; flex-wrap: wrap">
+                    <div class="ui-hstack ui-gap-12">
                         <Button disabled=disabled on_click=move |_| open.set(true)>
                             {t::branch_button()}
                         </Button>

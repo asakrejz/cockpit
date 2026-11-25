@@ -73,7 +73,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
         })
     };
     view! {
-        <VStack spacing="12px">
+        <VStack class="ui-gap-12">
             <Intro title=t!(SetupDoneTitle)>
                 <p>
                     {t!(SetupDoneIntro)}
@@ -118,12 +118,12 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
             </List>
             {move || problem_of(&access).map(|a| view! { <AccessHint access=a recheck=recheck /> })}
             <SyncStatus />
-            <HStack css="justify-content: flex-end">
+            <HStack class="ui-justify-end">
                 <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large href=crate::route::Route::TASKS_HASH>
                     {t!(SetupDoneToDashboard)}
                 </Button>
             </HStack>
-            <p class="t-footnote t-secondary" style="padding-inline: 4px">
+            <p class="t-footnote t-secondary ui-px-4">
                 {t!(SetupDoneKeysNote)}
             </p>
             {move || {
@@ -133,7 +133,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                     .and_then(|h| h.unreadable_state)
                     .map(|kept| {
                         view! {
-                            <p class="t-footnote ck-problem" role="alert" style="padding-inline: 4px">
+                            <p class="t-footnote ck-problem ui-px-4" role="alert">
                                 {kept.notice.render(lang())}
                             </p>
                         }
@@ -146,7 +146,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                     .and_then(|h| h.env_file)
                     .map(|datei| {
                         view! {
-                            <p class="t-footnote t-secondary" style="padding-inline: 4px">
+                            <p class="t-footnote t-secondary ui-px-4">
                                 {t!(SetupDoneEnvFile)} " "
                                 <code>{datei.path}</code>
                             </p>
@@ -154,7 +154,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                                 .into_iter()
                                 .map(|w| {
                                     view! {
-                                        <p class="t-footnote" role="alert" style="padding-inline: 4px; color: var(--red, #c00)">
+                                        <p class="t-footnote ui-px-4 ck-problem" role="alert">
                                             {w}
                                         </p>
                                     }
@@ -170,7 +170,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                     .and_then(|h| h.config_files)
                     .map(|ordner| {
                         view! {
-                            <p class="t-footnote t-secondary" style="padding-inline: 4px">
+                            <p class="t-footnote t-secondary ui-px-4">
                                 {t!(SetupDoneConfigFiles)} " "
                                 <code>{ordner.path}</code>
                             </p>
@@ -178,7 +178,7 @@ pub fn DoneStep(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
                                 .into_iter()
                                 .map(|w| {
                                     view! {
-                                        <p class="t-footnote" role="alert" style="padding-inline: 4px; color: var(--red, #c00)">
+                                        <p class="t-footnote ui-px-4 ck-problem" role="alert">
                                             {w}
                                         </p>
                                     }

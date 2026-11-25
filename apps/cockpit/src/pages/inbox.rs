@@ -139,7 +139,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
         <SplitView level=level back_label=title.clone() back_href=Route::Inbox(filter).hash()>
             <Pane label=title.clone()>
                 <PaneHeader>
-                    <div class="ui-hstack" style="justify-content: space-between; flex-wrap: nowrap">
+                    <div class="ui-hstack ui-justify-between ui-flex-nowrap">
                         <h1 class="t-large-title t-bold">{title}</h1>
                         <Badge variant=BadgeVariant::Count>
                             {move || {

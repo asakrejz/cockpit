@@ -116,7 +116,7 @@ pub fn WatchedRepos(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
     };
 
     view! {
-        <VStack spacing="12px">
+        <VStack class="ui-gap-12">
             <p class="t-subheadline t-secondary">{t!(SetupReposWatchIntro)}</p>
             <RepoList
                 search=search
@@ -124,7 +124,7 @@ pub fn WatchedRepos(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
                 selected=chosen
                 on_toggle=Callback::new(toggle)
             >
-                <HStack spacing="12px">
+                <HStack class="ui-gap-12">
                     <Button on_click=move |_| load() disabled=Signal::derive(move || loading.get())>
                         {move || {
                             if loading.get() {
@@ -156,7 +156,7 @@ pub fn WatchedRepos(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
                 hint=t!(SetupReposManualHint)
                 autocomplete="off"
             />
-            <HStack spacing="12px">
+            <HStack class="ui-gap-12">
                 <Button on_click=add_manual>{t!(SetupReposAdd)}</Button>
             </HStack>
             <Message feedback=manual_feedback />
@@ -181,7 +181,7 @@ pub fn WatchedRepos(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
                     </li>
                 </For>
             </ul>
-            <HStack spacing="12px">
+            <HStack class="ui-gap-12">
                 <Button variant=ButtonStyle::GlassProminent on_click=save>
                     {t!(SetupReposWatchSave)}
                 </Button>

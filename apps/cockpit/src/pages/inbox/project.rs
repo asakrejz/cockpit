@@ -61,7 +61,7 @@ pub(super) fn project_section(store: Store, item: &Item) -> Option<AnyView> {
                             let item = id.clone();
                             view! {
                                 <li>
-                                    <div class="ui-list__row" style="flex-wrap: wrap">
+                                    <div class="ui-list__row ui-flex-wrap">
                                         <span class="ui-list__title">{t!(InboxProjectState)}</span>
                                         <Status tone=if closed { StatusTone::Gray } else { StatusTone::Green }>
                                             {if closed { t!(InboxProjectStateClosed) } else { t!(InboxProjectStateOpen) }}
@@ -116,9 +116,9 @@ fn LabelsRow(store: Store, item: String) -> impl IntoView {
         new.set(String::new());
     };
     view! {
-        <div class="ui-list__row" style="flex-wrap: wrap; align-items: flex-start">
+        <div class="ui-list__row ui-flex-wrap ui-items-start">
             <span class="ui-list__title">{t!(InboxProjectLabels)}</span>
-            <div class="ui-vstack" style="--spacing: 8px; flex: 1 1 200px">
+            <div class="ui-vstack ui-gap-8 ck-column">
                 <ul class="ck-field__list">
                     <For each=move || labels.get() key=|l| l.clone() let:label>
                         {
@@ -152,7 +152,7 @@ fn LabelsRow(store: Store, item: String) -> impl IntoView {
                         <li class="t-footnote t-secondary">{t!(InboxProjectLabelNone)}</li>
                     </Show>
                 </ul>
-                <div class="ui-hstack" style="--spacing: 8px">
+                <div class="ui-hstack ui-gap-8">
                     <input
                         class="ui-field__input"
                         type="text"
@@ -231,7 +231,7 @@ fn FieldRow(
                 });
             };
             view! {
-                <div class="ui-hstack" style="--spacing: 8px">
+                <div class="ui-hstack ui-gap-8">
                     <input
                         class="ui-field__input"
                         type=input_type
@@ -248,7 +248,7 @@ fn FieldRow(
         }
     };
     view! {
-        <div class="ui-list__row" style="flex-wrap: wrap">
+        <div class="ui-list__row ui-flex-wrap">
             <span class="ui-list__title">{def.name.clone()}</span>
             {control}
         </div>
@@ -276,7 +276,7 @@ fn DraftRow(store: Store, item: String) -> impl IntoView {
         });
     };
     view! {
-        <div class="ui-vstack" style="--spacing: 8px; padding: 8px 0">
+        <div class="ui-vstack ui-gap-8 ui-py-8">
             <span class="ui-list__title">{t!(InboxProjectDraftTitle)}</span>
             <p class="t-footnote t-secondary">{t!(InboxProjectDraftText)}</p>
             <TextField
@@ -392,7 +392,7 @@ pub(super) fn NewIssue(store: Store) -> impl IntoView {
                 }
             }
         >
-            <div class="ui-vstack" style="--spacing: 12px">
+            <div class="ui-vstack ui-gap-12">
                 <p class="t-footnote t-secondary">{t!(InboxProjectNewHint)}</p>
                 <Select
                     options=Signal::derive(move || projects.get())

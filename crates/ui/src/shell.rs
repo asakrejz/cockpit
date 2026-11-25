@@ -116,7 +116,7 @@ pub fn SplitView(
 pub fn SidebarBrand(#[prop(into)] href: String, children: Children) -> impl IntoView {
     view! {
         <a class="ui-sidebar__brand" href=href>
-            <span style="display: inline-flex; color: var(--sys-color-tint)">
+            <span class="ui-icon-tint">
                 <Icon path=icons::BRAND size=24 />
             </span>
             {children()}

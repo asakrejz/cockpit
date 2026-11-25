@@ -45,7 +45,7 @@ pub fn Navbar(
                         })
                         .collect_view()}
                 </ul>
-                <div class="ui-hstack" style="--spacing: 6px">{children.map(|c| c())}</div>
+                <div class="ui-hstack ui-gap-6">{children.map(|c| c())}</div>
             </div>
         </nav>
     }
@@ -56,9 +56,9 @@ pub fn Navbar(
 #[component]
 pub fn IosNav(#[prop(into)] title: Signal<String>, children: Children) -> impl IntoView {
     view! {
-        <div class="ui-iosnav" style="padding: 0 0 8px">
+        <div class="ui-iosnav">
             <div class="ui-iosnav__bar">{children()}</div>
-            <h1 class="ui-iosnav__title" style="padding-inline: 4px">{move || title.get()}</h1>
+            <h1 class="ui-iosnav__title ui-px-4">{move || title.get()}</h1>
         </div>
     }
 }

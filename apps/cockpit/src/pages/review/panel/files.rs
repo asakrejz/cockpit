@@ -60,8 +60,8 @@ pub(in super::super) fn files_tab(store: Store, r: Review, lines: LineUi, ui: Pa
         .collect_view();
 
     view! {
-        <div class="ui-vstack" style="--spacing: 12px">
-            <div class="ui-hstack" style="justify-content: space-between">
+        <div class="ui-vstack ui-gap-12">
+            <div class="ui-hstack ui-justify-between">
                 <span class="t-subheadline t-semibold" aria-live="polite">
                     {progress}
                 </span>

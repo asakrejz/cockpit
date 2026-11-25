@@ -225,7 +225,7 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
     };
 
     view! {
-        <VStack spacing="12px">
+        <VStack class="ui-gap-12">
             <p class="t-subheadline t-secondary">
                 {t!(SetupReposIntro)}
             </p>
@@ -235,7 +235,7 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
                 selected=chosen
                 on_toggle=Callback::new(toggle)
             >
-                <HStack spacing="12px">
+                <HStack class="ui-gap-12">
                     <Button
                         on_click=move |_| load()
                         disabled=Signal::derive(move || loading.get())
@@ -272,7 +272,7 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
                     hint=t!(SetupReposManualHint)
                     autocomplete="off"
                 />
-                <HStack spacing="12px">
+                <HStack class="ui-gap-12">
                     <Button on_click=add_manual>{t!(SetupReposAdd)}</Button>
                 </HStack>
                 <Message feedback=manual_feedback />
@@ -281,13 +281,13 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
             <Show when=move || rows.with(Vec::is_empty)>
                 <p class="t-footnote t-secondary">{t!(SetupReposNoneChosen)}</p>
             </Show>
-            <VStack spacing="12px">
+            <VStack class="ui-gap-12">
                 <For each=move || rows.get() key=|r| r.id let:row>
                     <div class="ck-agent-repo">
                         <span class="ck-repo-name">{move || row.repo.get()}</span>
                         <TextField label=t!(SetupReposBaseBranch) value=row.base placeholder="main" autocomplete="off" />
                         <BranchPatternField repo=row.repo pattern=row.pattern />
-                        <VStack spacing="6px">
+                        <VStack class="ui-gap-6">
                             <span class="t-subheadline">{t!(SetupReposPrLanguage)}</span>
                             <SegmentedPicker
                                 options=PR_LANGUAGES
@@ -297,8 +297,8 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
                             />
                             <span class="t-footnote t-secondary">{t!(SetupReposPrLanguageHint)}</span>
                         </VStack>
-                        <HStack spacing="12px">
-                            <label style="display: inline-flex; gap: 6px; align-items: center; cursor: pointer">
+                        <HStack class="ui-gap-12">
+                            <label class="ck-radio-row">
                                 <input
                                     type="radio"
                                     name="agent-default-repo"
@@ -325,7 +325,7 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
                         </HStack>
                     </div>
                 </For>
-                <HStack spacing="12px">
+                <HStack class="ui-gap-12">
                     <Button variant=ButtonStyle::GlassProminent on_click=save>
                         {t!(SetupReposSave)}
                     </Button>

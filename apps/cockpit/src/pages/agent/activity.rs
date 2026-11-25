@@ -127,14 +127,14 @@ pub(super) fn result_card(ctx: AgentCtx) -> Option<impl IntoView> {
     if run.is_followup() {
         return Some(view! {
             <SuggestionCard state=SuggestionState::Approved>
-                <div class="ui-hstack" style="--spacing: 8px">
+                <div class="ui-hstack ui-gap-8">
                     <Badge variant=BadgeVariant::Neutral>"GitHub"</Badge>
                     <span class="t-footnote t-mono t-secondary">{format!("#{number}")}</span>
                     <span class="ui-spacer"></span>
                     <Status tone=StatusTone::Green>{t!(AgentActivityPushed)}</Status>
                 </div>
                 <p class="t-headline">{super::labels::run_label(&run)}</p>
-                <span style="align-self: flex-start; max-width: 100%">
+                <span class="ui-self-start ui-max-full">
                     <Chip>{run.branch()}</Chip>
                 </span>
                 <p class="t-footnote t-secondary">
@@ -145,7 +145,7 @@ pub(super) fn result_card(ctx: AgentCtx) -> Option<impl IntoView> {
     }
     Some(view! {
         <SuggestionCard state=SuggestionState::Approved>
-            <div class="ui-hstack" style="--spacing: 8px">
+            <div class="ui-hstack ui-gap-8">
                 <Badge variant=BadgeVariant::Neutral>"GitHub"</Badge>
                 <span class="t-footnote t-mono t-secondary">{format!("#{number}")}</span>
                 <span class="ui-spacer"></span>
@@ -158,7 +158,7 @@ pub(super) fn result_card(ctx: AgentCtx) -> Option<impl IntoView> {
                 </Status>
             </div>
             <p class="t-headline">{run.ticket_title.clone()}</p>
-            <span style="align-self: flex-start; max-width: 100%">
+            <span class="ui-self-start ui-max-full">
                 <Chip>{run.branch()}</Chip>
             </span>
             <p class="t-footnote t-secondary">{t!(AgentActivityNoMerge)}</p>

@@ -89,7 +89,7 @@ pub fn Chip(children: Children) -> impl IntoView {
 #[component]
 pub fn UnreadDot(#[prop(into)] read: Signal<bool>) -> impl IntoView {
     view! {
-        <span class="ui-unread" data-read=move || read.get().then_some("") style="margin-top: 6px">
+        <span class="ui-unread" data-read=move || read.get().then_some("")>
             <span class="ui-sr-only">{move || if read.get() { String::new() } else { crate::t!(UiUnread) }}</span>
         </span>
     }

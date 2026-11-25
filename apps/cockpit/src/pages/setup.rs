@@ -142,10 +142,10 @@ pub fn SetupPage() -> impl IntoView {
     view! {
         <div class="ck-setup">
             <Container readable=true>
-                <VStack spacing="28px">
-                    <VStack spacing="10px">
-                        <HStack spacing="10px">
-                            <span style="display: inline-flex; color: var(--sys-color-tint)">
+                <VStack class="ck-setup-flow">
+                    <VStack class="ui-gap-10">
+                        <HStack class="ui-gap-10">
+                            <span class="ui-icon-tint">
                                 <Icon path=icons::BRAND size=26 />
                             </span>
                             <span class="t-title3 t-bold">"Cockpit"</span>
@@ -176,7 +176,7 @@ pub fn SetupPage() -> impl IntoView {
                         }
                     }}
 
-                    <HStack css="justify-content:space-between;flex-wrap:wrap">
+                    <HStack class="ui-justify-between">
                         <Button
                             disabled=Signal::derive(move || step.get().previous_for(from.get()).is_none())
                             on_click=back
@@ -189,7 +189,7 @@ pub fn SetupPage() -> impl IntoView {
                                 .next_for(from.get())
                                 .map(|_| {
                                     view! {
-                                        <HStack spacing="12px">
+                                        <HStack class="ui-gap-12">
                                             <Button variant=ButtonStyle::Borderless on_click=next_step>
                                                 {t!(SetupSkip)}
                                             </Button>
