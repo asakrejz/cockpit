@@ -193,7 +193,7 @@ banner of a source with a problem and in the Sync card of the last setup step) a
   issue) moved; the others keep what the workspace has. A server without `issueType`/`subIssues` answers
   `undefinedField`; the pass is repeated without them and a hint says so. Every answer carries `rateLimit { cost remaining
   resetAt }`; below 15 points the client stops before the next call (`Error::RateLimit` with the reset time → the source
-  pauses and keeps its data). A project that cannot be read this time keeps its old tickets. Refusals become
+  pauses and keeps its data). A project that cannot be read this time keeps the tickets it had. Refusals become
   `Error::MissingRight { right, kind }` (`cockpit_core::permissions`): `INSUFFICIENT_SCOPES` names the scope, `FORBIDDEN`
   / "Resource not accessible" the right the failed call needed (below `content` it is *Issues*, otherwise *Projects*);
   classic scopes are read from `X-OAuth-Scopes`. The key of a ticket is `owner/repo#123` (`cockpit_core::project`), the item
@@ -349,7 +349,7 @@ the clone) and is mounted `:ro` like in plan mode (`RunCommand::clone_only_read`
 `ReviewSummary`. `Workspace::report_agent` books them on the review: `Review::add_agent_comment` accepts a draft only if
 file, line and side exist in the diff, and replaces nothing but adds a `Suggestion` with a structured
 `path`/`line`/`start_line`/`side`/`code` (all with serde defaults) and an id `a1`, `a2` …; the summary goes
-to `Review::agent_summary`. A new run replaces the old suggestions (`begin_agent_review`). The drafts are decided with
+to `Review::agent_summary`. A new run replaces the suggestions of the previous review run (`begin_agent_review`). The drafts are decided with
 `Decide` / `EditSuggestion`; `outbound::review_data` turns the approved ones into line
 comments (range via `start_line`, `suggestion` block from `code`) of **one** `POST /repos/{repo}/pulls/{n}/reviews`, event
 `COMMENT` unless you choose otherwise. Nothing is sent before `SendReview`, and not while a draft is undecided. The run
