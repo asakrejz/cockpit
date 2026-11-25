@@ -1,14 +1,13 @@
 # Component library (`feature-ui`)
 
-The UI building blocks of Cockpit and the Playground that shows each one.
-
-The crate `crates/ui` mirrors the SwiftUI names of the design:
+The UI building blocks of Cockpit (crate `feature-ui` in `crates/ui`) and the Playground (`apps/playground`) that shows each
+one. The crate mirrors the SwiftUI names of the design:
 
 ```rust
 view! {
-    <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large>"Weiter"</Button>
+    <Button variant=ButtonStyle::GlassProminent size=ControlSize::Large>"Next"</Button>
     <Toggle checked=wifi />
-    <TextField label="E-Mail" value=mail input_type="email" error=invalid />
+    <TextField label="Email" value=mail input_type="email" error=invalid />
 }
 ```
 
@@ -17,10 +16,11 @@ view! {
 | Basics | `Root`, `Text`, `Icon`, `Glass` |
 | Layout | `VStack`, `HStack`, `ZStack`, `Spacer`, `Grid`, `Split`, `Container` |
 | Controls | `Button`, `Link`, `Badge`, `Toggle`, `Segmented`, `Slider`, `Stepper` |
-| Input | `TextField`, `SearchField`, `Combobox` (text field with suggestions, see below) |
+| Input | `TextField`, `SearchField`, `Select`, `Combobox` (text field with suggestions, see below) |
 | Content | `List`, `ListSection`, `ListRow`, `ListButtonRow`, `Card`, `CardBody`, `CardFooter`, `CardGrid`, `Media` |
 | Navigation | `Navbar`, `IosNav`, `TabBar`, `Pager`, `Footer` |
-| Overlay | `Sheet` |
+| Overlay | `Sheet`, `Dialog` |
+| State | `EmptyState`, `ErrorState`, `StatusBanner`, `Skeleton` |
 | App | `SplitView` (with `StackLevel`: list and detail as two levels below 768 px, see [architecture.md](architecture.md#layout-and-navigation)), `BottomNav` (floating glass pill), `PickerPane`, `Pane`, `Status`, `Avatar`, `Chip`, `InboxRow`, `CommentBubble`, `RichText` (Jira text from ADF), `Markdown` (GitHub text: PR descriptions and comments, same look as `RichText`), `Textarea`, `Diff`, `SuggestionCard`, `Timeline`, `Progress`, `Log`, `Steps` |
 
 **Combobox.** For choosing from a long list (people). The caller reads `query` and passes the ranked `options`
@@ -28,13 +28,13 @@ view! {
 `aria-activedescendant`, a listbox, arrow keys, Enter, Escape, mouse and touch. The ticket detail uses it for the
 assignee (matching and ranking: `cockpit_core::people_search`).
 
-**Building block and story.** A building block lives in `crates/<name>/` (a crate that depends only on `leptos`, hence
-reusable); a story lives in `apps/playground/src/stories/<name>.rs` and shows it with sample values. In another
-project include it by path:
+**Where things live.** The building blocks are modules of `crates/ui/src` (declared in `lib.rs`); the crate depends on
+`leptos`, `cockpit-core` and `cockpit-i18n`. A story lives in `apps/playground/src/stories/<name>.rs` and shows a block with
+sample values. In another project include the crate by path to your checkout:
 
 ```toml
 [dependencies]
-feature-ui = { path = "../rust-playground/crates/ui" }
+feature-ui = { path = "<path to the checkout>/crates/ui" }
 ```
 
 and include `crates/ui/tokens.css`, `components.css` and `extras.css`, in this order.
@@ -57,7 +57,7 @@ They have the same value in light and dark.
 
 | Token | Value | Used for |
 |-------|-------|----------|
-| `--ui-overlay` | `rgb(0 0 0 / 0.35)` | the dimmed area behind a sheet, a dialog and the "Mehr" sheet |
+| `--ui-overlay` | `rgb(0 0 0 / 0.35)` | the dimmed area behind a sheet, a dialog and the "More" sheet |
 | `--ui-fill-hover` | `rgb(127 127 127 / 0.12)` | hover fill of a row that is a button (section heading of a list) |
 | `--ui-shadow-float` | `0 6px 24px rgb(0 0 0 / 0.12)` | floating notices (banners) |
 | `--ui-shadow-sheet` | `0 -8px 40px rgb(0 0 0 / 0.18)` | dialog that rises from the bottom edge |
@@ -116,47 +116,18 @@ uses a token or a custom property, never a raw colour.
    ```
 2. In `apps/playground/src/stories/mod.rs` add `mod my_block;` and register `my_block::STORY` in `STORIES`.
 
-**Add a building block as a new crate.**
+**Add a building block.**
 
-1. `cargo new --lib crates/my-block --name feature-my-block`
-2. In its `Cargo.toml`: `leptos = { workspace = true }`. Through `members = [..., "crates/*"]` it is part of the
-   workspace automatically.
-3. Register it in the root `Cargo.toml` under `[workspace.dependencies]`:
-   `feature-my-block = { path = "crates/my-block" }`, then use it in `apps/playground/Cargo.toml`.
-4. Include your own CSS in `apps/playground/index.html` with `<link data-trunk rel="css" …>`, after the tokens.
+1. Create `crates/ui/src/my_block.rs` with a `#[component]` (template: any small module such as `status.rs`), declare it in
+   `crates/ui/src/lib.rs` (`mod my_block;` and `pub use my_block::*;`).
+2. Style it in `crates/ui/extras.css` with the tokens above (own classes with the prefix `ui-`); never in `tokens.css` or
+   `components.css`.
+3. Show it with a story (see above). A visible text goes through the catalogs (`t!`), never as a literal in `crates/ui/src`
+   (a scan test fails otherwise, see [architecture.md](architecture.md#languages-i18n)).
 
 **Font.** The design uses SF Pro (present on Apple devices) and falls back to **Inter**. `apps/playground/index.html`
 loads Inter from Google Fonts. Without an external connection remove the three `<link>` lines and the system font
 applies.
-
-## Learning path
-
-For learning Rust through this code base: each concept names where you see it and the Playground story that shows it.
-
-| # | Concept | In the code | In the Playground |
-|---|---------|-------------|-------------------|
-| 1 | **Components and props**: a function with `#[component]`, parameters are props | `crates/ui/src/text.rs` (`Text`) | Foundations |
-| 2 | **Enums instead of strings**: `enum`, `impl`, `#[derive(Default)]`, `#[default]`, `const ALL` | `crates/ui/src/button.rs` (`ButtonStyle`) | Button |
-| 3 | **`Option` and `then_some`**: set an attribute only sometimes | `button.rs`, function `attr()` and `data-role` | Button |
-| 4 | **Children**: pass content to a component | `crates/ui/src/layout.rs` (`VStack`) | Stacks & Grids |
-| 5 | **Signals**: reactive state, `RwSignal`, `.get()` / `.set()` | `crates/ui/src/controls.rs` (`Toggle`) | Toggle · Picker · … |
-| 6 | **`move` closures**: why signals sit in `move \|\| …` | everywhere, e.g. `data-role=role` in `button.rs` | Button |
-| 7 | **Derived signals**: `Signal::derive` | `apps/playground/src/stories/button.rs` | Button (live controls) |
-| 8 | **Callbacks**: report events upwards | `button.rs` (`on_click`) | Button |
-| 9 | **Rendering lists**: iterators and `collect_view()` | `controls.rs` (`Segmented`) | Toggle · Picker · … |
-| 10 | **Conditional rendering**: `<Show>` and `match` with `.into_any()` | `sheet.rs`, `list.rs` (`ListRow`) | iPhone example |
-| 11 | **`'static` and constants**: `&'static [(&str, &str)]`, `const`, `static` | `controls.rs`, `apps/playground/src/stories/mod.rs` | all |
-| 12 | **Function pointers**: `render: fn() -> AnyView` in a registry | `apps/playground/src/stories/mod.rs` (`Story`) | the navigation itself |
-| 13 | **Chaining `Option` and `Result`**: `.ok().flatten().is_some_and(…)` | `apps/playground/src/main.rs` (`system_theme`) | light/dark switch |
-| 14 | **Browser events**: `window_event_listener`, cleanup with `on_cleanup` | `apps/playground/src/main.rs` | navigation by URL (`#button`) |
-| 15 | **Global counter**: `AtomicU32` for unique IDs | `crates/ui/src/field.rs` | TextField & Search |
-| 16 | **Tests**: `#[cfg(test)]`, `include_str!` reads the CSS at compile time | `crates/ui/src/lib.rs` | `cargo test` |
-| 17 | **Logic without UI**: `struct`, `impl`, `Result`, state machine, many tests | `crates/cockpit-core/src/agent.rs`, `workspace.rs` | Cockpit |
-| 18 | **Shared state**: a `Copy` store in context, `Memo`, `Effect` | `apps/cockpit/src/store.rs`, `apps/cockpit/src/pages/inbox.rs` | Cockpit |
-| 19 | **Workspace and crates**: shared versions, one crate per building block | `Cargo.toml`, `crates/ui/Cargo.toml` | – |
-
-A good exercise for every step: break something on purpose (for example `ButtonStyle::Glas` instead of `Glass`) and
-read the compiler message. Rust usually explains errors very precisely.
 
 **Overflow and cards.** Nothing may widen a pane or the page. In `extras.css`: prose breaks with
 `overflow-wrap: anywhere`, flex/grid children have `min-width: 0`, single-line labels (repo, branch, file) use
@@ -165,6 +136,6 @@ grows, `CardFooter` (name, meta, actions) sits at the bottom right whatever the 
 one row at equal height, so footers line up. Overview cards (`.ck-stuck`) and inbox rows follow the same pattern
 (last child pinned to the bottom).
 
-**Check.** The Playground story "Extreme Inhalte" (`#extreme`) has very long words and URLs, one-word and empty texts.
+**Check.** The Playground story with the id `extreme` (`#extreme`) has very long words and URLs, one-word and empty texts.
 Open it at 375, 768 and 1280 px and run `scripts/check-overflow.js` in the console: it must print `no overflow`
 (`scrollWidth <= clientWidth` for page, panes, cards and rows). Run the same script in the app.
