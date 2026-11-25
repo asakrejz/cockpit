@@ -55,8 +55,8 @@ export function collector() {
   return { e, sink: (x: Event) => void e.push(x) };
 }
 
-export function assistant(id: string, bloecke: Array<Record<string, unknown>>, usage = { input_tokens: 100, output_tokens: 20 }): SdkMessage {
-  return { type: "assistant", message: { id, usage, content: bloecke } };
+export function assistant(id: string, blocks: Array<Record<string, unknown>>, usage = { input_tokens: 100, output_tokens: 20 }): SdkMessage {
+  return { type: "assistant", message: { id, usage, content: blocks } };
 }
 
 export const resultOk = (text: string): SdkMessage => ({ type: "result", subtype: "success", result: text });
