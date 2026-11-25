@@ -7,6 +7,6 @@ dist = "dist"
 port = 8081
 
 # Development with `trunk serve`: requests to /api go to the local server
-# (`cargo run -p cockpit-server`). The app needs the server, there is no browser mode any more.
+# (`cargo run -p cockpit-server`, started with COCKPIT_DEV_PORT=8081). The app needs the server.
 [[proxy]]
 backend = "http://127.0.0.1:8787/api"

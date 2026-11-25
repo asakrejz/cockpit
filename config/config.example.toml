@@ -1,4 +1,5 @@
-# Example configuration for Cockpit. All values are dummies.
+# Example configuration for Cockpit. All values are dummies. The reference for every key is
+# docs/configuration.md.
 #
 # Cockpit creates `config/config.toml` on its own at the first start; the setup page in the app
 # writes it for you. Copy this file only if you want to edit by hand:
@@ -40,8 +41,7 @@ repo = "acme/app"               # optional default repo; remove it to choose the
 
 # Optional settings per repo. Without an entry a repo uses its default branch and the usual branch pattern;
 # the first start in a repo stores one (with watch = false). The agent starts in the default repo `repo` above
-# (or the only repo of the list); the start dialog of a ticket lets you choose another one. A `projects` key in an
-# entry has no effect.
+# (or the only repo of the list); the start dialog of a ticket lets you choose another one.
 [[agent.repos]]
 repo = "acme/web"
 base_branch = "develop"         # optional, default "main"

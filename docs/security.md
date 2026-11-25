@@ -13,9 +13,9 @@ Details: [configuration.md](configuration.md).
 
 ## Credentials
 
-- **Where they live.** Only in the backend, in the file `config/.env` (decision of 2026-11-13; the risk
-  of a file inside the repo folder is accepted knowingly). Never in the repo, the database, logs, `config/config.toml`, URLs
-  or browser storage (`localStorage`).
+- **Where they live.** Only in the backend, in the file `config/.env` (a file inside the project folder, which is why it is
+  never committed, see below). Never in the repo, the database, logs, `config/config.toml`, URLs or browser storage
+  (`localStorage`).
 - **Never committed.** `.gitignore` excludes `config/*` and `.env` / `.env.*` anywhere; no `.env*` file belongs in the repo. CI fails when any
   `.env*` file is tracked. At start and in `/api/health` (`env_file`)
   the server warns when Git tracks the file, `.gitignore` does not cover it or the permissions are looser than `600`; at
@@ -23,10 +23,10 @@ Details: [configuration.md](configuration.md).
 - **Two ways in.** `cockpit-server token set <name>` in the terminal (the value comes from standard input, so it is
   neither in the process list nor in the shell history), or the password fields of the setup assistant, which send the
   value once over loopback to `PUT /api/secrets/{name}`. For that route: only the fixed names listed in
-  [configuration.md](configuration.md#credentials-the-env-file) (plus the two webhook secrets); the answer is only `{name, set}`, never the value;
-  the field is cleared right after submitting; no log, no `localStorage`, no URL, no error message with the value.
-  `DELETE /api/secrets/{name}` ("Trennen") exists for `jira` and `github` only. The tokens of OAuth sign-ins are written
-  by the backend itself.
+  [configuration.md](configuration.md#credentials-the-env-file) (plus the two webhook secrets); the answer is only
+  `{name, set}`, never the value; the field is cleared right after submitting; no log, no `localStorage`, no URL, no error
+  message with the value. `DELETE /api/secrets/{name}` ("Disconnect", "Remove client ID") exists for `jira`, `github`,
+  `github-oauth` and `atlassian-oauth` only. The tokens of OAuth sign-ins are written by the backend itself.
 - **Precedence.** A real environment variable of the same name wins over the file; a value set that way cannot be
   overwritten or deleted in the assistant.
 - **Jira API token** has the rights of the Atlassian account: while Cockpit should only read, use an account or role
@@ -60,7 +60,7 @@ environment (never in `config.toml`). With a non-loopback `COCKPIT_BIND` the ser
 - With port publishing the peer is the gateway of the container network, not loopback. In this mode the peer check
   therefore accepts loopback and private addresses (`10/8`, `172.16/12`, `192.168/16`, link-local, IPv6 unique-local)
   and rejects public ones. Any other container on the same container network could therefore call `/api` as well.
-- The **`Host` check is unchanged** (`127.0.0.1:<port>` or `localhost:<port>`, against DNS rebinding), as are the
+- The **`Host` check still applies** (`127.0.0.1:<port>` or `localhost:<port>`, against DNS rebinding), as do the
   `Origin` and JSON content-type rules for writing requests. If the published host port differs from the container
   port, `COCKPIT_PUBLIC_PORT` adds that port to the accepted ones (environment only).
 - The webhook routes keep requiring a loopback peer, so they do not work through a published container port.
@@ -73,8 +73,8 @@ environment (never in `config.toml`). With a non-loopback `COCKPIT_BIND` the ser
   root-equivalent access to the host: it could start a privileged container with the whole disk mounted. It is opt-in,
   off by default, and meant only for a machine you trust. Agent runs need no host folder: the working folders are copied
   into the agent container and the result back (`docker cp`), so Cockpit never hands paths of its own container to the engine.
-- The workflow publishes the image as a public package and deletes all other versions after each push, so no old image
-  with old code lingers. Pulling it needs no sign-in; the image holds no key (see above).
+- The workflow publishes the image as a public package and deletes all other versions after each push, so only the
+  current image exists. Pulling it needs no sign-in; the image holds no key (see above).
 
 ## Jira attachments (`GET /api/jira/attachment/{id}`)
 
@@ -120,7 +120,7 @@ off by default (`[server] webhooks = false`: `404`).
 - **Only a trigger.** The payload is not parsed beyond the event type (Jira: `webhookEvent`; GitHub: header) and
   is never stored or used as data. A forged or replayed request can at most cause a sync, which asks the services
   with the user's own credentials and applies the result through the normal merge. The sync is merged (one run per
-  source per 5 s) and honours the rate-limit pause of PR #43.
+  source per 5 s) and honours the rate-limit pause of a source.
 - **Replay.** A delivery ID (`X-GitHub-Delivery`, `X-Atlassian-Webhook-Identifier`) or an identical body seen in the
   last 10 minutes is answered `202` and ignored (at most 512 remembered, memory only). The ID header is not
   signed, therefore the body hash is checked as well. A captured signed request can therefore not be replayed
@@ -133,7 +133,7 @@ off by default (`[server] webhooks = false`: `404`).
   `POST /api/setup/webhook-secret/{source}`; the value is in that one answer and nowhere else (not in `/api/setup`,
   logs or errors). Renewing replaces the old one.
 - **Local test.** `POST /api/setup/webhook-test/{source}` sends a signed request to `127.0.0.1:<port>`; it calls no
-  external service and never starts a sync. Its event is shown as "test (lokal)".
+  external service and never starts a sync. Its event is marked as a local test.
 - **Tunnel hygiene.** Forward only `/api/webhooks/*` where the tunnel allows it, stop it when unused, treat the
   public address as public. Not covered: a leaked secret (anyone with it can trigger syncs – renew it) and denial of
   service on the tunnel itself.
@@ -153,28 +153,27 @@ off by default (`[server] webhooks = false`: `404`).
   names one fixed branch) and is validated when the config is read and when the assistant saves it. A new run also
   refuses a branch that **already exists** on GitHub (protected or somebody else's), checked with `git ls-remote` before
   the clone and again right before the push; the push itself is a plain push, never forced. A follow-up on a pull request
-  may only continue a branch that fits the repo's pattern or lives under `claude/` (pull requests from before a change
-  keep working). The proposal "Aus Richtlinien vorschlagen" only reads `CONTRIBUTING.md` and saves nothing; its text is
+  may only continue a branch that fits the repo's pattern or lives under `claude/`. The proposal "Suggest from guidelines" only reads `CONTRIBUTING.md` and saves nothing; its text is
   data for pattern matching, never instructions. The runner hint to follow the commit conventions of such a file is
   advice to the agent and never loosens the fixed rules.
-- **Reviews by the agent only read, and only you send.** "PR reviewen" starts a run whose clone of the pull request's
+- **Reviews by the agent only read, and only you send.** "Review PR" starts a run whose clone of the pull request's
   branch is mounted read-only (`:ro`); the agent has only reading tools (Codex: `read-only` sandbox), no GitHub token,
   and cannot push or merge. The repo must be configured for the agent like for any run. Title, description and diff are
   given to the model as data of third parties, with a size limit. What the agent finds comes back as **drafts**: the
   backend checks each draft against the pull request's diff (file, line, side, size, count) and drops what does not fit.
-  Drafts stay on your machine. Nothing goes to GitHub until you decided every draft and click "Review absenden"; then
+  Drafts stay on your machine. Nothing goes to GitHub until you decided every draft and click "Send review"; then
   **one** review goes out with the drafts you approved (with the text you edited) and your own line comments, never
-  the declined or undecided ones. The verdict stays "Kommentieren" (`COMMENT`) unless you pick "Genehmigen" or
-  "Änderungen" yourself – the agent cannot set it. The agent's summary also stays local; it goes out only if you copy it
+  the declined or undecided ones. The verdict stays "Comment" (`COMMENT`) unless you pick "Approve" or
+  "Request changes" yourself – the agent cannot set it. The agent's summary also stays local; it goes out only if you copy it
   into your own comment.
 - **Deleting a branch happens only on your click, one branch at a time.** After a pull request of a run is merged or
-  closed, "Branch löschen" can delete the agent's branch on GitHub (`DELETE /repos/{repo}/git/refs/heads/{branch}`). The
+  closed, "Delete branch" can delete the agent's branch on GitHub (`DELETE /repos/{repo}/git/refs/heads/{branch}`). The
   backend refuses unless all of this holds, read from GitHub at the click and not taken from the browser: the pull
   request is merged or closed; the branch matches the repo's `branch_pattern`; it is not the base branch, the default
   branch of the repo, a main-branch name or anything under `refs/`; GitHub does not mark it protected; it is the head
   of that pull request and the branch the run pushed (so a run can never name another branch); the run is a real
-  implementation run of the Cockpit (not a review of somebody else's pull request). Marking a run "erledigt" only reads
-  the pull request; it deletes no branch. "Aufräumen" shows a preview first and then removes only the listed items
+  implementation run of the Cockpit (not a review of somebody else's pull request). Marking a run "done" only reads
+  the pull request; it deletes no branch. "Clean up" shows a preview first and then removes only the listed items
   that are still orphans: containers with the label `cockpit.run` that belong to no working run (command line
   `ps --filter label=…` and `rm -f`, never the socket) and folders directly under `<data>/agent/runs`. It never
   touches the image, other containers or any other path.
@@ -218,7 +217,3 @@ off by default (`[server] webhooks = false`: `404`).
   plain language in the log and at the run.
 - **Container runtime access** is by command-line calls only; the Docker socket is never used (see the container rules in
   [architecture.md](architecture.md#container-rules)).
-
-## Not verified against real services
-
-See [architecture.md](architecture.md#development). Treat the first real run with care and use a test account or read-only rights.
