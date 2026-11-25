@@ -5,13 +5,13 @@ async fn start_without_setup_shows_a_understandable_message() {
     let server = MockServer::start().await;
     // Without a client secret in the .env file.
     let p = snapshot(&server, None, false);
-    let (status, ort, _) = call(&p.app, "GET", "/api/oauth/github/start").await;
+    let (status, location, _) = call(&p.app, "GET", "/api/oauth/github/start").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert!(
-        ort.starts_with("http://127.0.0.1:8787/?oauth=error&service=github"),
-        "{ort}"
+        location.starts_with("http://127.0.0.1:8787/?oauth=error&service=github"),
+        "{location}"
     );
-    let message = message(&ort);
+    let message = message(&location);
     assert!(
         message.contains("Schritt „GitHub“") && message.contains("Client-Secret"),
         "{message}"
@@ -46,7 +46,7 @@ async fn github_sign_in_from_start_until_health() {
     assert_eq!(h["sign_in"]["github"]["oauth_possible"], true);
 
     let state = github_state(&p).await;
-    let (status, ort, body) = call(
+    let (status, location, body) = call(
         &p.app,
         "GET",
         &format!("/api/oauth/github/callback?code=abc&state={state}&installation_id=5&setup_action=install"),
@@ -54,12 +54,12 @@ async fn github_sign_in_from_start_until_health() {
     .await;
     assert_eq!(status, StatusCode::SEE_OTHER);
     assert!(
-        ort.starts_with("http://127.0.0.1:8787/?oauth=ok&service=github"),
-        "{ort}"
+        location.starts_with("http://127.0.0.1:8787/?oauth=ok&service=github"),
+        "{location}"
     );
-    assert!(ort.ends_with("#/setup"));
+    assert!(location.ends_with("#/setup"));
     // Nothing secret in redirect or body.
-    for text in [&ort, &body] {
+    for text in [&location, &body] {
         for secret in ["ghu_zugriff_geheim", "ghr_erneuern_geheim", CLIENT_SECRET] {
             assert!(!text.contains(secret));
         }
@@ -90,23 +90,23 @@ async fn wrong_and_duplicate_state() {
 
     // Wrong state: no exchange, nothing stored.
     let _ = github_state(&p).await;
-    let (_, ort, _) = call(
+    let (_, location, _) = call(
         &p.app,
         "GET",
         "/api/oauth/github/callback?code=abc&state=falsch",
     )
     .await;
-    assert!(ort.contains("oauth=error"), "{ort}");
-    assert!(message(&ort).contains("unbekannt"));
+    assert!(location.contains("oauth=error"), "{location}");
+    assert!(message(&location).contains("unbekannt"));
     // Without state (e.g. return from the installation without our start).
-    let (_, ort, _) = call(
+    let (_, location, _) = call(
         &p.app,
         "GET",
         "/api/oauth/github/callback?code=abc&installation_id=5&setup_action=install",
     )
     .await;
-    assert!(ort.contains("oauth=error"));
-    assert!(message(&ort).contains("Mit GitHub anmelden"));
+    assert!(location.contains("oauth=error"));
+    assert!(message(&location).contains("Mit GitHub anmelden"));
     assert!(
         p.secrets
             .get(secrets::GITHUB_OAUTH_TOKENS)
@@ -118,9 +118,9 @@ async fn wrong_and_duplicate_state() {
     let state = github_state(&p).await;
     let url = format!("/api/oauth/github/callback?code=abc&state={state}");
     assert!(call(&p.app, "GET", &url).await.1.contains("oauth=ok"));
-    let (_, ort, _) = call(&p.app, "GET", &url).await;
-    assert!(ort.contains("oauth=error"), "{ort}");
-    assert!(message(&ort).contains("schon verwendet"));
+    let (_, location, _) = call(&p.app, "GET", &url).await;
+    assert!(location.contains("oauth=error"), "{location}");
+    assert!(message(&location).contains("schon verwendet"));
     assert!(
         p.secrets
             .get(secrets::GITHUB_OAUTH_TOKENS)
@@ -130,13 +130,13 @@ async fn wrong_and_duplicate_state() {
 
     // State from GitHub, callback from Atlassian.
     let state = github_state(&p).await;
-    let (_, ort, _) = call(
+    let (_, location, _) = call(
         &p.app,
         "GET",
         &format!("/api/oauth/atlassian/callback?code=abc&state={state}"),
     )
     .await;
-    assert!(message(&ort).contains("anderen Dienst"), "{ort}");
+    assert!(message(&location).contains("anderen Dienst"), "{location}");
 }
 
 #[tokio::test]
@@ -152,14 +152,14 @@ async fn error_the_service_and_cancel() {
         .await;
     let p = snapshot(&server, None, true);
     let state = github_state(&p).await;
-    let (_, ort, _) = call(
+    let (_, location, _) = call(
         &p.app,
         "GET",
         &format!("/api/oauth/github/callback?code=abc&state={state}"),
     )
     .await;
-    assert!(ort.contains("oauth=error"));
-    assert!(message(&ort).contains("abgelaufen"));
+    assert!(location.contains("oauth=error"));
+    assert!(message(&location).contains("abgelaufen"));
     assert!(
         p.secrets
             .get(secrets::GITHUB_OAUTH_TOKENS)
@@ -169,22 +169,22 @@ async fn error_the_service_and_cancel() {
 
     // The user declines.
     let state = github_state(&p).await;
-    let (_, ort, _) = call(
+    let (_, location, _) = call(
         &p.app,
         "GET",
         &format!("/api/oauth/github/callback?error=access_denied&error_description=The+user+denied&state={state}"),
     )
     .await;
     assert!(
-        message(&ort).contains("abgebrochen oder abgelehnt: The user denied"),
-        "{ort}"
+        message(&location).contains("abgebrochen oder abgelehnt: The user denied"),
+        "{location}"
     );
     // The state is consumed by that.
-    let (_, ort, _) = call(
+    let (_, location, _) = call(
         &p.app,
         "GET",
         &format!("/api/oauth/github/callback?code=abc&state={state}"),
     )
     .await;
-    assert!(message(&ort).contains("schon verwendet"));
+    assert!(message(&location).contains("schon verwendet"));
 }

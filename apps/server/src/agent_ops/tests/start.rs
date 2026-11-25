@@ -3,7 +3,7 @@ use cockpit_i18n::Lang;
 
 #[tokio::test]
 async fn without_setup_starts_no_run_and_the_message_says_where() {
-    let w = welt(false);
+    let w = world(false);
     std::fs::remove_file(w.bin().join("docker")).unwrap();
     let st = w.state.clone();
     let status = tokio::task::spawn_blocking(move || st.agent_status())
@@ -39,7 +39,7 @@ async fn without_setup_starts_no_run_and_the_message_says_where() {
 
 #[tokio::test]
 async fn missing_image_is_reported() {
-    let w = welt(true);
+    let w = world(true);
     std::fs::write(w.bin().join("no-image"), "").unwrap();
     let st = w.state.clone();
     let status = tokio::task::spawn_blocking(move || st.agent_status())
@@ -55,7 +55,7 @@ async fn missing_image_is_reported() {
 
 #[tokio::test]
 async fn a_run_from_the_approval_until_to_push() {
-    let w = welt(true);
+    let w = world(true);
     w.write("scenario-run.sh", &scenario_ok());
     w.start(false).await;
     w.wait("Lauf fertig", |ws| {
@@ -105,7 +105,7 @@ async fn a_run_from_the_approval_until_to_push() {
         .lines()
         .find(|z| z.starts_with("run "))
         .expect("run was called");
-    for muss in [
+    for expected in [
         "--rm",
         "--label cockpit.run=BAU-142",
         "--add-host cockpit-host:host-gateway",
@@ -114,7 +114,10 @@ async fn a_run_from_the_approval_until_to_push() {
         "-e ANTHROPIC_AUTH_TOKEN",
         "localhost/cockpit-agent:local",
     ] {
-        assert!(run_line.contains(muss), "{muss} is missing: {run_line}");
+        assert!(
+            run_line.contains(expected),
+            "{expected} is missing: {run_line}"
+        );
     }
     assert!(
         !calls.contains(TOKEN) && !calls.contains(GITHUB),
@@ -159,7 +162,7 @@ async fn claude_code_and_codex_start_runs_with_their_adapter_and_names() {
             ),
         ),
     ] {
-        let w = welt_with(true, provider);
+        let w = world_with(true, provider);
         assert!(w.state.agent_status().ready, "{provider:?}");
         w.write("scenario-run.sh", &scenario_ok());
         w.start(false).await;
@@ -180,7 +183,7 @@ async fn claude_code_and_codex_start_runs_with_their_adapter_and_names() {
 
 #[test]
 fn direct_at_provider_needs_only_key_and_model() {
-    let w = welt(true);
+    let w = world(true);
     let state = with_choice(
         &w,
         AgentChoice {
@@ -224,7 +227,7 @@ fn app_and_web() -> Vec<cockpit_core::AgentRepo> {
 
 #[tokio::test]
 async fn a_start_without_a_choice_runs_in_the_default_repo_and_pushes_only_there() {
-    let mut w = welt(true);
+    let mut w = world(true);
     w.state = with_repos(&w, app_and_web(), Some("firma/app"));
     w.write("scenario-run.sh", &scenario_ok());
     w.start(false).await;
@@ -241,7 +244,7 @@ async fn a_start_without_a_choice_runs_in_the_default_repo_and_pushes_only_there
 
 #[tokio::test]
 async fn the_users_choice_goes_before_the_default() {
-    let mut w = welt(true);
+    let mut w = world(true);
     w.state = with_repos(&w, app_and_web(), Some("firma/app"));
     w.write("scenario-run.sh", &scenario_ok());
     w.action(Action::StartAgent {
@@ -268,7 +271,7 @@ async fn claude_code_and_codex_run_in_the_default_and_the_chosen_repo() {
     for provider in [Provider::ClaudeCode, Provider::Codex] {
         // (user choice, repo where the branch must land, repo that stays untouched)
         for (choice, hit, other) in [(None, "app", "web"), (Some("firma/web"), "web", "app")] {
-            let mut w = welt_with(true, provider);
+            let mut w = world_with(true, provider);
             w.state = with_repos(&w, app_and_web(), Some("firma/app"));
             w.write("scenario-run.sh", &scenario_ok());
             w.action(Action::StartAgent {
@@ -306,7 +309,7 @@ async fn claude_code_and_codex_run_in_the_default_and_the_chosen_repo() {
 
 #[tokio::test]
 async fn a_repo_name_that_is_no_owner_slash_name_is_rejected_and_nothing_starts() {
-    let mut w = welt(true);
+    let mut w = world(true);
     w.state = with_repos(&w, app_and_web(), Some("firma/app"));
     let e = w
         .action(Action::StartAgent {
@@ -324,7 +327,7 @@ async fn a_repo_name_that_is_no_owner_slash_name_is_rejected_and_nothing_starts(
 
 #[tokio::test]
 async fn without_a_default_the_user_has_to_choose() {
-    let mut w = welt(true);
+    let mut w = world(true);
     // Two repos and no default.
     let repos = vec![
         cockpit_core::AgentRepo::new("firma/app"),
@@ -356,7 +359,7 @@ async fn without_a_default_the_user_has_to_choose() {
 
 #[test]
 fn the_only_configured_repo_is_the_default_of_a_start() {
-    let w = welt(true);
+    let w = world(true);
     let state = with_repos(&w, vec![cockpit_core::AgentRepo::new("firma/app")], None);
     let routed = state
         .agent_route(Action::StartAgent {
@@ -373,7 +376,7 @@ fn the_only_configured_repo_is_the_default_of_a_start() {
 
 #[tokio::test]
 async fn the_status_reports_repos_and_default() {
-    let mut w = welt(true);
+    let mut w = world(true);
     w.state = with_repos(&w, app_and_web(), Some("firma/app"));
     let st = w.state.clone();
     let status = tokio::task::spawn_blocking(move || st.agent_status())
@@ -400,7 +403,7 @@ async fn image_state_of(w: &World) -> (cockpit_core::api::ImageState, AgentStatu
 async fn image_states_missing_outdated_current_unknown() {
     use cockpit_core::api::ImageState;
     // Current: the label equals the fingerprint of the sources.
-    let w = welt(true);
+    let w = world(true);
     let (s, status) = image_state_of(&w).await;
     assert_eq!(s, ImageState::Current);
     assert!(status.ready && status.image, "{:?}", status.missing);
@@ -411,7 +414,7 @@ async fn image_states_missing_outdated_current_unknown() {
     );
 
     // Label differs.
-    let w = welt(true);
+    let w = world(true);
     w.write("label.out", "0000\n");
     let (s, status) = image_state_of(&w).await;
     assert_eq!(s, ImageState::Outdated);
@@ -424,25 +427,25 @@ async fn image_states_missing_outdated_current_unknown() {
 
     // Label missing: empty output, or the placeholder some versions print.
     for out in ["\n", "<no value>\n"] {
-        let w = welt(true);
+        let w = world(true);
         w.write("label.out", out);
         assert_eq!(image_state_of(&w).await.0, ImageState::Outdated, "{out:?}");
     }
 
     // No image.
-    let w = welt(true);
+    let w = world(true);
     w.write("no-image", "");
     let (s, status) = image_state_of(&w).await;
     assert_eq!(s, ImageState::Missing);
     assert!(!status.image);
 
     // The inspect call itself fails (not "no such image"): treated like no image, no crash.
-    let w = welt(true);
+    let w = world(true);
     w.write("inspect-error", "");
     assert_eq!(image_state_of(&w).await.0, ImageState::Missing);
 
     // The sources are not there: not checkable, with the reason in plain text.
-    let w = welt(true);
+    let w = world(true);
     std::fs::remove_dir_all(
         w.state
             .inner
@@ -472,7 +475,7 @@ async fn image_states_missing_outdated_current_unknown() {
 
 #[tokio::test]
 async fn start_refused_with_outdated_image_and_allowed_with_current() {
-    let w = welt(true);
+    let w = world(true);
     w.write("label.out", "stale\n");
     let e = w
         .action(Action::StartAgent {
@@ -487,7 +490,7 @@ async fn start_refused_with_outdated_image_and_allowed_with_current() {
         "no run with the old image"
     );
     // After the image is current again (new answer after the short cache time) the start works.
-    let w = welt(true);
+    let w = world(true);
     w.start(false).await;
     w.wait("Container", |_| w.log("calls.log").contains("run "))
         .await;

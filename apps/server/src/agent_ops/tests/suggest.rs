@@ -5,7 +5,7 @@ use cockpit_core::repos::suggest::SuggestReason;
 
 #[test]
 fn earlier_runs_of_the_project_are_remembered_without_any_configuration() {
-    let w = welt(true);
+    let w = world(true);
     let state = with_repos(&w, vec![], None);
     let mut ws = state.inner.live.copy();
     let mut run = ws.runs[0].clone();
@@ -24,7 +24,7 @@ fn earlier_runs_of_the_project_are_remembered_without_any_configuration() {
 
 #[test]
 fn pull_requests_of_the_ticket_and_the_default_repo_are_suggested_too() {
-    let w = welt(true);
+    let w = world(true);
     let state = with_repos(
         &w,
         vec![cockpit_core::AgentRepo::new("firma/standard")],
@@ -47,7 +47,7 @@ fn pull_requests_of_the_ticket_and_the_default_repo_are_suggested_too() {
 
 #[test]
 fn repos_named_in_the_ticket_text_count_when_github_shows_them() {
-    let w = welt(true);
+    let w = world(true);
     let state = with_repos(&w, vec![], None);
     let mut ws = state.inner.live.copy();
     ws.runs.clear();

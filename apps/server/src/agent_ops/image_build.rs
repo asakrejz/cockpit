@@ -5,7 +5,7 @@ use super::*;
 impl AppState {
     // ---------- Build image ----------
 
-    /// The state of "Image bauen". Blocking.
+    /// The state of "Build image". Blocking.
     pub(crate) fn image_state(&self) -> ImageBuild {
         let mut b = lock(&self.inner.agent.build).clone();
         let status = self.container_status();
@@ -133,18 +133,18 @@ pub(super) async fn build_task(
         }
     };
     let (tx, mut rx) = mpsc::unbounded_channel::<Msg>();
-    for (strom, tx) in [
+    for (stream, tx) in [
         (
-            kind.stdout.take().map(BufReader::new).map(Strom::Off),
+            kind.stdout.take().map(BufReader::new).map(Stream::Out),
             tx.clone(),
         ),
         (
-            kind.stderr.take().map(BufReader::new).map(Strom::Error),
+            kind.stderr.take().map(BufReader::new).map(Stream::Error),
             tx.clone(),
         ),
     ] {
-        if let Some(strom) = strom {
-            tokio::spawn(async move { strom.lines(tx).await });
+        if let Some(stream) = stream {
+            tokio::spawn(async move { stream.lines(tx).await });
         }
     }
     drop(tx);
@@ -185,12 +185,12 @@ pub(super) async fn build_task(
     }
 }
 
-pub(super) enum Strom {
-    Off(BufReader<tokio::process::ChildStdout>),
+pub(super) enum Stream {
+    Out(BufReader<tokio::process::ChildStdout>),
     Error(BufReader<tokio::process::ChildStderr>),
 }
 
-impl Strom {
+impl Stream {
     async fn lines(self, tx: mpsc::UnboundedSender<Msg>) {
         async fn read<R: AsyncBufRead + Unpin>(mut r: R, tx: mpsc::UnboundedSender<Msg>) {
             let mut buffer = Vec::new();
@@ -211,8 +211,8 @@ impl Strom {
             }
         }
         match self {
-            Strom::Off(r) => read(r, tx).await,
-            Strom::Error(r) => read(r, tx).await,
+            Stream::Out(r) => read(r, tx).await,
+            Stream::Error(r) => read(r, tx).await,
         }
     }
 }

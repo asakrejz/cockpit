@@ -71,7 +71,7 @@ impl AppState {
                 };
                 (trial, Err(()))
             }
-            _ => return Err(ActionFailure::Intern),
+            _ => return Err(ActionFailure::Internal),
         };
         let mut probe = before.clone();
         probe
@@ -123,7 +123,7 @@ impl AppState {
                     .item(&item)
                     .and_then(|i| i.project.as_ref())
                     .map(|p| p.item_id.clone())
-                    .ok_or(ActionFailure::Intern)?;
+                    .ok_or(ActionFailure::Internal)?;
                 let made = client
                     .convert_draft(&item_id, &repo)
                     .await
@@ -137,7 +137,7 @@ impl AppState {
                     true,
                 )
             }
-            _ => return Err(ActionFailure::Intern),
+            _ => return Err(ActionFailure::Internal),
         };
         if written {
             inner

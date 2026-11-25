@@ -9,12 +9,12 @@ async fn atlassian_a_site_is_automatic_chosen() {
     )
     .await;
     let p = snapshot(&server, None, true);
-    let ort = atlassian_sign_in(&p).await;
+    let location = atlassian_sign_in(&p).await;
     assert!(
-        ort.starts_with("http://127.0.0.1:8787/?oauth=ok&service=atlassian"),
-        "{ort}"
+        location.starts_with("http://127.0.0.1:8787/?oauth=ok&service=atlassian"),
+        "{location}"
     );
-    assert!(message(&ort).contains("firma"));
+    assert!(message(&location).contains("firma"));
     assert_eq!(
         p.state.atlassian_site(),
         Some(("cloud-1".into(), "firma".into()))
@@ -46,9 +46,9 @@ async fn atlassian_several_sites_need_a_choice() {
     )
     .await;
     let p = snapshot(&server, None, true);
-    let ort = atlassian_sign_in(&p).await;
-    assert!(ort.contains("oauth=error"), "{ort}");
-    let message = message(&ort);
+    let location = atlassian_sign_in(&p).await;
+    assert!(location.contains("oauth=error"), "{location}");
+    let message = message(&location);
     assert!(
         message.contains("firma") && message.contains("privat"),
         "{message}"
@@ -63,7 +63,7 @@ async fn atlassian_several_sites_need_a_choice() {
     assert_eq!(p.state.atlassian_site(), None);
 
     let p = snapshot(&server, Some("privat"), true);
-    let ort = atlassian_sign_in(&p).await;
-    assert!(ort.contains("oauth=ok"), "{ort}");
+    let location = atlassian_sign_in(&p).await;
+    assert!(location.contains("oauth=ok"), "{location}");
     assert_eq!(p.state.atlassian_site().unwrap().0, "c2");
 }

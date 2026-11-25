@@ -69,7 +69,7 @@ async fn key_only_with_allowed_names_and_valid_value() {
 async fn new_routes_have_same_checks_like_all_api_routes() {
     let p = test_bench(None);
     let value = r#"{"value":"test-wert-123"}"#;
-    // Content-Type muss JSON sein.
+    // The Content-Type must be JSON.
     for kind in [
         None,
         Some("text/plain"),
@@ -207,7 +207,7 @@ async fn config_writes_the_file_and_takes_effect_without_restart() {
         e["callback_atlassian"],
         "http://localhost:8787/api/oauth/atlassian/callback"
     );
-    // With client ID and secret "Mit GitHub anmelden" is possible.
+    // With client ID and secret "Sign in with GitHub" is possible.
     put(
         &p.app,
         "/api/secrets/github-oauth",

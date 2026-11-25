@@ -1,4 +1,4 @@
-//! „Aufräumen“ with the fake `docker` and temp folders: preview first, only confirmed orphans go,
+//! "Clean up" with the fake `docker` and temp folders: preview first, only confirmed orphans go,
 //! never the image and never a container of someone else.
 
 use super::*;
@@ -7,7 +7,7 @@ use cockpit_core::{AgentRun, RunState};
 
 /// BAU-142 works (a container of its own), nothing else does.
 fn busy_world() -> World {
-    let w = welt(true);
+    let w = world(true);
     let mut run = AgentRun::new("BAU-142", "Toggle");
     run.state = RunState::Running;
     let mut ws = demo::workspace();
@@ -108,7 +108,7 @@ async fn only_the_confirmed_orphans_are_removed() {
 
 #[tokio::test]
 async fn a_finished_run_leaves_its_clone_as_an_orphan() {
-    let w = welt(true);
+    let w = world(true);
     let mut run = AgentRun::new("BAU-142", "Toggle");
     run.state = RunState::Done;
     let mut ws = demo::workspace();
@@ -120,7 +120,7 @@ async fn a_finished_run_leaves_its_clone_as_an_orphan() {
 
 #[tokio::test]
 async fn a_halted_run_keeps_its_clone() {
-    let w = welt(true);
+    let w = world(true);
     let mut run = AgentRun::new("BAU-142", "Toggle");
     run.state = RunState::Stopped(cockpit_core::StopReason::Time);
     let mut ws = demo::workspace();
@@ -162,7 +162,7 @@ async fn nothing_to_clean_is_an_empty_preview() {
 /// folders. A working run, other orphans and unlabelled containers stay.
 #[tokio::test]
 async fn removing_runs_cleans_up_only_their_leftovers() {
-    let w = welt(true);
+    let w = world(true);
     let mut ws = demo::workspace();
     let mut done = AgentRun::new("BAU-7", "Done");
     done.state = RunState::Done;

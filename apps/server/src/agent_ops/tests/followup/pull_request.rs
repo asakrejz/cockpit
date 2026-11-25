@@ -5,7 +5,7 @@ use cockpit_i18n::Lang;
 
 /// A finished real run of BAU-142: branch pushed to the local remote.
 async fn done_world(github: &MockServer) -> World {
-    let w = pr_welt(github);
+    let w = pr_world(github);
     w.state.inner.live.set_state_for_test(demo::workspace());
     w.write("scenario-run.sh", &scenario_ok());
     w.start(false).await;
@@ -196,7 +196,7 @@ async fn errors_of_github_are_told_in_plain_words_and_change_nothing() {
 async fn no_pull_request_before_the_run_is_done_or_with_an_empty_title() {
     let github = MockServer::start().await;
     none_open(&github).await;
-    let w = pr_welt(&github);
+    let w = pr_world(&github);
     w.state.inner.live.set_state_for_test(demo::workspace());
     let e = w.action(create("BAU-142: x")).await.unwrap_err();
     assert!(!e.is_empty());

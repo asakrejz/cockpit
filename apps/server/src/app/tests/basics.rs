@@ -6,7 +6,7 @@ async fn health_without_key() {
         state(Arc::new(MemoryStore::new())),
         PathBuf::from("/gibt/es/nicht"),
     );
-    let (status, body) = hole(app, "/api/health").await;
+    let (status, body) = fetch(app, "/api/health").await;
     assert_eq!(status, StatusCode::OK);
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json["status"], "ok");
@@ -16,13 +16,13 @@ async fn health_without_key() {
 }
 
 #[tokio::test]
-async fn health_shows_only_ja_no_never_the_key() {
+async fn health_shows_only_yes_no_never_the_key() {
     let secrets = Arc::new(MemoryStore::new());
     secrets
         .set(secrets::GITHUB, &Secret::new("ghp_streng_geheim"))
         .unwrap();
     let app = router(state(secrets), PathBuf::from("/gibt/es/nicht"));
-    let (status, body) = hole(app, "/api/health").await;
+    let (status, body) = fetch(app, "/api/health").await;
     assert_eq!(status, StatusCode::OK);
     assert!(!body.contains("ghp_streng_geheim"), "{body}");
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
@@ -51,7 +51,7 @@ async fn unknown_api_address_is_404_json() {
         state(Arc::new(MemoryStore::new())),
         PathBuf::from("/gibt/es/nicht"),
     );
-    let (status, body) = hole(app, "/api/gibt-es-nicht").await;
+    let (status, body) = fetch(app, "/api/gibt-es-nicht").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert!(body.contains("error"));
 }
@@ -68,14 +68,14 @@ async fn returns_the_app_as_static_files() {
         )
     };
 
-    let (status, body) = hole(app(), "/").await;
+    let (status, body) = fetch(app(), "/").await;
     assert_eq!(
         (status, body.as_str()),
         (StatusCode::OK, "<h1>Cockpit</h1>")
     );
-    let (status, body) = hole(app(), "/app.js").await;
+    let (status, body) = fetch(app(), "/app.js").await;
     assert_eq!((status, body.as_str()), (StatusCode::OK, "console.log(1)"));
-    let (status, _) = hole(app(), "/fehlt.js").await;
+    let (status, _) = fetch(app(), "/fehlt.js").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 }
 
@@ -89,7 +89,7 @@ async fn health_names_the_env_file_never_its_content() {
         .unwrap();
     let with_file = AppState::new(db::open_in_memory().unwrap(), store);
     let app = router(with_file, PathBuf::from("/gibt/es/nicht"));
-    let (status, body) = hole(app, "/api/health").await;
+    let (status, body) = fetch(app, "/api/health").await;
     assert_eq!(status, StatusCode::OK);
     assert!(!body.contains("dummy-streng-geheim"), "{body}");
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
@@ -100,7 +100,7 @@ async fn health_names_the_env_file_never_its_content() {
         state(Arc::new(MemoryStore::new())),
         PathBuf::from("/gibt/es/nicht"),
     );
-    let (_, body) = hole(app, "/api/health").await;
+    let (_, body) = fetch(app, "/api/health").await;
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert!(json["env_file"].is_null());
 }
@@ -120,7 +120,7 @@ async fn health_reports_the_config_folder() {
         settings,
         Arc::new(MemoryStore::new()),
     );
-    let (status, body) = hole(router(s, PathBuf::from("/gibt/es/nicht")), "/api/health").await;
+    let (status, body) = fetch(router(s, PathBuf::from("/gibt/es/nicht")), "/api/health").await;
     assert_eq!(status, StatusCode::OK);
     let j = json(body);
     assert_eq!(j["config_files"]["path"], config.display().to_string());
@@ -128,7 +128,7 @@ async fn health_reports_the_config_folder() {
     assert!(j["config_files"].get("warning_msgs").is_none());
     // Without a folder (both overrides set) the field is null.
     let s = state(Arc::new(MemoryStore::new()));
-    let (_, body) = hole(router(s, PathBuf::from("/x")), "/api/health").await;
+    let (_, body) = fetch(router(s, PathBuf::from("/x")), "/api/health").await;
     assert!(json(body)["config_files"].is_null());
 }
 
@@ -138,7 +138,7 @@ async fn assignable_search_without_jira_is_inactive_and_empty() {
         state(Arc::new(MemoryStore::new())),
         PathBuf::from("/gibt/es/nicht"),
     );
-    let (status, body) = hole(app, "/api/jira/assignable?project=BAU&query=mi").await;
+    let (status, body) = fetch(app, "/api/jira/assignable?project=BAU&query=mi").await;
     assert_eq!(status, StatusCode::OK);
     let json: serde_json::Value = serde_json::from_str(&body).unwrap();
     assert_eq!(json["active"], false);

@@ -4,8 +4,8 @@ use cockpit_core::RunRepoState;
 // ---------- One run in two repos ----------
 
 /// The world with `firma/app` and `firma/web` both configured for the agent.
-fn two_welt(github: &MockServer) -> World {
-    let w = pr_welt(github);
+fn two_world(github: &MockServer) -> World {
+    let w = pr_world(github);
     *w.state.inner.agent_repo_config.write().unwrap() = crate::app::RepoConfig {
         repos: vec![
             cockpit_core::AgentRepo::new("firma/app"),
@@ -66,7 +66,7 @@ async fn run_two(w: &World) {
 #[tokio::test]
 async fn a_changed_and_an_unchanged_repo_push_only_the_changed_one() {
     let github = MockServer::start().await;
-    let w = two_welt(&github);
+    let w = two_world(&github);
     w.write("scenario-run.sh", &scenario(""));
     run_two(&w).await;
     // Only `app` got a branch; `web` is left alone.
@@ -105,7 +105,7 @@ async fn a_changed_and_an_unchanged_repo_push_only_the_changed_one() {
 #[tokio::test]
 async fn a_repo_that_breaks_its_path_rules_is_refused_and_the_other_still_goes_out() {
     let github = MockServer::start().await;
-    let w = two_welt(&github);
+    let w = two_world(&github);
     w.write(
         "scenario-run.sh",
         &scenario(
@@ -164,7 +164,7 @@ async fn pull_requests_are_created_per_repo_and_link_each_other() {
         .expect(1)
         .mount(&github)
         .await;
-    let w = two_welt(&github);
+    let w = two_world(&github);
     w.write(
         "scenario-run.sh",
         &scenario(

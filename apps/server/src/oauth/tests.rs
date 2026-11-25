@@ -100,14 +100,18 @@ async fn call(app: &Router, method: &str, path: &str) -> (StatusCode, String, St
         .unwrap();
     let r = app.clone().oneshot(req).await.unwrap();
     let status = r.status();
-    let ort = r
+    let location = r
         .headers()
         .get("location")
         .and_then(|l| l.to_str().ok())
         .unwrap_or("")
         .to_string();
     let body = r.into_body().collect().await.unwrap().to_bytes();
-    (status, ort, String::from_utf8_lossy(&body).into_owned())
+    (
+        status,
+        location,
+        String::from_utf8_lossy(&body).into_owned(),
+    )
 }
 
 /// A value from the query of an address (percent-decoded).
@@ -168,18 +172,18 @@ async fn token_mock_github(server: &MockServer, expected: u64) {
 }
 
 async fn github_state(p: &TestBench) -> String {
-    let (status, ort, _) = call(&p.app, "GET", "/api/oauth/github/start").await;
+    let (status, location, _) = call(&p.app, "GET", "/api/oauth/github/start").await;
     assert_eq!(status, StatusCode::SEE_OTHER);
-    assert!(ort.contains("/login/oauth/authorize?"), "{ort}");
-    assert_eq!(param(&ort, "client_id"), "gh-id");
-    assert_eq!(param(&ort, "code_challenge_method"), "S256");
-    assert!(!param(&ort, "code_challenge").is_empty());
+    assert!(location.contains("/login/oauth/authorize?"), "{location}");
+    assert_eq!(param(&location, "client_id"), "gh-id");
+    assert_eq!(param(&location, "code_challenge_method"), "S256");
+    assert!(!param(&location, "code_challenge").is_empty());
     assert_eq!(
-        param(&ort, "redirect_uri"),
+        param(&location, "redirect_uri"),
         "http://127.0.0.1:8787/api/oauth/github/callback"
     );
-    assert!(!ort.contains(CLIENT_SECRET));
-    param(&ort, "state")
+    assert!(!location.contains(CLIENT_SECRET));
+    param(&location, "state")
 }
 
 async fn atlassian_mocks(server: &MockServer, sites: serde_json::Value) {
@@ -199,15 +203,15 @@ async fn atlassian_mocks(server: &MockServer, sites: serde_json::Value) {
 }
 
 async fn atlassian_sign_in(p: &TestBench) -> String {
-    let (_, ort, _) = call(&p.app, "GET", "/api/oauth/atlassian/start").await;
-    assert!(ort.contains("/authorize?"), "{ort}");
-    assert_eq!(param(&ort, "audience"), "api.atlassian.com");
-    assert!(param(&ort, "scope").contains("offline_access"));
+    let (_, location, _) = call(&p.app, "GET", "/api/oauth/atlassian/start").await;
+    assert!(location.contains("/authorize?"), "{location}");
+    assert_eq!(param(&location, "audience"), "api.atlassian.com");
+    assert!(param(&location, "scope").contains("offline_access"));
     assert_eq!(
-        param(&ort, "redirect_uri"),
+        param(&location, "redirect_uri"),
         "http://localhost:8787/api/oauth/atlassian/callback"
     );
-    let state = param(&ort, "state");
+    let state = param(&location, "state");
     call(
         &p.app,
         "GET",

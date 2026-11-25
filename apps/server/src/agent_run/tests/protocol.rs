@@ -243,7 +243,7 @@ fn every_tool_gets_its_adapter_and_the_names_of_its_endpoint_family() {
 
 #[test]
 fn proxy_on_the_machine_is_called_in_container_cockpit_host() {
-    for (ein, aus) in [
+    for (input, expected) in [
         ("http://localhost:4000", "http://cockpit-host:4000"),
         ("http://127.0.0.1:4000/", "http://cockpit-host:4000"),
         ("https://localhost/v1", "https://cockpit-host/v1"),
@@ -255,7 +255,7 @@ fn proxy_on_the_machine_is_called_in_container_cockpit_host() {
         ),
         ("https://localhost.example", "https://localhost.example"),
     ] {
-        assert_eq!(for_container(ein), aus, "{ein}");
+        assert_eq!(for_container(input), expected, "{input}");
     }
 }
 

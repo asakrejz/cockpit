@@ -46,7 +46,7 @@ async fn unreadable_state_falls_on_the_seed_back() {
 }
 
 #[tokio::test]
-async fn actions_on_the_empty_workspace_reject_unknown_entries_ab() {
+async fn actions_on_the_empty_workspace_reject_unknown_entries() {
     let conn = db::open_in_memory().unwrap();
     let app = router(
         state_with(conn, empty(), Arc::new(MemoryStore::new())),
@@ -74,7 +74,7 @@ async fn health_reports_the_endpoint_without_the_key() {
     };
     let conn = db::open_in_memory().unwrap();
     let app = router(state_with(conn, e, secrets), PathBuf::from("/x"));
-    let (_, body) = hole(app, "/api/health").await;
+    let (_, body) = fetch(app, "/api/health").await;
     assert!(!body.contains("geheim"), "{body}");
     let j = json(&body);
     assert_eq!(j["endpoint"]["configured"], true);
@@ -85,7 +85,7 @@ async fn health_reports_the_endpoint_without_the_key() {
 
     // Without a setting: not configured, no key.
     let app = router(state(Arc::new(MemoryStore::new())), PathBuf::from("/x"));
-    let (_, body) = hole(app, "/api/health").await;
+    let (_, body) = fetch(app, "/api/health").await;
     let j = json(&body);
     assert_eq!(j["endpoint"]["configured"], false);
     assert_eq!(j["endpoint"]["key"], false);
@@ -110,7 +110,7 @@ async fn health_reports_the_container_runtime() {
         state_with(conn, e, Arc::new(MemoryStore::new())),
         PathBuf::from("/x"),
     );
-    let (_, body) = hole(app, "/api/health").await;
+    let (_, body) = fetch(app, "/api/health").await;
     let j = json(&body);
     assert_eq!(j["container"]["runtime"], "podman");
     assert_eq!(j["container"]["engine_running"], true);
@@ -123,7 +123,7 @@ async fn health_reports_whether_cockpit_runs_in_a_container() {
         state(Arc::new(MemoryStore::new())),
         PathBuf::from("/gibt/es/nicht"),
     );
-    let (_, body) = hole(app, "/api/health").await;
+    let (_, body) = fetch(app, "/api/health").await;
     let j = json(&body);
     assert!(j["container"]["in_container"].is_boolean(), "{body}");
     assert!(

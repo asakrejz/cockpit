@@ -32,7 +32,7 @@ async fn commits_and_a_commit_diff_are_read_from_github() {
         .expect(1)
         .mount(&github)
         .await;
-    let w = pr_welt(&github);
+    let w = pr_world(&github);
     let commits = w.state.panel_commits("firma/app", 85).await.unwrap();
     assert_eq!(commits.commits[0].title, "Titel");
     assert_eq!(commits.commits[0].author, "mira");
@@ -57,7 +57,7 @@ async fn commits_and_a_commit_diff_are_read_from_github() {
 #[tokio::test]
 async fn an_unknown_pull_request_is_not_asked_at_github() {
     let github = MockServer::start().await;
-    let w = pr_welt(&github);
+    let w = pr_world(&github);
     let e = w
         .state
         .panel_commits("firma/app", 999)
@@ -83,7 +83,7 @@ async fn a_github_error_becomes_a_sentence_without_the_token() {
         .respond_with(ResponseTemplate::new(404))
         .mount(&github)
         .await;
-    let w = pr_welt(&github);
+    let w = pr_world(&github);
     let e = w
         .state
         .panel_commits("firma/app", 85)

@@ -112,13 +112,17 @@ fn post_origin_same_or_missing() {
     assert!(post(&base).is_ok(), "without Origin");
     assert!(with("http://127.0.0.1:8787").is_ok());
     assert!(with("http://localhost:8787").is_ok());
-    for fremd in [
+    for foreign_origin in [
         "https://evil.example",
         "http://127.0.0.1:9999",
         "null",
         "http://localhost",
     ] {
-        assert_eq!(with(fremd).unwrap_err().0, StatusCode::FORBIDDEN, "{fremd}");
+        assert_eq!(
+            with(foreign_origin).unwrap_err().0,
+            StatusCode::FORBIDDEN,
+            "{foreign_origin}"
+        );
     }
 }
 

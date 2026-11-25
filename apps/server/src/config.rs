@@ -214,7 +214,7 @@ impl Seed {
         match text.trim().to_lowercase().as_str() {
             "" | "empty" => Ok(Seed::Empty),
             "demo" => Ok(Seed::Demo),
-            other => Err(ConfigError::Wert(msg!(
+            other => Err(ConfigError::InvalidValue(msg!(
                 ServerConfigSeedUnknown,
                 value = other
             ))),
@@ -301,7 +301,7 @@ impl Config {
         }
         if let Some(i) = d.interval_s {
             if i < MIN_INTERVAL_S {
-                return Err(ConfigError::Wert(msg!(
+                return Err(ConfigError::InvalidValue(msg!(
                     ServerConfigIntervalShort,
                     interval = i,
                     min = MIN_INTERVAL_S
@@ -313,7 +313,7 @@ impl Config {
             c.github_auth = g.auth;
             for r in &g.repos {
                 if !cockpit_core::repo_name_valid(r) {
-                    return Err(ConfigError::Wert(msg!(
+                    return Err(ConfigError::InvalidValue(msg!(
                         ServerConfigGithubRepoForm,
                         repo = r
                     )));
@@ -324,12 +324,12 @@ impl Config {
                 repos: g.repos,
             });
         }
-        let client_id = |wer: &str, id: String| {
+        let client_id = |section: &str, id: String| {
             let id = id.trim().to_string();
             if id.is_empty() || id.chars().any(char::is_whitespace) {
-                Err(ConfigError::Wert(msg!(
+                Err(ConfigError::InvalidValue(msg!(
                     ServerConfigClientIdInvalid,
-                    who = wer
+                    who = section
                 )))
             } else {
                 Ok(id)
@@ -365,11 +365,11 @@ impl Config {
         if let Some(j) = jira {
             c.jira_auth = j.auth;
             if c.atlassian.is_none() && (j.site.trim().is_empty() || j.email.trim().is_empty()) {
-                return Err(ConfigError::Wert(msg!(ServerConfigJiraNeedsSite)));
+                return Err(ConfigError::InvalidValue(msg!(ServerConfigJiraNeedsSite)));
             }
             for p in &j.projects {
                 if cockpit_integrations::jira::jql_for(std::slice::from_ref(p), None).is_err() {
-                    return Err(ConfigError::Wert(msg!(
+                    return Err(ConfigError::InvalidValue(msg!(
                         ServerConfigJiraProjectInvalid,
                         project = p
                     )));
@@ -393,13 +393,13 @@ impl Config {
             let tickets_from = match p.tickets_from.as_deref().map(str::trim) {
                 None | Some("") => cockpit_core::TicketsFrom::Both,
                 Some(t) => cockpit_core::TicketsFrom::from_id(t).ok_or_else(|| {
-                    ConfigError::Wert(msg!(ServerConfigTicketsFromUnknown, value = t))
+                    ConfigError::InvalidValue(msg!(ServerConfigTicketsFromUnknown, value = t))
                 })?,
             };
             let mut projects = Vec::new();
             for text in &p.projects {
                 let r = cockpit_core::ProjectRef::parse(text).ok_or_else(|| {
-                    ConfigError::Wert(msg!(ServerConfigProjectForm, project = text))
+                    ConfigError::InvalidValue(msg!(ServerConfigProjectForm, project = text))
                 })?;
                 if !projects.contains(&r) {
                     projects.push(r);
@@ -422,7 +422,10 @@ impl Config {
         if let Some(a) = d.agent {
             if let Some(text) = a.provider {
                 c.provider = Provider::from_id(&text).ok_or_else(|| {
-                    ConfigError::Wert(msg!(ServerConfigProviderUnknown, provider = text.trim()))
+                    ConfigError::InvalidValue(msg!(
+                        ServerConfigProviderUnknown,
+                        provider = text.trim()
+                    ))
                 })?;
             }
             endpoint = a.endpoint;
@@ -434,7 +437,10 @@ impl Config {
             if let Some(r) = &c.agent_repo
                 && !cockpit_core::repo_name_valid(r)
             {
-                return Err(ConfigError::Wert(msg!(ServerConfigAgentRepoForm, repo = r)));
+                return Err(ConfigError::InvalidValue(msg!(
+                    ServerConfigAgentRepoForm,
+                    repo = r
+                )));
             }
             c.agent_repos = agent_repos_read(&a.repos)?;
             c.agent_dir = a.dir;
@@ -463,7 +469,9 @@ impl Config {
                             !rest.is_empty() && !rest.contains(char::is_whitespace)
                         });
                     if !valid {
-                        return Err(ConfigError::Wert(msg!(ServerConfigEndpointUrlScheme)));
+                        return Err(ConfigError::InvalidValue(msg!(
+                            ServerConfigEndpointUrlScheme
+                        )));
                     }
                     Some(u)
                 }
@@ -480,7 +488,7 @@ impl Config {
             c.webhooks = w.webhooks;
             c.public_url = Some(
                 cockpit_core::setup::public_url_read(w.public_url.as_deref().unwrap_or(""))
-                    .map_err(ConfigError::Wert)?,
+                    .map_err(ConfigError::InvalidValue)?,
             )
             .filter(|u| !u.is_empty());
         }
@@ -492,7 +500,7 @@ impl Config {
                 if let Some(n) = value
                     && !(1..=MAX_PRS_LIMIT).contains(&n)
                 {
-                    return Err(ConfigError::Wert(msg!(
+                    return Err(ConfigError::InvalidValue(msg!(
                         ServerConfigSyncLimit,
                         name = name,
                         value = n,
@@ -509,7 +517,7 @@ impl Config {
         }
         if let Some(i) = d.sync.and_then(|s| s.webhook_fallback_interval_s) {
             if !(c.interval_s..=WEBHOOK_FALLBACK_LIMIT_S).contains(&i) {
-                return Err(ConfigError::Wert(msg!(
+                return Err(ConfigError::InvalidValue(msg!(
                     ServerConfigWebhookFallbackRange,
                     value = i,
                     interval = c.interval_s,
@@ -534,7 +542,7 @@ impl Config {
         if let Some(p) = env("COCKPIT_AGENT_IO").filter(|s| !s.trim().is_empty()) {
             let v = p.trim().to_ascii_lowercase();
             if !matches!(v.as_str(), "bind" | "copy") {
-                return Err(ConfigError::Wert(msg!(
+                return Err(ConfigError::InvalidValue(msg!(
                     ServerConfigAgentIoInvalid,
                     value = &p
                 )));
@@ -542,32 +550,29 @@ impl Config {
             c.agent_io = Some(v);
         }
         if let Some(p) = env("COCKPIT_DEV_PORT").filter(|s| !s.trim().is_empty()) {
-            let nr: u16 = p
-                .trim()
-                .parse()
-                .map_err(|_| ConfigError::Wert(msg!(ServerConfigDevPortInvalid, value = &p)))?;
+            let nr: u16 = p.trim().parse().map_err(|_| {
+                ConfigError::InvalidValue(msg!(ServerConfigDevPortInvalid, value = &p))
+            })?;
             if nr == 0 {
-                return Err(ConfigError::Wert(msg!(ServerConfigDevPortZero)));
+                return Err(ConfigError::InvalidValue(msg!(ServerConfigDevPortZero)));
             }
             c.dev_port = Some(nr);
         }
         if let Some(b) = env("COCKPIT_BIND").filter(|s| !s.trim().is_empty()) {
-            c.bind = b
-                .trim()
-                .parse()
-                .map_err(|_| ConfigError::Wert(msg!(ServerConfigBindInvalid, value = &b)))?;
+            c.bind = b.trim().parse().map_err(|_| {
+                ConfigError::InvalidValue(msg!(ServerConfigBindInvalid, value = &b))
+            })?;
         }
         if let Some(p) = env("COCKPIT_PUBLIC_PORT").filter(|s| !s.trim().is_empty()) {
             let nr: u16 = p.trim().parse().ok().filter(|n| *n != 0).ok_or_else(|| {
-                ConfigError::Wert(msg!(ServerConfigPublicPortInvalid, value = &p))
+                ConfigError::InvalidValue(msg!(ServerConfigPublicPortInvalid, value = &p))
             })?;
             c.public_port = Some(nr);
         }
         if let Some(p) = env("COCKPIT_PORT").filter(|s| !s.is_empty()) {
-            c.port = p
-                .trim()
-                .parse()
-                .map_err(|_| ConfigError::Wert(msg!(ServerConfigPortInvalid, value = &p)))?;
+            c.port = p.trim().parse().map_err(|_| {
+                ConfigError::InvalidValue(msg!(ServerConfigPortInvalid, value = &p))
+            })?;
         }
         if let Some(p) = env("COCKPIT_DIST").filter(|s| !s.is_empty()) {
             c.dist = p.into();
@@ -576,7 +581,7 @@ impl Config {
             c.db = p.into();
         }
         if c.port == 0 {
-            return Err(ConfigError::Wert(msg!(ServerConfigPortZero)));
+            return Err(ConfigError::InvalidValue(msg!(ServerConfigPortZero)));
         }
         Ok(c)
     }
@@ -587,7 +592,7 @@ impl Config {
         let env = |k: &str| std::env::var(k).ok();
         let project = location::project_dir();
         location::prepare(&project, &env)
-            .map_err(|m| ConfigError::Wert(cockpit_i18n::Msg::raw(m)))?;
+            .map_err(|m| ConfigError::InvalidValue(cockpit_i18n::Msg::raw(m)))?;
         let (path, explicit) = match env("COCKPIT_CONFIG").filter(|s| !s.is_empty()) {
             Some(p) => (Some(PathBuf::from(p)), true),
             None => (Some(location::default_config_path(&project)), false),

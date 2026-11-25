@@ -74,7 +74,7 @@ impl std::fmt::Debug for MemoryStore {
             .map(|m| m.keys().cloned().collect())
             .unwrap_or_default();
         f.debug_struct("MemoryStore")
-            .field("namen", &names)
+            .field("names", &names)
             .finish()
     }
 }

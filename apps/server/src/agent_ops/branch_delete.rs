@@ -1,4 +1,4 @@
-//! What a merged or closed pull request leaves behind: marking its run „erledigt“, and deleting
+//! What a merged or closed pull request leaves behind: marking its run closed, and deleting
 //! the branch of the agent – the latter only on the user's click.
 //!
 //! * **Reconcile** (read-only against GitHub): the pull request of a quiet run is looked up; if it
@@ -53,7 +53,7 @@ struct Plan {
 
 impl AppState {
     /// Looks up the pull requests of quiet runs and marks the runs whose pull request is merged or
-    /// closed as „erledigt“; their clone goes away. Reads from GitHub, changes nothing there.
+    /// closed as closed (`AgentRun::close`); their clone goes away. Reads from GitHub, changes nothing there.
     pub(crate) async fn reconcile_runs(&self) {
         let watch = self.inner.live.copy().runs_to_watch();
         if watch.is_empty() {

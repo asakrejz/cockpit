@@ -3,7 +3,7 @@ use cockpit_i18n::Lang;
 
 #[tokio::test]
 async fn plan_first_then_approval_then_run() {
-    let w = welt(true);
+    let w = world(true);
     w.write(
         "scenario-plan.sh",
         r#"printf '%s\n' '{"t":"step","title":"Code durchsuchen","text":"","tokens_in":500,"tokens_out":50,"ms":800}' '{"t":"plan","summary":"Fokus-Ring ergänzen","files":["neu.txt"],"steps":["Lesen","Ändern"]}'
@@ -65,7 +65,7 @@ exit 0
 
 #[tokio::test]
 async fn the_budget_stops_the_container() {
-    let w = welt(true);
+    let w = world(true);
     w.write(
         "scenario-run.sh",
         r#"printf '%s\n' '{"t":"step","title":"Viel gelesen","text":"","tokens_in":1000000,"tokens_out":0,"ms":10}'
@@ -103,7 +103,7 @@ exit 137
 
 #[tokio::test]
 async fn cancel_through_the_user_ended_the_container_and_cleans_on() {
-    let w = welt(true);
+    let w = world(true);
     w.write(
         "scenario-run.sh",
         r#"while [ ! -e "$d/stopped-$name" ]; do sleep 0.05; done
@@ -135,7 +135,7 @@ exit 137
 
 #[tokio::test]
 async fn error_in_container_state_in_plain_text_in_run_and_without_secrets() {
-    let w = welt(true);
+    let w = world(true);
     // The runner reports an error.
     w.write(
         "scenario-run.sh",
@@ -183,7 +183,7 @@ exit 1
 
 #[tokio::test]
 async fn docker_starts_not_in_plain_text() {
-    let w = welt(true);
+    let w = world(true);
     w.write(
         "scenario-run.sh",
         "echo 'Cannot connect to the Docker daemon' >&2\nexit 125\n",
@@ -203,7 +203,7 @@ async fn docker_starts_not_in_plain_text() {
 
 #[tokio::test]
 async fn unusable_lines_are_discarded_the_rest_applies() {
-    let w = welt(true);
+    let w = world(true);
     let mut s = String::from(
         "echo '{{{ kaputt'\necho 'irgendein Text'\necho '{\"t\":\"unbekannt\"}'\necho '{\"t\":\"step\"}'\n",
     );
@@ -222,7 +222,7 @@ async fn unusable_lines_are_discarded_the_rest_applies() {
 
 #[tokio::test]
 async fn ask_user_answer_and_hint_go_via_stdin() {
-    let w = welt(true);
+    let w = world(true);
     w.write(
         "scenario-run.sh",
         &format!(
@@ -283,7 +283,7 @@ printf '%s\n' '{{"t":"hints_arrived"}}'
 
 #[tokio::test]
 async fn pause_and_resume_go_at_the_container() {
-    let w = welt(true);
+    let w = world(true);
     w.write(
         "scenario-run.sh",
         &format!(
@@ -317,7 +317,7 @@ async fn pause_and_resume_go_at_the_container() {
 
 #[tokio::test]
 async fn timeout_ended_the_container_with_plain_text() {
-    let mut w = welt(true);
+    let mut w = world(true);
     // Own settings with an upper bound of 1 second.
     let e = Settings {
         run_seconds: Some(1),
@@ -355,7 +355,7 @@ async fn timeout_ended_the_container_with_plain_text() {
 
 #[tokio::test]
 async fn forbidden_paths_prevent_the_push() {
-    let w = welt(true);
+    let w = world(true);
     let r = cockpit_core::RepoRules {
         forbidden_paths: vec!["*.txt".into()],
         ..Default::default()

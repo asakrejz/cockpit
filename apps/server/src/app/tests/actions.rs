@@ -4,7 +4,7 @@ use super::*;
 
 #[tokio::test]
 async fn workspace_starts_with_the_demo_data() {
-    let (status, body) = hole(app_without_dist(), "/api/workspace").await;
+    let (status, body) = fetch(app_without_dist(), "/api/workspace").await;
     assert_eq!(status, StatusCode::OK);
     let (ws, revision) = cockpit_core::persist::load_with_revision(&body).unwrap();
     assert_eq!(ws, cockpit_core::demo::seed());
@@ -25,7 +25,7 @@ async fn action_changes_the_state_and_counts_the_revision() {
     assert_eq!(answer["revision"], 1);
     assert_eq!(answer["logged"], 1);
 
-    let (_, body) = hole(app(), "/api/workspace").await;
+    let (_, body) = fetch(app(), "/api/workspace").await;
     let (ws, revision) = cockpit_core::persist::load_with_revision(&body).unwrap();
     assert_eq!(revision, 1);
     assert!(ws.item(&id).unwrap().read);
@@ -59,7 +59,7 @@ async fn the_sample_data_has_no_agent_of_its_own() {
         "{body}"
     );
     assert_eq!(state.inner.live.revision(), 0);
-    let (_, body) = hole(app(), "/api/workspace").await;
+    let (_, body) = fetch(app(), "/api/workspace").await;
     let (ws, _) = cockpit_core::persist::load_with_revision(&body).unwrap();
     assert!(!ws.runs.iter().any(|r| r.is_active()));
 }
@@ -68,7 +68,7 @@ async fn the_sample_data_has_no_agent_of_its_own() {
 async fn rule_violation_is_422_with_german_message_and_changes_nothing() {
     let state = state(Arc::new(MemoryStore::new()));
     let app = || router(state.clone(), PathBuf::from("/x"));
-    let before = hole(app(), "/api/workspace").await.1;
+    let before = fetch(app(), "/api/workspace").await.1;
 
     let (status, body) = send(app(), r#"{"action":{"MarkDone":{"item":"gibt-es-nicht"}}}"#).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
@@ -78,7 +78,7 @@ async fn rule_violation_is_422_with_german_message_and_changes_nothing() {
             .unwrap()
             .contains("gibt es nicht")
     );
-    assert_eq!(hole(app(), "/api/workspace").await.1, before);
+    assert_eq!(fetch(app(), "/api/workspace").await.1, before);
 }
 
 #[tokio::test]
@@ -131,9 +131,9 @@ async fn broken_body_is_400() {
 #[tokio::test]
 async fn pull_request_preview_needs_a_run_and_creates_nothing() {
     let app = app_without_dist();
-    let (status, body) = hole(app.clone(), "/api/agent/pull-request").await;
+    let (status, body) = fetch(app.clone(), "/api/agent/pull-request").await;
     assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
-    let (status, body) = hole(app, "/api/agent/pull-request?run=gibt-es-nicht").await;
+    let (status, body) = fetch(app, "/api/agent/pull-request?run=gibt-es-nicht").await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
     assert!(json(&body)["error"].as_str().unwrap().contains("Lauf"));
 }

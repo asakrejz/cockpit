@@ -32,8 +32,8 @@ pub use job::*;
 mod prerequisites;
 pub use prerequisites::*;
 
-mod plane;
-pub use plane::*;
+mod plan;
+pub use plan::*;
 /// Label by which the backend finds its containers again and cleans up.
 pub const LABEL: &str = "cockpit.run";
 /// Name under which the container reaches the machine.
