@@ -9,7 +9,7 @@ The Cockpit agent runs in its own container per run (Docker or Podman). This dir
 - `runner/`: the runner (TypeScript, no build step: Node executes `.ts` directly). It reads the job from
   `/job/job.json` and executes it with an **adapter** (see below).
 
-Build through "Image bauen" (or "Neu bauen") in the setup assistant. The backend runs
+Build through "Build image" (or "Build again") in the setup assistant. The backend runs
 `<docker|podman> build -f apps/agent/Containerfile --label cockpit.fingerprint=<hex> -t localhost/cockpit-agent:local apps/agent`.
 A build by hand works without the label (`docker build -f apps/agent/Containerfile -t localhost/cockpit-agent:local apps/agent`,
 or `podman build …`), but then the image counts as outdated and the agent does not start with it.
@@ -27,12 +27,11 @@ fingerprint, not by a number in the tag:
   permissions. `\r\n` counts as `\n`.
 - The build stores it as the image label `cockpit.fingerprint`. The server reads the label
   (`image inspect --format '{{ index .Config.Labels "cockpit.fingerprint" }}'`) and compares: no image = `missing`, no
-  label or other value = `outdated`, same value = `current`, sources not found = `unknown` ("nicht prüfbar").
+  label or other value = `outdated`, same value = `current`, sources not found = `unknown` ("cannot be checked").
   A run only starts with a `current` image.
 - Raise `CONTRACT` (rarely) when the job or event format between server and runner changes **without** any file of the
-  image changing, so that old images are still recognised as outdated.
-- Images from the time of numbered tags are no longer used. Remove them by hand if wanted (Cockpit never does), for
-  example with `docker image prune` (`podman` likewise).
+  image changing, so that an image built before the change is recognised as outdated.
+- Cockpit never removes images; `docker image prune` (`podman` likewise) cleans up by hand.
 
 Rules for the `Containerfile` (they hold for Docker and Podman alike): a fully qualified base image, no BuildKit
 features (`# syntax=`, `RUN --mount`), the runner never works as root. See "Container rules" in
@@ -72,7 +71,7 @@ Flags: `exec --json --color never --sandbox workspace-write -C /work -m <model> 
 -c model_providers.cockpit.env_key="OPENAI_API_KEY" -c model_providers.cockpit.wire_api="responses" -`
 (plan mode: `--sandbox read-only`). `CODEX_HOME` is a temporary folder. Codex has no per-path hook: the path rules
 are enforced by the runner after the run (below). Event translation: `item.completed` (`agent_message` = answer,
-`command_execution` = step, `file_change` = step + `files`), `turn.completed` (usage = step "Überlegt"),
+`command_execution` = step, `file_change` = step + `files`), `turn.completed` (usage = the step "Thinking"),
 `turn.failed` = error; a bare `error` event only counts if the turn never completes.
 
 ### Checks after every CLI run (`adapter/cli.ts`)
@@ -82,13 +81,24 @@ are enforced by the runner after the run (below). Event translation: `item.compl
   event and nothing is committed. In plan mode any changed file discards the plan.
 * The child process gets a clean environment (only `PATH`, `HOME`, locale and the endpoint names of its family);
   the prompt goes through stdin, never an argument; values of variables named like `*KEY*`/`*TOKEN*` are replaced by
-  `[entfernt]` in every event. Broken JSON lines are skipped and counted; a stream without a final result, a non-zero
+  a marker in every event. Broken JSON lines are skipped and counted; a stream without a final result, a non-zero
   exit status and the time limit (`max_seconds`) become `error` events with the end of stderr.
 * Not supported by the CLI adapters: questions to you (`ask_user`) and hints while running. Cost figures of the CLIs are
   not forwarded (the events carry tokens only).
 
 A further adapter does not need to change anything in the backend: same event shapes, same rules (no push, write only to
 `/work`, commit through `git.ts`).
+
+## Variables of the runner
+
+| Variable | Meaning |
+|----------|---------|
+| `COCKPIT_JOB` | path of the job file (`/job/job.json`, set by the image) |
+| `COCKPIT_ROOT` | the working folder of the agent (`/work`, set by the image) |
+| `COCKPIT_PROVIDER` | the adapter: `claude-agent-sdk` (default), `claude-code` or `codex` |
+| `COCKPIT_MODEL` | the model name, for `codex` (the other adapters use `ANTHROPIC_MODEL`) |
+
+The server-side variables are in [../../docs/configuration.md](../../docs/configuration.md#environment-variables).
 
 ## Endpoint in the environment
 
@@ -134,7 +144,6 @@ Lines arriving on stdin: `{"t":"answer","text":…}` and `{"t":"hint","text":…
   switch in the review panel, the language detected from the pull request title and description (plus the ticket
   description if the description is short), the repo's `pr_language`, English. It does not change the language of step
   titles (that is `language`). Missing: `language`.
-  No `CONTRACT` bump: the runner sources changed, so the image fingerprint changes anyway.
 
 Technical output (stderr, logs, `expect`) is English, and so are the errors that arise before the language is known
 (an unreadable or invalid job, an unknown provider).
@@ -146,7 +155,7 @@ For a follow-up job on an existing pull request `job.json` carries `followup`:
 notes: [{author, state, text}], checks: [{name, excerpt}]}`; `branch` is the existing `claude/…` branch, already
 checked out in `/work`. The runner puts the texts into the prompt as data of third parties, limits them again
 (`LIMITS` in `job.ts`) and commits with a message that names the task. Everything else (events, no push, rules) is
-unchanged; old jobs without `followup` work as before.
+the same as in a normal job; a job without `followup` is a normal job.
 
 ## Review runs (mode `review`)
 
@@ -200,14 +209,14 @@ from `/work`:
   `repos`; its `branch`/`commit` are those of the first changed repo.
 
 The job is checked again in the runner (folder must be `<owner>__<name>`, branch names, at most 10 repos). A job without
-`repos` behaves exactly as before. This is `CONTRACT` 7.
+`repos` is a job in one repo.
 
 ## Tests
 
 ```bash
-cd apps/agent/runner && npm install && npm test   # Node >= 26.13.1 (current LTS), no network; the SDK, `claude` and `codex` are stand-ins
+(cd apps/agent/runner && node --test test/*.test.ts)   # Node >= 26.13.1 (current LTS), no network; the SDK, `claude` and `codex` are stand-ins
 ```
 
-The tests of the path rules and of the repo-name rule also read `glob_cases.json` and `repo_name_cases.json` in
-`crates/cockpit-core/tests/fixtures/`, so they need the whole checkout; the image build only copies `runner/src` and the
-package files and never sees them.
+The same command runs in CI. The tests of the path rules and of the repo-name rule also read `glob_cases.json` and
+`repo_name_cases.json` in `crates/cockpit-core/tests/fixtures/`, so they need the whole checkout; the image build only copies
+`runner/src` and the package files and never sees them.
