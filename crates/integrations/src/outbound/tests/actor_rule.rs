@@ -5,8 +5,9 @@
 use super::*;
 use cockpit_core::project::{FieldDef, FieldKind, ProjectItem, ProjectMeta, SelectOption};
 use cockpit_core::{
-    AgentLimits, AgentOptions, AgentReport, Channel, Closure, FieldInput, InboxFilter,
-    NotifyReason, PeopleSource, Priority, QuietHours, RepoRules, ReviewFilter, Rule, TeamChoice,
+    AgentLimits, AgentOptions, AgentReport, Channel, Closure, Decision, FieldInput, InboxFilter,
+    NotifyReason, PeopleSource, PrKey, Priority, QuietHours, RepoRules, ReviewFilter, Rule,
+    TeamChoice,
 };
 
 /// How many variants `Action` has. See [`slot`].
