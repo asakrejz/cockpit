@@ -1,10 +1,7 @@
-//! The filter of the Reviews tab: which pull requests the list shows. Display only, nothing is
-//! written to GitHub. The choice is part of the workspace ([`Workspace::review_filter`]) and
-//! changes by [`Action::SetReviewFilter`](crate::Action).
+//! The filter of the review list: which pull requests it shows. The choice is part of the
+//! workspace ([`Workspace::review_filter`]) and changes by [`Action::SetReviewFilter`](crate::Action).
 //!
-//! Nothing here limits what the sync loads: it finds every pull request that concerns me in
-//! every repo the credential can see (see [`crate::sync::discovery`]). The filter only narrows
-//! the list.
+//! Nothing here limits what the sync loads; the filter only narrows the list.
 
 use serde::{Deserialize, Serialize};
 
@@ -12,8 +9,8 @@ use crate::model::PrKey;
 use crate::review::Review;
 use crate::workspace::Workspace;
 
-/// Whose pull requests the page "Pull requests" lists: "Mine" keeps only those that concern me,
-/// „Alle“ (the start value) lists all open pull requests of the repos.
+/// Whose pull requests the list shows: "Mine" keeps only those that concern me, „Alle“ (the
+/// default) lists all open pull requests of the repos.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Ownership {
     Mine,
@@ -22,7 +19,7 @@ pub enum Ownership {
 }
 
 impl Ownership {
-    /// The IDs, in display order; the interface words them.
+    /// The IDs, in display order.
     pub const IDS: &'static [&'static str] = &["mine", "all"];
 
     pub fn id(self) -> &'static str {

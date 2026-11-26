@@ -98,7 +98,7 @@ pub struct PathViolation {
 }
 
 impl PathViolation {
-    /// Explanation for the UI.
+    /// The explanation as a message.
     pub fn reason_msg(&self) -> Msg {
         match self.kind {
             ViolationKind::Forbidden => msg!(

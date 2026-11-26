@@ -1,7 +1,6 @@
 //! Which repos to offer when the agent starts on a ticket – pure ranking, no I/O.
 //!
-//! The picker lists every repo the credential can see; this module only decides which of them
-//! come first and why. The order of the reasons is fixed:
+//! This module decides which repos come first and why. The order of the reasons is fixed:
 //!
 //! 0. the repo of a GitHub issue ticket (the issue lives there, so the work does too),
 //! 1. repos earlier runs used for tickets of the same Jira project (remembered from the runs in
@@ -10,15 +9,14 @@
 //! 3. repos the ticket text mentions (`owner/name` or a GitHub address),
 //! 4. the default repo of the configuration (`[agent] repo`).
 //!
-//! Every suggestion is one repo with one reason. The start dialog selects one repo today; the
-//! same ranking serves a later choice of several repos.
+//! Every suggestion is one repo with one reason.
 
 use serde::{Deserialize, Serialize};
 
 use super::AgentRepos;
 use crate::repo_name_valid;
 
-/// Why a repo is suggested. The interface turns it into a short text.
+/// Why a repo is suggested.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SuggestReason {

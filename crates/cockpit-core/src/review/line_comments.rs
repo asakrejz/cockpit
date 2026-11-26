@@ -95,7 +95,7 @@ impl Review {
         removed
     }
 
-    // ---------- Implementing comments (follow-up job for the agent) ----------
+    // ---------- Implementing comments ----------
 
     /// Own comments on a line, in the order of creation.
     pub fn line_comments_at(&self, file: &str, line: usize) -> Vec<&LineComment> {

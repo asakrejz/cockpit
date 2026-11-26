@@ -292,7 +292,7 @@ pub enum SendError {
 pub struct Review {
     #[serde(default)]
     pub number: u32,
-    /// `owner/name`; empty = unknown (old data, filled by the migration).
+    /// `owner/name`; empty = unknown.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub repo: String,
     #[serde(default)]
