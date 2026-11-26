@@ -157,7 +157,7 @@ impl Error {
     }
 }
 
-/// The English text, for logs and tests. People get [`Error::msg`] in their language.
+/// The English text, for logs and tests; [`Error::msg`] is the translatable form.
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.msg().render(Lang::En))

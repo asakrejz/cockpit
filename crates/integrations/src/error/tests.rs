@@ -70,7 +70,7 @@ fn a_rejection_gives_the_reason_of_the_service_if_there_is_one() {
     assert_eq!(Error::Response("x".into()).rejection(), None);
 }
 
-/// The state per source for every kind of error: the same kinds as before get the same state.
+/// The state per source for every kind of error.
 #[test]
 fn problem_of_every_error() {
     use cockpit_core::{Right, TokenKind};
