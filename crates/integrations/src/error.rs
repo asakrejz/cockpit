@@ -40,9 +40,8 @@ pub enum Error {
     },
 }
 
-/// What kind of failure an [`Error`] is. Callers that react to the kind (a status, a hint, whether
-/// to disconnect) ask [`Error::cause`] instead of listing error variants themselves, so a new
-/// variant gets its kind in exactly one place.
+/// What kind of failure an [`Error`] is. Callers that react to the kind ask [`Error::cause`]
+/// instead of matching the variants themselves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Cause {
     /// The key is missing, expired or revoked.

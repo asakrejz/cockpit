@@ -155,8 +155,7 @@ impl GitHubClient {
         Ok(all)
     }
 
-    /// Executes an outward call. GitHub variants only; Jira is the Jira client's business. Every
-    /// variant is named, so a new one does not compile until it says how it is sent.
+    /// Executes an outward call. GitHub variants only; Jira is the Jira client's business.
     pub async fn execute(&self, a: &Outbound) -> Result<(), Error> {
         match a {
             Outbound::GitHubComment { repo, number, text } => self

@@ -220,8 +220,7 @@ impl JiraClient {
             .unwrap_or_default())
     }
 
-    /// Executes an outward call. Jira variants only. Every variant is named, so a new one does
-    /// not compile until it says how it is sent.
+    /// Executes an outward call. Jira variants only.
     pub async fn execute(&self, a: &Outbound) -> Result<(), Error> {
         match a {
             Outbound::JiraComment { key, text } => self

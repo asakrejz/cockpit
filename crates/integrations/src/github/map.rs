@@ -218,7 +218,7 @@ pub fn comments_to_core(
     comments_with_reviews(issue, review, &[], me)
 }
 
-/// `@login` of the user → `@Du`, so that the mention rules in the cockpit apply.
+/// `@login` of the user → `@Du`.
 pub fn mention_for(text: &str, me: &str) -> String {
     if me.is_empty() {
         return text.to_string();
