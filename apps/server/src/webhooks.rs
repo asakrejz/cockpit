@@ -83,7 +83,7 @@ const JIRA_EVENTS: &[&str] = &[
     "comment_updated",
     "comment_deleted",
 ];
-/// Event type the local "Test" button sends (not a real delivery).
+/// Event type of the local test request (not a real delivery).
 const TEST_EVENT: &str = "test (lokal)";
 
 /// The settings that can change while the server runs.

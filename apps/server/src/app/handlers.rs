@@ -30,7 +30,7 @@ pub(super) async fn endpoint_check(State(state): State<AppState>) -> Response {
     .into_response()
 }
 
-/// `GET /api/agent/models`: the model IDs of the endpoint (IDs only, sorted) for the drop-down.
+/// `GET /api/agent/models`: the model IDs of the endpoint (IDs only, sorted).
 /// The key comes from the .env file and never leaves the backend.
 pub(super) async fn agent_models(State(state): State<AppState>) -> Response {
     let key = match state.endpoint_key().await {
@@ -149,7 +149,7 @@ pub(super) async fn sync(State(state): State<AppState>) -> Response {
     }
 }
 
-/// `GET /api/jira/projects`: the projects for the selection in the inbox.
+/// `GET /api/jira/projects`: the projects the key may see.
 pub(super) async fn jira_projects(State(state): State<AppState>) -> Response {
     match state.jira_projects().await {
         Ok(answer) => Json(answer).into_response(),
