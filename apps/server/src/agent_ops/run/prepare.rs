@@ -103,7 +103,6 @@ pub(super) async fn prepare(
     } else {
         targets.push(Target {
             branch: branch.clone(),
-            // The pattern comes from the configuration of the repo, never from the run's own options.
             pattern: state.agent_repos().branch_pattern(&repo),
             base: run.options.base_branch.clone(),
             url: agent_git::clone_url(&access.git_base, &repo),

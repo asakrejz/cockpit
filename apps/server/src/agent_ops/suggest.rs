@@ -112,7 +112,7 @@ impl AppState {
     }
 }
 
-/// `GET /api/agent/repo-suggestions?ticket=BAU-142`: only reads. Without a reachable GitHub the
+/// `GET /api/agent/repo-suggestions?ticket=PROJ-1`: only reads. Without a reachable GitHub the
 /// list of visible repos is unknown and a bare `owner/name` in the text is not suggested.
 pub async fn repo_suggestions_route(
     State(state): State<AppState>,

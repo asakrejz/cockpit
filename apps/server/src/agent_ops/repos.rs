@@ -62,11 +62,10 @@ impl AppState {
         }
     }
 
-    /// First use of a repo: reads its default branch and the branch proposal
-    /// of its `CONTRIBUTING.md` from GitHub and stores them as an entry of `[[agent.repos]]`
-    /// (with `watch = false`, so the sync does not start loading all its pull requests). From
-    /// then on the settings are the same ones every other part uses – and the user can edit them
-    /// in the file. A repo that has settings already is left alone. Only reads from GitHub.
+    /// First use of a repo: reads its default branch and the branch proposal of its `CONTRIBUTING.md`
+    /// from GitHub and stores them as an entry of `[[agent.repos]]` (with `watch = false`, so the sync
+    /// does not load all its pull requests). A repo that has settings already is left alone. Only reads
+    /// from GitHub.
     pub(crate) async fn repo_settings_prepare(&self, action: &Action) -> Result<(), Msg> {
         for repo in self.action_repos(action) {
             self.repo_settings_prepare_one(&repo).await?;
