@@ -1,4 +1,4 @@
-//! The GraphQL documents. One place, so that a change of the schema touches one file.
+//! The GraphQL documents.
 
 /// Fields every project query asks for.
 pub const PROJECT_FIELDS: &str = "id number title closed url shortDescription \

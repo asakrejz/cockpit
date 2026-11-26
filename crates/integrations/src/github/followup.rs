@@ -181,7 +181,7 @@ pub fn notes(reviews: &[PullReview]) -> Vec<ReviewNote> {
     all
 }
 
-/// Is this check red? Same rule as the status in the inbox.
+/// Is this check red?
 pub fn is_failed(run: &CheckRun) -> bool {
     super::aggregate_checks(std::slice::from_ref(run)) == cockpit_core::Checks::Failed
 }

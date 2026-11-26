@@ -169,7 +169,6 @@ pub fn map_item(
         )
     };
 
-    // Project fields.
     let status_def = meta.status_def();
     let mut status_option: Option<String> = None;
     let mut fields: Vec<FieldValue> = Vec::new();
@@ -227,7 +226,6 @@ pub fn map_item(
         (None, false) => TicketStatus::Open,
     };
 
-    // People.
     let logins: Vec<String> = c
         .assignees
         .iter()
@@ -279,7 +277,6 @@ pub fn map_item(
         .unwrap_or_default()
         .to_string();
 
-    // What the detail pane lists besides the description.
     let mut details = Details::default();
     let mut put = |id: &str, name: &str, value: DetailValue| {
         details.fields.push(DetailField {

@@ -1,6 +1,5 @@
 //! Client for the GitHub REST API: the connection (base address, token, limits) and the one way
-//! out for an outward call, [`GitHubClient::execute`]. The calls themselves are in the topic
-//! modules: pull requests, checks, repos and branches.
+//! out for an outward call, [`GitHubClient::execute`].
 
 use serde::de::DeserializeOwned;
 

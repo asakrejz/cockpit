@@ -100,8 +100,8 @@ pub fn pull_to_item(repo: &str, pull: &Pull, checks: Checks, relation: Relation)
 /// `repo` is `owner/name` and goes into the ID, so that equal numbers from different
 /// repos do not overlap. The reasons are provisional: a requested review gives
 /// `ReviewRequested`; an own pull request `ChecksFailed` or `Comment`; assigned to me only and
-/// pull requests of colleagues give `Comment` – the latter with the scope `Team`, so they never
-/// raise attention. Comments are empty – they come through [`comments_to_core`].
+/// pull requests of colleagues give `Comment` – the latter with the scope `Team`.
+/// Comments are empty – they come through [`comments_to_core`].
 pub fn pull_to_item_for(repo: &str, pull: &Pull, checks: Checks, relation: PrRelation) -> Item {
     let (reason, reason_msg) = if relation.requested {
         (ReasonKind::ReviewRequested, msg!(ReasonReviewRequested))

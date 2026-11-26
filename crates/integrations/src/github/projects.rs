@@ -1,16 +1,14 @@
 //! GitHub Projects (v2): the tickets of a project board, read through GraphQL.
 //!
 //! * [`GitHubClient::list_projects`]: the projects the credential can see (user, organizations,
-//!   linked to repos in use) – for the choice in the setup
+//!   linked to repos in use)
 //! * [`GitHubClient::project_meta`]: one project with its fields
 //! * [`GitHubClient::project_items`]: the items, page by page
 //! * [`GitHubClient::item_details`]: comments, linked pull requests, parent and sub-issues of
 //!   the issues that are new or changed
 //! * [`map_item`]: a project item as an inbox entry (pure)
 //!
-//! The Projects v2 API exists in GraphQL only. The queries are in [`queries`]; the shapes were
-//! written from the documented schema and are checked against recorded-shape fixtures only –
-//! nothing has been run against the real service.
+//! The Projects v2 API exists in GraphQL only. The queries are in [`queries`].
 
 mod client;
 mod dto;

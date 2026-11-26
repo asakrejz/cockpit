@@ -1,5 +1,4 @@
-//! The GraphQL calls: one call with its rate limit and error handling. The reading calls built on
-//! it are in `read`; writes are in `projects/write.rs`.
+//! The GraphQL calls: one call with its rate limit and error handling.
 
 use cockpit_core::{Access, Right, TokenKind};
 use serde_json::{Value, json};
