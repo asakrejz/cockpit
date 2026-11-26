@@ -128,7 +128,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
             post(crate::webhooks::test),
         )
         .route("/api/{*rest}", any(api_unknown))
-        // Applies only to `/api`, not to the files of the app. Added routes below are outside.
+        // Applies only to `/api`, not to the files of the app.
         .layer(axum::middleware::from_fn_with_state(
             access,
             access::protect,

@@ -278,8 +278,7 @@ pub async fn github_check_route(
 
 impl AppState {
     /// The GitHub Projects the access can see, what rights it has for them, and who a project
-    /// could be created for. Read only; a failure is reported in `problem`, not as an error, so
-    /// the assistant can show it next to the rest.
+    /// could be created for. Read only; a failure is reported in `problem`, not as an error.
     pub async fn github_projects_list(
         &self,
     ) -> Result<cockpit_core::api::ProjectsResponse, (StatusCode, Msg)> {

@@ -1,6 +1,6 @@
 //! Safety net around the `.env` file. The risk of keeping credentials in a file in the repo is
-//! accepted, so it is kept small: the file must not be tracked by Git, must be covered by
-//! `.gitignore` and must not be readable by others. The warnings are messages for the user.
+//! accepted, so it is kept small: the same rules as for the folder `config/` (see `config::files_check`).
+//! The warnings are messages for the user.
 //!
 //! Git is asked through the `git` program; without it (or outside a repository) the checks are
 //! skipped silently. Nothing here reads the file's content.

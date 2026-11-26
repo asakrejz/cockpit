@@ -1,4 +1,4 @@
-//! `EnvFileStore`: the credentials live in a `.env` file in the folder `config/` of the project.
+//! `EnvFileStore`: the secrets in the `.env` file.
 //!
 //! File format (one entry per line):
 //!
