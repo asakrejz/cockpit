@@ -6,6 +6,10 @@
 //! a [`LogEntry`] in the workspace's log; failures leave nothing.
 //!
 //! Actions are `serde`-capable so that the backend can receive them as JSON.
+//!
+//! Routing lives in one place: `dispatch.rs` has one exhaustive `match` with one arm per variant,
+//! each arm calling the handler `perform_<variant>` in the file of its topic. Who may trigger a
+//! variant is [`Action::required_actor`], exhaustive as well.
 
 use serde::{Deserialize, Serialize};
 
@@ -421,6 +425,7 @@ impl Action {
 }
 
 mod agent;
+mod dispatch;
 mod error;
 mod inbox;
 pub(crate) mod labels;
@@ -437,155 +442,3 @@ use note::{Note, status_notes};
 
 mod log;
 pub use log::*;
-
-impl Workspace {
-    /// Applies an action and writes it into the log.
-    ///
-    /// `actor` is who triggered it, `at_ms` the point in time (milliseconds since 1970;
-    /// the time comes from outside so that the logic stays testable). On an error
-    /// workspace and log stay unchanged.
-    pub fn apply(
-        &mut self,
-        action: Action,
-        actor: Actor,
-        at_ms: u64,
-    ) -> Result<Applied, ActionError> {
-        // Who may apply what is decided here, not only in the UI: the check runs before anything else.
-        if let Some(required) = action.required_actor()
-            && actor != required
-        {
-            return Err(match required {
-                // Merging has a message of its own.
-                Actor::User if matches!(action, Action::MergePr { .. }) => {
-                    ActionError::MergeNotAllowed(actor)
-                }
-                Actor::User => ActionError::UserOnly(actor),
-                Actor::System => ActionError::SystemOnly,
-                Actor::Agent => ActionError::AgentOnly,
-            });
-        }
-        let notes = self.perform(action, at_ms)?;
-        let logged = notes.len();
-        for note in notes {
-            self.push_log(at_ms, note.actor.unwrap_or(actor), note.target, note.msg);
-        }
-        Ok(Applied { logged })
-    }
-
-    fn push_log(
-        &mut self,
-        at_ms: u64,
-        actor: Actor,
-        target: Option<Target>,
-        msg: cockpit_i18n::Msg,
-    ) {
-        let id = self.log.last().map_or(1, |e| e.id + 1);
-        self.log.push(LogEntry {
-            id,
-            at_ms,
-            actor,
-            target,
-            text: String::new(),
-            msg: Some(msg),
-        });
-        if self.log.len() > MAX_LOG {
-            let excess = self.log.len() - MAX_LOG;
-            self.log.drain(..excess);
-        }
-    }
-
-    /// The log, newest entries first. With `actor` only that actor's entries.
-    pub fn log_entries(&self, actor: Option<Actor>) -> Vec<&LogEntry> {
-        self.log
-            .iter()
-            .rev()
-            .filter(|e| actor.is_none_or(|a| e.actor == a))
-            .collect()
-    }
-
-    fn key_of(&self, id: &str) -> Result<String, ActionError> {
-        self.item(id)
-            .map(|i| i.key.clone())
-            .ok_or_else(|| ActionError::UnknownItem(id.to_string()))
-    }
-
-    fn need_review(&self, number: &PrKey) -> Result<(), ActionError> {
-        self.review(number)
-            .map(|_| ())
-            .ok_or_else(|| ActionError::UnknownReview(number.clone()))
-    }
-
-    /// Like `need_review`, but a merged pull request can no longer be changed.
-    fn need_open_review(&self, number: &PrKey) -> Result<(), ActionError> {
-        match self.review(number) {
-            None => Err(ActionError::UnknownReview(number.clone())),
-            Some(r) if r.merged.is_some() => Err(ActionError::Merged(r.key())),
-            Some(_) => Ok(()),
-        }
-    }
-
-    /// Executes the action and returns the log entries for it.
-    fn perform(&mut self, action: Action, at_ms: u64) -> Result<Vec<Note>, ActionError> {
-        match action {
-            Action::MarkDone { .. }
-            | Action::SetStatus { .. }
-            | Action::CreateBranch { .. }
-            | Action::Reply { .. }
-            | Action::Snooze { .. }
-            | Action::Unsnooze { .. }
-            | Action::WakeSnoozed
-            | Action::SetRule { .. }
-            | Action::EditTicket { .. }
-            | Action::AssignTicket { .. }
-            | Action::SetPriority { .. }
-            | Action::AutoLinkPrs
-            | Action::SyncTicketStatus
-            | Action::SetStatusFollowsPr { .. }
-            | Action::SelectJiraProject { .. }
-            | Action::SetTeamChoice { .. }
-            | Action::SetPeopleSource { .. }
-            | Action::LinkPeople { .. }
-            | Action::UnlinkPeople { .. }
-            | Action::SetInboxFilter { .. }
-            | Action::SetReviewFilter { .. } => self.perform_inbox(action, at_ms),
-            Action::SetLabel { .. }
-            | Action::SetIssueClosed { .. }
-            | Action::SetProjectField { .. }
-            | Action::CreateIssue { .. }
-            | Action::ConvertDraft { .. } => self.perform_projects(action, at_ms),
-            Action::Decide { .. }
-            | Action::EditSuggestion { .. }
-            | Action::AddLineComment { .. }
-            | Action::EditLineComment { .. }
-            | Action::DeleteLineComment { .. }
-            | Action::SetVerdict { .. }
-            | Action::SendReview { .. }
-            | Action::RestartCheck { .. }
-            | Action::MergePr { .. } => self.perform_review(action, at_ms),
-            Action::StartAgent { .. }
-            | Action::CancelAgent { .. }
-            | Action::ApprovePlan { .. }
-            | Action::RejectPlan { .. }
-            | Action::RevisePlan { .. }
-            | Action::AnswerAgent { .. }
-            | Action::SteerAgent { .. }
-            | Action::PauseAgent { .. }
-            | Action::ResumeAgent { .. }
-            | Action::ReportAgent { .. }
-            | Action::CloseAgentRun { .. }
-            | Action::RemoveAgentRun { .. }
-            | Action::RemoveFinishedRuns
-            | Action::AddressReviewThreads { .. }
-            | Action::FixFailedChecks { .. }
-            | Action::StartPrReview { .. }
-            | Action::CreatePullRequest { .. }
-            | Action::ResumeStopped { .. } => self.perform_agent(action, at_ms),
-            Action::SetNotifyChannel { .. }
-            | Action::SetQuietHours { .. }
-            | Action::SetLanguage { .. }
-            | Action::SetAgentLimits { .. }
-            | Action::SetRepoRules { .. }
-            | Action::SyncRemote { .. } => self.perform_settings(action, at_ms),
-        }
-    }
-}

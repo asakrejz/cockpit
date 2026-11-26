@@ -52,7 +52,8 @@ Principles:
    Browser and backend use the same crate.
 2. **Every change is an `Action`.** The UI calls `store.dispatch(action)`; the backend applies it with
    `Workspace::apply`, additionally triggers the effect at GitHub or Jira and writes it to the log with time and author.
-   The browser holds nothing of it (no `localStorage`).
+   The browser holds nothing of it (no `localStorage`). In `cockpit-core` the routing is one exhaustive `match` with one
+   handler per variant, next to the exhaustive actor table `Action::required_actor` (see "Adding an action" below).
 3. **Two rules are non-negotiable:** comments and reviews of the agent leave only after your approval. The agent never
    merges and never writes to the main branch.
 4. **Every step stays runnable.** After every change the Playground and Cockpit build, and Cockpit runs with the
@@ -63,6 +64,18 @@ Code layout (Rust): tests never stand inline. `foo.rs` ends with `#[cfg(test)] m
 with shared helpers in `foo/tests.rs`. Logic files stay below roughly 500 lines: `foo.rs` keeps the core types and
 re-exports (`pub use`) the topic modules in `foo/<topic>.rs`, so public paths do not change. Integration tests of a
 crate with shared helpers use `tests/<name>/main.rs` plus topic files.
+
+Layout of `cockpit-core`: `workspace.rs` holds the `Workspace` struct, its lookups and the error types; the topics are
+in `workspace/` (`inbox` lists, `inbox_filter` choices and active filters, `snooze`, `agents`, `pull_request` of a
+finished run, `followups`, `review`, `tickets`, `limits`). `filters.rs` defines the inbox filters and `filters/inbox.rs`
+holds `InboxFilter` with its matching; `search.rs` is only the text search. `team.rs` builds the members and
+`team/stuck.rs` classifies what is stuck.
+
+**Adding an action** (`crates/cockpit-core/src/action.rs`): add the variant to `Action`, name its actor in
+`Action::required_actor`, add one arm in `Workspace::perform` (`action/dispatch.rs`) and write one handler
+`perform_<variant>` in the file of its topic (`action/inbox.rs`, `projects.rs`, `review.rs`, `agent.rs`,
+`settings.rs`). `required_actor` and `perform` are exhaustive `match`es without a wildcard arm, so a variant that is
+not classified or not routed does not compile.
 
 Rules that are easy to break: the periodic tasks (expired snoozes, auto-link, ticket status) run only in the server
 (`apps/server/src/live.rs`, `tick`); the browser runs a clock for the attention rules (`store.now`,
@@ -240,7 +253,7 @@ banner of a source with a problem and in the Sync card of the last setup step) a
   gives `TicketStatus`. Entries the sync no longer delivers (sprint ended) are removed by the normal merge; a failed
   source keeps its data.
 - Inbox filters are data (`cockpit_core::filters::FILTERS`); `Workspace::inbox` applies ownership, `InboxFilter::matches`
-  the rest. Ownership "All" is the only way a quiet entry reaches the inbox.
+  (`filters/inbox.rs`) the rest. Ownership "All" is the only way a quiet entry reaches the inbox.
 - Per source there is a state (`/api/health` › `sync`, in the app in the "Sync" card): `ok`, `unauthorized` (401, token
   expired), `no_permission` (403), `quota` (rate limit: the source pauses until the time from
   `Retry-After`/`X-RateLimit-Reset`), `offline`, `error`; plus `off` (not set up or no key) and `waiting` (no fetch

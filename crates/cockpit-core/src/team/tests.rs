@@ -1,5 +1,5 @@
 use super::*;
-use crate::{AgentOptions, demo};
+use crate::{AgentOptions, Checks, demo};
 use cockpit_i18n::Lang;
 
 /// Without a plan step: the agent gets going right away.

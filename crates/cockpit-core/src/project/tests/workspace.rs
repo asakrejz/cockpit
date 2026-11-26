@@ -2,9 +2,9 @@
 //! filter, the demo seed.
 
 use crate::demo;
+use crate::filters::InboxFilter;
 use crate::model::{Filter, PrKey, Scope, Source, SourceFilter, TeamRef};
 use crate::project::ProjectItem;
-use crate::search::InboxFilter;
 use crate::setup::Step;
 use crate::test_support::{first_text, loaded, saved};
 use crate::{Action, Actor, TicketStatus, TicketsFrom, Workspace};
