@@ -1,6 +1,5 @@
 //! The small words the log sentences and refusals are built from, as messages: statuses,
-//! priorities, reasons and so on. They are nested into the sentences and read in the language of
-//! the UI.
+//! priorities, reasons and so on. They are nested into the sentences.
 //! (A text from outside goes through `Msg::raw`, which is the catalog key `CommonRaw`.)
 
 use cockpit_i18n::{ArgValue, Msg, msg};

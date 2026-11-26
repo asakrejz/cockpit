@@ -1,5 +1,5 @@
 //! Handlers of the inbox actions: marking, status, snoozing, editing and assigning tickets,
-//! linking, and the display settings of the lists (one `perform_<variant>` per [`Action`]).
+//! linking, and the display settings of the lists.
 
 use cockpit_i18n::msg;
 

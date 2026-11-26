@@ -9,7 +9,7 @@ const MAX_DEPTH: usize = 24;
 
 /// Parses an ADF document. `me` is the account ID of the user: mentions of it show as `@Du`.
 ///
-/// Returns `None` if the value is no ADF document (`null`, a plain string of the old API)
+/// Returns `None` if the value is no ADF document (`null`, a plain string)
 /// or has no content – the caller then uses the plain text.
 pub fn parse(value: &Value, me: &str) -> Option<Doc> {
     if value["type"] != "doc" {

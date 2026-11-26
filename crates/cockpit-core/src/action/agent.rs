@@ -1,5 +1,5 @@
 //! Handlers of the agent actions: starting, plan, answers, reports, follow-up jobs, pull request
-//! creation and runs (one `perform_<variant>` per [`Action`]).
+//! creation and runs.
 
 use cockpit_i18n::{Msg, msg};
 
