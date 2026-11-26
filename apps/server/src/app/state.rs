@@ -27,7 +27,7 @@ pub struct Settings {
     pub container_mode: bool,
     /// The `config.toml` into which the setup assistant writes.
     pub config_path: Option<PathBuf>,
-    /// The folder `config/` (Git and permission checks in `/api/health`).
+    /// The folder `config/`.
     pub config_dir: Option<PathBuf>,
     /// `[agent] repo`: the default repo in which the agent works.
     pub agent_repo: Option<String>,
@@ -117,7 +117,7 @@ pub(crate) struct Inner {
     /// Only one refresh of the OAuth tokens at a time (refresh tokens rotate).
     pub(crate) refresh: tokio::sync::Mutex<()>,
     /// Jira and GitHub as configured (whether they run still depends on the key).
-    /// Is replaced when saving in the setup assistant (without restart).
+    /// Replaced when the configuration is saved, without restart.
     pub(crate) sources: RwLock<Arc<Sources>>,
     /// Provider and endpoint of the agent, also replaceable.
     pub(crate) agent_choice: RwLock<AgentChoice>,
@@ -140,8 +140,7 @@ pub(crate) struct Inner {
     pub(crate) webhooks: crate::webhooks::Hub,
     /// Attachments read from Jira, kept briefly (see `attachments`).
     pub(crate) attachments: crate::attachments::Cache,
-    /// The repos the GitHub access can see, kept for a few minutes (the start dialog and the
-    /// setup ask often; the list costs several calls).
+    /// The repos the GitHub access can see, kept for a few minutes (the list costs several calls).
     pub(crate) repo_list:
         std::sync::Mutex<Option<(std::time::Instant, cockpit_core::api::GitHubRepoList)>>,
 }

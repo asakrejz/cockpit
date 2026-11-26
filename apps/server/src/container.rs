@@ -1,9 +1,9 @@
 //! Detect the container runtime (Docker or Podman), only via the command line.
 //!
-//! Rules (see "Container rules" in `docs/architecture.md`): the backend calls `docker` or `podman` as a
-//! process, never the socket. The choice is made in this order: `COCKPIT_CONTAINER`,
-//! `[agent] container` in `config.toml`, otherwise first `docker`, then `podman` in the `PATH`. Whether the
-//! engine runs is shown by `<cli> info`. Nothing is built or started here.
+//! Rules: the backend calls `docker` or `podman` as a process, never the socket. The choice is made
+//! in this order: `COCKPIT_CONTAINER`, `[agent] container` in `config.toml`, otherwise first `docker`,
+//! then `podman` in the `PATH`. Whether the engine runs is shown by `<cli> info`. Nothing is built or
+//! started here.
 
 use std::ffi::OsStr;
 use std::path::PathBuf;

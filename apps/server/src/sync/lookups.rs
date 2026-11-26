@@ -1,7 +1,7 @@
 use super::*;
 
 impl AppState {
-    /// The Jira projects that the key may see – for the selection in the inbox.
+    /// The Jira projects that the key may see.
     /// Without Jira or key: `active: false`.
     pub async fn jira_projects(&self) -> Result<JiraProjectsResponse, ActionFailure> {
         if self.sources().jira.is_none() {

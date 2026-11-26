@@ -9,7 +9,7 @@
 //! * Off by default (`[server] webhooks = false`: both routes answer 404). Without a secret in
 //!   the `.env` file (`GITHUB_WEBHOOK_SECRET`, `JIRA_WEBHOOK_SECRET`) nothing is accepted.
 //! * HMAC-SHA256 over the raw body, compared in constant time. Jira may alternatively use the
-//!   secret as `?token=` for senders that cannot sign (weaker, see `docs/security.md`).
+//!   secret as `?token=` for senders that cannot sign (weaker).
 //! * Only `application/json`, at most [`MAX_BODY`] bytes, a rate limit per source, duplicate
 //!   deliveries are ignored for a while.
 //! * Answers say nothing about *why* a request failed. Logs contain at most the event type.

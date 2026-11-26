@@ -1,6 +1,6 @@
 //! Cockpit backend: local service for one person.
 //!
-//! * listens only on `127.0.0.1` (the container image sets `COCKPIT_BIND=0.0.0.0`, see docs/container.md)
+//! * listens only on `127.0.0.1` (the container image sets `COCKPIT_BIND=0.0.0.0`)
 //! * serves the built web app and answers `/api/…`
 //! * holds data (SQLite) and keys (`.env` file in the project folder) – keys never leave the backend
 //!
@@ -195,7 +195,7 @@ async fn start() -> Result<(), String> {
     let router = app::router(state.clone(), config.dist.clone());
 
     // Only reachable locally by default. `COCKPIT_BIND` (environment only) is for the container image,
-    // where the published port must be `127.0.0.1` on the host (see docs/security.md).
+    // where the published port must be `127.0.0.1` on the host.
     let address = SocketAddr::from((config.bind, config.port));
     if !config.bind.is_loopback() {
         tracing::warn!(

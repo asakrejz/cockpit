@@ -47,7 +47,7 @@ fn tokens_name(d: Service) -> &'static str {
     }
 }
 
-/// The step of the assistant in which this service is set up (messages link to it).
+/// The step of the assistant in which this service is set up.
 pub(crate) fn step_name(d: Service) -> &'static str {
     match d {
         Service::GitHub => "GitHub",
@@ -122,7 +122,7 @@ fn unknown_service() -> Response {
 
 /// Back into the app – via the address `127.0.0.1` so that the stored mode of the browser
 /// applies, even if the service redirected to `localhost`.
-/// The message travels as code and parameters (`msg`, JSON), which the app shows in its language.
+/// The message travels as code and parameters (`msg`, JSON).
 fn back(port: u16, d: Service, result: &Result<Msg, Msg>) -> Redirect {
     let base = format!("http://127.0.0.1:{port}/");
     let (state, m) = match result {

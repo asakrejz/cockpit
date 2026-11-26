@@ -28,7 +28,7 @@ use crate::config::{
 use crate::live::Error as LiveError;
 use crate::secrets;
 
-/// This often an outdated fetch (a write happened during the fetch) is repeated.
+/// How often an outdated fetch (a write happened during the fetch) is repeated.
 const RETRIES: usize = 2;
 
 /// Why an action was not applied.

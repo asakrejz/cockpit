@@ -8,7 +8,7 @@ use super::*;
 pub(super) async fn endpoint_check(State(state): State<AppState>) -> Response {
     let choice = state.agent_choice();
     let Some(e) = choice.endpoint.clone() else {
-        // Without an entry there is nothing to check (not even "direct": first the person chooses a model).
+        // Without an entry there is nothing to check.
         return Json(cockpit_core::api::EndpointCheck {
             hint: Some(cockpit_i18n::msg!(ServerMiscEndpointNotSetUp)),
             ..Default::default()
@@ -91,7 +91,7 @@ pub(super) async fn api_unknown() -> (StatusCode, Json<ErrorBody>) {
     )
 }
 
-/// An error answer with the message as code and parameters (the UI shows it in its language).
+/// An error answer with the message as code and parameters.
 pub(crate) fn error_msg(status: StatusCode, msg: cockpit_i18n::Msg) -> Response {
     (status, Json(ErrorBody::new(msg))).into_response()
 }
@@ -115,8 +115,7 @@ pub(super) async fn action(State(state): State<AppState>, body: Bytes) -> Respon
             cockpit_i18n::msg!(ServerMiscActionUnknown),
         );
     };
-    // Another Jira project: sync right away so that its tickets arrive. The result
-    // reaches the app through the event stream.
+    // Another Jira project: sync right away so that its tickets arrive.
     let sprint_before = state.inner.live.copy().inbox_filter.sprint;
     let project_switched = matches!(
         request.action,

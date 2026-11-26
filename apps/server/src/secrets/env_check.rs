@@ -18,7 +18,7 @@ const CACHE_TTL: Duration = Duration::from_secs(15);
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct EnvFileStatus {
     pub path: String,
-    /// The warnings as code and parameters; the interface shows them in its language.
+    /// The warnings as message codes with their parameters.
     pub warnings: Vec<Msg>,
 }
 

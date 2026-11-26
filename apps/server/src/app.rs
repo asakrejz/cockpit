@@ -45,7 +45,7 @@ pub(crate) use handlers::*;
 mod cleanup_routes;
 use cleanup_routes::*;
 
-/// This often a sign of life comes on the event connection.
+/// Interval of the keep-alive signal on the event connection.
 const KEEP_ALIVE: Duration = Duration::from_secs(15);
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
