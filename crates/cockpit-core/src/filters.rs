@@ -14,35 +14,6 @@ mod inbox;
 
 pub use inbox::InboxFilter;
 
-/// Whose entries are listed. „Alle“ (the start value) lists the entries of colleagues too,
-/// without attention; "Mine" keeps only what needs your attention.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub enum Ownership {
-    Mine,
-    #[default]
-    All,
-}
-
-impl Ownership {
-    /// The IDs, in display order; the interface words them.
-    pub const IDS: &'static [&'static str] = &["mine", "all"];
-
-    pub fn id(self) -> &'static str {
-        match self {
-            Ownership::Mine => "mine",
-            Ownership::All => "all",
-        }
-    }
-
-    pub fn from_id(id: &str) -> Option<Ownership> {
-        match id {
-            "mine" => Some(Ownership::Mine),
-            "all" => Some(Ownership::All),
-            _ => None,
-        }
-    }
-}
-
 /// Which tickets count by their sprint.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SprintView {
@@ -147,13 +118,6 @@ pub const FILTERS: &[FilterDef] = &[
         id: "source",
         has_all: false,
         choices: Choices::Fixed(crate::SourceFilter::IDS),
-        default: "all",
-        applies: Applies::Both,
-    },
-    FilterDef {
-        id: "ownership",
-        has_all: false,
-        choices: Choices::Fixed(Ownership::IDS),
         default: "all",
         applies: Applies::Both,
     },

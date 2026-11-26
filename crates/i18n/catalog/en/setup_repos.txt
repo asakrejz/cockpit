@@ -17,6 +17,7 @@ setup_repos.read_only = read only
 setup_repos.too_many = Only the first {max} are shown. Narrow the list down with the search.
 setup_repos.manual_label = Add repo by hand
 setup_repos.manual_hint = For a repo that is not in the list. You can also paste the address from the browser bar.
+setup_repos.manual_placeholder = company/app
 setup_repos.add = Add
 setup_repos.chosen = Selected
 setup_repos.none_chosen = No repo selected yet.

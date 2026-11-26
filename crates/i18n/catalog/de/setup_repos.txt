@@ -17,6 +17,7 @@ setup_repos.read_only = nur lesen
 setup_repos.too_many = Gezeigt werden die ersten {max}. Grenze die Liste mit der Suche ein.
 setup_repos.manual_label = Repo von Hand hinzufügen
 setup_repos.manual_hint = Für ein Repo, das nicht in der Liste steht. Du kannst auch die Adresse aus der Browserzeile einfügen.
+setup_repos.manual_placeholder = firma/app
 setup_repos.add = Hinzufügen
 setup_repos.chosen = Ausgewählt
 setup_repos.none_chosen = Noch kein Repo ausgewählt.

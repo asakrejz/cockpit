@@ -164,10 +164,7 @@ async fn a_rejected_sprint_query_falls_back_to_all_open_tickets_with_a_hint() {
         cockpit_core::SourceFilter::All,
         "",
         NOW_MS,
-        &cockpit_core::InboxFilter {
-            ownership: cockpit_core::Ownership::All,
-            ..Default::default()
-        },
+        &cockpit_core::InboxFilter::default(),
     );
     assert_eq!(shown.len(), 1);
 }
@@ -196,7 +193,6 @@ async fn no_active_sprint_but_closed_ones_says_so() {
     );
     // The ticket's sprint is closed: "Current sprint" hides it, "All open" shows it.
     let by = |sprint| cockpit_core::InboxFilter {
-        ownership: cockpit_core::Ownership::All,
         sprint,
         ..Default::default()
     };

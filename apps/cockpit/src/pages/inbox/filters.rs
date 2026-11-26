@@ -24,7 +24,6 @@ fn filter_label(id: &str) -> String {
     match id {
         JIRA_PROJECT_FILTER => t!(InboxFiltersJiraProject),
         "source" => t!(InboxFiltersLabelSource),
-        "ownership" => t!(InboxFiltersLabelOwnership),
         "sprint" => t!(InboxFiltersLabelSprint),
         "project" => t!(InboxFiltersLabelProject),
         "repo" => t!(InboxFiltersLabelRepo),
@@ -59,11 +58,10 @@ fn all_label(id: &str) -> String {
 /// the text `cockpit_core` gives them.
 fn choice_label(id: &str, value: &str, fallback: &str) -> String {
     match (id, value) {
-        ("source" | "ownership", "all") => t!(InboxFiltersOptAll),
+        ("source", "all") => t!(InboxFiltersOptAll),
         ("source", "jira") => cockpit_core::Source::Jira.label().to_string(),
         ("source", "github") => cockpit_core::Source::GitHub.label().to_string(),
         ("source", "project") => cockpit_core::Source::GitHubProject.label().to_string(),
-        ("ownership", "mine") => t!(InboxFiltersOptOwnershipMine),
         ("sprint", "current") => t!(InboxFiltersOptSprintCurrent),
         ("sprint", "open") => t!(InboxFiltersOptSprintOpen),
         ("sprint", "recent") => t!(InboxFiltersOptSprintRecent),

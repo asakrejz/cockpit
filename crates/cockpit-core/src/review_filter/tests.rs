@@ -320,3 +320,32 @@ fn up_and_down_walk_the_visible_list_and_stop_at_the_ends() {
     assert_eq!(step_key(&keys, None, true), Some(at(1)));
     assert_eq!(step_key(&[], None, true), None);
 }
+
+#[test]
+fn ownership_ids_round_trip() {
+    for id in Ownership::IDS {
+        assert_eq!(Ownership::from_id(id).unwrap().id(), *id);
+    }
+    assert_eq!(Ownership::from_id("x"), None);
+    assert_eq!(Ownership::default(), Ownership::All);
+}
+
+#[test]
+fn the_review_list_follows_the_ownership_and_keeps_the_open_review() {
+    let mut ws = demo::multi_repo_workspace();
+    let all_reviews = ws.reviews.len();
+    let mine = ws.reviews_for(Ownership::Mine, None).len();
+    assert!(mine < all_reviews, "colleagues' pull requests are left out");
+    assert_eq!(ws.reviews_for(Ownership::All, None).len(), all_reviews);
+    let foreign = ws
+        .reviews
+        .iter()
+        .find(|r| !ws.review_is_mine(r))
+        .unwrap()
+        .key();
+    let kept = ws.reviews_for(Ownership::Mine, Some(&foreign));
+    assert_eq!(kept.len(), mine + 1);
+    // A review without an inbox entry counts as mine.
+    ws.items.clear();
+    assert_eq!(ws.reviews_for(Ownership::Mine, None).len(), all_reviews);
+}

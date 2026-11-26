@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::model::{Sprint, SprintState, TicketStatus};
-use crate::{Filter, InboxFilter, Ownership, SourceFilter};
+use crate::{Filter, InboxFilter, SourceFilter};
 
 fn in_sprint(key: &str, state: SprintState) -> Item {
     Item {
@@ -33,11 +33,8 @@ fn a_ticket_that_the_sync_no_longer_delivers_leaves_the_current_sprint() {
         ]),
         T,
     );
-    let mine = InboxFilter {
-        ownership: Ownership::All,
-        ..Default::default()
-    };
-    assert_eq!(visible_keys(&ws, &mine), ["ABC-1", "ABC-2"]);
+    let by = InboxFilter::default();
+    assert_eq!(visible_keys(&ws, &by), ["ABC-1", "ABC-2"]);
 
     // The sprint ended: the query no longer delivers ABC-2, and ABC-1 now says „closed“.
     let (ws, changes) = merge(
@@ -54,11 +51,11 @@ fn a_ticket_that_the_sync_no_longer_delivers_leaves_the_current_sprint() {
             .iter()
             .any(|c| matches!(c, Change::ItemRemoved { key, .. } if key == "ABC-2"))
     );
-    assert!(visible_keys(&ws, &mine).is_empty(), "closed is not current");
+    assert!(visible_keys(&ws, &by).is_empty(), "closed is not current");
     // Still reachable while the sync delivers it.
     let open = InboxFilter {
         sprint: crate::SprintView::AllOpen,
-        ..mine
+        ..by
     };
     assert_eq!(visible_keys(&ws, &open), ["ABC-1"]);
 }
@@ -85,10 +82,7 @@ fn done_tickets_are_hidden_by_default_and_shown_on_request() {
     let mut done = in_sprint("ABC-1", SprintState::Active);
     done.status = TicketStatus::Done;
     let (ws, _) = merge(&Workspace::default(), &jira(vec![done]), T);
-    let by = InboxFilter {
-        ownership: Ownership::All,
-        ..Default::default()
-    };
+    let by = InboxFilter::default();
     assert!(visible_keys(&ws, &by).is_empty());
     let by = InboxFilter {
         hide_done: false,

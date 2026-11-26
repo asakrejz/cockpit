@@ -106,7 +106,7 @@ pub(super) fn JiraToken(ctx: Context, result: RwSignal<Option<JiraCheck>>) -> im
             <TextField
                 label=t!(SetupJiraAddressLabel)
                 value=site
-                placeholder="firma.atlassian.net"
+                placeholder=t!(SetupJiraAddressPlaceholder)
                 hint=t!(SetupJiraAddressHint)
                 autocomplete="off"
             />

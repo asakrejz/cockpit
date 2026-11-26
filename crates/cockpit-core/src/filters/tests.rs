@@ -35,13 +35,9 @@ fn fixed_choices_contain_the_default_or_the_all_choice() {
 
 #[test]
 fn ids_round_trip() {
-    for id in Ownership::IDS {
-        assert_eq!(Ownership::from_id(id).unwrap().id(), *id);
-    }
     for id in SprintView::IDS {
         assert_eq!(SprintView::from_id(id).unwrap().id(), *id);
     }
-    assert_eq!(Ownership::from_id("x"), None);
     assert_eq!(SprintView::from_id("x"), None);
 }
 
@@ -49,6 +45,10 @@ fn ids_round_trip() {
 fn filter_def_finds_by_id() {
     assert_eq!(filter_def("sprint").unwrap().default, "current");
     assert!(filter_def("nope").is_none());
+    assert!(
+        filter_def("ownership").is_none(),
+        "the tab „Ich“ is the only way to narrow the inbox to my entries"
+    );
 }
 
 // ---------- The filters on a workspace ----------
@@ -117,34 +117,31 @@ fn all() -> InboxFilter {
     InboxFilter::default()
 }
 
-fn mine() -> InboxFilter {
-    InboxFilter {
-        ownership: Ownership::Mine,
-        ..Default::default()
-    }
-}
-
 #[test]
 fn the_start_state_is_everybody_current_sprint_and_done_hidden() {
     let by = InboxFilter::default();
-    assert_eq!(by.ownership, Ownership::All);
     assert_eq!(by.person, None, "assignee: everybody");
     assert_eq!(by.sprint, SprintView::Current);
     assert!(by.hide_done);
     assert!(by.is_default());
-    assert!(!mine().is_default());
+    assert!(
+        !InboxFilter {
+            hide_done: false,
+            ..Default::default()
+        }
+        .is_default()
+    );
 }
 
 #[test]
-fn ownership_mine_is_the_attention_list_and_all_adds_the_quiet_pull_requests() {
+fn the_inbox_lists_the_quiet_pull_requests_that_the_attention_list_leaves_out() {
     let ws = workspace(vec![
         pull(1, "Mine", "feature/x", true),
         pull(2, "Colleague", "feature/y", false),
     ]);
     // Neither raises attention on its own here (reason „Comment“, no failure) …
     assert!(ws.attention(Filter::All, NOW).is_empty());
-    assert!(keys(&ws, &mine()).is_empty());
-    // … but „Alle“ lists them, and the unread count never includes them.
+    // … but the inbox lists them, and the unread count never includes them.
     assert_eq!(keys(&ws, &all()), ["#1", "#2"]);
     assert_eq!(ws.unread(Filter::All, NOW), 0);
     // The scope tabs still apply: „Team“ holds only the colleague's.
@@ -274,13 +271,11 @@ fn filters_combine() {
 #[test]
 fn values_read_and_write_by_id() {
     let mut by = InboxFilter::default();
-    assert!(by.set("ownership", "all"));
     assert!(by.set("sprint", "backlog"));
     assert!(by.set("done", "off"));
     assert!(by.set("status", "review"));
     assert!(by.set("project", "BAU"));
     assert!(by.set("repo", "a/b"));
-    assert_eq!(by.get("ownership"), "all");
     assert_eq!(by.get("sprint"), "backlog");
     assert_eq!(by.get("done"), "off");
     assert_eq!(by.get("status"), "review");
@@ -311,26 +306,6 @@ fn choices_come_from_the_definitions_or_the_data() {
     assert!(ws.filter_choices("unknown").is_empty());
     assert_eq!(Kind::PullRequest, ws.items[1].kind);
     assert_eq!(Source::GitHub, ws.items[1].source);
-}
-
-#[test]
-fn the_review_list_follows_the_ownership_and_keeps_the_open_review() {
-    let mut ws = demo::multi_repo_workspace();
-    let all_reviews = ws.reviews.len();
-    let mine = ws.reviews_for(Ownership::Mine, None).len();
-    assert!(mine < all_reviews, "colleagues' pull requests are left out");
-    assert_eq!(ws.reviews_for(Ownership::All, None).len(), all_reviews);
-    let foreign = ws
-        .reviews
-        .iter()
-        .find(|r| !ws.review_is_mine(r))
-        .unwrap()
-        .key();
-    let kept = ws.reviews_for(Ownership::Mine, Some(&foreign));
-    assert_eq!(kept.len(), mine + 1);
-    // A review without an inbox entry counts as mine.
-    ws.items.clear();
-    assert_eq!(ws.reviews_for(Ownership::Mine, None).len(), all_reviews);
 }
 
 // ---------- Assignee, reporter, watching, type, priority ----------

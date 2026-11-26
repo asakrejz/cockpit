@@ -152,7 +152,7 @@ pub fn WatchedRepos(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
             <TextField
                 label=t!(SetupReposManualLabel)
                 value=manual
-                placeholder="firma/app"
+                placeholder=t!(SetupReposManualPlaceholder)
                 hint=t!(SetupReposManualHint)
                 autocomplete="off"
             />

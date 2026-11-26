@@ -50,6 +50,7 @@ setup_jira.address_saved = Address and email saved.
 setup_jira.token_s1 = 1. Address of your Jira site
 setup_jira.address_label = Jira address
 setup_jira.address_hint = This is how the address starts when you open Jira in the browser. You can also simply paste it – with https:// and everything after it.
+setup_jira.address_placeholder = company.atlassian.net
 setup_jira.uses = Cockpit uses:
 setup_jira.token_s2 = 2. Email address of your Atlassian account
 setup_jira.email_label = Email address
