@@ -59,8 +59,8 @@ impl JiraClient {
 
     /// The ID of the sprint field of this site (`customfield_10020` and the like), from
     /// `GET /rest/api/3/field`: the field of the Jira Software sprint type, otherwise the one
-    /// named „Sprint“. `None` if the site has none (no Jira Software). Asked once per client (the
-    /// server builds one per sync); a failed question is not kept.
+    /// named „Sprint“. `None` if the site has none (no Jira Software). Asked once per client;
+    /// a failed question is not kept.
     pub async fn sprint_field(&self) -> Result<Option<String>, Error> {
         if let Some(known) = self.sprint_field.lock().ok().and_then(|k| k.clone()) {
             return Ok(known);

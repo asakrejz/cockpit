@@ -135,7 +135,7 @@ impl Error {
 }
 
 impl Error {
-    /// The message as code and parameters; the UI renders it in the chosen language.
+    /// The message as code and parameters, for translation.
     pub fn msg(&self) -> Msg {
         match self {
             Error::Network(m) => msg!(IntegrationsNetwork, reason = Msg::raw(m)),

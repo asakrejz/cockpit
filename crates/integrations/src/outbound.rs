@@ -26,7 +26,7 @@ pub use review::{LineComment, ReviewData, review_data};
 use cockpit_core::{MergeMethod, TicketStatus};
 use serde_json::Value;
 
-/// What the server has in terms of services.
+/// The services that are configured.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Targets {
     pub github: bool,

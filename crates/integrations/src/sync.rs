@@ -40,7 +40,7 @@ pub struct JiraService {
 /// GitHub Projects as the source of tickets.
 pub struct ProjectsService {
     pub client: GitHubClient,
-    /// The projects chosen in the setup.
+    /// The projects chosen in the configuration.
     pub projects: Vec<cockpit_core::ProjectRef>,
     /// The field that counts as the ticket status (default `Status`).
     pub status_field: Option<String>,
