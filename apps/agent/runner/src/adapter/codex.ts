@@ -6,7 +6,7 @@
 //  * Sandbox `workspace-write` (plan mode: `read-only`) without network access, approval policy `never`: the tool
 //    never asks and can only write inside /work.
 //  * Codex has no hook for single paths, so the rules of the job (allowed and forbidden paths, `.git`) are enforced
-//    by the runner after the run (cli.ts). The limit is documented in docs/security.md.
+//    by the runner after the run (cli.ts).
 //  * The model endpoint is a provider defined per `-c` flag; the key is read by Codex from the environment variable
 //    named there (`OPENAI_API_KEY`), it is never an argument.
 // Endpoint: `OPENAI_BASE_URL` (proxy or compatible endpoint, `/v1` is added if missing) or directly at OpenAI,

@@ -1,7 +1,6 @@
-// The common interface of the adapters. An adapter runs a job with an
-// agent tool (Claude Agent SDK, later Claude Code and Codex) and reports the result
-// as JSON-line events (see event.ts and apps/agent/README.md). Everything a tool does
-// differently stays in the adapter; the backend always sees the same event shapes.
+// The common interface of the adapters. An adapter runs a job with an agent tool and reports the result
+// as JSON-line events (see event.ts). Everything a tool does differently stays in the adapter; the backend
+// always sees the same event shapes.
 
 import type { Job } from "../job.ts";
 import type { Sink } from "../event.ts";

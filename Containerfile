@@ -129,7 +129,7 @@ COPY apps/playground ./apps/playground
 COPY apps/server ./apps/server
 COPY crates ./crates
 
-# `touch`: the sources must count as newer than the placeholder build of the cook step above.
+# `touch` as in the web stage above.
 RUN set -eu; \
     . /cross-env.sh; \
     triple="$(cat /triple)"; \

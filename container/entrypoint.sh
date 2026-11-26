@@ -43,7 +43,6 @@ if [ -S "$sock" ]; then
   esac
 fi
 
-# Folders with config, database and keys: they must be writable for the server user.
 for f in "${COCKPIT_CONFIG:-/app/config/config.toml}" "${COCKPIT_DB:-/app/config/cockpit.db}" \
   "${COCKPIT_ENV_FILE:-/app/config/.env}"; do
   dir="$(dirname "$f")"
