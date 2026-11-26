@@ -15,8 +15,7 @@ pub fn adf_to_text(value: &Value) -> String {
     out.trim().to_string()
 }
 
-/// Like [`adf_to_text`]; mentions of `me` (account ID) appear as `@Du`, so that the
-/// mention rules in the cockpit apply.
+/// Like [`adf_to_text`]; mentions of `me` (account ID) appear as `@Du`.
 pub fn adf_to_text_for(value: &Value, me: &str) -> String {
     fn replace(n: &mut Value, me: &str) {
         if n["type"] == "mention" && n["attrs"]["id"] == me {

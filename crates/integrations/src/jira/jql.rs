@@ -38,7 +38,7 @@ pub fn jql_for(projects: &[String], own: Option<&str>) -> Result<String, Error> 
     ))
 }
 
-/// The tickets of the active sprint of a project. Applies when a project is chosen in the app.
+/// The tickets of the active sprint of a project.
 pub fn jql_for_project(project: &str) -> Result<String, Error> {
     if !cockpit_core::is_project_key(project) {
         return Err(Error::Coded(msg!(
@@ -53,21 +53,19 @@ pub fn jql_for_project(project: &str) -> Result<String, Error> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct JiraQuery {
     pub jql: String,
-    /// The query was chosen in the app (project or sprint view): tickets that are neither
+    /// The query was chosen by the user: tickets that are neither
     /// assigned to me nor watched by me then show up with the reason `reason.in_project`.
     pub in_selection: bool,
 }
 
-/// The query for the sync, from what the app has chosen.
+/// The query for the sync, from the user's choice.
 ///
-/// * Nothing chosen (`chosen` is `None` and the sprint view is "Current sprint"): as before,
+/// * Nothing chosen (`chosen` is `None` and the sprint view is "Current sprint"):
 ///   [`jql_for`] with the settings file.
 /// * Project chosen, current sprint: [`jql_for_project`].
 /// * Another sprint view ("All open", "Recently updated", "Backlog"): all open tickets
 ///   of the project (or of the projects of the settings file; all projects if there are none) –
 ///   whoever they are assigned to. A JQL set by hand is only replaced when a project is chosen.
-///
-/// Only ever a read query; nothing here writes to Jira.
 pub fn jql_for_selection(
     projects: &[String],
     own: Option<&str>,

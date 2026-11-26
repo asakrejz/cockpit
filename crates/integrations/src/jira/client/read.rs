@@ -19,8 +19,7 @@ pub const ASSIGNABLE_MAX: usize = 20;
 const PROJECTS_PAGE: usize = 50;
 const MAX_PROJECTS: usize = 500;
 
-/// All fields (the detail view shows custom fields too), except the big ones the cockpit
-/// loads in other calls.
+/// All fields except the big ones (comments, work log, votes).
 const FIELDS: &str = "*all,-comment,-worklog,-votes";
 
 /// This many issues per page and at most in total.
