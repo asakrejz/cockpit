@@ -62,7 +62,7 @@ pub fn plan_call(
             if !(i.source == cockpit_core::Source::Jira && targets.github) {
                 return Ok(None);
             }
-            // The default repo; without one the user has to set it (the button offers no choice).
+            // The default repo; without one the user has to set it.
             let Some(repo) = targets.default_repo.as_ref() else {
                 return Err(PlanError(cockpit_i18n::msg!(IntegrationsPlanChooseRepo)));
             };
