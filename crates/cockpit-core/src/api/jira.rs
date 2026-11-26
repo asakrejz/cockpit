@@ -2,7 +2,7 @@
 
 use super::*;
 
-/// A Jira project for the selection in the inbox.
+/// A Jira project.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct JiraProject {
     /// Key, e.g. `BAU`.
@@ -49,7 +49,7 @@ pub struct JiraCheck {
     pub ok: bool,
     #[serde(default)]
     pub cause: JiraCause,
-    /// What the check found, for the UI.
+    /// What the check found.
     #[serde(default)]
     pub message: cockpit_i18n::Msg,
     /// On success: the display name under which Jira knows you.

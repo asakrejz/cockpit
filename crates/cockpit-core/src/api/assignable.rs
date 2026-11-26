@@ -4,7 +4,7 @@ use super::*;
 
 /// Response to `GET /api/jira/assignable?project=…&query=…` and
 /// `GET /api/github/assignable?repo=…&query=…`: people the service would let you assign tickets
-/// to. Read only.
+/// to.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct AssignableResponse {
     /// `false` if the service is not set up or the key is missing (the list is then empty).

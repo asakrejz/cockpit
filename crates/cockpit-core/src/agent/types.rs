@@ -35,9 +35,8 @@ pub struct AgentPlan {
     pub steps: Vec<String>,
 }
 
-/// What the agent reports from the container. The backend checks the container's lines and
-/// passes them on as `Action::ReportAgent` (author Agent); `cockpit-core` decides what they
-/// effect – the agent can change the state only through these paths.
+/// What the agent reports from the container. A report reaches the run as
+/// `Action::ReportAgent`; the agent can change the state only through these paths.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum AgentReport {
     /// The container is running. `detail` is a sentence for the history (runtime, mode).

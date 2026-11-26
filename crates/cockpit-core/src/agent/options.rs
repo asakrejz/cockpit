@@ -39,11 +39,10 @@ pub struct AgentOptions {
     /// First present a plan and wait for approval.
     pub plan_first: bool,
     /// The repo (`owner/name`) the run works in. `None` = the backend chooses by the rules of
-    /// the configuration; the interface sets it when the user picks one.
+    /// the configuration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub repo: Option<String>,
-    /// All repos of the run (the first is `repo`). Empty = only `repo`. The interface sends the
-    /// choice here; the backend settles it.
+    /// All repos of the run (the first is `repo`). Empty = only `repo`.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub repos: Vec<String>,
     /// Base branch, pattern and language per repo, set by the backend from the configuration
@@ -102,8 +101,7 @@ impl Default for AgentOptions {
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum RunState {
-    /// Ready to start, or ended (cancelled, failed). A stored `AwaitingFix` (the diagnosis of a
-    /// follow-up job that no longer exists) reads as this.
+    /// Ready to start, or ended (cancelled, failed). A stored `AwaitingFix` reads as this.
     #[default]
     #[serde(alias = "AwaitingFix")]
     Idle,
@@ -127,7 +125,7 @@ pub enum Closure {
 }
 
 impl Closure {
-    /// The state as the interface shows it.
+    /// The state as a short message.
     pub fn label_msg(self) -> cockpit_i18n::Msg {
         match self {
             Closure::Merged => cockpit_i18n::msg!(CoreAgentClosureMerged),
@@ -143,18 +141,17 @@ pub enum RunKind {
     /// Implement a ticket and create a pull request.
     #[default]
     Implement,
-    /// Follow-up job on the branch of an existing pull request: the
-    /// backend reads the inputs (review threads, failed checks) from GitHub when the run starts and
-    /// hands them to the container. The agent continues on the same `claude/…` branch; the backend
-    /// pushes the new commits (never a force-push).
+    /// Follow-up job on the branch of an existing pull request: the inputs (review threads,
+    /// failed checks) are read from GitHub when the run starts. The agent continues on the same
+    /// `claude/…` branch; the new commits are never force-pushed.
     Followup {
         /// The pull request (repo and number).
         review: PrKey,
         task: FollowupTask,
     },
     /// The agent reads a pull request and prepares review comments as drafts. It only
-    /// reads: the clone of the branch is mounted read-only, nothing is pushed, nothing goes to
-    /// GitHub. The drafts become suggestions of the review and wait for your decision.
+    /// reads: nothing is pushed, nothing goes to GitHub. The drafts become suggestions of the
+    /// review and wait for your decision.
     ReviewPr {
         /// The pull request (repo and number).
         review: PrKey,

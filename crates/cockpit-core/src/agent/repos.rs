@@ -1,9 +1,9 @@
 //! The repos of a run: one run can work in several repos at once.
 //!
 //! Each repo has its own branch (named by the repo's pattern from the same ticket and title), its
-//! own base branch, rules, pull request and outcome. The run keeps the primary repo (the first one)
-//! in its old fields (`repo`, `rules`, `pull_request`) so that everything that only knows one repo
-//! keeps working; [`AgentRun::repo_list`] gives the full list, also for old states that have none.
+//! own base branch, rules, pull request and outcome. The primary repo (the first one) stays in the
+//! fields `repo`, `rules` and `pull_request`; [`AgentRun::repo_list`] gives the full list, also for
+//! states that have none.
 
 use super::*;
 
@@ -115,7 +115,7 @@ impl RunRepo {
         matches!(self.state, RunRepoState::Pushed | RunRepoState::PrCreated)
     }
 
-    /// The short state as the interface shows it.
+    /// The short state as a message.
     pub fn state_msg(&self) -> cockpit_i18n::Msg {
         match self.state {
             RunRepoState::Pending => msg!(CoreReposStatePending),
@@ -229,7 +229,7 @@ impl AgentRun {
             entry.files.clone_from(&res.files);
             entry.reason.clone_from(&res.reason);
         }
-        // The old field `files` shows the files of all pushed repos (prefixed in a multi run).
+        // The field `files` shows the files of all pushed repos (prefixed in a multi run).
         if self.is_multi_repo() {
             let multi: Vec<String> = self
                 .repos
