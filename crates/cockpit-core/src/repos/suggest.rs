@@ -142,7 +142,7 @@ pub fn suggest_repos(input: &SuggestInput) -> Vec<RepoSuggestion> {
     out
 }
 
-/// One line of the repo picker in the start dialog.
+/// One row of the repo list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PickerRow {
     pub repo: String,
@@ -152,8 +152,7 @@ pub struct PickerRow {
 
 /// The lines of the picker in the order they are shown: the suggestions first (in their order),
 /// then every other repo of `all` alphabetically. `all` may be empty (GitHub could not be asked),
-/// then only the suggestions show. The search and the limit of what is drawn are those of every
-/// repo list (`setup::repo_page`).
+/// then only the suggestions show.
 ///
 /// ```
 /// use cockpit_core::repos::suggest::{picker_rows, RepoSuggestion, SuggestReason};

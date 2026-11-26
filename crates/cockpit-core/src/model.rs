@@ -288,7 +288,7 @@ pub struct Sprint {
 }
 
 impl Item {
-    /// Sets why the entry needs attention: the kind and the sentence for the row.
+    /// Sets why the entry needs attention: the kind and the message.
     pub fn set_reason(&mut self, reason: ReasonKind, msg: cockpit_i18n::Msg) {
         self.reason = reason;
         self.reason_msg = Some(msg);

@@ -249,7 +249,7 @@ fn merge_reviews(ws: &mut Workspace, loaded: &Loaded, changes: &mut Vec<Change>)
         };
         merged.push(review);
     }
-    // New reviews to the front, existing ones in their place as before: simply before the rest.
+    // New reviews to the front, existing ones in their place: simply before the rest.
     merged.append(&mut kept);
     ws.reviews = merged;
 

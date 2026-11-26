@@ -1,4 +1,4 @@
-//! The workspace: all data of the cockpit and the actions of the UI.
+//! The workspace: all data of the cockpit and the actions that change it.
 
 use std::collections::BTreeMap;
 
