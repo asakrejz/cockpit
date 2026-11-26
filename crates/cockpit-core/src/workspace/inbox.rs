@@ -2,7 +2,6 @@
 
 use super::*;
 use crate::attention::{self, Hit, Rule};
-use crate::filters::Ownership;
 
 impl Workspace {
     /// Inbox entries for a filter, in display order.
@@ -35,11 +34,11 @@ impl Workspace {
     /// Inbox entries for the filter dialog: like [`Workspace::search`], then narrowed by the
     /// [`InboxFilter`].
     ///
-    /// With the ownership "Mine" the list is the attention list as before. With "All" the
-    /// entries of colleagues (pull requests and tickets without a reason for attention) are
-    /// listed too – they never raise attention or notifications themselves. The sprint
-    /// "Current sprint" falls back to "All open" as long as no ticket carries sprint data
-    /// (a project without sprints).
+    /// The tab decides the base list. Every tab but "Snoozed" lists the entries of colleagues
+    /// too (pull requests and tickets without a reason for attention) – they never raise
+    /// attention or notifications themselves. "Snoozed" keeps the snoozed entries only (see
+    /// [`Workspace::search`]). The sprint "Current sprint" falls back to "All open" as long as
+    /// no ticket carries sprint data (a project without sprints).
     pub fn inbox(
         &self,
         filter: Filter,
@@ -49,15 +48,15 @@ impl Workspace {
         by: &InboxFilter,
     ) -> Vec<&Item> {
         let by = self.effective_filter(by);
-        let base: Vec<&Item> = match by.ownership {
-            Ownership::All if filter != Filter::Snoozed => self
-                .visible(filter)
+        let base: Vec<&Item> = if filter == Filter::Snoozed {
+            self.search(filter, source, query, now_ms)
+        } else {
+            self.visible(filter)
                 .into_iter()
                 .filter(|i| !self.is_snoozed(&i.id, now_ms))
                 .filter(|i| source.matches(i.source) && crate::search::matches_query(i, query))
                 .filter(|i| self.in_project(i))
-                .collect(),
-            _ => self.search(filter, source, query, now_ms),
+                .collect()
         };
         let base = base.into_iter().filter(|i| self.team_visible(i)).collect();
         by.apply(base, now_ms)

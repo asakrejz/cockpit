@@ -127,12 +127,8 @@ async fn pull_requests_without_a_relation_to_me_are_listed_but_stay_quiet() {
         .map(|i| i.key.clone())
         .collect();
     assert_eq!(attention, ["#3"], "{attention:?}");
-    // The start filter "All" lists them all, the filter "Mine" keeps the quiet list.
+    // The inbox lists them all; the attention list above keeps only the one that concerns me.
     let all = cockpit_core::InboxFilter::default();
-    let mine = cockpit_core::InboxFilter {
-        ownership: cockpit_core::Ownership::Mine,
-        ..Default::default()
-    };
     let keys = |f: &cockpit_core::InboxFilter| -> Vec<String> {
         ws.inbox(
             cockpit_core::Filter::All,
@@ -146,7 +142,6 @@ async fn pull_requests_without_a_relation_to_me_are_listed_but_stay_quiet() {
         .collect()
     };
     assert_eq!(keys(&all).len(), 4);
-    assert_eq!(keys(&mine), ["#3"]);
     // Colleagues' pull requests need no comment calls, but they have a review (diff) and checks.
     assert!(ws.review(1).is_some());
 }

@@ -2,9 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{
-    ASSIGNED_TO_ME, FILTERS, NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED, filter_def,
-};
+use super::{ASSIGNED_TO_ME, FILTERS, NO_TICKET, RECENT_DAYS, SprintView, UNASSIGNED, filter_def};
 use crate::model::{
     Item, Kind, ME_MARK, Person, Priority, SourceFilter, SprintState, TicketStatus,
 };
@@ -12,8 +10,8 @@ use crate::model::{
 /// The values of the inbox filters (definitions: [`FILTERS`]). The Jira
 /// project of the workspace ([`crate::Workspace::in_project`]) is a setting of its own and not
 /// part of it. The value is stored in the workspace (`Workspace::inbox_filter`) and changes by
-/// `Action::SetInboxFilter`; `Default` is the start state (own entries, active sprint, done
-/// tickets hidden, everything else „all“).
+/// `Action::SetInboxFilter`; `Default` is the start state (active sprint, done tickets
+/// hidden, everything else „all“).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct InboxFilter {
@@ -28,11 +26,6 @@ pub struct InboxFilter {
     pub status: Option<TicketStatus>,
     /// Without regard to case.
     pub label: Option<String>,
-    /// Whose entries are listed (decided by `Workspace::inbox`, not by [`InboxFilter::matches`]).
-    /// Stored under its own name, so that the old start value "Mine" that older states carry
-    /// is dropped and the new start value „Alle“ applies.
-    #[serde(rename = "whose")]
-    pub ownership: Ownership,
     /// Name of the reporter of a ticket, [`ASSIGNED_TO_ME`] (me).
     pub reporter: Option<String>,
     /// Only tickets I watch.
@@ -58,7 +51,6 @@ impl Default for InboxFilter {
             person: None,
             status: None,
             label: None,
-            ownership: Ownership::default(),
             reporter: None,
             watched: false,
             issue_type: None,
@@ -80,7 +72,6 @@ impl InboxFilter {
     pub fn get(&self, id: &str) -> String {
         match id {
             "source" => self.source.id().into(),
-            "ownership" => self.ownership.id().into(),
             "sprint" => self.sprint.id().into(),
             "done" => if self.hide_done { "on" } else { "off" }.into(),
             "project" => self.project.clone().unwrap_or_default(),
@@ -106,10 +97,6 @@ impl InboxFilter {
         match id {
             "source" => match SourceFilter::from_id(value) {
                 Some(v) => self.source = v,
-                None => return false,
-            },
-            "ownership" => match Ownership::from_id(value) {
-                Some(v) => self.ownership = v,
                 None => return false,
             },
             "sprint" => match SprintView::from_id(value) {
@@ -151,8 +138,8 @@ impl InboxFilter {
         true
     }
 
-    /// Does the entry match the chosen values (everything except the ownership)? `now_ms` is
-    /// the time of day for "Recently updated".
+    /// Does the entry match the chosen values? `now_ms` is the time of day for "Recently
+    /// updated".
     ///
     /// ```
     /// use cockpit_core::{InboxFilter, SprintView, demo};

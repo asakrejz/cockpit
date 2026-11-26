@@ -8,10 +8,38 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::filters::Ownership;
 use crate::model::PrKey;
 use crate::review::Review;
 use crate::workspace::Workspace;
+
+/// Whose pull requests the page "Pull requests" lists: "Mine" keeps only those that concern me,
+/// „Alle“ (the start value) lists all open pull requests of the repos.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Ownership {
+    Mine,
+    #[default]
+    All,
+}
+
+impl Ownership {
+    /// The IDs, in display order; the interface words them.
+    pub const IDS: &'static [&'static str] = &["mine", "all"];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Ownership::Mine => "mine",
+            Ownership::All => "all",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Option<Ownership> {
+        match id {
+            "mine" => Some(Ownership::Mine),
+            "all" => Some(Ownership::All),
+            _ => None,
+        }
+    }
+}
 
 /// What the Reviews list shows. An empty list of repos or projects means „all“.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]

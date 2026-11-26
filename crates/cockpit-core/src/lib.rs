@@ -73,7 +73,7 @@ pub use connections::{AuthChoice, AuthKind, OAuthTokens, ServiceStatus};
 pub use details::{Attachment, DetailField, DetailValue, Details};
 pub use filters::{
     ASSIGNED_TO_ME, ActiveFilter, Applies, Choices, FILTERS, FilterDef, InboxFilter,
-    JIRA_PROJECT_FILTER, NO_TICKET, Ownership, RECENT_DAYS, SprintView, UNASSIGNED, filter_def,
+    JIRA_PROJECT_FILTER, NO_TICKET, RECENT_DAYS, SprintView, UNASSIGNED, filter_def,
 };
 pub use model::*;
 pub use notice::{NoticeAction, NoticeTone, SourceNotice, source_notices};
@@ -92,7 +92,7 @@ pub use review::{
     MAX_AGENT_COMMENTS, MergeBlocker, MergeMethod, Review, SHOWN_LINES, SendError, Suggestion,
     SuggestionDiff, TreeRow, Verdict, Viewed, commit_date, file_tree, merge_blockers, short_sha,
 };
-pub use review_filter::{ProjectChoice, RepoGroup, ReviewFilter};
+pub use review_filter::{Ownership, ProjectChoice, RepoGroup, ReviewFilter};
 pub use rules::{PathViolation, RepoRules, ViolationKind, glob_match};
 pub use sync::{
     Change, Loaded, Outcome, PrLink, Problem, Remote, SourceData, SourceState, SyncState,

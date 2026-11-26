@@ -2,12 +2,11 @@
 
 use super::*;
 use crate::filters::{ASSIGNED_TO_ME, JIRA_PROJECT_FILTER, UNASSIGNED};
-use crate::{InboxFilter, Item, Ownership, SourceFilter, SprintView};
+use crate::{InboxFilter, Item, ReasonKind, SourceFilter, SprintView};
 use cockpit_i18n::Lang;
 
 fn narrowed() -> InboxFilter {
     InboxFilter {
-        ownership: Ownership::Mine,
         sprint: SprintView::AllOpen,
         source: SourceFilter::Jira,
         person: Some(ASSIGNED_TO_ME.into()),
@@ -56,15 +55,59 @@ fn the_filter_survives_saving_and_old_data_without_it_loads() {
     let old = loaded(&json.to_string()).unwrap();
     assert!(old.inbox_filter.is_default());
     // A stored filter that lacks newer fields keeps the start values for them.
-    json["workspace"]["inbox_filter"] = serde_json::json!({ "whose": "Mine" });
+    json["workspace"]["inbox_filter"] = serde_json::json!({ "sprint": "AllOpen" });
     let partial = loaded(&json.to_string()).unwrap();
-    assert_eq!(partial.inbox_filter.ownership, Ownership::Mine);
+    assert_eq!(partial.inbox_filter.sprint, SprintView::AllOpen);
     assert!(partial.inbox_filter.hide_done);
-    // The old start value "Mine" (stored as `ownership`) is not carried over: the start
-    // value is „Alle“ now, so colleagues' tickets show up.
-    json["workspace"]["inbox_filter"] = serde_json::json!({ "ownership": "Mine" });
-    let older = loaded(&json.to_string()).unwrap();
-    assert_eq!(older.inbox_filter.ownership, Ownership::All);
+}
+
+#[test]
+fn a_stored_whose_choice_is_ignored_and_the_inbox_lists_everybody() {
+    let mut w = ws();
+    // A colleague's pull request without a reason for attention: only the unrestricted list
+    // shows it.
+    let mut quiet = w.item_by_key("#87").unwrap().clone();
+    quiet.id = "quiet".into();
+    quiet.key = "#998".into();
+    quiet.scope = crate::Scope::Team;
+    quiet.reason = ReasonKind::Comment;
+    quiet.comments.clear();
+    if let Some(pr) = quiet.pr.as_mut() {
+        pr.number = 998;
+        pr.review_requested = false;
+        pr.mine = false;
+        pr.checks = crate::Checks::Passed;
+    }
+    w.items.push(quiet);
+    let by = InboxFilter {
+        sprint: SprintView::AllOpen,
+        ..Default::default()
+    };
+    let keys = |w: &Workspace, by: &InboxFilter| -> Vec<String> {
+        w.inbox(Filter::All, SourceFilter::All, "", T, by)
+            .iter()
+            .map(|i| i.key.clone())
+            .collect()
+    };
+    let attention: Vec<String> = w
+        .search(Filter::All, SourceFilter::All, "", T)
+        .iter()
+        .map(|i| i.key.clone())
+        .collect();
+    assert!(!attention.contains(&"#998".to_string()));
+    ok(&mut w, Action::SetInboxFilter { filter: by.clone() }, 1);
+
+    // Older states stored the choice as `whose` (and, before that, as `ownership`): both load
+    // without error, change no value and the inbox lists what it lists without them.
+    for (field, value) in [("whose", "Mine"), ("whose", "All"), ("ownership", "Mine")] {
+        let mut json: serde_json::Value = serde_json::from_str(&saved(&w)).unwrap();
+        json["workspace"]["inbox_filter"][field] = serde_json::json!(value);
+        let old = loaded(&json.to_string()).unwrap();
+        assert_eq!(old.inbox_filter, by, "{field}: {value}");
+        let shown = keys(&old, &old.inbox_filter);
+        assert_eq!(shown, keys(&w, &by), "{field}: {value}");
+        assert!(shown.contains(&"#998".to_string()), "{field}: {value}");
+    }
 }
 
 #[test]
@@ -81,16 +124,7 @@ fn active_filters_name_what_is_not_at_its_start_value() {
     ok(&mut w, Action::SetInboxFilter { filter: narrowed() }, 1);
     let active = w.active_filters();
     let ids: Vec<&str> = active.iter().map(|a| a.id).collect();
-    assert_eq!(
-        ids,
-        [
-            JIRA_PROJECT_FILTER,
-            "source",
-            "ownership",
-            "sprint",
-            "person"
-        ]
-    );
+    assert_eq!(ids, [JIRA_PROJECT_FILTER, "source", "sprint", "person"]);
     let value = |id: &str| active.iter().find(|a| a.id == id).unwrap().value.clone();
     assert_eq!(value("person"), ASSIGNED_TO_ME);
     assert_eq!(value("sprint"), "open");
@@ -141,7 +175,6 @@ fn the_person_filter_selects_by_assignee_without_writing_anything() {
     nobody.owner = Person::nobody();
     w.items.push(nobody);
     let by = |person: &str| InboxFilter {
-        ownership: Ownership::All,
         sprint: SprintView::AllOpen,
         person: Some(person.into()),
         ..Default::default()

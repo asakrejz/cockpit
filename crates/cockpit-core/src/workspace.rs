@@ -12,10 +12,10 @@ use crate::agent::{
 };
 use crate::attention::{Rules, Snooze};
 use crate::filters::InboxFilter;
-use crate::filters::Ownership;
 use crate::model::*;
 use crate::notify::NotifySettings;
 use crate::review::{Decision, MergeBlocker, MergeMethod, Review, SendError, Verdict};
+use crate::review_filter::Ownership;
 use crate::rules::RepoRules;
 use crate::sync::SyncState;
 use crate::text::slug;

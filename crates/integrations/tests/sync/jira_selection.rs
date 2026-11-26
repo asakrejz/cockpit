@@ -153,9 +153,8 @@ async fn all_open_tickets_arrive_including_those_of_other_people() {
     let nobody = ws.item_by_key("BAU-3").unwrap();
     assert!(nobody.owner.nobody);
     assert_eq!(nobody.scope, Scope::Team);
-    // They are in the inbox once "All" and "All open" are chosen.
+    // They are in the inbox once "All open" is chosen.
     let by = cockpit_core::InboxFilter {
-        ownership: cockpit_core::Ownership::All,
         sprint: SprintView::AllOpen,
         ..Default::default()
     };
