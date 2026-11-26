@@ -1,5 +1,4 @@
 //! Checks with a fine-grained token: no "Checks" permission, so the check runs answer 403.
-//! Everything here runs against a mock server; GitHub's real 403 behaviour is not checked.
 
 use cockpit_core::Checks;
 use cockpit_integrations::github::GitHubClient;
