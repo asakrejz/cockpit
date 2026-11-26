@@ -20,7 +20,7 @@ use crate::workspace::{AgentError, ResumeError, StatusChange, Workspace};
 /// This many entries the log keeps. Older ones drop out.
 pub const MAX_LOG: usize = 500;
 
-/// A change to the workspace. One variant per gesture of the UI.
+/// A change to the workspace.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum Action {
     // Inbox

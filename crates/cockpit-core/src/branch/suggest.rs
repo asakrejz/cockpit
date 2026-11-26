@@ -1,6 +1,6 @@
 //! A branch pattern proposed from the contribution guidelines of a repo (`CONTRIBUTING.md`).
 //!
-//! Only a hint: the user sees the proposal and confirms it, nothing is taken over automatically.
+//! Only a proposal: nothing is taken over automatically.
 
 use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};

@@ -19,8 +19,7 @@ pub struct InboxFilter {
     pub source: SourceFilter,
     /// `owner/name`; entries without a repo (tickets) drop out as soon as a repo is chosen.
     pub repo: Option<String>,
-    /// Name of the owner, [`ASSIGNED_TO_ME`] (me) or [`UNASSIGNED`] (nobody). A display filter
-    /// only: nothing is written to Jira.
+    /// Name of the owner, [`ASSIGNED_TO_ME`] (me) or [`UNASSIGNED`] (nobody).
     pub person: Option<String>,
     /// See [`Item::effective_status`].
     pub status: Option<TicketStatus>,

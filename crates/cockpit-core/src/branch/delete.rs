@@ -1,6 +1,4 @@
-//! May a branch of the agent be deleted? Pure rules; the backend adds the facts it reads from
-//! GitHub. Deleting is never automatic: it only happens on the user's click, and only when every
-//! rule here says yes.
+//! May a branch of the agent be deleted? Only when every rule here says yes.
 
 use super::{check, structure};
 use crate::agent::Closure;

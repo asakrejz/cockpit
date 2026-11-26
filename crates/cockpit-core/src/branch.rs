@@ -5,10 +5,6 @@
 //! * `{ticket}`: the Jira key (`BAU-142`). Every pattern needs it, so two tickets never share a branch.
 //! * `{slug}`: the ticket title as a short name (`toggle-fokus-ring-fehlt`).
 //! * `{type}`: `feature`, `fix` or `chore`, derived from the Jira issue type ([`BranchType`]).
-//!
-//! The backend renders the branch with [`render`] and checks it with [`check`] before it clones and
-//! again before it pushes: a branch that does not match the pattern, or that is a protected
-//! name, never leaves the machine. Everything here is pure.
 
 use cockpit_i18n::{Msg, msg};
 
@@ -388,8 +384,7 @@ pub fn check(pattern: &str, base_branch: &str, branch: &str) -> Result<(), Msg> 
 
 /// Like [`check`], for a branch that already exists (a follow-up on a pull request): besides the
 /// pattern of the repo, anything under `claude/` counts, because pull requests of the agent from
-/// before the pattern was changed keep their name (and the agent only ever added to such a
-/// branch before this setting existed).
+/// before the pattern was changed keep their name.
 pub fn check_existing(pattern: &str, base_branch: &str, branch: &str) -> Result<(), Msg> {
     check(pattern, base_branch, branch).or_else(|first| {
         let legacy = structure(branch).is_ok()
@@ -401,7 +396,7 @@ pub fn check_existing(pattern: &str, base_branch: &str, branch: &str) -> Result<
     })
 }
 
-/// Does the branch look like one of the agent? Used by the interface to offer follow-up jobs.
+/// Does the branch look like one of the agent?
 pub fn is_agent_branch(pattern: &str, base_branch: &str, branch: &str) -> bool {
     check_existing(pattern, base_branch, branch).is_ok()
 }

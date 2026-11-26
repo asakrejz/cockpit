@@ -1,8 +1,7 @@
 //! Link ticket and pull request: which tickets a pull request names.
 //!
 //! One rule for the whole workspace: [`PrTexts::ticket_keys`] reads the branch, the title and the
-//! description of a pull request and returns every ticket it names. The auto-link, the section
-//! "Development" of a ticket and the team filter all ask it.
+//! description of a pull request and returns every ticket it names.
 //!
 //! A Jira key consists of letters, a hyphen and digits (`BAU-142`). It only counts when it
 //! stands as a whole word: `BAU-1420` does not contain `BAU-142`, and `XBAU-142` does not

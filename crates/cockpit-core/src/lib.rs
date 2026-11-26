@@ -16,15 +16,11 @@
 //! * [`sync`]: sync with Jira and GitHub (pure merging)
 //! * [`team`]: load per person and what is currently stuck
 //! * [`team_filter`]: „Mein Team“, the choice of Jira teams the lists are limited to
-//! * [`workspace`]: everything together, with the actions of the UI
+//! * [`workspace`]: everything together, with the actions
 //! * [`action`]: [`Action`], `Workspace::apply` and the log
 //! * [`demo`]: sample data for tests, stories and the server's seed `COCKPIT_SEED=demo`
 //! * [`api`]: the JSON shapes between app and backend (server mode)
 //! * [`persist`]: saving and loading the workspace (JSON with version number)
-//!
-//! Every action of the UI is an [`Action`] that `Workspace::apply` executes via methods
-//! on [`Workspace`] and logs – and is thus testable with `cargo test`. A real backend would run the same actions against Jira,
-//! GitHub and the agent and write the result into the workspace.
 
 pub mod action;
 pub mod adf;
