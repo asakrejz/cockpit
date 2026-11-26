@@ -60,7 +60,7 @@ fn old_runs_and_comments_still_load() {
     let c: crate::review::LineComment =
         serde_json::from_str(r#"{"id":"c1","file":"a","line":0,"text":"x"}"#).unwrap();
     assert!(c.is_own());
-    // The mark of a run that implemented a comment is not read any more.
+    // The mark of a run that implemented a comment is ignored.
     let c: crate::review::LineComment = serde_json::from_str(
         r#"{"id":"c1","file":"a","line":0,"text":"x","resolved":"review-87"}"#,
     )

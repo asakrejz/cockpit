@@ -115,13 +115,12 @@ impl Msg {
         catalog::text_by_id(lang, &self.code, &args)
     }
 
-    /// Is the code in the catalog? A stored message can carry a code that was removed later.
+    /// Is the code in the catalog? A stored message can carry a code this build does not know.
     pub fn is_known(&self) -> bool {
         catalog::has_id(&self.code)
     }
 
-    /// The text in `lang`; if the code is no longer in the catalog, `stored` – the plain text
-    /// that an entry of an earlier version saved next to the code.
+    /// The text in `lang`; if the code is not in the catalog, `stored`: the plain text saved next to it.
     pub fn render_or(&self, lang: Lang, stored: &str) -> String {
         if self.is_known() {
             self.render(lang)
@@ -139,7 +138,7 @@ enum MsgOrText {
     Text(String),
 }
 
-/// For a stored field that holds a [`Msg`] and used to hold plain text: reads both (`serde`'s
+/// For a stored field that holds a [`Msg`] or, in older states, plain text: reads both (`serde`'s
 /// `deserialize_with`). A plain text reads as [`Msg::raw`], the same in every language.
 pub fn msg_or_text<'de, D>(deserializer: D) -> Result<Msg, D::Error>
 where

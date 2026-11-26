@@ -109,7 +109,7 @@ fn running_agent_counts_as_in_progress() {
     let agent = member(&list, "Agent");
     assert_eq!((agent.in_progress, agent.review), (1, 1));
     assert_eq!(agent.item_ids, ["bau138", "bau150"]);
-    // When cancelled it no longer counts.
+    // A cancelled run does not count.
     w.cancel_agent("BAU-150");
     assert_eq!(member(&members(&w), "Agent").item_ids, ["bau138"]);
 }

@@ -1,22 +1,5 @@
-//! Wire/persistence compatibility: the saved JSON must stay byte-identical across renames
-//! of Rust identifiers. `wire_*.json` are the current snapshots (they write `"User"` where
-//! the older versions wrote `"Du"`); `legacy_*.json` are the snapshots written before the English
-//! renaming and must keep loading (the old names are read through `serde(alias)`).
-//! `legacy_sync_state_problem.json` is a sync state in which one problem is stored as a plain text
-//! and one as a message; both must load.
-//! `legacy_simulated_agent_workspace.json` is a state saved while the simulated agent still
-//! existed: runs with the removed fields and kinds, a diagnosis, sample suggestions, checks that
-//! count ticks. It must load, and saving it again must leave those parts out.
-//! `legacy_removed_fields_workspace.json` is a state that still holds what was removed from the
-//! data: the email and Slack channels of the notification settings and the `resolved` mark of line
-//! comments. It must load, and saving it again must leave those parts out.
-//! `legacy_german_strings_workspace.json` is a state in which German text is stored in the data: the
-//! reason line and the time of entries and comments as plain text, me as the name `Du`, nobody as
-//! a German name. It must load and show what it stored; saving it again writes me and nobody as
-//! roles.
-//! `legacy_plain_text_twins_workspace.json` is a state in which every message also carries its German
-//! plain text and in which the run keeps its reason, summary and refusals as plain text. It must
-//! load and show what it stored.
+//! Wire/persistence compatibility: the saved JSON stays byte-identical across renames of Rust identifiers.
+//! `legacy_*.json` are older states that must keep loading; each test names the old form it reads.
 //! Regenerate `wire_*` with `BLESS=1 cargo test -p cockpit-core --test wire_compat` only on purpose.
 
 use cockpit_core::{
@@ -161,12 +144,12 @@ fn a_snapshot_without_revision_loads_as_revision_zero() {
     assert_eq!(revision, 0);
 }
 
-/// A state with the removed notification channels (email, Slack) and the removed `resolved` mark
-/// on line comments loads: the browser choices stay, the rest is ignored and not written again.
+/// Old state with the email and Slack channels and the `resolved` mark on line comments: it loads,
+/// and saving drops those parts.
 #[test]
 fn a_state_with_removed_channels_and_marks_still_loads() {
     let text = read("legacy_removed_fields_workspace.json");
-    // The fixture really holds what was removed.
+    // The fixture holds the old fields.
     for old in [
         "\"email\":true",
         "\"slack\":true",
@@ -202,13 +185,11 @@ fn a_state_with_removed_channels_and_marks_still_loads() {
     assert_eq!(persist::save_with_revision(&again, revision), saved);
 }
 
-/// A state from the time of the simulated agent loads: the removed fields are ignored, the two
-/// removed kinds of run become the follow-up jobs of the same purpose, and a run that waited for
-/// the decision about a fix is ready again. Saving leaves all of that out.
+/// Old state with simulated-agent runs: it loads, the old fields are ignored, and saving drops them.
 #[test]
 fn a_state_with_the_simulated_agent_still_loads() {
     let text = read("legacy_simulated_agent_workspace.json");
-    // The fixture really holds what was removed.
+    // The fixture holds the old fields.
     for old in [
         "\"real\":",
         "\"AwaitingFix\"",
@@ -227,12 +208,12 @@ fn a_state_with_the_simulated_agent_still_loads() {
     assert_eq!(revision, 5);
     assert_eq!(ws.runs.len(), 5);
 
-    // The finished sample run and the questions of the simulation are plain runs now.
+    // Finished sample runs and the simulation's questions load as plain runs.
     assert!(ws.run("BAU-138").unwrap().is_done());
     assert_eq!(ws.run("BAU-142").unwrap().state, RunState::AwaitingAnswer);
     assert!(ws.run("BAU-150").unwrap().is_running());
 
-    // The simulated follow-up jobs read as the follow-up jobs of the real agent.
+    // Old simulated follow-up jobs read as real follow-up jobs.
     let review = cockpit_core::PrKey::new(demo::DEMO_REPO, 85);
     let diagnose = ws
         .runs
@@ -266,7 +247,7 @@ fn a_state_with_the_simulated_agent_still_loads() {
     let r91 = ws.review(91).unwrap();
     assert_eq!(r91.suggestions.len(), 1);
     assert_eq!(r91.suggestions[0].path, "controls.rs");
-    // Checks that counted ticks are plain checks now.
+    // Old tick-counting checks load as plain checks.
     assert!(
         r85.check_runs
             .iter()
@@ -296,7 +277,7 @@ fn a_state_with_the_simulated_agent_still_loads() {
             .all(|m| m.text_in(cockpit_i18n::Lang::En) == m.text)
     );
 
-    // Saving leaves the removed parts out, and the saved state is stable.
+    // Saving leaves the old parts out, and the saved state is stable.
     let saved = persist::save_with_revision(&ws, revision);
     for gone in [
         "\"real\":",
@@ -316,9 +297,7 @@ fn a_state_with_the_simulated_agent_still_loads() {
     assert_eq!(persist::save_with_revision(&again, revision), saved);
 }
 
-/// Entries and comments that carry German text instead of a message and a timestamp still load
-/// and show their text; me and nobody read as the roles; saving writes the roles, and the new
-/// fields (`reason_msg`, `updated_ms`, `created_ms`) stay out until a sync fills them.
+/// Old state with German text stored as data: it loads and shows that text; saving writes the roles.
 #[test]
 fn a_state_with_german_strings_in_the_data_still_loads() {
     let text = read("legacy_german_strings_workspace.json");
@@ -413,11 +392,8 @@ fn new_entries_store_a_message_and_timestamps_not_text() {
     assert_eq!(again, ws);
 }
 
-/// A state saved while every message also carried its German plain text (log entries, messages of
-/// a run, the note and the comments of an entry, the hints of the sync) and while the run kept
-/// its reason, summary and refusals as plain text. It must load, show what it stored (the message
-/// in the reader's language, the plain text where there is no message or its code is gone) and
-/// save again without losing a text.
+/// Old state with a German plain text next to each message: it loads, shows the messages,
+/// and saving keeps every text.
 #[test]
 fn a_state_with_plain_texts_next_to_its_messages_still_loads() {
     let text = read("legacy_plain_text_twins_workspace.json");
@@ -601,8 +577,7 @@ fn the_busy_legacy_snapshot_really_uses_the_old_name() {
     assert!(!read("wire_busy_workspace.json").contains("\"actor\":\"Du\""));
 }
 
-/// A problem that was stored as a plain text still loads, as a raw message that reads the same in
-/// every language; a stored message keeps its code and renders in the chosen language.
+/// Old state with a problem stored as plain text: it loads as a raw message, the same in every language.
 #[test]
 fn a_stored_problem_loads_as_text_or_as_message() {
     let state: SyncState = serde_json::from_str(&read("legacy_sync_state_problem.json"))

@@ -116,7 +116,7 @@ fn the_choice_decides_which_credentials_count() {
     assert_eq!(kind(Some(OAuth), true, Valid), AuthKind::OAuth);
     assert_eq!(kind(Some(OAuth), true, Missing), AuthKind::None);
     assert_eq!(kind(Some(OAuth), true, Expired), AuthKind::None);
-    // No choice: the older rule.
+    // No choice: a valid sign-in wins, an expired one falls back to the token.
     assert_eq!(kind(None, true, Valid), AuthKind::OAuth);
     assert_eq!(kind(None, true, Expired), AuthKind::Token);
     assert_eq!(kind(None, false, Missing), AuthKind::None);
