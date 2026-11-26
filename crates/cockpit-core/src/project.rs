@@ -1,7 +1,5 @@
 //! GitHub Projects (v2) as a ticket source: what a project item is, how its Status field maps
 //! onto the ticket status, how keys like `acme/app#123` are written and found in texts.
-//!
-//! Everything here is pure – no network, no clock.
 
 use serde::{Deserialize, Serialize};
 

@@ -1,6 +1,6 @@
 //! "Viewed": which files of a pull request the person has looked at. A file counts as viewed
 //! only as long as its diff is the one that was looked at – a new push makes it open again.
-//! The browser keeps this per pull request; nothing of it goes to GitHub.
+//! The browser keeps this per pull request.
 
 use std::collections::BTreeMap;
 

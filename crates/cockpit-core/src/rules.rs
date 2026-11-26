@@ -1,7 +1,7 @@
 //! Rules per repository: allowed and forbidden paths, required tests, instructions to the
 //! agent and whether the plan has to be approved.
 //!
-//! Everything here is pure and without a file system: [`glob_match`] compares a pattern with a path,
+//! [`glob_match`] compares a pattern with a path,
 //! [`RepoRules::violations`] checks a list of files against the rules.
 //!
 //! **Patterns:** `*` stands for any characters within a folder name, `?` for exactly one,

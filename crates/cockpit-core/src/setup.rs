@@ -1,5 +1,4 @@
-//! The setup assistant: order of the steps, reading and checking inputs, and the summary in plain
-//! text. Pure logic without UI and network.
+//! The setup assistant: order of the steps, reading and checking inputs, and the summary in plain text.
 
 use cockpit_i18n::{Lang, Msg, msg};
 

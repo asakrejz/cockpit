@@ -6,8 +6,6 @@
 //! * [`AgentLimits`] are the adjustable limits; [`StopReason`] says which one stopped a run.
 //! * [`Charge`] is a booking in the workspace's ledger. „Today“ and „this
 //!   month“ are derived from it. Day and month count in UTC – the logic knows no time zone.
-//!
-//! Everything here is pure: the time comes from outside.
 
 use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};

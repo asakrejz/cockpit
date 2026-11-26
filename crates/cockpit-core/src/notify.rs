@@ -1,7 +1,5 @@
 //! Notifications: which events are worth mentioning, and where do they go?
 //!
-//! Everything here is pure (no browser, no clock, no network):
-//!
 //! * [`events`] compares the workspace before and after an action and derives the
 //!   [`Event`]s: review request, mention, agent waiting, agent done, checks red,
 //!   ticket assigned.

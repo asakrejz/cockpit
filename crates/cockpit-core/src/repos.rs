@@ -1,6 +1,4 @@
 //! Repos the agent may work in, and the default among them.
-//!
-//! Everything here is pure.
 
 use serde::{Deserialize, Serialize};
 

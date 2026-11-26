@@ -216,7 +216,7 @@ pub struct Item {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updated_ms: Option<u64>,
     /// Where the entry lives at its service (`https://acme.atlassian.net/browse/BAU-142`,
-    /// the pull request page). `None` = not known, then the UI shows no link.
+    /// the pull request page). `None` = not known.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
     /// Jira only: fields and attachments beyond the description. `None` = not loaded.

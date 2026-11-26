@@ -1,7 +1,6 @@
 //! Sync with Jira and GitHub: what the services report flows into the workspace.
 //!
-//! Everything here is pure – no network, no clock. [`merge`] combines the state of the
-//! services ([`Remote`]) with the local workspace:
+//! [`merge`] combines the state of the services ([`Remote`]) with the local workspace:
 //!
 //! * **New** entries are added (at the front), **removed** ones disappear.
 //! * **Local state stays**: read/done, snoozes, agent runs and

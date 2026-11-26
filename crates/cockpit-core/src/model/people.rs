@@ -135,8 +135,8 @@ pub struct Comment {
     /// When the comment was written (milliseconds since 1970), `None` = unknown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_ms: Option<u64>,
-    /// The words as written; for a comment of the system (`text_msg`) empty or the plain text of
-    /// a state saved earlier.
+    /// The words as written; for a comment of the system (`text_msg`) empty, or the plain text of
+    /// the old form.
     #[serde(default)]
     pub text: String,
     /// What is shown instead of the words: a comment of the system as code and parameters (the
