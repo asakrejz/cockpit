@@ -16,9 +16,9 @@ pub enum Source {
     Jira,
     /// GitHub pull requests (the review inbox).
     GitHub,
-    /// Issues and draft issues of GitHub Projects (v2), used as tickets. A source of its own
-    /// because the sync, the removal of vanished entries and the sync state are per source: the
-    /// pull request sync must never remove an issue, and the project sync never a pull request.
+    /// Issues and draft issues of GitHub Projects (v2), used as tickets. A source of its own:
+    /// the sync state and the removal of vanished entries are per source, so the pull request sync
+    /// never removes an issue and the project sync never a pull request.
     GitHubProject,
 }
 
@@ -57,7 +57,7 @@ pub enum Filter {
 }
 
 impl Filter {
-    /// The IDs, in display order; the interface words them.
+    /// The IDs, in display order.
     pub const IDS: &'static [&'static str] = &["all", "mine", "team", "snoozed"];
 
     pub fn id(self) -> &'static str {
@@ -96,7 +96,7 @@ pub enum SourceFilter {
 }
 
 impl SourceFilter {
-    /// The IDs, in display order; the interface words them.
+    /// The IDs, in display order.
     pub const IDS: &'static [&'static str] = &["all", "jira", "github", "project"];
 
     pub fn id(self) -> &'static str {
@@ -144,21 +144,21 @@ pub struct Item {
     pub title: String,
     #[serde(default)]
     pub description: String,
-    /// The description as formatted Jira text (ADF); `None` = only [`Item::description`]
-    /// exists (older data, pull requests, an edited description).
+    /// The description as formatted Jira text (ADF); `None` = only [`Item::description`] exists
+    /// (pull requests, an edited description).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description_rich: Option<crate::adf::Doc>,
     pub reason: ReasonKind,
-    /// The reason line as code and parameters; the interface renders it in its language.
-    /// `None` = only [`Item::reason_text`] (older data), until the next sync replaces the entry.
+    /// The reason line as code and parameters. `None` = only [`Item::reason_text`] is set; that old
+    /// plain-text form is read as is.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reason_msg: Option<cockpit_i18n::Msg>,
-    /// The reason line of older data as plain German text; new entries carry
-    /// [`Item::reason_msg`] and leave this empty.
+    /// The reason line as plain text, the old form that is still read. New entries leave it empty
+    /// and use [`Item::reason_msg`].
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub reason_text: String,
-    /// The time of older data as plain German text (such as "five minutes ago"); new entries carry
-    /// [`Item::updated_ms`] and leave this empty.
+    /// The time as plain text, the old form that is still read (such as "five minutes ago").
+    /// New entries leave it empty and use [`Item::updated_ms`].
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub time: String,
     pub scope: Scope,
@@ -173,12 +173,11 @@ pub struct Item {
     pub branch: Option<String>,
     #[serde(default)]
     pub pr: Option<PrRef>,
-    /// The note of the agent as plain German text; only a state saved earlier holds it, new
-    /// notes are in [`Item::agent_note_msg`].
+    /// The note of the agent as plain text, the old form that is still read. New notes are in
+    /// [`Item::agent_note_msg`].
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_note: Option<String>,
-    /// Note from the agent as code and parameters (e.g. "Implemented by the agent · tests
-    /// passed"); the UI renders it in its language.
+    /// Note from the agent as code and parameters (e.g. "Implemented by the agent · tests passed").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_note_msg: Option<cockpit_i18n::Msg>,
     #[serde(default)]
@@ -208,21 +207,19 @@ pub struct Item {
     /// Jira only: I watch the ticket.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub watching: bool,
-    /// Jira only: the team of the ticket (Atlassian „Team“ field). `None` = no team (or not
-    /// loaded: old data, no such field on the site).
+    /// Jira only: the team of the ticket (Atlassian „Team“ field). `None` = no team, or not loaded
+    /// (no such field on the site).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub team: Option<TeamRef>,
     /// Last activity (milliseconds since 1970), `None` = unknown. The service's update time; an
-    /// action of Cockpit that touches the entry moves it to that moment. The interface shows it
-    /// as "5 minutes ago".
+    /// action of Cockpit that touches the entry moves it to that moment.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updated_ms: Option<u64>,
     /// Where the entry lives at its service (`https://acme.atlassian.net/browse/BAU-142`,
     /// the pull request page). `None` = not known, then the UI shows no link.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub url: Option<String>,
-    /// Jira only: fields and attachments beyond the description. `None` = not loaded (older
-    /// data, demo without extras).
+    /// Jira only: fields and attachments beyond the description. `None` = not loaded.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub details: Option<crate::details::Details>,
     /// GitHub Projects only: where the ticket sits in its project (IDs for writing, the values
@@ -298,7 +295,7 @@ impl Item {
         self.reason_text.clear();
     }
 
-    /// The reason line of the row: the message, for older data its stored text.
+    /// The reason line: the message, or for an older entry its stored text.
     pub fn reason_line(&self) -> cockpit_i18n::Msg {
         self.reason_msg
             .clone()
@@ -311,8 +308,7 @@ impl Item {
         self.agent_note_msg = Some(msg);
     }
 
-    /// The note of the agent in `lang`: the message, for a note of older data (or a code that
-    /// no longer exists) its stored text.
+    /// The note in `lang`: the message, or for a note of older data its stored text.
     pub fn agent_note_in(&self, lang: cockpit_i18n::Lang) -> Option<String> {
         let stored = self.agent_note.as_deref().unwrap_or_default();
         match &self.agent_note_msg {
@@ -327,9 +323,8 @@ impl Item {
         self.agent_note_msg = None;
     }
 
-    /// Where the entry lives at its service, for the link next to its number: the address the
-    /// sync stored, for a pull request of a known repo otherwise its page at github.com.
-    /// Only `http(s)` addresses; `None` = no link.
+    /// Link to the entry at its service: the address the sync stored, for a pull request of a known
+    /// repo otherwise its github.com page. Only `http(s)` addresses; `None` = no link.
     pub fn web_url(&self) -> Option<String> {
         if let Some(u) = self.url.as_deref().and_then(crate::adf::safe_url) {
             return Some(u.to_string());

@@ -3,15 +3,14 @@
 use super::*;
 
 /// How a plain name field (reporter, co-assignees, `@mention` in a comment text) marks me. It is
-/// a stored marker, not a text for people: the interface shows [`Person::me`] through the catalog.
+/// a stored marker, not a display text; [`Person::name_in`] gives the words.
 pub const ME_MARK: &str = "Du";
 
 /// The initials of nobody (an unassigned ticket). A sign, not a word.
 const NOBODY_INITIALS: &str = "–";
 
-/// A person as the service names them, or one of two roles the interface words itself: me and
-/// nobody. For a role the name is not stored; [`Person::name_in`] and [`Person::initials_in`]
-/// give the words in the language of the interface.
+/// A person as the service names them, or one of two roles: me and nobody. For a role the name
+/// is not stored; [`Person::name_in`] and [`Person::initials_in`] give its words in a language.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(from = "PersonWire")]
 pub struct Person {
@@ -25,8 +24,8 @@ pub struct Person {
     pub nobody: bool,
 }
 
-/// What is stored of a person. Older data holds me as the name `Du` and nobody with the
-/// initials `–` and a German name; both read as the roles.
+/// What is stored of a person. Older data with the name `Du` for me or the initials `–` for
+/// nobody reads as the roles.
 #[derive(Deserialize)]
 struct PersonWire {
     #[serde(default)]
@@ -129,12 +128,11 @@ impl Person {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Comment {
     pub author: Person,
-    /// The time of older data as plain German text (such as "five minutes ago"); new comments carry
-    /// [`Comment::created_ms`] and leave this empty.
+    /// The time as plain text, the old form that is still read (such as "five minutes ago"). New
+    /// comments leave it empty and use [`Comment::created_ms`].
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub time: String,
-    /// When the comment was written (milliseconds since 1970), `None` = unknown. The interface
-    /// shows it as "5 minutes ago".
+    /// When the comment was written (milliseconds since 1970), `None` = unknown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub created_ms: Option<u64>,
     /// The words as written; for a comment of the system (`text_msg`) empty or the plain text of
@@ -154,7 +152,7 @@ pub struct Comment {
 }
 
 impl Comment {
-    /// A comment with the time as plain text (older data, fixtures).
+    /// A comment with the time as plain text, for the old form and for fixtures.
     pub fn new(author: Person, time: &str, text: &str) -> Self {
         Self {
             author,
@@ -167,8 +165,7 @@ impl Comment {
         }
     }
 
-    /// The text in `lang`: the message, or the words as written (also when the code of the message
-    /// no longer exists).
+    /// The text in `lang`: the message, or the words as written when the message code is unknown.
     pub fn text_in(&self, lang: cockpit_i18n::Lang) -> String {
         self.text_msg
             .as_ref()

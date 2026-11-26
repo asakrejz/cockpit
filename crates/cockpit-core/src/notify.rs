@@ -9,8 +9,6 @@
 //!   The settings live in the [`Workspace`](crate::Workspace) and change only through
 //!   actions.
 //! * [`deliveries`] says which event is reported over which channel.
-//!
-//! The notification is sent by the app itself, in the browser.
 
 use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};
