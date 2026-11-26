@@ -42,7 +42,6 @@ its "✕" removes only that filter.
 | ID | Label | Choices (default first) |
 |----|-------|-------------------------|
 | `source` | Source | All · Jira · GitHub (covers pull requests and GitHub Projects tickets) |
-| `ownership` | Whose | All (also colleagues' pull requests and tickets, without attention) · Mine (author, requested reviewer or assignee; the attention list) |
 | `sprint` | Sprint (tickets only) | Current sprint · All open · Recently updated (14 days) · Backlog (no sprint) |
 | `project` | Ticket project | all · each Jira project (a pull request counts to the project of the ticket key in its branch name or title) · No ticket (pull requests without a key) |
 | `repo` | Repo | all · each repo (pull requests only) |
@@ -52,9 +51,10 @@ its "✕" removes only that filter.
 
 "Current sprint" behaves like "All open" as long as no ticket carries sprint data (a project without sprints; the source
 state then says so). Pull requests of colleagues never raise attention or notifications: only pull requests with a relation
-to you (author, requested reviewer, assignee) can. They appear in the inbox only with "All", and on the Pull requests page
-(`#/review`) the "Whose" selection (default "Mine") switches between your pull requests and all open pull requests of the
-watched repos (`[github] repos`; the others show the ones you are involved in).
+to you (author, requested reviewer, assignee) can. In the inbox they are listed in the tabs "All" and "Team"; the tab "Me"
+holds only your own entries. On the Pull requests page (`#/review`) the "Whose" selection (default "Mine") switches between
+your pull requests and all open pull requests of the watched repos (`[github] repos`; the others show the ones you are
+involved in).
 
 The Jira project and sprint choice also decides what the sync fetches (queries: [configuration.md](configuration.md#jira)).
 

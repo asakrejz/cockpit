@@ -252,8 +252,8 @@ banner of a source with a problem and in the Sync card of the last setup step) a
   `active|closed|future`, `start`, `end`) and `Item.updated_ms` are optional on the wire; the status category already
   gives `TicketStatus`. Entries the sync no longer delivers (sprint ended) are removed by the normal merge; a failed
   source keeps its data.
-- Inbox filters are data (`cockpit_core::filters::FILTERS`); `Workspace::inbox` applies ownership, `InboxFilter::matches`
-  (`filters/inbox.rs`) the rest. Ownership "All" is the only way a quiet entry reaches the inbox.
+- Inbox filters are data (`cockpit_core::filters::FILTERS`); `Workspace::inbox` takes the entries of the tab (every tab
+  but "Snoozed" includes quiet ones), `InboxFilter::matches` (`filters/inbox.rs`) narrows them.
 - Per source there is a state (`/api/health` › `sync`, in the app in the "Sync" card): `ok`, `unauthorized` (401, token
   expired), `no_permission` (403), `quota` (rate limit: the source pauses until the time from
   `Retry-After`/`X-RateLimit-Reset`), `offline`, `error`; plus `off` (not set up or no key) and `waiting` (no fetch
