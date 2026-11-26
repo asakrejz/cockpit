@@ -124,7 +124,7 @@ impl StopReason {
         }
     }
 
-    /// Increases the UI offers: cents for budgets, minutes for the time limit.
+    /// Offered increases: cents for budgets, minutes for the time limit.
     pub fn raise_options(self) -> [u64; 2] {
         match self {
             StopReason::RunBudget | StopReason::MonthBudget => [100, 500],

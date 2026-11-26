@@ -1,4 +1,4 @@
-//! What changed from outside, as the log shows it.
+//! What changed from outside.
 
 use cockpit_i18n::{Msg, msg};
 

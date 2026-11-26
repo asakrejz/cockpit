@@ -42,7 +42,7 @@ pub enum AgentError {
     ParallelLimit(u32),
 }
 
-/// A pull request linked to a ticket, as the ticket detail lists it.
+/// A pull request linked to a ticket.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LinkedPr {
     pub pr: PrRef,
@@ -140,7 +140,7 @@ pub struct Workspace {
     /// The chosen inbox filters (see [`crate::filters`]); change by `Action::SetInboxFilter`.
     #[serde(default)]
     pub inbox_filter: InboxFilter,
-    /// The chosen filter of the Reviews tab (see [`crate::review_filter`]); change by
+    /// The chosen review filter (see [`crate::review_filter`]); change by
     /// `Action::SetReviewFilter`.
     #[serde(
         default,

@@ -92,7 +92,7 @@ impl Workspace {
     }
 
     /// The filters that are not at their start value, plus the chosen Jira project, in display
-    /// order. Their number is the badge of the filter button.
+    /// order.
     pub fn active_filters(&self) -> Vec<ActiveFilter> {
         let mut out: Vec<ActiveFilter> = self
             .jira_project

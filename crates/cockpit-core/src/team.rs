@@ -18,7 +18,7 @@ pub enum LoadLevel {
     Full,
 }
 
-/// Where an entry comes from, for the overview: Jira, or GitHub (pull requests and GitHub
+/// Where an entry comes from: Jira, or GitHub (pull requests and GitHub
 /// Projects tickets).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Side {

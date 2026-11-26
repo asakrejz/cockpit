@@ -106,7 +106,7 @@ pub fn projects_read(text: &str) -> Vec<String> {
     from
 }
 
-/// The agent's repos from the rows of the assistant: `(repo, base branch, branch pattern)` per
+/// The agent's repos from the input rows: `(repo, base branch, branch pattern)` per
 /// row plus the default. Empty rows are skipped. Rejects (with a plain-text reason) a repo that
 /// is not `owner/name`, one that is listed twice, a base branch with odd characters, a bad
 /// branch pattern and a default outside the list.
