@@ -201,7 +201,7 @@ banner of a source with a problem and in the Sync card of the last setup step) a
   in `SyncState::projects`. Auto-link, the "Development" section and the team filter share one rule for what a
   pull request names (`cockpit_core::link::PrTexts::ticket_keys`, described under *Status follows the pull request*):
   `#123`, `owner/repo#123` and `Fixes #123`; the timeline connects pull requests that never name the issue.
-- **Writing to GitHub Projects** (`outbound::plan_project`, `github::projects::write`): each action on a ticket of the source
+- **Writing to GitHub Projects** (`plan_project` in `outbound/plan.rs`, `github::projects::write`): each action on a ticket of the source
   becomes one call, and only after the rules of the workspace accepted it (as on a copy): `SetStatus` → the option of the
   matching column (`option_for`) through `updateProjectV2ItemFieldValue`; `SetPriority` → the option of the field `Priority`;
   `SetProjectField` → the same mutation with `singleSelectOptionId`, `iterationId`, `text`, `number` or `date`, or
@@ -286,6 +286,15 @@ a call needs `Actor::User`, merging included: `Action::required_actor` names the
 
 All other actions, and every entry that came from a seed, stay local. The action `SyncRemote` may only be triggered by
 the backend; `POST /api/actions` rejects it.
+
+**How a call goes out.** `outbound::plan_call` turns an action into an `Outbound` (pure, no network). `Services::execute`
+is the only way out: `Outbound::route()` names the service (`Jira`, `GitHub`, or `Projects`, which uses the client of the
+project source and otherwise the GitHub client) and the `execute` of that client sends the call. Every `execute` names every
+`Outbound` variant without a wildcard arm, so a new call does not compile until each client says how it is sent. A call
+of one request is built by a `*_request` function in `outbound/request.rs` (method, path and body as `Request`). A call of
+several requests is a flow of the client (Jira: `GET …/transitions`, then the first transition in Jira's order whose
+target is the wanted status, then `POST`; branch: default branch, its commit, then the ref; re-run: find the check, then
+`POST`); the pure parts of it (choosing, bodies) are in `outbound/request.rs` too.
 
 **Formatted Jira text.** Jira (REST v3) delivers descriptions and comments as ADF. The sync does not flatten it: `cockpit_core::adf::parse`
 turns it into the typed model `adf::Doc` (paragraphs, headings 1–6, nested lists, code blocks with language, quotes, rules, tables, panels,
@@ -565,6 +574,16 @@ scripts/        see below
 docs/           these documents
 Containerfile   the Cockpit image; compose.yaml and compose.agent.yaml start it
 ```
+
+`crates/integrations/src`: a file `foo.rs` keeps the core types and re-exports the topic modules of `foo/`.
+
+| Module | Content |
+|--------|---------|
+| `outbound` | `Outbound`, `Targets`, `Route`, `Request`; `plan.rs` (action → call), `request.rs` (the requests of the calls), `review.rs` (the review as GitHub takes it) |
+| `sync` | `Services` (the configured sources, `execute`, `fetch`); `load_github.rs`, `load_jira.rs`, `load_projects.rs` (what one sync loads per source) |
+| `github` | `client.rs` (connection and `execute`) with `pulls.rs`, `checks.rs`, `repos.rs`, `types.rs`; `map`, `dto`, `followup`, `panel`, `patch`; `projects/` (GraphQL: `client.rs` with `read.rs`, `write.rs`, `map.rs` with `map/heavy.rs`, `queries.rs`, `dto.rs`) |
+| `jira` | `client.rs` (connection and `execute`) with `read.rs`; `jql.rs` (the queries), `map`, `details`, `adf`, `dto` |
+| `oauth`, `endpoint` | sign-in flows of GitHub and Atlassian; connection test and model list of the model endpoint |
 
 Scripts in `scripts/`:
 

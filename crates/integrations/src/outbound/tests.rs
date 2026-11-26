@@ -1,8 +1,11 @@
 use super::*;
+use crate::jira::dto::Transition;
 use cockpit_core::{
-    Actor, Checks, Comment, DiffLine, FileDiff, Item, Kind, Loaded, Outcome, Person, PrLink, PrRef,
-    ReasonKind, Remote, Scope, Source, SourceData, Suggestion,
+    Action, Actor, Checks, Comment, Decision, DiffLine, FileDiff, Item, Kind, LineKind, Loaded,
+    MergeMethod, Outcome, Person, PrLink, PrRef, ReasonKind, Remote, Review, Scope, Source,
+    SourceData, Suggestion, TicketStatus, Verdict, Workspace,
 };
+use serde_json::json;
 
 const T: u64 = 1_800_000_000_000;
 
@@ -196,7 +199,10 @@ fn reply_goes_to_the_right_service_per_source() {
             text: "Hi".into()
         }))
     );
-    let request = a.unwrap().unwrap().request().unwrap();
+    let Some(Outbound::GitHubComment { repo, number, text }) = a.unwrap() else {
+        panic!("expected a comment");
+    };
+    let request = github_comment_request(&repo, number, &text);
     assert_eq!(
         (request.method, request.path.as_str(), request.body),
         (
@@ -205,7 +211,7 @@ fn reply_goes_to_the_right_service_per_source() {
             Some(json!({"body": "Hi"}))
         )
     );
-    let jira = plan(
+    let Some(Outbound::JiraComment { key, text }) = plan(
         &w,
         Action::Reply {
             item: "abc-1".into(),
@@ -213,10 +219,10 @@ fn reply_goes_to_the_right_service_per_source() {
         },
         &all(),
     )
-    .unwrap()
-    .unwrap()
-    .request()
-    .unwrap();
+    .unwrap() else {
+        panic!("expected a Jira comment");
+    };
+    let jira = jira_comment_request(&key, &text);
     assert_eq!(jira.path, "/rest/api/3/issue/ABC-1/comment");
     assert_eq!(
         jira.body.unwrap()["body"]["content"]
@@ -316,7 +322,16 @@ fn status_branch_merge_and_check() {
         },
         &all(),
     );
-    let req = m.unwrap().unwrap().request().unwrap();
+    let Some(Outbound::GitHubMerge {
+        repo,
+        number,
+        method,
+        sha,
+    }) = m.unwrap()
+    else {
+        panic!("expected a merge");
+    };
+    let req = merge_request(&repo, number, method, &sha);
     assert_eq!(
         (req.method, req.path.as_str()),
         ("PUT", "/repos/a/x/pulls/7/merge")
@@ -559,3 +574,4 @@ fn a_branch_without_a_default_repo_asks_the_user_to_set_one() {
 }
 
 mod actor_rule;
+mod routes;
