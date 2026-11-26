@@ -98,8 +98,7 @@ impl Workspace {
         }
     }
 
-    /// A follow-up job that no longer runs leaves no run behind. (For the ticket
-    /// the ready run stays, as before.)
+    /// A follow-up job that no longer runs leaves no run behind; the ready run of the ticket stays.
     pub(super) fn drop_idle_followups(&mut self) {
         // A failed review run stays, so that the review page can say why it ended.
         self.runs.retain(|r| {

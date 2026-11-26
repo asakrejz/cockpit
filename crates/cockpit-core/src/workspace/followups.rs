@@ -77,9 +77,8 @@ impl Workspace {
         key
     }
 
-    /// Commissions the agent to implement the review comments of the pull request. The
-    /// backend reads the threads from GitHub when the run starts. The agent only continues on
-    /// branches that the repo's pattern names (`claude/…` by default). Returns the key of the run (`threads-91`).
+    /// Commissions the agent to implement the review comments of the pull request. The agent only
+    /// continues on branches that the repo's pattern names (`claude/…` by default). Returns the key of the run (`threads-91`).
     pub fn address_review_threads(
         &mut self,
         review: impl Into<PrKey>,

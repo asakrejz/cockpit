@@ -126,8 +126,8 @@ pub struct Workspace {
     /// Sync with Jira and GitHub: state per source, where the entries come from.
     #[serde(default)]
     pub sync: SyncState,
-    /// The chosen Jira project (key, e.g. `BAU`). The inbox then shows only its
-    /// tickets, and the sync fetches all open tickets of the project. `None` = all.
+    /// The chosen Jira project (key, e.g. `BAU`). The sync fetches all open tickets of the project.
+    /// `None` = all.
     #[serde(default)]
     pub jira_project: Option<String>,
     /// „Mein Team“: the Jira teams whose tickets the lists show (see [`crate::team_filter`]);
@@ -271,9 +271,8 @@ impl Workspace {
             .is_none_or(Item::is_mine)
     }
 
-    /// The reviews for the page "Pull requests": with `ownership` "Mine" only those that
-    /// concern me, with „Alle“ all open pull requests of the repos. `keep` stays in the list in
-    /// any case (the review that is open right now).
+    /// The reviews for the list: with `ownership` "Mine" only those that concern me, with „Alle“ all open
+    /// pull requests of the repos. `keep` stays in the list in any case (the review that is open right now).
     pub fn reviews_for(&self, ownership: Ownership, keep: Option<&PrKey>) -> Vec<&Review> {
         self.reviews
             .iter()

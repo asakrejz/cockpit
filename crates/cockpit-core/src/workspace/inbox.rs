@@ -96,9 +96,8 @@ impl Workspace {
             .count()
     }
 
-    /// The badge of the merged "Tasks" entry: what "Me" showed plus what the former
-    /// "Inbox" (all attention) showed, every entry counted once. Since "Ich" is a subset of
-    /// "Alle", this is the unread number of the union of both lists.
+    /// The badge of the "Tasks" entry: the unread entries that need attention, every entry counted once.
+    /// Since "Ich" is a subset of "Alle", this is the unread number of the union of both lists.
     pub fn tasks_unread(&self, now_ms: u64) -> usize {
         let mut ids: Vec<&str> = [Filter::Mine, Filter::All]
             .into_iter()
