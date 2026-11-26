@@ -1,10 +1,7 @@
-//! Saving and loading the [`Workspace`] as text (JSON) – without browser and without UI.
-//!
-//! The backend stores the text in SQLite; this only describes what it looks like and how
-//! it is read back safely:
+//! Saving and loading the [`Workspace`] as text (JSON).
 //!
 //! * The text carries a **version number** ([`VERSION`]). Whoever changes the shape of the data
-//!   incompatibly raises it – the server then keeps the old state aside and starts over.
+//!   incompatibly raises it; text with another version is rejected as [`LoadError::Version`].
 //! * **New fields** in the types are uncritical: old data without the field gets
 //!   the default value (`#[serde(default)]`), unknown fields are ignored. New
 //!   fields therefore get this attribute, as long as their type implements `Default`.

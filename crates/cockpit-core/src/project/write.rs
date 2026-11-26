@@ -40,8 +40,7 @@ impl FieldInput {
     }
 }
 
-/// What GitHub answered when an issue was created or a draft was converted: the backend fills it
-/// in, a value sent by the browser is dropped.
+/// What GitHub answered when an issue was created or a draft was converted.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct CreatedIssue {
     /// `owner/name`
