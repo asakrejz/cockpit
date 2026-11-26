@@ -10,7 +10,6 @@ use super::context::AgentCtx;
 /// Usage of this run and totals over all runs.
 pub(super) fn usage(ctx: AgentCtx) -> Option<impl IntoView> {
     let AgentCtx { store, run, .. } = ctx;
-    // Usage of this run and totals over all runs.
     let run = run.get().filter(|r| !r.is_idle())?;
     let usage = run.usage();
     let (limits, today, month) = store.ws.with(|w| {

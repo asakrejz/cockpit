@@ -1,6 +1,5 @@
 //! „Mein Team“: the button with the chosen teams, a hint while none is chosen, and the dialog
-//! to choose them. The choice is `Action::SetTeamChoice` (display only – nothing is written to
-//! Jira); the rules that apply it are in `cockpit_core::team_filter`.
+//! to choose them. The choice is `Action::SetTeamChoice`.
 
 use cockpit_core::{Action, TeamChoice, TeamRef};
 use feature_ui::*;

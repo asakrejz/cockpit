@@ -41,7 +41,7 @@ pub(super) fn project_options(store: Store) -> Signal<Vec<(String, String)>> {
 /// the switch mirrors it.
 pub(super) fn rule_switch(store: Store, rule: Rule) -> impl IntoView {
     let on = RwSignal::new(store.ws.with_untracked(|w| w.rules.enabled(rule)));
-    // Workspace → switch (e.g. after resetting the demo).
+    // Workspace → switch.
     Effect::new(move |_| {
         let enabled = store.ws.with(|w| w.rules.enabled(rule));
         if on.get_untracked() != enabled {

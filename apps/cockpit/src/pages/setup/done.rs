@@ -12,8 +12,8 @@ use crate::server;
 use crate::sync_status::SyncStatus;
 use crate::view::setup_tone;
 
-/// {t!(SetupDoneRenewToken)} and {t!(SetupDoneDisconnect)} for Jira. Disconnecting deletes the token in the .env file (with
-/// OAuth: revokes the sign-in); the settings stay, the way back is the step "Jira".
+/// {t!(SetupDoneRenewToken)} and {t!(SetupDoneDisconnect)} for Jira. Disconnecting deletes the token
+/// (with OAuth: revokes the sign-in); the settings stay, the way back is the step "Jira".
 #[component]
 fn JiraActions(ctx: Context, to_step: Callback<Step>) -> impl IntoView {
     let kind = move || {

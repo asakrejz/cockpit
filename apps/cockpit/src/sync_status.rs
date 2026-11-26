@@ -1,6 +1,5 @@
 //! State of the sync with Jira and GitHub per source, plus "Sync now".
-//! The data is in the workspace (`sync`), the sync runs in the
-//! backend. No key is here.
+//! The data is in the workspace (`sync`), the sync runs in the backend.
 
 use cockpit_core::SourceState;
 use feature_ui::*;

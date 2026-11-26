@@ -1,6 +1,6 @@
 //! Step „GitHub Projects“: which projects the tickets are read from (shown when the tickets come
 //! from GitHub Projects; the choice of the source is the step „Tickets“). The list comes
-//! from `GET /api/github/projects` (read only); nothing is written to GitHub here.
+//! from `GET /api/github/projects` (read only).
 
 use cockpit_core::api::{ConfigChange, GitHubProjectsInput, ProjectsResponse};
 use cockpit_core::{ProjectOrigin, ProjectRef, Right, TokenKind};

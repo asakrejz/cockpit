@@ -1,6 +1,5 @@
 //! What the app shows before the first state of the server has arrived: placeholder rows
 //! while connecting, a plain error with a retry button when the server cannot be reached.
-//! Afterwards the pages take over and a banner (`banner.rs`) reports later interruptions.
 
 use cockpit_core::notice::{
     browser_offline_text, browser_offline_title, server_unreachable_text, server_unreachable_title,

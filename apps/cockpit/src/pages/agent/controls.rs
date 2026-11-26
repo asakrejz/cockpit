@@ -124,7 +124,6 @@ pub(super) fn blocked_hint(ctx: AgentCtx) -> Option<impl IntoView> {
 /// Why the last run ended without a result (error, timeout, restart).
 pub(super) fn ended_banner(ctx: AgentCtx) -> Option<impl IntoView> {
     let AgentCtx { run, .. } = ctx;
-    // Why the last run ended without a result (error, timeout, restart).
     run.get()
         .filter(|r| r.is_idle())
         .and_then(|r| r.ended)

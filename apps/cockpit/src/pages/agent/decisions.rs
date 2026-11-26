@@ -11,7 +11,6 @@ pub(super) fn stopped_card(ctx: AgentCtx) -> Option<impl IntoView> {
     let AgentCtx { store, run, .. } = ctx;
     let cancel = move |_| ctx.cancel();
     let raise = move |extra: u64| ctx.raise(extra);
-    // A limit has halted the run: raise it and resume, or cancel.
     let run = run.get().filter(|r| r.is_stopped())?;
     let reason = run.stop_reason()?;
     let (limits, month) = store

@@ -1,6 +1,5 @@
 //! Notes about the server and the sources: connecting, not reachable, browser offline, a source
 //! with a problem (token rejected, rate limit, outage), or the server has rejected an action.
-//! All wording comes from `cockpit_core::notice`.
 
 use cockpit_core::notice::{
     browser_offline_text, browser_offline_title, server_unreachable_text, server_unreachable_title,

@@ -1,5 +1,5 @@
 //! The agent: pull request preview, endpoint and container checks, models, image build and
-//! repo suggestions (`/api/agent/…`). Cleaning up is in `cleanup`.
+//! repo suggestions (`/api/agent/…`).
 
 use cockpit_core::api::{ContainerCheck, EndpointCheck, ImageBuild, ModelList, RepoSuggestions};
 use feature_ui::t;

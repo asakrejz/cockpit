@@ -1,6 +1,6 @@
 //! Shared state of the app. Lies in the tree as context; `Store` is `Copy`,
 //! so it can be used freely in closures. The state belongs to the local server; the browser
-//! shows it, sends actions and listens for changes. Nothing of it is in the browser.
+//! shows it, sends actions and listens for changes.
 
 use std::{
     sync::atomic::{AtomicU32, Ordering},

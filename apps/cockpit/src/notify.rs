@@ -1,7 +1,6 @@
 //! Notifications in the browser: permission, system message and time of day.
 //!
-//! What is reported and when is decided by `cockpit_core::notify`. Only what the
-//! browser needs is here (Notification API, visibility of the tab, local time). The
+//! Only what the browser needs is here: Notification API, tab visibility and local time.
 //! permission is never asked for on its own, only on a button press.
 
 use cockpit_core::NotifyEvent;

@@ -1,5 +1,5 @@
 //! Output of a long task (the image build): collapsed to the last lines, an arrow at the top right
-//! opens the complete output. Which lines are shown is decided by `cockpit_core::setup::log_*`.
+//! opens the complete output.
 
 use cockpit_core::setup::{log_hidden, log_visible};
 use feature_ui::*;

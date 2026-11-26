@@ -1,5 +1,5 @@
 //! On the first start, when nothing is set up yet, Cockpit leads to the setup assistant.
-//! Only the fact that it was shown once is remembered (no key, no credentials).
+//! Only the fact that it was shown once is remembered.
 
 use cockpit_core::setup::nothing_set_up;
 use leptos::prelude::*;
@@ -10,7 +10,7 @@ use crate::server;
 use crate::store::{Store, navigate};
 
 const MARKER: &str = "cockpit-setup-shown";
-/// The older key (kept readable so the assistant does not appear a second time).
+/// Legacy key, still read so the assistant does not appear a second time.
 const OLD_MARKER: &str = "cockpit-einrichtung-gezeigt";
 
 fn already_shown() -> bool {
