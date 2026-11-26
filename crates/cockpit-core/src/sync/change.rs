@@ -4,7 +4,7 @@ use cockpit_i18n::{Msg, msg};
 
 use super::*;
 
-/// What changed from outside during the sync. The log entries arise from it.
+/// What changed from outside during the sync.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Change {
     ItemAdded {

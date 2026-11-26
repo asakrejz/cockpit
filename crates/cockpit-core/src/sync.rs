@@ -1,16 +1,14 @@
 //! Sync with Jira and GitHub: what the services report flows into the workspace.
 //!
-//! Everything here is pure – no network, no clock. The backend fetches the data
-//! (`cockpit-integrations`), packs it into a [`Remote`] and applies it as the action
-//! [`Action::SyncRemote`](crate::Action::SyncRemote). [`merge`] combines both:
+//! Everything here is pure – no network, no clock. [`merge`] combines the state of the
+//! services ([`Remote`]) with the local workspace:
 //!
 //! * **New** entries are added (at the front), **removed** ones disappear.
 //! * **Local state stays**: read/done, snoozes, agent runs and
 //!   hints of the agent, suggestions and decisions in the review, own not yet
 //!   sent line comments, verdict and „sent“.
 //! * **Changed from outside** (new comments, status, checks, requested changes)
-//!   appear as [`Change`] – the log gets entries for them with author `System`,
-//!   and `notify::events` sees them in the before/after like any other change.
+//!   appear as [`Change`].
 //! * If a source fails (token expired, network gone, quota), its data stays
 //!   unchanged; the state per source ([`SourceState`]) records what the cause is.
 
@@ -160,8 +158,8 @@ fn merge_item(old: Item, remote: &Item, changes: &mut Vec<Change>) -> Item {
     if item.branch.is_none() {
         item.branch = old.branch.clone();
     }
-    // Priority and link to the pull request are maintained by Cockpit (Jira delivers neither
-    // today): what you set stays until the service itself reports a value.
+    // Priority and link to the pull request are maintained by Cockpit (Jira delivers neither):
+    // what you set stays until the service itself reports a value.
     if item.priority == crate::model::Priority::default() {
         item.priority = old.priority;
     }

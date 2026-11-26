@@ -73,12 +73,11 @@ pub struct SourceState {
     /// Stays while the same kind of problem repeats, so "seit 10 Min." is stable.
     #[serde(default)]
     pub since_ms: Option<u64>,
-    /// Hints from the last successful fetch as plain German text; only a state saved earlier
-    /// holds them, new ones are in [`SourceState::warning_msgs`].
+    /// Hints from the last successful fetch as plain text, the old form that is still read; new ones
+    /// are in [`SourceState::warning_msgs`].
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
-    /// Hints from the last successful fetch as code and parameters (shown in the reader's
-    /// language).
+    /// Hints from the last successful fetch as code and parameters.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warning_msgs: Vec<cockpit_i18n::Msg>,
 }
@@ -98,7 +97,7 @@ impl SourceState {
         }
     }
 
-    /// Short state statement for the UI and `/api/health`.
+    /// Short state statement.
     pub fn id(&self) -> &'static str {
         match &self.problem {
             None => "ok",
