@@ -2,9 +2,7 @@
 //!
 //! * [`Usage`] is the consumption of a step (and, summed, of a run). Money is always a
 //!   whole number in **euro cents**, never a floating-point number.
-//! * [`Pricing`] are the prices per million tokens – a setting. In the demo every
-//!   step produces deterministic values (see [`crate::demo::step_tokens`]); the real agent later
-//!   enters the reported values via [`crate::AgentRun::record_usage`].
+//! * [`Pricing`] are the prices per million tokens – a setting.
 //! * [`AgentLimits`] are the adjustable limits; [`StopReason`] says which one stopped a run.
 //! * [`Charge`] is a booking in the workspace's ledger. „Today“ and „this
 //!   month“ are derived from it. Day and month count in UTC – the logic knows no time zone.

@@ -1,7 +1,6 @@
 //! Team view: who works on what and where something is stuck.
 //!
-//! Everything here is pure functions over the [`Workspace`]. They change nothing and
-//! know no UI; the overview page only shows their result.
+//! Everything here is pure functions over the [`Workspace`]. They change nothing and know no UI.
 
 use crate::Kind;
 use crate::model::{Item, Person, PrKey, Source, TicketStatus, Tone};
