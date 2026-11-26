@@ -22,7 +22,7 @@ pub fn key_verify(value: &str) -> Result<String, Msg> {
 
 /// Checks the public address of the tunnel (`[server] public_url`): `https://host[:port][/path]`,
 /// no spaces, no user name, query or fragment. Returns it without a trailing slash; empty
-/// stays empty (= remove). The address is only displayed, the server never calls it.
+/// stays empty (= remove).
 pub fn public_url_read(text: &str) -> Result<String, Msg> {
     let text = text.trim();
     if text.is_empty() {

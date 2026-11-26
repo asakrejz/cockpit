@@ -1,5 +1,5 @@
-//! The output of a long task (image build) in the assistant: collapsed to the last lines, on
-//! request complete.
+//! The output of a long task (such as an image build): collapsed to the last lines, or complete
+//! on request.
 
 /// How many lines the collapsed output shows.
 pub const LOG_TAIL_LINES: usize = 5;
