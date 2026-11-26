@@ -1,4 +1,5 @@
 use super::*;
+use cockpit_core::RepoRules;
 use cockpit_i18n::Lang;
 
 #[test]
