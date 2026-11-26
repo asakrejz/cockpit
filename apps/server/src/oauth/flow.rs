@@ -144,7 +144,7 @@ impl AppState {
         .map_err(|_| msg!(ServerOauthInternalError))??;
         tracing::info!("{}: signed in", d.id());
 
-        // Sync right away; the result comes through the event stream.
+        // Sync right away.
         let s = self.clone();
         tokio::spawn(async move {
             if let Err(e) = s.sync().await {
