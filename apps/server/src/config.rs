@@ -1,9 +1,4 @@
-//! Configuration: defaults, above them the file, above that environment variables.
-//!
-//! The reference for every key and every environment variable is `docs/configuration.md`; the
-//! commented example is `config/config.example.toml`. This module reads the file
-//! (`config/config.toml` in the project folder, see `location`), rejects keys it does not know
-//! (`file`) and applies the environment variables.
+//! Configuration: defaults, then the TOML file on top, then environment variables.
 
 use std::net::{IpAddr, Ipv4Addr};
 use std::path::{Path, PathBuf};
@@ -25,7 +20,7 @@ pub use sections::*;
 
 pub const DEFAULT_PORT: u16 = 8787;
 pub const DEFAULT_GITHUB_API: &str = "https://api.github.com";
-/// This often a sync happens if nothing is set.
+/// Interval of the sync, if nothing is set.
 pub const DEFAULT_INTERVAL_S: u64 = 120;
 /// Shorter is not possible: the services limit the number of fetches.
 pub const MIN_INTERVAL_S: u64 = 30;
@@ -90,11 +85,11 @@ pub struct Config {
     /// The file that was read from (and that the setup assistant writes to); `None`
     /// if there is no configuration directory.
     pub config_path: Option<PathBuf>,
-    /// The folder `config/` in the project folder, if the default places are in use (checked by Git and permission rules).
+    /// The folder `config/` in the project folder, if the default places are in use.
     pub config_dir: Option<PathBuf>,
     /// `[server] webhooks`: the webhook routes answer (default `false`: 404).
     pub webhooks: bool,
-    /// `[server] public_url`: address of the tunnel, only shown in the assistant.
+    /// `[server] public_url`: address of the tunnel.
     pub public_url: Option<String>,
     /// `[sync] webhook_fallback_interval_s`; `None` = [`Config::webhook_fallback_s`] decides.
     pub webhook_fallback_interval_s: Option<u64>,

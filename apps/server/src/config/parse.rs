@@ -167,10 +167,8 @@ impl Config {
             c.agent_repos = agent_repos_read(&a.repos)?;
             c.agent_dir = a.dir;
         }
-        // Watched repos (all open pull requests are loaded): `[github] repos` plus the entries of
-        // `[[agent.repos]]` (older configurations; an entry the app stored on the first use of a
-        // repo has `watch = false` and only keeps its settings). Everything else is found by the
-        // search, whatever repos exist.
+        // Watched repos (all open pull requests are loaded): `[github] repos` plus the `[[agent.repos]]`
+        // entries without `watch = false`. Other repos are found by the search only.
         if c.agent_repos.iter().any(|r| r.watch) {
             let g = c.github.get_or_insert_with(GitHubConfig::default);
             for r in c.agent_repos.iter().filter(|r| r.watch) {
