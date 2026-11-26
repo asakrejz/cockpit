@@ -333,7 +333,6 @@ pub(super) fn NewIssue(store: Store) -> impl IntoView {
     let title = RwSignal::new(String::new());
     let body = RwSignal::new(String::new());
     let status = RwSignal::new(String::new());
-    // Fill the choices when the dialog opens.
     Effect::new(move |_| {
         if open.get() {
             if project.get_untracked().is_empty()
