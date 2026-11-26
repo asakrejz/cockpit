@@ -382,7 +382,7 @@ impl Store {
     }
 }
 
-/// The clock of the browser. Only here is it read; `cockpit-core` gets the time passed in.
+/// The clock of the browser. Only here is it read.
 pub fn now_ms() -> u64 {
     js_sys::Date::now() as u64
 }
