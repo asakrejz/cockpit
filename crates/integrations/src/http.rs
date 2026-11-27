@@ -37,7 +37,7 @@ pub(crate) fn wait(h: &HeaderMap, now_s: u64) -> Option<u64> {
 }
 
 /// The service's message from an error body: GitHub (`message`), Jira
-/// (`errorMessages`, `errors`). Shortened so nothing huge ends up in the UI.
+/// (`errorMessages`, `errors`). Shortened, so that a huge body cannot end up in a message.
 pub(crate) fn service_message(body: &str) -> Option<String> {
     let json: serde_json::Value = serde_json::from_str(body).ok()?;
     let mut parts: Vec<String> = Vec::new();

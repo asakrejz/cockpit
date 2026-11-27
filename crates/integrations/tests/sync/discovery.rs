@@ -224,7 +224,7 @@ async fn the_sync_is_not_narrowed_by_a_jira_project_or_the_review_filter() {
     single(&s, "acme/web", 2, "mkeller").await;
     single(&s, "acme/api", 3, "lena").await;
     let d = service(&s, &[], PrLimits::default());
-    // The user looks at one Jira board and one repo in the Reviews tab.
+    // The user looks at one Jira board and one repo.
     let known = Workspace {
         jira_project: Some("BAU".into()),
         review_filter: cockpit_core::ReviewFilter {

@@ -98,10 +98,10 @@ pub fn pull_to_item(repo: &str, pull: &Pull, checks: Checks, relation: Relation)
 /// A pull request as an inbox entry.
 ///
 /// `repo` is `owner/name` and goes into the ID, so that equal numbers from different
-/// repos do not overlap. The reasons are provisional: a requested review gives
+/// repos do not overlap. A requested review gives
 /// `ReviewRequested`; an own pull request `ChecksFailed` or `Comment`; assigned to me only and
-/// pull requests of colleagues give `Comment` – the latter with the scope `Team`, so they never
-/// raise attention. Comments are empty – they come through [`comments_to_core`].
+/// pull requests of colleagues give `Comment` – the latter with the scope `Team`.
+/// Comments are empty – they come through [`comments_to_core`].
 pub fn pull_to_item_for(repo: &str, pull: &Pull, checks: Checks, relation: PrRelation) -> Item {
     let (reason, reason_msg) = if relation.requested {
         (ReasonKind::ReviewRequested, msg!(ReasonReviewRequested))
@@ -218,7 +218,7 @@ pub fn comments_to_core(
     comments_with_reviews(issue, review, &[], me)
 }
 
-/// `@login` of the user → `@Du`, so that the mention rules in the cockpit apply.
+/// `@login` of the user → `@Du`.
 pub fn mention_for(text: &str, me: &str) -> String {
     if me.is_empty() {
         return text.to_string();

@@ -28,8 +28,8 @@ pub fn status_from(s: &super::dto::Status) -> TicketStatus {
 /// A Jira issue as an inbox entry. `me` is the `accountId` of the user.
 ///
 /// Assigned to me → `Scope::Mine`, reason `Assigned`. Only watched → `Scope::Team`, reason
-/// `Comment` (provisional, the attention rules follow later). Without an assignee the owner is
-/// nobody ([`Person::nobody`]; the person filter relies on it). Comments are empty – they come through [`comments_to_core`].
+/// `Comment`. Without an assignee the owner is nobody ([`Person::nobody`]). Comments are empty –
+/// they come through [`comments_to_core`].
 pub fn issue_to_item(issue: &Issue, me: &str) -> Item {
     issue_to_item_with(issue, me, None)
 }

@@ -1,4 +1,4 @@
-//! The fields and attachments of a Jira issue as the detail view shows them. Pure functions,
+//! The fields and attachments of a Jira issue. Pure functions,
 //! without network.
 //!
 //! The search asks for all fields with `expand=names`, so every custom field has a name. What

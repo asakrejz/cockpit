@@ -1,5 +1,5 @@
 //! Client for Jira Cloud (REST v3): the connection and the one way out for an outward call,
-//! [`JiraClient::execute`]. The reading calls are in `read`.
+//! [`JiraClient::execute`].
 
 use cockpit_i18n::msg;
 
@@ -211,8 +211,7 @@ impl JiraClient {
             .account_id)
     }
 
-    /// The display name of the key holder (empty if Jira names none). Read only; serves the
-    /// connection test in the setup assistant.
+    /// The display name of the key holder (empty if Jira names none). Read only.
     pub async fn my_name(&self) -> Result<String, Error> {
         Ok(self
             .read_json::<Myself>(self.get("/rest/api/3/myself"))
@@ -221,8 +220,7 @@ impl JiraClient {
             .unwrap_or_default())
     }
 
-    /// Executes an outward call. Jira variants only. Every variant is named, so a new one does
-    /// not compile until it says how it is sent.
+    /// Executes an outward call. Jira variants only.
     pub async fn execute(&self, a: &Outbound) -> Result<(), Error> {
         match a {
             Outbound::JiraComment { key, text } => self

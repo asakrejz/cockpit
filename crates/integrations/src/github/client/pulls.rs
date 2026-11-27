@@ -155,8 +155,7 @@ impl GitHubClient {
         Ok(items)
     }
 
-    /// Review threads and review texts of a pull request – the input for „implement review
-    /// comments“. Only reads.
+    /// Review threads and review texts of a pull request. Only reads.
     pub async fn review_input(&self, repo: &str, nr: u32) -> Result<ReviewInput, Error> {
         let lines = self.line_comments(repo, nr).await?;
         let reviews = self.reviews(repo, nr).await?;

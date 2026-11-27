@@ -1,5 +1,4 @@
 //! Follow-up inputs (read) and creating a pull request (write) against a mock server.
-//! None of this has been checked against the real service.
 
 use cockpit_integrations::github::GitHubClient;
 use cockpit_integrations::{Error, Secret};

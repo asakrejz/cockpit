@@ -1,5 +1,4 @@
 //! OAuth against replayed responses: exchange, refresh, revoke, sites, service errors.
-//! None of this has been checked against the real services.
 
 use cockpit_integrations::jira::JiraClient;
 use cockpit_integrations::oauth::{

@@ -1,6 +1,5 @@
 //! Client for the GitHub REST API: the connection (base address, token, limits) and the one way
-//! out for an outward call, [`GitHubClient::execute`]. The calls themselves are in the topic
-//! modules: pull requests, checks, repos and branches.
+//! out for an outward call, [`GitHubClient::execute`].
 
 use serde::de::DeserializeOwned;
 
@@ -156,8 +155,7 @@ impl GitHubClient {
         Ok(all)
     }
 
-    /// Executes an outward call. GitHub variants only; Jira is the Jira client's business. Every
-    /// variant is named, so a new one does not compile until it says how it is sent.
+    /// Executes an outward call. GitHub variants only; Jira is the Jira client's business.
     pub async fn execute(&self, a: &Outbound) -> Result<(), Error> {
         match a {
             Outbound::GitHubComment { repo, number, text } => self

@@ -1,6 +1,5 @@
 //! Write calls against a mock server: right method, path, body and auth header;
-//! error cases; the key never shows up in messages. None of this has been checked against
-//! the real services.
+//! error cases; the key never shows up in messages.
 
 use cockpit_core::{MergeMethod, TicketStatus};
 use cockpit_integrations::github::GitHubClient;

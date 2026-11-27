@@ -40,9 +40,8 @@ pub enum Error {
     },
 }
 
-/// What kind of failure an [`Error`] is. Callers that react to the kind (a status, a hint, whether
-/// to disconnect) ask [`Error::cause`] instead of listing error variants themselves, so a new
-/// variant gets its kind in exactly one place.
+/// What kind of failure an [`Error`] is. Callers that react to the kind ask [`Error::cause`]
+/// instead of matching the variants themselves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Cause {
     /// The key is missing, expired or revoked.
@@ -135,7 +134,7 @@ impl Error {
 }
 
 impl Error {
-    /// The message as code and parameters; the UI renders it in the chosen language.
+    /// The message as code and parameters, for translation.
     pub fn msg(&self) -> Msg {
         match self {
             Error::Network(m) => msg!(IntegrationsNetwork, reason = Msg::raw(m)),
@@ -157,7 +156,7 @@ impl Error {
     }
 }
 
-/// The English text, for logs and tests. People get [`Error::msg`] in their language.
+/// The English text, for logs and tests; [`Error::msg`] is the translatable form.
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.msg().render(Lang::En))

@@ -1,7 +1,7 @@
 //! Inputs for follow-up jobs of the agent, read from a pull request: review threads and the output
 //! of failed checks. Pure (no network): the client fetches, this module groups, limits and shortens.
 //!
-//! Everything here is **data of third parties** (comments, logs). It goes to the container as
+//! Everything here is **data of third parties** (comments, logs). It goes to the agent as
 //! text in the job file and never as an instruction of Cockpit; the amounts are limited so that a
 //! pull request with hundreds of comments or a huge log cannot blow up the prompt or the costs.
 
@@ -181,7 +181,7 @@ pub fn notes(reviews: &[PullReview]) -> Vec<ReviewNote> {
     all
 }
 
-/// Is this check red? Same rule as the status in the inbox.
+/// Is this check red?
 pub fn is_failed(run: &CheckRun) -> bool {
     super::aggregate_checks(std::slice::from_ref(run)) == cockpit_core::Checks::Failed
 }

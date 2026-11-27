@@ -26,7 +26,7 @@ fn all_repos(e: &Error) -> bool {
 
 /// Copies what the workspace knows about the pull requests of `repo` that `wanted` accepts into
 /// the result – for a repo or pull request that could not be read this time, so that it does not
-/// vanish from the inbox because of a short outage.
+/// vanish because of a short outage.
 fn carry_over(
     known: &Workspace,
     repo: &str,
@@ -149,7 +149,6 @@ pub async fn github_load(
     // … mine first (stable: the order of the service stays within each group) …
     pulls.sort_by_key(|(_, _, r)| !r.mine());
 
-    // … then load the details.
     for (repo, pull, relation) in pulls {
         let nr = pull.number;
         if taken.iter().any(|(r, n)| *r == repo && *n == nr) {

@@ -3,10 +3,7 @@
 //!
 //! The backend redirects the browser to sign in (`state` + PKCE), exchanges the `code` in the callback
 //! for tokens and refreshes them before expiry. The client secret and the tokens never leave the
-//! backend. Everything here is pure or takes the addresses as [`Endpoints`], so that
-//! every case can be tested against a replayed service.
-//!
-//! This has not been checked against the real services yet.
+//! backend. Everything here is pure or takes the addresses as [`Endpoints`], so tests can use a replayed service.
 
 use cockpit_i18n::{Msg, msg};
 use std::collections::HashMap;

@@ -1,5 +1,5 @@
 //! Check runs and commit statuses of a commit, and what the checks of a pull request allow:
-//! reading the red ones for a follow-up job and asking GitHub to run one again.
+//! reading the red ones and asking GitHub to run one again.
 
 use cockpit_i18n::msg;
 
@@ -102,7 +102,7 @@ impl GitHubClient {
     }
 
     /// The red checks on the current commit of the pull request with a shortened excerpt of their
-    /// output and annotations – the input for „fix red checks“. Only reads. The annotations are
+    /// output and annotations. Only reads. The annotations are
     /// optional: if GitHub does not deliver them, the output alone counts.
     pub async fn failed_checks(&self, repo: &str, nr: u32) -> Result<Vec<FailedCheck>, Error> {
         let pull = self.pull(repo, nr).await?;

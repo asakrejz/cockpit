@@ -19,8 +19,7 @@ pub const ASSIGNABLE_MAX: usize = 20;
 const PROJECTS_PAGE: usize = 50;
 const MAX_PROJECTS: usize = 500;
 
-/// All fields (the detail view shows custom fields too), except the big ones the cockpit
-/// loads in other calls.
+/// All fields except the big ones (comments, work log, votes).
 const FIELDS: &str = "*all,-comment,-worklog,-votes";
 
 /// This many issues per page and at most in total.
@@ -60,8 +59,8 @@ impl JiraClient {
 
     /// The ID of the sprint field of this site (`customfield_10020` and the like), from
     /// `GET /rest/api/3/field`: the field of the Jira Software sprint type, otherwise the one
-    /// named „Sprint“. `None` if the site has none (no Jira Software). Asked once per client (the
-    /// server builds one per sync); a failed question is not kept.
+    /// named „Sprint“. `None` if the site has none (no Jira Software). Asked once per client;
+    /// a failed question is not kept.
     pub async fn sprint_field(&self) -> Result<Option<String>, Error> {
         if let Some(known) = self.sprint_field.lock().ok().and_then(|k| k.clone()) {
             return Ok(known);

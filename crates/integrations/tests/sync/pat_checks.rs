@@ -1,5 +1,5 @@
 //! A fine-grained token cannot read check runs (403). The pull requests still load, with the
-//! combined commit status or with unknown checks. Mock server only; GitHub's real 403 is not checked.
+//! combined commit status or with unknown checks.
 
 use super::*;
 use cockpit_core::Checks;

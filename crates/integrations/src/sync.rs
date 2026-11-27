@@ -1,10 +1,9 @@
 //! Fetching for the sync: gets tickets, pull requests, comments, checks and diffs via
-//! the clients and packs them as [`Remote`] for `cockpit_core::sync::merge`. The loading of
-//! each source is in its own module; this one holds the configured services and the way out
-//! for outward calls.
+//! the clients and packs them as [`Remote`] for `cockpit_core::sync::merge`. This module holds
+//! the configured services and the way out for outward calls.
 //!
 //! If a source fails, its state in the workspace stays unchanged; the error becomes the
-//! [`Problem`] of the source. The fetch itself writes nothing.
+//! [`Problem`] of the source.
 
 use cockpit_core::{Loaded, Outcome, Remote, Source, SourceData, Workspace};
 use cockpit_i18n::msg;
@@ -41,7 +40,7 @@ pub struct JiraService {
 /// GitHub Projects as the source of tickets.
 pub struct ProjectsService {
     pub client: GitHubClient,
-    /// The projects chosen in the setup.
+    /// The projects chosen in the configuration.
     pub projects: Vec<cockpit_core::ProjectRef>,
     /// The field that counts as the ticket status (default `Status`).
     pub status_field: Option<String>,

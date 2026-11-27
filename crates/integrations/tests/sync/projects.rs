@@ -452,7 +452,7 @@ async fn a_classic_token_without_read_project_is_told_the_scope() {
     );
     let text = problem(&remote).msg().render(cockpit_i18n::Lang::En);
     assert!(text.contains("`read:project`"), "{text}");
-    // The setup banner says it, too.
+    // The source notice says it, too.
     let notice = cockpit_core::source_notices(&ws.sync, NOW_MS);
     assert_eq!(notice.len(), 1);
     assert!(
@@ -579,7 +579,7 @@ async fn a_project_without_a_status_field_says_so_and_counts_everything_as_open(
     assert_eq!(only(&remote).warnings.len(), 1);
     let t = ws.item_by_key("acme/app#12").unwrap();
     assert_eq!(t.status, TicketStatus::Open);
-    // The team field is the one named in the setup.
+    // The team field is the one named in the configuration.
     assert!(t.team.is_none());
     // A closed issue without a status column is done.
     assert_eq!(

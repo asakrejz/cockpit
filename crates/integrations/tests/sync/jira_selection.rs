@@ -1,4 +1,4 @@
-//! The query that follows the selection in the app: a project or a sprint view other than the
+//! The query that follows the selection: a project or a sprint view other than the
 //! active sprint fetches all open tickets, also those of other people. Only ever read queries,
 //! answered by wiremock.
 

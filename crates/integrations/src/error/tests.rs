@@ -25,8 +25,7 @@ fn problem_per_error() {
     assert!(matches!(Error::Status(500).problem(0), Problem::Other(_)));
 }
 
-/// Which kind every error is. `Error::cause` has no catch-all arm, so a new variant does not compile
-/// until it is sorted; this table says where each existing one goes.
+/// Which kind every error is; this table says where each variant goes.
 #[test]
 fn cause_of_every_error() {
     use cockpit_core::{Right, TokenKind};
@@ -70,7 +69,7 @@ fn a_rejection_gives_the_reason_of_the_service_if_there_is_one() {
     assert_eq!(Error::Response("x".into()).rejection(), None);
 }
 
-/// The state per source for every kind of error: the same kinds as before get the same state.
+/// The state per source for every kind of error.
 #[test]
 fn problem_of_every_error() {
     use cockpit_core::{Right, TokenKind};

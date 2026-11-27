@@ -42,7 +42,7 @@ fn assigned_issue() {
         (ReasonKind::Assigned, Scope::Mine)
     );
     assert_eq!(item.owner, cockpit_core::Person::me());
-    // The time is a timestamp the interface renders ("4 hours ago"), not a text.
+    // The time is a timestamp, not a text.
     assert_eq!(item.updated_ms, ms("2024-05-14T09:12:33.456+0200"));
     assert!(item.time.is_empty() && item.reason_text.is_empty());
     assert_eq!(item.reason_line().render(Lang::De), "Dir zugewiesen");

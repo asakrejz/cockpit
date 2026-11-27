@@ -1,14 +1,11 @@
 //! Actions with an effect on the outside: which [`cockpit_core::Action`] goes to which service, and what does
-//! the HTTP call look like? Everything here is pure (no network, no clock) and is tested without a server.
+//! the HTTP call look like? Everything here is pure (no network, no clock).
 //!
 //! * [`plan_call`] tells for an action what has to be done at the service ([`Outbound`]) – or `None`
 //!   if the action stays local (other actions, entries from the sample data, source off).
 //! * [`Outbound::route`] names the service that sends the call. `Services::execute` picks its
 //!   client, and the client's `execute` is the only way out: it matches every [`Outbound`] variant
 //!   (no catch-all arm), so a new variant does not compile until it says how it is sent.
-//! * A call of one request is built by a `*_request` function (`outbound/request.rs`). A call of
-//!   several requests (Jira transition, branch, re-run check) is a flow of the client; the pure parts
-//!   of it (choosing the transition, the bodies) are built there as well.
 //!
 //! Only an action that requires `Actor::User` (`Action::required_actor`) can become a call here.
 //! `Workspace::apply` checks that and the other rules (e.g. „only you may merge“) **before** the call;
@@ -29,7 +26,7 @@ pub use review::{LineComment, ReviewData, review_data};
 use cockpit_core::{MergeMethod, TicketStatus};
 use serde_json::Value;
 
-/// What the server has in terms of services.
+/// The services that are configured.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Targets {
     pub github: bool,
@@ -144,8 +141,7 @@ pub struct Request {
     pub body: Option<Value>,
 }
 
-/// Why an action cannot be mapped to the outside. The message is what people read; `Display`
-/// is its English text, for logs.
+/// Why an action cannot be mapped to the outside. `Display` gives its English text, for logs.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PlanError(pub cockpit_i18n::Msg);
 
