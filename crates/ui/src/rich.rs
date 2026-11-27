@@ -1,6 +1,6 @@
 //! Formatted Jira text (ADF) as real elements.
 //!
-//! The tree comes from `cockpit_core::adf`. Everything is built from Leptos elements; text is
+//! Everything is built from Leptos elements; text is
 //! always set as text, never as HTML. Links are checked again here (`http`/`https` only) and
 //! open in a new tab with `rel="noopener noreferrer"`. Media show the picture when an attachment belongs to them (`/api/jira/attachment/{id}`), otherwise only their file name.
 

@@ -29,7 +29,7 @@ pub(super) fn agent_pane(store: Store, r: Review, panel: Panel) -> impl IntoView
         .collect_view();
     let summary_text = r.agent_summary.clone();
 
-    // Only you start the run; the agent reads, nothing goes to GitHub.
+    // Only you start the run.
     let review_run = move |_| {
         let _ = store.dispatch(Action::StartPrReview {
             language: panel.review_language.get_untracked(),

@@ -1,6 +1,5 @@
 //! Sign-in via OAuth on the page "Setup": sign in and disconnect.
-//! The logic is in the backend; here is only the wiring. The browser
-//! sees neither tokens nor secrets: "Sign in with …" is a navigation to `/api/oauth/…/start`.
+//! The browser sees neither tokens nor secrets: "Sign in with …" is a navigation to `/api/oauth/…/start`.
 
 use cockpit_core::api::{ClientInput, ConfigChange};
 use cockpit_core::{AuthKind, ServiceStatus};
@@ -37,7 +36,7 @@ impl Service {
         }
     }
 
-    /// Name of the client secret in the .env file.
+    /// Name of the client secret.
     fn secret(self) -> &'static str {
         match self {
             Service::GitHub => "github-oauth",
@@ -68,11 +67,9 @@ impl Service {
     }
 }
 
-/// Removes the OAuth app of the service from Cockpit: the client ID from `config.toml` (an empty
-/// ID deletes the section including the site choice) and the client secret from the .env file.
-/// Both are separate server calls (`PUT /api/config`, `DELETE /api/secrets/{name}`); deleting a
-/// secret that is not there is no error. A sign-in must be disconnected first (it needs the
-/// client secret to be revoked).
+/// Removes the OAuth app of the service: the client ID (`PUT /api/config`) and the client secret
+/// (`DELETE /api/secrets/{name}`). A sign-in must be disconnected first, since it needs the client secret
+/// to be revoked.
 pub async fn forget_client(service: Service) -> Result<(), CallError> {
     server::put_config(&service.forget_client_id()).await?;
     server::delete_key(service.secret()).await?;

@@ -87,7 +87,6 @@ pub fn RepoPicker(ctx: Context, opened: RwSignal<bool>) -> impl IntoView {
         default.set(stored.default.unwrap_or_default());
     });
 
-    // The list to choose from.
     let list: RwSignal<Option<GitHubRepoList>> = RwSignal::new(None);
     let loading = RwSignal::new(false);
     let list_error: Feedback = RwSignal::new(None);

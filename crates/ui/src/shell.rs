@@ -215,7 +215,6 @@ pub fn BottomNav(
     let more_label = StoredValue::new(more_label);
     let more_title = StoredValue::new(more_title);
 
-    // Close, give the page its scroll back and the focus to the button.
     let close = move || {
         if open.get_untracked() {
             open.set(false);

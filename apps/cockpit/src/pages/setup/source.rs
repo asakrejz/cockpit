@@ -1,6 +1,6 @@
 //! Step „Tickets“: where the tickets come from. Jira or GitHub Projects, and „both“ as a quiet
 //! third option. The assistant then shows only the steps of that choice. Saved at once
-//! (`[github_projects] tickets_from`); nothing is written to Jira or GitHub.
+//! (`[github_projects] tickets_from`).
 
 use cockpit_core::TicketsFrom;
 use cockpit_core::api::{ConfigChange, GitHubProjectsInput};

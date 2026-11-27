@@ -152,7 +152,7 @@ fn AppWay(ctx: Context) -> impl IntoView {
     let callback = Signal::derive(move || ctx.setup.with(|e| e.callback_github.clone()));
     let secret_set = move || ctx.setup.with(|e| e.has_key("github-oauth"));
 
-    // One button for both values: the ID goes to config.toml, the secret to the .env file.
+    // One button for both values.
     let save = move |_| {
         let id = match client_id_read(&client_id.get_untracked()) {
             Ok(id) if id.is_empty() => {

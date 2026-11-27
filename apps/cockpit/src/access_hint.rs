@@ -1,7 +1,6 @@
 //! The hint when GitHub does not show the configured repos to the connected access.
 //!
-//! "No pull requests" is only true if every repo was reachable. Review, inbox and the GitHub
-//! step all ask the same question (`GET /api/github/access`) and show the same hint.
+//! "No pull requests" is only true if every repo was reachable.
 
 use cockpit_core::api::{GitHubAccess, RepoVisibility};
 use cockpit_core::setup::Step;

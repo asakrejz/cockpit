@@ -1,6 +1,6 @@
 use super::*;
 
-/// Every page of the former sidebar is reachable: in the pill or behind "More".
+/// Every page is reachable: in the pill or behind "More".
 #[test]
 fn every_former_sidebar_target_is_in_the_pill_or_in_more() {
     let labels: Vec<Key> = TARGETS.iter().map(|t| t.label).collect();

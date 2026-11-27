@@ -1,8 +1,7 @@
 //! Step 5: live update – optional webhooks of GitHub and Jira that make the sync faster.
 //! Without them Cockpit asks every two minutes; that stays the default and works without any
 //! of this. A webhook is only a signal "something changed": Cockpit then syncs right away and
-//! takes no data from the request. The rules are in the server (`webhooks`) and in
-//! `cockpit_core::setup`; here is only wiring.
+//! takes no data from the request.
 
 use cockpit_core::api::{ConfigChange, WebhookSourceInfo, WebhooksInput};
 use cockpit_core::setup::{

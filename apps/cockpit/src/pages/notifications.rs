@@ -1,6 +1,6 @@
 //! Settings: notifications per reason and channel, quiet hours and the permission of the
 //! browser. Saved in the workspace through actions (`SetNotifyChannel`,
-//! `SetQuietHours`). What is reported when is in `cockpit_core::notify`.
+//! `SetQuietHours`).
 
 use cockpit_core::{Action, Channel, NotifyEvent, NotifyReason, QuietHours};
 use feature_ui::*;

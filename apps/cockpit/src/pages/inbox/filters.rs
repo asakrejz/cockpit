@@ -1,6 +1,6 @@
 //! The filter button, the chips of the active filters and the filter dialog. The dialog renders
 //! the central list `cockpit_core::FILTERS`; the values are applied together by
-//! `Action::SetInboxFilter` (display only – nothing is written to Jira or GitHub).
+//! `Action::SetInboxFilter`.
 
 use cockpit_core::{
     ASSIGNED_TO_ME, Applies, Choices, FILTERS, FilterDef, InboxFilter, JIRA_PROJECT_FILTER,

@@ -20,7 +20,7 @@ fn id(kind: AuthKind) -> &'static str {
 }
 
 /// The picker. `chosen` is what the user picked (`None`: nothing yet); `default` is shown until
-/// then (e.g. the connected way, see `cockpit_core::setup::jira_default_method`).
+/// then (e.g. the connected way).
 #[component]
 pub fn AuthMethodPicker(
     chosen: RwSignal<Option<AuthKind>>,

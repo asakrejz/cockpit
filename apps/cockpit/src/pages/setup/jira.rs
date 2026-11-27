@@ -1,6 +1,6 @@
 //! Step 2: connect Jira – a picker chooses the way, only that way is shown: the API token (three
 //! simple steps, then a connection test and the choice of the project) or the Atlassian app
-//! (OAuth). The rules (read address, texts) are in `cockpit_core::setup`.
+//! (OAuth).
 
 use cockpit_core::api::JiraCheck;
 use cockpit_core::connections::AuthKind;

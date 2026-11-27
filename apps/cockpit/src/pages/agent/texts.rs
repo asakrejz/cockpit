@@ -1,5 +1,4 @@
-//! The visible texts of "finished runs", "Delete branch" and "Clean up". The texts live in the
-//! catalog `agent_cleanup`; this module gives them the short names the pages use.
+//! Short names for the visible texts of "finished runs", "Delete branch" and "Clean up".
 
 use feature_ui::t;
 

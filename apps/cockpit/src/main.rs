@@ -1,7 +1,6 @@
 //! Cockpit: Jira, GitHub and agents in one place.
 //!
-//! The interface follows the design "Baukasten" and consists of the building blocks in
-//! `feature-ui`. What the buttons do is in `cockpit-core`. This app connects both.
+//! The interface follows the design "Baukasten" and consists of the building blocks in `feature-ui`.
 
 mod access_hint;
 mod banner;
@@ -75,7 +74,6 @@ fn App() -> impl IntoView {
     on_cleanup(move || listener.remove());
 
     // The clock of attention: the pages calculate with `store.now`, not with a clock of their own.
-    // Snoozing, linking, status sync and the tick of the agents run in the server.
     set_interval(move || store.now.set(now_ms()), CLOCK_TICK);
 
     // Memos, so that the page is only rebuilt when it really changes. A plain signal notifies at

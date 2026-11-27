@@ -928,8 +928,7 @@ body.ui-scroll-locked { overflow: hidden; }
 .ui-list__row > .ui-vstack { flex: 1 1 auto; align-self: stretch; }
 
 /* ---------------------------------------------------------------------
-   Parts of the building blocks that used to be set inline: they are classes now, so a block looks the
-   same everywhere and the tokens apply.
+   Look of the building blocks as classes: a block looks the same everywhere and uses the tokens.
    --------------------------------------------------------------------- */
 .ui-card__body--loose { gap: var(--ref-space-12); }
 .ui-segmented--fill { align-self: stretch; }

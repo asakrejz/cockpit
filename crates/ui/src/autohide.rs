@@ -1,8 +1,7 @@
 //! Hides the floating navigation pill while the user reads on.
 //!
 //! Scrolling down hides it; scrolling up, reaching the top or the end of the page, and a tap on
-//! the bottom edge bring it back. While the on-screen keyboard is open it stays hidden too. Open
-//! sheets, dialogs and a focused input on narrow screens are handled in CSS (`extras.css`).
+//! the bottom edge bring it back. While the on-screen keyboard is open it stays hidden too.
 
 use std::{cell::Cell, rc::Rc};
 

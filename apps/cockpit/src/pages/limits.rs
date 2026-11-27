@@ -1,6 +1,6 @@
 //! Settings for the agents: prices and limits (budget, time limit, parallel runs),
 //! plus the rules per repo. Saved in the workspace through actions (`SetAgentLimits`,
-//! `SetRepoRules`); what applies and how it is checked is in `cockpit_core::usage` and `::rules`.
+//! `SetRepoRules`).
 
 use cockpit_core::{
     Action, AgentLimits, RepoRules,

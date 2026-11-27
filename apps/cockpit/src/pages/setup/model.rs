@@ -1,6 +1,6 @@
 //! Step 4: model – tool of the agent, endpoint (directly at Anthropic or OpenAI, own proxy such as
 //! LiteLLM or another compatible endpoint), key, model name as a drop-down from the list of the
-//! endpoint and the connection tests. The rules are in `cockpit_core::setup`.
+//! endpoint and the connection tests.
 
 use cockpit_core::api::{ConfigChange, EndpointInput, Provider};
 use cockpit_core::setup::{

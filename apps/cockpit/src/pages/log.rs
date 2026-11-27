@@ -1,5 +1,5 @@
 //! Log: what was changed when and by whom, newest entries first.
-//! The entries are written by `Workspace::apply` in `cockpit-core`; here they are only displayed.
+//! Here the entries are only displayed.
 
 use cockpit_core::{Actor, LogEntry, Target};
 use feature_ui::*;

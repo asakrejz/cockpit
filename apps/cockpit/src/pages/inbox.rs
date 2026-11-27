@@ -26,8 +26,7 @@ pub fn InboxPage(filter: Filter) -> impl IntoView {
     // agent on another ticket therefore does not rebuild the detail.
     // The search text belongs only to this page; it does not persist across navigation.
     let query = RwSignal::new(String::new());
-    // The filters (definitions: `cockpit_core::FILTERS`) are part of the workspace and change
-    // in the filter dialog by `Action::SetInboxFilter`.
+    // The filters are part of the workspace and change in the filter dialog by `Action::SetInboxFilter`.
     let inbox_filter = Memo::new(move |_| store.ws.with(|w| w.inbox_filter.clone()));
     let filter_open = RwSignal::new(false);
     let items = Memo::new(move |_| {

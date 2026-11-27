@@ -1,6 +1,5 @@
 //! Shared building blocks of the setup steps: state, key field, copy field,
-//! messages and saving the configuration. The rules (check, normalization) are in
-//! `cockpit_core::setup`, writing is in the server; here is only wiring.
+//! messages and saving the configuration.
 
 use cockpit_core::api::{ConfigChange, ContainerCheck, EndpointCheck, Setup};
 use cockpit_core::setup::{Step, key_verify, step_mentioned};
@@ -174,7 +173,7 @@ pub fn config_save(
 #[component]
 pub fn KeyField(
     ctx: Context,
-    /// Name in the .env file (`github-oauth`, `atlassian-oauth`, `agent-key`, `jira`, `github`).
+    /// Name of the secret (`github-oauth`, `atlassian-oauth`, `agent-key`, `jira`, `github`).
     name: &'static str,
     #[prop(into)] label: String,
     #[prop(optional, into)] hint: Option<String>,

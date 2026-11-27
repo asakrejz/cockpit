@@ -1,8 +1,6 @@
 //! The searchable list of repos with checkboxes, shared by the setup (agent repos, watched
 //! repos) and the start of an agent run. The search, the limit of what is drawn and the
 //! "narrow the list down" note are here; what a click does and what a row says is the page's.
-//!
-//! The rules (which entries match, how many are drawn) are `cockpit_core::setup::repo_page`.
 
 use cockpit_core::api::GitHubRepoInfo;
 use cockpit_core::setup::{REPOS_SHOWN, RepoPage, repo_page};

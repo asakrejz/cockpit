@@ -1,5 +1,5 @@
 //! Overview: on the left who works on what and how full they are; on the right what is stuck, and
-//! the entries of the chosen person. The rules for it are in `cockpit_core::team`.
+//! the entries of the chosen person.
 
 use cockpit_core::{Action, PeopleSource, Person, team};
 use feature_ui::*;
