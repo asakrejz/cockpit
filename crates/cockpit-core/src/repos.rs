@@ -1,9 +1,4 @@
 //! Repos the agent may work in, and the default among them.
-//!
-//! Configured in `config.toml` (`[agent] repo` as the default, `[[agent.repos]]` with a base
-//! branch, branch pattern and language per repo). The backend reports the result in
-//! `GET /api/health`, so the interface can preselect the default repo; a start without a
-//! chosen repo uses the same default. Without one the user chooses. Everything here is pure.
 
 use serde::{Deserialize, Serialize};
 

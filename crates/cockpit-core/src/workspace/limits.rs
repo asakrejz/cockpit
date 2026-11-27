@@ -86,8 +86,7 @@ impl Workspace {
     // ---------- Rules per repo ----------
 
     /// The repos known from the data, for the choice of rules: those with rules, and every repo
-    /// that reviews, entries and runs name. (Rules can be set for any repo
-    /// of the form `owner/name`; the interface adds the configured ones.)
+    /// that reviews, entries and runs name. (Rules can be set for any repo of the form `owner/name`.)
     pub fn repos(&self) -> Vec<String> {
         let mut repos: Vec<String> = Vec::new();
         let known = self

@@ -1,4 +1,4 @@
-//! Small texts for the commit list of the review panel.
+//! Small texts for the commit list.
 
 /// First seven characters of a commit ID.
 pub fn short_sha(sha: &str) -> &str {

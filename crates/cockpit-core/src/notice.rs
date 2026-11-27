@@ -1,9 +1,8 @@
-//! Plain-language states for the interface: what is wrong with a source, how long it
-//! lasts and what to do next. One place for the wording, so pages do not invent their own.
+//! Plain-language states for a source: what is wrong, how long it lasts and what to do next.
+//! One place for the wording.
 //!
-//! Pure functions on the data the workspace already carries ([`SyncState`]); the browser only
-//! renders the result. No message contains a key: problems come from [`Problem`], which is
-//! free of secrets by construction.
+//! Pure functions on the data the workspace already carries ([`SyncState`]). No message contains
+//! a key: problems come from [`Problem`], which is free of secrets by construction.
 
 use cockpit_i18n::{Msg, msg};
 
@@ -26,7 +25,7 @@ pub enum NoticeTone {
 pub enum NoticeAction {
     /// Go to the setup page and renew the token.
     OpenSetup,
-    /// Try again now ("Sync now").
+    /// Try again now.
     RetryNow,
     /// Nothing to do, the sync resumes by itself.
     Wait,

@@ -1,7 +1,5 @@
 //! Notifications: which events are worth mentioning, and where do they go?
 //!
-//! Everything here is pure (no browser, no clock, no network):
-//!
 //! * [`events`] compares the workspace before and after an action and derives the
 //!   [`Event`]s: review request, mention, agent waiting, agent done, checks red,
 //!   ticket assigned.
@@ -9,8 +7,6 @@
 //!   The settings live in the [`Workspace`](crate::Workspace) and change only through
 //!   actions.
 //! * [`deliveries`] says which event is reported over which channel.
-//!
-//! The notification is sent by the app itself, in the browser.
 
 use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};

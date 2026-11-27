@@ -4,8 +4,8 @@ use cockpit_i18n::{Msg, msg};
 
 use super::*;
 
-/// Where the agent sends its model requests. In `config.toml` the only difference is whether an
-/// address is entered; "proxy" and "other endpoint" differ only in the hints in the assistant.
+/// Where the agent sends its model requests. The only config difference is whether an address is set;
+/// "proxy" and "other endpoint" differ only in the hints the setup shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EndpointKind {
     /// Directly at the provider of the model (no address): Anthropic, for Codex OpenAI.

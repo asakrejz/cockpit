@@ -217,7 +217,6 @@ mod tests {
         assert!(issues.contains("Issues") && issues.contains("Read and write"));
         assert!(text(Right::ProjectsRead, TokenKind::App).contains("GitHub App"));
         assert!(text(Right::ProjectsRead, TokenKind::Unknown).contains("read:project"));
-        // German too.
         assert!(
             Right::ProjectsRead
                 .msg(TokenKind::Classic)

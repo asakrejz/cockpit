@@ -1,7 +1,7 @@
 //! Rules per repository: allowed and forbidden paths, required tests, instructions to the
 //! agent and whether the plan has to be approved.
 //!
-//! Everything here is pure and without a file system: [`glob_match`] compares a pattern with a path,
+//! [`glob_match`] compares a pattern with a path,
 //! [`RepoRules::violations`] checks a list of files against the rules.
 //!
 //! **Patterns:** `*` stands for any characters within a folder name, `?` for exactly one,
@@ -98,7 +98,7 @@ pub struct PathViolation {
 }
 
 impl PathViolation {
-    /// Explanation for the UI.
+    /// The explanation as a message.
     pub fn reason_msg(&self) -> Msg {
         match self.kind {
             ViolationKind::Forbidden => msg!(

@@ -1,6 +1,4 @@
-//! The setup assistant: order of the steps, reading and checking inputs, and the
-//! summary in plain text. Pure logic without UI and network; the setup page
-//! merely wires it up.
+//! The setup assistant: order of the steps, reading and checking inputs, and the summary in plain text.
 
 use cockpit_i18n::{Lang, Msg, msg};
 
@@ -25,7 +23,7 @@ pub use repo_list::*;
 mod summary;
 pub use summary::*;
 
-/// The names under which the backend stores keys in the .env file (`PUT /api/secrets/{name}`).
+/// The names under which keys are stored in the .env file.
 pub const KEY_NAMES: &[&str] = &[
     "github-oauth",
     "atlassian-oauth",
@@ -166,8 +164,7 @@ pub fn first_open_step(lines: &[Line]) -> Step {
 }
 
 /// The step that a message names, quoted as `Schritt „GitHub“` or `Step "GitHub"` (in either
-/// language, with the older short name `Live`). The interface uses it to put a link to that
-/// step under the message.
+/// language, with the older short name `Live`).
 pub fn step_mentioned(text: &str) -> Option<Step> {
     const QUOTES: [(&str, char); 3] = [("Schritt „", '“'), ("step “", '”'), ("step \"", '"')];
     let lower = text.to_lowercase();
@@ -226,7 +223,7 @@ pub fn nothing_set_up(
         || !setup.jira_site.is_empty())
 }
 
-/// GitHub events the webhook should send (Settings > Webhooks > "Let me select individual events").
+/// GitHub events the webhook should send.
 pub const GITHUB_WEBHOOK_EVENTS: &[&str] = &[
     "Pull requests",
     "Pull request reviews",
@@ -236,7 +233,7 @@ pub const GITHUB_WEBHOOK_EVENTS: &[&str] = &[
     "Issue comments",
 ];
 
-/// Jira events the webhook should send (Admin › System › WebHooks).
+/// Jira events the webhook should send.
 pub const JIRA_WEBHOOK_EVENTS: &[&str] = &[
     "Issue: created, updated, deleted",
     "Comment: created, updated, deleted",
@@ -272,9 +269,8 @@ pub fn key_name_allowed(name: &str) -> bool {
     KEY_NAMES.contains(&name)
 }
 
-/// Whether `name` is a key that the interface may delete from the .env file again: the tokens
-/// ("Disconnect") and the client secrets of the OAuth apps ("Remove client ID"). The model key
-/// does not belong to it.
+/// Whether `name` is a key that may be deleted from the .env file again: the tokens and the client
+/// secrets of the OAuth apps. The model key does not belong to it.
 pub fn key_deletable(name: &str) -> bool {
     matches!(name, "jira" | "github" | "atlassian-oauth" | "github-oauth")
 }

@@ -12,7 +12,7 @@ pub enum TicketStatus {
 }
 
 impl TicketStatus {
-    /// The IDs, in display order; the interface words them.
+    /// The IDs, in display order.
     pub const IDS: &'static [&'static str] = &["offen", "arbeit", "review", "fertig"];
 
     /// The status as a message, for log lines and errors.
@@ -46,7 +46,7 @@ impl TicketStatus {
     }
 }
 
-/// How important a ticket is. Old states without a value count as medium.
+/// How important a ticket is. A missing value (old states) counts as medium.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Priority {
     Highest,
@@ -66,7 +66,7 @@ impl Priority {
         Priority::Lowest,
     ];
 
-    /// The IDs, in display order (most important first); the interface words them.
+    /// The IDs, in display order (most important first).
     pub const IDS: &'static [&'static str] =
         &["hoechste", "hoch", "mittel", "niedrig", "niedrigste"];
 

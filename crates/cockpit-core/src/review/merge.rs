@@ -50,7 +50,7 @@ pub enum MergeBlocker {
 }
 
 impl MergeBlocker {
-    /// Justification for the UI.
+    /// The justification as a message.
     pub fn reason_msg(self) -> cockpit_i18n::Msg {
         use cockpit_i18n::msg;
         match self {

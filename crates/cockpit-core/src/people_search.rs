@@ -1,9 +1,8 @@
-//! Search among people for the assignee field: matching and ranking, pure and local.
+//! Search among people: matching and ranking, pure and local.
 //!
 //! Matching ignores case and accents („Böhm“ = „bohm“). A name that starts with the query
 //! comes before one with a word that starts with it, and that before one that only contains it.
-//! You come first, nobody appears twice. "Nobody" (unassigned) and the agent are never results
-//! (the field offers the first as a quick choice; the agent gets tickets through its run).
+//! You come first, nobody appears twice. "Nobody" (unassigned) and the agent are never results.
 
 use cockpit_i18n::Lang;
 
@@ -89,7 +88,6 @@ pub fn search(local: &[Person], remote: &[Person], query: &str) -> Vec<Person> {
         }
         seen.push(key);
         if let Some(rank) = names.iter().filter_map(|n| grade(n, &needle)).min() {
-            // You first, whatever the match.
             let rank = if *person == me { 0 } else { rank + 1 };
             hits.push((rank, order, person.clone()));
         }

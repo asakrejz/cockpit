@@ -70,7 +70,7 @@ pub struct Snapshot {
     pub agent: AgentStatus,
     /// Result of the last connection test to the endpoint, if it has run already.
     pub check: Option<EndpointCheck>,
-    /// What GitHub shows of the configured repos, if it was asked (`GET /api/github/access`).
+    /// What GitHub shows of the configured repos, if it was asked.
     pub github_access: Option<crate::api::GitHubAccess>,
 }
 

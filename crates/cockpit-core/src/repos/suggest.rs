@@ -1,7 +1,6 @@
 //! Which repos to offer when the agent starts on a ticket – pure ranking, no I/O.
 //!
-//! The picker lists every repo the credential can see; this module only decides which of them
-//! come first and why. The order of the reasons is fixed:
+//! This module decides which repos come first and why. The order of the reasons is fixed:
 //!
 //! 0. the repo of a GitHub issue ticket (the issue lives there, so the work does too),
 //! 1. repos earlier runs used for tickets of the same Jira project (remembered from the runs in
@@ -10,15 +9,14 @@
 //! 3. repos the ticket text mentions (`owner/name` or a GitHub address),
 //! 4. the default repo of the configuration (`[agent] repo`).
 //!
-//! Every suggestion is one repo with one reason. The start dialog selects one repo today; the
-//! same ranking serves a later choice of several repos.
+//! Every suggestion is one repo with one reason.
 
 use serde::{Deserialize, Serialize};
 
 use super::AgentRepos;
 use crate::repo_name_valid;
 
-/// Why a repo is suggested. The interface turns it into a short text.
+/// Why a repo is suggested.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SuggestReason {
@@ -144,7 +142,7 @@ pub fn suggest_repos(input: &SuggestInput) -> Vec<RepoSuggestion> {
     out
 }
 
-/// One line of the repo picker in the start dialog.
+/// One row of the repo list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PickerRow {
     pub repo: String,
@@ -154,8 +152,7 @@ pub struct PickerRow {
 
 /// The lines of the picker in the order they are shown: the suggestions first (in their order),
 /// then every other repo of `all` alphabetically. `all` may be empty (GitHub could not be asked),
-/// then only the suggestions show. The search and the limit of what is drawn are those of every
-/// repo list (`setup::repo_page`).
+/// then only the suggestions show.
 ///
 /// ```
 /// use cockpit_core::repos::suggest::{picker_rows, RepoSuggestion, SuggestReason};

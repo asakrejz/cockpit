@@ -1,5 +1,5 @@
 //! Drafts of the agent: checked against the diff, kept as suggestions that wait for your
-//! decision. Nothing here talks to GitHub.
+//! decision.
 
 use super::*;
 

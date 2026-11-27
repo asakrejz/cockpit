@@ -31,10 +31,10 @@ impl Workspace {
             .collect()
     }
 
-    /// Inbox entries for the filter dialog: like [`Workspace::search`], then narrowed by the
+    /// Inbox entries for the chosen filters: like [`Workspace::search`], then narrowed by the
     /// [`InboxFilter`].
     ///
-    /// The tab decides the base list. Every tab but "Snoozed" lists the entries of colleagues
+    /// The filter decides the base list. Every filter but "Snoozed" lists the entries of colleagues
     /// too (pull requests and tickets without a reason for attention) – they never raise
     /// attention or notifications themselves. "Snoozed" keeps the snoozed entries only (see
     /// [`Workspace::search`]). The sprint "Current sprint" falls back to "All open" as long as
@@ -96,9 +96,8 @@ impl Workspace {
             .count()
     }
 
-    /// The badge of the merged "Tasks" entry: what "Me" showed plus what the former
-    /// "Inbox" (all attention) showed, every entry counted once. Since "Ich" is a subset of
-    /// "Alle", this is the unread number of the union of both lists.
+    /// The badge of the "Tasks" entry: the unread entries that need attention, every entry counted once.
+    /// Since "Ich" is a subset of "Alle", this is the unread number of the union of both lists.
     pub fn tasks_unread(&self, now_ms: u64) -> usize {
         let mut ids: Vec<&str> = [Filter::Mine, Filter::All]
             .into_iter()

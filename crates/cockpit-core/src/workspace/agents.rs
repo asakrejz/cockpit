@@ -98,10 +98,9 @@ impl Workspace {
         }
     }
 
-    /// A follow-up job that no longer runs leaves no run behind. (For the ticket
-    /// the ready run stays, as before.)
+    /// A follow-up job that no longer runs leaves no run behind; the ready run of the ticket stays.
     pub(super) fn drop_idle_followups(&mut self) {
-        // A failed review run stays, so that the review page can say why it ended.
+        // A failed review run stays, so that its end reason remains available.
         self.runs.retain(|r| {
             !(r.is_followup()
                 && r.is_idle()
@@ -151,7 +150,7 @@ impl Workspace {
         keys
     }
 
-    /// The runs whose pull request the backend should ask GitHub about (see
+    /// The runs whose pull request is to be watched (see
     /// [`AgentRun::pr_to_watch`]), with the key of the run.
     pub fn runs_to_watch(&self) -> Vec<(String, PrKey)> {
         self.runs

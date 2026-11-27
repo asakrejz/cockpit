@@ -1,8 +1,5 @@
 //! GitHub Projects (v2) as a ticket source: what a project item is, how its Status field maps
 //! onto the ticket status, how keys like `acme/app#123` are written and found in texts.
-//!
-//! Everything here is pure – no network, no clock. The client in `cockpit-integrations` reads
-//! the GraphQL answers and fills these types; the workspace only ever sees the result.
 
 use serde::{Deserialize, Serialize};
 
@@ -99,7 +96,7 @@ impl TicketsFrom {
     }
 }
 
-/// Who owns a project and how the credential reaches it (for the list in the setup).
+/// Who owns a project and how the credential reaches it.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ProjectOrigin {

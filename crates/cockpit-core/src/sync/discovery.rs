@@ -1,5 +1,5 @@
 //! Finding pull requests without a list of repos: the search queries and how their results are
-//! merged. Pure; the calls are made in `cockpit-integrations`.
+//! merged. Pure.
 //!
 //! GitHub's search answers across every repo the credential can see. Three searches (my own
 //! pull requests, review requests, everything I am involved in) are merged without duplicates.

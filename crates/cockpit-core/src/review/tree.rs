@@ -1,4 +1,4 @@
-//! The file tree of the review panel: the changed files as indented rows with their counts.
+//! The file tree of a review: the changed files as indented rows with their counts.
 
 use std::collections::BTreeMap;
 

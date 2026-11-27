@@ -5,13 +5,12 @@ use super::*;
 /// Identity of a pull request: the repo (`owner/name`) plus the number. Equal numbers
 /// from two repos are two different pull requests.
 ///
-/// On the wire a key without repo is a plain number (the format before several repos were
-/// supported) and a key with repo is the text `owner/name#12`; both are read. A key without
-/// repo matches any repo with that number (old data, single-repo tests); a key with a repo
-/// matches only that repo (or an entry whose repo is still unknown).
+/// On the wire a key without repo is a plain number and a key with repo is the text
+/// `owner/name#12`; both are read. A key without repo matches any repo with that number; a key
+/// with a repo matches only that repo (or an entry whose repo is still unknown).
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct PrKey {
-    /// `owner/name`; empty = unknown (old data).
+    /// `owner/name`; empty = unknown.
     pub repo: String,
     pub number: u32,
 }
@@ -121,9 +120,8 @@ impl Serialize for PrKey {
 ///   made from it, reaches `git` or another command.
 ///
 /// This is the one rule for every repo name Cockpit reads, stores or hands to `git` and the
-/// container. The agent runner repeats it in `apps/agent/runner/src/job.ts` as a second line of
-/// defence; both are tested against `tests/fixtures/repo_name_cases.json`, so a change to the
-/// rule has to change that file and then both sides have to agree again.
+/// container. The agent runner applies the same rule in `apps/agent/runner/src/job.ts`, so a
+/// change here has to change both.
 ///
 /// ```
 /// use cockpit_core::repo_name_valid;
@@ -157,7 +155,7 @@ pub fn repo_name_valid(repo: &str) -> bool {
 pub struct PrRef {
     #[serde(default)]
     pub number: u32,
-    /// `owner/name`; empty = unknown (old data, filled by the migration).
+    /// `owner/name`; empty = unknown.
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub repo: String,
     #[serde(default)]
@@ -172,11 +170,11 @@ pub struct PrRef {
     /// A review is requested.
     #[serde(default)]
     pub review_requested: bool,
-    /// GitHub login of the author (empty = not known, old data).
+    /// GitHub login of the author (empty = not known).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub author: String,
     /// The pull request concerns me: I am the author, a requested reviewer or an assignee.
-    /// Old data has `false` here; the entry's `scope` stays the authority for old entries.
+    /// Old data has `false` here; the entry's `scope` decides for it.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub mine: bool,
     /// A review from me is requested (as a person, not through a team).
@@ -210,8 +208,7 @@ impl PrRef {
         PrKey::new(&self.repo, self.number)
     }
 
-    /// The tone of the status line of a pull request: merged, review open, draft or the
-    /// state of the checks. The interface words the line.
+    /// The tone of the status line of a pull request: merged, review open, draft or the state of the checks.
     pub fn status_tone(&self) -> Tone {
         if self.merged {
             return Tone::Indigo;

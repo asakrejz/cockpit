@@ -4,7 +4,6 @@
 //! Jira names and GitHub logins are different identities. They are never merged by guess; only a
 //! link the user sets ([`PersonLink`]) joins them. You ([`Person::me`]) need no link: your Jira
 //! account and your GitHub login are both known, so both already map to the same person.
-//! Display only: nothing is written to Jira or GitHub.
 
 use serde::{Deserialize, Serialize};
 
@@ -64,7 +63,7 @@ impl Workspace {
         true
     }
 
-    /// Link a Jira person to a GitHub login. An older link of either side is replaced, so every
+    /// Link a Jira person to a GitHub login. An existing link of either side is replaced, so every
     /// name has at most one link. `false` if nothing changed or the input is not a link
     /// (empty, you, the agent).
     pub fn link_people(&mut self, jira: &str, github: &str) -> bool {
@@ -106,7 +105,7 @@ impl Workspace {
 impl Workspace {
     /// The people a member of `side` can be linked to: those of the other source (their entries
     /// or, for GitHub, the authors of reviews) who are not linked yet, not you, not the agent.
-    /// Independent of the source filter, so a link is possible from every view.
+    /// Independent of the source filter.
     pub fn link_candidates(&self, side: crate::team::Side) -> Vec<Person> {
         use crate::team::Side;
         let other = match side {

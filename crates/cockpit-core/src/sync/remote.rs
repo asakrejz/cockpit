@@ -50,8 +50,7 @@ impl Loaded {
     }
 }
 
-/// Which repo a pull request belongs to (and its last known commit). Reviews carry the
-/// repo themselves; the link is what the backend needs for write access.
+/// Which repo a pull request belongs to (and its last known commit). Reviews carry the repo themselves.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct PrLink {
     pub number: u32,

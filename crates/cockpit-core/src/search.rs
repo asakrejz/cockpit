@@ -21,8 +21,7 @@ pub fn matches_query(item: &Item, query: &str) -> bool {
     if query.is_empty() {
         return true;
     }
-    // The reason line and the owner (you, nobody) are searched in both languages: the row shows
-    // them in the one of the interface.
+    // The reason line and the owner (you, nobody) are searched in both languages.
     let reason = item.reason_line();
     let haystack = [
         item.title.as_str(),

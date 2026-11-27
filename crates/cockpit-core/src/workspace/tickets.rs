@@ -134,7 +134,7 @@ impl Workspace {
             .collect()
     }
 
-    /// What the "Development" section of a ticket lists: every linked pull request with its
+    /// Every linked pull request with its
     /// head branch, plus the ticket's own copy of a pull request whose review is not loaded.
     pub fn linked_prs(&self, ticket_id: &str) -> Vec<LinkedPr> {
         let mut list: Vec<LinkedPr> = self

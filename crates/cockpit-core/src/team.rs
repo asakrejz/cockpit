@@ -1,7 +1,4 @@
 //! Team view: who works on what and where something is stuck.
-//!
-//! Everything here is pure functions over the [`Workspace`]. They change nothing and
-//! know no UI; the overview page only shows their result.
 
 use crate::Kind;
 use crate::model::{Item, Person, PrKey, Source, TicketStatus, Tone};
@@ -21,7 +18,7 @@ pub enum LoadLevel {
     Full,
 }
 
-/// Where an entry comes from, for the overview: Jira, or GitHub (pull requests and GitHub
+/// Where an entry comes from: Jira, or GitHub (pull requests and GitHub
 /// Projects tickets).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Side {

@@ -1,8 +1,6 @@
 //! „Mein Team“: which tickets of the Jira „Team“ field the lists show.
 //!
-//! The choice ([`TeamChoice`]) is a setting of the workspace. Everything here is a pure rule over
-//! the workspace; the overview ([`crate::team`]) and the inbox ([`Workspace::inbox`]) ask
-//! [`Workspace::team_visible`].
+//! The choice ([`TeamChoice`]) is a setting of the workspace; [`Workspace::team_visible`] applies it to one entry.
 //!
 //! * No team chosen: nothing is filtered.
 //! * A ticket is shown if its team is chosen; a ticket without a team only if
@@ -88,8 +86,7 @@ impl Workspace {
         out
     }
 
-    /// Does any ticket carry a team? Without, the team field is not there (or not set up) and
-    /// the interface has nothing to choose from.
+    /// Does any ticket carry a team? Without, the team field is not there (or not set up).
     pub fn has_team_data(&self) -> bool {
         self.items.iter().any(|i| i.team.is_some())
     }

@@ -1,6 +1,5 @@
 //! The chosen inbox filters of the workspace: the choices of every filter, the list of active
-//! filters (for the badge and the chips), the filter as it acts on this workspace and the change
-//! itself.
+//! filters, the filter as it acts on this workspace and the change itself.
 
 use super::*;
 use crate::filters::{
@@ -10,7 +9,7 @@ use crate::filters::{
 
 impl Workspace {
     /// The choices of the person filter: me, nobody, then the people of the entries. The first two
-    /// carry their value as label; the interface words them.
+    /// carry their value as label.
     pub(super) fn person_choices(&self) -> Vec<(String, String)> {
         let mut out = vec![
             (ASSIGNED_TO_ME.to_string(), ASSIGNED_TO_ME.to_string()),
@@ -52,8 +51,7 @@ impl Workspace {
         types.into_iter().map(|t| (t.clone(), t)).collect()
     }
 
-    /// Is the entry in the workspace but not in the list the filters leave? The inbox shows such
-    /// an entry anyway when it is opened by address, and says so.
+    /// Is the entry in the workspace but not in the list the filters leave?
     pub fn hidden_by_filter(
         &self,
         id: &str,
@@ -94,7 +92,7 @@ impl Workspace {
     }
 
     /// The filters that are not at their start value, plus the chosen Jira project, in display
-    /// order. Their number is the badge of the filter button.
+    /// order.
     pub fn active_filters(&self) -> Vec<ActiveFilter> {
         let mut out: Vec<ActiveFilter> = self
             .jira_project

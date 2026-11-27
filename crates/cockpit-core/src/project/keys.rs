@@ -104,7 +104,6 @@ pub fn issue_refs(text: &str, default_repo: &str) -> Vec<IssueRef> {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'#' {
-            // Digits after the hash.
             let start = i + 1;
             let mut end = start;
             while end < bytes.len() && bytes[end].is_ascii_digit() {
