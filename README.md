@@ -73,5 +73,6 @@ assistant, or in a terminal with `cockpit-server token set <name>`; the names an
 | [docs/security.md](docs/security.md) | credentials, request checks, webhooks, agent sandbox |
 | [docs/components.md](docs/components.md) | component library and design tokens |
 | [apps/agent/README.md](apps/agent/README.md) | agent image, adapters, job and event protocol |
+| [AGENTS.md](AGENTS.md) | rules for coding agents that work on Cockpit |
 
 MIT license (see `Cargo.toml`).
