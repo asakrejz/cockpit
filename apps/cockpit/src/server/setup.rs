@@ -55,7 +55,9 @@ pub async fn put_config(change: &ConfigChange) -> Result<ConfigResponse, CallErr
         .map_err(|_| CallError::Rejected(t!(ServerGarbled)))
 }
 
-/// Stores a key in the .env file of the server (`PUT /api/secrets/{name}`). The answer only says "set".
+/// Stores a key in the .env file of the server (`PUT /api/secrets/{name}`). The value only goes into
+/// the body of this request – not into the address, not into the memory of the browser. The answer
+/// only says "set".
 pub async fn put_key(name: &str, value: String) -> Result<KeyResponse, CallError> {
     let request = Request::put(&format!("/api/secrets/{name}"))
         .header("Content-Type", "application/json")

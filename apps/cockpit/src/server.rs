@@ -1,5 +1,5 @@
 //! Server mode from the browser's point of view: requests to the local backend
-//! (`cockpit-server`) and the event stream.
+//! (`cockpit-server`) and the event stream. No key is here and none is stored.
 //!
 //! The calls are grouped by area in the child modules and re-exported here, so callers write
 //! `server::fetch_…`.

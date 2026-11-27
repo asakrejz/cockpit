@@ -1,6 +1,6 @@
 //! Return from the OAuth sign-in: the backend redirects to `/` and appends result and
-//! message to the address (`?oauth=ok|error&service=…&msg=…`, the message as JSON).
-//! Here it is displayed and the address is tidied up.
+//! message to the address (`?oauth=ok|error&service=…&msg=…`, the message as JSON). The message
+//! never contains a key. Here it is displayed and the address is tidied up.
 
 use feature_ui::t;
 use leptos::prelude::*;
