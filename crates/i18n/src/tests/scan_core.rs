@@ -32,7 +32,7 @@ const GERMAN_WORDS: &[&str] = &[
     "bitte",
     "wenn",
     "dann",
-    // The reason lines, times, labels and names that German text used to be stored under.
+    // Ids that stored data uses as German words: reason lines, times, labels, names.
     "zugewiesen",
     "gerade",
     "eben",

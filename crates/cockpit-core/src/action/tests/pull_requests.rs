@@ -21,7 +21,7 @@ fn linking_connects_both_sides() {
 
 #[test]
 fn the_manual_link_actions_are_gone_from_the_wire() {
-    // Old clients may still send them; they are no known variant any more.
+    // Old clients may still send them: they are no known variant.
     for json in [
         r#"{"LinkPr":{"item":"bau150","pr":85}}"#,
         r#"{"UnlinkPr":{"item":"bau150"}}"#,
@@ -65,7 +65,7 @@ fn the_branch_or_title_links_automatically() {
         Some(85)
     );
     assert_eq!(w.review(85).unwrap().ticket_key.as_deref(), Some("BAU-150"));
-    // A second run finds nothing any more.
+    // A second run finds nothing.
     fails(&mut w, Action::AutoLinkPrs, ActionError::NothingToDo);
 
     // It counts the title just the same.

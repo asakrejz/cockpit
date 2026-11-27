@@ -46,6 +46,6 @@ fn old_json_with_the_removed_project_list_reads_and_ignores_it() {
             ..AgentRepo::new("a/b")
         }
     );
-    // The list is not written any more.
+    // The list is not written.
     assert!(!serde_json::to_string(&one).unwrap().contains("projects"));
 }

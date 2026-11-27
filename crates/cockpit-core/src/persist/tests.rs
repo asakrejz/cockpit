@@ -106,7 +106,7 @@ fn other_version_is_rejected() {
         load(&value.to_string()),
         Err(LoadError::Version(VERSION + 1))
     );
-    // Even if the rest no longer fits today's shape.
+    // Even if the rest does not fit the current shape.
     assert_eq!(
         load("{\"version\":0,\"workspace\":\"alt\"}"),
         Err(LoadError::Version(0))

@@ -116,7 +116,7 @@ fn drafts_follow_their_line_when_the_diff_shifts() {
     assert_eq!((c.id.as_str(), c.line), (id.as_str(), 2));
     assert!(changes.is_empty());
 
-    // The line no longer exists: draft dropped, the text is in the log.
+    // The line is gone: draft dropped, the text is in the log.
     let gone = [(1, LineKind::Context, "fn b() {")];
     let (after, changes) = merge(
         &after,

@@ -5,7 +5,7 @@
 //!   `id.one` / `id.other` for plurals, `\n` for a line break).
 //! - [`Lang`] is the language; the browser language is the default ([`Lang::from_browser`]).
 //!
-//! The crate knows nothing about Leptos. The reactive switch is in `feature-ui`.
+//! The crate knows nothing about Leptos.
 
 use std::{collections::HashMap, sync::OnceLock};
 

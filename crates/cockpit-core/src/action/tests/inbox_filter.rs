@@ -97,8 +97,7 @@ fn a_stored_whose_choice_is_ignored_and_the_inbox_lists_everybody() {
     assert!(!attention.contains(&"#998".to_string()));
     ok(&mut w, Action::SetInboxFilter { filter: by.clone() }, 1);
 
-    // Older states stored the choice as `whose` (and, before that, as `ownership`): both load
-    // without error, change no value and the inbox lists what it lists without them.
+    // Older states stored the choice as `whose` or `ownership`: both load and change no value.
     for (field, value) in [("whose", "Mine"), ("whose", "All"), ("ownership", "Mine")] {
         let mut json: serde_json::Value = serde_json::from_str(&saved(&w)).unwrap();
         json["workspace"]["inbox_filter"][field] = serde_json::json!(value);

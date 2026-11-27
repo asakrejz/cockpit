@@ -367,7 +367,7 @@ fn a_cancelled_agent_leaves_no_traces() {
         (None, None, None)
     );
     assert!(w.review(92).is_none());
-    // A finished run can no longer be cancelled.
+    // A finished run cannot be cancelled.
     w.cancel_agent("BAU-138");
     assert!(w.run("BAU-138").unwrap().is_done());
 }
