@@ -2,7 +2,7 @@
 //! of Jira tickets, read through the key of the backend. Jira's attachment addresses need a
 //! sign-in, so the browser never gets them – and never the key.
 //!
-//! Rules (see `docs/security.md`):
+//! Rules:
 //!
 //! * like every `/api` route: only from the same computer, with a checked `Host`;
 //! * only attachments of tickets that are in the workspace (the ID is looked up there, never

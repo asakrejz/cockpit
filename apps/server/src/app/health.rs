@@ -71,7 +71,7 @@ pub struct UnreadableState {
     pub count: u32,
     /// When the newest was kept (`YYYY-MM-DD HH:MM:SS`, UTC).
     pub kept_at: String,
-    /// The notice as code and parameters; the interface shows it in its language.
+    /// The notice as code and parameters.
     pub notice: cockpit_i18n::Msg,
 }
 

@@ -45,7 +45,7 @@ pub(crate) use handlers::*;
 mod cleanup_routes;
 use cleanup_routes::*;
 
-/// This often a sign of life comes on the event connection.
+/// Interval of the keep-alive signal on the event connection.
 const KEEP_ALIVE: Duration = Duration::from_secs(15);
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -128,7 +128,7 @@ pub fn router(state: AppState, dist: PathBuf) -> Router {
             post(crate::webhooks::test),
         )
         .route("/api/{*rest}", any(api_unknown))
-        // Applies only to `/api`, not to the files of the app. Added routes below are outside.
+        // Applies only to `/api`, not to the files of the app.
         .layer(axum::middleware::from_fn_with_state(
             access,
             access::protect,

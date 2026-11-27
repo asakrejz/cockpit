@@ -1,9 +1,8 @@
 //! Can the connected GitHub access see the configured (watched) repos? Read-only.
 //!
 //! A GitHub App sign-in only sees repos on accounts where the app is installed. A repo it
-//! cannot see answers 404 (or 403 when a permission is missing). The sync keeps such a repo as a
-//! small warning and shows an empty list, so this report tells the two cases apart: the empty
-//! state says "no pull requests" only if everything was reachable.
+//! cannot see answers 404 (or 403 when a permission is missing). This report tells that apart from
+//! an empty list: the empty state says "no pull requests" only if everything was reachable.
 
 use cockpit_core::api::{GitHubAccess, RepoSight, RepoVisibility};
 use cockpit_integrations::{Cause, Error};

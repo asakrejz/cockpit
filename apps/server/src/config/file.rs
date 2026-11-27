@@ -66,8 +66,7 @@ pub(super) struct FileEndpoint {
 pub(super) struct FileAgentRepo {
     pub(super) repo: String,
     pub(super) base_branch: Option<String>,
-    /// Accepted so that a file with `projects = [...]` still starts; the value is ignored and the
-    /// setup assistant leaves the key out when it saves the file.
+    /// Accepted so that a file with `projects = [...]` still starts; the value is ignored.
     #[serde(default, rename = "projects")]
     pub(super) _projects: serde::de::IgnoredAny,
     /// `claude/{ticket}-{slug}` if missing.
@@ -76,8 +75,7 @@ pub(super) struct FileAgentRepo {
     /// Language of the pull request title and text: `en` (default) or `de`.
     #[serde(default)]
     pub(super) pr_language: Option<String>,
-    /// `false`: the entry only keeps the settings of the repo; the sync does not load all of its
-    /// open pull requests. Written by the app on the first use of a repo.
+    /// `false`: the sync does not load the open pull requests of this repo; the entry only keeps its settings.
     #[serde(default)]
     pub(super) watch: Option<bool>,
 }

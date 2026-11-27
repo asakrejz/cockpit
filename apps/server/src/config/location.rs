@@ -3,7 +3,7 @@
 //! * `<project>/config/config.toml` and `<project>/config/cockpit.db` are the defaults; the folder
 //!   is created at the first start (mode `700`, files `600`), an empty `config.toml` too.
 //! * `<project>/config/.env` holds the secrets (`COCKPIT_ENV_FILE` overrides).
-//! * "Project folder" is the working directory (`scripts/start.sh`, `start-cockpit.command` and the launchd template all start in it).
+//! * "Project folder" is the working directory.
 //! * `COCKPIT_CONFIG` and `COCKPIT_DB` win; they switch off creating.
 
 use std::path::{Path, PathBuf};

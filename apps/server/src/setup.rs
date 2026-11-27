@@ -1,17 +1,6 @@
 //! Setup by click: routes for the assistant in the app.
 //!
-//! * `GET /api/setup`: current, non-secret values and which keys are present
-//! * `PUT /api/config`: writes client IDs, Jira, repos as well as agent provider and endpoint to `config.toml`
-//!   (atomically, comments and other values stay) and applies them without restart
-//! * `PUT /api/secrets/{name}`: stores a key in the .env file; `DELETE` deletes a
-//!   token (`jira`, `github`) again ("Disconnect")
-//! * `POST /api/jira/check`: connection test for Jira via API token (read only)
-//! * `GET /api/github/repos`: the repos the GitHub access can reach (read only)
-//! * `POST /api/github/branch-suggestion`: a branch pattern proposed from the repo's CONTRIBUTING.md (read only)
-//! * `GET /api/github/access`: can the access see every configured repo? (read only)
-//! * `POST /api/github/check`: connection test for GitHub: user and chosen repos (read only)
-//!
-//! All three run behind the check from `access` (loopback, host, origin, content type).
+//! All routes run behind the check from `access` (loopback, host, origin, content type).
 //! A key only occurs in the body of the request, is logged nowhere and never sent back;
 //! the answer only says "set".
 

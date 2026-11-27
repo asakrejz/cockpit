@@ -1,6 +1,6 @@
 //! Safety net around the folder `config/`: its files must not be tracked by Git (only
 //! `config.example.toml` may be), must be covered by `.gitignore` and must not be readable by
-//! others. Counterpart of `secrets/env_check`; nothing here reads a file's content.
+//! others. Nothing here reads a file's content.
 //!
 //! Without `git` or outside a repository the Git checks are skipped silently.
 
@@ -20,7 +20,7 @@ const CACHE_TTL: Duration = Duration::from_secs(15);
 #[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
 pub struct ConfigFilesStatus {
     pub path: String,
-    /// The warnings as code and parameters; the interface shows them in its language.
+    /// The warnings as message codes with their parameters.
     pub warnings: Vec<Msg>,
 }
 
