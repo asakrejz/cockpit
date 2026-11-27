@@ -1,5 +1,5 @@
 //! Handlers of the settings actions: notifications, limits, rules per repo, language, and the sync
-//! merge (one `perform_<variant>` per [`Action`]).
+//! merge.
 
 use cockpit_i18n::msg;
 

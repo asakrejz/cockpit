@@ -253,7 +253,7 @@ pub const DEMO_PROJECT: &str = "acme/3";
 
 /// Two tickets of a sample GitHub project („acme/3“): an issue in review and a draft. They show
 /// the source `GitHubProject`, Markdown text, project fields and a pull request found on the
-/// timeline. Nothing here reaches a real project.
+/// timeline.
 pub fn project_tickets() -> (Item, Item) {
     let project = |item_id: &str, number: Option<u32>, draft: bool| ProjectItem {
         project_id: "PVT_demo".into(),

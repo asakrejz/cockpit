@@ -1,5 +1,5 @@
-//! Actions on tickets of GitHub projects. The backend writes to GitHub first; these are the local
-//! effects once GitHub has said yes (and the rules that apply before it is asked at all).
+//! Actions on tickets of GitHub projects: the local effects once GitHub has said yes (and the
+//! rules that apply before it is asked at all).
 
 use cockpit_i18n::msg;
 

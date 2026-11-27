@@ -2,9 +2,8 @@
 //! attachments, as the sync reads them.
 //!
 //! The fields arrive ready to show: empty ones are already gone, the order is settled and
-//! rich text (ADF fields such as acceptance criteria) is parsed. The names of standard fields
-//! are translated by the UI through [`DetailField::id`]; everything else shows [`DetailField::name`]
-//! as Jira names it.
+//! rich text (ADF fields such as acceptance criteria) is parsed. Standard fields are identified
+//! by [`DetailField::id`]; [`DetailField::name`] is the name as Jira gives it.
 
 use serde::{Deserialize, Serialize};
 
@@ -51,7 +50,7 @@ pub enum DetailValue {
 /// An attachment of a ticket.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Attachment {
-    /// Jira's attachment ID (digits). Fetched through `GET /api/jira/attachment/{id}`.
+    /// Jira's attachment ID (digits).
     pub id: String,
     #[serde(default)]
     pub name: String,
@@ -82,7 +81,7 @@ pub fn is_inline_image(mime: &str) -> bool {
 }
 
 /// Hooks media nodes of a description or comment up with the attachments: an image that an
-/// attachment of the same file name belongs to gets that attachment's ID, so the UI can show it.
+/// attachment of the same file name belongs to gets that attachment's ID.
 pub fn link_media(doc: &mut Doc, attachments: &[Attachment]) {
     use crate::adf::Block;
     fn go(blocks: &mut [Block], attachments: &[Attachment]) {
@@ -112,8 +111,7 @@ pub fn link_media(doc: &mut Doc, attachments: &[Attachment]) {
     go(doc, attachments);
 }
 
-/// The ID of the picture in the sample data. The server answers it with a built-in placeholder
-/// picture when no Jira is set up (never with a real one).
+/// The ID of the picture in the sample data.
 pub const DEMO_IMAGE_ID: &str = "900001";
 
 /// `1.4 MB`, `812 B`: sizes for people (English units; the same in every language).

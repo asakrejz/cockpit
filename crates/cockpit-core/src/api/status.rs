@@ -2,8 +2,7 @@
 
 use super::*;
 
-/// What the agent works with: the tool that runs in the container (adapters in `apps/agent/runner`).
-/// The Claude Agent SDK and Claude Code talk to an Anthropic-compatible endpoint, Codex to an OpenAI-compatible one.
+/// What the agent works with: the tool that runs in the container.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum Provider {
@@ -34,7 +33,7 @@ impl Provider {
         Self::ALL.into_iter().find(|a| a.id() == t)
     }
 
-    /// The name for the UI.
+    /// The display name.
     pub fn label(self) -> &'static str {
         match self {
             Provider::ClaudeAgentSdk => "Claude Agent SDK",
@@ -135,8 +134,8 @@ pub struct AgentStatus {
     /// The default repo of the agent (`owner/name`), if there is one.
     #[serde(default)]
     pub repo: Option<String>,
-    /// The repos the agent may work in, with base branch, and the default. The interface
-    /// preselects the default repo, which the backend uses for a start without a choice.
+    /// The repos the agent may work in, with base branch, and the default (used for a start
+    /// without a choice).
     #[serde(default)]
     pub repos: AgentRepos,
     /// What is still missing, one sentence per entry with the place in the assistant.
@@ -147,7 +146,7 @@ pub struct AgentStatus {
 /// How the agent image compares with the sources of this Cockpit version.
 ///
 /// The image carries the label `cockpit.fingerprint` (a SHA-256 over the files that make the
-/// image, see the server); it is compared with the fingerprint of the current sources.
+/// image); it is compared with the fingerprint of the current sources.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum ImageState {

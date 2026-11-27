@@ -58,8 +58,6 @@ pub struct RepoSight {
 }
 
 /// Response of `GET /api/github/access`: can the connected access see every configured repo?
-/// Only reads. The empty state of review and inbox says "no pull requests" only if
-/// [`GitHubAccess::problem`] is false.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct GitHubAccess {
     /// GitHub is connected at all (token or sign-in).
@@ -132,8 +130,8 @@ pub struct BranchSuggestionRequest {
     pub repo: String,
 }
 
-/// What the contribution guidelines of a repo say about branch names. Only a proposal: the
-/// user confirms it, nothing is saved by this call.
+/// What the contribution guidelines of a repo say about branch names. Only a proposal: nothing
+/// is saved by this call.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct BranchSuggestion {
     /// The proposed pattern, `None` if the guidelines name none.
@@ -164,7 +162,7 @@ pub struct GitHubRepoInfo {
     pub can_push: Option<bool>,
 }
 
-/// Response of `GET /api/github/repos`. Only reads.
+/// Response of `GET /api/github/repos`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct GitHubRepoList {
     #[serde(default)]

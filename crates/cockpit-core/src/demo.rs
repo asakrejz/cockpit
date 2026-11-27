@@ -1,5 +1,5 @@
-//! Sample data following the design: the server's seed `COCKPIT_SEED=demo`, test data and the
-//! data of the Playground stories. Static data only: nothing here runs or changes by itself.
+//! Sample data: the server's seed `COCKPIT_SEED=demo`, test data and the data of the Playground
+//! stories.
 
 use crate::agent::{AgentRun, RunState, STEPS};
 use crate::model::*;
@@ -180,8 +180,7 @@ pub fn workspace() -> Workspace {
 }
 
 /// The sample data plus a second repo with a pull request of the same number (`#87` in both
-/// repos), so that the interface shows that equal numbers from two repos are two different
-/// pull requests. This is what the server's seed `demo` starts with.
+/// repos), so that equal numbers from two repos are two different pull requests.
 pub fn multi_repo_workspace() -> Workspace {
     let mut ws = workspace();
     let pr87t = Item {
@@ -249,8 +248,8 @@ pub fn multi_repo_workspace() -> Workspace {
     ws
 }
 
-/// Pull requests of colleagues that concern nobody here: the interface lists them under
-/// „Alle“ and they never raise attention. Two have no ticket key in branch or title.
+/// Pull requests of colleagues that concern nobody here: they never raise attention. Two have
+/// no ticket key in branch or title.
 fn add_team_pull_requests(ws: &mut Workspace) {
     let team = [
         (

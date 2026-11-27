@@ -19,7 +19,7 @@ impl Workspace {
         actor: Actor,
         at_ms: u64,
     ) -> Result<Applied, ActionError> {
-        // Who may apply what is decided here, not only in the UI: the check runs before anything else.
+        // The actor check runs before anything else.
         if let Some(required) = action.required_actor()
             && actor != required
         {

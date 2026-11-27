@@ -63,7 +63,7 @@ pub enum ActionError {
 }
 
 impl ActionError {
-    /// Explanation for the UI: code and parameters, the UI renders it in its language.
+    /// Explanation as code and parameters, rendered in the language of the reader.
     pub fn msg(&self) -> Msg {
         use super::labels;
         match self {

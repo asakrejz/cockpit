@@ -1,12 +1,8 @@
 //! Rich text of Jira (Atlassian Document Format, ADF) as a data model.
 //!
 //! Jira delivers descriptions and comments as an ADF JSON tree. Instead of flattening it to
-//! text right away, [`parse`] turns it into the typed tree [`Doc`], which the UI renders
-//! with real elements (no HTML from outside ever). Unknown nodes are never an error: they
-//! show up as the text of their content.
-//!
-//! Links are only kept for `http` and `https` ([`safe_url`]); everything else (such as
-//! `javascript:`) is shown as plain text.
+//! text right away, [`parse`] turns it into the typed tree [`Doc`]. Unknown nodes are never an
+//! error: they show up as the text of their content.
 
 use serde::{Deserialize, Serialize};
 

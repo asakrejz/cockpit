@@ -1,5 +1,5 @@
 //! The review panel: the commits of a pull request and the diff of one commit, read from GitHub
-//! on demand (`GET /api/review/commits`, `GET /api/review/commit`).
+//! on demand.
 //!
 //! The diff of a whole pull request is part of the synced state (`Review::files`); only what the
 //! sync does not carry lives here.

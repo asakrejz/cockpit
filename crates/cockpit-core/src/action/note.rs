@@ -6,7 +6,7 @@ use super::*;
 pub(super) struct Note {
     pub(super) actor: Option<Actor>,
     pub(super) target: Option<Target>,
-    /// The sentence as code and parameters; the UI renders it in its language.
+    /// The sentence as code and parameters.
     pub(super) msg: cockpit_i18n::Msg,
 }
 

@@ -1,15 +1,9 @@
 //! Actions and log.
 //!
-//! Every change the UI can trigger is an [`Action`]. The backend
-//! applies it with [`Workspace::apply`](crate::Workspace::apply) and gets either an
+//! Every change to the workspace is an [`Action`]. It is applied with
+//! [`Workspace::apply`](crate::Workspace::apply), which returns either an
 //! [`Applied`] or an [`ActionError`]. Every successful action leaves
 //! a [`LogEntry`] in the workspace's log; failures leave nothing.
-//!
-//! Actions are `serde`-capable so that the backend can receive them as JSON.
-//!
-//! Routing lives in one place: `dispatch.rs` has one exhaustive `match` with one arm per variant,
-//! each arm calling the handler `perform_<variant>` in the file of its topic. Who may trigger a
-//! variant is [`Action::required_actor`], exhaustive as well.
 
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +20,7 @@ use crate::workspace::{AgentError, ResumeError, StatusChange, Workspace};
 /// This many entries the log keeps. Older ones drop out.
 pub const MAX_LOG: usize = 500;
 
-/// A change to the workspace. One variant per gesture of the UI.
+/// A change to the workspace.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum Action {
     // Inbox
@@ -89,22 +83,21 @@ pub enum Action {
     SetStatusFollowsPr {
         enabled: bool,
     },
-    /// Choose the Jira project (key like `BAU`), `None` = all projects. In server mode the
-    /// next sync then fetches all open tickets of this project.
+    /// Choose the Jira project (key like `BAU`), `None` = all projects.
     SelectJiraProject {
         project: Option<String>,
     },
     /// Choose „Mein Team“ (see [`crate::team_filter`]): the lists then show only tickets of these
-    /// teams. A display setting only: nothing is written to Jira or GitHub.
+    /// teams.
     SetTeamChoice {
         choice: crate::team_filter::TeamChoice,
     },
-    /// Choose the source the overview shows (Alle / Jira / GitHub). Display only.
+    /// Choose the source the overview shows (Alle / Jira / GitHub).
     SetPeopleSource {
         source: crate::people_link::PeopleSource,
     },
     /// Say that a Jira person and a GitHub login are the same human (see
-    /// [`crate::people_link`]). Display only.
+    /// [`crate::people_link`]).
     LinkPeople {
         jira: String,
         github: String,
@@ -113,14 +106,11 @@ pub enum Action {
     UnlinkPeople {
         jira: String,
     },
-    /// Apply the inbox filters (see [`crate::filters`]). A display filter only: nothing is
-    /// written to Jira or GitHub. In server mode a changed sprint view makes the next sync
-    /// fetch other tickets.
+    /// Apply the inbox filters (see [`crate::filters`]).
     SetInboxFilter {
         filter: crate::InboxFilter,
     },
-    /// Apply the filter of the Reviews tab (repos, GitHub projects, whose pull requests). A
-    /// display filter only: nothing is written to GitHub and the sync is not narrowed.
+    /// Apply the filter of the Reviews tab (repos, GitHub projects, whose pull requests).
     SetReviewFilter {
         filter: crate::review_filter::ReviewFilter,
     },

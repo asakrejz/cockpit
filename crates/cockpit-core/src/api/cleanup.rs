@@ -1,11 +1,5 @@
-//! Clean-up of what finished agent runs leave behind (`/api/agent/cleanup`, `/api/agent/branch`).
-//!
-//! * `GET /api/agent/cleanup`: the preview, [`CleanupPreview`]. Removes nothing.
-//! * `POST /api/agent/cleanup`: removes what the body confirms (and only what is still
-//!   an orphan), [`CleanupRequest`] → [`CleanupResult`].
-//! * `GET /api/agent/branch?run=<key>`: may the branch of the run be deleted, [`BranchCheck`].
-//! * `POST /api/agent/branch`: deletes that one branch on GitHub, [`BranchDeleteRequest`] →
-//!   [`BranchDeleted`]. Only after the same check; never automatic.
+//! Wire shapes of the clean-up of what finished agent runs leave behind (`/api/agent/cleanup`,
+//! `/api/agent/branch`).
 
 use serde::{Deserialize, Serialize};
 

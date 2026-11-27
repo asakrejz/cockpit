@@ -2,8 +2,8 @@
 
 use super::*;
 
-/// Body of `PUT /api/secrets/{name}`. The value is a secret: it only stands in the input field,
-/// goes once to the local server and never comes back. `Debug` does not show it.
+/// Body of `PUT /api/secrets/{name}`. The value is a secret: it goes once to the local server and
+/// never comes back. `Debug` does not show it.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct KeyInput {
     pub value: String,
@@ -104,7 +104,7 @@ pub struct ProjectsResponse {
 }
 
 /// Body of `POST /api/github/projects/create`: a new project for `owner` (the user or an
-/// organization), optionally linked to `repo`. Only sent when the user clicks "Create a project".
+/// organization), optionally linked to `repo`.
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq, Eq)]
 pub struct CreateProjectRequest {
     pub owner: String,

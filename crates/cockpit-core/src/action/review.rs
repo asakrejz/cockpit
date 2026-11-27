@@ -1,5 +1,5 @@
 //! Handlers of the review actions: decisions on suggestions, own line comments, verdict, sending,
-//! restarting a check and merging (one `perform_<variant>` per [`Action`]).
+//! restarting a check and merging.
 
 use cockpit_i18n::msg;
 

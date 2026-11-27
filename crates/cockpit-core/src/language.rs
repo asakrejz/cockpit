@@ -1,6 +1,6 @@
 //! Which language a review or a pull request text is written in: German or English.
 //!
-//! [`detect`] is a pure, deterministic guess from stopwords and umlauts. It says nothing when the
+//! [`detect`] guesses from stopwords and umlauts. It says nothing when the
 //! text is too short or too unclear. [`choose_review`] and [`choose_text`] apply the order of the
 //! rules: explicit choice, detection, the repo's `pr_language`, English.
 

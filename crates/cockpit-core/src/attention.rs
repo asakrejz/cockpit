@@ -1,13 +1,12 @@
 //! Attention: *why* does an entry need me – and when not?
 //!
-//! Everything here is pure functions. The time comes from outside (`now_ms`, milliseconds
-//! since 1970, UTC); `cockpit-core` knows no clock.
+//! The time comes from outside (`now_ms`, milliseconds since 1970, UTC).
 //!
 //! * [`Rule`]: the rules, individually switchable ([`Rules`])
 //! * [`hits`]: which rules apply to an entry, each with reason and a
 //!   short sentence ([`Msg`]); the first hit (by ranking) is the main reason
 //! * [`Snooze`]: snooze an entry – for a time or „until something changes“
-//! * [`SnoozeChoice`]: the four choices of the UI
+//! * [`SnoozeChoice`]: the four choices
 //!
 //! Due dates (`Item::due`) are days without time of day. „Today“ is the UTC day of
 //! `now_ms`; around midnight this can deviate by the time zone.
@@ -315,7 +314,7 @@ impl Snooze {
     }
 }
 
-/// The four choices in the UI.
+/// The four choices.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SnoozeChoice {
     Hour,

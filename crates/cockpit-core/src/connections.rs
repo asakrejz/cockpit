@@ -1,7 +1,6 @@
 //! Connections to Jira and GitHub, as the backend reports them.
 //!
-//! [`ServiceStatus`] holds only checkmarks – **never keys**. Whether a key really works, only
-//! the service can say; the backend checks it, the browser stores nothing of it.
+//! [`ServiceStatus`] holds only checkmarks – **never keys**.
 
 use cockpit_i18n::{Msg, msg};
 use serde::{Deserialize, Serialize};
@@ -22,8 +21,8 @@ pub enum AuthKind {
 }
 
 /// The sign-in method the user picked for a service (`auth = "token" | "oauth"` in the
-/// `[github]` / `[jira]` section). Without a stored choice the older rule stays: a working OAuth
-/// sign-in first, then the token.
+/// `[github]` / `[jira]` section). Without a stored choice a working OAuth sign-in goes first,
+/// then the token.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AuthChoice {
@@ -42,8 +41,7 @@ impl AuthChoice {
         }
     }
 
-    /// **The one rule** for which credentials a service uses. Credential selection (sync,
-    /// agent, repo list) and the connection status all call this.
+    /// **The one rule** for which credentials a service uses.
     ///
     /// * no choice: a working sign-in goes before the token, an expired one falls back to it;
     /// * `token`: only the token counts, a stored sign-in is kept but not used;
@@ -105,10 +103,8 @@ pub enum OAuthTokens {
 }
 
 impl ServiceStatus {
-    /// **The one place** that decides whether a service counts as connected. Summary, sidebar,
-    /// inbox, review and the steps of the assistant all read this result (via `/api/health`).
-    /// The stored choice decides which credentials count (see [`AuthChoice::pick`]); without one
-    /// a working OAuth sign-in goes before the token and an expired one falls back to it.
+    /// **The one place** that decides whether a service counts as connected. The stored choice
+    /// decides which credentials count (see [`AuthChoice::pick`]).
     pub fn resolve(
         choice: Option<AuthChoice>,
         token: bool,
@@ -128,11 +124,10 @@ impl ServiceStatus {
         }
     }
 
-    /// **The one place** that turns the state of a connection into a tone and a sentence: the
-    /// summary of the assistant and the sign-in cards both read this. `provider` names the
-    /// service the sign-in goes through ("GitHub", "Atlassian"). A service that is not
-    /// connected and whose sign-in did not run out is [`Tone::Open`]; what is missing to
-    /// connect it depends on the setup, so the summary adds that on top.
+    /// **The one place** that turns the state of a connection into a tone and a sentence.
+    /// `provider` names the service the sign-in goes through ("GitHub", "Atlassian"). A service
+    /// that is not connected and whose sign-in did not run out is [`Tone::Open`]; what is missing
+    /// to connect it depends on the setup.
     pub fn summary(&self, provider: &str) -> (Tone, Msg) {
         match (self.connected, self.kind) {
             // The sign-in ran out and no token takes over: say why, not "not connected".

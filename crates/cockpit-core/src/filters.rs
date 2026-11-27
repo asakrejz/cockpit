@@ -1,14 +1,7 @@
 //! The inbox filters: one list says which filters exist, what they are called, which choices
-//! they offer and what they start with. The filter dialog renders this list. The values live in
-//! [`InboxFilter`], which reads and writes them by filter ID (`get`/`set`), always as text
-//! where the empty text means „all“, and decides which entries match.
-//!
-//! The chosen values are part of the workspace ([`Workspace::inbox_filter`](crate::Workspace))
-//! and change only by [`Action::SetInboxFilter`](crate::Action).
-//!
-//! Filters whose choices come from the data (repos, people, projects, labels) have
-//! [`Choices::FromData`]; [`Workspace::filter_choices`](crate::Workspace::filter_choices) lists
-//! them.
+//! they offer and what they start with. The values live in [`InboxFilter`], which reads and
+//! writes them by filter ID (`get`/`set`), always as text where the empty text means „all“, and
+//! decides which entries match.
 
 mod inbox;
 
@@ -29,7 +22,7 @@ pub enum SprintView {
 }
 
 impl SprintView {
-    /// The IDs, in display order; the interface words them.
+    /// The IDs, in display order.
     pub const IDS: &'static [&'static str] = &["current", "open", "recent", "backlog"];
 
     pub fn id(self) -> &'static str {
@@ -69,10 +62,10 @@ pub const UNASSIGNED: &str = "@none";
 /// the workspace).
 pub const JIRA_PROJECT_FILTER: &str = "jira_project";
 
-/// A filter that is not at its start value, as shown in the chip under the filter button.
+/// A filter that is not at its start value.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActiveFilter {
-    /// Filter ID, or [`JIRA_PROJECT_FILTER`]; the interface words it.
+    /// Filter ID, or [`JIRA_PROJECT_FILTER`].
     pub id: &'static str,
     /// The chosen value as the person reads it.
     pub value: String,
@@ -89,7 +82,7 @@ pub enum Applies {
 /// Where the choices of a filter come from.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Choices {
-    /// The IDs, in display order; the interface words them.
+    /// The IDs, in display order.
     Fixed(&'static [&'static str]),
     /// From the entries in the workspace (see `Workspace::filter_choices`).
     FromData,
